@@ -228,9 +228,33 @@ PRODUCTION_DESTINATION_SELECTORS = [
 
 RESTORE_REVIEW_SELECTORS = ['FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/testPhysicalForkCreatesReviewReceiptAndSecondHopSurvivesOriginalPackageRemoval', 'FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/testPopulatedCrossWorkspaceReplacementCreatesOnlyReviewAndRetainsOriginalHistory', 'FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/testSameWorkspaceReplacementPreservesCheckpointAndOriginalReceiptBytes', 'FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/testPrepublicationInterruptionReconcilesToUnchangedPopulatedGeneration', 'FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/testPhysicalForkKeepsTerminalHistoryAndUnrelatedDraftOwners', 'FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/testReviewPlanRejectsMissingOrChangedOwnedRowsWithoutConsumingUnrelatedDrafts', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testWrongContextIdentityAndGenerationHaveNoEffects', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testChangedBindingDeniesAdmissionAndCommitWithoutEffects', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testChangedCommandAndEnvelopeAreDeniedBeforeEffects', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testChangedCommandOrEnvelopeCannotCommitAfterExactAdmission', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testGenericWriterCommandReachesAdmissionAndIsDeniedWithoutEffects', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testRecoveryBodyNeverRunsAndHasNoEffects', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testSynchronousRevocationDeniesReadAdmissionAndPreviouslyAdmittedCommit']
 
+REMINDER_PRODUCTION_SELECTORS = ['FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testV23P03C37TypedPoseContractAnchor', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testV23P03C29TypedPlanContractAnchor', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testV23P03C28TypedScheduleBoundaryIsClosedAndNonpersistent', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testV23P03C34PackageDestinationRegistrationRemainsNonAutomatic', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testAbortedEraseAdmissionRestoresFreshDisabledAccessAndPreservesOriginalOwners', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testAbortedEraseAdmissionPreservesEnabledConfigurationAndRequiresFreshUnlock', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testAbortedEraseAdmissionRejectsConfigurationABAAndCannotReleaseDurableIntent', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testFullEraseReservationSurvivesBackgroundAndRejectsConfigurationBypasses', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testCompletedErasePreservesProtectedDataAndRequiresFreshActiveStartup', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testCompletedEraseRetainsReceiptUntilFreshSettingsAndAllNotificationLeavesAreEmpty', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testCompletedEraseRejectsOriginalAuthorizationABAAndReceiptReplayAfterConfigurationCycle', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testFullEraseAdmissionExcludesConfigurationWhileAdoptionAllowsBackgroundEvents', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testContentReadReferenceBlocksRevocationAndRejectsRevokedEpochABA', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testRuntimeProtectedDataLossRevokesDisabledAndEnabledCapabilitiesUntilVerifiedRecovery', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testRuntimeProtectedDataLossCancelsPendingAuthenticationAndRejectsUnverifiedRecovery', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testConcreteAppLockSettingReadRequiresFreshProtectedDataAvailability', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testProtectedDataRecoveryGenerationRejectsNewLossDuringRecovery', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testConfigurationAuthenticationSettlesBothCallbackAndActiveOrderings', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testConfigurationAuthenticationPendingActiveIsPreemptedByRevocation', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testRecoveryCompletionRejectsPendingConfigurationAttemptWithoutStrandingCancellation', 'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testSavedDetailedPolicyUsesAuthenticatedKindsAndReplacesChangedPayloads', 'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testAppLockEnableProjectsGenericAndDisableUsesCurrentDetailedConsent', 'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testExpiredDetailedRequestIsRemovedOnPrivacyDowngradeWithoutReadding', 'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testExpiredUnobservedGenericReminderStillFailsWithoutEffects', 'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testPermissionDenialStillRemovesForbiddenDetailWithoutClaimingDelivery', 'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testSavedReconciliationCannotRenewRevokedOriginalProof', 'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testNotificationCopySourcesBindExactReleaseAndEffectiveBasis', 'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testGenericPolicyRejectsDetailedDurableMappingWithoutSystemEffects', 'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testUnboundAndRetiredOwnersCannotMintOrRebind', 'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testDisabledForegroundEditAndFreshAuthorityReplayPreserveExactBytes', 'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testEnabledPolicyRequiresUnlockAndOldCommandCannotSurviveRelock', 'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testCommandsCannotTransferAcrossAdaptersOrGateIssuers', 'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testReplacementOwnerAcceptsOnlyFreshCommandsAndRetirementIsMonotonic', 'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testProtectedDataAndConfigurationTransitionsRevokeHeldEditsWithoutEffects', 'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testActualPreferenceWriteSerializesWithRevocationAndRetirement', 'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testProductionReconciliationRetryKeepsSavedRevisionAndNeverPrompts', 'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testProductionSettingsReadDoesNotPromptAndDeniedEnablePersistsExplicitChoice', 'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testProductionDetailChoiceWhileDisabledDoesNotPromptAndRejectsStaleEdit', 'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testProductionAppLockRequiresUnlockAndOldSettingsPublicationStaysRevoked', 'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testProductionPermissionReplyAfterBackgroundCannotSaveConsent', 'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testProductionCompletedEraseReplacesOwnersAndRejectsPendingPermissionEdit', 'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testPermissionReadNeverPromptsAndExplicitRequestNeverWritesConsent', 'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testInactiveDisabledAndLockedEnabledStatesCannotPrompt', 'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testRevocationDuringAuthorizationReadPreventsPrompt', 'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testPermissionReplyAfterRevocationCannotRenewForegroundOrConsent', 'FieldEvidenceAppTests/V23DetailedReminderDeliveryTests/testGenericEncodingAndReadbackRetainExactLegacyShape', 'FieldEvidenceAppTests/V23DetailedReminderDeliveryTests/testBothKindsUseApprovedCopyAndTokenOnlySystemPayload', 'FieldEvidenceAppTests/V23DetailedReminderDeliveryTests/testFrozenZoneAndEffectiveInstantDistinguishDSTFold', 'FieldEvidenceAppTests/V23DetailedReminderDeliveryTests/testDetailedReadbackRejectsUnapprovedCopyAndAncillaryFields', 'FieldEvidenceAppTests/V23DetailedReminderDeliveryTests/testNumericZoneFallbackUsesExplicitOffsetWithoutDeviceDefaults', 'FieldEvidenceAppTests/V23DetailedReminderDeliveryTests/testFrozenOffsetCopyDoesNotResolveCurrentTimeZoneRules', 'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testIncompleteEnableAndDisableRemainAvailableForAuthenticatedRecovery', 'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testEnabledAndCompletedDisabledEditsReopenWithoutReplayingPolicyOrOSEffects', 'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testSecondEditRollsContinuationAndRejectsOldOperationAndAuthenticationSubject', 'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testInterruptedPreferenceAndPendingPublicationRecoverMetadataExactlyOnce', 'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testInterruptedPolicyEditRejectsOldSubjectBeforeNewToggleSourceOrOSEffects', 'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testDivergentPendingBlocksSettlementAndSecondPolicyWriteWithoutDiscardingEvidence', 'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testUnstampedResetEraseAndChangedStampCannotRepairControl', 'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testForeignPreferencesControlBindingAndChangedSettingDenyBeforePolicyWrite', 'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testMissingDisabledControlWithStampOrPendingIsNotReady', 'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testNilContinuationPreservesLegacyCanonicalControlAndSubjectBytes', 'FieldEvidenceAppTests/S6_3BackupValidationTests/testImportPreservesSupportedSchemaPairsAndRejectsForeignPairs', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testRoundArchiveStagingPreservesVersionAndAuthorityBoundaries', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testEmptyStockProjectionPreservesUnrelatedOriginalHistories', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testEmptyStockRowsCannotHideOwnedCommandHistory', 'FieldEvidenceAppTests/V23RoundRestoreHistoryTests/testRoundAppendUsesDestinationPrefixAndPreservesEveryOriginal', 'FieldEvidenceAppTests/V23RoundRestoreHistoryTests/testRoundBindingsAndSourceHistoryMustMatchExactly', 'FieldEvidenceAppTests/V23RoundRestoreHistoryTests/testRoundAppendPreservesIncumbentQuarantineAndForeignFrontier', 'FieldEvidenceAppTests/V23RoundRestoreHistoryTests/testEarlierTargetRoundCannotBeHiddenByLastReceiptFrontier', 'FieldEvidenceAppTests/V23RoundRestoreHistoryTests/testRoundMetadataIsRetainedAndUnresolvedCausationIsDenied', 'FieldEvidenceAppTests/V23RoundRestoreHistoryTests/testRoundReversalClosureCannotBorrowArchivedStockPlanException']
+REMINDER_PRODUCTION_GROUPS = [{'classes': ['V23ReminderPolicyEditTests'], 'id': 'reminder-policy-edit', 'methodCount': 7}, {'classes': ['V23ReminderProductionSettingsTests'], 'id': 'reminder-production-settings', 'methodCount': 10}, {'classes': ['V23DetailedReminderDeliveryTests'], 'id': 'reminder-detailed-delivery', 'methodCount': 6}, {'classes': ['V23ReminderControlContinuationTests'], 'id': 'reminder-control-continuation', 'methodCount': 10}, {'classes': ['V23RoundRestoreHistoryTests'], 'id': 'round-restore-history', 'methodCount': 6}]
+
+SETTINGS_COMPATIBILITY_SELECTORS = ['FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testV23P03C45CompatibilityKeepsOutputActivationExplicitAndBounded', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testV23P03C51RuntimeAndCheckRunnerStayLocalExplicitAndDerived', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testTypedEvidenceContextContractAnchor', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testC31TypedLightingPackageContractAnchor', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testC33V914SettingsCapabilityLifecycleCompatibilityBindsTypedTemporalEvidenceToItsOwner', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testC32V914SettingsCapabilityLifecycleCompatibilityKeepsProposalAtExplicitReviewBoundary', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testC46SettingsCannotActivateAutomaticHandoff']
+
 def prepartition_values(default, mapping):
-    if len(default.get("unitTestSelectors", [])) == 790:
+    if len(default.get('unitTestSelectors', [])) == 868:
         if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.GENERATED_SELECTION_POOL_SHA256, CI.GENERATED_SELECTION_MAP_SHA256):
+            raise AssertionError('changed generated Settings compatibility inputs')
+        if default['unitTestSelectors'][861:] != SETTINGS_COMPATIBILITY_SELECTORS:
+            raise AssertionError('changed exact Settings compatibility append')
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        default['unitTestSelectors'] = default['unitTestSelectors'][:861]
+        for group in mapping['groups']:
+            group['methodCount'] = sum(CI.selection_class(item) in group['classes'] for item in default['unitTestSelectors'])
+    if len(default.get('unitTestSelectors', [])) == 861:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != ('5484325202957B1DFF6BCD00918273A7792D6D2E5280D32BFEE1368D67CBAE70', '38554B50BAE48ED14098ED2B243B1D19497EB98EBA480A274741BDF6B6416B04'):
+            raise AssertionError('changed generated reminder production inputs')
+        if default['unitTestSelectors'][790:] != REMINDER_PRODUCTION_SELECTORS or mapping['groups'][48:] != REMINDER_PRODUCTION_GROUPS:
+            raise AssertionError('changed exact reminder production append')
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        default['unitTestSelectors'] = default['unitTestSelectors'][:790]
+        mapping['groups'] = mapping['groups'][:48]
+        for group in mapping['groups']:
+            group['methodCount'] = sum(CI.selection_class(item) in group['classes'] for item in default['unitTestSelectors'])
+    if len(default.get("unitTestSelectors", [])) == 790:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != ('658B54FBAA5E5907778892FD8F6B07BA5DEE82E5542580AC20723DC711E33584', '143C205A5011FDBF1688CDF885B047070F192471AEDC5BF5B06FBFC20517DB98'):
             raise AssertionError("changed generated restore review inputs")
         if default["unitTestSelectors"][777:] != RESTORE_REVIEW_SELECTORS:
             raise AssertionError("changed exact restore review append")
@@ -370,6 +394,11 @@ def frozen_begin_suite_source():
         'V23CheckRunnerFrozenBeginPreparationTests','V23CheckRunnerFrozenBeginWriterTests','V23CheckRunnerDurableInitialBeginTests'))
 
 def prepartition_workflow(workflow):
+    for group in REMINDER_PRODUCTION_GROUPS:
+        choice = '          - ' + group['id'] + '\n'
+        if workflow.count(choice) != 1: raise AssertionError('missing exact reminder/restore choice')
+        workflow = workflow.replace(choice, '')
+    workflow = workflow.replace('all 868 methods across 53 bounded groups', 'all 790 methods across 48 bounded groups')
     for group_id in ("c36-restore-review", CI.NO_INDEX_SELECTION_ID,
                      CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID, "c36-restore-authority"):
         choice = "          - " + group_id + "\n"
@@ -458,9 +487,9 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
 
     def test_current_generated_profile_admits_exact_new_groups_and_binds_protocol_sources(self):
         report = CI.verify_generated_selection(self.root, self.default, self.mapping)
-        self.assertEqual((report['selectorCount'], report['groupCount']), (790, 48))
+        self.assertEqual((report['selectorCount'], report['groupCount']), (868, 53))
         for group_id, count in [('mutation-receipt-safety', 1), ('c36-raw-staging', 5),
-                                ('notification-owner', 77), ('c36-startup-recovery', 2),
+                                ('notification-owner', 93), ('c36-startup-recovery', 2),
                                 ('backup-capacity', 1), ('c36-photo-backup-transport', 12),
                                 ('c36-photo-backup-restore', 3), ('c36-photo-configuration-clone', 7),
                                 ('c36-production-destination', 4), ('c36-restore-review', 6), ('c36-restore-authority', 7)]:
@@ -603,10 +632,54 @@ class ReportPartitionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'unknown selection ID'):
             CI.resolve_selection(default, mapping, selected_id + '-unknown')
 
+    def test_settings_compatibility_members_bind_exact_current_owner_and_reject_substitution(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.assertEqual(default['unitTestSelectors'][861:], SETTINGS_COMPATIBILITY_SELECTORS)
+        self.assertEqual(len(set(SETTINGS_COMPATIBILITY_SELECTORS)), 7)
+        selected = CI.resolve_selection(default, mapping, 'notification-controls')
+        self.assertEqual(selected['unitTestSelectors'], [s for s in default['unitTestSelectors'] if CI.selection_class(s) == 'V9_14SettingsCapabilityLifecycleTests'])
+        self.assertEqual(len(selected['unitTestSelectors']), 27)
+        self.assertEqual(tuple(selected[key] for key in CI.BUDGET_KEYS), CI.TIERS['N8'])
+        for index in range(861, 868):
+            for kind in ('missing', 'duplicate', 'old-private-owner'):
+                changed = copy.deepcopy(default)
+                if kind == 'missing': del changed['unitTestSelectors'][index]
+                elif kind == 'duplicate': changed['unitTestSelectors'][index] = changed['unitTestSelectors'][index - 1]
+                else: changed['unitTestSelectors'][index] = changed['unitTestSelectors'][index].replace('V9_14SettingsCapabilityLifecycleTests', 'C45SettingsCapabilityCompatibilityTests')
+                with self.subTest(index=index, kind=kind), self.assertRaises(ValueError):
+                    CI.resolve_selection(changed, mapping, 'notification-controls')
+
+    def test_reminder_production_groups_bind_exact_new_members_and_reject_substitution(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.assertEqual(default['unitTestSelectors'][790:861], REMINDER_PRODUCTION_SELECTORS)
+        self.assertEqual(mapping['groups'][48:], REMINDER_PRODUCTION_GROUPS)
+        self.assertEqual(len(set(REMINDER_PRODUCTION_SELECTORS)), 71)
+        for group in REMINDER_PRODUCTION_GROUPS:
+            selected = CI.resolve_selection(default, mapping, group['id'])
+            expected = [item for item in REMINDER_PRODUCTION_SELECTORS if CI.selection_class(item) in group['classes']]
+            self.assertEqual(selected['unitTestSelectors'], expected)
+            self.assertEqual(tuple(selected[key] for key in CI.BUDGET_KEYS), CI.TIERS['N8'])
+            with self.assertRaises(ValueError): CI.resolve_selection(default, mapping, group['id'] + '-unknown')
+        for index in range(790, 861):
+            for kind in ('missing', 'duplicate', 'unknown'):
+                changed = copy.deepcopy(default)
+                if kind == 'missing': del changed['unitTestSelectors'][index]
+                elif kind == 'duplicate': changed['unitTestSelectors'][index] = changed['unitTestSelectors'][0]
+                else: changed['unitTestSelectors'][index] += 'Unknown'
+                with self.subTest(index=index, kind=kind), self.assertRaises(ValueError):
+                    CI.resolve_selection(changed, mapping, 'reminder-production-settings')
+        overlap = copy.deepcopy(mapping)
+        overlap['groups'][-1]['classes'].append(overlap['groups'][-2]['classes'][0])
+        with self.assertRaises(ValueError): CI.resolve_selection(default, overlap, 'reminder-production-settings')
+        prior, _ = prepartition_values(default, mapping)
+        self.assertEqual(len(prior['unitTestSelectors']), 692)
+
     def test_restore_review_groups_bind_exact_membership_and_reject_hostile_inputs(self):
         default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
-        self.assertEqual(default['unitTestSelectors'][777:], RESTORE_REVIEW_SELECTORS)
+        self.assertEqual(default['unitTestSelectors'][777:790], RESTORE_REVIEW_SELECTORS)
         observed = []
         for group_id, expected in [('c36-restore-review', RESTORE_REVIEW_SELECTORS[:6]),
                                    ('c36-restore-authority', RESTORE_REVIEW_SELECTORS[6:])]:
@@ -627,7 +700,7 @@ class ReportPartitionTests(unittest.TestCase):
                 with self.subTest(index=index, kind=kind), self.assertRaises(ValueError):
                     CI.resolve_selection(changed, mapping, 'c36-restore-review')
         overlap = copy.deepcopy(mapping)
-        overlap['groups'][-1]['classes'].append(overlap['groups'][-2]['classes'][0])
+        overlap['groups'][47]['classes'].append(overlap['groups'][46]['classes'][0])
         with self.assertRaises(ValueError):
             CI.resolve_selection(default, overlap, 'c36-restore-review')
         prior, prior_map = prepartition_values(default, mapping)
@@ -703,7 +776,7 @@ class ReportPartitionTests(unittest.TestCase):
         default=CI.read_json(ROOT / 'Scripts/ci-selection.json')
         mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
         prior, prior_map=prepartition_values(default,mapping)
-        self.assertEqual(len(default['unitTestSelectors']),790)
+        self.assertEqual(len(default['unitTestSelectors']),868)
         self.assertEqual(default['unitTestSelectors'][:677],prior['unitTestSelectors'][:677])
         seen=[]
         for group in mapping['groups']:
@@ -715,8 +788,14 @@ class ReportPartitionTests(unittest.TestCase):
                 source=(ROOT / 'FieldEvidenceAppTests' / (klass+'.swift')).read_text(encoding='utf-8')
                 declared=re.findall(r'^    func (test\w+)\(',source,re.M)
                 self.assertEqual({s.rsplit('/',1)[1] for s in members if s.split('/')[1]==klass},set(declared))
-            if group['id'] not in DESTINATION_GROUP_IDS + ['c36-restore-review','c36-restore-authority','c36-production-destination','report-camera-recovery','notification-owner','mutation-receipt-safety','c36-raw-staging','c36-startup-recovery','archive-contracts','restore-acceptance','backup-capacity']+[g['id'] for g in REPORT_PARTITION_GROUPS]:
-                self.assertEqual(actual,CI.resolve_selection(prior,prior_map,group['id']))
+            appended = [item for item in REMINDER_PRODUCTION_SELECTORS + SETTINGS_COMPATIBILITY_SELECTORS
+                        if CI.selection_class(item) in group['classes']]
+            if group['id'] in [g['id'] for g in REMINDER_PRODUCTION_GROUPS]:
+                self.assertEqual(actual, dict(prior, unitTestSelectors=appended))
+            elif group['id'] not in DESTINATION_GROUP_IDS + ['c36-restore-review','c36-restore-authority','c36-production-destination','report-camera-recovery','notification-owner','mutation-receipt-safety','c36-raw-staging','c36-startup-recovery','archive-contracts','restore-acceptance','backup-capacity']+[g['id'] for g in REPORT_PARTITION_GROUPS]:
+                expected = CI.resolve_selection(prior, prior_map, group['id'])
+                expected['unitTestSelectors'] += appended
+                self.assertEqual(actual, expected)
         self.assertEqual(len(seen),len(set(seen)))
         self.assertEqual(set(seen),set(default['unitTestSelectors']))
         report=[s for s in seen if s.split('/')[1] in {c for g in [mapping['groups'][13]]+REPORT_PARTITION_GROUPS for c in g['classes']}]
@@ -1068,7 +1147,7 @@ class NoIndexBuildDiagnosticTests(unittest.TestCase):
         self.assertEqual(self.selected, CI.resolve_selection(self.default, self.mapping, 'c36-restore-review'))
         self.assertEqual(len(self.selected['unitTestSelectors']), 6)
         self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (790, 48))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (868, 53))
         for suffix in ('-retry', '-parallel', '-30m'):
             with self.assertRaises(ValueError):
                 CI.resolve_selection(self.default, self.mapping, CI.NO_INDEX_SELECTION_ID + suffix)
@@ -1288,15 +1367,15 @@ class RestoreBuildWatchdogDiagnosticTests(unittest.TestCase):
         self.assertEqual(len(self.selected['unitTestSelectors']), 6)
         self.assertEqual(tuple(ordinary[k] for k in CI.BUDGET_KEYS), (300,1200,900,0,2400))
         self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.NO_INDEX_SELECTION_ID), ordinary)
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (790,48))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (868,53))
         for suffix in ('-retry', '-parallel', '-permanent'):
             with self.assertRaises(ValueError):
                 CI.resolve_selection(self.default, self.mapping, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID + suffix)
 
     def test_development_binding_rejects_consumed_build30_source(self):
         self.assertEqual(CI.NO_INDEX_PARENT, '5c1e9831153e9e5feddda08e1152de06ecbaaed2')
-        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_PARENT, 'ed9536305e35a257180e7525af1733c3c04e4f89')
-        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_TREES['FieldEvidenceAppTests'], '61ee975b0a57c42c2cb699cbbf7e9e741ca857b9')
+        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_PARENT, '550ee50b6d5b6c5a53616029d209338196b10cf6')
+        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_TREES['FieldEvidenceAppTests'], 'f4b21dedb4eb6b05f4e0796047ada8f95ac58f66')
         self.assertEqual(CI.NO_INDEX_TREES['FieldEvidenceAppTests'], '6ae80744a230727892ceb04617421d91fd17e53a')
         for stage in ('dispatch', 'worker'):
             def substituted(command, **kwargs):
@@ -1397,8 +1476,8 @@ class BuildOrderDiagnosticTests(unittest.TestCase):
         for suffix in ('-retry', '-parallel', '-30m'):
             with self.assertRaises(ValueError):
                 CI.resolve_selection(self.default, self.mapping, CI.BUILD_ORDER_SELECTION_ID + suffix)
-        self.assertEqual(len(self.default['unitTestSelectors']), 790)
-        self.assertEqual(len(self.mapping['groups']), 48)
+        self.assertEqual(len(self.default['unitTestSelectors']), 868)
+        self.assertEqual(len(self.mapping['groups']), 53)
 
     def test_both_admission_stages_require_original_github_parent_and_all_four_source_trees(self):
         for stage in ('dispatch', 'worker'):

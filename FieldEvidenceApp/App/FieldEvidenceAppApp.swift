@@ -431,7 +431,10 @@ private struct ReadyAppView: View {
                     onLockNow: {
                         access.lockNow()
                     }
-                )
+                ),
+                reminderSettingsSection: access.reminderSettingsAccess.map {
+                    ReminderSettingsSectionV1(access: $0)
+                }
             )
             }
             } else {

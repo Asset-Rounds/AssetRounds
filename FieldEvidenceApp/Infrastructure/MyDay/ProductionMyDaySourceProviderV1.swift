@@ -58,6 +58,14 @@ struct MyDaySourceSnapshotV1: Sendable {
 
 /// Private scheduling evidence, never a portable read capability. Repair reads
 /// contain only the schedule closure and cannot expose the general MyDay view.
+struct NotificationCopySourceV1: Codable, Equatable, Sendable {
+    let occurrenceID: OccurrenceIDV1
+    let scheduleRelease: ScheduleDefinitionReleaseReferenceV1
+    let kind: ScheduledWorkKindV1
+    let timeZoneIdentifier: String
+    let effectiveBasis: ResolvedOccurrenceBasisV1
+}
+
 struct NotificationSourceSnapshotV1: Codable, Equatable, Sendable {
     let projection: ReminderProjectionV1
     let generationID: UUID
@@ -66,6 +74,7 @@ struct NotificationSourceSnapshotV1: Codable, Equatable, Sendable {
     let rootDevice: UInt64
     let rootInode: UInt64
     let sourceClosureSHA256: String
+    var copySources: [NotificationCopySourceV1]? = nil
 }
 
 /// A revocable, generation-bound read entry. It neither conforms to nor exports
@@ -323,11 +332,12 @@ struct NotificationSourceSnapshotV1: Codable, Equatable, Sendable {
         let closure = try ScheduleSourceClosure(context: current.modelContext, workspaceID: workspaceID)
         let due = try DueQueueProjectionV1(workspaceID: workspaceID, evaluatedAt: evaluatedAt,
             definitions: closure.definitions, history: closure.occurrences)
-        let value = NotificationSourceSnapshotV1(projection: try .init(dueQueue: due,
+        var value = NotificationSourceSnapshotV1(projection: try .init(dueQueue: due,
             localizationKey: ScheduleLocalizationKeyV1.reminder.rawValue),
             generationID: generationID, uiGenerationToken: uiGenerationToken, writerRevision: revision,
             rootDevice: UInt64(root.device), rootInode: UInt64(root.inode),
             sourceClosureSHA256: try MyDayCanonicalCodecV1.sha256(closure))
+        value.copySources = try Self.notificationCopySources(closure: closure, due: due, projection: value.projection)
         try await validateNotificationSnapshot(value, authorization: authorization)
         return value
     }
@@ -347,9 +357,11 @@ struct NotificationSourceSnapshotV1: Codable, Equatable, Sendable {
     func revalidatePersistedNotificationSnapshot(_ expected: NotificationSourceSnapshotV1,
                                                 authorization: NotificationOperationAuthorizationV1) async throws -> NotificationSourceSnapshotV1 {
         if case .content = authorization.proof { throw AppAccessContractFailureV1.accessDenied }
-        let current = try await notificationSnapshot(authorization: authorization,
+        var current = try await notificationSnapshot(authorization: authorization,
             evaluatedAt: expected.projection.evaluatedAt)
-        guard current.projection == expected.projection,
+        if expected.copySources == nil { current.copySources = nil }
+        guard current.copySources == expected.copySources,
+              current.projection == expected.projection,
               current.generationID == expected.generationID,
               current.rootDevice == expected.rootDevice, current.rootInode == expected.rootInode,
               current.sourceClosureSHA256 == expected.sourceClosureSHA256,
@@ -391,9 +403,32 @@ struct NotificationSourceSnapshotV1: Codable, Equatable, Sendable {
         }
         let due = try DueQueueProjectionV1(workspaceID: workspaceID, evaluatedAt: expected.projection.evaluatedAt,
             definitions: closure.definitions, history: closure.occurrences)
+        if let expectedCopy = expected.copySources {
+            guard try Self.notificationCopySources(closure: closure, due: due,
+                projection: expected.projection) == expectedCopy else { throw MyDaySourceReadFailureV1.sourcesChanged }
+        }
         guard try ReminderProjectionV1(dueQueue: due,
             localizationKey: ScheduleLocalizationKeyV1.reminder.rawValue) == expected.projection else {
             throw MyDaySourceReadFailureV1.sourcesChanged
+        }
+    }
+
+    private static func notificationCopySources(closure: ScheduleSourceClosure,
+        due: DueQueueProjectionV1, projection: ReminderProjectionV1) throws -> [NotificationCopySourceV1] {
+        try projection.reminders.map { reminder in
+            let entries = due.entries.filter { $0.occurrenceID == reminder.occurrenceID }
+            guard entries.count == 1, let entry = entries.first,
+                  entry.effectiveDueAtUTC == reminder.fireAtUTC else { throw MyDaySourceReadFailureV1.sourcesChanged }
+            let releases = try closure.definitions.filter { try ScheduleDefinitionReleaseReferenceV1($0) == entry.scheduleRelease }
+            let events = closure.occurrences.filter { $0.occurrenceID == reminder.occurrenceID }
+            guard releases.count == 1, let release = releases.first,
+                  let event = events.max(by: { $0.revision < $1.revision }),
+                  event.scheduleRelease == entry.scheduleRelease,
+                  event.effectiveBasis.resolvedAtUTC == reminder.fireAtUTC,
+                  event.effectiveBasis.utcOffsetSeconds != nil else { throw MyDaySourceReadFailureV1.sourcesChanged }
+            return NotificationCopySourceV1(occurrenceID: reminder.occurrenceID,
+                scheduleRelease: entry.scheduleRelease, kind: release.workDefinition.kind,
+                timeZoneIdentifier: release.timeBasis.ianaTimeZoneIdentifier, effectiveBasis: event.effectiveBasis)
         }
     }
 

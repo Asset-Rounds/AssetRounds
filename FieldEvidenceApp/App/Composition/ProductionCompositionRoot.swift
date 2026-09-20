@@ -26,24 +26,33 @@ struct ProductionAssetLabelWorkflow {
 /// exposes only the lifecycle's exact gate and its device-local collaborators;
 /// it neither opens a workspace nor starts startup recovery.
 @MainActor
+struct ProductionReminderSettingsOwnersV1 {
+    let preferences: PreferencesAdapterV1
+    let notifications: DeviceLocalNotificationOwnerV1
+}
+
+@MainActor
 struct ProductionAppAccessSessionV1 {
     let lifecycle: AppLockLifecycleCoordinatorV1
     let gate: AppAccessGateV1
     let setting: any DeviceLocalAppLockSettingPortV1
     let authentication: any LocalAuthenticationClient
     let sceneNavigationStatePort: @MainActor () -> any SceneNavigationDeviceStatePortV1
+    let reminderSettingsOwners: (@MainActor () -> ProductionReminderSettingsOwnersV1)?
     let completedEraseReplacement: (@MainActor (EraseAllOperationSubjectV1) throws -> CompletedEraseAccessReplacementV1)?
 
     init(lifecycle: AppLockLifecycleCoordinatorV1, gate: AppAccessGateV1,
          setting: any DeviceLocalAppLockSettingPortV1,
          authentication: any LocalAuthenticationClient,
          sceneNavigationStatePort: @escaping @MainActor () -> any SceneNavigationDeviceStatePortV1,
+         reminderSettingsOwners: (@MainActor () -> ProductionReminderSettingsOwnersV1)? = nil,
          completedEraseReplacement: (@MainActor (EraseAllOperationSubjectV1) throws -> CompletedEraseAccessReplacementV1)? = nil) {
         self.lifecycle = lifecycle
         self.gate = gate
         self.setting = setting
         self.authentication = authentication
         self.sceneNavigationStatePort = sceneNavigationStatePort
+        self.reminderSettingsOwners = reminderSettingsOwners
         self.completedEraseReplacement = completedEraseReplacement
     }
 }
@@ -53,7 +62,15 @@ struct ProductionAppAccessSessionV1 {
 @MainActor
 private final class ProductionPreferencesReferenceV1 {
     var current: PreferencesAdapterV1
-    init(_ current: PreferencesAdapterV1) { self.current = current }
+    var notifications: DeviceLocalNotificationOwnerV1
+    init(_ current: PreferencesAdapterV1, notifications: DeviceLocalNotificationOwnerV1) {
+        self.current = current
+        self.notifications = notifications
+    }
+
+    var reminderSettingsOwners: ProductionReminderSettingsOwnersV1 {
+        .init(preferences: current, notifications: notifications)
+    }
 }
 
 @MainActor
@@ -106,7 +123,6 @@ final class ProductionCompositionRoot {
             throw AppAccessContractFailureV1.configurationUnknown
         }
         let preferences = PreferencesAdapterV1(defaults: defaults)
-        let preferencesReference = ProductionPreferencesReferenceV1(preferences)
         let control = try AppLockNotificationControlStoreV1(
             applicationSupportURL: applicationSupportURL,
             preferences: preferences
@@ -123,6 +139,7 @@ final class ProductionCompositionRoot {
         ) { authorization in
             try await startupRouter.notificationSource(authorization: authorization)
         }
+        let preferencesReference = ProductionPreferencesReferenceV1(preferences, notifications: notificationOwner)
         let setting = try DeviceLocalAppLockSettingAdapterV1(
             preferences: preferences,
             registry: try SettingsRegistryV1.current(),
@@ -141,6 +158,7 @@ final class ProductionCompositionRoot {
             identifiers: identifiers
         )
         let gate = await lifecycle.accessGate()
+        try notificationOwner.bindReminderPolicyEdits(to: gate)
         try startupRouter.bindStartupAccessGate(gate)
         return ProductionAppAccessSessionV1(
             lifecycle: lifecycle,
@@ -148,11 +166,15 @@ final class ProductionCompositionRoot {
             setting: setting,
             authentication: authentication,
             sceneNavigationStatePort: { preferencesReference.current },
+            reminderSettingsOwners: { preferencesReference.reminderSettingsOwners },
             completedEraseReplacement: { subject in
                 let replacement = try makeCompletedEraseAccessReplacement(subject: subject,
                     startupRouter: startupRouter, defaults: defaults,
                     notificationSystem: system)
+                try replacement.notifications.bindReminderPolicyEdits(to: gate)
+                preferencesReference.current.retireReminderPolicyEdits()
                 preferencesReference.current = replacement.preferences
+                preferencesReference.notifications = replacement.notifications
                 return replacement.access
             }
         )
@@ -166,7 +188,8 @@ final class ProductionCompositionRoot {
         startupRouter: StartupRouter,
         defaults: UserDefaults = .standard,
         notificationSystem: (any NotificationSystemPortV1)? = nil
-    ) throws -> (access: CompletedEraseAccessReplacementV1, preferences: PreferencesAdapterV1) {
+    ) throws -> (access: CompletedEraseAccessReplacementV1, preferences: PreferencesAdapterV1,
+                 notifications: DeviceLocalNotificationOwnerV1) {
         let preferences = PreferencesAdapterV1(defaults: defaults)
         let control = try AppLockNotificationControlStoreV1(
             applicationSupportURL: subject.applicationSupportURL,
@@ -186,7 +209,7 @@ final class ProductionCompositionRoot {
                 applicationSupportURL: subject.applicationSupportURL),
             notifications: AppLockNotificationPrivacyCoordinatorV1(effects: owner),
             notificationControl: control, clock: clock)
-        return (access: access, preferences: preferences)
+        return (access: access, preferences: preferences, notifications: owner)
     }
 
     /// C31 composes only foreground, nonpersistent handoff state. The caller

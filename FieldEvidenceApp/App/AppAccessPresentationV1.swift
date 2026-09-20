@@ -60,6 +60,13 @@ final class AppAccessPresentationV1: ObservableObject {
             return try token.withContentRead(for: surface, body)
         }
 
+        @MainActor
+        fileprivate func reminderAuthorization() throws -> NotificationOperationAuthorizationV1 {
+            guard surface == .render else { throw AppAccessContractFailureV1.accessDenied }
+            try withRead {}
+            return .init(gate: gate, proof: .content(token), operationID: UUID(), subject: nil)
+        }
+
         /// Called only by the explicit backup action. The operation retains
         /// this publication, including its original revocation reference.
         @MainActor
@@ -74,6 +81,100 @@ final class AppAccessPresentationV1: ObservableObject {
         }
     }
     typealias BackupPreviewAccess = ContentAccess
+
+    struct ReminderSettingsSnapshot: Equatable, Sendable {
+        let policy: DeviceLocalReminderPolicyV1
+        let authorization: LocalReminderAuthorizationV1
+        let appLockEnabled: Bool
+    }
+
+    /// Settings retains its original visible publication and concrete owners.
+    /// A later foreground or completed Erase cannot refresh a held action.
+    @MainActor
+    final class ReminderSettingsAccess {
+        let id = UUID()
+        private let publication: ContentAccess
+        private let owners: ProductionReminderSettingsOwnersV1
+        private let currentOwners: @MainActor () -> ProductionReminderSettingsOwnersV1
+
+        fileprivate init(publication: ContentAccess,
+                         currentOwners: @escaping @MainActor () -> ProductionReminderSettingsOwnersV1) {
+            self.publication = publication
+            self.currentOwners = currentOwners
+            owners = currentOwners()
+        }
+
+        private func validated<T>(_ body: () throws -> T) throws -> T {
+            try Task.checkCancellation()
+            return try publication.withRead {
+                let current = currentOwners()
+                guard current.preferences === owners.preferences,
+                      current.notifications === owners.notifications else {
+                    throw AppAccessContractFailureV1.accessDenied
+                }
+                return try body()
+            }
+        }
+
+        func read() async throws -> ReminderSettingsSnapshot {
+            let saved = try validated {
+                (try owners.preferences.readReminderPolicy(), try owners.preferences.readAppLockSettingSnapshot())
+            }
+            let authorization = try publication.reminderAuthorization()
+            let permission = try await owners.notifications.reminderAuthorization(authorization: authorization)
+            try validated {
+                guard try owners.preferences.readStoredReminderPolicy() == saved.0,
+                      try owners.preferences.readAppLockSettingSnapshot() == saved.1 else {
+                    throw SettingsContractFailureV1.staleRevision
+                }
+            }
+            let appLockEnabled = try saved.1.setting?.isEnabled == true
+            return .init(policy: saved.0, authorization: permission, appLockEnabled: appLockEnabled)
+        }
+
+        func update(expected: DeviceLocalReminderPolicyV1, isEnabled: Bool,
+                    detail: ReminderNotificationDetailV1) async throws {
+            try validated {
+                guard try owners.preferences.readStoredReminderPolicy() == expected else {
+                    throw SettingsContractFailureV1.staleRevision
+                }
+            }
+            let authorization = try publication.reminderAuthorization()
+            let request = ReminderPolicyEditRequestV1(expected: expected, isEnabled: isEnabled,
+                detail: detail, operationID: UUID())
+            let command = try await owners.preferences.authorizeReminderPolicyEdit(request)
+            try validated {}
+            if isEnabled && !expected.isEnabled {
+                _ = try await owners.notifications.requestReminderAuthorization(authorization: authorization)
+                try validated {}
+            }
+            // Do not nest the command's revocation lock under the render lock.
+            // MainActor publication/owner checks cannot interleave here; the
+            // sole Preferences leaf independently checks live edit authority.
+            _ = try owners.preferences.updateReminderPolicy(command)
+            try validated {}
+            _ = try await owners.notifications.reconcileSavedReminderPolicy(authorization: authorization)
+            try validated {}
+        }
+
+        func requestPermission() async throws {
+            try validated {}
+            let authorization = try publication.reminderAuthorization()
+            _ = try await owners.notifications.requestReminderAuthorization(authorization: authorization)
+            try validated {}
+            _ = try await owners.notifications.reconcileSavedReminderPolicy(authorization: authorization)
+            try validated {}
+        }
+
+        /// Explicit recovery of a saved choice. It never edits consent or
+        /// prompts for permission, and retains this visible publication.
+        func reconcileSavedPolicy() async throws {
+            try validated {}
+            let authorization = try publication.reminderAuthorization()
+            _ = try await owners.notifications.reconcileSavedReminderPolicy(authorization: authorization)
+            try validated {}
+        }
+    }
 
     /// A private-minted, nonportable action capability. It neither reacquires
     /// authentication nor adopts a replacement writer after an actor hop.
@@ -905,6 +1006,7 @@ final class AppAccessPresentationV1: ObservableObject {
     private var publishedSceneNavigationAccess: SceneNavigationAccess?
     private var publishedMyDayAccess: MyDayAccess?
     private var publishedRoundAccess: RoundAccess?
+    private var publishedReminderSettingsAccess: ReminderSettingsAccess?
     /// Created once only after a store has reached an authorized render
     /// publication. A failed attempt remains unavailable for that publication
     /// and may be retried by a later eligible publication.
@@ -925,6 +1027,9 @@ final class AppAccessPresentationV1: ObservableObject {
     }
     var roundAccess: RoundAccess? {
         permitsContentPresentation ? publishedRoundAccess : nil
+    }
+    var reminderSettingsAccess: ReminderSettingsAccess? {
+        permitsContentPresentation ? publishedReminderSettingsAccess : nil
     }
 
     private struct QueuedLifecycleEvent {
@@ -1471,6 +1576,9 @@ final class AppAccessPresentationV1: ObservableObject {
             let renderAccess = ContentAccess(token: token, surface: .render,
                 gate: session.gate, isCurrent: stillCurrent, backupStore: backupStore)
             publishedRenderAccess = renderAccess
+            publishedReminderSettingsAccess = session.reminderSettingsOwners.map {
+                ReminderSettingsAccess(publication: renderAccess, currentOwners: $0)
+            }
             if case .ready(let store, _, _) = startupRouter.route {
                 publishedSceneNavigationAccess = SceneNavigationAccess(token: sceneToken,
                     isCurrent: stillCurrent, port: session.sceneNavigationStatePort(),

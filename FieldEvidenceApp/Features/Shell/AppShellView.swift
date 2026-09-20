@@ -22,6 +22,10 @@ private struct AppLockSettingsSectionKey: EnvironmentKey {
     static let defaultValue: AppLockSettingsSectionV1? = nil
 }
 
+private struct ReminderSettingsSectionKey: EnvironmentKey {
+    static let defaultValue: ReminderSettingsSectionV1? = nil
+}
+
 private struct AppContentAccessKey: EnvironmentKey {
     static let defaultValue: AppAccessPresentationV1.ContentAccess? = nil
 }
@@ -34,6 +38,10 @@ private extension EnvironmentValues {
     var appLockSettingsSection: AppLockSettingsSectionV1? {
         get { self[AppLockSettingsSectionKey.self] }
         set { self[AppLockSettingsSectionKey.self] = newValue }
+    }
+    var reminderSettingsSection: ReminderSettingsSectionV1? {
+        get { self[ReminderSettingsSectionKey.self] }
+        set { self[ReminderSettingsSectionKey.self] = newValue }
     }
 }
 
@@ -311,6 +319,7 @@ struct AppShellView: View {
     let replaceDataBackup: @MainActor () -> Void
     let eraseAll: @MainActor () -> Void
     let appLockSettingsSection: AppLockSettingsSectionV1?
+    let reminderSettingsSection: ReminderSettingsSectionV1?
 
     #if DEBUG
     /// Observes actual native tab binding; cannot supply composition or state.
@@ -350,7 +359,8 @@ struct AppShellView: View {
         restoreDataBackup: @escaping @MainActor () -> Void = {},
         replaceDataBackup: @escaping @MainActor () -> Void = {},
         eraseAll: @escaping @MainActor () -> Void = {},
-        appLockSettingsSection: AppLockSettingsSectionV1? = nil
+        appLockSettingsSection: AppLockSettingsSectionV1? = nil,
+        reminderSettingsSection: ReminderSettingsSectionV1? = nil
     ) {
         self.packLoadResult = packLoadResult
         self.exposesColorSchemeForUITest = exposesColorSchemeForUITest
@@ -383,6 +393,7 @@ struct AppShellView: View {
         self.replaceDataBackup = replaceDataBackup
         self.eraseAll = eraseAll
         self.appLockSettingsSection = appLockSettingsSection
+        self.reminderSettingsSection = reminderSettingsSection
     }
 
     var body: some View {
@@ -558,6 +569,7 @@ struct AppShellView: View {
         .background(DesignTokens.SemanticColors.workBackground)
         .environment(\.eraseAllAction, EraseAllAction(call: eraseAll))
         .environment(\.appLockSettingsSection, appLockSettingsSection)
+        .environment(\.reminderSettingsSection, reminderSettingsSection)
         .environment(\.appContentAccess, contentAccess)
     }
 
@@ -1022,6 +1034,7 @@ struct SettingsPlaceholderView: View {
 
     @Environment(\.eraseAllAction) private var eraseAllAction
     @Environment(\.appLockSettingsSection) private var appLockSettingsSection
+    @Environment(\.reminderSettingsSection) private var reminderSettingsSection
     @Environment(\.appContentAccess) private var contentAccess
 
     @ObservedObject var purchaseCoordinator: StoreKitPurchaseCoordinator
@@ -1071,6 +1084,9 @@ struct SettingsPlaceholderView: View {
 
                     if let appLockSettingsSection {
                         appLockSettingsSection
+                    }
+                    if let reminderSettingsSection {
+                        reminderSettingsSection
                     }
 
                 if let contentAccess {

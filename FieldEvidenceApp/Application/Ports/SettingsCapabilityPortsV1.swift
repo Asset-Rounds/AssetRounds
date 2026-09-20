@@ -6,6 +6,15 @@ protocol SettingsRegistryPortV1: Sendable {
 
 extension SettingsRegistryV1: SettingsRegistryPortV1 {}
 
+/// A frozen user request, never durable authorization. Only the live access
+/// gate can bind it to the current foreground session and preferences owner.
+struct ReminderPolicyEditRequestV1: Sendable {
+    let expected: DeviceLocalReminderPolicyV1
+    let isEnabled: Bool
+    let detail: ReminderNotificationDetailV1
+    let operationID: UUID
+}
+
 protocol DevicePreferencesPortV1: Sendable {
     func readCanonicalValue(for descriptor: SettingDescriptorV1) throws -> Data
     /// Unlike a defaulted read, nil proves that no envelope is stored.
@@ -26,8 +35,8 @@ protocol DevicePreferencesPortV1: Sendable {
     /// Absence initializes off/generic once. Every mutation compares the full
     /// expected policy, including its post-Erase instance identity.
     func readReminderPolicy() throws -> DeviceLocalReminderPolicyV1
-    func updateReminderPolicy(expected: DeviceLocalReminderPolicyV1, isEnabled: Bool,
-                              detail: ReminderNotificationDetailV1, operationID: UUID) throws -> DeviceLocalReminderPolicyV1
+    func authorizeReminderPolicyEdit(_ request: ReminderPolicyEditRequestV1) async throws -> AppAccessGateV1.ReminderPolicyEditCommandV1
+    func updateReminderPolicy(_ command: AppAccessGateV1.ReminderPolicyEditCommandV1) throws -> DeviceLocalReminderPolicyV1
     func resetReminderPolicy(expected: DeviceLocalReminderPolicyV1,
                              operationID: UUID) throws -> DeviceLocalReminderPolicyV1
     func eraseReminderPolicy(expected: DeviceLocalReminderPolicyV1,

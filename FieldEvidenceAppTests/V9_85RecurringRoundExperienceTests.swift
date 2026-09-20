@@ -5,7 +5,8 @@ import XCTest
 @testable import FieldEvidenceApp
 
 private struct C22NotificationClock: ApplicationClock {
-    func now() -> Date { C22RecurringRoundTestSupport.now }
+    var date: Date = C22RecurringRoundTestSupport.now
+    func now() -> Date { date }
 }
 
 private actor C22NotificationAuthentication: LocalAuthenticationClient {
@@ -22,7 +23,8 @@ private actor C22NotificationAuthentication: LocalAuthenticationClient {
     private var addContinuation: CheckedContinuation<Void, Never>?
     private(set) var addCount = 0
     private(set) var removeCount = 0
-    func authorization() async throws -> LocalReminderAuthorizationV1 { .authorized }
+    var permission: LocalReminderAuthorizationV1 = .authorized
+    func authorization() async throws -> LocalReminderAuthorizationV1 { permission }
     func observations() async throws -> [NotificationSystemObservationV1] {
         requests.map { .init(requestID: $0.notification.requestID, request: $0, delivered: false) }
     }
@@ -59,18 +61,23 @@ private actor C22NotificationAuthentication: LocalAuthenticationClient {
     let owner: DeviceLocalNotificationOwnerV1
     let projection: ReminderProjectionV1
 
-    init() throws {
+    init(kind: ScheduledWorkKindV1 = .roundSession) async throws {
         support = FileManager.default.temporaryDirectory.appendingPathComponent("C22-notification-" + UUID().uuidString)
         suite = "C22.notification." + UUID().uuidString
         defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        preferences = PreferencesAdapterV1(defaults: defaults)
-        let initial = try preferences.readReminderPolicy()
-        _ = try preferences.updateReminderPolicy(expected: initial, isEnabled: true, detail: .generic, operationID: UUID())
+        let editPreferences = PreferencesAdapterV1(defaults: defaults)
+        preferences = editPreferences
+        let editGate = AppAccessGateV1(setting: .absentDisabled, authentication: C22NotificationAuthentication(),
+            clock: C22NotificationClock(), identifiers: SystemApplicationIDSource())
+        gate = editGate
         coordinator = try StoreSessionCoordinator(validatingSession:
             StoreGenerationFactory(applicationSupportURL: support).openOrBootstrapCurrent())
-        gate = AppAccessGateV1(setting: .absentDisabled, authentication: C22NotificationAuthentication(),
-            clock: C22NotificationClock(), identifiers: SystemApplicationIDSource())
         control = try AppLockNotificationControlStoreV1(applicationSupportURL: support, preferences: preferences)
+        try editPreferences.bindReminderPolicyEdits(to: editGate, control: control)
+        let initial = try editPreferences.readReminderPolicy()
+        let editCommand = try await editPreferences.authorizeReminderPolicyEdit(.init(expected: initial,
+            isEnabled: true, detail: .generic, operationID: UUID()))
+        _ = try editPreferences.updateReminderPolicy(editCommand)
         source = ProductionMyDaySourceProviderV1(session: coordinator, accessGate: gate)
         let concreteSource = source
         owner = DeviceLocalNotificationOwnerV1(control: control, preferences: preferences, system: system,
@@ -85,7 +92,7 @@ private actor C22NotificationAuthentication: LocalAuthenticationClient {
             recurrence: .fixedCalendar(.init(cadence: .daily, interval: 1, anchor: anchor)), slot: 6000)
         let definition = try C22RecurringRoundTestSupport.definition().rebound(to: workspace, actor: actor)
         let release = try original.rebound(to: workspace, subject: original.subject,
-            workDefinition: .init(kind: .roundSession, definition: definition, packageRelease: C22RecurringRoundTestSupport.package()),
+            workDefinition: .init(kind: kind, definition: definition, packageRelease: C22RecurringRoundTestSupport.package()),
             authoredBy: actor, assignee: nil)
         let priorBasis = try C22RecurringRoundTestSupport.basis(release)
         let basis = ResolvedOccurrenceBasisV1(nominalLocalDate: priorBasis.nominalLocalDate,
@@ -524,8 +531,254 @@ final class V9_85RecurringRoundExperienceTests: XCTestCase {
     }
 
     @MainActor
+    func testSavedDetailedPolicyUsesAuthenticatedKindsAndReplacesChangedPayloads() async throws {
+        for kind in ScheduledWorkKindV1.allCases {
+            let fixture = try await C22NotificationFixture(kind: kind)
+            defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }
+            try await fixture.owner.bindNotificationGateEffect(fixture.gate)
+            _ = try await fixture.owner.reconcile(fixture.projection)
+            let generic = try XCTUnwrap(fixture.system.requests.first)
+            XCTAssertNil(generic.detail)
+            let policy = try fixture.preferences.readReminderPolicy()
+            let command = try await fixture.preferences.authorizeReminderPolicyEdit(.init(expected: policy,
+                isEnabled: true, detail: .details, operationID: UUID()))
+            let detailed = try fixture.preferences.updateReminderPolicy(command)
+            let token = try await fixture.gate.beginContentRead(for: .render)
+            let authorization = NotificationOperationAuthorizationV1(gate: fixture.gate,
+                proof: .content(token), operationID: UUID(), subject: nil)
+            _ = try await fixture.owner.reconcileSavedReminderPolicy(authorization: authorization)
+            let request = try XCTUnwrap(fixture.system.requests.first)
+            XCTAssertEqual(fixture.system.requests.count, 1)
+            XCTAssertNotEqual(request.notification.requestID, generic.notification.requestID)
+            XCTAssertEqual(request.detail?.kind, kind)
+            let mapping = try XCTUnwrap(fixture.control.loadPrivateNotificationMapping())
+            let copy = try XCTUnwrap(mapping.source.copySources?.first)
+            XCTAssertEqual(request.detail, try ReminderSystemDetailV1.make(kind: kind, fireAtUTC: request.fireAtUTC,
+                frozenUTCOffsetSeconds: XCTUnwrap(copy.effectiveBasis.utcOffsetSeconds)))
+            let fresh = try AppLockNotificationControlStoreV1(applicationSupportURL: fixture.support, preferences: fixture.preferences)
+            XCTAssertEqual(try fresh.loadPrivateNotificationMapping(), mapping)
+            let addCount = fixture.system.addCount
+            _ = try await fixture.owner.reconcileSavedReminderPolicy(authorization: authorization)
+            XCTAssertEqual(fixture.system.addCount, addCount)
+            let wrongKind: ScheduledWorkKindV1 = kind == .roundSession ? .workPacket : .roundSession
+            fixture.system.requests = [.init(notification: request.notification, fireAtUTC: request.fireAtUTC,
+                detail: .init(kind: wrongKind, body: try XCTUnwrap(request.detail).body))]
+            _ = try await fixture.owner.reconcileSavedReminderPolicy(authorization: authorization)
+            XCTAssertEqual(fixture.system.requests, [request])
+            XCTAssertEqual(fixture.system.addCount, addCount + 1)
+            let downgrade = try await fixture.preferences.authorizeReminderPolicyEdit(.init(expected: detailed,
+                isEnabled: true, detail: .generic, operationID: UUID()))
+            let genericPolicy = try fixture.preferences.updateReminderPolicy(downgrade)
+            _ = try await fixture.owner.reconcileSavedReminderPolicy(authorization: authorization)
+            XCTAssertEqual(fixture.system.requests.count, 1)
+            XCTAssertNil(fixture.system.requests.first?.detail)
+            XCTAssertNotEqual(fixture.system.requests.first?.notification.requestID, request.notification.requestID)
+            let optOut = try await fixture.preferences.authorizeReminderPolicyEdit(.init(expected: genericPolicy,
+                isEnabled: false, detail: .generic, operationID: UUID()))
+            _ = try fixture.preferences.updateReminderPolicy(optOut)
+            _ = try await fixture.owner.reconcileSavedReminderPolicy(authorization: authorization)
+            XCTAssertTrue(fixture.system.requests.isEmpty)
+            XCTAssertTrue(try XCTUnwrap(fixture.control.loadPrivateNotificationMapping()).entries.isEmpty)
+        }
+    }
+
+    @MainActor
+    func testAppLockEnableProjectsGenericAndDisableUsesCurrentDetailedConsent() async throws {
+        let fixture = try await C22NotificationFixture()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }
+        try await fixture.owner.bindNotificationGateEffect(fixture.gate)
+        let initial = try fixture.preferences.readReminderPolicy()
+        let command = try await fixture.preferences.authorizeReminderPolicyEdit(.init(expected: initial,
+            isEnabled: true, detail: .details, operationID: UUID()))
+        _ = try fixture.preferences.updateReminderPolicy(command)
+        _ = try await fixture.owner.reconcile(fixture.projection)
+        XCTAssertNotNil(fixture.system.requests.first?.detail)
+        for enabled in [true, false] {
+            let outcome = await fixture.gate.authenticate(trigger: enabled ? .enableAppLock : .disableAppLock)
+            XCTAssertEqual(outcome, .authenticated)
+            let proof = try await fixture.gate.toggleAuthenticationToken(targetEnabled: enabled)
+            let operation = UUID()
+            let predecessor = try fixture.control.loadControl()
+            let subject = try predecessor.map(NotificationOperationSubjectV1.init(control:))
+            let initialAuthorization = NotificationOperationAuthorizationV1(gate: fixture.gate,
+                proof: .toggle(proof, targetEnabled: enabled), operationID: operation, subject: subject)
+            let journal: AppLockNotificationJournalV1
+            if enabled {
+                journal = try await fixture.owner.prepareEnableEffect(operationID: operation,
+                    expectedPredecessor: predecessor?.journal, authorization: initialAuthorization)
+            } else {
+                journal = try await fixture.owner.prepareDisableEffect(operationID: operation,
+                    expectedPredecessor: predecessor?.journal, authorization: initialAuthorization)
+            }
+            let prepared = try XCTUnwrap(fixture.control.loadControl())
+            let authorization = try initialAuthorization.binding(to: NotificationOperationSubjectV1(control: prepared))
+            if enabled {
+                _ = try await fixture.owner.publishGenericEffect(expected: journal, authorization: authorization)
+                XCTAssertTrue(fixture.system.requests.allSatisfy { $0.detail == nil })
+            }
+            _ = try await fixture.owner.writeAppLockSetting(.init(isEnabled: enabled), operationID: operation,
+                authorization: authorization)
+            if !enabled {
+                _ = try await fixture.owner.rebuildPriorPolicyEffect(expected: journal, authorization: authorization)
+                XCTAssertEqual(fixture.system.requests.first?.detail?.kind, .roundSession)
+            }
+            try await fixture.gate.setEnabledAfterAuthenticated(enabled, toggleToken: proof)
+            XCTAssertEqual(try fixture.preferences.readAppLockSettingSnapshot().setting?.isEnabled, enabled)
+        }
+    }
+
+    @MainActor
+    func testExpiredDetailedRequestIsRemovedOnPrivacyDowngradeWithoutReadding() async throws {
+        let fixture = try await C22NotificationFixture()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }
+        try await fixture.owner.bindNotificationGateEffect(fixture.gate)
+        let initial = try fixture.preferences.readReminderPolicy()
+        let command = try await fixture.preferences.authorizeReminderPolicyEdit(.init(expected: initial,
+            isEnabled: true, detail: .details, operationID: UUID()))
+        let detailed = try fixture.preferences.updateReminderPolicy(command)
+        _ = try await fixture.owner.reconcile(fixture.projection)
+        XCTAssertNotNil(fixture.system.requests.first?.detail)
+        let adds = fixture.system.addCount
+        let source = fixture.source
+        let later = DeviceLocalNotificationOwnerV1(control: fixture.control, preferences: fixture.preferences,
+            system: fixture.system, clock: C22NotificationClock(date: C22RecurringRoundTestSupport.now.addingTimeInterval(601))) { _ in source }
+        try await later.bindNotificationGateEffect(fixture.gate)
+        let downgrade = try await fixture.preferences.authorizeReminderPolicyEdit(.init(expected: detailed,
+            isEnabled: true, detail: .generic, operationID: UUID()))
+        _ = try fixture.preferences.updateReminderPolicy(downgrade)
+        let token = try await fixture.gate.beginContentRead(for: .render)
+        let authorization = NotificationOperationAuthorizationV1(gate: fixture.gate,
+            proof: .content(token), operationID: UUID(), subject: nil)
+        let due = try await source.notificationSnapshot(authorization: authorization,
+            evaluatedAt: C22RecurringRoundTestSupport.now.addingTimeInterval(601))
+        XCTAssertEqual(due.projection.reminders.count, 1, "This must exercise expired delivery within the due grace period")
+        do {
+            _ = try await later.reconcileSavedReminderPolicy(authorization: authorization)
+            XCTFail("Expired request was reported as applied")
+        } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .notificationReconciliationRequired) }
+        XCTAssertTrue(fixture.system.requests.isEmpty)
+        XCTAssertEqual(fixture.system.addCount, adds)
+        XCTAssertTrue(try XCTUnwrap(fixture.control.loadPrivateNotificationMapping()).retiring.isEmpty)
+    }
+
+    @MainActor
+    func testExpiredUnobservedGenericReminderStillFailsWithoutEffects() async throws {
+        let fixture = try await C22NotificationFixture()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }
+        let source = fixture.source
+        let later = DeviceLocalNotificationOwnerV1(control: fixture.control, preferences: fixture.preferences,
+            system: fixture.system, clock: C22NotificationClock(date: C22RecurringRoundTestSupport.now.addingTimeInterval(601))) { _ in source }
+        try await later.bindNotificationGateEffect(fixture.gate)
+        let token = try await fixture.gate.beginContentRead(for: .render)
+        let authorization = NotificationOperationAuthorizationV1(gate: fixture.gate,
+            proof: .content(token), operationID: UUID(), subject: nil)
+        let snapshot = try await source.notificationSnapshot(authorization: authorization,
+            evaluatedAt: C22RecurringRoundTestSupport.now.addingTimeInterval(601))
+        XCTAssertEqual(snapshot.projection.reminders.count, 1)
+        do {
+            _ = try await later.reconcileSavedReminderPolicy(authorization: authorization)
+            XCTFail("Unobserved expired reminder bypassed the existing schedulability predicate")
+        } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .notificationReconciliationRequired) }
+        XCTAssertNil(try fixture.control.loadPrivateNotificationMapping())
+        XCTAssertEqual(fixture.system.addCount, 0)
+        XCTAssertEqual(fixture.system.removeCount, 0)
+    }
+
+    @MainActor
+    func testPermissionDenialStillRemovesForbiddenDetailWithoutClaimingDelivery() async throws {
+        let fixture = try await C22NotificationFixture()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }
+        try await fixture.owner.bindNotificationGateEffect(fixture.gate)
+        let initial = try fixture.preferences.readReminderPolicy()
+        let command = try await fixture.preferences.authorizeReminderPolicyEdit(.init(expected: initial,
+            isEnabled: true, detail: .details, operationID: UUID()))
+        let detailed = try fixture.preferences.updateReminderPolicy(command)
+        _ = try await fixture.owner.reconcile(fixture.projection)
+        XCTAssertNotNil(fixture.system.requests.first?.detail)
+        let downgrade = try await fixture.preferences.authorizeReminderPolicyEdit(.init(expected: detailed,
+            isEnabled: true, detail: .generic, operationID: UUID()))
+        _ = try fixture.preferences.updateReminderPolicy(downgrade)
+        fixture.system.permission = .denied
+        let adds = fixture.system.addCount
+        let result = try await fixture.owner.reconcile(fixture.projection)
+        XCTAssertEqual(result.disposition, .denied)
+        XCTAssertTrue(fixture.system.requests.isEmpty)
+        XCTAssertEqual(fixture.system.addCount, adds)
+        XCTAssertFalse(result.canonicalDueTruthChanged)
+    }
+
+    @MainActor
+    func testSavedReconciliationCannotRenewRevokedOriginalProof() async throws {
+        let fixture = try await C22NotificationFixture()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }
+        try await fixture.owner.bindNotificationGateEffect(fixture.gate)
+        let token = try await fixture.gate.beginContentRead(for: .render)
+        let authorization = NotificationOperationAuthorizationV1(gate: fixture.gate,
+            proof: .content(token), operationID: UUID(), subject: nil)
+        await fixture.gate.sceneBecameInactive()
+        await fixture.gate.sceneBecameActive()
+        do {
+            _ = try await fixture.owner.reconcileSavedReminderPolicy(authorization: authorization)
+            XCTFail("Revoked proof was renewed")
+        } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
+        XCTAssertEqual(fixture.system.addCount, 0)
+        XCTAssertEqual(fixture.system.removeCount, 0)
+        XCTAssertNil(try fixture.control.loadPrivateNotificationMapping())
+    }
+
+    @MainActor
+    func testNotificationCopySourcesBindExactReleaseAndEffectiveBasis() async throws {
+        let fixture = try await C22NotificationFixture()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }
+        let token = try await fixture.gate.beginContentRead(for: .render)
+        let authorization = NotificationOperationAuthorizationV1(gate: fixture.gate,
+            proof: .content(token), operationID: UUID(), subject: nil)
+        let snapshot = try await fixture.source.notificationSnapshot(authorization: authorization,
+            evaluatedAt: fixture.projection.evaluatedAt)
+        let copies = try XCTUnwrap(snapshot.copySources)
+        let copy = try XCTUnwrap(copies.first)
+        XCTAssertEqual(copies.count, fixture.projection.reminders.count)
+        XCTAssertEqual(copy.kind, .roundSession)
+        XCTAssertEqual(copy.occurrenceID, fixture.projection.reminders.first?.occurrenceID)
+        XCTAssertEqual(copy.effectiveBasis.resolvedAtUTC, fixture.projection.reminders.first?.fireAtUTC)
+        XCTAssertEqual(copy.effectiveBasis.timeBasisSHA256, copy.scheduleRelease.timeBasisSHA256)
+        var hostile = snapshot
+        hostile.copySources = copies + copies
+        do {
+            try await fixture.source.validateNotificationSnapshot(hostile, authorization: authorization)
+            XCTFail("Duplicate copy evidence was accepted")
+        } catch { XCTAssertEqual(error as? MyDaySourceReadFailureV1, .sourcesChanged) }
+        var wrongKind = snapshot
+        wrongKind.copySources = [.init(occurrenceID: copy.occurrenceID, scheduleRelease: copy.scheduleRelease,
+            kind: .workPacket, timeZoneIdentifier: copy.timeZoneIdentifier, effectiveBasis: copy.effectiveBasis)]
+        do {
+            try await fixture.source.validateNotificationSnapshot(wrongKind, authorization: authorization)
+            XCTFail("Foreign kind was accepted")
+        } catch { XCTAssertEqual(error as? MyDaySourceReadFailureV1, .sourcesChanged) }
+        let basis = copy.effectiveBasis
+        var wrongOffset = snapshot
+        wrongOffset.copySources = [.init(occurrenceID: copy.occurrenceID, scheduleRelease: copy.scheduleRelease,
+            kind: copy.kind, timeZoneIdentifier: copy.timeZoneIdentifier,
+            effectiveBasis: .init(nominalLocalDate: basis.nominalLocalDate, nominalLocalTime: basis.nominalLocalTime,
+                resolvedAtUTC: basis.resolvedAtUTC, utcOffsetSeconds: (basis.utcOffsetSeconds ?? 0) + 60,
+                disposition: basis.disposition, timeBasisSHA256: basis.timeBasisSHA256,
+                adjustmentProvenanceSHA256: basis.adjustmentProvenanceSHA256))]
+        do {
+            try await fixture.source.validateNotificationSnapshot(wrongOffset, authorization: authorization)
+            XCTFail("Changed frozen offset was accepted")
+        } catch { XCTAssertEqual(error as? MyDaySourceReadFailureV1, .sourcesChanged) }
+        var legacy = snapshot
+        legacy.copySources = nil
+        try await fixture.source.validateNotificationSnapshot(legacy, authorization: authorization)
+        let bytes = try CompatibilityCanonicalV1.encode(legacy)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        XCTAssertNil(object["copySources"])
+        XCTAssertEqual(try CompatibilityCanonicalV1.decode(NotificationSourceSnapshotV1.self, from: bytes), legacy)
+    }
+
+    @MainActor
     func testConcreteReminderOwnerRejectsCallerProjectionAndUsesPrivateOpaqueSystemIDs() async throws {
-        let fixture = try C22NotificationFixture()
+        let fixture = try await C22NotificationFixture()
         defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }
         try await fixture.owner.bindNotificationGateEffect(fixture.gate)
         XCTAssertEqual(fixture.projection.reminders.count, 1)
@@ -556,8 +809,36 @@ final class V9_85RecurringRoundExperienceTests: XCTestCase {
     }
 
     @MainActor
+    func testGenericPolicyRejectsDetailedDurableMappingWithoutSystemEffects() async throws {
+        let fixture = try await C22NotificationFixture()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }
+        try await fixture.owner.bindNotificationGateEffect(fixture.gate)
+        _ = try await fixture.owner.reconcile(fixture.projection)
+        let before = try XCTUnwrap(fixture.control.loadPrivateNotificationMapping())
+        XCTAssertEqual(before.policy.detail, .generic)
+        let entry = try XCTUnwrap(before.entries.first)
+        let detail = try ReminderSystemDetailV1.make(kind: .roundSession,
+            fireAtUTC: entry.request.fireAtUTC, timeZoneIdentifier: "America/New_York")
+        let request = NotificationSystemRequestV1(notification: entry.request.notification,
+            fireAtUTC: entry.request.fireAtUTC, detail: detail)
+        try request.validate()
+        var entries = before.entries
+        entries[0] = .init(reminder: entry.reminder, request: request,
+            admissionID: entry.admissionID, acknowledged: entry.acknowledged)
+        let hostile = NotificationPrivateMappingV1(schemaVersion: before.schemaVersion,
+            operationID: before.operationID, source: before.source, policy: before.policy,
+            setting: before.setting, controlSubjectSHA256: before.controlSubjectSHA256,
+            entries: entries, retiring: before.retiring)
+        let observed = fixture.system.requests, addCount = fixture.system.addCount
+        XCTAssertThrowsError(try fixture.control.replacePrivateNotificationMapping(hostile, expected: before))
+        XCTAssertEqual(try fixture.control.loadPrivateNotificationMapping(), before)
+        XCTAssertEqual(fixture.system.requests, observed)
+        XCTAssertEqual(fixture.system.addCount, addCount)
+    }
+
+    @MainActor
     func testConcreteReminderEraseAcrossOwnersDrainsLateAddBeforeDeletingMapping() async throws {
-        let fixture = try C22NotificationFixture()
+        let fixture = try await C22NotificationFixture()
         defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }
         try await fixture.owner.bindNotificationGateEffect(fixture.gate)
         fixture.system.pausesAdd = true

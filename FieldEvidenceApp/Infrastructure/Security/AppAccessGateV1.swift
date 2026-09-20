@@ -105,6 +105,23 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
         }
     }
 
+    /// Only this gate can mint a request for one exact preferences instance.
+    /// Its reference is revoked by the existing content-access transitions.
+    struct ReminderPolicyEditCommandV1: Sendable {
+        let request: ReminderPolicyEditRequestV1
+        fileprivate let issuer: ContentReadOwner
+        fileprivate let editOwner: PreferencesAdapterV1.ReminderPolicyEditOwnerV1
+        fileprivate let reference: ContentReadReference
+
+        func withReminderPolicyEdit<T>(
+            owner: PreferencesAdapterV1.ReminderPolicyEditOwnerV1,
+            _ body: () throws -> T
+        ) throws -> T {
+            guard editOwner === owner else { throw AppAccessContractFailureV1.accessDenied }
+            return try reference.withContentRead(body)
+        }
+    }
+
     private let authentication: any LocalAuthenticationClient
     private let clock: any ApplicationClock
     private let identifiers: any ApplicationIDSource
@@ -204,10 +221,39 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
         }
     }
 
+    /// Explicit UI actions need a live scene even when AppLock is disabled.
+    func beginForegroundContentRead(for surface: AppAccessContentReadSurfaceV1) throws -> ContentReadToken {
+        guard sceneIsActive else { throw AppAccessContractFailureV1.accessDenied }
+        return try beginContentRead(for: surface)
+    }
+
+    func validateForegroundContentRead(_ token: ContentReadToken,
+                                       for surface: AppAccessContentReadSurfaceV1) throws {
+        guard sceneIsActive else { throw AppAccessContractFailureV1.accessDenied }
+        try validateContentRead(token, for: surface)
+    }
+
     /// Immutable issuer identity only. Callers must still fence the actual
     /// synchronous read with the token's surface and revocation reference.
     nonisolated func issuedContentReadToken(_ token: ContentReadToken) -> Bool {
         token.owner === contentReadOwner
+    }
+
+    func authorizeReminderPolicyEdit(
+        _ request: ReminderPolicyEditRequestV1,
+        owner: PreferencesAdapterV1.ReminderPolicyEditOwnerV1
+    ) throws -> ReminderPolicyEditCommandV1 {
+        try requireCurrentContentReadAccess()
+        guard sceneIsActive else { throw AppAccessContractFailureV1.accessDenied }
+        if enabled {
+            guard case .unlockedForeground = state else { throw AppAccessContractFailureV1.accessDenied }
+        }
+        return ReminderPolicyEditCommandV1(request: request, issuer: contentReadOwner,
+            editOwner: owner, reference: contentReadReference)
+    }
+
+    nonisolated func issuedReminderPolicyEditCommand(_ command: ReminderPolicyEditCommandV1) -> Bool {
+        command.issuer === contentReadOwner
     }
 
     private func requireCurrentContentReadAccess() throws {

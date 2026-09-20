@@ -7,15 +7,20 @@ private enum C52ServiceRequestBoundary_V9_14SettingsCapabilityLifecycleTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45SettingsCapabilityCompatibilityTests: XCTestCase {
+
+
+
+
+
+
+@MainActor
+final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
     func testV23P03C45CompatibilityKeepsOutputActivationExplicitAndBounded() {
         XCTAssertEqual(Set(LabelOutputActivationDecisionV1.allCases), [.enabledBoundedLocalOnly, .disabledOrDeferred])
         XCTAssertEqual(LabelOutputActivationDecisionV1.enabledBoundedLocalOnly.rawValue, "ENABLED_BOUNDED_LOCAL_ONLY")
         XCTAssertEqual(LabelOutputActivationDecisionV1.disabledOrDeferred.rawValue, "DISABLED_OR_DEFERRED")
     }
-}
 
-private final class C51V914SettingsCapabilityAnchorTests: XCTestCase {
     func testV23P03C51RuntimeAndCheckRunnerStayLocalExplicitAndDerived() {
         XCTAssertTrue(C51ScheduleRuntimeBoundaryV1.localOnly)
         XCTAssertFalse(C51ScheduleRuntimeBoundaryV1.eventKitPermissionRequested)
@@ -23,9 +28,7 @@ private final class C51V914SettingsCapabilityAnchorTests: XCTestCase {
         XCTAssertTrue(C51CheckRunnerScheduleBoundaryV1.scheduleClosureIsDerivedMetadataOnly)
         XCTAssertFalse(C51CheckRunnerScheduleBoundaryV1.checkRunnerMayAutoStartOccurrence)
     }
-}
 
-private final class C30EvidenceContextAnchorV9_14SettingsCapabilityLifecycle: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -34,10 +37,59 @@ private final class C30EvidenceContextAnchorV9_14SettingsCapabilityLifecycle: XC
         XCTAssertTrue(WorkspaceWriterAdapterV1.activeSupportedCommandKinds.contains(.applyEvidenceContext))
         try EvidenceContextLimitsV1.digest(String(repeating: "a", count: 64))
     }
-}
 
-@MainActor
-final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
+    func testC31TypedLightingPackageContractAnchor() throws {
+        XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
+        XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
+        XCTAssertTrue(LightingIssueKindV1.allCases.contains(.cameraBandingOnly))
+        try LightingLimitsV1.digest(String(repeating: "a", count: 64))
+    }
+
+    func testC33V914SettingsCapabilityLifecycleCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "capability.temporal-permission-fallback",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "capability.temporal-permission-fallback",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+
+    func testC32V914SettingsCapabilityLifecycleCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .clientCapabilityProfile,
+            fieldID: "settings.independent-revocation",
+            value: .boolean(true)
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .clientCapabilityProfile,
+            fieldID: "settings.independent-revocation",
+            valueKind: .boolean
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+
+    func testC46SettingsCannotActivateAutomaticHandoff() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "settings-capability",
+            kind: .phone,
+            handoff: .call,
+            slot: 46014
+        )
+    }
+
     func testV23P03C37TypedPoseContractAnchor() throws {
         let axis = try PoseAxisDescriptorV1(
             axisID: PoseAxisID(rawValue: "axis.c37.anchor"),
@@ -289,7 +341,7 @@ final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
         XCTAssertEqual(descriptor.backup, .excludedDeviceLocal)
         XCTAssertEqual(descriptor.privacy, .devicePreferenceNoCustomerData)
         XCTAssertEqual(descriptor.defaultCanonicalValue, Data("null".utf8))
-        let adapter = fixture.adapter()
+        let adapter = try fixture.adapter()
         XCTAssertEqual(try adapter.readCanonicalValue(for: descriptor), descriptor.defaultCanonicalValue)
         XCTAssertNil(fixture.defaults.object(forKey: fixture.storageKey))
         let initial = try adapter.readReminderPolicy()
@@ -314,7 +366,7 @@ final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
         let fixture = try V914ReminderPreferencesFixture()
         let legacy = try V914ReminderPreferencesFixture()
         defer { fixture.remove(); legacy.remove() }
-        let preferences = fixture.adapter()
+        let preferences = try fixture.adapter()
         XCTAssertNil(try preferences.readStoredReminderPolicy())
         XCTAssertNil(try preferences.readAppLockSettingSnapshot().storedEnvelope)
         XCTAssertNil(fixture.defaults.persistentDomain(forName: fixture.suiteName))
@@ -344,7 +396,7 @@ final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
     func testAppLockSettingCompletionRejectsSameValueCompetingOperationsAndReplayDrift() throws {
         let fixture = try V914ReminderPreferencesFixture()
         defer { fixture.remove() }
-        let preferences = fixture.adapter(), other = try fixture.reopenedAdapter()
+        let preferences = try fixture.adapter(), other = try fixture.reopenedAdapter()
         let policy = try preferences.readReminderPolicy()
         let descriptor = try SettingsRegistryV1.current().descriptor(for: DeviceLocalAppLockSettingV1.key)
         try preferences.writeCanonicalValue(CompatibilityCanonicalV1.encode(false),
@@ -373,7 +425,7 @@ final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
         for mode in 0..<3 {
             let fixture = try V914ReminderPreferencesFixture()
             defer { fixture.remove() }
-            let preferences = fixture.adapter()
+            let preferences = try fixture.adapter()
             let policy = try preferences.readReminderPolicy()
             let plan = try preferences.planAppLockSettingWrite(expectedSetting: preferences.readAppLockSettingSnapshot(),
                 expectedReminderPolicy: policy, target: .init(isEnabled: true), operationID: Self.uuid(247))
@@ -396,7 +448,7 @@ final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
     func testAppLockSettingPlanRetainsOriginalMigrationReceiptAcrossConditionalWrite() throws {
         let fixture = try V914ReminderPreferencesFixture()
         defer { fixture.remove() }
-        let preferences = fixture.adapter()
+        let preferences = try fixture.adapter()
         let descriptor = try SettingsRegistryV1.current().descriptor(for: DeviceLocalAppLockSettingV1.key)
         fixture.defaults.set(true, forKey: "notification-test-legacy-lock")
         let migration = try preferences.migrate(descriptor: descriptor,
@@ -418,60 +470,67 @@ final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
         XCTAssertEqual(try preferences.applyAppLockSettingWrite(plan), current)
     }
 
-    func testReminderPolicyTwoInstancesRequireExactPredecessorAndOperationRequest() throws {
+    func testReminderPolicyTwoInstancesRequireExactPredecessorAndOperationRequest() async throws {
         let fixture = try V914ReminderPreferencesFixture()
         defer { fixture.remove() }
-        let first = fixture.adapter()
+        let first = try fixture.adapter()
         let second = try fixture.reopenedAdapter()
         let initial = try first.readReminderPolicy()
         XCTAssertEqual(try second.readReminderPolicy(), initial)
         let operation = Self.uuid(201)
-        let updated = try first.updateReminderPolicy(expected: initial, isEnabled: true, detail: .details, operationID: operation)
+        let reminderEdit1 = try await first.authorizeReminderPolicyEdit(.init(expected: initial, isEnabled: true, detail: .details, operationID: operation))
+        let updated = try first.updateReminderPolicy(reminderEdit1)
         XCTAssertEqual(updated.instanceID, initial.instanceID)
         XCTAssertEqual(updated.revision, initial.revision + 1)
         XCTAssertTrue(updated.isEnabled)
         XCTAssertEqual(updated.detail, .details)
         let stored = try XCTUnwrap(fixture.defaults.data(forKey: fixture.storageKey))
-        XCTAssertEqual(try second.updateReminderPolicy(expected: initial, isEnabled: true, detail: .details, operationID: operation), updated)
+        let reminderEdit2 = try await second.authorizeReminderPolicyEdit(.init(expected: initial, isEnabled: true, detail: .details, operationID: operation))
+        XCTAssertEqual(try second.updateReminderPolicy(reminderEdit2), updated)
         XCTAssertEqual(fixture.defaults.data(forKey: fixture.storageKey), stored)
         for (expected, enabled, detail) in [
             (initial, false, ReminderNotificationDetailV1.details),
             (initial, true, .generic),
             (updated, true, .details),
         ] {
-            XCTAssertThrowsError(try second.updateReminderPolicy(expected: expected, isEnabled: enabled,
-                detail: detail, operationID: operation)) {
+            let reminderEdit3 = try await second.authorizeReminderPolicyEdit(.init(expected: expected, isEnabled: enabled,
+                detail: detail, operationID: operation))
+            XCTAssertThrowsError(try second.updateReminderPolicy(reminderEdit3)) {
                 XCTAssertEqual($0 as? SettingsContractFailureV1, .changedOperation)
             }
         }
         XCTAssertThrowsError(try second.resetReminderPolicy(expected: initial, operationID: operation)) {
             XCTAssertEqual($0 as? SettingsContractFailureV1, .changedOperation)
         }
-        XCTAssertThrowsError(try second.updateReminderPolicy(expected: initial, isEnabled: false,
-            detail: .generic, operationID: Self.uuid(202))) {
+        let reminderEdit4 = try await second.authorizeReminderPolicyEdit(.init(expected: initial, isEnabled: false,
+            detail: .generic, operationID: Self.uuid(202)))
+        XCTAssertThrowsError(try second.updateReminderPolicy(reminderEdit4)) {
             XCTAssertEqual($0 as? SettingsContractFailureV1, .staleRevision)
         }
         let foreign = try DeviceLocalReminderPolicyV1(instanceID: Self.uuid(203), revision: updated.revision,
             isEnabled: updated.isEnabled, detail: updated.detail)
-        XCTAssertThrowsError(try second.updateReminderPolicy(expected: foreign, isEnabled: false,
-            detail: .generic, operationID: Self.uuid(204))) {
+        let reminderEdit5 = try await second.authorizeReminderPolicyEdit(.init(expected: foreign, isEnabled: false,
+            detail: .generic, operationID: Self.uuid(204)))
+        XCTAssertThrowsError(try second.updateReminderPolicy(reminderEdit5)) {
             XCTAssertEqual($0 as? SettingsContractFailureV1, .staleRevision)
         }
-        XCTAssertThrowsError(try second.updateReminderPolicy(expected: updated, isEnabled: false,
-            detail: .generic, operationID: SettingsValidationV1.zeroUUID)) {
+        let reminderEdit6 = try await second.authorizeReminderPolicyEdit(.init(expected: updated, isEnabled: false,
+            detail: .generic, operationID: SettingsValidationV1.zeroUUID))
+        XCTAssertThrowsError(try second.updateReminderPolicy(reminderEdit6)) {
             XCTAssertEqual($0 as? SettingsContractFailureV1, .invalidValue)
         }
         XCTAssertEqual(try second.readReminderPolicy(), updated)
         XCTAssertEqual(fixture.defaults.data(forKey: fixture.storageKey), stored)
     }
 
-    func testReminderPolicyResetAndEraseRetryCannotReplaceLaterChoice() throws {
+    func testReminderPolicyResetAndEraseRetryCannotReplaceLaterChoice() async throws {
         let fixture = try V914ReminderPreferencesFixture()
         defer { fixture.remove() }
-        let adapter = fixture.adapter()
+        let adapter = try fixture.adapter()
         let initial = try adapter.readReminderPolicy()
-        let enabled = try adapter.updateReminderPolicy(expected: initial, isEnabled: true,
-            detail: .details, operationID: Self.uuid(210))
+        let reminderEdit7 = try await adapter.authorizeReminderPolicyEdit(.init(expected: initial, isEnabled: true,
+            detail: .details, operationID: Self.uuid(210)))
+        let enabled = try adapter.updateReminderPolicy(reminderEdit7)
         let reset = try adapter.resetReminderPolicy(expected: enabled, operationID: Self.uuid(211))
         XCTAssertFalse(reset.isEnabled)
         XCTAssertEqual(reset.detail, .generic)
@@ -482,8 +541,9 @@ final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
         XCTAssertThrowsError(try reopened.eraseReminderPolicy(expected: enabled, operationID: Self.uuid(211))) {
             XCTAssertEqual($0 as? SettingsContractFailureV1, .changedOperation)
         }
-        let later = try reopened.updateReminderPolicy(expected: reset, isEnabled: true,
-            detail: .generic, operationID: Self.uuid(212))
+        let reminderEdit8 = try await reopened.authorizeReminderPolicyEdit(.init(expected: reset, isEnabled: true,
+            detail: .generic, operationID: Self.uuid(212)))
+        let later = try reopened.updateReminderPolicy(reminderEdit8)
         let laterBytes = try XCTUnwrap(fixture.defaults.data(forKey: fixture.storageKey))
         XCTAssertThrowsError(try adapter.resetReminderPolicy(expected: enabled, operationID: Self.uuid(211))) {
             XCTAssertEqual($0 as? SettingsContractFailureV1, .staleRevision)
@@ -495,8 +555,9 @@ final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
         XCTAssertEqual(erased.instanceID, later.instanceID)
         XCTAssertEqual(erased.revision, later.revision + 1)
         XCTAssertEqual(try reopened.eraseReminderPolicy(expected: later, operationID: Self.uuid(213)), erased)
-        let newest = try reopened.updateReminderPolicy(expected: erased, isEnabled: true,
-            detail: .details, operationID: Self.uuid(214))
+        let reminderEdit9 = try await reopened.authorizeReminderPolicyEdit(.init(expected: erased, isEnabled: true,
+            detail: .details, operationID: Self.uuid(214)))
+        let newest = try reopened.updateReminderPolicy(reminderEdit9)
         let newestBytes = try XCTUnwrap(fixture.defaults.data(forKey: fixture.storageKey))
         XCTAssertThrowsError(try adapter.eraseReminderPolicy(expected: later, operationID: Self.uuid(213))) {
             XCTAssertEqual($0 as? SettingsContractFailureV1, .staleRevision)
@@ -505,16 +566,17 @@ final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
         XCTAssertEqual(fixture.defaults.data(forKey: fixture.storageKey), newestBytes)
     }
 
-    func testReminderPolicyGenericMutationsRejectWholeRequestBeforeChangingAnyKey() throws {
+    func testReminderPolicyGenericMutationsRejectWholeRequestBeforeChangingAnyKey() async throws {
         let fixture = try V914ReminderPreferencesFixture()
         defer { fixture.remove() }
-        let adapter = fixture.adapter()
+        let adapter = try fixture.adapter()
         let registry = try SettingsRegistryV1.current()
         let reminder = try registry.descriptor(for: DeviceLocalReminderPolicyV1.key)
         let haptic = try registry.descriptor(for: HapticFeedbackPreferenceV1.key)
         let initial = try adapter.readReminderPolicy()
-        let enabled = try adapter.updateReminderPolicy(expected: initial, isEnabled: true,
-            detail: .details, operationID: Self.uuid(220))
+        let reminderEdit10 = try await adapter.authorizeReminderPolicyEdit(.init(expected: initial, isEnabled: true,
+            detail: .details, operationID: Self.uuid(220)))
+        let enabled = try adapter.updateReminderPolicy(reminderEdit10)
         try adapter.writeCanonicalValue(try CompatibilityCanonicalV1.encode(false), descriptor: haptic,
             operationID: Self.uuid(221))
         fixture.defaults.set(Data("false".utf8), forKey: "legacy.reminder")
@@ -533,7 +595,7 @@ final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
         XCTAssertEqual(try adapter.readCanonicalValue(for: haptic), Data("false".utf8))
     }
 
-    func testReminderPolicyMalformedStoredValuesFailWithoutRepairingBytes() throws {
+    func testReminderPolicyMalformedStoredValuesFailWithoutRepairingBytes() async throws {
         let fixture = try V914ReminderPreferencesFixture()
         defer { fixture.remove() }
         let initial = try fixture.adapter().readReminderPolicy()
@@ -551,8 +613,10 @@ final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
         var zeroInstance = unknownPolicyField
         zeroInstance.removeValue(forKey: "osAuthorizedMeansOptedIn")
         zeroInstance["instanceID"] = SettingsValidationV1.zeroUUID.uuidString
-        _ = try fixture.adapter().updateReminderPolicy(expected: initial, isEnabled: true,
-            detail: .details, operationID: Self.uuid(231))
+        let editAdapter = try fixture.adapter()
+        let reminderEdit11 = try await editAdapter.authorizeReminderPolicyEdit(.init(expected: initial, isEnabled: true,
+            detail: .details, operationID: Self.uuid(231)))
+        _ = try editAdapter.updateReminderPolicy(reminderEdit11)
         let acceptedBytes = try XCTUnwrap(fixture.defaults.data(forKey: fixture.storageKey))
         let acceptedEnvelope = try XCTUnwrap(JSONSerialization.jsonObject(with: acceptedBytes) as? [String: Any])
         var futureEnvelope = acceptedEnvelope
@@ -584,8 +648,9 @@ final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
             let reopened = try fixture.reopenedAdapter()
             XCTAssertThrowsError(try reopened.readReminderPolicy())
             XCTAssertThrowsError(try reopened.readCanonicalValue(for: descriptor))
-            XCTAssertThrowsError(try reopened.updateReminderPolicy(expected: initial, isEnabled: true,
+            let reminderEdit12 = try await reopened.authorizeReminderPolicyEdit(.init(expected: initial, isEnabled: true,
                 detail: .details, operationID: Self.uuid(230)))
+            XCTAssertThrowsError(try reopened.updateReminderPolicy(reminderEdit12))
             XCTAssertThrowsError(try reopened.resetReminderPolicy(expected: initial, operationID: Self.uuid(233)))
             XCTAssertThrowsError(try reopened.eraseReminderPolicy(expected: initial, operationID: Self.uuid(234)))
             XCTAssertEqual(NSDictionary(dictionary: fixture.defaults.persistentDomain(forName: fixture.suiteName) ?? [:]), original)
@@ -600,10 +665,10 @@ final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
         XCTAssertEqual(fixture.defaults.data(forKey: hapticKey), wrongOwnerBytes)
     }
 
-    func testReminderPolicyRevisionOverflowAndFullDomainWipeRejectHeldAuthority() throws {
+    func testReminderPolicyRevisionOverflowAndFullDomainWipeRejectHeldAuthority() async throws {
         let fixture = try V914ReminderPreferencesFixture()
         defer { fixture.remove() }
-        let adapter = fixture.adapter()
+        let adapter = try fixture.adapter()
         let initial = try adapter.readReminderPolicy()
         let maximum = try DeviceLocalReminderPolicyV1(instanceID: initial.instanceID, revision: UInt64.max,
             isEnabled: true, detail: .details)
@@ -613,8 +678,9 @@ final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
             successor: maximum, operationID: Self.uuid(239))
         fixture.defaults.set(maximumBytes, forKey: fixture.storageKey)
         XCTAssertEqual(try adapter.readReminderPolicy(), maximum)
-        XCTAssertThrowsError(try adapter.updateReminderPolicy(expected: maximum, isEnabled: false,
-            detail: .generic, operationID: Self.uuid(240))) {
+        let reminderEdit13 = try await adapter.authorizeReminderPolicyEdit(.init(expected: maximum, isEnabled: false,
+            detail: .generic, operationID: Self.uuid(240)))
+        XCTAssertThrowsError(try adapter.updateReminderPolicy(reminderEdit13)) {
             XCTAssertEqual($0 as? SettingsContractFailureV1, .invalidValue)
         }
         XCTAssertThrowsError(try adapter.resetReminderPolicy(expected: maximum, operationID: Self.uuid(241))) {
@@ -632,8 +698,9 @@ final class V9_14SettingsCapabilityLifecycleTests: XCTestCase {
         XCTAssertFalse(fresh.isEnabled)
         XCTAssertEqual(fresh.detail, .generic)
         let freshBytes = try XCTUnwrap(fixture.defaults.data(forKey: fixture.storageKey))
-        XCTAssertThrowsError(try adapter.updateReminderPolicy(expected: initial, isEnabled: true,
-            detail: .details, operationID: Self.uuid(243))) {
+        let reminderEdit14 = try await adapter.authorizeReminderPolicyEdit(.init(expected: initial, isEnabled: true,
+            detail: .details, operationID: Self.uuid(243)))
+        XCTAssertThrowsError(try adapter.updateReminderPolicy(reminderEdit14)) {
             XCTAssertEqual($0 as? SettingsContractFailureV1, .staleRevision)
         }
         XCTAssertEqual(try adapter.readReminderPolicy(), fresh)
@@ -1783,21 +1850,40 @@ private extension V9_14SettingsCapabilityLifecycleTests {
     }
 }
 
-private struct V914ReminderPreferencesFixture {
+private actor V914ReminderAuthentication: LocalAuthenticationClient {
+    func availability() async -> LocalAuthenticationAvailabilityV1 { .systemValue(status: .available, biometry: .faceID) }
+    func authenticate(_ attempt: LocalAuthenticationAttemptV1) async -> LocalAuthenticationOutcomeV1 { .authenticated }
+    func cancel(attemptID: UUID) async {}
+}
+
+private final class V914ReminderPreferencesFixture {
     let suiteName: String
     let defaults: UserDefaults
+    let support = FileManager.default.temporaryDirectory.appendingPathComponent("V914-reminder-" + UUID().uuidString)
+    private var controls: [AppLockNotificationControlStoreV1] = []
     var storageKey: String { PreferencesAdapterV1.storagePrefix + DeviceLocalReminderPolicyV1.key }
 
     init() throws {
         suiteName = "V9_14.ReminderPolicy." + UUID().uuidString
         defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defaults.removePersistentDomain(forName: suiteName)
+        try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
     }
 
-    func adapter() -> PreferencesAdapterV1 { PreferencesAdapterV1(defaults: defaults) }
+    private func boundAdapter(_ defaults: UserDefaults) throws -> PreferencesAdapterV1 {
+        let adapter = PreferencesAdapterV1(defaults: defaults)
+        let gate = AppAccessGateV1(setting: .absentDisabled, authentication: V914ReminderAuthentication(),
+            clock: SystemApplicationClock(), identifiers: SystemApplicationIDSource())
+        let control = try AppLockNotificationControlStoreV1(applicationSupportURL: support, preferences: adapter)
+        try adapter.bindReminderPolicyEdits(to: gate, control: control)
+        controls.append(control)
+        return adapter
+    }
+
+    func adapter() throws -> PreferencesAdapterV1 { try boundAdapter(defaults) }
 
     func reopenedAdapter() throws -> PreferencesAdapterV1 {
-        PreferencesAdapterV1(defaults: try XCTUnwrap(UserDefaults(suiteName: suiteName)))
+        try boundAdapter(XCTUnwrap(UserDefaults(suiteName: suiteName)))
     }
 
     static func envelope(policyBytes: Data) throws -> Data {
@@ -1827,7 +1913,10 @@ private struct V914ReminderPreferencesFixture {
         ))
     }
 
-    func remove() { defaults.removePersistentDomain(forName: suiteName) }
+    func remove() {
+        defaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: support)
+    }
 }
 
 private struct V914Corpus: Decodable {
@@ -1886,64 +1975,12 @@ extension V9_14SettingsCapabilityLifecycleTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorV914SettingsCapabilityLifecycleTests: XCTestCase {
-    func testC31TypedLightingPackageContractAnchor() throws {
-        XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
-        XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
-        XCTAssertTrue(LightingIssueKindV1.allCases.contains(.cameraBandingOnly))
-        try LightingLimitsV1.digest(String(repeating: "a", count: 64))
-    }
-}
 
-private final class C33TemporalEvidenceAnchorV914SettingsCapabilityLifecycle: XCTestCase {
-    func testC33V914SettingsCapabilityLifecycleCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
-        let value = try C33TemporalEvidenceTestSupport.ownerClip(
-            factID: "capability.temporal-permission-fallback",
-            kind: .audio,
-            reportProjection: .typedLinkOnly
-        )
-        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
-            value,
-            factID: "capability.temporal-permission-fallback",
-            kind: .audio,
-            reportProjection: .typedLinkOnly
-        )
-        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
-        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
-        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
-    }
-}
 
-private final class C32AssistanceAnchorV914SettingsCapabilityLifecycle: XCTestCase {
-    func testC32V914SettingsCapabilityLifecycleCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
-        let proposal = try C32AssistanceTestSupport.ownerProposal(
-            entityKind: .clientCapabilityProfile,
-            fieldID: "settings.independent-revocation",
-            value: .boolean(true)
-        )
-        try C32AssistanceTestSupport.assertOwnerBoundary(
-            proposal,
-            entityKind: .clientCapabilityProfile,
-            fieldID: "settings.independent-revocation",
-            valueKind: .boolean
-        )
-        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
-        XCTAssertEqual(
-            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
-            proposal
-        )
-    }
-}
-private final class C46V914SettingsCompatibilityTests: XCTestCase {
-    func testC46SettingsCannotActivateAutomaticHandoff() throws {
-        try C46OperationalContactTestSupport.assertOwnerBoundary(
-            owner: "settings-capability",
-            kind: .phone,
-            handoff: .call,
-            slot: 46014
-        )
-    }
-}
+
+
+
+
 
 extension V9_14SettingsCapabilityLifecycleTests {
     func testV23P03C34PackageDestinationRegistrationRemainsNonAutomatic() throws {

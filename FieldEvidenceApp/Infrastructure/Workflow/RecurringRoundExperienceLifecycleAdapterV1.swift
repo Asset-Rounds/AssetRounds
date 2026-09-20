@@ -1,14 +1,121 @@
 import Foundation
 import UserNotifications
 
+/// Canonical display data only. The owner independently derives the expected
+/// kind and text from its authenticated schedule source before any OS effect.
+struct ReminderSystemDetailV1: Codable, Equatable, Sendable {
+    let kind: ScheduledWorkKindV1
+    let body: String
+
+    var title: String { kind == .roundSession ? "Round due" : "Work due" }
+
+    static func make(kind: ScheduledWorkKindV1, fireAtUTC: Date, frozenUTCOffsetSeconds: Int) throws -> Self {
+        guard fireAtUTC.timeIntervalSince1970.isFinite,
+              (-64_800...64_800).contains(frozenUTCOffsetSeconds), frozenUTCOffsetSeconds % 60 == 0,
+              let zone = TimeZone(secondsFromGMT: frozenUTCOffsetSeconds) else { throw AppAccessContractFailureV1.invalidValue }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = zone
+        formatter.dateFormat = "MMM d, yyyy 'at' h:mm a"
+        let offset = String(format: "UTC%@%02d:%02d", frozenUTCOffsetSeconds < 0 ? "−" : "+",
+            abs(frozenUTCOffsetSeconds) / 3600, (abs(frozenUTCOffsetSeconds) % 3600) / 60)
+        let value = Self(kind: kind, body: "Due \(formatter.string(from: fireAtUTC)) (\(offset)). Open AssetRounds to review.")
+        try value.validate()
+        return value
+    }
+
+    static func make(kind: ScheduledWorkKindV1, fireAtUTC: Date,
+                     timeZoneIdentifier: String) throws -> Self {
+        guard fireAtUTC.timeIntervalSince1970.isFinite,
+              let zone = TimeZone(identifier: timeZoneIdentifier) else {
+            throw AppAccessContractFailureV1.invalidValue
+        }
+        let seconds = zone.secondsFromGMT(for: fireAtUTC)
+        guard abs(seconds) <= 18 * 60 * 60, seconds % 60 == 0 else {
+            throw AppAccessContractFailureV1.invalidValue
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = zone
+        formatter.dateFormat = "MMM d, yyyy 'at' h:mm a"
+        let offset = String(format: "UTC%@%02d:%02d", seconds < 0 ? "−" : "+",
+                            abs(seconds) / 3600, (abs(seconds) % 3600) / 60)
+        let isUTCName = ["UTC", "Etc/UTC", "GMT", "Etc/GMT"].contains(timeZoneIdentifier)
+        let abbreviation = seconds == 0 && isUTCName ? "UTC" : zone.abbreviation(for: fireAtUTC)
+        let displayZone: String
+        if let abbreviation,
+           abbreviation.range(of: #"\A[A-Za-z]{1,8}\z"#, options: .regularExpression) != nil {
+            displayZone = "\(abbreviation) (\(offset))"
+        } else {
+            displayZone = "(\(offset))"
+        }
+        let value = Self(kind: kind,
+            body: "Due \(formatter.string(from: fireAtUTC)) \(displayZone). Open AssetRounds to review.")
+        try value.validate()
+        return value
+    }
+
+    static func observed(title: String, body: String) throws -> Self {
+        let kind: ScheduledWorkKindV1
+        switch title {
+        case "Round due": kind = .roundSession
+        case "Work due": kind = .workPacket
+        default: throw AppAccessContractFailureV1.invalidValue
+        }
+        let value = Self(kind: kind, body: body)
+        try value.validate()
+        return value
+    }
+
+    func validate() throws {
+        // Syntax is only an observation boundary. A valid but wrong date,
+        // kind or offset must still fail the owner's source-derived equality.
+        let pattern = #"\ADue (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) ([1-9]|[12][0-9]|3[01]), [0-9]{4} at ([1-9]|1[0-2]):[0-5][0-9] (AM|PM) ([A-Za-z]{1,8} )?\(UTC[+−](0[0-9]|1[0-8]):[0-5][0-9]\)\. Open AssetRounds to review\.\z"#
+        guard body.utf8.count <= 160,
+              body.range(of: pattern, options: .regularExpression) != nil else {
+            throw AppAccessContractFailureV1.invalidValue
+        }
+    }
+}
+
 /// The system boundary reports observations, never reconciliation receipts.
 /// Opaque request identifiers and tokens are the only identifiers sent to iOS.
 struct NotificationSystemRequestV1: Codable, Equatable, Sendable {
     let notification: AppLockGenericNotificationV1
     let fireAtUTC: Date
+    let detail: ReminderSystemDetailV1?
+
+    init(notification: AppLockGenericNotificationV1, fireAtUTC: Date,
+         detail: ReminderSystemDetailV1? = nil) {
+        self.notification = notification
+        self.fireAtUTC = fireAtUTC
+        self.detail = detail
+    }
+
+    var presentedTitle: String { detail?.title ?? notification.title }
+    var presentedBody: String { detail?.body ?? notification.body }
+
+    private enum CodingKeys: String, CodingKey { case notification, fireAtUTC, detail }
+
+    init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        notification = try values.decode(AppLockGenericNotificationV1.self, forKey: .notification)
+        fireAtUTC = try values.decode(Date.self, forKey: .fireAtUTC)
+        detail = try values.decodeIfPresent(ReminderSystemDetailV1.self, forKey: .detail)
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(notification, forKey: .notification)
+        try values.encode(fireAtUTC, forKey: .fireAtUTC)
+        try values.encodeIfPresent(detail, forKey: .detail)
+    }
 
     func validate() throws {
         try notification.validate()
+        try detail?.validate()
         guard UUID(uuidString: notification.requestID) != nil,
               fireAtUTC.timeIntervalSince1970.isFinite else {
             throw AppAccessContractFailureV1.invalidValue
@@ -40,6 +147,29 @@ struct NotificationPrivateMappingV1: Codable, Equatable, Sendable {
     let controlSubjectSHA256: String?
     var entries: [Entry]
     var retiring: [NotificationSystemRequestV1]
+    var projectedAppLockEnabled: Bool? = nil
+
+    static func expectedDetail(reminder: ReminderEntryV1, source: NotificationSourceSnapshotV1,
+        policy: DeviceLocalReminderPolicyV1, appLockEnabled: Bool?) throws -> ReminderSystemDetailV1? {
+        // Missing discriminator is a legacy generic mapping, never consent.
+        guard appLockEnabled == false, policy.isEnabled, policy.detail == .details else { return nil }
+        guard let copies = source.copySources,
+              copies.count == source.projection.reminders.count,
+              Set(copies.map(\.occurrenceID)).count == copies.count,
+              Set(copies.map(\.occurrenceID)) == Set(source.projection.reminders.map(\.occurrenceID)) else {
+            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        }
+        let matches = copies.filter { $0.occurrenceID == reminder.occurrenceID }
+        guard matches.count == 1, let copy = matches.first,
+              copy.scheduleRelease.workspaceID == source.projection.workspaceID,
+              copy.effectiveBasis.timeBasisSHA256 == copy.scheduleRelease.timeBasisSHA256,
+              copy.effectiveBasis.resolvedAtUTC == reminder.fireAtUTC,
+              let offset = copy.effectiveBasis.utcOffsetSeconds else { throw AppAccessContractFailureV1.effectMismatch }
+        try copy.scheduleRelease.validate()
+        try copy.effectiveBasis.validate()
+        return try ReminderSystemDetailV1.make(kind: copy.kind, fireAtUTC: reminder.fireAtUTC,
+            frozenUTCOffsetSeconds: offset)
+    }
 
     var ownedRequestIDs: [String] {
         (entries.map { $0.request.notification.requestID } + retiring.map { $0.notification.requestID }).sorted()
@@ -58,6 +188,9 @@ struct NotificationPrivateMappingV1: Codable, Equatable, Sendable {
         try policy.validate()
         for entry in entries {
             try entry.request.validate()
+            let expected = try Self.expectedDetail(reminder: entry.reminder, source: source,
+                policy: policy, appLockEnabled: projectedAppLockEnabled)
+            guard entry.request.detail == expected else { throw AppAccessContractFailureV1.effectMismatch }
             guard source.projection.reminders.contains(entry.reminder),
                   entry.request.fireAtUTC == entry.reminder.fireAtUTC,
                   entry.admissionID != SettingsValidationV1.zeroUUID,
@@ -89,9 +222,15 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
     func remove(_ requestIDs: [String]) async throws
 }
 
+/// A deliberate user action may request permission. Read-only system probes
+/// do not acquire this capability through a permissive protocol default.
+@MainActor protocol NotificationPermissionRequestingV1: NotificationSystemPortV1 {
+    func requestAuthorization() async throws -> LocalReminderAuthorizationV1
+}
+
 /// A scheduling acknowledgement is not readback. Removal is also asynchronous
 /// at the OS boundary; the owner must subsequently inspect actual absence.
-@MainActor final class UserNotificationSystemAdapterV1: NotificationSystemPortV1 {
+@MainActor final class UserNotificationSystemAdapterV1: NotificationPermissionRequestingV1 {
     private let center: UNUserNotificationCenter
 
     init(center: UNUserNotificationCenter = .current()) { self.center = center }
@@ -103,6 +242,13 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
         case .notDetermined: return .notDetermined
         @unknown default: return .unavailable
         }
+    }
+
+    func requestAuthorization() async throws -> LocalReminderAuthorizationV1 {
+        if try await authorization() == .notDetermined {
+            _ = try await center.requestAuthorization(options: [.alert])
+        }
+        return try await authorization()
     }
 
     func observations() async throws -> [NotificationSystemObservationV1] {
@@ -119,8 +265,8 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
     static func systemRequest(_ request: NotificationSystemRequestV1) throws -> UNNotificationRequest {
         try request.validate()
         let content = UNMutableNotificationContent()
-        content.title = request.notification.title
-        content.body = request.notification.body
+        content.title = request.presentedTitle
+        content.body = request.presentedBody
         content.userInfo = ["token": request.notification.opaqueCorrelationToken]
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
@@ -152,8 +298,18 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
               content.targetContentIdentifier == nil else {
             return .init(requestID: request.identifier, request: nil, delivered: delivered)
         }
-        let value = NotificationSystemRequestV1(notification: .init(requestID: request.identifier,
-            opaqueCorrelationToken: token, title: content.title, body: content.body), fireAtUTC: fire)
+        let generic = AppLockGenericNotificationV1(requestID: request.identifier,
+            opaqueCorrelationToken: token)
+        let detail: ReminderSystemDetailV1?
+        if content.title == generic.title, content.body == generic.body {
+            detail = nil
+        } else {
+            guard let observed = try? ReminderSystemDetailV1.observed(title: content.title, body: content.body) else {
+                return .init(requestID: request.identifier, request: nil, delivered: delivered)
+            }
+            detail = observed
+        }
+        let value = NotificationSystemRequestV1(notification: generic, fireAtUTC: fire, detail: detail)
         guard let canonical = try? systemRequest(value),
               let canonicalTrigger = canonical.trigger as? UNCalendarNotificationTrigger,
               trigger.dateComponents == canonicalTrigger.dateComponents,
@@ -226,10 +382,58 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
         } else { boundGate = gate }
     }
 
+    private func validateForeground(_ authorization: NotificationOperationAuthorizationV1) async throws {
+        guard case .content(let token) = authorization.proof else { throw AppAccessContractFailureV1.accessDenied }
+        try await validate(authorization)
+        try await authorization.gate.validateForegroundContentRead(token, for: .render)
+    }
+
+    func reminderAuthorization() async throws -> LocalReminderAuthorizationV1 {
+        let authorization = try await contentAuthorization()
+        return try await reminderAuthorization(authorization: authorization)
+    }
+
+    func reminderAuthorization(authorization: NotificationOperationAuthorizationV1) async throws -> LocalReminderAuthorizationV1 {
+        try await validateForeground(authorization)
+        let result = try await system.authorization()
+        try await validateForeground(authorization)
+        return result
+    }
+
+    /// Explicit request only; the original proof is never renewed after a prompt.
+    func requestReminderAuthorization() async throws -> LocalReminderAuthorizationV1 {
+        let authorization = try await contentAuthorization()
+        return try await requestReminderAuthorization(authorization: authorization)
+    }
+
+    func requestReminderAuthorization(authorization: NotificationOperationAuthorizationV1) async throws -> LocalReminderAuthorizationV1 {
+        let current = try await reminderAuthorization(authorization: authorization)
+        guard current == .notDetermined else { return current }
+        guard let requester = system as? any NotificationPermissionRequestingV1 else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
+        try await validateForeground(authorization)
+        let result = try await requester.requestAuthorization()
+        try await validateForeground(authorization)
+        return result
+    }
+
     func loadJournalEffect() async throws -> AppLockNotificationJournalV1? { try control.loadControl()?.journal }
 
     func loadAuthenticationSubjectEffect() async throws -> NotificationOperationSubjectV1? {
-        try control.loadControl().map(NotificationOperationSubjectV1.init(control:))
+        try currentAuthenticationControl().map(NotificationOperationSubjectV1.init(control:))
+    }
+
+    /// A completed Preferences effect invalidates the old authentication subject
+    /// even when its metadata publication was interrupted. Original incomplete
+    /// toggle controls still use their existing authenticated recovery route.
+    private func currentAuthenticationControl() throws -> AppLockNotificationControlV1? {
+        guard let current = try control.loadControl() else {
+            return try control.readyControlForReminderPolicy()
+        }
+        guard current.phase == .settingCommitted,
+              current.journal.targetEnabled || current.journal.disposition == .priorPolicyRebuilt else { return current }
+        return try control.readyControlForReminderPolicy()
     }
 
     func readAppLockSetting() async -> DeviceLocalAppLockSettingReadV1 {
@@ -239,16 +443,35 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
         } catch { return .corruptOrAmbiguous }
     }
 
+    func bindReminderPolicyEdits(to gate: AppAccessGateV1) throws {
+        try preferences.bindReminderPolicyEdits(to: gate, control: control)
+    }
+
     func validatesLocalConfigurationEffect(_ setting: DeviceLocalAppLockSettingReadV1) async throws -> Bool {
         try control.requireNotificationPublicationAllowed()
         let stored = try preferences.readAppLockSettingSnapshot()
         let actual = try stored.setting.map(DeviceLocalAppLockSettingReadV1.value) ?? .absentDisabled
         guard actual == setting else { return false }
-        guard let value = try control.loadControl() else {
-            return actual == .absentDisabled || actual == .value(.init(isEnabled: false))
+        let existing = try control.loadControl()
+        // An interrupted toggle must still bootstrap into locked authenticated
+        // recovery. Only completed controls can settle reminder-edit metadata.
+        if let existing {
+            guard existing.phase == .settingCommitted, stored == existing.settingWrite.successor,
+                  existing.journal.targetEnabled || existing.journal.disposition == .priorPolicyRebuilt else { return false }
+        }
+        let value: AppLockNotificationControlV1
+        do {
+            guard let ready = try control.readyControlForReminderPolicy() else {
+                return actual == .absentDisabled || actual == .value(.init(isEnabled: false))
+            }
+            value = ready
+        } catch AppAccessContractFailureV1.effectMismatch {
+            return false
+        } catch AppAccessContractFailureV1.notificationReconciliationRequired {
+            return false
         }
         guard value.phase == .settingCommitted, stored == value.settingWrite.successor,
-              try preferences.readStoredReminderPolicy() == value.settingWrite.expectedReminderPolicy else { return false }
+              try preferences.readStoredReminderPolicy() == value.currentReminderPolicy else { return false }
         if value.journal.targetEnabled {
             return value.journal.disposition == .genericProjectionApplied || value.journal.disposition == .genericProjectionAdopted
         }
@@ -268,7 +491,7 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
     private func prepare(operationID: UUID, target: Bool, expected: AppLockNotificationJournalV1?,
                          authorization: NotificationOperationAuthorizationV1) async throws -> AppLockNotificationJournalV1 {
         try await validate(authorization, target: target)
-        let predecessor = try control.loadControl()
+        let predecessor = try currentAuthenticationControl()
         guard predecessor?.journal == expected,
               try predecessor.map(NotificationOperationSubjectV1.init(control:)) == authorization.subject else {
             throw AppAccessContractFailureV1.effectMismatch
@@ -287,9 +510,8 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
             }
             policy = try preferences.readReminderPolicy()
         }
-        // No approved detailed content has been selected. Reject before any
-        // preparation or OS effect; never reinterpret saved consent as generic.
-        if !target { try requireSupportedPolicy(policy, appLockEnabled: false) }
+        // The authenticated source supplies copy; the target AppLock state
+        // controls whether any detail may be projected.
         let source = try await source(for: authorization)
         let beforeMapping = try await configurationMapping(source: source, authorization: authorization)
         let snapshot: NotificationSourceSnapshotV1
@@ -320,13 +542,18 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
             throw AppAccessContractFailureV1.notificationReconciliationRequired
         }
         let desired = policy.isEnabled ? snapshot.projection.reminders : []
+        let setting = try preferences.readAppLockSettingSnapshot()
+        if desired.contains(where: { $0.fireAtUTC <= clock.now() }) {
+            try await removeForbiddenDetails(before: beforeMapping, snapshot: snapshot, source: source,
+                policy: policy, setting: setting, localControl: predecessor,
+                appLockEnabled: target, authorization: authorization)
+        }
         try requireSchedulable(desired)
         if !desired.isEmpty {
             let availability = try await system.authorization()
             try await validate(authorization, target: target)
             guard availability == .authorized else { throw AppAccessContractFailureV1.notificationReconciliationRequired }
         }
-        let setting = try preferences.readAppLockSettingSnapshot()
         let plan = try preferences.planAppLockSettingWrite(expectedSetting: setting,
             expectedReminderPolicy: policy, target: .init(isEnabled: target), operationID: operationID)
         let historical = target ? policy : predecessor?.priorReminderPolicy ?? policy
@@ -340,7 +567,7 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
                 throw AppAccessContractFailureV1.notificationReconciliationRequired
             }
             entries = beforeMapping.entries
-        } else { entries = try desired.map(makeEntry) }
+        } else { entries = try desired.map { try makeEntry($0, source: snapshot, policy: policy, appLockEnabled: target) } }
         let journal = try AppLockNotificationJournalV1(operationID: operationID, targetEnabled: target,
             priorPolicy: historical.appLockReference(), projections: entries.map { $0.request.notification },
             disposition: target ? .enablingPrepared : .disablingPrepared)
@@ -355,13 +582,13 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
         let mapping = NotificationPrivateMappingV1(schemaVersion: 1, operationID: operationID,
             source: snapshot, policy: policy, setting: setting,
             controlSubjectSHA256: try NotificationOperationSubjectV1(control: candidate).immutableSHA256(),
-            entries: entries, retiring: retiring)
+            entries: entries, retiring: retiring, projectedAppLockEnabled: beforeMapping?.operationID == operationID ? beforeMapping?.projectedAppLockEnabled : target)
         try await source.validateNotificationSnapshot(snapshot, authorization: authorization)
         try await validate(authorization, target: target)
         return try await source.performNotificationEffect(snapshot: snapshot, authorization: authorization) {
           try AppLockNotificationTransactionFenceV1.perform {
             guard try currentPolicy() == policy, try preferences.readAppLockSettingSnapshot() == setting,
-                  try control.loadControl() == predecessor else { throw AppAccessContractFailureV1.effectMismatch }
+                  try currentAuthenticationControl() == predecessor else { throw AppAccessContractFailureV1.effectMismatch }
             if beforeMapping != mapping {
                 try control.replacePrivateNotificationMapping(mapping, expected: beforeMapping)
             }
@@ -386,7 +613,6 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
         try await validate(authorization, target: target)
         let value = try exactControl(expected, authorization: authorization)
         if !target {
-            try requireSupportedPolicy(currentPolicy(), appLockEnabled: false)
             guard value.phase == .settingCommitted,
                   try preferences.readAppLockSettingSnapshot() == value.settingWrite.successor else {
                 throw AppAccessContractFailureV1.effectMismatch
@@ -462,13 +688,32 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
         let source = try await source(for: authorization)
         let snapshot = try await source.notificationSnapshot(authorization: authorization, evaluatedAt: projection.evaluatedAt)
         guard snapshot.projection == projection else { throw MyDaySourceReadFailureV1.sourcesChanged }
+        return try await reconcileSnapshot(snapshot, source: source, authorization: authorization)
+    }
+
+    func reconcileSavedReminderPolicy(authorization: NotificationOperationAuthorizationV1) async throws -> LocalReminderReconciliationV1? {
+        try await validateForeground(authorization)
+        let source = try await source(for: authorization)
+        let snapshot = try await source.notificationSnapshot(authorization: authorization, evaluatedAt: clock.now())
+        if try currentPolicy().isEnabled {
+            let result = try await reconcileSnapshot(snapshot, source: source, authorization: authorization)
+            try await validateForeground(authorization)
+            return result
+        }
+        try await removeAll(snapshot: snapshot, source: source, authorization: authorization)
+        try await validateForeground(authorization)
+        return nil
+    }
+
+    private func reconcileSnapshot(_ snapshot: NotificationSourceSnapshotV1, source: ProductionMyDaySourceProviderV1,
+                                   authorization: NotificationOperationAuthorizationV1) async throws -> LocalReminderReconciliationV1 {
+        let projection = snapshot.projection
         let policy = try currentPolicy()
         // A caller cannot turn a canonical due projection into renewed consent.
         // The opt-out route removes requests explicitly through removeAll.
         guard policy.isEnabled else { throw AppAccessContractFailureV1.accessDenied }
         let setting = try preferences.readAppLockSettingSnapshot()
         let localControl = try ordinaryControl(setting: setting)
-        try requireSupportedPolicy(policy, appLockEnabled: setting.setting?.isEnabled == true)
         let before = try control.loadPrivateNotificationMapping()
         let observedSystem = try await source.performNotificationEffect(snapshot: snapshot, authorization: authorization) {
             try await self.system.observations()
@@ -481,16 +726,27 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
               try currentPolicy() == policy,
               try preferences.readAppLockSettingSnapshot() == setting,
               try control.loadControl() == localControl else { throw AppAccessContractFailureV1.effectMismatch }
-        let observed = (before?.entries ?? []).compactMap { entry -> ReminderEntryV1? in
+        let locked = try setting.setting?.isEnabled == true
+        let observed = try (before?.entries ?? []).compactMap { entry -> ReminderEntryV1? in
+            guard projection.reminders.contains(entry.reminder) else { return nil }
+            let expected = try NotificationPrivateMappingV1.expectedDetail(reminder: entry.reminder, source: snapshot,
+                policy: policy, appLockEnabled: locked)
             let matches = observedSystem.filter { $0.requestID == entry.request.notification.requestID }
-            return matches.count == 1 && matches[0].request == entry.request ? entry.reminder : nil
+            return entry.request.detail == expected && matches.count == 1 && matches[0].request == entry.request ? entry.reminder : nil
         }
         let plan = try LocalReminderReconciliationV1(projection: projection,
             observedReminderEntries: observed, authorization: availability)
+        let missing = projection.reminders.filter { !observed.contains($0) }
+        if availability != .authorized || missing.contains(where: { $0.fireAtUTC <= clock.now() }) {
+            // Privacy cleanup is independently useful even when delivery must
+            // retain its original denial. Never report an expired request as
+            // applied or manufacture a replacement fire time.
+            try await removeForbiddenDetails(before: before, snapshot: snapshot, source: source,
+                policy: policy, setting: setting, localControl: localControl,
+                appLockEnabled: locked, authorization: authorization)
+        }
         guard availability == .authorized else { return plan }
-        try requireSchedulable(projection.reminders.filter { desired in
-            !(before?.entries.contains(where: { $0.reminder == desired && observed.contains(desired) }) ?? false)
-        })
+        try requireSchedulable(missing)
         let mapping = try replacementMapping(before: before, source: snapshot, policy: policy,
             setting: setting, localControl: localControl, desired: projection.reminders, operationID: authorization.operationID)
         try await source.performNotificationEffect(snapshot: snapshot, authorization: authorization) {
@@ -502,11 +758,54 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
         return plan
     }
 
+    /// Removal uses only IDs already owned by the exact durable mapping.
+    /// Keep that mapping until normal reconciliation can replace it, so a
+    /// failed readback or process interruption cannot lose cleanup ownership.
+    private func removeForbiddenDetails(before: NotificationPrivateMappingV1?,
+        snapshot: NotificationSourceSnapshotV1, source: ProductionMyDaySourceProviderV1,
+        policy: DeviceLocalReminderPolicyV1, setting: AppLockStoredSettingSnapshotV1,
+        localControl: AppLockNotificationControlV1?, appLockEnabled: Bool,
+        authorization: NotificationOperationAuthorizationV1) async throws {
+        guard appLockEnabled || !policy.isEnabled || policy.detail == .generic,
+              let before else { return }
+        let forbidden = Set((before.entries.map(\.request) + before.retiring)
+            .filter { $0.detail != nil }.map { $0.notification.requestID })
+        guard !forbidden.isEmpty else { return }
+        let verify: () throws -> Void = {
+            try self.control.requireNotificationPublicationAllowed()
+            guard try self.control.loadPrivateNotificationMapping() == before,
+                  try self.currentPolicy() == policy,
+                  try self.preferences.readAppLockSettingSnapshot() == setting,
+                  try self.control.loadControl() == localControl,
+                  before.entries.allSatisfy({ $0.admissionID == nil }),
+                  !NotificationAddDrainV1.isActive(root: self.control.notificationRootIdentity) else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+        }
+        try await source.performNotificationEffect(snapshot: snapshot, authorization: authorization) {
+            try verify()
+            try await self.system.remove(forbidden.sorted())
+        }
+        let observed = try await source.performNotificationEffect(snapshot: snapshot, authorization: authorization) {
+            try verify()
+            return try await self.system.observations()
+        }
+        try verify()
+        guard !observed.contains(where: { forbidden.contains($0.requestID) }) else {
+            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        }
+    }
+
     func removeAll(workspaceID: WorkspaceID) async throws {
         let authorization = try await contentAuthorization()
         let source = try await source(for: authorization)
         let snapshot = try await source.notificationSnapshot(authorization: authorization, evaluatedAt: clock.now())
         guard snapshot.projection.workspaceID == workspaceID else { throw AppAccessContractFailureV1.accessDenied }
+        try await removeAll(snapshot: snapshot, source: source, authorization: authorization)
+    }
+
+    private func removeAll(snapshot: NotificationSourceSnapshotV1, source: ProductionMyDaySourceProviderV1,
+                           authorization: NotificationOperationAuthorizationV1) async throws {
         let policy = try currentPolicy()
         let setting = try preferences.readAppLockSettingSnapshot()
         let localControl = try ordinaryControl(setting: setting)
@@ -531,7 +830,7 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
     }
 
     private func ordinaryControl(setting: AppLockStoredSettingSnapshotV1) throws -> AppLockNotificationControlV1? {
-        let value = try control.loadControl()
+        let value = try control.readyControlForReminderPolicy()
         if let value {
             guard value.phase == .settingCommitted, value.settingWrite.successor == setting else {
                 throw AppAccessContractFailureV1.notificationReconciliationRequired
@@ -550,8 +849,12 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
               !NotificationAddDrainV1.isActive(root: control.notificationRootIdentity) else {
             throw AppAccessContractFailureV1.notificationReconciliationRequired
         }
+        let locked = try setting.setting?.isEnabled == true
         let entries = try desired.map { reminder in
-            try before?.entries.first(where: { $0.reminder == reminder }) ?? makeEntry(reminder)
+            let expected = try NotificationPrivateMappingV1.expectedDetail(reminder: reminder, source: source,
+                policy: policy, appLockEnabled: locked)
+            if let old = before?.entries.first(where: { $0.reminder == reminder && $0.request.detail == expected }) { return old }
+            return try makeEntry(reminder, source: source, policy: policy, appLockEnabled: locked)
         }
         let retained = Set(entries.map { $0.request.notification.requestID })
         let retiring = (before?.retiring ?? []) + (before?.entries.map(\.request) ?? [])
@@ -559,7 +862,7 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
         let result = NotificationPrivateMappingV1(schemaVersion: 1, operationID: operationID,
             source: source, policy: policy, setting: setting,
             controlSubjectSHA256: try localControl.map { try NotificationOperationSubjectV1(control: $0).immutableSHA256() },
-            entries: entries, retiring: retiring)
+            entries: entries, retiring: retiring, projectedAppLockEnabled: locked)
         try result.validate()
         return result
     }
@@ -769,21 +1072,18 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
         try await verifySystem(mapping, source: source, authorization: authorization, settingControl: settingControl)
     }
 
-    private func requireSupportedPolicy(_ policy: DeviceLocalReminderPolicyV1, appLockEnabled: Bool) throws {
-        guard !policy.isEnabled || policy.detail == .generic || appLockEnabled else {
-            throw AppAccessContractFailureV1.notificationReconciliationRequired
-        }
-    }
-
     private func requireSchedulable(_ entries: [ReminderEntryV1]) throws {
         guard entries.count <= 64, entries.allSatisfy({ $0.fireAtUTC > clock.now() }) else {
             throw AppAccessContractFailureV1.notificationReconciliationRequired
         }
     }
 
-    private func makeEntry(_ reminder: ReminderEntryV1) throws -> NotificationPrivateMappingV1.Entry {
+    private func makeEntry(_ reminder: ReminderEntryV1, source: NotificationSourceSnapshotV1,
+                           policy: DeviceLocalReminderPolicyV1, appLockEnabled: Bool) throws -> NotificationPrivateMappingV1.Entry {
         let request = NotificationSystemRequestV1(notification: .init(requestID: UUID().uuidString.lowercased(),
-            opaqueCorrelationToken: CompatibilityCanonicalV1.sha256(Data(UUID().uuidString.utf8))), fireAtUTC: reminder.fireAtUTC)
+            opaqueCorrelationToken: CompatibilityCanonicalV1.sha256(Data(UUID().uuidString.utf8))), fireAtUTC: reminder.fireAtUTC,
+            detail: try NotificationPrivateMappingV1.expectedDetail(reminder: reminder, source: source,
+                policy: policy, appLockEnabled: appLockEnabled))
         try request.validate()
         return .init(reminder: reminder, request: request, admissionID: nil, acknowledged: false)
     }
@@ -791,7 +1091,7 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
     private func exactControl(_ journal: AppLockNotificationJournalV1,
                               authorization: NotificationOperationAuthorizationV1,
                               allowAdvancedPhase: Bool = false) throws -> AppLockNotificationControlV1 {
-        guard let current = try control.loadControl(), let subject = authorization.subject,
+        guard let current = try currentAuthenticationControl(), let subject = authorization.subject,
               subject.hasSameImmutableSubject(as: try .init(control: current)),
               current.journal.operationID == authorization.operationID,
               allowAdvancedPhase || current.journal == journal else { throw AppAccessContractFailureV1.effectMismatch }
@@ -806,6 +1106,13 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
         guard try control.loadPrivateNotificationMapping() == mapping,
               try currentPolicy() == mapping.policy else { throw AppAccessContractFailureV1.effectMismatch }
         let setting = try preferences.readAppLockSettingSnapshot()
+        if let projected = mapping.projectedAppLockEnabled {
+            let effective: Bool
+            if let value = settingMayBeSuccessor, mapping.operationID == value.journal.operationID {
+                effective = value.journal.targetEnabled
+            } else { effective = try setting.setting?.isEnabled ?? false }
+            guard projected == effective else { throw AppAccessContractFailureV1.effectMismatch }
+        }
         if let settingMayBeSuccessor {
             guard try control.loadControl() == settingMayBeSuccessor,
                   mapping.controlSubjectSHA256 == (try NotificationOperationSubjectV1(control: settingMayBeSuccessor).immutableSHA256()),

@@ -20,18 +20,25 @@ enum DeviceLocalAppLockSettingReadV1: Equatable, Sendable {
 struct NotificationOperationSubjectV1: Equatable, Sendable {
     let journal: AppLockNotificationJournalV1
     let settingWriteSHA256: String
+    let reminderPolicyContinuationSHA256: String?
 
     init(control: AppLockNotificationControlV1) throws {
         journal = control.journal
         settingWriteSHA256 = CompatibilityCanonicalV1.sha256(try CompatibilityCanonicalV1.encode(control.settingWrite))
+        reminderPolicyContinuationSHA256 = try control.reminderPolicyContinuation.map {
+            CompatibilityCanonicalV1.sha256(try CompatibilityCanonicalV1.encode($0))
+        }
     }
 
-    init(journal: AppLockNotificationJournalV1, settingWriteSHA256: String) throws {
-        guard CompatibilityCanonicalV1.validSHA256(settingWriteSHA256) else {
+    init(journal: AppLockNotificationJournalV1, settingWriteSHA256: String,
+         reminderPolicyContinuationSHA256: String? = nil) throws {
+        guard CompatibilityCanonicalV1.validSHA256(settingWriteSHA256),
+              reminderPolicyContinuationSHA256.map(CompatibilityCanonicalV1.validSHA256) ?? true else {
             throw AppAccessContractFailureV1.invalidValue
         }
         self.journal = journal
         self.settingWriteSHA256 = settingWriteSHA256
+        self.reminderPolicyContinuationSHA256 = reminderPolicyContinuationSHA256
     }
 
     func hasSameImmutableSubject(as other: Self) -> Bool {
@@ -40,6 +47,7 @@ struct NotificationOperationSubjectV1: Equatable, Sendable {
             && journal.priorPolicy == other.journal.priorPolicy
             && journal.projections == other.journal.projections
             && settingWriteSHA256 == other.settingWriteSHA256
+            && reminderPolicyContinuationSHA256 == other.reminderPolicyContinuationSHA256
     }
 
     func immutableSHA256() throws -> String {
@@ -49,11 +57,13 @@ struct NotificationOperationSubjectV1: Equatable, Sendable {
             let priorPolicy: AppLockNotificationCanonicalPolicyV1
             let projections: [AppLockGenericNotificationV1]
             let settingWriteSHA256: String
+            let reminderPolicyContinuationSHA256: String?
         }
         return CompatibilityCanonicalV1.sha256(try CompatibilityCanonicalV1.encode(Basis(
             operationID: journal.operationID, targetEnabled: journal.targetEnabled,
             priorPolicy: journal.priorPolicy, projections: journal.projections,
-            settingWriteSHA256: settingWriteSHA256)))
+            settingWriteSHA256: settingWriteSHA256,
+            reminderPolicyContinuationSHA256: reminderPolicyContinuationSHA256)))
     }
 }
 
@@ -476,8 +486,69 @@ protocol AppLockNotificationPrivacyPortV1: Sendable {
     func eraseNotificationsAndMappings(operationID: UUID) async throws
 }
 
+/// Evidence of a completed, authorized Preferences effect. This value cannot
+/// authorize another policy write or prove an operating-system notification effect.
+struct AppLockReminderPolicyEditStampV1: Codable, Equatable, Sendable {
+    let rootIdentity: String
+    let expectedControlSHA256: String
+    let settingWrite: AppLockSettingWritePlanV1
+    let operationID: UUID
+    let expectedPolicy: DeviceLocalReminderPolicyV1
+    let successorPolicy: DeviceLocalReminderPolicyV1
+
+    init(rootIdentity: String, expectedControlSHA256: String,
+         settingWrite: AppLockSettingWritePlanV1, operationID: UUID,
+         expectedPolicy: DeviceLocalReminderPolicyV1,
+         successorPolicy: DeviceLocalReminderPolicyV1) throws {
+        self.rootIdentity = rootIdentity
+        self.expectedControlSHA256 = expectedControlSHA256
+        self.settingWrite = settingWrite
+        self.operationID = operationID
+        self.expectedPolicy = expectedPolicy
+        self.successorPolicy = successorPolicy
+        try validate()
+    }
+
+    func validate() throws {
+        try expectedPolicy.validate()
+        try successorPolicy.validate()
+        // Reconstruct the closed plan so a decoded stamp cannot bypass its
+        // operation/predecessor/setting validation.
+        let plan = try AppLockSettingWritePlanV1(expectedSetting: settingWrite.expectedSetting,
+            expectedReminderPolicy: settingWrite.expectedReminderPolicy,
+            target: settingWrite.target, operationID: settingWrite.operationID)
+        guard plan == settingWrite, !rootIdentity.isEmpty, rootIdentity.utf8.count <= 160,
+              rootIdentity.split(separator: ":", omittingEmptySubsequences: false).count == 4,
+              rootIdentity.split(separator: ":").allSatisfy({ UInt64($0) != nil }),
+              MutationEnvelopeV1.isSHA256(expectedControlSHA256),
+              operationID != SettingsValidationV1.zeroUUID,
+              operationID != settingWrite.operationID,
+              expectedPolicy.instanceID == settingWrite.expectedReminderPolicy.instanceID,
+              expectedPolicy.revision >= settingWrite.expectedReminderPolicy.revision,
+              expectedPolicy.revision < UInt64.max,
+              successorPolicy.instanceID == expectedPolicy.instanceID,
+              successorPolicy.revision == expectedPolicy.revision + 1 else {
+            throw AppAccessContractFailureV1.effectMismatch
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case rootIdentity, expectedControlSHA256, settingWrite, operationID, expectedPolicy, successorPolicy
+    }
+    init(from decoder: any Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(rootIdentity: values.decode(String.self, forKey: .rootIdentity),
+            expectedControlSHA256: values.decode(String.self, forKey: .expectedControlSHA256),
+            settingWrite: values.decode(AppLockSettingWritePlanV1.self, forKey: .settingWrite),
+            operationID: values.decode(UUID.self, forKey: .operationID),
+            expectedPolicy: values.decode(DeviceLocalReminderPolicyV1.self, forKey: .expectedPolicy),
+            successorPolicy: values.decode(DeviceLocalReminderPolicyV1.self, forKey: .successorPolicy))
+    }
+}
+
 /// Device-local recovery control, separate from the unchanged legacy journal.
-/// It records setting completion only, never OS delivery or projection proof.
+/// Completion metadata never proves OS delivery or projection.
 struct AppLockNotificationControlV1: Codable, Equatable, Sendable {
     enum Phase: String, Codable, Sendable { case prepared, settingCommitted }
     static let schemaVersion = 1
@@ -486,10 +557,16 @@ struct AppLockNotificationControlV1: Codable, Equatable, Sendable {
     let priorReminderPolicy: DeviceLocalReminderPolicyV1
     let settingWrite: AppLockSettingWritePlanV1
     let phase: Phase
+    let reminderPolicyContinuation: AppLockReminderPolicyEditStampV1?
+
+    var currentReminderPolicy: DeviceLocalReminderPolicyV1 {
+        reminderPolicyContinuation?.successorPolicy ?? settingWrite.expectedReminderPolicy
+    }
 
     init(journal: AppLockNotificationJournalV1,
          priorReminderPolicy: DeviceLocalReminderPolicyV1,
-         settingWrite: AppLockSettingWritePlanV1, phase: Phase = .prepared) throws {
+         settingWrite: AppLockSettingWritePlanV1, phase: Phase = .prepared,
+         reminderPolicyContinuation: AppLockReminderPolicyEditStampV1? = nil) throws {
         let validatedJournal = try AppLockNotificationJournalV1(operationID: journal.operationID,
             targetEnabled: journal.targetEnabled, priorPolicy: journal.priorPolicy,
             projections: journal.projections, disposition: journal.disposition)
@@ -513,19 +590,28 @@ struct AppLockNotificationControlV1: Codable, Equatable, Sendable {
                 throw AppAccessContractFailureV1.notificationReconciliationRequired
             }
         }
+        if let continuation = reminderPolicyContinuation {
+            try continuation.validate()
+            guard phase == .settingCommitted, continuation.settingWrite == settingWrite,
+                  journal.targetEnabled || journal.disposition == .priorPolicyRebuilt else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+        }
         schemaVersion = Self.schemaVersion
         self.journal = journal
         self.priorReminderPolicy = priorReminderPolicy
         self.settingWrite = settingWrite
         self.phase = phase
+        self.reminderPolicyContinuation = reminderPolicyContinuation
     }
 
     func committingSetting() throws -> Self {
         try .init(journal: journal, priorReminderPolicy: priorReminderPolicy,
-            settingWrite: settingWrite, phase: .settingCommitted)
+            settingWrite: settingWrite, phase: .settingCommitted,
+            reminderPolicyContinuation: reminderPolicyContinuation)
     }
 
-    private enum CodingKeys: String, CodingKey, CaseIterable { case schemaVersion, journal, priorReminderPolicy, settingWrite, phase }
+    private enum CodingKeys: String, CodingKey, CaseIterable { case schemaVersion, journal, priorReminderPolicy, settingWrite, phase, reminderPolicyContinuation }
     init(from decoder: any Decoder) throws {
         try ClosedContractDecodingV1.rejectUnknownKeys(decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue)))
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -535,7 +621,9 @@ struct AppLockNotificationControlV1: Codable, Equatable, Sendable {
         try self.init(journal: values.decode(AppLockNotificationJournalV1.self, forKey: .journal),
             priorReminderPolicy: values.decode(DeviceLocalReminderPolicyV1.self, forKey: .priorReminderPolicy),
             settingWrite: values.decode(AppLockSettingWritePlanV1.self, forKey: .settingWrite),
-            phase: values.decode(Phase.self, forKey: .phase))
+            phase: values.decode(Phase.self, forKey: .phase),
+            reminderPolicyContinuation: values.decodeIfPresent(AppLockReminderPolicyEditStampV1.self,
+                forKey: .reminderPolicyContinuation))
     }
 }
 

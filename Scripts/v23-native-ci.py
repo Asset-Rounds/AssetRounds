@@ -46,8 +46,8 @@ NO_INDEX_PARENT = '5c1e9831153e9e5feddda08e1152de06ecbaaed2'
 NO_INDEX_TREES = {'FieldEvidenceApp': 'cf661d0cb9a754135dfdea02fc7fa81967163331', 'FieldEvidenceAppTests': '6ae80744a230727892ceb04617421d91fd17e53a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 NO_INDEX_RECEIPT = "no-index-build-command.json"
 RESTORE_BUILD_WATCHDOG_SELECTION_ID = "c36-restore-review-no-index-build30m"
-RESTORE_BUILD_WATCHDOG_PARENT = "ed9536305e35a257180e7525af1733c3c04e4f89"
-RESTORE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': 'c68216b787ae96c178d9f42addfe1e6e96ff6a0b', 'FieldEvidenceAppTests': '61ee975b0a57c42c2cb699cbbf7e9e741ca857b9', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+RESTORE_BUILD_WATCHDOG_PARENT = "550ee50b6d5b6c5a53616029d209338196b10cf6"
+RESTORE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '32c51adbce704cf199e06eac98363684241461b3', 'FieldEvidenceAppTests': 'f4b21dedb4eb6b05f4e0796047ada8f95ac58f66', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 RESTORE_BUILD_WATCHDOG_SELECTORS = tuple(
     "FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/" + method for method in (
         "testPhysicalForkCreatesReviewReceiptAndSecondHopSurvivesOriginalPackageRemoval",
@@ -114,9 +114,9 @@ DURABLE_BEGIN_BASE_POOL_SHA256 = "91E6F41D81E982D116611FF4A96219FE3631020B5CB264
 DURABLE_BEGIN_BASE_MAP_SHA256 = "CD41DF01E106199B7CAE86CEDEB4BAA93F812C76D7B510BA6DC941DFCDDF7129"
 DESTINATION_LEGACY_SELECTION_ID = "c36-destination-legacy-bytes"
 DESTINATION_LEGACY_SELECTOR = 'FieldEvidenceAppTests/V9_30FieldDraftResilienceTests/testReviewedTargetCarrierPreservesLegacyMyDayCanonicalResolutionBytes'
-GENERATED_SELECTION_PROFILE = "restore-review-v1"
-GENERATED_SELECTION_POOL_SHA256 = "658B54FBAA5E5907778892FD8F6B07BA5DEE82E5542580AC20723DC711E33584"
-GENERATED_SELECTION_MAP_SHA256 = "143C205A5011FDBF1688CDF885B047070F192471AEDC5BF5B06FBFC20517DB98"
+GENERATED_SELECTION_PROFILE = "reminder-compatibility-v1"
+GENERATED_SELECTION_POOL_SHA256 = "63394DBA6A8D5EF9C18C556473C5B3B28BE8178D3C9BEAC5032B611CA797A72A"
+GENERATED_SELECTION_MAP_SHA256 = "73A11321226C73B195635CB75DD3046F0B49AE5BA8671D3B5A8255DA4D58A0D1"
 CONFIGURATION_CLONE_SELECTION_ID = "c36-photo-configuration-clone"
 CONFIGURATION_CLONE_SELECTORS = (
     'FieldEvidenceAppTests/S6_2BackupExportTests/testConfigurationCloneAcceptsEveryAuthenticPhotoPhaseAndOmitsOperationalFamily',
@@ -920,7 +920,7 @@ def resolve_selection(default, selection_map, selection_id):
                  and g.get("classes") == ['S3_6CameraRecoveryTests', 'S4_5CorrectionTests', 'S6_2BackupExportTests', 'V9_18PackLifecycleIntegrationTests']]) == 1
     )
     generated_profile_shape = (
-        isinstance(groups, list) and len(groups) == 48
+        isinstance(groups, list) and len(groups) == 53
         and sha256(canonical(default)) == GENERATED_SELECTION_POOL_SHA256
         and sha256(canonical(selection_map)) == GENERATED_SELECTION_MAP_SHA256
     )

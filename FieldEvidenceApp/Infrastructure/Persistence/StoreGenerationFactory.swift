@@ -7125,6 +7125,16 @@ final class StoreRestoreGenerationAuthority {
         return (UInt64(value.device), UInt64(value.inode))
     }
 
+    /// Restore review writes are confined to this authority's unpublished tree.
+    /// Installed report-file authority must not be broadened to admit staging.
+    func restoreReviewRootIdentity(id: UUID) throws -> ReportPDFAnchoredFile.RootIdentity {
+        try verify()
+        let value = try Self.requiredDirectoryIdentity(
+            parent: stagingGenerationsDescriptor, name: Self.canonical(id))
+        try verify()
+        return ReportPDFAnchoredFile.RootIdentity(device: value.device, inode: value.inode)
+    }
+
     func restoreGenerationRootIdentity(
         id: UUID,
         staging: Bool
@@ -9616,7 +9626,7 @@ struct StoreGenerationFactory {
                 throw WorkspaceMutationFailureV1.wrongGeneration
             }
             diagnosticPhase?("reviews.root-identity")
-            let rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: session.generationRootURL)
+            let rootIdentity = try authority.restoreReviewRootIdentity(id: target.generationID)
             diagnosticPhase?("reviews.mutations")
             let mutations: [FieldDraftMutationV1] = try plan.checkpoints.map { checkpoint in
                 try FieldDraftMutationV1(workspaceID: checkpoint.workspaceID,
@@ -9633,7 +9643,7 @@ struct StoreGenerationFactory {
                     guard session.modelContext === context,
                           session.workspaceIdentity == identity,
                           session.generationID == target.generationID,
-                          try ReportPDFAnchoredFile.rootIdentity(at: session.generationRootURL) == rootIdentity else {
+                          try authority.restoreReviewRootIdentity(id: target.generationID) == rootIdentity else {
                         throw WorkspaceMutationFailureV1.wrongGeneration
                     }
                 })

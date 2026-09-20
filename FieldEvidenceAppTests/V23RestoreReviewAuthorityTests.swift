@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
@@ -6,10 +7,12 @@ import XCTest
 @MainActor
 final class V23RestoreReviewAuthorityTests: XCTestCase {
     func testWrongContextIdentityAndGenerationHaveNoEffects() throws {
+        try assertStagingRootIdentityIsConfinedToRestoreAuthority()
         try assertDenied([.wrongContext, .wrongIdentity, .wrongGeneration], failure: .wrongGeneration)
     }
 
     func testChangedBindingDeniesAdmissionAndCommitWithoutEffects() throws {
+        try assertStagingRootIdentityDetectsReplacementAndRejectsLinks()
         try assertDenied([.changedBindingBeforeAdmission, .changedBindingBeforeCommit], failure: .wrongGeneration)
     }
 
@@ -32,6 +35,82 @@ final class V23RestoreReviewAuthorityTests: XCTestCase {
 
     func testSynchronousRevocationDeniesReadAdmissionAndPreviouslyAdmittedCommit() throws {
         try assertDenied([.revokedRead, .revokedAdmission, .revokedCommit], failure: .wrongGeneration)
+    }
+
+    private func withRootIdentityFixture(
+        _ body: @MainActor (URL, StoreGenerationFactory, StoreRestoreGenerationAuthority) throws -> Void
+    ) throws {
+        let support = FileManager.default.temporaryDirectory
+            .appendingPathComponent("restore-root-identity-\(UUID())", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: support.appendingPathComponent("FieldEvidenceData/generations", isDirectory: true),
+            withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: support) }
+        let factory = StoreGenerationFactory(applicationSupportURL: support)
+        let authority = try factory.makeRestoreGenerationAuthority()
+        try body(support, factory, authority)
+    }
+
+    private func assertStagingRootIdentityIsConfinedToRestoreAuthority() throws {
+        try withRootIdentityFixture { _, factory, authority in
+            let id = UUID()
+            try authority.createStagingGeneration(id: id)
+            let root = factory.restoreStagingGenerationURL(id: id)
+            let actual = try authority.restoreReviewRootIdentity(id: id)
+            var info = stat()
+            XCTAssertEqual(Darwin.lstat(root.path, &info), 0)
+            XCTAssertEqual(actual.device, info.st_dev)
+            XCTAssertEqual(actual.inode, info.st_ino)
+            XCTAssertEqual(try authority.restoreReviewRootIdentity(id: id), actual)
+            XCTAssertThrowsError(try ReportPDFAnchoredFile.rootIdentity(at: root))
+            XCTAssertThrowsError(try authority.restoreReviewRootIdentity(id: UUID()))
+
+            let installedID = UUID()
+            let installed = factory.installedGenerationURL(id: installedID)
+            try FileManager.default.createDirectory(at: installed, withIntermediateDirectories: false)
+            XCTAssertNoThrow(try ReportPDFAnchoredFile.rootIdentity(at: installed))
+            XCTAssertThrowsError(try authority.restoreReviewRootIdentity(id: installedID))
+            try withRootIdentityFixture { _, _, other in
+                XCTAssertThrowsError(try other.restoreReviewRootIdentity(id: id))
+                try other.createStagingGeneration(id: id)
+                XCTAssertNotEqual(try other.restoreReviewRootIdentity(id: id), actual)
+            }
+            XCTAssertEqual(try authority.restoreReviewRootIdentity(id: id), actual)
+        }
+    }
+
+    private func assertStagingRootIdentityDetectsReplacementAndRejectsLinks() throws {
+        try withRootIdentityFixture { support, factory, authority in
+            let id = UUID()
+            try authority.createStagingGeneration(id: id)
+            let root = factory.restoreStagingGenerationURL(id: id)
+            let original = try authority.restoreReviewRootIdentity(id: id)
+            let retained = root.appendingPathExtension("retained")
+            try FileManager.default.moveItem(at: root, to: retained)
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+            XCTAssertNotEqual(try authority.restoreReviewRootIdentity(id: id), original)
+            try FileManager.default.removeItem(at: root)
+            try FileManager.default.createSymbolicLink(at: root, withDestinationURL: retained)
+            XCTAssertThrowsError(try authority.restoreReviewRootIdentity(id: id))
+            try FileManager.default.removeItem(at: root)
+            try Data("owned sentinel".utf8).write(to: root)
+            XCTAssertThrowsError(try authority.restoreReviewRootIdentity(id: id))
+            XCTAssertEqual(try Data(contentsOf: root), Data("owned sentinel".utf8))
+            try FileManager.default.removeItem(at: root)
+            try FileManager.default.moveItem(at: retained, to: root)
+            XCTAssertEqual(try authority.restoreReviewRootIdentity(id: id), original)
+
+            let parent = root.deletingLastPathComponent()
+            let oldParent = support.appendingPathComponent("retained-generations", isDirectory: true)
+            try FileManager.default.moveItem(at: parent, to: oldParent)
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            XCTAssertThrowsError(try authority.restoreReviewRootIdentity(id: id))
+            var retainedInfo = stat()
+            let retainedRoot = oldParent.appendingPathComponent(root.lastPathComponent)
+            XCTAssertEqual(Darwin.lstat(retainedRoot.path, &retainedInfo), 0)
+            XCTAssertEqual(retainedInfo.st_dev, original.device)
+            XCTAssertEqual(retainedInfo.st_ino, original.inode)
+        }
     }
 
     private func assertDenied(_ attacks: [StoreRestoreReviewAuthorityProbeV1.Attack],

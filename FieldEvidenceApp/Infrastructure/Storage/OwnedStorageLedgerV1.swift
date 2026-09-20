@@ -1105,7 +1105,7 @@ private final class PinnedScratchRootV1: @unchecked Sendable {
 }
 
 enum AppLockNotificationControlFailurePointV1: Equatable, Sendable {
-    case none, afterPreferenceWrite, afterPendingWriteBeforeSync
+    case none, afterPreferenceWrite, afterPendingWriteBeforeSync, afterReminderPreferenceWrite
 }
 
 /// Sole descriptor-pinned notification control and private correlation owner.
@@ -1278,6 +1278,83 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
             throw AppAccessContractFailureV1.configurationUnknown
         }
         return value
+    }
+
+    func requirePreferencesOwner(_ candidate: PreferencesAdapterV1) throws {
+        guard candidate === preferences else { throw AppAccessContractFailureV1.effectMismatch }
+    }
+
+    /// Settles only metadata for an already completed Preferences effect. It
+    /// never writes policy, changes AppLock, or claims an OS projection occurred.
+    func readyControlForReminderPolicy() throws -> AppLockNotificationControlV1? {
+        try AppLockNotificationTransactionFenceV1.perform {
+            try requireNotificationPublicationAllowed()
+            let setting = try preferences.readAppLockSettingSnapshot()
+            guard let current = try loadControl() else {
+                guard try readFile(Self.pendingName, kind: .journalTemporary) == nil,
+                      try setting.setting?.isEnabled != true,
+                      try preferences.completedReminderControlEdit() == nil else {
+                    throw AppAccessContractFailureV1.notificationReconciliationRequired
+                }
+                return nil
+            }
+            guard current.phase == .settingCommitted, setting == current.settingWrite.successor,
+                  current.journal.targetEnabled || current.journal.disposition == .priorPolicyRebuilt else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            let policy = try preferences.readStoredReminderPolicy()
+            let evidence = try preferences.completedReminderControlEdit()
+            if policy == current.currentReminderPolicy {
+                if let continuation = current.reminderPolicyContinuation {
+                    guard continuation.rootIdentity == notificationRootIdentity, evidence == continuation else {
+                        throw AppAccessContractFailureV1.effectMismatch
+                    }
+                }
+                guard try readFile(Self.pendingName, kind: .journalTemporary) == nil else {
+                    throw AppAccessContractFailureV1.notificationReconciliationRequired
+                }
+                return current
+            }
+            guard let evidence, evidence.rootIdentity == notificationRootIdentity,
+                  evidence.settingWrite == current.settingWrite,
+                  evidence.expectedPolicy == current.currentReminderPolicy,
+                  policy == evidence.successorPolicy,
+                  evidence.expectedControlSHA256 == (try CompatibilityCanonicalV1.sha256(
+                    CompatibilityCanonicalV1.encode(current))) else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            let continued = try AppLockNotificationControlV1(journal: current.journal,
+                priorReminderPolicy: current.priorReminderPolicy, settingWrite: current.settingWrite,
+                phase: current.phase, reminderPolicyContinuation: evidence)
+            try publish(continued, expected: current)
+            guard try loadControl() == continued else { throw AppAccessContractFailureV1.effectMismatch }
+            return continued
+        }
+    }
+
+    func reminderPolicyEditStamp(for request: ReminderPolicyEditRequestV1,
+                                 expected: AppLockNotificationControlV1?) throws -> AppLockReminderPolicyEditStampV1? {
+        try AppLockNotificationTransactionFenceV1.perform {
+            guard try readyControlForReminderPolicy() == expected,
+                  try preferences.readStoredReminderPolicy() == request.expected else {
+                throw SettingsContractFailureV1.staleRevision
+            }
+            guard let expected else { return nil }
+            guard expected.currentReminderPolicy == request.expected,
+                  request.expected.revision < UInt64.max else {
+                throw SettingsContractFailureV1.staleRevision
+            }
+            let successor = try DeviceLocalReminderPolicyV1(instanceID: request.expected.instanceID,
+                revision: request.expected.revision + 1, isEnabled: request.isEnabled, detail: request.detail)
+            return try .init(rootIdentity: notificationRootIdentity,
+                expectedControlSHA256: CompatibilityCanonicalV1.sha256(CompatibilityCanonicalV1.encode(expected)),
+                settingWrite: expected.settingWrite, operationID: request.operationID,
+                expectedPolicy: request.expected, successorPolicy: successor)
+        }
+    }
+
+    func afterReminderPolicyWrite() throws {
+        if failurePoint == .afterReminderPreferenceWrite { throw AppAccessContractFailureV1.effectMismatch }
     }
 
     func loadControl() throws -> AppLockNotificationControlV1? {

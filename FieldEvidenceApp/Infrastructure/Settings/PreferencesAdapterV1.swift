@@ -34,11 +34,26 @@ private enum ReminderPolicyOperationKindV1: String, Codable, Sendable {
     case update, reset, erase
 }
 
+/// The update case cannot represent a request without live edit authority.
+private enum ReminderPolicyChangeV1 {
+    case update(AppAccessGateV1.ReminderPolicyEditCommandV1)
+    case reset(expected: DeviceLocalReminderPolicyV1, operationID: UUID)
+    case erase(expected: DeviceLocalReminderPolicyV1, operationID: UUID)
+}
+
 private struct ReminderPolicyOperationV1: Codable, Equatable, Sendable {
     let operationID: UUID
     let kind: ReminderPolicyOperationKindV1
     let expected: DeviceLocalReminderPolicyV1
     let successor: DeviceLocalReminderPolicyV1
+    let controlStamp: AppLockReminderPolicyEditStampV1?
+
+    init(operationID: UUID, kind: ReminderPolicyOperationKindV1,
+         expected: DeviceLocalReminderPolicyV1, successor: DeviceLocalReminderPolicyV1,
+         controlStamp: AppLockReminderPolicyEditStampV1? = nil) {
+        self.operationID = operationID; self.kind = kind
+        self.expected = expected; self.successor = successor; self.controlStamp = controlStamp
+    }
 
     func validate() throws {
         try expected.validate()
@@ -50,6 +65,27 @@ private struct ReminderPolicyOperationV1: Codable, Equatable, Sendable {
               kind == .update || (!successor.isEnabled && successor.detail == .generic) else {
             throw PreferencesAdapterFailureV1.invalidCanonicalValue
         }
+        if let controlStamp {
+            try controlStamp.validate()
+            guard kind == .update, controlStamp.operationID == operationID,
+                  controlStamp.expectedPolicy == expected, controlStamp.successorPolicy == successor else {
+                throw PreferencesAdapterFailureV1.invalidCanonicalValue
+            }
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case operationID, kind, expected, successor, controlStamp
+    }
+    init(from decoder: any Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(operationID: try values.decode(UUID.self, forKey: .operationID),
+            kind: try values.decode(ReminderPolicyOperationKindV1.self, forKey: .kind),
+            expected: try values.decode(DeviceLocalReminderPolicyV1.self, forKey: .expected),
+            successor: try values.decode(DeviceLocalReminderPolicyV1.self, forKey: .successor),
+            controlStamp: try values.decodeIfPresent(AppLockReminderPolicyEditStampV1.self, forKey: .controlStamp))
+        try validate()
     }
 }
 
@@ -204,6 +240,11 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStor
     private static let sceneNavigationStorageKey = "scene-navigation.v1"
     private static let ratingEligibilityLock = NSLock()
     private let defaults: UserDefaults
+    final class ReminderPolicyEditOwnerV1: Sendable {}
+    private let reminderPolicyEditOwner = ReminderPolicyEditOwnerV1()
+    private var reminderPolicyEditGate: AppAccessGateV1?
+    private weak var reminderPolicyEditControl: AppLockNotificationControlStoreV1?
+    private var reminderPolicyEditsRetired = false
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -493,28 +534,68 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStor
         }
     }
 
-    func updateReminderPolicy(expected: DeviceLocalReminderPolicyV1, isEnabled: Bool,
-                              detail: ReminderNotificationDetailV1, operationID: UUID) throws -> DeviceLocalReminderPolicyV1 {
-        try changeReminderPolicy(expected: expected, isEnabled: isEnabled, detail: detail,
-                                 kind: .update, operationID: operationID)
+    func bindReminderPolicyEdits(to gate: AppAccessGateV1,
+                                control: AppLockNotificationControlStoreV1) throws {
+        try withLock {
+            guard reminderPolicyEditGate == nil, !reminderPolicyEditsRetired else {
+                throw AppAccessContractFailureV1.accessDenied
+            }
+            try control.requirePreferencesOwner(self)
+            try control.verifyNotificationStorage()
+            reminderPolicyEditGate = gate
+            reminderPolicyEditControl = control
+        }
+    }
+
+    func retireReminderPolicyEdits() {
+        AppLockNotificationTransactionFenceV1.perform { reminderPolicyEditsRetired = true }
+    }
+
+    func authorizeReminderPolicyEdit(_ request: ReminderPolicyEditRequestV1) async throws -> AppAccessGateV1.ReminderPolicyEditCommandV1 {
+        let gate = try withLock {
+            guard let gate = reminderPolicyEditGate, !reminderPolicyEditsRetired else {
+                throw AppAccessContractFailureV1.accessDenied
+            }
+            return gate
+        }
+        // Release the preferences fence before entering the actor. The leaf
+        // independently rechecks owner retirement after this await.
+        return try await gate.authorizeReminderPolicyEdit(request, owner: reminderPolicyEditOwner)
+    }
+
+    func updateReminderPolicy(_ command: AppAccessGateV1.ReminderPolicyEditCommandV1) throws -> DeviceLocalReminderPolicyV1 {
+        try changeReminderPolicy(.update(command))
     }
 
     func resetReminderPolicy(expected: DeviceLocalReminderPolicyV1,
                              operationID: UUID) throws -> DeviceLocalReminderPolicyV1 {
-        try changeReminderPolicy(expected: expected, isEnabled: false, detail: .generic,
-                                 kind: .reset, operationID: operationID)
+        try changeReminderPolicy(.reset(expected: expected, operationID: operationID))
     }
 
     func eraseReminderPolicy(expected: DeviceLocalReminderPolicyV1,
                              operationID: UUID) throws -> DeviceLocalReminderPolicyV1 {
-        try changeReminderPolicy(expected: expected, isEnabled: false, detail: .generic,
-                                 kind: .erase, operationID: operationID)
+        try changeReminderPolicy(.erase(expected: expected, operationID: operationID))
     }
 
-    private func changeReminderPolicy(expected: DeviceLocalReminderPolicyV1, isEnabled: Bool,
-                                      detail: ReminderNotificationDetailV1, kind: ReminderPolicyOperationKindV1,
-                                      operationID: UUID) throws -> DeviceLocalReminderPolicyV1 {
+    /// Durable effect evidence only. Reading it never repeats a preference write.
+    func completedReminderControlEdit() throws -> AppLockReminderPolicyEditStampV1? {
         try withLock {
+            let descriptor = try SettingsRegistryV1.current().descriptor(for: DeviceLocalReminderPolicyV1.key)
+            guard let envelope = try reminderEnvelope(descriptor: descriptor),
+                  let operation = envelope.reminderOperation else { return nil }
+            try operation.validate()
+            guard operation.kind == .update else { return nil }
+            return operation.controlStamp
+        }
+    }
+
+    private func changeReminderPolicy(_ change: ReminderPolicyChangeV1) throws -> DeviceLocalReminderPolicyV1 {
+        // Called only while the preferences transaction fence is held. Update
+        // authority is checked before any envelope read, including a replay.
+        func apply(expected: DeviceLocalReminderPolicyV1, isEnabled: Bool,
+                   detail: ReminderNotificationDetailV1, kind: ReminderPolicyOperationKindV1,
+                   operationID: UUID,
+                   controlStamp: AppLockReminderPolicyEditStampV1? = nil) throws -> DeviceLocalReminderPolicyV1 {
             try expected.validate()
             guard operationID != SettingsValidationV1.zeroUUID, expected.revision < UInt64.max else {
                 throw SettingsContractFailureV1.invalidValue
@@ -526,7 +607,7 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStor
             let successor = try DeviceLocalReminderPolicyV1(instanceID: expected.instanceID,
                 revision: expected.revision + 1, isEnabled: isEnabled, detail: detail)
             let request = ReminderPolicyOperationV1(operationID: operationID, kind: kind,
-                                                    expected: expected, successor: successor)
+                expected: expected, successor: successor, controlStamp: controlStamp)
             try request.validate()
             if let original = prior.reminderOperation, original.operationID == operationID {
                 guard original == request else { throw SettingsContractFailureV1.changedOperation }
@@ -538,6 +619,61 @@ final class PreferencesAdapterV1: DevicePreferencesPortV1, RatingEligibilityStor
                 canonicalValue: try CompatibilityCanonicalV1.encode(successor), reminderOperation: request
             ), descriptor: descriptor)
             return successor
+        }
+        switch change {
+        case .update(let command):
+            let gate = try withLock {
+                guard let gate = reminderPolicyEditGate, !reminderPolicyEditsRetired else {
+                    throw AppAccessContractFailureV1.accessDenied
+                }
+                return gate
+            }
+            guard gate.issuedReminderPolicyEditCommand(command) else {
+                throw AppAccessContractFailureV1.accessDenied
+            }
+            // Reference first, preferences fence second. Neither lock body
+            // awaits or calls back into the gate.
+            return try command.withReminderPolicyEdit(owner: reminderPolicyEditOwner) {
+                try withLock {
+                    guard reminderPolicyEditGate === gate, !reminderPolicyEditsRetired,
+                          let control = reminderPolicyEditControl else {
+                        throw AppAccessContractFailureV1.accessDenied
+                    }
+                    try control.requirePreferencesOwner(self)
+                    let currentControl = try control.readyControlForReminderPolicy()
+                    let request = command.request
+                    let descriptor = try SettingsRegistryV1.current().descriptor(for: DeviceLocalReminderPolicyV1.key)
+                    let prior = try reminderEnvelope(descriptor: descriptor)
+                    if let operation = prior?.reminderOperation, operation.operationID == request.operationID {
+                        try operation.validate()
+                        guard operation.kind == .update, operation.expected == request.expected,
+                              operation.successor.isEnabled == request.isEnabled,
+                              operation.successor.detail == request.detail,
+                              currentControl?.reminderPolicyContinuation == operation.controlStamp,
+                              (currentControl == nil) == (operation.controlStamp == nil) else {
+                            throw SettingsContractFailureV1.changedOperation
+                        }
+                        return operation.successor
+                    }
+                    let stamp = try control.reminderPolicyEditStamp(for: request, expected: currentControl)
+                    let result = try apply(expected: request.expected, isEnabled: request.isEnabled,
+                        detail: request.detail, kind: .update, operationID: request.operationID,
+                        controlStamp: stamp)
+                    try control.afterReminderPolicyWrite()
+                    _ = try control.readyControlForReminderPolicy()
+                    return result
+                }
+            }
+        case .reset(let expected, let operationID):
+            return try withLock {
+                try apply(expected: expected, isEnabled: false, detail: .generic,
+                    kind: .reset, operationID: operationID)
+            }
+        case .erase(let expected, let operationID):
+            return try withLock {
+                try apply(expected: expected, isEnabled: false, detail: .generic,
+                    kind: .erase, operationID: operationID)
+            }
         }
     }
 
