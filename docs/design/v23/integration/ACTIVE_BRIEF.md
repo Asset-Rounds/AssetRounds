@@ -13,7 +13,7 @@
 
 Evidence stays bound to its head.
 
-Current1cca6e9 originals35530329297/35530412291 are terminal, sole-collected and root-auditedC1A0AB20/26BF9054. Both compile0errors/0newwarning signatures; restore1/6 and reminder32/33. Three restore cases pass installed validation then reject pointer publication; source proves restore conversion defaults schema2 instead of active schema. Erase rejects frozen inventory/context guard; exact conjunct unresolved. Cold recovery and same-workspace history remain unverified; this original's same-workspace fixture fails resourceValueMismatch before restore. No live collector or successor; runtime-1cca6e9/CURRENT.json retains evidence. No acceptance.
+Current00c3013 originals35533198689/35533300628 are terminal, sole-collected and root-audited45545BA3/CBAC9202. Both compile0errors/0newwarning signatures; restore2/6 and reminder32/33. Pointer publication/reopen now succeed; populated cross-workspace replacement passes. Erase rejects exactly the legitimate empty snapshots root. Second-hop restore rejects legacy C08 max45 on current52; same-workspace terminal projection and fork mapped-ID revision closure need separate corrections. The prior setup protection failure did not recur. Cold recovery remains due. No live collector or successor; runtime-00c3013/CURRENT.json retains evidence. No acceptance.
 
 ## Current implementation
 

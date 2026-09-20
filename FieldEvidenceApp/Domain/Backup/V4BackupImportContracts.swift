@@ -26,7 +26,7 @@ enum C08ImportBulkBackupImportBoundaryV1 {
     static let restoresSourceOrPreviewScratch = false
 
     static func validate(_ records: V4BackupRecordsV1) throws {
-        guard records.recordsSchemaVersion <= recordsSchemaVersion,
+        guard records.recordsSchemaVersion <= LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion,
               persistentSchemaVersion == recordsSchemaVersion + 1,
               durableRowKinds == C08ImportBulkBackupEnrollmentV1.canonicalRowKinds,
               !restoresSourceOrPreviewScratch else {

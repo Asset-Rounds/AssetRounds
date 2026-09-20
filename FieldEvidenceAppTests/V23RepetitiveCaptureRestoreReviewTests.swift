@@ -423,6 +423,19 @@ final class RestoreReviewHarness {
             timing?.mark(phase)
             let imported = try BackupImportService(generationRootURL: current.generationRootURL,
                 scopedAccess: .alreadyAuthorized).stageAndValidate(selectedPackageURL: package)
+            if imported.records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion {
+                // The real current-format export remains admissible; future
+                // envelopes must still fail this same production boundary.
+                XCTAssertNoThrow(try C08ImportBulkBackupImportBoundaryV1.validate(imported.records))
+                let encoded = try JSONEncoder().encode(imported.records)
+                var object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+                object["recordsSchemaVersion"] = LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion + 1
+                let future = try JSONDecoder().decode(V4BackupRecordsV1.self,
+                    from: JSONSerialization.data(withJSONObject: object))
+                XCTAssertThrowsError(try C08ImportBulkBackupImportBoundaryV1.validate(future)) { error in
+                    XCTAssertEqual(error as? BackupCanonicalDecodingErrorV1, .invalidRecords)
+                }
+            }
             phase = "create-restore-service"
             timing?.mark(phase)
             let service = try BackupRestoreService(applicationSupportURL: support,

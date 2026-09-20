@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
@@ -100,6 +101,16 @@ private actor ReminderJourneyAuthentication: LocalAuthenticationClient {
 
     func owners() throws -> ProductionReminderSettingsOwnersV1 {
         try XCTUnwrap(session.reminderSettingsOwners)()
+    }
+
+    func emptySnapshotRoot() throws -> URL {
+        guard case .ready(let coordinator, _, _) = router.route else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        XCTAssertEqual(try coordinator.modelContext.fetchCount(FetchDescriptor<Report>()), 0)
+        let snapshots = coordinator.generationRootURL.appendingPathComponent("snapshots", isDirectory: true)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: snapshots.path), [])
+        return snapshots
     }
 
     func erase() async throws {
@@ -254,8 +265,30 @@ extension V23ReminderProductionSettingsTests {
     }
 
     func testProductionCompletedEraseReplacesOwnersAndRejectsPendingPermissionEdit() async throws {
+        // Admitting the startup-owned root must not admit an unreferenced file.
+        do {
+            let hostile = try await ReminderJourneyFixture.start(self)
+            defer { hostile.remove() }
+            let snapshots = try hostile.emptySnapshotRoot()
+            let unreferenced = snapshots.appendingPathComponent(UUID().uuidString.lowercased() + ".json")
+            let bytes = Data("{}".utf8)
+            try bytes.write(to: unreferenced)
+            try ProtectedFilePolicyV1.applyAndVerify(.reportSnapshot, at: unreferenced)
+            guard case .ready(let coordinator, _, _) = hostile.router.route else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            let factory = StoreGenerationFactory(applicationSupportURL: hostile.support)
+            let pointer = try factory.currentGenerationPointerV3(expectedGenerationID: coordinator.generationID)
+            do {
+                try await hostile.erase()
+                XCTFail("Erase admitted an unreferenced snapshot file")
+            } catch { XCTAssertEqual(error as? EraseAllServiceError, .invalidAuthority) }
+            XCTAssertEqual(try factory.currentGenerationPointerV3(expectedGenerationID: coordinator.generationID), pointer)
+            XCTAssertEqual(try Data(contentsOf: unreferenced), bytes)
+        }
         let fixture = try await ReminderJourneyFixture.start(self)
         defer { fixture.remove() }
+        _ = try fixture.emptySnapshotRoot()
         let oldOwners = try fixture.owners()
         let old = try XCTUnwrap(fixture.presentation.reminderSettingsAccess)
         let initial = try await old.read()

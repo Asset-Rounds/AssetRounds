@@ -2257,7 +2257,9 @@ private extension EraseAllService {
         ).map { try $0.value() }
         var expectedDirectories = Set<String>()
         var expectedFiles: Set<String> = ["model.sqlite"]
-        var optionalDirectories = Set<String>()
+        // Finalization startup owns this empty root before any Report exists.
+        // Its descendants still require the exact report-backed file inventory.
+        var optionalDirectories: Set<String> = ["snapshots"]
         var optionalFiles = Set<String>()
         if !evidence.isEmpty { expectedDirectories.insert("evidence") }
         for value in evidence {
