@@ -8,7 +8,7 @@ private actor ReminderEditAuthentication: LocalAuthenticationClient {
     func cancel(attemptID: UUID) async {}
 }
 
-private final class ReminderEditBlockingDefaults: UserDefaults, @unchecked Sendable {
+private final class ReminderEditBlockingDefaults: UserDefaults {
     private let armLock = NSLock()
     private var armedKey: String?
     let entered = DispatchSemaphore(value: 0)
@@ -231,11 +231,13 @@ private final class ReminderEditBlockingDefaults: UserDefaults, @unchecked Senda
             // update in a second acquisition of the nonrecursive reference.
             let writer = Task.detached { try preferences.updateReminderPolicy(command) }
             XCTAssertEqual(blocked.entered.wait(timeout: .now() + 5), .success)
+            let transitionStarted = blocked.transitionStarted
+            let transitionFinished = blocked.transitionFinished
             let transition = Task.detached {
-                blocked.transitionStarted.signal()
+                transitionStarted.signal()
                 if retiresOwner { preferences.retireReminderPolicyEdits() }
                 else { await gate.sceneBecameInactive() }
-                blocked.transitionFinished.signal()
+                transitionFinished.signal()
             }
             XCTAssertEqual(blocked.transitionStarted.wait(timeout: .now() + 5), .success)
             XCTAssertEqual(blocked.transitionFinished.wait(timeout: .now() + 0.1), .timedOut)

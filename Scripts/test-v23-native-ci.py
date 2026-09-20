@@ -1374,8 +1374,8 @@ class RestoreBuildWatchdogDiagnosticTests(unittest.TestCase):
 
     def test_development_binding_rejects_consumed_build30_source(self):
         self.assertEqual(CI.NO_INDEX_PARENT, '5c1e9831153e9e5feddda08e1152de06ecbaaed2')
-        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_PARENT, '550ee50b6d5b6c5a53616029d209338196b10cf6')
-        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_TREES['FieldEvidenceAppTests'], 'f4b21dedb4eb6b05f4e0796047ada8f95ac58f66')
+        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_PARENT, '7c0a64c32822b6fae326c1baea956523126cf246')
+        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_TREES['FieldEvidenceAppTests'], 'ff733d7b6d068504bae6b81c2a6202b4c75a4e12')
         self.assertEqual(CI.NO_INDEX_TREES['FieldEvidenceAppTests'], '6ae80744a230727892ceb04617421d91fd17e53a')
         for stage in ('dispatch', 'worker'):
             def substituted(command, **kwargs):

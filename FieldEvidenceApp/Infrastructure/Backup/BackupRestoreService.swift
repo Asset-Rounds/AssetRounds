@@ -2153,7 +2153,10 @@ final class BackupRestoreService {
                     idSource: SystemApplicationIDSource(), fileAuthority: SystemApplicationFileAuthorityV1(),
                     diagnosticPhase: reviewDiagnostic)
                 traceRestorePhase("write-destination-reviews.returned")
+                traceRestorePhase("post-review.history.begin")
                 try destinationReviewPlan.requireWrittenHistory(written.history, preserving: history)
+                traceRestorePhase("post-review.history.end")
+                traceRestorePhase("post-review.checkpoints.begin")
                 guard written.checkpoints == destinationReviewPlan.checkpoints else {
                     throw BackupRestoreServiceError.invalidRestoreAuthority
                 }
@@ -2162,13 +2165,18 @@ final class BackupRestoreService {
                           workspaceID: checkpoint.workspaceID.rawValue, revision: checkpoint.draftRevision,
                           canonicalData: try FieldDraftCanonicalCodecV1.encode(checkpoint))
                 }
+                traceRestorePhase("post-review.checkpoints.end")
+                traceRestorePhase("post-review.records.begin")
                 let allDraftRows = (expectedRecords.fieldDrafts + reviewRows).sorted {
                     $0.kind.rawValue == $1.kind.rawValue
                         ? $0.id.uuidString < $1.id.uuidString : $0.kind.rawValue < $1.kind.rawValue
                 }
                 expectedRecords = replacingMutationHistoryForCurrentWriter(
                     in: expectedRecords, with: written.history, fieldDrafts: allDraftRows)
+                traceRestorePhase("post-review.records.end")
+                traceRestorePhase("post-review.validate-current.begin")
                 try validatePhotoCurrentLocked()
+                traceRestorePhase("post-review.validate-current.end")
             }
             if let photo { try await materializePhotoMembers(photo, validateCurrent: validatePhotoCurrent) }
             if let clone {
@@ -2177,6 +2185,7 @@ final class BackupRestoreService {
                     validateCurrent: validatePhotoCurrent)
                 try clone.physical.staging.withVerificationLock {}
             }
+            traceRestorePhase("post-review.cancellation")
             try Task.checkCancellation()
             traceRestorePhase("validate-staging")
             try validateStagingGeneration(
@@ -2582,21 +2591,33 @@ final class BackupRestoreService {
             return session
         } catch let failure as ProtectedFilePolicyError
             where failure == .protectedDataUnavailable {
+            traceRestorePhase("restore-error.protected-data")
             throw failure
         } catch let error as BackupRestoreServiceError
             where error == .injectedFailure {
+            traceRestorePhase("restore-error.injected")
             throw error
         } catch let failure as RestoreAccessValidationFailure {
+            traceRestorePhase("restore-error.access")
             throw failure.underlying
         } catch {
+            traceRestorePhase("restore-error.recovery.begin")
             do {
+                traceRestorePhase("recovery.validate-access.begin")
                 try await validateRestoreAccess(validateAccess)
+                traceRestorePhase("recovery.validate-access.end")
+                traceRestorePhase("recovery.reconcile.begin")
                 if let recovered = try await reconcileRestoreAndPrivateSystemDiscoveryAtStartup(
                     validateAccess: validateAccess, retainedCloneGuard: retainedCloneGuard,
                     retainedCloneRetirement: retainedCloneRetirement
                 ) {
+                    traceRestorePhase("recovery.reconcile.session")
+                    traceRestorePhase("recovery.records.begin")
                     let cloneRecords = try retainedCloneGuard.map { _ in try records(in: recovered.modelContext) }
+                    traceRestorePhase("recovery.records.end")
+                    traceRestorePhase("recovery.validate-recovered-access.begin")
                     try await validateRestoreAccess(validateAccess)
+                    traceRestorePhase("recovery.validate-recovered-access.end")
                     if mode == .clone {
                         if let retainedCloneRetirement {
                             try validateConfigurationCloneRetirementBoundary(retainedCloneRetirement,
@@ -2607,17 +2628,23 @@ final class BackupRestoreService {
                                 expectedRecords: cloneRecords, expectedIntent: nil)
                         }
                     }
+                    traceRestorePhase("recovery.return-session")
                     return recovered
                 }
+                traceRestorePhase("recovery.reconcile.none")
             } catch let failure as RestoreAccessValidationFailure {
+                traceRestorePhase("recovery.error.access")
                 throw failure.underlying
             } catch let failure as ProtectedFilePolicyError
                 where failure == .protectedDataUnavailable {
+                traceRestorePhase("recovery.error.protected-data")
                 throw failure
             } catch {
+                traceRestorePhase("recovery.error.other")
                 // Preserve the original restore failure when reconciliation
                 // cannot establish a safe recovery state.
             }
+            traceRestorePhase("recovery.rethrow-original")
             throw error
         }
     }
