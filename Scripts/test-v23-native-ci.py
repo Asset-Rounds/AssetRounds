@@ -1062,7 +1062,7 @@ class NoIndexBuildDiagnosticTests(unittest.TestCase):
 
     def git_facts(self, command, **kwargs):
         if command[1:3] == ['cat-file', 'commit']: return self.header
-        return CI.NO_INDEX_TREES[command[-1].split(':', 1)[1]] + '\n'
+        return CI.no_index_source_trees(self.record['selectionID'])[command[-1].split(':', 1)[1]] + '\n'
 
     def test_closed_alias_keeps_six_methods_pool_and_ordinary_budgets(self):
         self.assertEqual(self.selected, CI.resolve_selection(self.default, self.mapping, 'c36-restore-review'))
@@ -1132,7 +1132,7 @@ class NoIndexBuildDiagnosticTests(unittest.TestCase):
             result = CI.verify_no_index_build(ROOT, artifact, self.record, e)
             self.assertTrue(result['executedCommandExact']); self.assertFalse(result['acceptance'])
             self.assertFalse(result['speedupEstablished'])
-            self.assertEqual(receipt['sourceTrees'], CI.NO_INDEX_TREES)
+            self.assertEqual(receipt['sourceTrees'], CI.no_index_source_trees(self.record['selectionID']))
             for key, value in {'PROJECT_PATH':'Other.xcodeproj', 'SCHEME':'Other', 'CONFIGURATION':'Release',
                                'CODE_SIGNING_ALLOWED':'YES', 'CI_DESTINATION':'platform=iOS Simulator,name=iPhone',
                                'CI_ARTIFACT_DIR':str(artifact/'foreign')}.items():
@@ -1292,6 +1292,20 @@ class RestoreBuildWatchdogDiagnosticTests(unittest.TestCase):
         for suffix in ('-retry', '-parallel', '-permanent'):
             with self.assertRaises(ValueError):
                 CI.resolve_selection(self.default, self.mapping, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID + suffix)
+
+    def test_causal_fixture_source_does_not_rebind_consumed_build30_source(self):
+        self.assertEqual(CI.NO_INDEX_PARENT, '5a0df2b7c1d50c6ad509e2d13cf50abca141a82d')
+        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_PARENT, 'a7c9d82bdb961e9a4dc57cd5f01340c4d0ae8dbd')
+        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_TREES['FieldEvidenceAppTests'], 'a2f24ecc69d04fe658094f87e7c99fc77e2b5b51')
+        self.assertEqual(CI.NO_INDEX_TREES['FieldEvidenceAppTests'], '6f16af532f61c7f5292bfab15b511c282216cac4')
+        for stage in ('dispatch', 'worker'):
+            def substituted(command, **kwargs):
+                if command[-1] == HEAD+':FieldEvidenceAppTests':
+                    return CI.NO_INDEX_TREES['FieldEvidenceAppTests']+'\n'
+                return self.git_facts(command, **kwargs)
+            with mock.patch.object(CI.subprocess, 'check_output', side_effect=substituted), self.assertRaises(ValueError):
+                CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+        with self.assertRaises(ValueError): CI.no_index_source_trees('c36-restore-review')
 
     def test_both_admissions_bind_new_original_parent_and_all_unchanged_trees(self):
         for stage in ('dispatch', 'worker'):

@@ -5,7 +5,7 @@
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Implementationa7c9d82 corrects three supported import schema pairs. Original35479951867 is audited: build1200 timeout,6NotStarted. Parent98 is audited: compilePASS/restore1Pass5Fail/transportPASS, all5 at import.855 authority7Pass stays head-bound. Main stays b1d04ae5.
+- Sourcea7c9d82 fixes supported import pairs; CI-only5a0df2b is current. Original35479951867 is audited: build1200 timeout,6NotStarted. Parent98 is audited: compilePASS/restore1Pass5Fail/transportPASS, all5 at import.855 authority7Pass stays head-bound. Main stays b1d04ae5.
 - Preserve the existing app/scheme/design system, S10 branding, five receipts,49 drafts, frozen inputs, V30 and coordination history.
 - Card135 is owner-only/skipped; minimum-runtime/physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
@@ -13,7 +13,7 @@
 
 Evidence stays bound to its head.
 
-98e93ac/root58EB1EF9 builds in858s; tests250s (1Pass/5Fail), transportPASS, no new warning signatures. No-index argv verified; no speedup/acceptance claim. Import omits supported pairs4/30/29,4/33/32,4/45/44; Round uses45/44. Correctiona7c9d82 retains49 drafts, six methods and N8/environment. Source121/helper49/index/route PASS. Original35479951867/root8EDDAA34 timed out at build1200 without Swift errors;6NotStarted/transportINVALID. Fix still unverified; no unchanged retry. No qualified unit-only build route; owner approved one new30m original, exact a7 app/tests/project and six methods. Preparing route. Prior allowances consumed; Bitrise unqualified.
+98e93ac/root58EB1EF9 compiled in858s: restore1Pass/5Fail, all5 at import; transportPASS. Import omitted supported pairs4/30/29,4/33/32,4/45/44. Correctiona7c9d82 remains natively unverified: original35479951867/root8EDDAA34 hit build1200,6NotStarted. Approved CI-only5a0df2b original35482404167/rootACFEDC42 failed compilation in516s: S6_3 references a private encoder helper; atomic inference is downstream. Two diagnostics/6NotStarted/transportINVALID; no new warnings. All58 inputs archived258F32F2. Local explicit-encoder correction is scoped; same six methods and ordinary N8/no-index successor require independent index/route gates. Both30m allowances consumed. No unchanged retry, speedup or acceptance claim; Bitrise remains unqualified.
 
 Copy helpers preserve77 inputs. Diagnostic2F039F04 attributes insert invalidPackage throws to DEBUG source lines; predicates stay exact. C12 uses the active export; both copy pipelines remain paired. One reviewed pointer-cleanup localization is due. Raw/clone/transport/retirement acceptance remains due.
 

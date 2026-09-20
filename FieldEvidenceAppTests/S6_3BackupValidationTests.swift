@@ -97,8 +97,11 @@ final class S6_3BackupValidationTests: XCTestCase {
             XCTAssertFalse(fileManager.fileExists(atPath: staged.stagedPackageURL.path))
 
             // Write hostile manifest bytes directly; the canonical encoder must not sanitize them.
+            let hostileEncoder = JSONEncoder()
+            hostileEncoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+            hostileEncoder.dateEncodingStrategy = .millisecondsSince1970
             for (persistent, version) in [(persistentVersion + 1, recordsVersion), (54, 53)] {
-                let hostile = try JSONEncoder.canonicalV1.encode(manifest(persistent: persistent, version: version))
+                let hostile: Data = try hostileEncoder.encode(manifest(persistent: persistent, version: version))
                 try hostile.write(to: manifestURL, options: .atomic)
                 XCTAssertThrowsError(try importer.stageAndValidate(selectedPackageURL: package)) {
                     XCTAssertEqual($0 as? BackupImportServiceError, .invalidSource)

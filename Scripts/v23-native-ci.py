@@ -42,11 +42,12 @@ BUILD_ORDER_TREES = {
     "FieldEvidenceApp.xcodeproj": "4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0",
 }
 NO_INDEX_SELECTION_ID = "c36-restore-review-no-index"
-NO_INDEX_PARENT = '98e93ac4be338d8e29494325ae1f9fc9d7fbecec'
-NO_INDEX_TREES = {'FieldEvidenceApp': 'afbd988ca56a30da3bf2064ea3cbb4abd676c598', 'FieldEvidenceAppTests': 'a2f24ecc69d04fe658094f87e7c99fc77e2b5b51', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+NO_INDEX_PARENT = '5a0df2b7c1d50c6ad509e2d13cf50abca141a82d'
+NO_INDEX_TREES = {'FieldEvidenceApp': 'afbd988ca56a30da3bf2064ea3cbb4abd676c598', 'FieldEvidenceAppTests': '6f16af532f61c7f5292bfab15b511c282216cac4', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 NO_INDEX_RECEIPT = "no-index-build-command.json"
 RESTORE_BUILD_WATCHDOG_SELECTION_ID = "c36-restore-review-no-index-build30m"
 RESTORE_BUILD_WATCHDOG_PARENT = "a7c9d82bdb961e9a4dc57cd5f01340c4d0ae8dbd"
+RESTORE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': 'afbd988ca56a30da3bf2064ea3cbb4abd676c598', 'FieldEvidenceAppTests': 'a2f24ecc69d04fe658094f87e7c99fc77e2b5b51', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 RESTORE_BUILD_WATCHDOG_SELECTORS = tuple(
     "FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/" + method for method in (
         "testPhysicalForkCreatesReviewReceiptAndSecondHopSurvivesOriginalPackageRemoval",
@@ -61,6 +62,14 @@ NO_INDEX_ROUTES = {
     NO_INDEX_SELECTION_ID: (NO_INDEX_PARENT, "N8"),
     RESTORE_BUILD_WATCHDOG_SELECTION_ID: (RESTORE_BUILD_WATCHDOG_PARENT, "D30"),
 }
+
+
+def no_index_source_trees(selection_id):
+    require(selection_id in NO_INDEX_ROUTES, "no-index closed source binding")
+    return (RESTORE_BUILD_WATCHDOG_TREES if selection_id == RESTORE_BUILD_WATCHDOG_SELECTION_ID
+            else NO_INDEX_TREES)
+
+
 BUILD_ORDER_OBSERVATIONS = "build-before-boot.jsonl"
 BUILD_ORDER_COMMAND = ("bash", "Scripts/build-smoke.sh")
 BUDGET_KEYS = ("setupArtifactTimeoutSeconds", "buildTimeoutSeconds", "testTimeoutSeconds",
@@ -1224,7 +1233,7 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
         parents = [line[7:].decode("ascii") for line in header.split(b"\n\n", 1)[0].splitlines()
                    if line.startswith(b"parent ")]
         require(parents == [approved_parent], "no-index exact parent")
-        for path, expected_tree in NO_INDEX_TREES.items():
+        for path, expected_tree in no_index_source_trees(selection_record["selectionID"]).items():
             tree = subprocess.check_output(["git", "rev-parse", checkout_head + ":" + path],
                                            cwd=root, text=True).strip()
             require(tree == expected_tree, "no-index unchanged app/tests/project")
@@ -1450,7 +1459,7 @@ def no_index_build_receipt(root, artifact, record, environment):
             "head": record["head"], "parent": NO_INDEX_ROUTES[record["selectionID"]][0], "runID": record["runID"],
             "runAttempt": record["runAttempt"], "admissionSHA256": sha256(canonical(record)),
             "buildScriptSHA256": sha256((root / "Scripts/build-smoke.sh").read_bytes()),
-            "sourceTrees": NO_INDEX_TREES, "argv": arguments,
+            "sourceTrees": no_index_source_trees(record["selectionID"]), "argv": arguments,
             "diagnosticOnly": True, "acceptance": False}
 
 
