@@ -440,6 +440,12 @@ final class RestoreReviewHarness {
         } catch {
             // Fixed phase and error type only: no paths, identifiers or error payload.
             print("RestoreReviewHarness.failure phase=\(phase) type=\(String(reflecting: type(of: error)))")
+            if let generationFailure = error as? StoreGenerationFailure {
+                switch generationFailure {
+                case .dataPointerInvalid: print("RestoreReviewHarness.generationFailure.dataPointerInvalid")
+                case .dataGenerationMissing: print("RestoreReviewHarness.generationFailure.dataGenerationMissing")
+                }
+            }
             throw error
         }
     }

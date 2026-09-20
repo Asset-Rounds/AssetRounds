@@ -587,6 +587,27 @@ final class EraseAllService {
     private var admittedSubject: EraseAllOperationSubjectV1?
     private var admittedReservation: AppAccessGateV1.EraseAdoptionToken?
 
+#if DEBUG
+    var erasePhaseDiagnosticForTesting: (@MainActor (String) -> Void)?
+    private var eraseDiagnosticPhase = "not-entered"
+#endif
+
+    private func traceErasePhase(_ phase: String) {
+#if DEBUG
+        guard let diagnostic = erasePhaseDiagnosticForTesting else { return }
+        eraseDiagnosticPhase = phase
+        diagnostic(phase)
+#endif
+    }
+
+    private func traceEraseOriginalFailure(_ error: Error) {
+#if DEBUG
+        guard let diagnostic = erasePhaseDiagnosticForTesting else { return }
+        diagnostic("original-failure.phase." + eraseDiagnosticPhase
+            + ".type." + String(reflecting: type(of: error)))
+#endif
+    }
+
     init(
         applicationSupportURL: URL,
         cachesDirectoryURL: URL? = nil,
@@ -675,7 +696,9 @@ final class EraseAllService {
         activate: @escaping @MainActor (StoreGenerationSession) async -> Void,
         lifecycleRoute: EraseAllLifecycleRouteV1
     ) async throws -> EraseAllOutcome {
+        traceErasePhase("entry.integration-projections")
         try IntegrationProjectionEraseAllPolicyV1.validate()
+        traceErasePhase("entry.scene-navigation")
         try C34SceneNavigationEraseAllBoundaryV1.validate()
         guard confirmation == Self.requiredConfirmation else {
             throw EraseAllServiceError.invalidConfirmation
@@ -683,15 +706,18 @@ final class EraseAllService {
         guard !coordinator.modelContext.hasChanges else {
             throw EraseAllServiceError.contextHasChanges
         }
+        traceErasePhase("entry.lifecycle-route")
         try lifecycleRoute.validate(
             generationRootURL: coordinator.generationRootURL,
             generationID: coordinator.generationID
         )
+        traceErasePhase("entry.auxiliary")
         let auxiliary = try makeAuxiliaryAuthority()
         try auxiliary.requireNoEraseIntent()
         try auxiliary.requireNoRestoreIntent()
         let applicationSupportIdentity = auxiliary.applicationSupportRootIdentity
 
+        traceErasePhase("entry.generation-authority")
         let generationAuthority = try generationFactory
             .makeRestoreGenerationAuthority(
                 expectedApplicationSupportIdentity: applicationSupportIdentity
@@ -701,7 +727,9 @@ final class EraseAllService {
         )
         let oldGenerationID = coordinator.generationID
         let oldGenerationRootURL = coordinator.generationRootURL
+        traceErasePhase("entry.retired-inventory")
         let priorRetired = try generationAuthority.retiredGenerationIDs()
+        traceErasePhase("entry.current-authority")
         try validateCurrentAuthority(
             coordinator: coordinator,
             expectedID: oldGenerationID,
@@ -709,7 +737,9 @@ final class EraseAllService {
             retiredIDs: priorRetired,
             authority: generationAuthority
         )
+        traceErasePhase("entry.kernel-mappings")
         try validateKernelEraseMappings()
+        traceErasePhase("entry.package-lifecycle")
         let lifecycleCheckpoint: EraseAllLifecycleCheckpointV1
         switch lifecycleRoute {
         case .live(let dependencies):
@@ -722,14 +752,17 @@ final class EraseAllService {
         case .expiringCompatibility:
             lifecycleCheckpoint = .compatibility
         }
+        traceErasePhase("entry.auxiliary-reverify")
         try auxiliary.verifyTargets()
         try auxiliary.requireNoEraseIntent()
         try auxiliary.requireNoRestoreIntent()
 
+        traceErasePhase("entry.frozen-pointer")
         let oldPointer = try frozenCurrentPointer(
             expectedGenerationID: oldGenerationID,
             authority: generationAuthority
         )
+        traceErasePhase("entry.source-ledger")
         let sourceLedger = try generationFactory
             .currentGenerationDeletionLedgerProof(
                 expectedPointer: oldPointer,
@@ -749,8 +782,9 @@ final class EraseAllService {
               eraseID != oldPointer.workspaceID,
               eraseID != oldPointer.replicaID,
               oldPointer.generationID == oldGenerationID else {
-            throw EraseAllServiceError.invalidAuthority
+            traceErasePhase("authority.failure.line.\(#line)"); throw EraseAllServiceError.invalidAuthority
         }
+        traceErasePhase("entry.fresh-identity")
         let targetIdentity = try freshEraseIdentity(excluding: Set(
             generationIDsToDelete
                 + oldPointer.knownReplicaIDs
@@ -776,7 +810,9 @@ final class EraseAllService {
         )
         let reservation: AppAccessGateV1.EraseAdoptionToken?
         do {
+            traceErasePhase("entry.admit")
             reservation = try await admit(subject)
+            traceErasePhase("entry.revalidate-admission")
             try revalidateAdmission(
                 subject: subject,
                 auxiliary: auxiliary,
@@ -790,6 +826,7 @@ final class EraseAllService {
                 lifecycleCheckpoint: lifecycleCheckpoint
             )
         } catch {
+            traceEraseOriginalFailure(error)
             emitAbortedAdmissionIfProven(
                 subject: subject,
                 reservation: admittedReservation,
@@ -808,6 +845,7 @@ final class EraseAllService {
         var frozenPreparation = initialPreparation
         var intentStore: EraseIntentStore?
         do {
+            traceErasePhase("prepare.intent-store")
             let store = try EraseIntentStore(
                 applicationSupportURL: applicationSupportURL,
                 fileManager: fileManager,
@@ -817,8 +855,10 @@ final class EraseAllService {
                   try store.loadPreparation() == nil else {
                 throw EraseAllServiceError.recoveryRequired
             }
+            traceErasePhase("prepare.create")
             try store.createPreparation(initialPreparation)
             intentStore = store
+            traceErasePhase("prepare.empty-generation")
             let created = try generationFactory.createEmptyEraseGeneration(
                 id: newGenerationID,
                 expectedOldPointer: oldPointer,
@@ -828,12 +868,14 @@ final class EraseAllService {
             let boundPreparation = initialPreparation.binding(
                 targetPointer: created.pointer
             )
+            traceErasePhase("prepare.bind")
             try store.replacePreparation(
                 expected: initialPreparation,
                 with: boundPreparation
             )
             frozenPreparation = boundPreparation
             try inject(.afterEmptyGenerationDirectoryCreate)
+            traceErasePhase("prepare.empty-ledger")
             let expectedEmptyLedger = try emptyLedgerProof()
             guard created.ledgerProof == expectedEmptyLedger,
                   created.pointer.workspaceID
@@ -842,7 +884,7 @@ final class EraseAllService {
                     == targetIdentity.replicaID.rawValue,
                   created.pointer.knownReplicaIDs
                     == [targetIdentity.replicaID.rawValue] else {
-                throw EraseAllServiceError.invalidAuthority
+                traceErasePhase("authority.failure.line.\(#line)"); throw EraseAllServiceError.invalidAuthority
             }
             if case let .live(expectedRevision) = lifecycleCheckpoint {
                 try validateEraseCommand(
@@ -873,8 +915,9 @@ final class EraseAllService {
             )
             frozenIntent = intent
             guard EraseIntentCodecV1.valid(intent) else {
-                throw EraseAllServiceError.invalidAuthority
+                traceErasePhase("authority.failure.line.\(#line)"); throw EraseAllServiceError.invalidAuthority
             }
+            traceErasePhase("prepare.validate-empty")
             let emptySession = try validatedEmptySession(
                 id: newGenerationID,
                 identity: targetIdentity,
@@ -889,6 +932,7 @@ final class EraseAllService {
                 expectedWorkspaceID: targetIdentity.workspaceID,
                 expectedGenerationID: newGenerationID
             )
+            traceErasePhase("prepare.revalidate-empty")
             _ = try validatedEmptySession(
                 id: newGenerationID,
                 identity: targetIdentity,
@@ -908,7 +952,7 @@ final class EraseAllService {
             try inject(.afterPreparedWrite)
 
             guard let intentStore else {
-                throw EraseAllServiceError.invalidAuthority
+                traceErasePhase("authority.failure.line.\(#line)"); throw EraseAllServiceError.invalidAuthority
             }
             let session = try await advanceToActivatedSession(
                 intent,
@@ -961,6 +1005,7 @@ final class EraseAllService {
                 cleanupDeferred: false
             )
         } catch {
+            traceEraseOriginalFailure(error)
             if !createdIntent {
                 var ownsUnjournaledGeneration = true
                 if let intentStore {
@@ -973,6 +1018,7 @@ final class EraseAllService {
                             ownsUnjournaledGeneration = false
                         }
                     } catch {
+                        traceEraseOriginalFailure(error)
                         throw EraseAllServiceError.recoveryRequired
                     }
                 }
@@ -1004,6 +1050,7 @@ final class EraseAllService {
                         )
                     }
                 } catch {
+                    traceEraseOriginalFailure(error)
                     throw EraseAllServiceError.recoveryRequired
                 }
             }
@@ -1404,21 +1451,26 @@ private extension EraseAllService {
         dependencies: WorkspacePackageLifecycleDependenciesV1,
         coordinator: StoreSessionCoordinator
     ) throws -> WorkspaceRevisionV1 {
+        traceErasePhase("lifecycle.dependencies")
         guard dependencies.workspaceID == coordinator.workspaceID,
               dependencies.generationID == coordinator.generationID,
               dependencies.generationRootURL.standardizedFileURL
                 == coordinator.generationRootURL.standardizedFileURL else {
-            throw EraseAllServiceError.invalidAuthority
+            traceErasePhase("authority.failure.line.\(#line)"); throw EraseAllServiceError.invalidAuthority
         }
         do {
+            traceErasePhase("lifecycle.request")
             let request = try WorkspacePackageLifecycleQueryRequestV1(
                 workspaceID: dependencies.workspaceID,
                 generationID: dependencies.generationID,
                 operation: .erase,
                 identities: []
             )
+            traceErasePhase("lifecycle.query")
             let result = try dependencies.queryClient.query(request)
+            traceErasePhase("lifecycle.current-revision")
             let current = try dependencies.queryClient.currentRevision()
+            traceErasePhase("lifecycle.result")
             guard result.workspaceID == dependencies.workspaceID,
                   result.generationID == dependencies.generationID,
                   result.operation == .erase,
@@ -1427,13 +1479,15 @@ private extension EraseAllService {
                   result.revision == current,
                   current.workspaceID == coordinator.workspaceID,
                   current.generationID == coordinator.generationID else {
-                throw EraseAllServiceError.invalidAuthority
+                traceErasePhase("authority.failure.line.\(#line)"); throw EraseAllServiceError.invalidAuthority
             }
             return current
         } catch let error as EraseAllServiceError {
+            traceEraseOriginalFailure(error)
             throw error
         } catch {
-            throw EraseAllServiceError.invalidAuthority
+            traceEraseOriginalFailure(error)
+            traceErasePhase("authority.failure.line.\(#line)"); throw EraseAllServiceError.invalidAuthority
         }
     }
 
@@ -1500,8 +1554,10 @@ private extension EraseAllService {
         guard !coordinator.modelContext.hasChanges else {
             throw EraseAllServiceError.contextHasChanges
         }
+        traceErasePhase("current.installed-inventory")
         let installed = try authority.installedGenerationNames()
         let expectedNames = Set((retiredIDs + [expectedID]).map(Self.canonical))
+        traceErasePhase("current.pointer-and-roots")
         guard try generationFactory.currentGenerationID(authority: authority)
                 == expectedID,
               !retiredIDs.contains(expectedID),
@@ -1514,14 +1570,16 @@ private extension EraseAllService {
                 ),
               try authority.restoreGenerationNames().isEmpty,
               try authority.importStagingNames().isEmpty else {
-            throw EraseAllServiceError.invalidAuthority
+            traceErasePhase("authority.failure.line.\(#line)"); throw EraseAllServiceError.invalidAuthority
         }
+        traceErasePhase("current.frozen-generation")
         try validateFrozenGeneration(
             id: expectedID,
             modelContext: coordinator.modelContext,
             generationRootURL: expectedRootURL,
             authority: authority
         )
+        traceErasePhase("current.retired-generations")
         for id in retiredIDs {
             let retiredSession = try generationFactory.openInstalledGeneration(
                 id: id,
@@ -2026,6 +2084,7 @@ private extension EraseAllService {
         expectedEmptyLedger: DeletionLedgerProofV2? = nil,
         authority: StoreRestoreGenerationAuthority
     ) throws -> StoreGenerationSession {
+        traceErasePhase("empty.open")
         let session: StoreGenerationSession
         if let identity {
             session = try generationFactory.openInstalledGeneration(
@@ -2039,18 +2098,21 @@ private extension EraseAllService {
                 authority: authority
             )
         }
+        traceErasePhase("empty.tree")
         let tree = try authority.installedTree(id: id)
         let allowedFiles: Set<String> = [
             "model.sqlite",
             "model.sqlite-shm",
             "model.sqlite-wal",
         ]
+        traceErasePhase("empty.rows-and-tree")
         guard BackupRestoreService.isEmptyCurrent(session.modelContext),
               tree.directories.isEmpty,
               tree.files.contains("model.sqlite"),
               tree.files.isSubset(of: allowedFiles) else {
-            throw EraseAllServiceError.invalidAuthority
+            traceErasePhase("authority.failure.line.\(#line)"); throw EraseAllServiceError.invalidAuthority
         }
+        traceErasePhase("empty.identity-policy")
         if let identity {
             // The reset path is whole-workspace only. This public adapter owns
             // the C16 row and is idempotent when the fresh generation is REAL.
@@ -2059,56 +2121,85 @@ private extension EraseAllService {
                 workspaceID: identity.workspaceID
             ).eraseWorkspaceRows()
         }
+        traceErasePhase("empty.policy.EvidenceAssuranceEraseAllPolicyV1")
         try EvidenceAssuranceEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
         )
+        traceErasePhase("empty.policy.InspectionReviewEraseAllPolicyV1")
         try InspectionReviewEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
         )
+        traceErasePhase("empty.policy.WorkPacketEraseAllPolicyV1")
         try WorkPacketEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        traceErasePhase("empty.policy.FieldDraftEraseAllPolicyV1")
         try FieldDraftEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        traceErasePhase("empty.policy.PackageEvolutionEraseAllPolicyV1")
         try PackageEvolutionEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        traceErasePhase("empty.policy.ClientCapabilityEraseAllPolicyV1")
         try ClientCapabilityEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        traceErasePhase("empty.policy.PrivacyTransformEraseAllPolicyV1")
         try PrivacyTransformEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        traceErasePhase("empty.policy.MeasurementIntegrityEraseAllPolicyV1")
         try MeasurementIntegrityEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        traceErasePhase("empty.policy.FieldReferenceEraseAllPolicyV1")
         try FieldReferenceEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        traceErasePhase("empty.policy.AccessibleDocumentEraseAllPolicyV1")
         try AccessibleDocumentEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        traceErasePhase("empty.policy.SurveyDefinitionEraseAllPolicyV1")
         try SurveyDefinitionEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        traceErasePhase("empty.policy.SurveySessionEraseAllPolicyV1")
         try SurveySessionEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        traceErasePhase("empty.policy.AssetLocatorEraseAllPolicyV1")
         try AssetLocatorEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        traceErasePhase("empty.policy.ScheduleEraseAllPolicyV1")
         try ScheduleEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        traceErasePhase("empty.policy.C57MyDayEraseAllPolicyV1")
         try C57MyDayEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        traceErasePhase("empty.policy.EvidenceMetadataEraseAllPolicyV1")
         try EvidenceMetadataEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
         )
+        traceErasePhase("empty.policy.C04ShopReportProfileEraseAllPolicyV1")
         try C04ShopReportProfileEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
         )
+        traceErasePhase("empty.policy.C05RoundSessionEraseAllPolicyV1")
         try C05RoundSessionEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
         )
+        traceErasePhase("empty.policy.EvidenceQualityEraseAllPolicyV1")
         try EvidenceQualityEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
         )
+        traceErasePhase("empty.policy.FastSurveyInboxEraseAllPolicyV1")
         try FastSurveyInboxEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
         )
+        traceErasePhase("empty.policy.ReinspectionExceptionEraseAllPolicyV1")
         try ReinspectionExceptionEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        traceErasePhase("empty.policy.EntityIdentityResolutionEraseAllPolicyV1")
         try EntityIdentityResolutionEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        traceErasePhase("empty.policy.PracticeWorkspaceProvenanceEraseAllPolicyV1")
         try PracticeWorkspaceProvenanceEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
         )
+        traceErasePhase("empty.policy.LightingDayInventoryEraseAllPolicyV1")
         try LightingDayInventoryEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
         )
+        traceErasePhase("empty.policy.LightingNightWorkflowEraseAllPolicyV1")
         try LightingNightWorkflowEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
         )
+        traceErasePhase("empty.policy.ServiceRequestEraseAllPolicyV1")
         try ServiceRequestEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        traceErasePhase("empty.policy.AssetServiceReliabilityEraseAllPolicyV1")
         try AssetServiceReliabilityEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
         )
+        traceErasePhase("empty.policy.PlanEraseAllPolicyV1")
         try PlanEraseAllPolicyV1.validatePublishedEmptyGeneration(session.modelContext)
+        traceErasePhase("empty.policy.PlacementPoseEraseAllPolicyV1")
         try PlacementPoseEraseAllPolicyV1.validatePublishedEmptyGeneration(
             session.modelContext
         )
@@ -2125,16 +2216,17 @@ private extension EraseAllService {
                   history.receipts.isEmpty,
                   history.quarantines.isEmpty,
                   history.entityRevisions.isEmpty else {
-                throw EraseAllServiceError.invalidAuthority
+                traceErasePhase("authority.failure.line.\(#line)"); throw EraseAllServiceError.invalidAuthority
             }
         }
+        traceErasePhase("empty.ledger")
         if let expectedEmptyLedger {
             let ledger = try DeletionLedgerStore(
                 context: session.modelContext
             ).snapshot()
             guard ledger.entries.isEmpty,
                   try ledgerProof(ledger) == expectedEmptyLedger else {
-                throw EraseAllServiceError.invalidAuthority
+                traceErasePhase("authority.failure.line.\(#line)"); throw EraseAllServiceError.invalidAuthority
             }
         }
         return session
@@ -2146,10 +2238,11 @@ private extension EraseAllService {
         generationRootURL: URL,
         authority: StoreRestoreGenerationAuthority
     ) throws {
+        traceErasePhase("frozen.context-and-root")
         guard !modelContext.hasChanges,
               generationRootURL.standardizedFileURL
                 == generationFactory.installedGenerationURL(id: id) else {
-            throw EraseAllServiceError.invalidAuthority
+            traceErasePhase("authority.failure.line.\(#line)"); throw EraseAllServiceError.invalidAuthority
         }
         if !BackupRestoreService.isEmptyCurrent(modelContext) {
             _ = try BackupRestoreService.currentSummary(
@@ -2186,7 +2279,7 @@ private extension EraseAllService {
             try binding.validate(manifest: snapshot.manifest)
             let workspace = snapshot.workspaceID.rawValue.uuidString.lowercased()
             guard binding.workspaceID == snapshot.workspaceID else {
-                throw EraseAllServiceError.invalidAuthority
+                traceErasePhase("authority.failure.line.\(#line)"); throw EraseAllServiceError.invalidAuthority
             }
             optionalDirectories.insert("content")
             optionalDirectories.insert("content/\(workspace)")
@@ -2238,7 +2331,7 @@ private extension EraseAllService {
             guard !isPresent
                     || (ownedDirectories.isSubset(of: tree.directories)
                         && ownedFiles.isSubset(of: tree.files)) else {
-                throw EraseAllServiceError.invalidAuthority
+                traceErasePhase("authority.failure.line.\(#line)"); throw EraseAllServiceError.invalidAuthority
             }
             if isPresent {
                 guard let readback = try contentStore.readAssetLabelArtifacts(
@@ -2247,7 +2340,7 @@ private extension EraseAllService {
                       readback.plan == snapshot.plan,
                       readback.projection.manifest == snapshot.manifest,
                       readback.publishedArtifacts == binding.publishedArtifacts else {
-                    throw EraseAllServiceError.invalidAuthority
+                    traceErasePhase("authority.failure.line.\(#line)"); throw EraseAllServiceError.invalidAuthority
                 }
             }
         }
@@ -2259,7 +2352,7 @@ private extension EraseAllService {
               expectedFiles.isSubset(of: tree.files),
               tree.files.isSubset(of: expectedFiles.union(optionalFiles)),
               !modelContext.hasChanges else {
-            throw EraseAllServiceError.invalidAuthority
+            traceErasePhase("authority.failure.line.\(#line)"); throw EraseAllServiceError.invalidAuthority
         }
     }
 

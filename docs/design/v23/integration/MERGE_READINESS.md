@@ -1,6 +1,6 @@
 # Expansion into the existing AssetRounds app
 
-Both227e370 originals are terminal/sole-collected/root-audited: restore35521990505 compiles1Pass/5Fail; reminder35522059378 compiles32Pass/1Fail; zero Swift errors/new warning signatures. Journal import completes. Preserve unchanged original receipts at fork normalization, validate normalized recovery records with target identity, and attribute remaining rows/post-intent/Erase failures without weakening guards. Next: full139 deterministic checks, one Astra-medium complete-contract/index review, exact committed routes, then distinct supported changed-evidence originals. No active native run or acceptance credit.
+Current4fbcf8f originals35526801549/35526882279 are terminal, sole-collected and root-audited (B2CF7FA7/9A23B4B7). Both compile with zero errors/new warning signatures; restore1/6 and reminders32/33 pass. Fork history advances through reconstruction. Remaining installed-generation/reopen, mutationHistory equality, cold-recovery and real-Erase invalidAuthority questions need bounded attribution. No active collector or successor. Runtime-4fbcf8f/CURRENT.json retains exact evidence. No acceptance credit.
 
 Committed coverage868/53 enrolls the seven compatibility methods through the existing Settings XCTest owner with exact bodies and12 unchanged historical profiles. Final combined132 source tests and independent source/index/route review passed. Native validation remains due; source checks do not establish Swift compilation or test execution.
 
@@ -19,7 +19,7 @@ Current navigation checkpoint, 2026-09-20. [CURRENT_INTEGRATION](CURRENT_INTEGRA
 
 | Workstream | What remains | Completion evidence |
 | --- | --- | --- |
-| Current native blocker | Both227 originals compile; restore1/6 and reminder32/33 pass. Exact original preservation, normalized-target recovery and bounded remaining error attribution are the next causal batch. | Deterministic checks then complete-contract Astra-medium/index/route review; no unchanged retry. |
+| Current native blocker | Audited4fbc restore1/6 and reminder32/33; both compile. Fork reconstruction advances; install/reopen, history equality, cold recovery and real-Erase invalidAuthority remain unresolved. | Finish the reviewed bounded attribution batch and its exact-route gates before distinct diagnostic originals; preserve all39 methods/assertions. |
 | Production adoption | Finish C36 destination/restore correspondence, Release-authorized staging review writes, cross-workspace photo-child remapping and authenticated retained review/photo closure; child/finalizer recovery; Work/Round field, scene, focus and resume flows; lifecycle/codec/backup registration. Resolution and confirmed discard already have production-service/AppAccess implementation, but complete user journeys remain due. | Real entry through the existing writer/service to durable effect and visible result, including populated stores, cold recovery and denied/no-effect cases. |
 | Replacement and fork history | Reconcile the remaining C55 replacement and C57 fork/mixed-history work and its owned drafts. | Original-history preservation plus paired functional, backup and restore results. |
 | Complete functional coverage | Reconcile the frozen requirements and all later regressions. The committed pool is868 methods/53 groups, not the final coverage ceiling. All39 destination methods are enrolled. Restore13 enrolled; authority7Pass at855ef0e, restore1Pass/5Fail at5c1e983 after successful import. The S6_3 import-schema compatibility method is COMMITTED/UNEXECUTED in868/53. Atd7, discard7Pass with INVALID transport; atacf, resolution7Pass; review13/production4/legacy1 still lack execution. Prior e1 continuation7Pass and discard6Pass remain tied to e1. ReceiptSafety55 and later causal cases still require reconciliation. | Complete retained functional/compatibility evidence on the final candidate; no credit for unselected tests or results from older heads. |
@@ -29,7 +29,7 @@ Current navigation checkpoint, 2026-09-20. [CURRENT_INTEGRATION](CURRENT_INTEGRA
 
 ## Execution order
 
-1. Complete the receipt-preservation/recovery batch from sealed227 originals and narrow remaining rows, post-intent and Erase failures. Preserve all39 selected methods and original assertions; freeze once and validate/review before distinct supported development originals.
+1. Use the retained terminal4fbc audits and bounded source findings; do not recollect or reopen settled receipt reconstruction. Complete the scoped restore/Erase diagnostic batch, deterministic and independent exact-route gates, then consume its new evidence before a source fix or successor.
 2. Continue the parent-finalization performance diagnosis from its retained phase timings; batch only source-proven fixes and keep one collector per original.
 3. Complete the remaining production journeys and enroll their missing regressions. Parallelize only disjoint, dependency-ready work on existing qualified capacity.
 4. Freeze one complete candidate; collect final coverage and affected-state reviews, then advance and verify main.

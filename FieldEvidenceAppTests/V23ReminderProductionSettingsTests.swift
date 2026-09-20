@@ -75,11 +75,17 @@ private actor ReminderJourneyAuthentication: LocalAuthenticationClient {
             authenticationClient: ReminderJourneyAuthentication(), notificationSystem: system)
         let presentation = AppAccessPresentationV1(startupRouter: router,
             eraseServiceFactory: { admission, completion, aborted, sceneState in
-                EraseAllService(applicationSupportURL: support, cachesDirectoryURL: caches,
+                let service = EraseAllService(applicationSupportURL: support, cachesDirectoryURL: caches,
                     temporaryDirectoryURL: temporary, userDefaults: defaults, defaultsDomainName: suite,
                     sceneNavigationStatePort: sceneState, privateSystemDiscoveryIndex: nil,
                     notificationSystem: system, admitErase: admission,
                     didCompleteErase: completion, didAbortEraseAdmission: aborted)
+#if DEBUG
+                service.erasePhaseDiagnosticForTesting = { phase in
+                    print("ReminderJourney.erase.phase=" + phase)
+                }
+#endif
+                return service
             }, sessionFactory: { session })
         let published = test.expectation(description: "Production startup publishes reminder Settings")
         let observation = presentation.$permitsContentPresentation.filter { $0 }.prefix(1)

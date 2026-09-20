@@ -12001,15 +12001,20 @@ struct StoreGenerationFactory {
     func openInstalledGeneration(
         id: UUID,
         identity: WorkspaceReplicaIdentityV1,
-        authority: StoreRestoreGenerationAuthority
+        authority: StoreRestoreGenerationAuthority,
+        diagnosticPhase: (@MainActor (String) -> Void)? = nil
     ) throws -> StoreGenerationSession {
         let session = try openGeneration(
             id: id,
             at: installedGenerationURL(id: id),
-            identity: identity
+            identity: identity,
+            diagnosticPhase: diagnosticPhase
         )
+        diagnosticPhase?("installed-open.session.done")
         try authority.protectInstalledGeneration(id: id)
+        diagnosticPhase?("installed-open.protection.done")
         try authority.requireInstalledGeneration(id: id)
+        diagnosticPhase?("installed-open.authority.done")
         return session
     }
 
@@ -14101,6 +14106,7 @@ struct StoreGenerationFactory {
         identity: WorkspaceReplicaIdentityV1? = nil,
         diagnosticPhase: (@MainActor (String) -> Void)? = nil
     ) throws -> StoreGenerationSession {
+        diagnosticPhase?("generation-open.begin")
         guard generationRootURL.lastPathComponent == canonicalString(for: id) else {
             throw StoreGenerationFailure.dataGenerationMissing
         }
@@ -14116,6 +14122,7 @@ struct StoreGenerationFactory {
             acceptedInstalledGeneration = try authority.currentGenerationID() == id
                 || authority.retiredGenerationIDs().contains(id)
         }
+        diagnosticPhase?("generation-open.accepted-check.done")
         if acceptedInstalledGeneration {
             guard let manifest = try StoreMigrationJournalStoreV1(
                 applicationSupportURL: applicationSupportURL
@@ -14133,10 +14140,12 @@ struct StoreGenerationFactory {
             epoch = nil
             readerLease = nil
         }
+        diagnosticPhase?("generation-open.lease.done")
         guard try itemType(at: generationRootURL) == .typeDirectory else {
             throw StoreGenerationFailure.dataGenerationMissing
         }
         try protectGeneration(at: generationRootURL, staging: staging, requireModel: true)
+        diagnosticPhase?("generation-open.pre-protection.done")
         let modelStoreURL = generationRootURL.appendingPathComponent(
             Self.modelStoreName,
             isDirectory: false
@@ -14152,8 +14161,14 @@ struct StoreGenerationFactory {
             _ = try requireV53Marker(in: container.mainContext, expectedMigrationID: nil)
             diagnosticPhase?("reviews.staging.marker.end")
         }
-        catch { throw StoreGenerationFailure.dataPointerInvalid }
+        catch {
+#if DEBUG
+            diagnosticPhase?("generation-open.container-or-marker.failed.type." + String(reflecting: type(of: error)))
+#endif
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
         try protectGeneration(at: generationRootURL, staging: staging, requireModel: true)
+        diagnosticPhase?("generation-open.post-protection.done")
         let resolvedIdentity = identity ?? pointerEnrichmentIdentity
         return StoreGenerationSession(
             generationID: id,

@@ -13,7 +13,7 @@
 
 Evidence stays bound to its head.
 
-Both227e370 originals are terminal/sole-collected/root-audited: restore35521990505 compiles,1Pass/5Fail; reminder35522059378 compiles,32Pass/1Fail. Zero Swift errors or new warning signatures. Restore journal import now completes; fork diagnostics show package-to-normalized history differs while normalized-to-written stays equal. Diagnose that boundary and later replacement/recovery failures from retained excerpts; isolate the single reminder failure. No active native run, unchanged retry or acceptance credit. Detailed evidence: .codex-temp/runtime-227e370/root-original-<runID>.json and restore-causal-excerpts.json.
+Current4fbcf8f originals35526801549/35526882279 are terminal, sole-collected and root-audited (B2CF7FA7/9A23B4B7). Both compile with zero errors/new warning signatures; restore1/6 and reminders32/33 pass. Fork history advances through reconstruction. Remaining installed-generation/reopen, mutationHistory equality, cold-recovery and real-Erase invalidAuthority questions need bounded attribution. No active collector or successor. Runtime-4fbcf8f/CURRENT.json retains exact evidence. No acceptance credit.
 
 ## Current implementation
 

@@ -2405,13 +2405,16 @@ final class BackupRestoreService {
             traceRestorePhase("intent.install-generation")
             try generationFactory.installRestoreStagingGeneration(id: newGenerationID,
                 restoreProof: photoProof, restoreFileSnapshot: stagingPhotoFiles, authority: generationAuthority)
+            traceRestorePhase("intent.install-generation.done")
             try protectGenerationTree(
                 id: newGenerationID,
                 root: generationFactory.installedGenerationURL(id: newGenerationID),
                 staging: false
             )
+            traceRestorePhase("intent.installed-protection.done")
             let installed = intent.advancing(to: .generationInstalled)
             try intentStore.replace(expected: intent, with: installed)
+            traceRestorePhase("intent.installed-journal.done")
             try validateInstalledGeneration(
                 id: newGenerationID,
                 expected: expectedRecords,
@@ -2420,6 +2423,7 @@ final class BackupRestoreService {
                 } ?? frozenCurrentIdentity,
                 photoPlans: photoPlans
             )
+            traceRestorePhase("intent.installed-validation.done")
             let installedPhotoFiles: StoreRestoreGenerationFileSnapshotV1?
             if let photo {
                 installedPhotoFiles = try await preparePhotoFileSnapshot(core: photo.core, plans: photoPlans, staging: false)
@@ -2428,6 +2432,7 @@ final class BackupRestoreService {
             try Task.checkCancellation()
             try inject(.afterGenerationInstall)
 
+            traceRestorePhase("intent.pointer-switch.begin")
             try inject(.beforePointerSwitch)
             try Task.checkCancellation()
             let persistedPortableExchangeSidecar = try
@@ -2510,10 +2515,12 @@ final class BackupRestoreService {
                 installed,
                 currentID: newGenerationID
             )
+            traceRestorePhase("intent.pointer-switch.done")
             let switched = installed.advancing(to: .pointerSwitched)
             try intentStore.replace(expected: installed, with: switched)
             try inject(.afterPointerSwitch)
 
+            traceRestorePhase("intent.current-reopen.begin")
             try inject(.beforeNewGenerationValidation)
             try Task.checkCancellation()
             let session: StoreGenerationSession
@@ -2521,7 +2528,8 @@ final class BackupRestoreService {
                 session = try generationFactory.openInstalledGeneration(
                     id: newGenerationID,
                     identity: try workspaceIdentity(identityDecision),
-                    authority: generationAuthority
+                    authority: generationAuthority,
+                    diagnosticPhase: restoreDiagnosticCallback
                 )
             } else {
                 session = try generationFactory.openInstalledGeneration(
@@ -2529,7 +2537,9 @@ final class BackupRestoreService {
                     authority: generationAuthority
                 )
             }
+            traceRestorePhase("intent.current-reopen.done")
             try validateLiveSession(session, expected: expectedRecords, photoPlans: photoPlans)
+            traceRestorePhase("intent.current-validation.done")
             if let photo {
                 try await validatePhotoMedia(core: photo.core, records: expectedRecords,
                     root: session.generationRootURL, validate: {
@@ -3514,7 +3524,10 @@ private extension BackupRestoreService {
                 mode: identity.mode,
                 replacementAt: replacementAt
             )
-        ) else { return false }
+        ) else {
+            traceRestorePhase("recovery.records.plan.failed")
+            return false
+        }
         // `target` is the already normalized, installed generation whose
         // manifest was authenticated during recovery. Re-running package
         // materialization here would require archive members that are no
@@ -3528,7 +3541,10 @@ private extension BackupRestoreService {
         recoveredRecords.lightingDayInventoryWorkflows =
             target.lightingDayInventoryWorkflows
         recoveredRecords.lightingNightWorkflows = target.lightingNightWorkflows
-        guard recoveredRecords == target else { return false }
+        guard recoveredRecords == target else {
+            traceRestoreRecordDifferences(actual: recoveredRecords, expected: target, phase: "recovery.records")
+            return false
+        }
         if target.recordsSchemaVersion
             >= C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion {
             guard (try? target.validateC47ActivityContracts()) != nil else {
@@ -16047,7 +16063,8 @@ private extension BackupRestoreService {
             session = try generationFactory.openInstalledGeneration(
                 id: id,
                 identity: identity,
-                authority: generationAuthority
+                authority: generationAuthority,
+                diagnosticPhase: restoreDiagnosticCallback
             )
         } else {
             session = try generationFactory.openInstalledGeneration(
@@ -16563,29 +16580,70 @@ private extension BackupRestoreService {
         return recoveredRecords == replacement
     }
 
+    private func traceRestoreRecordDifferences(
+        actual: V4BackupRecordsV1,
+        expected: V4BackupRecordsV1,
+        phase: String
+    ) {
+#if DEBUG
+        guard let diagnostic = restorePhaseDiagnosticForTesting else { return }
+        diagnostic("\(phase).schema.actual.\(actual.recordsSchemaVersion).expected.\(expected.recordsSchemaVersion)")
+        if let actualData = try? JSONEncoder().encode(actual),
+           let expectedData = try? JSONEncoder().encode(expected),
+           let actualObject = (try? JSONSerialization.jsonObject(with: actualData)) as? [String: Any],
+           let expectedObject = (try? JSONSerialization.jsonObject(with: expectedData)) as? [String: Any] {
+            for key in Set(actualObject.keys).union(expectedObject.keys).sorted() {
+                let actualValue = actualObject[key] as? NSObject
+                let expectedValue = expectedObject[key] as? NSObject
+                let equal = actualValue?.isEqual(expectedValue) ?? (expectedValue == nil)
+                if !equal { diagnostic("\(phase).different.\(key)") }
+            }
+        } else { diagnostic("\(phase).comparison.unavailable") }
+        guard let actualHistory = actual.mutationHistory,
+              let expectedHistory = expected.mutationHistory else {
+            if (actual.mutationHistory == nil) != (expected.mutationHistory == nil) {
+                diagnostic("\(phase).history.presence.different")
+            }
+            return
+        }
+        if actualHistory.workspaceRevision != expectedHistory.workspaceRevision {
+            diagnostic("\(phase).history.workspaceRevision.different")
+        }
+        if actualHistory.lastLocalSequence != expectedHistory.lastLocalSequence {
+            diagnostic("\(phase).history.lastLocalSequence.different")
+        }
+        if actualHistory.receipts != expectedHistory.receipts {
+            diagnostic("\(phase).history.receipts.different")
+        }
+        if actualHistory.quarantines != expectedHistory.quarantines {
+            diagnostic("\(phase).history.quarantines.different")
+        }
+        let actualRevisions = actualHistory.entityRevisions
+        let expectedRevisions = expectedHistory.entityRevisions
+        if actualRevisions.count != expectedRevisions.count {
+            diagnostic("\(phase).history.entityRevisions.count.different")
+        }
+        var identityDiffers = false
+        var revisionDiffers = false
+        var projectionDiffers = false
+        for (left, right) in zip(actualRevisions, expectedRevisions) {
+            if left.identity != right.identity { identityDiffers = true }
+            if left.revision != right.revision { revisionDiffers = true }
+            if left.externalProjectionSHA256 != right.externalProjectionSHA256 { projectionDiffers = true }
+        }
+        if identityDiffers { diagnostic("\(phase).history.entityRevisions.identityOrOrder.different") }
+        if revisionDiffers { diagnostic("\(phase).history.entityRevisions.revision.different") }
+        if projectionDiffers { diagnostic("\(phase).history.entityRevisions.projection.different") }
+#endif
+    }
+
     func validateRows(
         _ context: ModelContext,
         expected: V4BackupRecordsV1
     ) throws {
         let actual = try records(in: context)
         if actual == expected { return }
-#if DEBUG
-        if let diagnostic = restorePhaseDiagnosticForTesting {
-            diagnostic("rows.schema.actual.\(actual.recordsSchemaVersion).expected.\(expected.recordsSchemaVersion)")
-            if let actualData = try? JSONEncoder().encode(actual),
-               let expectedData = try? JSONEncoder().encode(expected),
-               let actualObject = (try? JSONSerialization.jsonObject(with: actualData)) as? [String: Any],
-               let expectedObject = (try? JSONSerialization.jsonObject(with: expectedData)) as? [String: Any] {
-                let keys = Set(actualObject.keys).union(expectedObject.keys).sorted()
-                for key in keys {
-                    let actualValue = actualObject[key] as? NSObject
-                    let expectedValue = expectedObject[key] as? NSObject
-                    let equal = actualValue?.isEqual(expectedValue) ?? (expectedValue == nil)
-                    if !equal { diagnostic("rows.different.\(key)") }
-                }
-            } else { diagnostic("rows.comparison.unavailable") }
-        }
-#endif
+        traceRestoreRecordDifferences(actual: actual, expected: expected, phase: "rows")
         guard expected.recordsSchemaVersion < 9,
               (actual.recordsSchemaVersion == 9 || actual.recordsSchemaVersion == 10
                 || actual.recordsSchemaVersion == 11
