@@ -1069,7 +1069,10 @@ private extension BackupImportService {
              (4, 13, 12), (4, 14, 13), (4, 15, 14), (4, 16, 15),
              (4, 17, 16), (4, 18, 17), (4, 19, 18), (4, 20, 19), (4, 21, 20), (4, 22, 21):
             schemaPairIsValid = true
-        case (4, 34, 33), (4, 35, 34), (4, 36, 35), (4, 38, 37), (4, 39, 38),
+        case (4, 30, 29), (4, 33, 32),
+             (4, 34, 33), (4, 35, 34), (4, 36, 35), (4, 38, 37), (4, 39, 38),
+             (4, C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion,
+              C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion),
              (4, LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion,
               LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion):
             schemaPairIsValid = true

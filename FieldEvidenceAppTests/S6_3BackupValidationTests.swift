@@ -36,6 +36,82 @@ private final class C30EvidenceContextAnchorS6_3BackupValidation: XCTestCase {
 }
 
 final class S6_3BackupValidationTests: XCTestCase {
+    @MainActor
+    func testImportPreservesSupportedSchemaPairsAndRejectsForeignPairs() throws {
+        let root = fileManager.temporaryDirectory.appendingPathComponent(
+            "import-schema-pairs-\(UUID().uuidString)", isDirectory: true)
+        let support = root.appendingPathComponent("Application Support", isDirectory: true)
+        try fileManager.createDirectory(at: support, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: root) }
+        let session = try StoreGenerationFactory(applicationSupportURL: support).openOrBootstrapCurrent()
+        let importer = try BackupImportService(generationRootURL: session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in Int64.max }),
+            scopedAccess: .alreadyAuthorized)
+        let workspaceID = WorkspaceID(rawValue: uuid(91_001))
+        let replicaID = uuid(91_002), generationID = uuid(91_003)
+        // Independent compatibility expectations: Evidence Context, Temporal Evidence and Rounds.
+        for (persistentVersion, recordsVersion) in [(30, 29), (33, 32), (45, 44)] {
+            let parts: PartsStockBackupSnapshotV1?
+            if recordsVersion >= 40 {
+                parts = try .init(workspaceID: workspaceID,
+                    parts: [], locations: [], movements: [], uses: [], reversals: [],
+                    returns: [], abandonments: [])
+            } else {
+                parts = nil
+            }
+            let records = V4BackupRecordsV1(assets: [], deletionLedger: .empty,
+                evidenceFiles: [], issues: [],
+                mutationHistory: .init(workspaceRevision: 0, lastLocalSequence: 0,
+                    receipts: [], quarantines: [], entityRevisions: []),
+                packets: [], recordsSchemaVersion: recordsVersion, reports: [], sites: [],
+                workflowRecords: [], partsStockSnapshot: parts)
+            let recordsData = try BackupCanonicalEncoderV1().encodeRecords(records).data
+            let entry = V4BackupEntryV1(byteCount: recordsData.count, mimeType: "application/json",
+                path: "records.json", sha256: KernelCanonicalHashV1.sha256(recordsData))
+            func manifest(persistent: Int, version: Int) -> V4BackupManifestV1 {
+                V4BackupManifestV1(backupSchemaVersion: 4, consumedEvaluationRootIDs: [],
+                    declaredPayloadByteCount: recordsData.count, entries: [entry],
+                    exportedAt: Date(timeIntervalSince1970: 1_788_134_400), packs: [],
+                    source: .init(appBuild: "import-compatibility-tests", appVersion: "23",
+                        persistentSchemaVersion: persistent, replicaID: replicaID,
+                        recordsSchemaVersion: version, sourceGenerationID: generationID,
+                        workspaceID: workspaceID.rawValue))
+            }
+            let package = root.appendingPathComponent("schema-\(recordsVersion).fieldrecordbackup",
+                isDirectory: true)
+            try fileManager.createDirectory(at: package, withIntermediateDirectories: false)
+            try recordsData.write(to: package.appendingPathComponent("records.json"), options: .atomic)
+            let manifestURL = package.appendingPathComponent("manifest.json")
+            let manifestData = try BackupCanonicalEncoderV1().encodeManifest(
+                manifest(persistent: persistentVersion, version: recordsVersion)).data
+            try manifestData.write(to: manifestURL, options: .atomic)
+            let checked = try BackupPackageValidatorV1().validate(stagedPackageURL: package)
+            XCTAssertEqual(checked.records, records)
+            let staged = try importer.stageAndValidate(selectedPackageURL: package)
+            XCTAssertEqual(staged.records, records)
+            XCTAssertEqual(staged.manifest, checked.manifest)
+            XCTAssertNotEqual(staged.stagedPackageURL, package)
+            XCTAssertEqual(try Data(contentsOf: manifestURL), manifestData)
+            XCTAssertEqual(try Data(contentsOf: package.appendingPathComponent("records.json")), recordsData)
+            try importer.discard(staged)
+            XCTAssertFalse(fileManager.fileExists(atPath: staged.stagedPackageURL.path))
+
+            // Write hostile manifest bytes directly; the canonical encoder must not sanitize them.
+            for (persistent, version) in [(persistentVersion + 1, recordsVersion), (54, 53)] {
+                let hostile = try JSONEncoder.canonicalV1.encode(manifest(persistent: persistent, version: version))
+                try hostile.write(to: manifestURL, options: .atomic)
+                XCTAssertThrowsError(try importer.stageAndValidate(selectedPackageURL: package)) {
+                    XCTAssertEqual($0 as? BackupImportServiceError, .invalidSource)
+                }
+                XCTAssertEqual(try Data(contentsOf: manifestURL), hostile)
+                XCTAssertEqual(try Data(contentsOf: package.appendingPathComponent("records.json")), recordsData)
+                let staging = try StoreGenerationFactory.backupImportStagingDirectory(
+                    containing: session.generationRootURL)
+                XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: staging.path), [])
+            }
+        }
+    }
+
     func testPhotoBackupMemberStreamingIsBoundedCancellableAndAnchored() throws {
         let manager = FileManager.default
         let root = manager.temporaryDirectory.appendingPathComponent("photo-backup-stream-\(UUID().uuidString)", isDirectory: true)

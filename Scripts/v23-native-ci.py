@@ -42,8 +42,8 @@ BUILD_ORDER_TREES = {
     "FieldEvidenceApp.xcodeproj": "4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0",
 }
 NO_INDEX_SELECTION_ID = "c36-restore-review-no-index"
-NO_INDEX_PARENT = "28a6963dea7162011894093e45af50ce04bb0968"
-NO_INDEX_TREES = {'FieldEvidenceApp': 'f8e6a0f47f48576d1d935b7c830a517164497e48', 'FieldEvidenceAppTests': 'c71cd5251150129df2e698eb0e888c1939d472ed', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+NO_INDEX_PARENT = '98e93ac4be338d8e29494325ae1f9fc9d7fbecec'
+NO_INDEX_TREES = {'FieldEvidenceApp': 'afbd988ca56a30da3bf2064ea3cbb4abd676c598', 'FieldEvidenceAppTests': 'a2f24ecc69d04fe658094f87e7c99fc77e2b5b51', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 NO_INDEX_RECEIPT = "no-index-build-command.json"
 BUILD_ORDER_OBSERVATIONS = "build-before-boot.jsonl"
 BUILD_ORDER_COMMAND = ("bash", "Scripts/build-smoke.sh")

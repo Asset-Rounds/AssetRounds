@@ -1096,6 +1096,21 @@ class NoIndexBuildDiagnosticTests(unittest.TestCase):
                 with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
                     CI.admission(changed, self.bound_environment(), HEAD, stage, self.record)
 
+    def test_source_correction_rejects_consumed_parents_and_pre_correction_trees(self):
+        for stage in ('dispatch', 'worker'):
+            for consumed_parent in ('5508d03a28a39e5b65045935cc9e0b1d8cb06048',
+                                    '28a6963dea7162011894093e45af50ce04bb0968'):
+                header = self.header.replace(CI.NO_INDEX_PARENT.encode(), consumed_parent.encode())
+                with mock.patch.object(CI.subprocess, 'check_output', return_value=header), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            prior_trees = {'FieldEvidenceApp': 'f8e6a0f47f48576d1d935b7c830a517164497e48',
+                           'FieldEvidenceAppTests': 'c71cd5251150129df2e698eb0e888c1939d472ed'}
+            for path, prior_tree in prior_trees.items():
+                def stale_tree(command, **kwargs):
+                    return prior_tree+'\n' if command[-1] == HEAD+':'+path else self.git_facts(command, **kwargs)
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=stale_tree), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+
     def build_fixture(self, artifact):
         (artifact/'native-admission.json').write_bytes(CI.canonical(self.record))
         e = dict(self.bound_environment(), PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp',

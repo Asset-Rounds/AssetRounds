@@ -5,7 +5,7 @@
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Implementation28a6963 adds one reviewed no-index build experiment. Original35476891662 is audited: missing build-step admission inputs stopped it before Xcode. Prior5508: build1200 timeout/6NotStarted. Predecessor855: compile/transportPASS, authority7Pass, restore1Pass/5Fail. Main stays b1d04ae5.
+- Implementation98e93ac/original35478040945 is audited: compilePASS, restore1Pass/5Fail, transportPASS. All5 fail package import; a source-proven schema admission correction is being prepared.855 authority7Pass stays head-bound. Main stays b1d04ae5.
 - Preserve the existing app/scheme/design system, S10 branding, five receipts,49 drafts, frozen inputs, V30 and coordination history.
 - Card135 is owner-only/skipped; minimum-runtime/physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
@@ -13,13 +13,13 @@
 
 Evidence stays bound to its head.
 
-855 authority7Pass/restore1Pass5Fail remain head-bound. Diagnostic5508/rootB5BBA899 timed out at build1200. No-index28/original35476891662/root4A9A66DF then failed before Xcode: receipt admission lacked9 build-step DISPATCH inputs;6NotStarted, no indexing/runtime result. The original is consumed. Scoped causal correction forwards the exact validated inputs, pins a direct28 successor and adds a real CLI boundary regression (PASS). Preserve app/tests/project, all6 methods, environment/order and N8. Full120/helper/independent gates precede one corrected original. Runtime invalidIdentity and Bitrise qualification remain unresolved.
+98e93ac/root58EB1EF9 builds in858s; tests250s (1Pass/5Fail), transportPASS, no new warning signatures. No-index argv verified; no speedup/acceptance claim. Import omits supported pairs4/30/29,4/33/32,4/45/44; Round uses45/44. Root adds those pairs with real import/discard and hostile-pair regression;49 drafts stay exact. One reviewed direct98 causal successor retains six methods, new source-tree pins, UI/project, environment and N8. Source/helper/index/route gates precede dispatch. Prior28 setup and5508 timeout originals remain consumed; Bitrise qualification remains unresolved.
 
 Copy helpers preserve77 inputs. Diagnostic2F039F04 attributes insert invalidPackage throws to DEBUG source lines; predicates stay exact. C12 uses the active export; both copy pipelines remain paired. One reviewed pointer-cleanup localization is due. Raw/clone/transport/retirement acceptance remains due.
 
 ## Current implementation
 
-- Destination service/AppAccess resolution and confirmed discard are committed at2e60630. Production non-photo Replace/Fork review composition is committed at4971f79 through the existing writer with a private synchronous staging capability; genuine physical package/history, exact-owner suppression, receipt readback and prepublication fences. Six journey and seven authority regressions are enrolled790/48; authority7Pass at855ef0e, restore1Pass/5Fail. Retain runtime-d7e7901/restore-production. Photo cross-workspace correspondence, UI/restore/lifecycle/registration remain due;49 drafts exact.
+- Destination service/AppAccess resolution and confirmed discard are committed at2e60630. Production non-photo Replace/Fork review composition is committed at4971f79 through the existing writer with a private synchronous staging capability; genuine physical package/history, exact-owner suppression, receipt readback and prepublication fences. Six journey and seven authority regressions are enrolled790/48; authority7Pass at855ef0e, restore1Pass/5Fail at98e93ac, localized to import preflight. Retain runtime-d7e7901/restore-production. Photo cross-workspace correspondence, UI/restore/lifecycle/registration remain due;49 drafts exact.
 - Durable Begin retains PREPARED/BOUND original-history, live-access and external-close guards.
 - Photo source composes raw/pair/commit, receipt-backed target/terminal, parent completion and startup ownership checks. Production registration requires complete lifecycle/destination closure.
 - Populated restore correction is committed in0a5ecfe: authenticate retained draft/workflow/report closure before omission-derived packet tombstones, preserve original report/evidence files and complete placement chains. Binding2 retains exact legacy1 interpretation. Reviewed source passes; native deletion-winning/file/placement, cold/hostile and late tamper/cancellation evidence remains due. Unsupported auxiliary graph loss denies;49 drafts stay exact.
