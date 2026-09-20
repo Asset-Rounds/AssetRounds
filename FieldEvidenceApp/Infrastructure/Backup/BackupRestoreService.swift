@@ -1653,6 +1653,14 @@ final class BackupRestoreService {
         )
     }
 
+    private var restoreDiagnosticCallback: (@MainActor (String) -> Void)? {
+#if DEBUG
+        return restorePhaseDiagnosticForTesting
+#else
+        return nil
+#endif
+    }
+
     private func traceRestorePhase(_ phase: String) {
 #if DEBUG
         restorePhaseDiagnosticForTesting?(phase)
@@ -2154,7 +2162,8 @@ final class BackupRestoreService {
                     diagnosticPhase: reviewDiagnostic)
                 traceRestorePhase("write-destination-reviews.returned")
                 traceRestorePhase("post-review.history.begin")
-                try destinationReviewPlan.requireWrittenHistory(written.history, preserving: history)
+                try destinationReviewPlan.requireWrittenHistory(written.history, preserving: history,
+                    diagnosticPhase: reviewDiagnostic)
                 traceRestorePhase("post-review.history.end")
                 traceRestorePhase("post-review.checkpoints.begin")
                 guard written.checkpoints == destinationReviewPlan.checkpoints else {
@@ -2699,17 +2708,30 @@ final class BackupRestoreService {
         retainedCloneGuard: ConfigurationCloneEmptyStagingGuardV1? = nil,
         retainedCloneRetirement: ConfigurationCloneRetirementBindingV1? = nil
     ) async throws -> StoreGenerationSession? {
+        traceRestorePhase("recovery.inner-access.begin")
         try await validateRestoreAccess(validateAccess)
+        traceRestorePhase("recovery.inner-access.end")
+        traceRestorePhase("recovery.clone-retirement.begin")
         let cloneRetirement = try prepareColdConfigurationCloneRetirement(retained: retainedCloneRetirement)
+        traceRestorePhase("recovery.clone-retirement.end")
         if fileManager.fileExists(atPath: applicationSupportURL
             .appendingPathComponent("FieldEvidenceData", isDirectory: true).path) {
+            traceRestorePhase("recovery.authority.begin")
             try ensureGenerationAuthority()
+            traceRestorePhase("recovery.authority.end")
+            traceRestorePhase("recovery.photo-binding.begin")
             if let binding = try pendingPhotoBindingAtStartup(intent: intentStore.load()) {
+                traceRestorePhase("recovery.photo-binding.present")
                 return try await reconcilePhotoRestoreAtStartup(binding, validateAccess: validateAccess)
             }
         }
+        traceRestorePhase("recovery.photo-binding.absent")
+        traceRestorePhase("recovery.clone-guard.begin")
         let cloneGuard = try prepareColdConfigurationCloneGuard(retained: retainedCloneGuard)
+        traceRestorePhase("recovery.clone-guard.end")
+        traceRestorePhase("recovery.startup.begin")
         guard let session = try reconcileAtStartup(cloneGuard: cloneGuard, cloneRetirement: cloneRetirement) else {
+            traceRestorePhase("recovery.startup.no-session")
             if let cloneRetirement {
                 try validateConfigurationCloneRetirementBoundary(cloneRetirement, session: nil,
                     expectedIntent: nil, retireIntent: true)
@@ -2798,10 +2820,12 @@ final class BackupRestoreService {
 
     private func reconcileAtStartup(cloneGuard: ConfigurationCloneEmptyStagingGuardV1?,
         cloneRetirement: ConfigurationCloneRetirementBindingV1?) throws -> StoreGenerationSession? {
+        traceRestorePhase("recovery.startup.intent.begin")
         if let intent = try intentStore.load(), intent.cloneRetirementPlanSHA256 != nil {
             guard let cloneRetirement, cloneGuard == nil else { throw BackupRestoreServiceError.invalidRestoreAuthority }
             try cloneRetirement.core.requireIntent(intent)
         } else if cloneGuard != nil && cloneRetirement != nil { throw BackupRestoreServiceError.invalidRestoreAuthority }
+        traceRestorePhase("recovery.startup.intent.end")
         if fileManager.fileExists(atPath: applicationSupportURL
             .appendingPathComponent("FieldEvidenceData", isDirectory: true).path) {
             try ensureGenerationAuthority()
@@ -2809,7 +2833,9 @@ final class BackupRestoreService {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
         }
+        traceRestorePhase("recovery.startup.preflight.end")
         guard let intent = try intentStore.load() else {
+            traceRestorePhase("recovery.startup.no-intent")
             guard !fileManager.fileExists(
                 atPath: portableExchangeRestoreSidecarURL().path
             ) else {
@@ -2823,7 +2849,9 @@ final class BackupRestoreService {
                 return nil
             }
             try ensureGenerationAuthority()
+            traceRestorePhase("recovery.abandoned-staging.begin")
             try cleanupAbandonedRestoreStaging()
+            traceRestorePhase("recovery.abandoned-staging.end")
             return nil
         }
         try ensureGenerationAuthority()
@@ -17910,10 +17938,14 @@ private extension BackupRestoreService {
     }
 
     func cleanupAbandonedRestoreStaging() throws {
+        traceRestorePhase("recovery.cleanup.current.begin")
         let currentID = try generationFactory.currentGenerationID(
             authority: generationAuthority
         )
+        traceRestorePhase("recovery.cleanup.current.end")
+        traceRestorePhase("recovery.cleanup.generations.begin")
         for name in try generationAuthority.restoreGenerationNames() {
+            traceRestorePhase("recovery.cleanup.generation.begin")
             guard let id = UUID(uuidString: name), canonical(id) == name else {
                 throw attributedRestoreAuthorityFailureV1(line: #line)
             }
@@ -17921,13 +17953,19 @@ private extension BackupRestoreService {
                 .prepareRestoreStagingGenerationManifest(
                     expectedOldID: currentID,
                     newID: id,
-                    authority: generationAuthority
+                    authority: generationAuthority,
+                    diagnosticPhase: restoreDiagnosticCallback
                 )
+            traceRestorePhase("recovery.cleanup.manifest.end")
+            traceRestorePhase("recovery.cleanup.discard.begin")
             try discardPrepublicationStagingGeneration(
                 id: id,
                 expectedDigest: digest
             )
+            traceRestorePhase("recovery.cleanup.discard.end")
         }
+        traceRestorePhase("recovery.cleanup.generations.end")
+        traceRestorePhase("recovery.cleanup.imports.begin")
         for name in try generationAuthority.importStagingNames() {
             let url = URL(fileURLWithPath: name)
             let canonicalName = url.deletingPathExtension().lastPathComponent
@@ -17938,6 +17976,8 @@ private extension BackupRestoreService {
             }
             try generationAuthority.removeImportStagingPackage(name: name)
         }
+        traceRestorePhase("recovery.cleanup.imports.end")
+        traceRestorePhase("recovery.cleanup.publications.begin")
         let restoreRoot = applicationSupportURL.appendingPathComponent(
             "FieldEvidenceRestore",
             isDirectory: true
@@ -17962,7 +18002,10 @@ private extension BackupRestoreService {
             try ProtectedFilePolicyV1.verify(.stagingFile, at: url)
             try fileManager.removeItem(at: url)
         }
+        traceRestorePhase("recovery.cleanup.publications.end")
+        traceRestorePhase("recovery.cleanup.empty-directories.begin")
         try cleanupEmptyRestoreDirectories()
+        traceRestorePhase("recovery.cleanup.empty-directories.end")
     }
 
     func discardPrepublicationStagingGeneration(
@@ -17977,21 +18020,26 @@ private extension BackupRestoreService {
                 .prepareRestoreStagingGenerationManifest(
                     expectedOldID: currentID,
                     newID: id,
-                    authority: generationAuthority
+                    authority: generationAuthority,
+                    diagnosticPhase: restoreDiagnosticCallback
                 )
             guard observed == expectedDigest else {
                 throw attributedRestoreAuthorityFailureV1(line: #line)
             }
+            traceRestorePhase("recovery.discard.remove-manifest.begin")
             try removePreparedRestoreManifestBeforeDiscard(
                 expectedOldID: currentID,
                 generationID: id,
                 expectedDigest: expectedDigest
             )
+            traceRestorePhase("recovery.discard.remove-manifest.end")
         }
+        traceRestorePhase("recovery.discard.remove-generation.begin")
         try generationFactory.removeRestoreStagingGeneration(
             id: id,
             authority: generationAuthority
         )
+        traceRestorePhase("recovery.discard.remove-generation.end")
     }
 
     func removePreparedRestoreManifestBeforeDiscard(

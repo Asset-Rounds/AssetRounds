@@ -9769,13 +9769,16 @@ struct StoreGenerationFactory {
         newID: UUID,
         restoreProof: StoreRestoreGenerationManifestProofV1? = nil,
         restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1? = nil,
-        authority: StoreRestoreGenerationAuthority
+        authority: StoreRestoreGenerationAuthority,
+        diagnosticPhase: (@MainActor (String) -> Void)? = nil
     ) throws -> String {
-        try authority.mutationRegistry.withNoMigrationReservation {
+        diagnosticPhase?("recovery.manifest.lock.begin")
+        return try authority.mutationRegistry.withNoMigrationReservation {
+            diagnosticPhase?("recovery.manifest.lock.acquired")
             try authority.requireRestoreReviewRoot(applicationSupportURL)
             return try prepareRestoreStagingGenerationManifestLocked(expectedOldID: expectedOldID,
                 newID: newID, restoreProof: restoreProof, restoreFileSnapshot: restoreFileSnapshot,
-                authority: authority)
+                authority: authority, diagnosticPhase: diagnosticPhase)
         }
     }
 
@@ -9785,7 +9788,8 @@ struct StoreGenerationFactory {
         newID: UUID,
         restoreProof: StoreRestoreGenerationManifestProofV1? = nil,
         restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1? = nil,
-        authority: StoreRestoreGenerationAuthority
+        authority: StoreRestoreGenerationAuthority,
+        diagnosticPhase: (@MainActor (String) -> Void)? = nil
     ) throws -> String {
         guard try authority.currentGenerationID() == expectedOldID else {
             throw StoreGenerationFailure.dataPointerInvalid
@@ -9806,6 +9810,7 @@ struct StoreGenerationFactory {
             }
             try authority.protectStagingGeneration(id: newID)
         }
+        diagnosticPhase?("recovery.manifest.preflight.end")
         let root = restoreStagingGenerationURL(id: newID)
         _ = try requireRestoreFileSnapshot(
             restoreFileSnapshot,
@@ -9813,23 +9818,31 @@ struct StoreGenerationFactory {
             at: root,
             restoreProof: restoreProof
         )
+        diagnosticPhase?("recovery.manifest.file-snapshot.end")
         let modelStoreURL = root.appendingPathComponent(Self.modelStoreName)
         let markerMigrationID = try autoreleasepool { () throws -> UUID in
+            diagnosticPhase?("recovery.manifest.container.begin")
             let container = try makeV53Container(at: modelStoreURL, migrate: false)
+            diagnosticPhase?("recovery.manifest.container.end")
+            diagnosticPhase?("recovery.manifest.marker.begin")
             let marker = try requireV53Marker(
                 in: container.mainContext,
                 expectedMigrationID: nil
             )
+            diagnosticPhase?("recovery.manifest.marker.end")
             guard let value = marker.migrationID else {
                 throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
             }
             return value
         }
+        diagnosticPhase?("recovery.manifest.container-scope.end")
         let store = try StoreMigrationJournalStoreV1(
             applicationSupportURL: applicationSupportURL
         )
         let digest: String
+        diagnosticPhase?("recovery.manifest.load.begin")
         if let existing = try store.loadManifestIfPresent(targetGenerationID: newID) {
+            diagnosticPhase?("recovery.manifest.existing-verify.begin")
             try requireRestoreManifestSnapshot(
                 existing.manifest,
                 expectedOldID: expectedOldID,
@@ -9839,31 +9852,46 @@ struct StoreGenerationFactory {
                 restoreProof: restoreProof,
                 restoreFileSnapshot: restoreFileSnapshot
             )
+            diagnosticPhase?("recovery.manifest.existing-verify.end")
             digest = existing.digest
         } else {
+            diagnosticPhase?("recovery.manifest.semantic.begin")
+            let semanticSHA256: String = try semanticDigest(
+                at: modelStoreURL,
+                release: PersistentSchemaReleaseRegistryV1.activeRelease
+            )
+            diagnosticPhase?("recovery.manifest.semantic.end")
+            diagnosticPhase?("recovery.manifest.identity.begin")
+            let identityDigest: String = try frozenIdentityDigest(
+                for: root,
+                restoreProof: restoreProof,
+                restoreFileSnapshot: restoreFileSnapshot
+            )
+            diagnosticPhase?("recovery.manifest.identity.end")
+            diagnosticPhase?("recovery.manifest.files.begin")
+            let fileDigests: [StoreGenerationFileDigestV1] = try generationFileDigests(
+                at: root,
+                durable: true,
+                restoreProof: restoreProof,
+                restoreFileSnapshot: restoreFileSnapshot
+            )
+            diagnosticPhase?("recovery.manifest.files.end")
+            diagnosticPhase?("recovery.manifest.construct.begin")
             let manifest = try StoreGenerationManifestV1(
                 generationID: newID,
                 predecessorGenerationID: expectedOldID,
                 migrationID: markerMigrationID,
                 storeSchemaRelease: PersistentSchemaReleaseRegistryV1.activeRelease,
-                semanticSHA256: try semanticDigest(
-                    at: modelStoreURL,
-                    release: PersistentSchemaReleaseRegistryV1.activeRelease
-                ),
-                frozenIdentityDigest: try frozenIdentityDigest(
-                    for: root,
-                    restoreProof: restoreProof,
-                    restoreFileSnapshot: restoreFileSnapshot
-                ),
-                files: try generationFileDigests(
-                    at: root,
-                    durable: true,
-                    restoreProof: restoreProof,
-                    restoreFileSnapshot: restoreFileSnapshot
-                ),
+                semanticSHA256: semanticSHA256,
+                frozenIdentityDigest: identityDigest,
+                files: fileDigests,
                 restoreProof: restoreProof
             )
+            diagnosticPhase?("recovery.manifest.construct.end")
+            diagnosticPhase?("recovery.manifest.write.begin")
             digest = try store.writeManifest(manifest)
+            diagnosticPhase?("recovery.manifest.write.end")
+            diagnosticPhase?("recovery.manifest.new-verify.begin")
             try requireRestoreManifestSnapshot(
                 manifest,
                 expectedOldID: expectedOldID,
@@ -9878,6 +9906,7 @@ struct StoreGenerationFactory {
             throw StoreGenerationFailure.dataPointerInvalid
         }
         try authority.requireStagingGeneration(id: newID)
+        diagnosticPhase?("recovery.manifest.return")
         return digest
     }
 

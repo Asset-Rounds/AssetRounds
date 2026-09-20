@@ -13,7 +13,7 @@
 
 Evidence stays bound to its head.
 
-35501299501/head7c0a64c is terminal/sole-collected/root-audited7AA60DD6: compile884s PASS/0errors, firstInterrupted900/5NotStarted, transportINVALID. The staged-root correction clears review writing/final history/cleanup; last of161 markers is write-destination-reviews.returned102.929s. The next batch brackets post-review history/current-store checks and error recovery with27 existing default-off hook calls; no runtime cause is yet proven. One new test-only unavailable Sendable conformance is corrected in draft by capturing its existing semaphore values; all7 methods/assertions retained. Combined source132/index/route passed before the run. Bitrise exact runtime remains unavailable publicly.
+35504176731/head2f362ef is terminal/sole-collected/root-audited8AA64935: compilationPASS/0errors/0newwarning signatures, firstInterrupted900/5NotStarted, transportINVALID. History validation enters59.914s and throws by60.003s; access validation returns60.004s, then recovery.reconcile.begin is the last marker. Next scoped batch observes exact history and nested recovery/manifest boundaries; no validator correction is proven. Source132 and independent index/route passed; the semaphore correction compiled, but all affected native outcomes remain due. Bitrise exact runtime remains unavailable publicly.
 
 ## Current implementation
 
@@ -28,7 +28,7 @@ Evidence stays bound to its head.
 
 ## Cadence and completion gates
 
-Astra xhigh root; at most one useful Astra low/medium coding/review helper, Luna low for simple non-coding. Freeze candidate/checkpoints before checks; combine semantic/index review and use qualified mechanical facts for committed binding. No duplicate run or unchanged retry; root alone commits/pushes. Follow MERGE_READINESS; run qualified validate-native-inputs.py before successor preparation.
+Astra xhigh root; at most one useful Astra low/medium coding/review helper, Luna low for simple non-coding. Freeze candidate/checkpoints before checks; combine semantic/index review and use qualified mechanical facts for committed binding. No duplicate run or unchanged retry; root alone commits/pushes. Follow MERGE_READINESS; run qualified validate-native-inputs.py before successor preparation. Local immutable-read cache B854B213 is qualified/reviewed and adopted after terminal audit; rebind its support pins in the next batch.
 
 Committed pool868/53 includes the13 restore journey/authority methods and78 later additions;12 historical profiles remain exact. Source/protocol and independent index/route checks precede new reviewed native originals; no duplicate or consumed-selector retry. Transport12, startup2/restore3, preparation6, lifecycle5, archive48/regular graph23, notification77, field49, ReceiptSafety1, six retirement interruptions and maximum graphs remain due. Keep evidence head-bound. Cache/shared-build and provider qualification remain separate work.
 

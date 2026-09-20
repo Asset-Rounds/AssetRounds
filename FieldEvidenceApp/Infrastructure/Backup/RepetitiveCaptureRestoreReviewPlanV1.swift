@@ -129,27 +129,49 @@ struct RepetitiveCaptureRestoreReviewPlanV1: Sendable {
 
     /// Keep all source journal bytes; only the actual staging writer may add
     /// the fresh destination review creations. No predicted receipt is accepted.
+    @MainActor
     func requireWrittenHistory(_ written: MutationHistorySnapshotV1,
-                               preserving before: MutationHistorySnapshotV1) throws {
+                               preserving before: MutationHistorySnapshotV1,
+                               diagnosticPhase: (@MainActor (String) -> Void)? = nil) throws {
+        diagnosticPhase?("history.originals-before.begin")
         let beforeByKey = try Self.originals(before)
+        diagnosticPhase?("history.originals-before.end")
+        diagnosticPhase?("history.originals-after.begin")
         let afterByKey = try Self.originals(written)
+        diagnosticPhase?("history.originals-after.end")
+        diagnosticPhase?("history.preservation.begin")
         guard beforeByKey.allSatisfy({ afterByKey[$0.key] == $0.value }),
               written.quarantines == before.quarantines,
               afterByKey.count == beforeByKey.count + checkpoints.count else { throw Self.invalid() }
+        diagnosticPhase?("history.preservation.end")
         for checkpoint in checkpoints {
             let key = MutationWorkspaceKeyV1.value(workspaceID: checkpoint.workspaceID,
                                                    mutationID: checkpoint.mutationID)
+            diagnosticPhase?("history.checkpoint-original.begin")
             guard beforeByKey[key] == nil, let original = afterByKey[key] else { throw Self.invalid() }
+            diagnosticPhase?("history.checkpoint-original.end")
+            diagnosticPhase?("history.envelope.begin")
             let envelope = try MutationEnvelopeV1.decodeCanonical(from: original.envelopeData)
+            diagnosticPhase?("history.envelope.end")
+            diagnosticPhase?("history.receipt.begin")
             let receipt = try MutationReceiptV1.decodeCanonical(from: original.receiptData)
+            diagnosticPhase?("history.receipt.end")
+            diagnosticPhase?("history.typed-evidence.begin")
             let evidence = try FieldDraftCommittedEvidenceV1(envelope: envelope, receipt: receipt)
+            diagnosticPhase?("history.typed-evidence.end")
+            diagnosticPhase?("history.target.begin")
             guard envelope.generationID == identity.targetPointer.generationID,
                   envelope.replicaID.rawValue == identity.targetPointer.replicaID,
                   case .createCheckpoint(let actual) = evidence.mutation.postImage,
                   actual == checkpoint else { throw Self.invalid() }
+            diagnosticPhase?("history.target.end")
+            diagnosticPhase?("history.lineage.begin")
             let lineage = try RepetitiveCaptureReviewLineageReaderV1.read(
                 workspaceID: checkpoint.workspaceID, mutationID: checkpoint.mutationID, in: written)
+            diagnosticPhase?("history.lineage.end")
+            diagnosticPhase?("history.selected-checkpoint.begin")
             guard lineage.selectedReview.initialCheckpoint == checkpoint else { throw Self.invalid() }
+            diagnosticPhase?("history.selected-checkpoint.end")
         }
     }
 
