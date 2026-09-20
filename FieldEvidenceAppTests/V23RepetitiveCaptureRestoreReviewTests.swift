@@ -67,7 +67,7 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
     func testPopulatedCrossWorkspaceReplacementCreatesOnlyReviewAndRetainsOriginalHistory() async throws {
         let source = try RepetitiveCaptureSourcePackageFixture(sourceOnly: true)
         defer { source.removePackages() }
-        let harness = try RestoreReviewHarness()
+        let harness = try RestoreReviewHarness(timing: RestoreReviewTimingV1(enabled: true))
         defer { harness.remove() }
         let incumbent = try harness.populate()
         let incumbentIdentity = incumbent.workspaceIdentity
@@ -94,7 +94,7 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
     func testSameWorkspaceReplacementPreservesCheckpointAndOriginalReceiptBytes() async throws {
         let source = try RepetitiveCaptureSourcePackageFixture(sourceOnly: true)
         defer { source.removePackages() }
-        let harness = try RestoreReviewHarness()
+        let harness = try RestoreReviewHarness(timing: RestoreReviewTimingV1(enabled: true))
         defer { harness.remove() }
         let first = try await harness.restore(try source.package(named: "install"), mode: .emptyInstall)
         let firstRows = try first.modelContext.fetch(FetchDescriptor<FieldDraftCheckpointRow>()).map { try $0.value() }
@@ -112,7 +112,7 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
         for point in [BackupRestoreFailurePoint.beforePreparedWrite, .afterPreparedWrite] {
         let source = try RepetitiveCaptureSourcePackageFixture(sourceOnly: true)
         defer { source.removePackages() }
-        let harness = try RestoreReviewHarness()
+        let harness = try RestoreReviewHarness(timing: RestoreReviewTimingV1(enabled: true))
         defer { harness.remove() }
         let current = try harness.populate()
         let before = try harness.history(in: current)
@@ -177,7 +177,7 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
             } else {
                 XCTAssertEqual(unrelated.count, 2)
             }
-            let harness = try RestoreReviewHarness()
+            let harness = try RestoreReviewHarness(timing: RestoreReviewTimingV1(enabled: true))
             defer { harness.remove() }
             let restored = try await harness.restore(try source.package(named: "owned-rows"), mode: .fork)
             let review = try harness.onlyReview(in: restored)

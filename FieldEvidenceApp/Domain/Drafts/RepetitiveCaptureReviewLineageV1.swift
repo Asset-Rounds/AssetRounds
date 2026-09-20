@@ -49,13 +49,16 @@ enum RepetitiveCaptureReviewLineageReaderV1 {
 
     static func read(workspaceID: WorkspaceID, mutationID: MutationIDV1,
                      in snapshot: MutationHistorySnapshotV1,
-                     validatedBy facts: MutationHistoryImportedValidationFactsV1) throws
+                     validatedBy facts: MutationHistoryImportedValidationFactsV1,
+                     diagnosticPhase: ((String) -> Void)? = nil) throws
         -> RepetitiveCaptureReviewLineageV1 {
         guard facts.receiptStableKeys(matching: snapshot) != nil else { throw invalid() }
-        return try reconstruct(workspaceID: workspaceID, mutationID: mutationID, snapshot: snapshot) { first in
+        return try reconstruct(workspaceID: workspaceID, mutationID: mutationID, snapshot: snapshot,
+            diagnosticPhase: diagnosticPhase) { first in
             try RepetitiveCaptureDestinationReviewHistoryV1.firstReview(
                 workspaceID: first.initialCheckpoint.workspaceID,
-                mutationID: first.initialCheckpoint.mutationID, in: snapshot, validatedBy: facts)
+                mutationID: first.initialCheckpoint.mutationID, in: snapshot, validatedBy: facts,
+                diagnosticPhase: diagnosticPhase)
         }
     }
 
@@ -71,20 +74,27 @@ enum RepetitiveCaptureReviewLineageReaderV1 {
 
     private static func reconstruct(workspaceID: WorkspaceID, mutationID: MutationIDV1,
                                     snapshot: MutationHistorySnapshotV1,
+                                    diagnosticPhase: ((String) -> Void)? = nil,
                                     firstEvidence: (RepetitiveCaptureReviewHistoryV1) throws
                                         -> RepetitiveCaptureDestinationReviewEvidenceV1) throws
         -> RepetitiveCaptureReviewLineageV1 {
         let cap = MutationJournalStoreV1.maximumReceiptValidationCount
         guard !snapshot.receipts.isEmpty, snapshot.receipts.count <= cap else { throw invalid() }
+        diagnosticPhase?("index.begin")
         let history = try RepetitiveCaptureSourceGraphReviewV2.History(snapshot: snapshot)
+        diagnosticPhase?("index.end")
+        diagnosticPhase?("selected-original.begin")
         var pending = try history.authenticated(workspaceID: workspaceID, mutationID: mutationID)
+        diagnosticPhase?("selected-original.end")
         var visited = Set<String>()
         var drafts = Set<RepetitiveCaptureSourceGraphReviewV2.WorkspaceObjectKey>()
         var descending: [RepetitiveCaptureReviewHistoryV1] = []
         while true {
             guard visited.insert(pending.receipt.identity.stableKey).inserted,
                   visited.count <= cap else { throw invalid() }
-            let review = try prefix(through: pending, history: history)
+            diagnosticPhase?("prefix.begin")
+            let review = try prefix(through: pending, history: history, diagnosticPhase: diagnosticPhase)
+            diagnosticPhase?("prefix.end")
             guard drafts.insert(.init(workspaceID: review.checkpoint.workspaceID,
                                       id: review.checkpoint.draftID)).inserted else { throw invalid() }
             descending.append(review)
@@ -94,14 +104,20 @@ enum RepetitiveCaptureReviewLineageReaderV1 {
         }
         let reviews = Array(descending.reversed())
         guard let first = reviews.first, let selected = reviews.last else { throw invalid() }
+        diagnosticPhase?("first-source.begin")
         let root = try firstEvidence(first)
+        diagnosticPhase?("first-source.end")
+        diagnosticPhase?("first-source.equality")
         guard root.payload == first.payload, root.checkpoint == first.initialCheckpoint else { throw invalid() }
+        diagnosticPhase?("original-union.begin")
         var originals = Dictionary(uniqueKeysWithValues: root.retainedSource.requiredHistory.map {
             (RepetitiveCaptureSourceGraphReviewV2.key($0.envelope), $0)
         })
         var unavailable = Set(root.retainedSource.requiredHistory.map { $0.envelope.mutationID.rawValue })
+        diagnosticPhase?("original-union.end")
         var previous: RepetitiveCaptureReviewHistoryV1?
         for review in reviews {
+            diagnosticPhase?("ancestry.source")
             guard review.payload.source == root.payload.source else { throw invalid() }
             if let previous {
                 try review.payload.validatePredecessor(against: previous.payload, original: previous.anchor,
@@ -109,6 +125,7 @@ enum RepetitiveCaptureReviewLineageReaderV1 {
             } else {
                 guard review.payload.provenance.immediatePredecessor == nil else { throw invalid() }
             }
+            diagnosticPhase?("ancestry.collision")
             let pairIDs = Set(review.payload.provenance.ultimateToDestinationPairs.flatMap {
                 [$0.sourceID, $0.destinationID]
             })
@@ -118,6 +135,7 @@ enum RepetitiveCaptureReviewLineageReaderV1 {
                   initial.draftID != initial.mutationID.rawValue else { throw invalid() }
             unavailable.formUnion(pairIDs)
             unavailable.insert(initial.draftID)
+            diagnosticPhase?("ancestry.originals")
             for original in review.prefix {
                 let key = RepetitiveCaptureSourceGraphReviewV2.key(original.envelope)
                 if let existing = originals[key] { guard existing == original else { throw invalid() } }
@@ -127,18 +145,24 @@ enum RepetitiveCaptureReviewLineageReaderV1 {
             }
             previous = review
         }
+        diagnosticPhase?("complete")
         return .init(selectedReview: selected, reviews: reviews, retainedSource: root.retainedSource,
                      requiredHistory: originals.values.sorted(by: RepetitiveCaptureSourceGraphReviewV2.recordLess))
     }
 
     private static func prefix(through anchor: RepetitiveCaptureSourceHistoryRecordV2,
-                               history: RepetitiveCaptureSourceGraphReviewV2.History) throws
+                               history: RepetitiveCaptureSourceGraphReviewV2.History,
+                               diagnosticPhase: ((String) -> Void)? = nil) throws
         -> RepetitiveCaptureReviewHistoryV1 {
+        diagnosticPhase?("prefix.anchor")
         let anchorEvidence = try FieldDraftCommittedEvidenceV1(envelope: anchor.envelope, receipt: anchor.receipt)
         guard let tip = RepetitiveCaptureSourceGraphReviewV2.checkpointPostImage(anchorEvidence.mutation.postImage)
         else { throw invalid() }
+        diagnosticPhase?("prefix.tip")
         try RepetitiveCaptureDestinationReviewCodecV1.validateCheckpoint(tip)
+        diagnosticPhase?("prefix.payload")
         let payload = try RepetitiveCaptureDestinationReviewCodecV1.decode(tip.payloadData)
+        diagnosticPhase?("prefix.candidates")
         var candidates: [(record: RepetitiveCaptureSourceHistoryRecordV2, checkpoint: FieldDraftCheckpointV1)] = []
         for record in history.fieldDraftHistory(workspaceID: tip.workspaceID, draftID: tip.draftID) {
             guard case let .applyFieldDraft(mutation) = record.envelope.command,
@@ -154,20 +178,25 @@ enum RepetitiveCaptureReviewLineageReaderV1 {
         guard let first = candidates.first,
               case let .applyFieldDraft(firstMutation) = first.record.envelope.command,
               case .createCheckpoint = firstMutation.postImage else { throw invalid() }
+        diagnosticPhase?("prefix.initial")
         try RepetitiveCaptureDestinationReviewCodecV1.validateInitialCheckpoint(first.checkpoint,
             creationGenerationID: first.record.envelope.expectedRevision.generationID)
         var previous: FieldDraftCheckpointV1?
         var previousReceipt: MutationReceiptV1?
         var originals: [RepetitiveCaptureSourceHistoryRecordV2] = []
         for candidate in candidates {
+            diagnosticPhase?("prefix.candidate-original")
             let record = try history.authenticated(RepetitiveCaptureSourceGraphReviewV2.key(candidate.record.envelope))
             guard !history.isQuarantined(record) else { throw invalid() }
             let evidence = try FieldDraftCommittedEvidenceV1(envelope: record.envelope, receipt: record.receipt)
             let value = candidate.checkpoint
+            diagnosticPhase?("prefix.candidate-checkpoint")
             try RepetitiveCaptureDestinationReviewCodecV1.validateCheckpoint(value)
+            diagnosticPhase?("prefix.candidate-equality")
             guard value.workspaceID == tip.workspaceID, value.draftID == tip.draftID,
                   value.payloadData == first.checkpoint.payloadData,
                   value.mutationID == evidence.mutation.mutationID else { throw invalid() }
+            diagnosticPhase?("prefix.candidate-transition")
             if let previous, let previousReceipt {
                 guard record.envelope.expectedRevision.workspaceRevision >= previousReceipt.resultingRevision.workspaceRevision,
                       record.receipt.resultingRevision.workspaceRevision > previousReceipt.resultingRevision.workspaceRevision
@@ -182,6 +211,7 @@ enum RepetitiveCaptureReviewLineageReaderV1 {
             previousReceipt = record.receipt
             originals.append(record)
         }
+        diagnosticPhase?("prefix.final-equality")
         guard previous == tip, originals.last == anchor else { throw invalid() }
         return .init(initialCheckpoint: first.checkpoint, checkpoint: tip, payload: payload,
                      anchor: anchor, prefix: originals)

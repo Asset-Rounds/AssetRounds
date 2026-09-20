@@ -170,9 +170,21 @@ struct RepetitiveCaptureRestoreReviewPlanV1: Sendable {
             let facts = try MutationJournalStoreV1.validatedImportedSnapshotFacts(written)
             diagnosticPhase?("history.lineage.imported-facts.end")
             diagnosticPhase?("history.lineage.reconstruct.begin")
+            let lineageDiagnostic: ((String) -> Void)?
+            if let diagnosticPhase {
+                // These pure readers execute synchronously inside this MainActor
+                // method. Default-nil diagnostics never cross an executor.
+                lineageDiagnostic = { phase in
+                    MainActor.assumeIsolated {
+                        diagnosticPhase("history.lineage." + phase)
+                    }
+                }
+            } else {
+                lineageDiagnostic = nil
+            }
             let lineage = try RepetitiveCaptureReviewLineageReaderV1.read(
                 workspaceID: checkpoint.workspaceID, mutationID: checkpoint.mutationID,
-                in: written, validatedBy: facts)
+                in: written, validatedBy: facts, diagnosticPhase: lineageDiagnostic)
             diagnosticPhase?("history.lineage.reconstruct.end")
             diagnosticPhase?("history.lineage.end")
             diagnosticPhase?("history.selected-checkpoint.begin")

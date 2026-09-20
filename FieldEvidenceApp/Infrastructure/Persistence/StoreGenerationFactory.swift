@@ -5230,172 +5230,176 @@ private extension StoreGenerationFactory {
         }
         let modelStoreURL = root.appendingPathComponent(Self.modelStoreName)
         let markerMigrationID = try autoreleasepool { () throws -> UUID in
-            let context: ModelContext
+            let container: ModelContainer
             let marker: PersistentSchemaReleaseMarker
             switch manifest.storeSchemaRelease {
             case .v2:
-                context = try makeV2Container(at: modelStoreURL, migrate: false).mainContext
-                marker = try requireV2Marker(in: context, expectedMigrationID: manifest.migrationID)
+                container = try makeV2Container(at: modelStoreURL, migrate: false)
+                marker = try requireV2Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
             case .v3:
-                context = try makeV3Container(at: modelStoreURL, migrate: false).mainContext
-                marker = try requireV3Marker(in: context, expectedMigrationID: manifest.migrationID)
+                container = try makeV3Container(at: modelStoreURL, migrate: false)
+                marker = try requireV3Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
             case .v4:
-                context = try makeV4Container(at: modelStoreURL, migrate: false).mainContext
-                marker = try requireV4Marker(in: context, expectedMigrationID: manifest.migrationID)
+                container = try makeV4Container(at: modelStoreURL, migrate: false)
+                marker = try requireV4Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
             case .v5:
-                context = try makeV5Container(at: modelStoreURL, migrate: false).mainContext
-                marker = try requireV5Marker(in: context, expectedMigrationID: manifest.migrationID)
+                container = try makeV5Container(at: modelStoreURL, migrate: false)
+                marker = try requireV5Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
             case .v6:
-                context = try makeV6Container(at: modelStoreURL, migrate: false).mainContext
-                marker = try requireV6Marker(in: context, expectedMigrationID: manifest.migrationID)
+                container = try makeV6Container(at: modelStoreURL, migrate: false)
+                marker = try requireV6Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
             case .v7:
-                context = try makeV7Container(at: modelStoreURL, migrate: false).mainContext
-                marker = try requireV7Marker(in: context, expectedMigrationID: manifest.migrationID)
+                container = try makeV7Container(at: modelStoreURL, migrate: false)
+                marker = try requireV7Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
             case .v8:
-                context = try makeV8Container(at: modelStoreURL, migrate: false).mainContext
-                marker = try requireV8Marker(in: context, expectedMigrationID: manifest.migrationID)
+                container = try makeV8Container(at: modelStoreURL, migrate: false)
+                marker = try requireV8Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
             case .v9:
-                context = try makeV9Container(at: modelStoreURL, migrate: false).mainContext
-                marker = try requireV9Marker(in: context, expectedMigrationID: manifest.migrationID)
+                container = try makeV9Container(at: modelStoreURL, migrate: false)
+                marker = try requireV9Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
             case .v10:
-                context = try makeV10Container(at: modelStoreURL, migrate: false).mainContext
-                marker = try requireV10Marker(in: context, expectedMigrationID: manifest.migrationID)
+                container = try makeV10Container(at: modelStoreURL, migrate: false)
+                marker = try requireV10Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
             case .v11:
-                context = try makeV11Container(at: modelStoreURL, migrate: false).mainContext
-                marker = try requireV11Marker(in: context, expectedMigrationID: manifest.migrationID)
+                container = try makeV11Container(at: modelStoreURL, migrate: false)
+                marker = try requireV11Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
             case .v12:
-                context = try makeV12Container(at: modelStoreURL, migrate: false).mainContext
-                marker = try requireV12Marker(in: context, expectedMigrationID: manifest.migrationID)
+                container = try makeV12Container(at: modelStoreURL, migrate: false)
+                marker = try requireV12Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
             case .v13:
-                context = try makeV13Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV13Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV13Container(at:modelStoreURL,migrate:false)
+                marker = try requireV13Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v14:
-                context = try makeV14Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV14Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV14Container(at:modelStoreURL,migrate:false)
+                marker = try requireV14Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v15:
-                context = try makeV15Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV15Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV15Container(at:modelStoreURL,migrate:false)
+                marker = try requireV15Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v16:
-                context = try makeV16Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV16Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV16Container(at:modelStoreURL,migrate:false)
+                marker = try requireV16Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v17:
-                context = try makeV17Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV17Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV17Container(at:modelStoreURL,migrate:false)
+                marker = try requireV17Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v18:
-                context = try makeV18Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV18Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV18Container(at:modelStoreURL,migrate:false)
+                marker = try requireV18Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v19:
-                context = try makeV19Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV19Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV19Container(at:modelStoreURL,migrate:false)
+                marker = try requireV19Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v20:
-                context = try makeV20Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV20Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV20Container(at:modelStoreURL,migrate:false)
+                marker = try requireV20Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v21:
-                context = try makeV21Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV21Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV21Container(at:modelStoreURL,migrate:false)
+                marker = try requireV21Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v22:
-                context = try makeV22Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV22Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV22Container(at:modelStoreURL,migrate:false)
+                marker = try requireV22Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v23:
-                context = try makeV23Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV23Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV23Container(at:modelStoreURL,migrate:false)
+                marker = try requireV23Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v24:
-                context = try makeV24Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV24Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV24Container(at:modelStoreURL,migrate:false)
+                marker = try requireV24Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v25:
-                context = try makeV25Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV25Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV25Container(at:modelStoreURL,migrate:false)
+                marker = try requireV25Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v26:
-                context = try makeV26Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV26Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV26Container(at:modelStoreURL,migrate:false)
+                marker = try requireV26Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v27:
-                context = try makeV27Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV27Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV27Container(at:modelStoreURL,migrate:false)
+                marker = try requireV27Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v28:
-                context = try makeV28Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV28Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV28Container(at:modelStoreURL,migrate:false)
+                marker = try requireV28Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v29:
-                context = try makeV29Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV29Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV29Container(at:modelStoreURL,migrate:false)
+                marker = try requireV29Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v30:
-                context = try makeV30Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV30Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV30Container(at:modelStoreURL,migrate:false)
+                marker = try requireV30Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v31:
-                context = try makeV31Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV31Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV31Container(at:modelStoreURL,migrate:false)
+                marker = try requireV31Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v32:
-                context = try makeV32Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV32Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV32Container(at:modelStoreURL,migrate:false)
+                marker = try requireV32Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v33:
-                context = try makeV33Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV33Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV33Container(at:modelStoreURL,migrate:false)
+                marker = try requireV33Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v34:
-                context = try makeV34Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV34Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV34Container(at:modelStoreURL,migrate:false)
+                marker = try requireV34Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v35:
-                context = try makeV35Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV35Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV35Container(at:modelStoreURL,migrate:false)
+                marker = try requireV35Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v36:
-                context = try makeV36Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV36Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV36Container(at:modelStoreURL,migrate:false)
+                marker = try requireV36Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v37:
-                context = try makeV37Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV37Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV37Container(at:modelStoreURL,migrate:false)
+                marker = try requireV37Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v38:
-                context = try makeV38Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV38Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV38Container(at:modelStoreURL,migrate:false)
+                marker = try requireV38Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v39:
-                context = try makeV39Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV39Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV39Container(at:modelStoreURL,migrate:false)
+                marker = try requireV39Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v40:
-                context = try makeV40Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV40Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV40Container(at:modelStoreURL,migrate:false)
+                marker = try requireV40Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v41:
-                context = try makeV41Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV41Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV41Container(at:modelStoreURL,migrate:false)
+                marker = try requireV41Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v42:
-                context = try makeV42Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV42Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV42Container(at:modelStoreURL,migrate:false)
+                marker = try requireV42Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v43:
-                context = try makeV43Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV43Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV43Container(at:modelStoreURL,migrate:false)
+                marker = try requireV43Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v44:
-                context = try makeV44Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV44Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV44Container(at:modelStoreURL,migrate:false)
+                marker = try requireV44Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v45:
-                context = try makeV45Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV45Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV45Container(at:modelStoreURL,migrate:false)
+                marker = try requireV45Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v46:
-                context = try makeV46Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV46Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV46Container(at:modelStoreURL,migrate:false)
+                marker = try requireV46Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v47:
-                context = try makeV47Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV47Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV47Container(at:modelStoreURL,migrate:false)
+                marker = try requireV47Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v48:
-                context = try makeV48Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV48Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV48Container(at:modelStoreURL,migrate:false)
+                marker = try requireV48Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v49:
-                context = try makeV49Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV49Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV49Container(at:modelStoreURL,migrate:false)
+                marker = try requireV49Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v50:
-                context = try makeV50Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV50Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV50Container(at:modelStoreURL,migrate:false)
+                marker = try requireV50Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v51:
-                context = try makeV51Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV51Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV51Container(at:modelStoreURL,migrate:false)
+                marker = try requireV51Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v52:
-                context = try makeV52Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV52Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV52Container(at:modelStoreURL,migrate:false)
+                marker = try requireV52Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v53:
-                context = try makeV53Container(at:modelStoreURL,migrate:false).mainContext
-                marker = try requireV53Marker(in:context,expectedMigrationID:manifest.migrationID)
+                container = try makeV53Container(at:modelStoreURL,migrate:false)
+                marker = try requireV53Marker(in: container.mainContext,expectedMigrationID:manifest.migrationID)
             case .v1:
                 throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
             }
-            guard let value = marker.migrationID else {
-                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            // The fetched marker remains backed by this container until its
+            // value is copied. Do not retain only a temporary container's context.
+            return try withExtendedLifetime(container) { () throws -> UUID in
+                guard let value = marker.migrationID else {
+                    throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+                }
+                return value
             }
-            return value
         }
         guard manifest.generationID == generationID,
               manifest.predecessorGenerationID == expectedOldID,

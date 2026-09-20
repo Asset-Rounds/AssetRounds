@@ -33,15 +33,16 @@ enum RepetitiveCaptureDestinationReviewHistoryV1 {
 
     static func firstReview(workspaceID: WorkspaceID, mutationID: MutationIDV1,
                             in snapshot: MutationHistorySnapshotV1,
-                            validatedBy facts: MutationHistoryImportedValidationFactsV1) throws
+                            validatedBy facts: MutationHistoryImportedValidationFactsV1,
+                            diagnosticPhase: ((String) -> Void)? = nil) throws
         -> RepetitiveCaptureDestinationReviewEvidenceV1 {
         guard facts.receiptStableKeys(matching: snapshot) != nil else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
         return try reconstruct(workspaceID: workspaceID, mutationID: mutationID,
-            snapshot: snapshot) { reference in
+            snapshot: snapshot, diagnosticPhase: diagnosticPhase) { reference in
                 try RepetitiveCaptureSourceGraphReviewV2.retainedOriginals(
-                    for: reference, in: snapshot, validatedBy: facts)
+                    for: reference, in: snapshot, validatedBy: facts, diagnosticPhase: diagnosticPhase)
             }
     }
 
@@ -56,32 +57,40 @@ enum RepetitiveCaptureDestinationReviewHistoryV1 {
 
     private static func reconstruct(workspaceID: WorkspaceID, mutationID: MutationIDV1,
                                     snapshot: MutationHistorySnapshotV1,
+                                    diagnosticPhase: ((String) -> Void)? = nil,
                                     source: (RepetitiveCaptureSourceGraphReferenceV2) throws
                                         -> RepetitiveCaptureRetainedOriginalsV2) throws
         -> RepetitiveCaptureDestinationReviewEvidenceV1 {
+        diagnosticPhase?("first.index")
         let history = try RepetitiveCaptureSourceGraphReviewV2.History(snapshot: snapshot)
+        diagnosticPhase?("first.original")
         let original = try history.authenticated(workspaceID: workspaceID, mutationID: mutationID)
         // Complete history validation owns reversal metadata. Preserve its
         // original bytes rather than inventing a review-specific prohibition.
         guard !history.isQuarantined(original) else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
+        diagnosticPhase?("first.committed")
         let committed = try FieldDraftCommittedEvidenceV1(envelope: original.envelope, receipt: original.receipt)
         guard case let .createCheckpoint(checkpoint) = committed.mutation.postImage,
               committed.mutation.expectedRevision == 0,
               committed.mutation.expectedBaseCanonicalRevision == checkpoint.baseCanonicalRevision else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
+        diagnosticPhase?("first.initial")
         try RepetitiveCaptureDestinationReviewCodecV1.validateInitialCheckpoint(checkpoint,
             creationGenerationID: original.envelope.expectedRevision.generationID)
         let payload = try RepetitiveCaptureDestinationReviewCodecV1.decode(checkpoint.payloadData)
         guard payload.provenance.immediatePredecessor == nil else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
+        diagnosticPhase?("first.retained-source.begin")
         let retained = try source(payload.source)
+        diagnosticPhase?("first.payload-reconstruction")
         try payload.validateFirstSource(against: retained)
         // Derivation must still be fresh with respect to the preserved source
         // identities; a self-consistent create receipt cannot waive collisions.
+        diagnosticPhase?("first.collision")
         var unavailable = Set(payload.provenance.ultimateToDestinationPairs.flatMap { [$0.sourceID, $0.destinationID] })
         unavailable.formUnion(retained.requiredHistory.map { $0.envelope.mutationID.rawValue })
         guard !unavailable.contains(checkpoint.draftID),
@@ -91,6 +100,7 @@ enum RepetitiveCaptureDestinationReviewHistoryV1 {
         }
         // This exact original remains useful after subsequent lifecycle
         // mutations. Do not pretend it authenticates their current frontier.
+        diagnosticPhase?("first.complete")
         return .init(original: original, checkpoint: checkpoint, payload: payload, retainedSource: retained)
     }
 }

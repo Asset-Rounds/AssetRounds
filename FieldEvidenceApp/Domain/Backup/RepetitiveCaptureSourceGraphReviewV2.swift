@@ -508,10 +508,11 @@ extension RepetitiveCaptureSourceGraphReviewV2 {
     static func retainedOriginals(
         for reference: RepetitiveCaptureSourceGraphReferenceV2,
         in snapshot: MutationHistorySnapshotV1,
-        validatedBy facts: MutationHistoryImportedValidationFactsV1
+        validatedBy facts: MutationHistoryImportedValidationFactsV1,
+        diagnosticPhase: ((String) -> Void)? = nil
     ) throws -> RepetitiveCaptureRetainedOriginalsV2 {
         guard facts.receiptStableKeys(matching: snapshot) != nil else { throw invalid() }
-        return try reconstructRetainedOriginals(for: reference, in: snapshot)
+        return try reconstructRetainedOriginals(for: reference, in: snapshot, diagnosticPhase: diagnosticPhase)
     }
 
     /// Only the live journal can seal this fully validated immutable history.
@@ -528,23 +529,30 @@ extension RepetitiveCaptureSourceGraphReviewV2 {
     /// this reader does not reauthenticate an unavailable original archive.
     private static func reconstructRetainedOriginals(
         for reference: RepetitiveCaptureSourceGraphReferenceV2,
-        in snapshot: MutationHistorySnapshotV1
+        in snapshot: MutationHistorySnapshotV1,
+        diagnosticPhase: ((String) -> Void)? = nil
     ) throws -> RepetitiveCaptureRetainedOriginalsV2 {
+        diagnosticPhase?("source.reference")
         try reference.validate()
         let sourceSchema = reference.value.sourcePersistentSchemaVersion
         guard sourceSchema >= PersistentSchemaV4.versionIdentifier.major,
               sourceSchema <= PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major else {
             throw invalid()
         }
+        diagnosticPhase?("source.index")
         let history = try History(snapshot: snapshot)
         let workspace = reference.value.sourceWorkspaceID
         var selected: [String: RepetitiveCaptureSourceHistoryRecordV2] = [:]
         var current: [UUID: FieldDraftCheckpointV1] = [:]
         var discarded: [UUID: [DraftDiscardReceiptV1]] = [:]
 
+        diagnosticPhase?("source.checkpoints.begin")
         for frontier in reference.value.checkpoints {
+            diagnosticPhase?("source.checkpoint.first")
             let first = try retainedAnchor(frontier.original.record, workspace: workspace, history: history)
+            diagnosticPhase?("source.checkpoint.last")
             let last = try retainedAnchor(frontier.current.record, workspace: workspace, history: history)
+            diagnosticPhase?("source.checkpoint.equality")
             guard case let .applyFieldDraft(firstMutation) = first.envelope.command,
                   case let .createCheckpoint(original) = firstMutation.postImage,
                   case let .applyFieldDraft(lastMutation) = last.envelope.command,
@@ -565,6 +573,7 @@ extension RepetitiveCaptureSourceGraphReviewV2 {
                 .init(workspaceID: workspace, id: frontier.draftID), default: []]
                 .filter { $0.receipt.resultingRevision.workspaceRevision
                     <= last.receipt.resultingRevision.workspaceRevision }
+            diagnosticPhase?("source.checkpoint.prefix")
             guard prefix.count == frontier.lifecycle.recordCount else { throw invalid() }
             for candidate in prefix {
                 let record = try history.authenticated(key(candidate.envelope))
@@ -573,16 +582,19 @@ extension RepetitiveCaptureSourceGraphReviewV2 {
             }
         }
 
+        diagnosticPhase?("source.rounds.begin")
         let sessionID = reference.value.roundSessionID
         let rounds = history.roundsBySession[
             .init(workspaceID: workspace, id: sessionID), default: []]
             .filter { $0.revision <= reference.value.packageCurrentRound.revision }
             .sorted { $0.revision < $1.revision }
+        diagnosticPhase?("source.rounds.frontier")
         guard rounds.count == reference.value.roundHistory.recordCount,
               let packageCurrent = try RoundSessionHistoryValidatorV1.validate(
                 rounds, workspaceID: workspace, sessionID: sessionID),
               packageCurrent.revision == reference.value.packageCurrentRound.revision else { throw invalid() }
         var previousReceiptRevision: UInt64?
+        diagnosticPhase?("source.rounds.originals")
         for round in rounds {
             let record = try roundRecord(round, history: history)
             guard !history.isQuarantined(record),
@@ -594,31 +606,38 @@ extension RepetitiveCaptureSourceGraphReviewV2 {
 
         // This is an index over records selected from the validated full
         // snapshot, not a replacement snapshot or imported workspace state.
+        diagnosticPhase?("source.selected")
         let originals = selected.values.sorted(by: recordLess)
         guard originals.count == reference.value.requiredHistory.recordCount,
               originals.allSatisfy({
                   MutationJournalStoreV1.minimumPersistentSchemaVersion(for: $0.envelope.command)
                     <= sourceSchema
               }) else { throw invalid() }
+        diagnosticPhase?("source.bounded-index")
         let bounded = try History(snapshot: .init(
             workspaceRevision: snapshot.workspaceRevision, lastLocalSequence: snapshot.lastLocalSequence,
             receipts: originals.map(\.original), quarantines: snapshot.quarantines,
             entityRevisions: snapshot.entityRevisions))
+        diagnosticPhase?("source.checkpoint-history")
         let checkpoints = try reference.value.checkpoints.map { frontier in
             guard let tip = current[frontier.draftID] else { throw invalid() }
             return try checkpointHistory(current: tip, history: bounded,
                 discardReceipts: discarded[frontier.draftID, default: []])
         }
         guard let source = checkpoints.first?.original else { throw invalid() }
+        diagnosticPhase?("source.launch")
         let launch = try RepetitiveCaptureProgressDraftCodecV2.source(source)
         let createImages = checkpoints.map(\.original)
+        diagnosticPhase?("source.frontier")
         let effective = try frontier(source: source, originals: createImages, history: bounded)
         let unchangedActive = checkpoints.allSatisfy { $0.original == $0.current }
+        diagnosticPhase?("source.frontier-equality")
         guard launch.round.sessionID == sessionID, rounds.contains(effective),
               unchangedActive == reference.value.isUnchangedActiveSource,
               !unchangedActive || packageCurrent == effective else { throw invalid() }
         let selectedRounds = unchangedActive ? rounds : rounds.filter { $0.revision <= effective.revision }
         let byID = Dictionary(uniqueKeysWithValues: checkpoints.map { ($0.original.draftID, $0) })
+        diagnosticPhase?("source.chain.begin")
         let chain = try RepetitiveCaptureProgressChainReviewV2.review(
             workspaceID: workspace, sourceDraftID: source.draftID,
             authenticatedProgressCheckpoint: { requestedWorkspace, id in
@@ -643,20 +662,25 @@ extension RepetitiveCaptureSourceGraphReviewV2 {
                 guard case .applyRoundSession = record.envelope.command else { throw invalid() }
                 return record.receipt
             })
+        diagnosticPhase?("source.chain-equality")
         guard [source.draftID] + chain.nodes.map({ $0.checkpoint.draftID })
                 == reference.value.checkpoints.map(\.draftID) else { throw invalid() }
         let graph = ReviewedRepetitiveCaptureSourceGraphV2(chain: chain, checkpoints: checkpoints,
             packageCurrentRound: packageCurrent, isUnchangedActiveSource: unchangedActive)
+        diagnosticPhase?("source.round-evidence")
         let roundRecords = try rounds.map { try roundRecord($0, history: bounded) }
         let roundEvidence = SourceReferenceRoundEvidence(
             commitment: try sourceHistoryCommitment(roundRecords, role: "round"),
             records: Dictionary(uniqueKeysWithValues: roundRecords.map { ($0.envelope.mutationID, $0) }))
+        diagnosticPhase?("source.reference-reconstruction")
         let reconstructed = try sourceReference(graph: graph, sourceWorkspaceID: workspace,
             sourcePersistentSchemaVersion: reference.value.sourcePersistentSchemaVersion,
             sourceRecordsSchemaVersion: reference.value.sourceRecordsSchemaVersion,
             manifestJSONSHA256: reference.value.manifestJSONSHA256,
             recordsJSONSHA256: reference.value.recordsJSONSHA256, rounds: roundEvidence)
+        diagnosticPhase?("source.reference-equality")
         guard reconstructed == reference else { throw invalid() }
+        diagnosticPhase?("source.complete")
         return .init(reference: reference, graph: graph, requiredHistory: originals)
     }
 
