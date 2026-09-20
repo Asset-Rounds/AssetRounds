@@ -1293,15 +1293,15 @@ class RestoreBuildWatchdogDiagnosticTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 CI.resolve_selection(self.default, self.mapping, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID + suffix)
 
-    def test_causal_fixture_source_does_not_rebind_consumed_build30_source(self):
+    def test_development_binding_rejects_consumed_build30_source(self):
         self.assertEqual(CI.NO_INDEX_PARENT, '5c1e9831153e9e5feddda08e1152de06ecbaaed2')
-        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_PARENT, 'a7c9d82bdb961e9a4dc57cd5f01340c4d0ae8dbd')
-        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_TREES['FieldEvidenceAppTests'], 'a2f24ecc69d04fe658094f87e7c99fc77e2b5b51')
+        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_PARENT, '94df47d940ef3cdbc993336a157c5145d84ee812')
+        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_TREES['FieldEvidenceAppTests'], '6ae80744a230727892ceb04617421d91fd17e53a')
         self.assertEqual(CI.NO_INDEX_TREES['FieldEvidenceAppTests'], '6ae80744a230727892ceb04617421d91fd17e53a')
         for stage in ('dispatch', 'worker'):
             def substituted(command, **kwargs):
                 if command[-1] == HEAD+':FieldEvidenceAppTests':
-                    return CI.NO_INDEX_TREES['FieldEvidenceAppTests']+'\n'
+                    return 'a2f24ecc69d04fe658094f87e7c99fc77e2b5b51\n'
                 return self.git_facts(command, **kwargs)
             with mock.patch.object(CI.subprocess, 'check_output', side_effect=substituted), self.assertRaises(ValueError):
                 CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)

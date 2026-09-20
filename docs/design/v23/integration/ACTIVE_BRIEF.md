@@ -5,7 +5,7 @@
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Current5c1e983 compiles and imports the corrected schema pairs. Original35484197328 ran six restore journeys:1Pass/5Fail, now at staging/materialization. Authority7Pass at855 stays head-bound. Main stays b1d04ae5.
+- Committed94df47d corrects staging, original receipt preservation and Round receipt/row integration. Original35488379036 timed out during build; six restore journeys did not start. Main stays b1d04ae5.
 - Preserve the existing app/scheme/design system, S10 branding, five receipts,49 drafts, frozen inputs, V30 and coordination history.
 - Card135 is owner-only/skipped; minimum-runtime/physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
@@ -13,9 +13,7 @@
 
 Evidence stays bound to its head.
 
-35484197328/rootA4933BF3: buildPASS933s, tests409s/1Pass5Fail, transportPASS/no new warnings;1197 files sealed. Import passes. Three failures are the factory version gap (admits1...42 or52, Round is44); two Replace failures lack Round receipt/frontier integration. Scoped runtime-5c1e983/restore-runtime-fix now includes staging, empty-stock history and authenticated Round shared receipt/materialization fixes. Base source130PASS; final Round reversal-scope guard/regression require delta review and rebound proof before continuation/index/route gates. Nine new regressions remain unenrolled; no new native result yet. Source129/helper68/index+route evidence stays head-bound. Both30m allowances are consumed; no unchanged retry or acceptance. Bitrise remains unqualified.
-
-Copy helpers preserve77 inputs. Diagnostic2F039F04 attributes insert invalidPackage throws to DEBUG source lines; predicates stay exact. C12 uses the active export; both copy pipelines remain paired. One reviewed pointer-cleanup localization is due. Raw/clone/transport/retirement acceptance remains due.
+35488379036/rootC9C32D65: build1200s timeout/exit124,0Swift errors/new warning signatures,6NotStarted;125files verified. Prior35484197328 compiled933s then1Pass5Fail; its staging/Round causes are corrected at94df47d (source130/helper76). Owner-approved reusable development D30 now binds unchanged94df47d product trees to1800s build/3000s total; next question is compilation and the same6 restore journeys. No dispatch yet. Historical30m originals remain consumed, acceptance budgets unchanged, Bitrise unqualified. Nine new restore regressions and Round reversal correspondence remain due.
 
 ## Current implementation
 
@@ -34,6 +32,6 @@ Astra xhigh root; at most one useful Astra low/medium coding/review helper, Luna
 
 Pool790/48 adds13 restore journey/authority methods and preserves all10 historical profiles. Source/protocol and independent index/route checks precede new ordinary-budget native originals; no duplicate or consumed-selector retry. Transport12, startup2/restore3, preparation6, lifecycle5, archive48/regular graph23, notification77, field49, ReceiptSafety1, six retirement interruptions and maximum graphs remain due. Keep evidence head-bound. Cache/shared-build and provider qualification remain separate work.
 
-Complete C36 lifecycle/codec, child/finalizer recovery, destination/field/scene/resume, live effects, native protection, Work/Round and C55/C57 preservation. Resume saved reminder source via runtime-5c1e983/reminder-production: require unlocked access when AppLock on; Round/Work due plus effective date/time/zone. Finish Settings-to-Preferences-to-OS and paired concurrency/Erase/permission/copy tests. Generic AppLock copy, consent and finality remain strict.
+Complete C36 lifecycle/codec, child/finalizer recovery, destination/field/scene/resume, live effects, native protection, Work/Round and C55/C57 preservation. Reminder drafts checkpointed at runtime-94df47d/reminder-production (source review618432FF,10 new continuation tests unexecuted): require unlocked access when AppLock on; Round/Work due plus effective date/time/zone. Finish Settings-to-Preferences-to-OS and paired concurrency/Erase/permission/copy tests. Generic AppLock copy, consent and finality remain strict.
 
 Main advances only after complete retained same-head functional/compatibility evidence, qualified provider routes as applicable, affected-state S10 visuals, independent integration review and genuine human visual review, followed by controlling non-force integration and exact-main verification.

@@ -37,7 +37,13 @@ Accepted main is `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`. Preserve S10 brandi
 
 Use the existing five GitHub and three Bitrise capacity only for distinct, source-defined, dependency-ready questions under CURRENT_INTEGRATION. Never dispatch duplicate, speculative, known-failing or unqualified acceptance runs. One collector audits each original once. Preserve all native-environment and final-main gates.
 
-## One-run GitHub build diagnostic — owner approved 2026-09-19
+## Reusable development build allowance — owner approved 2026-09-20
+
+The owner permits the 30-minute proposal to be permanent or temporary. Use the existing closed `c36-restore-review-no-index-build30m` route for dependency-ready development checks with build1800/total3000, setup/artifact300, tests900, UI0 and job90min unchanged. Each candidate still needs exact source/parent/environment binding, independent actual-index and committed-route review, original-attempt deduplication and sole collection. Rebind reviewed source pins for each causal candidate; do not create per-head helper copies. Keep ordinary and acceptance budgets unchanged. This supersedes the temporary-only development choice below; it does not reopen either historical original allowance.
+
+Original `35488379036` at `94df47d940ef3cdbc993336a157c5145d84ee812` is audited: build hit1200 seconds/exit124, zero Swift errors, six tests NotStarted. The next development question is whether the unchanged corrected app/tests finish compilation and the six restore journeys execute with1800 seconds. No automatic retry, duplicate, Actions rerun, cancellation, paid capacity, provider/merge/release acceptance or test weakening. Stop if the enlarged limit yields no discriminating evidence; use the retained build evidence to choose the next causal change.
+
+## Historical one-run GitHub build diagnostics — consumed
 
 The owner authorizes one diagnostic original on the existing GitHub `macos-26` route: build watchdog 1800 seconds and accounted setup/build/test/artifact budget 3000 seconds. Keep setup/artifact 300 seconds, unit tests 900 seconds, UI disabled and the 90-minute job cap. This narrow exception supersedes the unchanged-watchdog rule only for the closed `c36-parent-finalization-check-no-issue-build30m` selector on the reviewed direct descendant of `6289befddaf75036c7fb7a4d971ba7cc171ec003`; preserve the committed app, Swift tests and project bytes.
 
