@@ -5,7 +5,7 @@
 ## Selected task and fixed boundaries
 
 - Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Implementation5508d03 has reviewed default-off restore diagnostics. Original35474552539 is audited: build1200 timeout/zero Swift errors/6NotStarted; no runtime localization. Predecessor855: both compile/transportPASS, authority7Pass, restore1Pass/5Fail. Main stays b1d04ae5.
+- Implementation28a6963 adds one reviewed no-index build experiment. Original35476891662 is audited: missing build-step admission inputs stopped it before Xcode. Prior5508: build1200 timeout/6NotStarted. Predecessor855: compile/transportPASS, authority7Pass, restore1Pass/5Fail. Main stays b1d04ae5.
 - Preserve the existing app/scheme/design system, S10 branding, five receipts,49 drafts, frozen inputs, V30 and coordination history.
 - Card135 is owner-only/skipped; minimum-runtime/physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
 
@@ -13,9 +13,9 @@
 
 Evidence stays bound to its head.
 
-855ef0e authority7Pass and restore1Pass/5Fail remain head-bound; both compile/transportPASS, zero new warnings. Diagnostic5508d03/original35474552539/rootB5BBA899 hit build1200/exit124 with6NotStarted, no compiler errors/new warnings and transportINVALID. Both earlier allowances are consumed. Qualify one closed no-index experiment from exact5508 app/tests/project trees: ordinary N8, all6 methods, existing environment/order, only compiler index emission disabled. Review before one original; no assumed speedup or unchanged retry. Runtime invalidIdentity and Bitrise qualification remain unresolved.
+855 authority7Pass/restore1Pass5Fail remain head-bound. Diagnostic5508/rootB5BBA899 timed out at build1200. No-index28/original35476891662/root4A9A66DF then failed before Xcode: receipt admission lacked9 build-step DISPATCH inputs;6NotStarted, no indexing/runtime result. The original is consumed. Scoped causal correction forwards the exact validated inputs, pins a direct28 successor and adds a real CLI boundary regression (PASS). Preserve app/tests/project, all6 methods, environment/order and N8. Full120/helper/independent gates precede one corrected original. Runtime invalidIdentity and Bitrise qualification remain unresolved.
 
-Seven copy helpers preserve77 inputs. Diagnostic2F039F04 attributes insert invalidPackage throws to DEBUG source lines; predicates stay exact. C12 uses the active export; both copy pipelines remain paired. One reviewed pointer-cleanup localization is due. Raw/clone/transport/retirement acceptance remains due.
+Copy helpers preserve77 inputs. Diagnostic2F039F04 attributes insert invalidPackage throws to DEBUG source lines; predicates stay exact. C12 uses the active export; both copy pipelines remain paired. One reviewed pointer-cleanup localization is due. Raw/clone/transport/retirement acceptance remains due.
 
 ## Current implementation
 
@@ -30,9 +30,9 @@ Seven copy helpers preserve77 inputs. Diagnostic2F039F04 attributes insert inval
 
 ## Cadence and completion gates
 
-Root uses Astra xhigh; at most one useful Astra low/medium coding/review helper, Luna low for simple non-coding. Freeze candidate/checkpoints before checks; combine semantic/index review and use qualified mechanical facts for committed binding. No duplicate run or unchanged retry; root alone commits/pushes. Follow MERGE_READINESS; run qualified validate-native-inputs.py before successor preparation.
+Astra xhigh root; at most one useful Astra low/medium coding/review helper, Luna low for simple non-coding. Freeze candidate/checkpoints before checks; combine semantic/index review and use qualified mechanical facts for committed binding. No duplicate run or unchanged retry; root alone commits/pushes. Follow MERGE_READINESS; run qualified validate-native-inputs.py before successor preparation.
 
-Pool790/48 adds13 restore journey/authority methods and preserves all10 historical profiles. Source/protocol and independent index/route checks precede new ordinary-budget native originals; no duplicate or consumed-selector retry. Transport12, startup2/restore3, preparation6, lifecycle5, archive48/regular graph23, notification77, field49, ReceiptSafety1, six retirement interruptions and maximum graphs remain due. Historical results never transfer to a later head. Cache/shared-build and provider qualification remain separate work.
+Pool790/48 adds13 restore journey/authority methods and preserves all10 historical profiles. Source/protocol and independent index/route checks precede new ordinary-budget native originals; no duplicate or consumed-selector retry. Transport12, startup2/restore3, preparation6, lifecycle5, archive48/regular graph23, notification77, field49, ReceiptSafety1, six retirement interruptions and maximum graphs remain due. Keep evidence head-bound. Cache/shared-build and provider qualification remain separate work.
 
 Complete C36 lifecycle/codec, child/finalizer recovery, destination/field/scene/resume, live effects, native protection, Work/Round and C55/C57 preservation. Reminder choices resolved: require unlocked access when AppLock is on; root selects Round/Work due plus effective date/time/zone. Complete Settings-to-Preferences-to-OS adoption remains due. Keep generic AppLock copy, consent and strict finality.
 

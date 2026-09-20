@@ -1198,6 +1198,55 @@ class NoIndexBuildDiagnosticTests(unittest.TestCase):
                 self.assertEqual(events, expected_events)
                 self.assertFalse((Path(directory)/'artifact/Build.xcresult').exists())
 
+    def test_receipt_cli_uses_actual_build_step_dispatch_inputs_and_fails_without_them(self):
+        worker = (ROOT/'.github/workflows/ios-ci-worker.yml').read_text(encoding='utf-8')
+        def inputs(name):
+            body = step(worker, name).split('        run:', 1)[0]
+            return dict(re.findall(r'^          (DISPATCH_[A-Z0-9_]+): (.+)$', body, re.M))
+        admitted_inputs = inputs('Validate task selection and timeout tier')
+        build_inputs = inputs('Build unsigned simulator app')
+        self.assertEqual(len(admitted_inputs), 9)
+        self.assertEqual(build_inputs, admitted_inputs)
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory)
+            e = dict(self.bound_environment(), GITHUB_WORKSPACE=str(ROOT),
+                     NATIVE_SELECTION_ID=CI.NO_INDEX_SELECTION_ID,
+                     PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp',
+                     CONFIGURATION='Debug', CODE_SIGNING_ALLOWED='NO', CI_SIMULATOR_UDID=UDID,
+                     CI_DESTINATION='platform=iOS Simulator,id='+UDID, CI_ARTIFACT_DIR=str(artifact),
+                     RUNNER_TEMP=str(artifact.parent/'runner temp'))
+            e['DISPATCH_NATIVE_SELECTION_MAP_SHA256'] = CI.sha256((ROOT/CI.SELECTION_MAP_PATH).read_bytes())
+            def git_facts(command, **kwargs):
+                if command == ['git','rev-parse','HEAD']: return HEAD+'\n'
+                if command == ['git','rev-parse','HEAD^{tree}']: return 'a'*40+'\n'
+                return self.git_facts(command, **kwargs)
+            with mock.patch.object(CI.subprocess, 'check_output', side_effect=git_facts):
+                selected, selection_record = CI.selected_input(ROOT, e)
+                record = CI.admission(selected, e, HEAD, 'worker', selection_record, root=ROOT)
+            record.update(CI.source_binding(ROOT)); record['gitTree'] = 'a'*40
+            (artifact/'native-admission.json').write_bytes(CI.canonical(record))
+            # The workflow job has global inputs, but these nine were previously
+            # present only in the admission/final-checkpoint steps.
+            without_step_inputs = {k:v for k,v in e.items() if k not in admitted_inputs}
+            with mock.patch.dict(os.environ, without_step_inputs, clear=True), \
+                 mock.patch('sys.argv', ['v23-native-ci.py','record-no-index-build']), \
+                 mock.patch.object(CI.subprocess, 'check_output', side_effect=git_facts), \
+                 mock.patch.object(CI.subprocess, 'run') as clean_source:
+                with self.assertRaisesRegex(ValueError, 'foreign execution inputs'): CI.main()
+                clean_source.assert_not_called()
+            self.assertFalse((artifact/CI.NO_INDEX_RECEIPT).exists())
+            with mock.patch.dict(os.environ, e, clear=True), \
+                 mock.patch('sys.argv', ['v23-native-ci.py','record-no-index-build']), \
+                 mock.patch.object(CI.subprocess, 'check_output', side_effect=git_facts), \
+                 mock.patch.object(CI.subprocess, 'run') as clean_source:
+                CI.main()
+                clean_source.assert_called_once_with(['git','diff','--exit-code','HEAD','--'],
+                    cwd=ROOT.resolve(), check=True, stdout=subprocess.DEVNULL)
+            receipt = CI.read_json(artifact/CI.NO_INDEX_RECEIPT)
+            self.assertEqual(receipt, CI.no_index_build_receipt(ROOT, artifact, record, e))
+            self.assertEqual(receipt['parent'], CI.NO_INDEX_PARENT)
+            self.assertEqual(receipt['argv'][-2:], ['COMPILER_INDEX_STORE_ENABLE=NO','build-for-testing'])
+
 
 class BuildOrderDiagnosticTests(unittest.TestCase):
     def setUp(self):
