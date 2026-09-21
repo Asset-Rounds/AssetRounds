@@ -1212,7 +1212,6 @@ extension S2PersistenceLedgerTests {
         var eraseReservation: AppAccessGateV1.EraseAdoptionToken?
         var completedEraseReceipt: CompletedEraseReceiptV1?
         var callbackFailure: Error?
-        let lifecycleDependencies = try coordinator.packageLifecycleDependencies()
         let service = EraseAllService(
             applicationSupportURL: root,
             makeUUID: { eraseIdentifiers.removeFirst() },
@@ -1241,6 +1240,7 @@ extension S2PersistenceLedgerTests {
             didCompleteErase: { completedEraseReceipt = $0 }
         )
         let eraseTask = Task {
+            let lifecycleDependencies = try coordinator.packageLifecycleDependencies()
             trace("erase-entry")
             return try await service.erase(
                 confirmation: "ERASE",
@@ -1357,6 +1357,10 @@ extension S2PersistenceLedgerTests {
             for: NSPredicate { _, _ in oldStateIsReleased() }, evaluatedWith: NSObject())
         await fulfillment(of: [drained], timeout: 30)
         XCTAssertTrue(oldStateIsReleased())
+        guard oldStateIsReleased() else {
+            trace("old-state-still-retained")
+            return
+        }
         trace("old-state-drained")
         // Recovery gets a new service instance, while its admission hook
         // continues the exact retained subject/reservation without reminting.

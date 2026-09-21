@@ -399,14 +399,11 @@ final class S6_6EraseRecoveryTests: XCTestCase {
     }
 
     @MainActor
-    func testGoldenEraseActivatesEmptyGenerationAndClearsFrozenState() async throws {
-        var diagnosticPhase = "harness"
-        defer { print("EraseGolden.exit phase=" + diagnosticPhase) }
-        let harness = try await makeHarness("golden", observePhase: { diagnosticPhase = $0 })
-        defer { cleanup(harness) }
-        let coordinator = try XCTUnwrap(harness.coordinator)
-        let oldID = coordinator.generationID
-        diagnosticPhase = "authority-source"
+    private func seedGoldenMutationEvidence(
+        coordinator: StoreSessionCoordinator,
+        diagnostic: (String) -> Void
+    ) throws {
+        diagnostic("authority-source")
         let authoritySource = try C40BackupLifecycleTestValues.source(
             workspace: coordinator.workspaceIdentity.workspaceID.rawValue
         )
@@ -420,7 +417,7 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             ),
             revision: persistedAuthoritySource.revision
         ))
-        diagnosticPhase = "journal-adoption"
+        diagnostic("journal-adoption")
         let journal = try MutationJournalStoreV1(
             modelContext: coordinator.modelContext,
             identity: coordinator.workspaceIdentity,
@@ -438,7 +435,7 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             "66000000-0000-0000-0000-000000000100"
         ))
         let writer = coordinator.workspaceWriter
-        diagnosticPhase = "writer-revision"
+        diagnostic("writer-revision")
         let beforeMutation = try writer.currentRevision()
         let eraseSiteIdentity = try WorkspaceEntityIdentityV1(
             kind: .site,
@@ -451,7 +448,7 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             workspaceRevision: beforeMutation.revision,
             entityRevisions: [.init(identity: eraseSiteIdentity, revision: 0)]
         )
-        diagnosticPhase = "writer-execute"
+        diagnostic("writer-execute")
         _ = try writer.execute(WorkspaceMutationRequestV1(
             mutationID: mutationID,
             expectedRevision: mutationExpected,
@@ -462,6 +459,17 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             ))
         ))
         XCTAssertNotNil(try writer.durableReceipt(mutationID: mutationID))
+    }
+
+    @MainActor
+    func testGoldenEraseActivatesEmptyGenerationAndClearsFrozenState() async throws {
+        var diagnosticPhase = "harness"
+        defer { print("EraseGolden.exit phase=" + diagnosticPhase) }
+        let harness = try await makeHarness("golden", observePhase: { diagnosticPhase = $0 })
+        defer { cleanup(harness) }
+        let coordinator = try XCTUnwrap(harness.coordinator)
+        let oldID = coordinator.generationID
+        try seedGoldenMutationEvidence(coordinator: coordinator) { diagnosticPhase = $0 }
         diagnosticPhase = "diagnostic-seed"
         try await harness.diagnostics.recordOperationalFailure(try OperationalFailureV1(
             code: .interrupted,
@@ -517,6 +525,8 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         }
 
         print("EraseGolden.cleanupDeferred=\(erased.cleanupDeferred)")
+        XCTAssertFalse(erased.cleanupDeferred)
+        guard !erased.cleanupDeferred else { return }
         diagnosticPhase = "erase-postconditions"
         XCTAssertFalse(fileManager.fileExists(
             atPath: harness.support.appendingPathComponent("FieldEvidenceErase").path
@@ -530,7 +540,6 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         let pointerURL = harness.support.appendingPathComponent("FieldEvidenceData/current.json")
         diagnosticPhase = "pointer-bytes"
         let erasedPointerBytes = try Data(contentsOf: pointerURL)
-        XCTAssertFalse(erased.cleanupDeferred)
         XCTAssertEqual(erased.session.generationID, newID)
         XCTAssertEqual(coordinator.generationID, newID)
         diagnosticPhase = "factory-current-id"

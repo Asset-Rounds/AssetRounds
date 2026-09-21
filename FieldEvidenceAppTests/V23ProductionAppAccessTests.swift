@@ -604,6 +604,11 @@ final class V23ProductionAppAccessTests: XCTestCase {
         let enabledControl = try XCTUnwrap(freshControl.loadControl())
         XCTAssertEqual(enabledControl.phase, .settingCommitted)
         XCTAssertEqual(try preferences.readAppLockSettingSnapshot(), enabledControl.settingWrite.successor)
+#if DEBUG
+        await session.lifecycle.setConfigurationPhaseDiagnosticForTesting { phase in
+            print("ProductionEraseOwner.lifecycle." + phase)
+        }
+#endif
         diagnosticPhase = "disable"
         let disabled = try await session.lifecycle.disable(operationID: UUID())
         XCTAssertFalse(disabled.enabled)

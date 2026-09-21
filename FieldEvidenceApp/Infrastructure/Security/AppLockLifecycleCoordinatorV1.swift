@@ -317,6 +317,16 @@ actor AppLockLifecycleCoordinatorV1 {
     private var retainedCompletedEraseReceipt: CompletedEraseReceiptV1?
     private var retainedAbortedEraseAdmissionReceipt: AbortedEraseAdmissionReceiptV1?
 
+#if DEBUG
+    private var configurationPhaseDiagnosticForTesting: (@Sendable (String) -> Void)?
+
+    func setConfigurationPhaseDiagnosticForTesting(
+        _ observer: (@Sendable (String) -> Void)?
+    ) {
+        configurationPhaseDiagnosticForTesting = observer
+    }
+#endif
+
     private init(
         gate: AppAccessGateV1,
         setting: any DeviceLocalAppLockSettingPortV1,
@@ -698,28 +708,53 @@ actor AppLockLifecycleCoordinatorV1 {
     }
 
     func disable(operationID: UUID) async throws -> AppLockConfigurationReceiptV1 {
+#if DEBUG
+        var diagnosticPhase = "admission"
+        defer { configurationPhaseDiagnosticForTesting?("disable.exit." + diagnosticPhase) }
+#endif
         try validate(operationID)
         try await beginOperation(operationID)
         try claim(operationID, confirmingExisting: true)
         defer { release(operationID); endOperation(operationID) }
+#if DEBUG
+        diagnosticPhase = "authentication"
+#endif
         let outcome = await gate.authenticate(trigger: .disableAppLock)
         guard outcome == .authenticated else {
             throw AppAccessContractFailureV1.accessDenied
         }
+#if DEBUG
+        diagnosticPhase = "unlocked-session"
+#endif
         let sessionID = try await unlockedSessionID()
+#if DEBUG
+        diagnosticPhase = "toggle-proof"
+#endif
         let proof = try await gate.toggleAuthenticationToken(targetEnabled: false)
         do {
+#if DEBUG
+        diagnosticPhase = "notification-subject"
+#endif
             let subject = try await notifications.loadAuthenticationSubject()
             let initialAuthorization = NotificationOperationAuthorizationV1(gate: gate,
                 proof: .toggle(proof, targetEnabled: false), operationID: operationID, subject: subject)
+#if DEBUG
+        diagnosticPhase = "notification-prepare"
+#endif
             let journal = try await notifications.prepareDisable(operationID: operationID, authorization: initialAuthorization)
             try await requireSameUnlockedSession(sessionID)
+#if DEBUG
+        diagnosticPhase = "authorization-bind"
+#endif
             let authorization = try await bind(initialAuthorization, to: journal)
             guard journal.operationID == operationID, !journal.targetEnabled,
                   journal.disposition == .disablingPrepared
                     || journal.disposition == .priorPolicyRebuilt else {
                 throw AppAccessContractFailureV1.effectMismatch
             }
+#if DEBUG
+        diagnosticPhase = "setting-write"
+#endif
             let write = try await setting.writeAppLockSetting(
                 DeviceLocalAppLockSettingV1(isEnabled: false),
                 operationID: operationID, authorization: authorization
@@ -731,12 +766,21 @@ actor AppLockLifecycleCoordinatorV1 {
             // Persist the disabled setting before detailed notification state
             // can be restored. A rebuild failure therefore cannot expose
             // details while the durable lock setting is still enabled.
+#if DEBUG
+        diagnosticPhase = "notification-rebuild"
+#endif
             let notification = try await notifications.rebuildPriorPolicy(journal, authorization: authorization)
             try await requireSameUnlockedSession(sessionID)
             guard notification == .priorPolicyRebuilt else {
                 throw AppAccessContractFailureV1.notificationReconciliationRequired
             }
+#if DEBUG
+        diagnosticPhase = "gate-setting"
+#endif
             try await gate.setEnabledAfterAuthenticated(false, toggleToken: proof)
+#if DEBUG
+        diagnosticPhase = "receipt"
+#endif
             return try AppLockConfigurationReceiptV1(
                 operationID: operationID,
                 enabled: false,
