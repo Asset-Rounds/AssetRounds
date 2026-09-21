@@ -15963,6 +15963,15 @@ private extension BackupRestoreService {
             current = descriptor
         }
 
+#if DEBUG
+        let directoryPinDiagnosticsEnabled = restorePhaseDiagnosticForTesting != nil
+        var directoryPinRejection: String?
+        defer {
+            if let directoryPinRejection {
+                traceRestorePhase(directoryPinRejection)
+            }
+        }
+#endif
         return try withoutActuallyEscaping(authorityCheck) { authorityCheck in
             let pinned = pins
             func verifyDirectories() throws {
@@ -15976,15 +15985,15 @@ private extension BackupRestoreService {
                     guard statResult == 0,
                           PinnedIdentity(information) == pin.identity else {
 #if DEBUG
-                        if restorePhaseDiagnosticForTesting != nil {
+                        if directoryPinDiagnosticsEnabled {
                             let observed = PinnedIdentity(information)
-                            traceRestorePhase("directory-pin.reject"
+                            directoryPinRejection = "directory-pin.reject"
                                 + " statOK=\(statResult == 0) errno=\(statErrno)"
                                 + " createMissing=\(createMissing)"
                                 + " deviceEqual=\(observed.device == pin.identity.device)"
                                 + " inodeEqual=\(observed.inode == pin.identity.inode)"
                                 + " typeEqual=\(observed.type == pin.identity.type)"
-                                + " linksBefore=\(pin.identity.linkCount) linksAfter=\(observed.linkCount)")
+                                + " linksBefore=\(pin.identity.linkCount) linksAfter=\(observed.linkCount)"
                         }
 #endif
                         throw attributedRestoreAuthorityFailureV1(line: #line)
