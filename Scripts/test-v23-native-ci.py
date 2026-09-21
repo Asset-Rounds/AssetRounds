@@ -1479,7 +1479,7 @@ class RestoreBuildWatchdogDiagnosticTests(unittest.TestCase):
 
     def test_development_binding_rejects_consumed_build30_source(self):
         self.assertEqual(CI.NO_INDEX_PARENT, '5c1e9831153e9e5feddda08e1152de06ecbaaed2')
-        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_PARENT, '462a71141f0189598ff041b3a0dc9f2798e4b23e')
+        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_PARENT, '7a1710f231a6fffd1c6ab7e031d0e6e4e9e4ef23')
         self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_TREES['FieldEvidenceAppTests'], '750961983ffc827c3ed7ca964eca9b53f68c2d2c')
         self.assertEqual(CI.NO_INDEX_TREES['FieldEvidenceAppTests'], '6ae80744a230727892ceb04617421d91fd17e53a')
         for stage in ('dispatch', 'worker'):
@@ -2218,19 +2218,42 @@ class BuildWatchdogDiagnosticTests(unittest.TestCase):
 
     def test_actual_worker_budget_filter_accepts_only_exact_diagnostic_and_retains_ordinary_tiers(self):
         worker = (ROOT / '.github/workflows/ios-ci-worker.yml').read_text(encoding='utf-8')
-        start = worker.index('            def exact_keys:')
-        start = worker.rfind("jq -e '", 0, start) + len("jq -e '")
-        end = worker.index("' \"$CI_SELECTION_PATH\"", start)
-        query = worker[start:end]
+        command = 'jq -e -f Scripts/ci-worker-selection.jq "$CI_SELECTION_PATH" > /dev/null'
+        self.assertEqual(worker.count(command), 1)
+        self.assertNotIn('def tier_values_match:', worker)
+        bash = (Path(shutil.which('git')).resolve().parents[1]/'bin/bash.exe') if os.name == 'nt' else Path(shutil.which('bash'))
         cases = [(self.selected, True)] + [(selection(tier), True) for tier in ('N8', 'P12', 'F25')]
         cases += [(dict(self.selected, **fields), False) for fields in (
             {'buildTimeoutSeconds': 1200}, {'totalBudgetSeconds': 2400}, {'testTimeoutSeconds': 901},
             {'unitTestSelectors': [UNIT]}, {'taskID': 'S10.4'}, {'runUISmoke': True})]
         for value, expected in cases:
             with self.subTest(value=value):
-                result = subprocess.run(['jq', '-e', query], input=json.dumps(value), text=True,
-                                        capture_output=True, check=False)
+                with tempfile.TemporaryDirectory() as directory:
+                    selected = Path(directory)/'selected.json'
+                    selected.write_text(json.dumps(value), encoding='utf-8')
+                    selected_path = str(selected)
+                    if os.name == 'nt':
+                        selected_path = subprocess.check_output([str(bash), '-c', 'cygpath -u "$1"', '_', selected_path], text=True).strip()
+                    # Execute the exact workflow command with real jq, file input and exit status.
+                    result = subprocess.run([str(bash), '-c', command], cwd=ROOT,
+                                            env=dict(os.environ, CI_SELECTION_PATH=selected_path),
+                                            text=True, capture_output=True, check=False)
                 self.assertEqual(result.returncode == 0, expected, result.stderr)
+
+    def test_actual_worker_filter_fails_closed_when_filter_or_selection_is_missing(self):
+        worker = (ROOT / '.github/workflows/ios-ci-worker.yml').read_text(encoding='utf-8')
+        command = 'jq -e -f Scripts/ci-worker-selection.jq "$CI_SELECTION_PATH" > /dev/null'
+        self.assertEqual(worker.count(command), 1)
+        bash = (Path(shutil.which('git')).resolve().parents[1]/'bin/bash.exe') if os.name == 'nt' else Path(shutil.which('bash'))
+        with tempfile.TemporaryDirectory() as directory:
+            # Missing filter, then missing input: neither may be mistaken for valid selection.
+            for cwd in (Path(directory), ROOT):
+                result = subprocess.run([str(bash), '-c', command], cwd=cwd,
+                                        env=dict(os.environ, CI_SELECTION_PATH='absent-selection.json'),
+                                        text=True, capture_output=True, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, '')
+
 
 
 class ResultTests(unittest.TestCase):
@@ -4276,6 +4299,29 @@ class WorkflowWiringTests(unittest.TestCase):
 
     def test_extracted_required_evidence_is_bound_to_native_source_identity(self):
         relative = "Scripts/validate-required-evidence.sh"
+        self.assertEqual(CI.PROTOCOL_PATHS.count(relative), 1)
+        original = CI.source_binding(ROOT)
+        self.assertEqual(original["protocolSources"][relative],
+                         CI.sha256((ROOT / relative).read_bytes()))
+        with tempfile.TemporaryDirectory(prefix="v23-native-source-binding-") as directory:
+            root = Path(directory)
+            for path in (*CI.PROTOCOL_PATHS, "Scripts/ci-selection.json", CI.SELECTION_MAP_PATH,
+                         CI.SIMULATOR_DIAGNOSTIC_POLICY_PATH, CI.SIMULATOR_DIAGNOSTIC_SOURCE_PATH):
+                target = root / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(ROOT / path, target)
+            self.assertEqual(CI.source_binding(root), original)
+            helper = root / relative
+            helper.write_bytes(helper.read_bytes() + b"# source substitution fixture\n")
+            changed = CI.source_binding(root)
+            self.assertNotEqual(changed["protocolSources"][relative], original["protocolSources"][relative])
+            self.assertNotEqual(changed["protocolSHA256"], original["protocolSHA256"])
+            helper.unlink()
+            with self.assertRaises(ValueError):
+                CI.source_binding(root)
+
+    def test_extracted_worker_filter_is_bound_to_native_source_identity(self):
+        relative = "Scripts/ci-worker-selection.jq"
         self.assertEqual(CI.PROTOCOL_PATHS.count(relative), 1)
         original = CI.source_binding(ROOT)
         self.assertEqual(original["protocolSources"][relative],
