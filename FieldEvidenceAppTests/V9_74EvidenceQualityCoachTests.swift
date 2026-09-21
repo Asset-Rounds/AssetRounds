@@ -326,6 +326,8 @@ final class C10ProductionFixture {
     let ruleSet: EvidenceQualityRuleSetV1
     private let deletionSink: C10DeletionSink
     private let currentBinding: C10C11CurrentWriterBinding?
+    // Keep the standalone store alive for every fixture database operation.
+    private let standaloneContainer: ModelContainer?
     var deleteDispositions: [EvidenceQualityLifecycleAdapterV1.DeleteDisposition] { deletionSink.values }
 
     init(failOnceAt boundary: MutationJournalFaultBoundaryV1? = nil, useActiveSchema: Bool = false,
@@ -339,6 +341,7 @@ final class C10ProductionFixture {
             let binding = try C10C11CurrentWriterBinding(session: session,
                 applicationSupportURL: XCTUnwrap(applicationSupportURL))
             currentBinding = binding
+            standaloneContainer = nil
             workspaceID = session.workspaceID; modelContext = session.modelContext
             generationID = session.generationID; identity = session.workspaceIdentity
             baseJournal = binding.journal; baseWriter = binding.writer
@@ -351,6 +354,7 @@ final class C10ProductionFixture {
                 diagnosticPhase?("schema.end")
             diagnosticPhase?("container.begin")
             let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [ModelConfiguration("C10Production", schema: schema, isStoredInMemoryOnly: true, allowsSave: true, cloudKitDatabase: .none)])
+            standaloneContainer = container
             diagnosticPhase?("container.end")
             diagnosticPhase?("context.begin")
             modelContext = container.mainContext

@@ -15969,8 +15969,24 @@ private extension BackupRestoreService {
                 try authorityCheck()
                 for pin in pinned {
                     var information = stat()
-                    guard Darwin.fstat(pin.descriptor, &information) == 0,
+                    let statResult = Darwin.fstat(pin.descriptor, &information)
+#if DEBUG
+                    let statErrno = statResult == 0 ? Int32(0) : errno
+#endif
+                    guard statResult == 0,
                           PinnedIdentity(information) == pin.identity else {
+#if DEBUG
+                        if restorePhaseDiagnosticForTesting != nil {
+                            let observed = PinnedIdentity(information)
+                            traceRestorePhase("directory-pin.reject"
+                                + " statOK=\(statResult == 0) errno=\(statErrno)"
+                                + " createMissing=\(createMissing)"
+                                + " deviceEqual=\(observed.device == pin.identity.device)"
+                                + " inodeEqual=\(observed.inode == pin.identity.inode)"
+                                + " typeEqual=\(observed.type == pin.identity.type)"
+                                + " linksBefore=\(pin.identity.linkCount) linksAfter=\(observed.linkCount)")
+                        }
+#endif
                         throw attributedRestoreAuthorityFailureV1(line: #line)
                     }
                     if let parent = pin.parent, let name = pin.name {

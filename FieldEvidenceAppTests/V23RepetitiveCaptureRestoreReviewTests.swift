@@ -464,7 +464,11 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
     }
 
     func testReviewPlanRejectsMissingOrChangedOwnedRowsWithoutConsumingUnrelatedDrafts() throws {
-        let source = try RepetitiveCaptureSourcePackageFixture(sourceOnly: true)
+        let timing = RestoreReviewTimingV1(enabled: true)
+        var phase = "review-plan.source.begin"
+        defer { timing.mark("review-plan.last-phase=" + phase) }
+        let source = try RepetitiveCaptureSourcePackageFixture(sourceOnly: true,
+            phaseTrace: { phase = "review-plan.source." + $0 })
         defer { source.removePackages() }
         let package = try source.validatedPackage()
         let identity = try RestoreIdentityDecisionV1.decide(.init(
@@ -479,7 +483,9 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
         let plan = try XCTUnwrap(prepared)
         XCTAssertEqual(try plan.retainingUnownedRows(package.records.fieldDrafts), [])
         XCTAssertThrowsError(try plan.retainingUnownedRows([]))
+        phase = "review-plan.unrelated-fixture.begin"
         let unrelated = try C36FieldDraftTestSupportV1.makeFixture().activeCheckpoint
+        phase = "review-plan.retaining-rows.begin"
         let row = V16BackupFieldDraftRecordV1(kind: .checkpoint, id: unrelated.draftID,
             workspaceID: unrelated.workspaceID.rawValue, revision: unrelated.draftRevision,
             canonicalData: try FieldDraftCanonicalCodecV1.encode(unrelated))
@@ -491,9 +497,12 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
 
         // Exercise the real normalization boundary before a writer or recovery
         // can mask an unnecessary rewrite of an authenticated original.
-        let harness = try RestoreReviewHarness()
+        phase = "review-plan.harness.begin"
+        let harness = try RestoreReviewHarness(timing: timing)
         defer { harness.remove() }
+        phase = "review-plan.service.begin"
         let service = try BackupRestoreService(applicationSupportURL: harness.support)
+        phase = "review-plan.normalize.begin"
         let normalized = try service.c55RecordsForMaterializationForTesting(
             package.records, members: package.validatedPackage.members,
             identityDecision: identity, legacyWorkspaceID: identity.oldPointer.workspaceID,
@@ -509,6 +518,7 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
         let targetID = try XCTUnwrap(identity.destinationFieldDraftID(for: sourceCheckpoint.id, namespace: "draft"))
         let targetIdentity = try WorkspaceEntityIdentityV1(kind: .fieldDraftCheckpoint, id: targetID)
         let targetTerminal = try XCTUnwrap(normalizedHistory.entityRevisions.first { $0.identity == targetIdentity })
+        phase = "review-plan.before-generation.begin"
         let before = try harness.factory.openOrBootstrapCurrent()
         let beforeHistory = try harness.history(in: before)
         let beforePointer = try harness.factory.currentGenerationPointerV3(expectedGenerationID: before.generationID)
@@ -517,6 +527,7 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
         // entry. An equal-value target collision is still a collision; it
         // must never be silently merged into the original history.
         for failure in ["missing-source", "wrong-revision", "wrong-digest", "target-collision"] {
+            phase = "review-plan.hostile." + failure
             var terminals = originalHistory.entityRevisions.filter { $0.identity != sourceIdentity }
             switch failure {
             case "missing-source": break
