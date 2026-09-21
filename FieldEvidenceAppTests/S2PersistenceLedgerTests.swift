@@ -1141,6 +1141,11 @@ extension S2PersistenceLedgerTests {
 
     @MainActor
     func testDeferredEraseRetainsLiveOldContextAcrossAppAccessResumeUntilDrain() async throws {
+        let trace: (String) -> Void = { phase in
+            FileHandle.standardError.write(Data(("S2EraseDrain." + phase + "\n").utf8))
+        }
+        trace("entry")
+        defer { trace("exit") }
         let sandbox = try makeTemporaryApplicationSupportURL()
         defer { try? fileManager.removeItem(at: sandbox) }
         let root = try makeEraseApplicationSupportURL(in: sandbox)
@@ -1166,6 +1171,7 @@ extension S2PersistenceLedgerTests {
         try router.bindStartupAccessGate(gate)
         defer { router.failClosedPDFRecovery() }
 
+        trace("router-start")
         try await router.startIfNeeded(accessGate: gate)
         guard case let .ready(coordinator, _, _) = router.route else {
                 let phase = router.runtimeObservation?.phase.rawValue ?? "unobserved"
@@ -1175,6 +1181,7 @@ extension S2PersistenceLedgerTests {
                 print("EraseStartup.notReady phase=\(phase) reason=\(reason)")
             return XCTFail("Initial startup must publish the erase owner")
         }
+        trace("router-ready")
         let oldGenerationID = coordinator.generationID
         var retainedOldContext: ModelContext? = coordinator.modelContext
         let startupStepCount = observedSteps.count
@@ -1214,6 +1221,7 @@ extension S2PersistenceLedgerTests {
                     // Suspend after the real reservation.  Background therefore
                     // revokes content without invalidating the original Erase
                     // cleanup authority which the service must revalidate.
+                    trace("admission-reserved")
                     await admissionPause.suspend()
                     return reservation
                 }
@@ -1226,7 +1234,8 @@ extension S2PersistenceLedgerTests {
             didCompleteErase: { completedEraseReceipt = $0 }
         )
         let eraseTask = Task {
-            try await service.erase(
+            trace("erase-entry")
+            return try await service.erase(
                 confirmation: "ERASE",
                 coordinator: coordinator,
                 diagnosticsStore: DiagnosticsStore(applicationSupportURL: root),
@@ -1246,15 +1255,19 @@ extension S2PersistenceLedgerTests {
                 lifecycleDependencies: lifecycleDependencies
             )
         }
+        trace("admission-wait")
         let admissionReached = await XCTWaiter.fulfillment(
             of: [admissionPause.reached], timeout: 20
         )
+        trace("admission-observed")
         XCTAssertEqual(admissionReached, .completed)
         await gate.sceneBecameInactive()
         router.pauseForAppAccess()
         await gate.sceneBecameActive()
         admissionPause.resume()
+        trace("await-erase-result")
         let eraseOutcome = try await eraseTask.value
+        trace("erase-returned")
         XCTAssertNil(callbackFailure)
 
         XCTAssertTrue(eraseOutcome.cleanupDeferred)
@@ -1321,9 +1334,11 @@ extension S2PersistenceLedgerTests {
             guard let liveOldContext = retainedOldContext else {
                 return XCTFail("The original ModelContext must remain live until explicit release")
             }
+            trace("old-context-read")
             let liveOldSiteCount = try liveOldContext.fetchCount(FetchDescriptor<Site>())
             XCTAssertEqual(liveOldSiteCount, 0)
         }
+        trace("old-context-release")
         retainedOldContext = nil
         await Task.yield()
         // Recovery gets a new service instance, while its admission hook
@@ -1342,17 +1357,20 @@ extension S2PersistenceLedgerTests {
             },
             didCompleteErase: { completedEraseReceipt = $0 }
         )
+        trace("recovery-entry")
         let resumed = try await router.resumeDeferredErase(eraseTicket) {
             try await recoveryService.reconcileAtStartup(
                 diagnosticsStore: DiagnosticsStore(applicationSupportURL: root)
             )
         }
+        trace("recovery-returned")
         let resumedSession = try XCTUnwrap(resumed)
         try await router.beginErasedSessionActivation(
             resumedSession, coordinator: coordinator, ticket: eraseTicket
         )
         let receipt = try XCTUnwrap(completedEraseReceipt)
         let reservation = try XCTUnwrap(eraseReservation)
+        trace("adoption-entry")
         try await gate.adoptCompletedErase(receipt, token: reservation)
         await gate.sceneBecameInactive()
         do {
@@ -1365,6 +1383,7 @@ extension S2PersistenceLedgerTests {
         try await router.finishErasedSessionActivation(
             resumedSession, coordinator: coordinator, ticket: eraseTicket, accessGate: gate
         )
+        trace("finish-ready")
         guard case let .ready(recoveredCoordinator, _, _) = router.route else {
             return XCTFail("A drained deferred erase must recover through its original ticket")
         }
@@ -1788,21 +1807,21 @@ extension S2PersistenceLedgerTests {
             if cleanupCase == .rebindFailure {
                 // Fail the real fresh-binding entry after its authentic receipt,
                 // retaining the exact retired owner for a binding-only retry.
-                let searchRoot = root.appendingPathComponent(LocalSearchIndexStoreV1.directoryName)
-                XCTAssertFalse(fileManager.fileExists(atPath: searchRoot.path))
-                let blocker = Data("not-a-search-directory".utf8)
-                try blocker.write(to: searchRoot)
+                let operationsRoot = root.appendingPathComponent("FieldEvidenceOperations")
+                XCTAssertFalse(fileManager.fileExists(atPath: operationsRoot.path))
+                let blocker = Data("not-an-operations-directory".utf8)
+                try blocker.write(to: operationsRoot)
                 do {
                     try await router.beginErasedSessionActivation(
                         session, coordinator: coordinator, ticket: ticket)
-                    XCTFail("Fresh activation must reject a file in place of its search directory")
+                    XCTFail("Fresh activation must reject a file in place of its operations directory")
                 } catch { }
-                XCTAssertEqual(try Data(contentsOf: searchRoot), blocker)
+                XCTAssertEqual(try Data(contentsOf: operationsRoot), blocker)
                 XCTAssertTrue(coordinator.workspaceWriter === retiredWriter)
                 XCTAssertThrowsError(try retiredWriter.currentRevision())
                 XCTAssertNil(try EraseIntentStore(applicationSupportURL: root).load())
                 XCTAssertEqual(completionCount, 1)
-                try fileManager.removeItem(at: searchRoot)
+                try fileManager.removeItem(at: operationsRoot)
             }
             try await router.beginErasedSessionActivation(
                 session, coordinator: coordinator, ticket: ticket

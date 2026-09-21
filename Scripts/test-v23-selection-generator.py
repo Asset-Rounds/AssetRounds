@@ -463,6 +463,23 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(generator.canonical(selection_map), generator.canonical(again[1]))
         self.assertEqual(report, again[2])
 
+    def test_erase_handoff_profile_enrolls_exact_two_without_changing_erase_recovery(self):
+        extra = ['FieldEvidenceAppTests/S6_6EraseRecoveryTests/testEraseManifestHandoffPreservesExactInodeAndSupportsRepeatedConstructorRecovery', 'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testEraseManifestHandoffRejectsHostileSidecarsTargetsAndChangedPointerWithoutConsumption']
+        prior, prior_map, _ = self.generate('erase-recovery-v1')
+        self.assertEqual([generator.sha256(generator.canonical(value)) for value in (prior, prior_map)],
+                         ['74C22D3BC39737E08CE20331DD429724EF4DDBC5574B2346C4754FBDEAB94D27',
+                          '714083DCC599E6D6A3F58B1B0D91C1E990B66327A60E3F500F1E68CDC5368840'])
+        current, mapping, report = self.generate('erase-handoff-v1')
+        self.assertEqual((report['selectorCount'], report['groupCount']), (882, 55))
+        self.assertEqual(current['unitTestSelectors'], prior['unitTestSelectors'] + extra)
+        self.assertEqual(mapping['groups'], [dict(group, methodCount=group['methodCount'] +
+                         (2 if group['id'] == 'notification-schedule-erase' else 0))
+                         for group in prior_map['groups']])
+        self.assertEqual({k:v for k,v in current.items() if k != 'unitTestSelectors'},
+                         {k:v for k,v in prior.items() if k != 'unitTestSelectors'})
+        self.assertFalse(report['nativeReady'])
+        self.assertFalse(report['acceptance'])
+
     def test_manifest_shape_membership_environment_and_path_hostiles(self):
         mutations = []
         value = copy.deepcopy(self.manifest); value["unknown"] = 1; mutations.append(value)

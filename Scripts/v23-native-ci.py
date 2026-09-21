@@ -46,8 +46,8 @@ NO_INDEX_PARENT = '5c1e9831153e9e5feddda08e1152de06ecbaaed2'
 NO_INDEX_TREES = {'FieldEvidenceApp': 'cf661d0cb9a754135dfdea02fc7fa81967163331', 'FieldEvidenceAppTests': '6ae80744a230727892ceb04617421d91fd17e53a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 NO_INDEX_RECEIPT = "no-index-build-command.json"
 RESTORE_BUILD_WATCHDOG_SELECTION_ID = "c36-restore-review-no-index-build30m"
-RESTORE_BUILD_WATCHDOG_PARENT = 'd2dd9640452e4e6b8a1abe5114d45118100a24eb'
-RESTORE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '8e38f3867e08ffbad9bef75e72fefe68f48e6c70', 'FieldEvidenceAppTests': 'f6a7042aac5237bc7ee245db9fd68edaebf02bb0', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+RESTORE_BUILD_WATCHDOG_PARENT = '6ea8f849f5345a7997d4ae50015fdd46353db275'
+RESTORE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': 'b473730765c98d9f4274df11915c091e52ddd04c', 'FieldEvidenceAppTests': '4e51dc23e211f08935e8f27c9921ca6490452973', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 RESTORE_BUILD_WATCHDOG_SELECTORS = tuple(
     "FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/" + method for method in (
         "testPhysicalForkCreatesReviewReceiptAndSecondHopSurvivesOriginalPackageRemoval",
@@ -59,8 +59,8 @@ RESTORE_BUILD_WATCHDOG_SELECTORS = tuple(
     )
 )
 REMINDER_BUILD_WATCHDOG_SELECTION_ID = "reminder-production-no-index-build30m"
-REMINDER_BUILD_WATCHDOG_PARENT = 'd2dd9640452e4e6b8a1abe5114d45118100a24eb'
-REMINDER_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '8e38f3867e08ffbad9bef75e72fefe68f48e6c70', 'FieldEvidenceAppTests': 'f6a7042aac5237bc7ee245db9fd68edaebf02bb0', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+REMINDER_BUILD_WATCHDOG_PARENT = '6ea8f849f5345a7997d4ae50015fdd46353db275'
+REMINDER_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': 'b473730765c98d9f4274df11915c091e52ddd04c', 'FieldEvidenceAppTests': '4e51dc23e211f08935e8f27c9921ca6490452973', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 REMINDER_BUILD_WATCHDOG_GROUPS = ('reminder-policy-edit', 'reminder-production-settings', 'reminder-detailed-delivery', 'reminder-control-continuation')
 REMINDER_BUILD_WATCHDOG_SELECTORS = (
     'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testUnboundAndRetiredOwnersCannotMintOrRebind',
@@ -98,14 +98,14 @@ REMINDER_BUILD_WATCHDOG_SELECTORS = (
     'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testNilContinuationPreservesLegacyCanonicalControlAndSubjectBytes',
 )
 RESTORE_HISTORY_SELECTION_ID = "restore-history-no-index-build30m"
-RESTORE_HISTORY_PARENT = 'd2dd9640452e4e6b8a1abe5114d45118100a24eb'
-RESTORE_HISTORY_TREES = {'FieldEvidenceApp': '8e38f3867e08ffbad9bef75e72fefe68f48e6c70', 'FieldEvidenceAppTests': 'f6a7042aac5237bc7ee245db9fd68edaebf02bb0', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+RESTORE_HISTORY_PARENT = '6ea8f849f5345a7997d4ae50015fdd46353db275'
+RESTORE_HISTORY_TREES = {'FieldEvidenceApp': 'b473730765c98d9f4274df11915c091e52ddd04c', 'FieldEvidenceAppTests': '4e51dc23e211f08935e8f27c9921ca6490452973', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 RESTORE_HISTORY_GROUPS = ("c36-restore-review", "replacement-packet-union")
 RESTORE_HISTORY_PACKET_SELECTOR = 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testGoldenReplacementKeepsIncomingLiveAndUnionsCurrentRoot'
 RESTORE_HISTORY_SELECTORS = RESTORE_BUILD_WATCHDOG_SELECTORS + (RESTORE_HISTORY_PACKET_SELECTOR,)
 ERASE_BUILD_WATCHDOG_SELECTION_ID = "erase-recovery-no-index-build30m"
-ERASE_BUILD_WATCHDOG_PARENT = 'd2dd9640452e4e6b8a1abe5114d45118100a24eb'
-ERASE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '8e38f3867e08ffbad9bef75e72fefe68f48e6c70', 'FieldEvidenceAppTests': 'f6a7042aac5237bc7ee245db9fd68edaebf02bb0', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+ERASE_BUILD_WATCHDOG_PARENT = '6ea8f849f5345a7997d4ae50015fdd46353db275'
+ERASE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': 'b473730765c98d9f4274df11915c091e52ddd04c', 'FieldEvidenceAppTests': '4e51dc23e211f08935e8f27c9921ca6490452973', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 NO_INDEX_ROUTES = {
     ERASE_BUILD_WATCHDOG_SELECTION_ID: (ERASE_BUILD_WATCHDOG_PARENT, "D30"),
     RESTORE_HISTORY_SELECTION_ID: (RESTORE_HISTORY_PARENT, "D30"),
@@ -174,9 +174,9 @@ DESTINATION_LEGACY_SELECTOR = 'FieldEvidenceAppTests/V9_30FieldDraftResilienceTe
 ERASE_RECOVERY_SELECTION_ID = "erase-recovery"
 ERASE_LEASE_SELECTORS = ('FieldEvidenceAppTests/S2PersistenceLedgerTests/testDeferredEraseRetainsLiveOldContextAcrossAppAccessResumeUntilDrain', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testSuspendedRestoredActivationCannotReleaseANewerBindingInTheSameCoordinator', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testRepeatedLifecyclePausesRetainPostAdoptionActivationForExactRetry', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testPostAdoptionExecutionRevokedAtFirstAwaitCannotInstallAStaleTokenOrRead', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testSupersededPostAdoptionCatchCannotOverwriteNewReadyExecution', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testEraseCleanupReleaseFailureRetainsOriginalOwnerAndRetries', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testEraseCleanupInterruptionAfterRetirementResumesOriginalTicket', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testImmediateEraseCleanupReplacesRetiredWriterBeforePublication', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testErasedActivationMismatchAndRepeatedBeginReleaseOnlyTheAcquiredWriter')
 ERASE_RECOVERY_SELECTORS = ERASE_LEASE_SELECTORS + ('FieldEvidenceAppTests/V23ProductionAppAccessTests/testPresentationDeferredEraseRetainsDrainAcrossPauseAndResumesWithFreshService', 'FieldEvidenceAppTests/V23ProductionAppAccessTests/testProductionEraseAdoptsFreshSettingOwnerAndNextToggleCommits', 'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testProductionCompletedEraseReplacesOwnersAndRejectsPendingPermissionEdit', 'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testGoldenEraseActivatesEmptyGenerationAndClearsFrozenState')
-GENERATED_SELECTION_PROFILE = "erase-recovery-v1"
-GENERATED_SELECTION_POOL_SHA256 = "74C22D3BC39737E08CE20331DD429724EF4DDBC5574B2346C4754FBDEAB94D27"
-GENERATED_SELECTION_MAP_SHA256 = "714083DCC599E6D6A3F58B1B0D91C1E990B66327A60E3F500F1E68CDC5368840"
+GENERATED_SELECTION_PROFILE = "erase-handoff-v1"
+GENERATED_SELECTION_POOL_SHA256 = "C3E8641F51A9EEFF34D0E4E65198C35E9AD18DA030B8FED4CB57026BD6D86930"
+GENERATED_SELECTION_MAP_SHA256 = "33C107349D7CA40E9F47B8391CE11A7C16DD800A3C5DD7754A96807248472DA7"
 CONFIGURATION_CLONE_SELECTION_ID = "c36-photo-configuration-clone"
 CONFIGURATION_CLONE_SELECTORS = (
     'FieldEvidenceAppTests/S6_2BackupExportTests/testConfigurationCloneAcceptsEveryAuthenticPhotoPhaseAndOmitsOperationalFamily',

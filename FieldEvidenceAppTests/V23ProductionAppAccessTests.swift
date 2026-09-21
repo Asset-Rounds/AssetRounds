@@ -488,9 +488,10 @@ final class V23ProductionAppAccessTests: XCTestCase {
         XCTAssertEqual(serviceCount, 2)
         XCTAssertTrue(presentation.permitsContentPresentation)
         XCTAssertNil(presentation.failure)
-        // Observe cleanup before the creating store initializer changes the filesystem.
-        XCTAssertFalse(FileManager.default.fileExists(
-            atPath: support.appendingPathComponent("FieldEvidenceErase", isDirectory: true).path))
+        // Fresh activation validates intent absence through the creating store.
+        // Its recreated control directory must contain no retained Erase payload.
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(
+            atPath: support.appendingPathComponent("FieldEvidenceErase", isDirectory: true).path), [])
         XCTAssertNil(try EraseIntentStore(applicationSupportURL: support).load())
         guard case let .ready(recoveredCoordinator, _, _) = router.route else {
             return XCTFail("Fresh-service recovery must publish the retained ticket's Erase session")
@@ -561,6 +562,13 @@ final class V23ProductionAppAccessTests: XCTestCase {
             applicationSupportURL: support, preferences: preferences)
         try await presentation.performErase(applicationSupportURL: support,
             confirmation: "ERASE", coordinator: coordinator, diagnosticsStore: diagnostics)
+        if case .eraseCleanupPending = router.route {
+            XCTAssertFalse(presentation.permitsContentPresentation)
+            XCTAssertNil(presentation.sceneNavigationAccess)
+            XCTAssertNotNil(try EraseIntentStore(applicationSupportURL: support).load())
+            XCTAssertTrue(session.sceneNavigationStatePort() === originalScenePort)
+            await presentation.retryStartup()
+        }
         XCTAssertNotEqual(coordinator.generationID, originalGeneration)
         XCTAssertEqual(router.recoveryBootstrapState, .ready)
         XCTAssertTrue(presentation.permitsContentPresentation)

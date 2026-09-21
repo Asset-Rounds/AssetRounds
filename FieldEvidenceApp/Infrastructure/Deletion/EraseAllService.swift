@@ -2267,12 +2267,19 @@ private extension EraseAllService {
                 == generationFactory.installedGenerationURL(id: id) else {
             traceErasePhase("authority.failure.line.\(#line)"); throw EraseAllServiceError.invalidAuthority
         }
+        traceErasePhase("frozen.summary")
         if !BackupRestoreService.isEmptyCurrent(modelContext) {
-            _ = try BackupRestoreService.currentSummary(
-                modelContext: modelContext,
-                generationRootURL: generationRootURL
-            )
+            do {
+                _ = try BackupRestoreService.currentSummary(
+                    modelContext: modelContext,
+                    generationRootURL: generationRootURL
+                )
+            } catch {
+                traceErasePhase("frozen.summary.failure." + String(reflecting: type(of: error)))
+                throw error
+            }
         }
+        traceErasePhase("frozen.model-fetches")
         let evidence = try modelContext.fetch(FetchDescriptor<EvidenceFile>())
         let reports = try modelContext.fetch(FetchDescriptor<Report>())
         let acceptedLabelSnapshots = try modelContext.fetch(
@@ -2331,7 +2338,9 @@ private extension EraseAllService {
             "model.sqlite-shm",
             "model.sqlite-wal",
         ])
+        traceErasePhase("frozen.installed-tree")
         let tree = try authority.installedTree(id: id)
+        traceErasePhase("frozen.label-inventory")
         let contentStore = EvidenceBundleStore(
             generationRootURL: generationRootURL,
             fileManager: fileManager
@@ -2369,6 +2378,7 @@ private extension EraseAllService {
                 }
             }
         }
+        traceErasePhase("frozen.inventory-predicate")
         guard expectedDirectories.isSubset(of: tree.directories),
               tree.directories.isSubset(
                 of: expectedDirectories.union(allowedStagingDirectories)

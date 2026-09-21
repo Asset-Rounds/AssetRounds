@@ -1579,16 +1579,25 @@ private extension S6_6EraseRecoveryTests {
             label: "Erase sign",
             createdAt: created.addingTimeInterval(1)
         ))
+        let consumedPacketID = uuid("66000000-0000-0000-0000-000000000003")
+        let packetDeletedAt = created.addingTimeInterval(3)
         context.insert(Packet(
-            id: uuid("66000000-0000-0000-0000-000000000003"),
+            id: consumedPacketID,
             stableRootID: uuid("66000000-0000-0000-0000-000000000004"),
             currentRecordID: nil,
             evaluationCounted: true,
-            contentDeletedAt: created.addingTimeInterval(3),
+            contentDeletedAt: packetDeletedAt,
             createdAt: created.addingTimeInterval(2)
         ))
+        let packetTombstone = try DeletionLedgerEntryV2(
+            identity: DeletionIdentityV2(kind: .packet, id: consumedPacketID),
+            deletedAt: packetDeletedAt
+        )
+        let deletionLedger = DeletionLedgerStore(context: context)
+        try deletionLedger.stageUnion([packetTombstone])
         observePhase?("harness.seed-journal")
         try adoptSeededEraseBaseline(session)
+        XCTAssertEqual(try deletionLedger.snapshot().entries, [packetTombstone])
 
         observePhase?("harness.auxiliary-seed")
         for relative in [
