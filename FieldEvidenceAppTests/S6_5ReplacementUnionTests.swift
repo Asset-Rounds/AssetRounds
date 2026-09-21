@@ -84,122 +84,155 @@ final class S6_5ReplacementUnionTests: XCTestCase {
 
     @MainActor
     func testGoldenReplacementKeepsIncomingLiveAndUnionsCurrentRoot() async throws {
-        let root = try makeRoot("golden")
-        defer { try? fileManager.removeItem(at: root) }
-        let current = try await makeLiveHarness(
-            root: root,
-            name: "current",
-            base: 1,
-            label: "Current sign",
-            observedAt: Date(timeIntervalSince1970: 1_786_708_000)
-        )
-        let incoming = try await makeLiveHarness(
-            root: root,
-            name: "incoming",
-            base: 101,
-            label: "Restored sign",
-            observedAt: Date(timeIntervalSince1970: 1_786_709_000)
-        )
-        let currentHistory = try MutationJournalStoreV1(
-            modelContext: current.session.modelContext, identity: current.session.workspaceIdentity,
-            generationID: current.session.generationID, allowStateBootstrap: false
-        ).exportSnapshot()
-        let package = try exportPackage(incoming, root: root, name: "incoming")
-        let sourceBefore = try fileTree(package)
-        let validated = try importPackage(package, into: current.session, stageID: uuid(190))
-        let oldID = current.session.generationID
+        var diagnosticPhase = "fixture.begin"
+        var firstRecoveryOrigin: String?
+        do {
+            diagnosticPhase = "fixture.root"
+            let root = try makeRoot("golden")
+            defer { try? fileManager.removeItem(at: root) }
+            let current = try await makeLiveHarness(
+                root: root,
+                name: "current",
+                base: 1,
+                label: "Current sign",
+                observedAt: Date(timeIntervalSince1970: 1_786_708_000),
+                diagnostic: { diagnosticPhase = "current." + $0 }
+            )
+            let incoming = try await makeLiveHarness(
+                root: root,
+                name: "incoming",
+                base: 101,
+                label: "Restored sign",
+                observedAt: Date(timeIntervalSince1970: 1_786_709_000),
+                diagnostic: { diagnosticPhase = "incoming." + $0 }
+            )
+            diagnosticPhase = "current.history"
+            let currentHistory = try MutationJournalStoreV1(
+                modelContext: current.session.modelContext, identity: current.session.workspaceIdentity,
+                generationID: current.session.generationID, allowStateBootstrap: false
+            ).exportSnapshot()
+            let package = try exportPackage(incoming, root: root, name: "incoming",
+                diagnostic: { diagnosticPhase = "package.export." + $0 })
+            diagnosticPhase = "package.before"
+            let sourceBefore = try fileTree(package)
+            diagnosticPhase = "package.import"
+            let validated = try importPackage(package, into: current.session, stageID: uuid(190))
+            let oldID = current.session.generationID
 
-        let service = try BackupRestoreService(
-            applicationSupportURL: current.support,
-            now: { self.replacementAt },
-            makeUUID: sequence([uuid(191), uuid(192)])
-        )
-        let restored = try await service.restore(
-            validatedPackage: validated,
-            currentModelContext: current.session.modelContext,
-            currentGenerationID: oldID,
-            currentGenerationRootURL: current.session.generationRootURL,
-            mode: .replaceExisting
-        )
+            diagnosticPhase = "restore.service.init"
+            let service = try BackupRestoreService(
+                applicationSupportURL: current.support,
+                now: { self.replacementAt },
+                makeUUID: sequence([uuid(191), uuid(192)])
+            )
+#if DEBUG
+            service.restorePhaseDiagnosticForTesting = { value in
+                if value == "restore-error.recovery.begin", firstRecoveryOrigin == nil {
+                    firstRecoveryOrigin = diagnosticPhase
+                }
+                diagnosticPhase = "restore." + value
+            }
+#endif
+            diagnosticPhase = "restore.execute"
+            let restored = try await service.restore(
+                validatedPackage: validated,
+                currentModelContext: current.session.modelContext,
+                currentGenerationID: oldID,
+                currentGenerationRootURL: current.session.generationRootURL,
+                mode: .replaceExisting
+            )
 
-        XCTAssertEqual(try current.factory.currentGenerationID(), restored.generationID)
-        XCTAssertEqual(try current.factory.retiredGenerationIDs(), [oldID])
-        XCTAssertEqual(
-            try restored.modelContext.fetch(FetchDescriptor<Asset>()).map(\.label),
-            ["Restored sign"]
-        )
-        XCTAssertEqual(try restored.modelContext.fetchCount(FetchDescriptor<Report>()), 1)
-        let packets = try restored.modelContext.fetch(FetchDescriptor<Packet>())
-        XCTAssertEqual(
-            Set(packets.map(\.stableRootID)),
-            Set([current.rootID, incoming.rootID])
-        )
-        let currentTombstone = try XCTUnwrap(
-            packets.first(where: { $0.stableRootID == current.rootID })
-        )
-        XCTAssertEqual(currentTombstone.id, current.packetID)
-        XCTAssertNil(currentTombstone.currentRecordID)
-        XCTAssertEqual(currentTombstone.contentDeletedAt, replacementAt)
-        XCTAssertEqual(currentTombstone.createdAt, current.packetCreatedAt)
-        let restoredHistory = try MutationJournalStoreV1(
-            modelContext: restored.modelContext, identity: restored.workspaceIdentity,
-            generationID: restored.generationID, allowStateBootstrap: false
-        ).exportSnapshot()
-        let packetIdentity = try WorkspaceEntityIdentityV1(kind: .packet, id: current.packetID)
-        let priorTerminal = try XCTUnwrap(currentHistory.entityRevisions.first { $0.identity == packetIdentity })
-        let terminal = try XCTUnwrap(restoredHistory.entityRevisions.first { $0.identity == packetIdentity })
-        XCTAssertEqual(terminal.revision, priorTerminal.revision)
-        struct PacketBasis: Codable {
-            let identity: WorkspaceEntityIdentityV1
-            let revision: UInt64
-            let value: V4BackupPacketDTO
+            diagnosticPhase = "postrestore.assertions"
+            XCTAssertEqual(try current.factory.currentGenerationID(), restored.generationID)
+            XCTAssertEqual(try current.factory.retiredGenerationIDs(), [oldID])
+            XCTAssertEqual(
+                try restored.modelContext.fetch(FetchDescriptor<Asset>()).map(\.label),
+                ["Restored sign"]
+            )
+            XCTAssertEqual(try restored.modelContext.fetchCount(FetchDescriptor<Report>()), 1)
+            let packets = try restored.modelContext.fetch(FetchDescriptor<Packet>())
+            XCTAssertEqual(
+                Set(packets.map(\.stableRootID)),
+                Set([current.rootID, incoming.rootID])
+            )
+            let currentTombstone = try XCTUnwrap(
+                packets.first(where: { $0.stableRootID == current.rootID })
+            )
+            XCTAssertEqual(currentTombstone.id, current.packetID)
+            XCTAssertNil(currentTombstone.currentRecordID)
+            XCTAssertEqual(currentTombstone.contentDeletedAt, replacementAt)
+            XCTAssertEqual(currentTombstone.createdAt, current.packetCreatedAt)
+            let restoredHistory = try MutationJournalStoreV1(
+                modelContext: restored.modelContext, identity: restored.workspaceIdentity,
+                generationID: restored.generationID, allowStateBootstrap: false
+            ).exportSnapshot()
+            let packetIdentity = try WorkspaceEntityIdentityV1(kind: .packet, id: current.packetID)
+            let priorTerminal = try XCTUnwrap(currentHistory.entityRevisions.first { $0.identity == packetIdentity })
+            let terminal = try XCTUnwrap(restoredHistory.entityRevisions.first { $0.identity == packetIdentity })
+            XCTAssertEqual(terminal.revision, priorTerminal.revision)
+            struct PacketBasis: Codable {
+                let identity: WorkspaceEntityIdentityV1
+                let revision: UInt64
+                let value: V4BackupPacketDTO
+            }
+            // A retained packet tombstone hashes its DTO, never an absent row.
+            let expectedPacket = V4BackupPacketDTO(
+                id: current.packetID, schemaVersion: currentTombstone.schemaVersion,
+                stableRootID: current.rootID, currentRecordID: nil, evaluationCounted: true,
+                contentDeletedAt: replacementAt, createdAt: current.packetCreatedAt
+            )
+            XCTAssertEqual(terminal.externalProjectionSHA256,
+                try WorkspaceMutationCanonicalV1.sha256(PacketBasis(identity: packetIdentity,
+                    revision: priorTerminal.revision, value: expectedPacket)))
+            for original in currentHistory.receipts {
+                XCTAssertTrue(restoredHistory.receipts.contains(original))
+            }
+            let incomingLive = try XCTUnwrap(
+                packets.first(where: { $0.stableRootID == incoming.rootID })
+            )
+            XCTAssertEqual(incomingLive.id, incoming.packetID)
+            XCTAssertNotNil(incomingLive.currentRecordID)
+            XCTAssertNil(incomingLive.contentDeletedAt)
+            XCTAssertEqual(
+                try BackupRestoreService.currentSummary(
+                    modelContext: restored.modelContext,
+                    generationRootURL: restored.generationRootURL
+                ).consumedRootCount,
+                2
+            )
+            XCTAssertFalse(fileManager.fileExists(atPath: validated.stagedPackageURL.path))
+            XCTAssertFalse(fileManager.fileExists(
+                atPath: current.support.appendingPathComponent(
+                    "FieldEvidenceRestore/restore.json"
+                ).path
+            ))
+            XCTAssertEqual(try fileTree(package), sourceBefore)
+            XCTAssertTrue(fileManager.fileExists(
+                atPath: current.factory.installedGenerationURL(id: oldID).path
+            ))
+
+            diagnosticPhase = "restore.reopen"
+            let reopened = try current.factory.openOrBootstrapCurrent()
+            XCTAssertEqual(reopened.generationID, restored.generationID)
+            XCTAssertEqual(try MutationJournalStoreV1(
+                modelContext: reopened.modelContext, identity: reopened.workspaceIdentity,
+                generationID: reopened.generationID, allowStateBootstrap: false
+            ).exportSnapshot(), restoredHistory)
+            XCTAssertEqual(
+                Set(try reopened.modelContext.fetch(FetchDescriptor<Packet>()).map(\.stableRootID)),
+                Set([current.rootID, incoming.rootID])
+            )
+        } catch {
+            print("ReplacementUnionGolden.failure phase=\(diagnosticPhase) type=\(String(reflecting: type(of: error)))")
+            if let firstRecoveryOrigin {
+                print("ReplacementUnionGolden.firstRecoveryOrigin=\(firstRecoveryOrigin)")
+            }
+            if let policyError = error as? ProtectedFilePolicyError,
+               case .resourceValueMismatch = policyError {
+                print("ReplacementUnionGolden.failure.protectedFileResourceValueMismatch")
+            }
+            throw error
         }
-        // A retained packet tombstone hashes its DTO, never an absent row.
-        let expectedPacket = V4BackupPacketDTO(
-            id: current.packetID, schemaVersion: currentTombstone.schemaVersion,
-            stableRootID: current.rootID, currentRecordID: nil, evaluationCounted: true,
-            contentDeletedAt: replacementAt, createdAt: current.packetCreatedAt
-        )
-        XCTAssertEqual(terminal.externalProjectionSHA256,
-            try WorkspaceMutationCanonicalV1.sha256(PacketBasis(identity: packetIdentity,
-                revision: priorTerminal.revision, value: expectedPacket)))
-        for original in currentHistory.receipts {
-            XCTAssertTrue(restoredHistory.receipts.contains(original))
-        }
-        let incomingLive = try XCTUnwrap(
-            packets.first(where: { $0.stableRootID == incoming.rootID })
-        )
-        XCTAssertEqual(incomingLive.id, incoming.packetID)
-        XCTAssertNotNil(incomingLive.currentRecordID)
-        XCTAssertNil(incomingLive.contentDeletedAt)
-        XCTAssertEqual(
-            try BackupRestoreService.currentSummary(
-                modelContext: restored.modelContext,
-                generationRootURL: restored.generationRootURL
-            ).consumedRootCount,
-            2
-        )
-        XCTAssertFalse(fileManager.fileExists(atPath: validated.stagedPackageURL.path))
-        XCTAssertFalse(fileManager.fileExists(
-            atPath: current.support.appendingPathComponent(
-                "FieldEvidenceRestore/restore.json"
-            ).path
-        ))
-        XCTAssertEqual(try fileTree(package), sourceBefore)
-        XCTAssertTrue(fileManager.fileExists(
-            atPath: current.factory.installedGenerationURL(id: oldID).path
-        ))
-
-        let reopened = try current.factory.openOrBootstrapCurrent()
-        XCTAssertEqual(reopened.generationID, restored.generationID)
-        XCTAssertEqual(try MutationJournalStoreV1(
-            modelContext: reopened.modelContext, identity: reopened.workspaceIdentity,
-            generationID: reopened.generationID, allowStateBootstrap: false
-        ).exportSnapshot(), restoredHistory)
-        XCTAssertEqual(
-            Set(try reopened.modelContext.fetch(FetchDescriptor<Packet>()).map(\.stableRootID)),
-            Set([current.rootID, incoming.rootID])
-        )
     }
 
     @MainActor
@@ -975,16 +1008,20 @@ private extension S6_5ReplacementUnionTests {
         base: Int,
         label: String,
         observedAt: Date,
-        packetIDOverride: UUID? = nil
+        packetIDOverride: UUID? = nil,
+        diagnostic: (@MainActor (String) -> Void)? = nil
     ) async throws -> LiveHarness {
+        diagnostic?("support")
         let support = root.appendingPathComponent("\(name)-support", isDirectory: true)
         try fileManager.createDirectory(at: support, withIntermediateDirectories: true)
+        diagnostic?("bootstrap")
         let factory = StoreGenerationFactory(applicationSupportURL: support)
         let session = try factory.openOrBootstrapCurrent()
         let context = session.modelContext
         let pack = SignPack.illuminatedSignV1
         let siteID = uuid(base)
         let assetID = uuid(base + 1)
+        diagnostic?("seed")
         context.insert(Site(
             id: siteID,
             label: "\(label) site",
@@ -1003,8 +1040,10 @@ private extension S6_5ReplacementUnionTests {
         ))
         try context.save()
 
+        diagnostic?("capture.configure")
         let coordinator = CheckRunnerCoordinator(modelContext: context, signPack: pack)
         coordinator.configureCapture(generationRootURL: session.generationRootURL)
+        diagnostic?("capture.begin")
         _ = try coordinator.beginCheck(
             assetID: assetID,
             timeZoneID: nil,
@@ -1013,20 +1052,25 @@ private extension S6_5ReplacementUnionTests {
             safePositionAccepted: true,
             observedAt: observedAt
         )
+        diagnostic?("wide.import")
         let wide = try await coordinator.importCandidate(
             assetID: assetID,
             sourceData: try makePNG(seed: UInt8(truncatingIfNeeded: base)),
             createdAt: observedAt.addingTimeInterval(1)
         )
+        diagnostic?("wide.accept")
         _ = try await coordinator.accept(candidate: wide, assetID: assetID)
+        diagnostic?("close.import")
         let close = try await coordinator.importCandidate(
             assetID: assetID,
             sourceData: try makePNG(seed: UInt8(truncatingIfNeeded: base + 17)),
             createdAt: observedAt.addingTimeInterval(2)
         )
+        diagnostic?("close.accept")
         _ = try await coordinator.accept(candidate: close, assetID: assetID)
         let packetID = packetIDOverride ?? uuid(base + 3)
         let rootID = uuid(base + 4)
+        diagnostic?("finalize")
         let result = try await coordinator.finalize(
             assetID: assetID,
             selection: .noVisibleIssue,
@@ -1041,9 +1085,11 @@ private extension S6_5ReplacementUnionTests {
                 issueID: nil
             )
         )
+        diagnostic?("delivery")
         guard case .ready = try coordinator.prepareReportDelivery(result: result) else {
             throw FixtureError.invalid
         }
+        diagnostic?("packet.readback")
         let packet = try XCTUnwrap(
             try context.fetch(FetchDescriptor<Packet>()).first
         )
@@ -1061,10 +1107,13 @@ private extension S6_5ReplacementUnionTests {
     func exportPackage(
         _ harness: LiveHarness,
         root: URL,
-        name: String
+        name: String,
+        diagnostic: (@MainActor (String) -> Void)? = nil
     ) throws -> URL {
+        diagnostic?("destination")
         let destination = root.appendingPathComponent("\(name)-export", isDirectory: true)
         try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+        diagnostic?("initialize")
         let exporter = BackupExportService(
             modelContext: harness.session.modelContext,
             generationRootURL: harness.session.generationRootURL,
@@ -1072,7 +1121,9 @@ private extension S6_5ReplacementUnionTests {
             appVersion: { "4.0" },
             appBuild: { "42" }
         )
+        diagnostic?("prepare")
         let preview = try exporter.prepare()
+        diagnostic?("write")
         return try exporter.export(previewID: preview.id, to: destination)
     }
 

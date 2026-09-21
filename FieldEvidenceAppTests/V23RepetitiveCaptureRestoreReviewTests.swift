@@ -305,6 +305,7 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
                            point == .afterPreparedWrite)
         }
         var recoveryPhase = "create-recovery-service"
+        var recoveryDifferences: [String] = []
         let recovered: StoreGenerationSession?
         let recovery: BackupRestoreService
         do {
@@ -312,12 +313,16 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
 #if DEBUG
             recovery.restorePhaseDiagnosticForTesting = { value in
                 recoveryPhase = value
+                if value.contains(".history."), recoveryDifferences.count < 32 {
+                    recoveryDifferences.append(value)
+                }
             }
 #endif
             recoveryPhase = "invoke-cold-recovery"
             recovered = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
         } catch {
             print("RestoreReviewColdRecovery.failure phase=\(recoveryPhase) type=\(String(reflecting: type(of: error)))")
+            print("RestoreReviewColdRecovery.historyDifferences=\(recoveryDifferences.joined(separator: ","))")
             throw error
         }
         XCTAssertNil(recovered)
@@ -629,6 +634,7 @@ final class RestoreReviewHarness {
     func restore(_ package: URL, mode: BackupRestoreMode,
                  failure: BackupRestoreFailureInjection? = nil) async throws -> StoreGenerationSession {
         var phase = "open-current"
+        var firstRecoveryOrigin: String?
         do {
             timing?.mark(phase)
             let current = try factory.openOrBootstrapCurrent()
@@ -660,6 +666,9 @@ final class RestoreReviewHarness {
                 failureInjection: failure)
 #if DEBUG
             service.restorePhaseDiagnosticForTesting = { [timing] value in
+                if value == "restore-error.recovery.begin", firstRecoveryOrigin == nil {
+                    firstRecoveryOrigin = phase
+                }
                 phase = value
                 timing?.mark("restore." + value)
             }
@@ -678,6 +687,9 @@ final class RestoreReviewHarness {
         } catch {
             // Fixed phase and error type only: no paths, identifiers or error payload.
             print("RestoreReviewHarness.failure phase=\(phase) type=\(String(reflecting: type(of: error)))")
+            if let firstRecoveryOrigin {
+                print("RestoreReviewHarness.firstRecoveryOrigin=\(firstRecoveryOrigin)")
+            }
             if let generationFailure = error as? StoreGenerationFailure {
                 switch generationFailure {
                 case .dataPointerInvalid: print("RestoreReviewHarness.generationFailure.dataPointerInvalid")

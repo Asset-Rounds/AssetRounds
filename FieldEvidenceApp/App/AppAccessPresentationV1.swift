@@ -29,6 +29,10 @@ final class AppAccessPresentationV1: ObservableObject {
     @Published private(set) var settingIsEnabled: Bool?
     @Published private(set) var accessState: AppAccessStateV1?
     @Published private(set) var failure: AppAccessPresentationFailureV1?
+#if DEBUG
+    /// Fixed recovery phase/type observations; no payloads or identifiers.
+    var eraseRecoveryDiagnosticForTesting: (@MainActor (String) -> Void)?
+#endif
 
     /// Captured by one presented Restore destination. A later foreground
     /// publication cannot authorize a callback retained by the older view.
@@ -1431,50 +1435,91 @@ final class AppAccessPresentationV1: ObservableObject {
     }
 
     private func resumeErase(_ pending: PendingErase, access: ProductionAppAccessSessionV1) async throws {
-        guard pendingErase === pending, let makeService = pending.makeRecoveryService else {
-            throw AppAccessContractFailureV1.staleAttempt
-        }
-        if let receipt = pending.abortedAdmission {
-            try await access.lifecycle.abandonEraseAdmission(receipt)
-            try startupRouter.cancelAbortedErase(pending.ticket, receipt: receipt)
-            pendingErase = nil
-            _ = try await refreshState(access)
-            return
-        }
-        if pending.receipt == nil {
-            // Recovery constructs fresh service-local admission state while
-            // reusing the original hooks, subject and lifecycle reservation.
-            let service = makeService()
-            let recovered = try await startupRouter.resumeDeferredErase(pending.ticket) {
-                try await service.reconcileAtStartup(diagnosticsStore: pending.diagnostics)
+#if DEBUG
+        var diagnosticPhase = "original-ownership"
+#endif
+        do {
+            guard pendingErase === pending, let makeService = pending.makeRecoveryService else {
+                throw AppAccessContractFailureV1.staleAttempt
             }
-            if let recovered {
-                pending.session = recovered
+#if DEBUG
+            diagnosticPhase = "aborted-admission"
+#endif
+            if let receipt = pending.abortedAdmission {
+                try await access.lifecycle.abandonEraseAdmission(receipt)
+                try startupRouter.cancelAbortedErase(pending.ticket, receipt: receipt)
+                pendingErase = nil
+                _ = try await refreshState(access)
+                return
             }
-        }
-        guard let receipt = pending.receipt, let erasedSession = pending.session else {
-            throw AppAccessContractFailureV1.configurationUnknown
-        }
-        if !pending.cleanupActivationRefreshed {
-            try await startupRouter.beginErasedSessionActivation(erasedSession,
-                coordinator: pending.coordinator, ticket: pending.ticket)
-            pending.cleanupActivationRefreshed = true
-        }
-        if !pending.adopted {
-            guard let makeReplacement = access.completedEraseReplacement else {
+#if DEBUG
+            diagnosticPhase = "deferred-reconcile"
+#endif
+            if pending.receipt == nil {
+                // Recovery constructs fresh service-local admission state while
+                // reusing the original hooks, subject and lifecycle reservation.
+                let service = makeService()
+                let recovered = try await startupRouter.resumeDeferredErase(pending.ticket) {
+                    try await service.reconcileAtStartup(diagnosticsStore: pending.diagnostics)
+                }
+                if let recovered {
+                    pending.session = recovered
+                }
+            }
+#if DEBUG
+            diagnosticPhase = "receipt-and-session"
+#endif
+            guard let receipt = pending.receipt, let erasedSession = pending.session else {
                 throw AppAccessContractFailureV1.configurationUnknown
             }
-            let replacement = try makeReplacement(receipt.subject)
-            try await access.lifecycle.adoptCompletedErase(receipt, replacement: replacement)
-            pending.adopted = true
+#if DEBUG
+            diagnosticPhase = "fresh-binding"
+#endif
+            if !pending.cleanupActivationRefreshed {
+                try await startupRouter.beginErasedSessionActivation(erasedSession,
+                    coordinator: pending.coordinator, ticket: pending.ticket)
+                pending.cleanupActivationRefreshed = true
+            }
+            if !pending.adopted {
+#if DEBUG
+            diagnosticPhase = "replacement-factory"
+#endif
+                guard let makeReplacement = access.completedEraseReplacement else {
+                    throw AppAccessContractFailureV1.configurationUnknown
+                }
+#if DEBUG
+            diagnosticPhase = "replacement-construction"
+#endif
+                let replacement = try makeReplacement(receipt.subject)
+#if DEBUG
+            diagnosticPhase = "lifecycle-adoption"
+#endif
+                try await access.lifecycle.adoptCompletedErase(receipt, replacement: replacement)
+                pending.adopted = true
+            }
+            // The router's fresh active startup token controls publication. An
+            // inactive/protected-data failure retains adopted completion for retry.
+#if DEBUG
+            diagnosticPhase = "router-publication"
+#endif
+            try await startupRouter.finishErasedSessionActivation(erasedSession,
+                coordinator: pending.coordinator, ticket: pending.ticket, accessGate: access.gate)
+#if DEBUG
+            diagnosticPhase = "completion-ownership"
+#endif
+            guard pendingErase === pending else { throw AppAccessContractFailureV1.staleAttempt }
+            pendingErase = nil
+            failure = nil
+        } catch {
+#if DEBUG
+            if let observe = eraseRecoveryDiagnosticForTesting {
+                let errorType = String(reflecting: type(of: error))
+                let policyMismatch = (error as? ProtectedFilePolicyError) == .resourceValueMismatch
+                observe("phase=\(diagnosticPhase) type=\(errorType) resourceValueMismatch=\(policyMismatch)")
+            }
+#endif
+            throw error
         }
-        // The router's fresh active startup token controls publication. An
-        // inactive/protected-data failure retains adopted completion for retry.
-        try await startupRouter.finishErasedSessionActivation(erasedSession,
-            coordinator: pending.coordinator, ticket: pending.ticket, accessGate: access.gate)
-        guard pendingErase === pending else { throw AppAccessContractFailureV1.staleAttempt }
-        pendingErase = nil
-        failure = nil
     }
 
     private func performBootstrap() async {

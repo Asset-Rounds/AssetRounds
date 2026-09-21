@@ -307,6 +307,7 @@ extension V23ReminderProductionSettingsTests {
             XCTAssertTrue(oldOwners.preferences === pendingOwners.preferences)
             XCTAssertTrue(oldOwners.notifications === pendingOwners.notifications)
             XCTAssertNotNil(try EraseIntentStore(applicationSupportURL: fixture.support).load())
+            fixture.presentation.eraseRecoveryDiagnosticForTesting = { print("EraseReminder.retry " + $0) }
             await fixture.presentation.retryStartup()
         }
         let freshOwners = try fixture.owners()

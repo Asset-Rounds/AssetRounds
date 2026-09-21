@@ -119,6 +119,16 @@ final class StartupRouter: ObservableObject {
     @Published private(set) var route: Route = .checking
 #if DEBUG
     private(set) var runtimeObservation: StartupRuntimeObservationV1?
+    /// Fixed phase/type observations only; silent by default.
+    var startupFailureDiagnosticForTesting: (@MainActor (String) -> Void)?
+
+    private func reportStartupFailureForTesting(_ error: Error) {
+        guard let observe = startupFailureDiagnosticForTesting else { return }
+        let phase = runtimeObservation?.phase.rawValue ?? "unobserved"
+        let errorType = String(reflecting: type(of: error))
+        let policyMismatch = (error as? ProtectedFilePolicyError) == .resourceValueMismatch
+        observe("phase=\(phase) type=\(errorType) resourceValueMismatch=\(policyMismatch)")
+    }
 #endif
     private(set) var maintenanceRestoreSession: StoreGenerationSession?
     private(set) var maintenanceEraseSession: StoreGenerationSession?
@@ -820,6 +830,9 @@ final class StartupRouter: ObservableObject {
                     ).reconcileAtStartup(diagnosticsStore: diagnosticsStore)
                 }
             } catch {
+#if DEBUG
+                reportStartupFailureForTesting(error)
+#endif
                 throw StartupMaintenanceReason.eraseInconsistent
             }
             try await requireCurrentOperationAndAccess(operation)
@@ -838,6 +851,9 @@ final class StartupRouter: ObservableObject {
                     ).reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
                 }
             } catch {
+#if DEBUG
+                reportStartupFailureForTesting(error)
+#endif
                 throw StartupMaintenanceReason.restoreInconsistent
             }
             try await requireCurrentOperationAndAccess(operation)
@@ -874,6 +890,9 @@ final class StartupRouter: ObservableObject {
             do {
                 try reconcileGenerationLeasesForStartup()
             } catch {
+#if DEBUG
+                reportStartupFailureForTesting(error)
+#endif
                 throw StartupMaintenanceReason.dataPointerInvalid
             }
 #if DEBUG
@@ -885,6 +904,9 @@ final class StartupRouter: ObservableObject {
                     modelContext: session.modelContext
                 ).reconcile()
             } catch {
+#if DEBUG
+                reportStartupFailureForTesting(error)
+#endif
                 throw StartupMaintenanceReason.fieldDraftInconsistent
             }
 
@@ -910,6 +932,9 @@ final class StartupRouter: ObservableObject {
                     lifecycleProfileRegistry: coordinator.lifecycleProfileRegistry
                 ).reconcile()
             } catch {
+#if DEBUG
+                reportStartupFailureForTesting(error)
+#endif
                 throw StartupMaintenanceReason.finalizationInconsistent
             }
             try await requireCurrentOperationAndAccess(operation, owner: owner)
@@ -925,6 +950,9 @@ final class StartupRouter: ObservableObject {
                     fileManager: fileManager
                 ).reconcile()
             } catch {
+#if DEBUG
+                reportStartupFailureForTesting(error)
+#endif
                 throw StartupMaintenanceReason.finalizationInconsistent
             }
             try await requireCurrentOperationAndAccess(operation, owner: owner)
@@ -936,6 +964,9 @@ final class StartupRouter: ObservableObject {
             do {
                 try await recoverCurrentMedia(session: session, operation: operation, owner: owner)
             } catch {
+#if DEBUG
+                reportStartupFailureForTesting(error)
+#endif
                 throw StartupMaintenanceReason.mediaInconsistent
             }
             try await requireCurrentOperationAndAccess(operation, owner: owner)
@@ -955,6 +986,9 @@ final class StartupRouter: ObservableObject {
                 )
                 try reportRecoveryService.reconcileAtStartup()
             } catch {
+#if DEBUG
+                reportStartupFailureForTesting(error)
+#endif
                 throw StartupMaintenanceReason.finalizationInconsistent
             }
 
@@ -979,6 +1013,9 @@ final class StartupRouter: ObservableObject {
             do {
                 try await installCommerceProcessor(operation: operation, owner: owner)
             } catch {
+#if DEBUG
+                reportStartupFailureForTesting(error)
+#endif
                 throw StartupMaintenanceReason.finalizationInconsistent
             }
             try await requireCurrentOperationAndAccess(operation, owner: owner)
@@ -996,6 +1033,9 @@ final class StartupRouter: ObservableObject {
             endRuntimeObservation(.ready)
 #endif
         } catch {
+#if DEBUG
+                reportStartupFailureForTesting(error)
+#endif
             retainWriterCleanup(error, owner: unpublishedOwner)
             guard operationID == operation else {
                 _ = resolvePendingWriterCleanup()

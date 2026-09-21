@@ -483,13 +483,15 @@ final class V23ProductionAppAccessTests: XCTestCase {
         await fulfillment(of: [oldContextReleased], timeout: 30)
         XCTAssertNil(weakOldContext)
         let preCleanupWriter = coordinator.workspaceWriter
+        presentation.eraseRecoveryDiagnosticForTesting = { print("EraseProduction.retry " + $0) }
         await presentation.retryStartup()
         XCTAssertEqual(serviceCount, 2)
         XCTAssertTrue(presentation.permitsContentPresentation)
         XCTAssertNil(presentation.failure)
-        XCTAssertNil(try EraseIntentStore(applicationSupportURL: support).load())
+        // Observe cleanup before the creating store initializer changes the filesystem.
         XCTAssertFalse(FileManager.default.fileExists(
             atPath: support.appendingPathComponent("FieldEvidenceErase", isDirectory: true).path))
+        XCTAssertNil(try EraseIntentStore(applicationSupportURL: support).load())
         guard case let .ready(recoveredCoordinator, _, _) = router.route else {
             return XCTFail("Fresh-service recovery must publish the retained ticket's Erase session")
         }

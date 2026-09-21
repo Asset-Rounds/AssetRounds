@@ -1146,11 +1146,22 @@ extension S2PersistenceLedgerTests {
             entitlementRuntime: isolatedStartupRuntime,
             didBeginStep: { observedSteps.append($0) }
         )
+        var firstStartupFailure: String?
+        router.startupFailureDiagnosticForTesting = { observation in
+            guard firstStartupFailure == nil else { return }
+            firstStartupFailure = observation
+            print("EraseStartup.failure " + observation)
+        }
         try router.bindStartupAccessGate(gate)
         defer { router.failClosedPDFRecovery() }
 
         try await router.startIfNeeded(accessGate: gate)
         guard case let .ready(coordinator, _, _) = router.route else {
+                let phase = router.runtimeObservation?.phase.rawValue ?? "unobserved"
+                let reason: String
+                if case .maintenance(let maintenance) = router.route { reason = maintenance.rawValue }
+                else { reason = "non-maintenance-not-ready" }
+                print("EraseStartup.notReady phase=\(phase) reason=\(reason)")
             return XCTFail("Initial startup must publish the erase owner")
         }
         let oldGenerationID = coordinator.generationID
@@ -1609,11 +1620,22 @@ extension S2PersistenceLedgerTests {
                 await beforeCommerceActivation(writerID)
             }
         )
+        var firstStartupFailure: String?
+        router.startupFailureDiagnosticForTesting = { observation in
+            guard firstStartupFailure == nil else { return }
+            firstStartupFailure = observation
+            print("EraseStartup.failure " + observation)
+        }
         try router.bindStartupAccessGate(gate)
         do {
             try await router.startIfNeeded(accessGate: gate)
             forwardsPostAdoptionHooks = true
             guard case let .ready(coordinator, _, _) = router.route else {
+                let phase = router.runtimeObservation?.phase.rawValue ?? "unobserved"
+                let reason: String
+                if case .maintenance(let maintenance) = router.route { reason = maintenance.rawValue }
+                else { reason = "non-maintenance-not-ready" }
+                print("EraseStartup.notReady phase=\(phase) reason=\(reason)")
                 throw AppAccessContractFailureV1.staleAttempt
             }
             let ticket = try await router.beginEraseOperation(
@@ -1625,7 +1647,9 @@ extension S2PersistenceLedgerTests {
             var activationFailure: Error?
             var retainedOldContext: ModelContext? = (cleanupCase == .releaseFailure || cleanupCase == .afterRetirement)
                 ? coordinator.modelContext : nil
-            weak var weakOldContext = retainedOldContext
+            let oldContextIsReleased: () -> Bool = { [weak observedContext = retainedOldContext] in
+                observedContext == nil
+            }
             let cleanupFailure = cleanupCase == .afterRetirement
                 ? EraseAllFailureInjection(failOnceAt: .beforeCleanup) : nil
             let makeService: @MainActor () -> EraseAllService = {
@@ -1698,9 +1722,9 @@ extension S2PersistenceLedgerTests {
                 if cleanupCase == .releaseFailure || cleanupCase == .afterRetirement {
                     XCTAssertNotNil(retainedOldContext)
                     retainedOldContext = nil
-                    let drained = expectation(for: NSPredicate { _, _ in weakOldContext == nil }, evaluatedWith: NSObject())
+                    let drained = expectation(for: NSPredicate { _, _ in oldContextIsReleased() }, evaluatedWith: NSObject())
                     await fulfillment(of: [drained], timeout: 30)
-                    XCTAssertNil(weakOldContext)
+                    XCTAssertTrue(oldContextIsReleased())
                     let intentBefore = try EraseIntentStore(applicationSupportURL: root).load()
                     let retiredWriter = coordinator.workspaceWriter
                     let registryURL = root.appendingPathComponent("FieldEvidenceOperations/generation-leases/registry.json")

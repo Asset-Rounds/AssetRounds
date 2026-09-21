@@ -16755,13 +16755,27 @@ private extension BackupRestoreService {
         var identityDiffers = false
         var revisionDiffers = false
         var projectionDiffers = false
+        var projectionFamilies: Set<String> = []
+        diagnostic("\(phase).history.entityRevisions.actualCount.\(actualRevisions.count).expectedCount.\(expectedRevisions.count)")
         for (left, right) in zip(actualRevisions, expectedRevisions) {
             if left.identity != right.identity { identityDiffers = true }
             if left.revision != right.revision { revisionDiffers = true }
-            if left.externalProjectionSHA256 != right.externalProjectionSHA256 { projectionDiffers = true }
+            if left.externalProjectionSHA256 != right.externalProjectionSHA256 {
+                projectionDiffers = true
+                let actualShape: String = left.externalProjectionSHA256 == nil ? "nil" : "set"
+                let expectedShape: String = right.externalProjectionSHA256 == nil ? "nil" : "set"
+                let identityShape: String = left.identity == right.identity ? "sameIdentity" : "differentIdentity"
+                let revisionShape: String = left.revision == right.revision ? "sameRevision" : "differentRevision"
+                let family: String = "\(left.identity.kind.rawValue).to.\(right.identity.kind.rawValue)"
+                let detail: String = "\(family).\(actualShape).to.\(expectedShape).\(identityShape).\(revisionShape)"
+                projectionFamilies.insert(detail)
+            }
         }
         if identityDiffers { diagnostic("\(phase).history.entityRevisions.identityOrOrder.different") }
         if revisionDiffers { diagnostic("\(phase).history.entityRevisions.revision.different") }
+        for family in projectionFamilies.sorted().prefix(12) {
+            diagnostic("\(phase).history.entityRevisions.projectionFamily.\(family)")
+        }
         if projectionDiffers { diagnostic("\(phase).history.entityRevisions.projection.different") }
 #endif
     }
