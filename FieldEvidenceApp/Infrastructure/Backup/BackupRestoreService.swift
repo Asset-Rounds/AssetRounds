@@ -12663,7 +12663,7 @@ private extension BackupRestoreService {
         let identity = try withPinnedDirectory(root: applicationSupportURL,
             relativePath: "FieldEvidenceRestore/generations/\(canonical(generationID))", createMissing: false,
             authorityCheck: { try self.generationAuthority.requireStagingGeneration(id: generationID) }
-        ) { descriptor, verify in
+        ) { descriptor, verify, _ in
             try verify()
             var facts = stat()
             guard Darwin.fstat(descriptor, &facts) == 0, (facts.st_mode & S_IFMT) == S_IFDIR else {
@@ -13029,7 +13029,7 @@ private extension BackupRestoreService {
         let names = cloneRetirementBindingNames(restoreID)
         return try withPinnedDirectory(root: applicationSupportURL, relativePath: "FieldEvidenceRestore",
             createMissing: false, authorityCheck: { try self.generationAuthority.requireNoEraseAuthority() }
-        ) { parent, verify in
+        ) { parent, verify, _ in
             let current = try readCloneRetirementBindingLeaf(names.current, parent: parent, verify: verify)
             let next = try readCloneRetirementBindingLeaf(names.next, parent: parent, verify: verify)
             let result = try selectedCloneRetirementBinding(current: current, next: next)
@@ -13060,7 +13060,7 @@ private extension BackupRestoreService {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
         }
-        try withPinnedDirectoryForRegularCreation(root: applicationSupportURL, relativePath: "FieldEvidenceRestore",
+        try withPinnedDirectory(root: applicationSupportURL, relativePath: "FieldEvidenceRestore",
             createMissing: false, authorityCheck: { try self.generationAuthority.requireNoEraseAuthority() },
             creationFailure: .invalidRestoreAuthority
         ) { parent, verify, createExclusiveRegular in
@@ -13152,7 +13152,7 @@ private extension BackupRestoreService {
         let names = cloneRetirementBindingNames(binding.core.plan.restoreID)
         try withPinnedDirectory(root: applicationSupportURL, relativePath: "FieldEvidenceRestore",
             createMissing: false, authorityCheck: { try self.generationAuthority.requireNoEraseAuthority() }
-        ) { parent, verify in
+        ) { parent, verify, _ in
             guard let current = try readCloneRetirementBindingLeaf(names.current, parent: parent, verify: verify),
                   current.value == binding, try !itemExists(parent: parent, name: names.next),
                   try itemIdentity(parent: parent, name: names.current) == current.identity,
@@ -13292,7 +13292,7 @@ private extension BackupRestoreService {
         let names = photoBindingNames(restoreID)
         return try withPinnedDirectory(root: applicationSupportURL, relativePath: "FieldEvidenceRestore",
             createMissing: false, authorityCheck: { try self.generationAuthority.requireNoEraseAuthority() }
-        ) { parent, verify in
+        ) { parent, verify, _ in
             let hasNext = try itemExists(parent: parent, name: names.next)
             let current = try readPhotoBindingLeaf(names.current, parent: parent, allowLegacy: !hasNext, verify: verify)
             let next = try readPhotoBindingLeaf(names.next, parent: parent, verify: verify)
@@ -13327,7 +13327,7 @@ private extension BackupRestoreService {
                     throw BackupRestoreServiceError.invalidRestoreAuthority
                 }
             }
-            try withPinnedDirectoryForRegularCreation(root: applicationSupportURL, relativePath: "FieldEvidenceRestore",
+            try withPinnedDirectory(root: applicationSupportURL, relativePath: "FieldEvidenceRestore",
                 createMissing: false, authorityCheck: { try self.generationAuthority.requireNoEraseAuthority() },
                 creationFailure: .invalidRestoreAuthority
             ) { parent, verify, createExclusiveRegular in
@@ -13522,7 +13522,7 @@ private extension BackupRestoreService {
             guard try intentStore.load() == nil else { throw BackupRestoreServiceError.invalidRestoreAuthority }
             try withPinnedDirectory(root: applicationSupportURL, relativePath: "FieldEvidenceRestore",
                 createMissing: false, authorityCheck: { try self.generationAuthority.requireNoEraseAuthority() }
-            ) { parent, verify in
+            ) { parent, verify, _ in
                 guard let current = try readPhotoBindingLeaf(names.current, parent: parent, verify: verify),
                       current.value == binding,
                       try !itemExists(parent: parent, name: names.next),
@@ -15694,7 +15694,7 @@ private extension BackupRestoreService {
             try self.generationAuthority.requireStagingGeneration(id: generationID)
         }
 
-        try withPinnedDirectoryForRegularCreation(
+        try withPinnedDirectory(
             root: root,
             relativePath: parentRelative,
             createMissing: false,
@@ -15831,7 +15831,7 @@ private extension BackupRestoreService {
             relativePath: relativePath,
             createMissing: true,
             authorityCheck: authorityCheck
-        ) { _, verifyDirectories in
+        ) { _, verifyDirectories, _ in
             try withoutActuallyEscaping(verifyDirectories) { verifyDirectories in
                 _ = try ProtectedFilePolicyV1.applyAndVerify(
                     .stagingDirectory,
@@ -15891,40 +15891,22 @@ private extension BackupRestoreService {
         authorityCheck: () throws -> Void,
         body: (Int32, () throws -> Void, (String) throws -> Int32) throws -> T
     ) throws -> T {
-        try withPinnedDirectoryForRegularCreation(
+        try withPinnedDirectory(
             root: root, relativePath: relativePath, createMissing: false,
             authorityCheck: authorityCheck, creationFailure: .materializationFailed,
             body: body)
     }
 #endif
 
+    // Only this scoped primitive can advance a pin for a regular-file create.
+    // The exact +1 transition is evidenced on the pinned native environment;
+    // other deltas fail closed and do not qualify another filesystem/provider.
     private func withPinnedDirectory<T>(
         root: URL,
         relativePath: String,
         createMissing: Bool,
         authorityCheck: () throws -> Void,
-        diagnosticCaller: String = #function,
-        diagnosticOperation: () -> String? = { nil },
-        body: (Int32, () throws -> Void) throws -> T
-    ) throws -> T {
-        try withPinnedDirectoryForRegularCreation(
-            root: root, relativePath: relativePath, createMissing: createMissing,
-            authorityCheck: authorityCheck, creationFailure: .materializationFailed,
-            diagnosticCaller: diagnosticCaller, diagnosticOperation: diagnosticOperation
-        ) { descriptor, verify, _ in
-            try body(descriptor, verify)
-        }
-    }
-
-    // Only this scoped primitive can advance a pin for a regular-file create.
-    // The exact +1 transition is evidenced on the pinned native environment;
-    // other deltas fail closed and do not qualify another filesystem/provider.
-    private func withPinnedDirectoryForRegularCreation<T>(
-        root: URL,
-        relativePath: String,
-        createMissing: Bool,
-        authorityCheck: () throws -> Void,
-        creationFailure: BackupRestoreServiceError,
+        creationFailure: BackupRestoreServiceError = .materializationFailed,
         diagnosticCaller: String = #function,
         diagnosticOperation: () -> String? = { nil },
         body: (Int32, () throws -> Void, (String) throws -> Int32) throws -> T
@@ -16197,7 +16179,7 @@ private extension BackupRestoreService {
             relativePath: parentRelative,
             createMissing: false,
             authorityCheck: authorityCheck
-        ) { parentDescriptor, verifyDirectories in
+        ) { parentDescriptor, verifyDirectories, _ in
             let flags: Int32 = expectedDirectory
                 ? (O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
                 : (O_RDONLY | O_NONBLOCK | O_NOFOLLOW)

@@ -1,3 +1,5 @@
+Current561 originals35644280896/35644462933 failed compilation at the nonescaping adapter; Restore7 andReminder33 all40NotStarted. Owned-create hostile cases and ordinary report Replace readback are still unexecuted. The separately reviewed repeated-Fork report test and10existing S6_5 methods remain unenrolled; reconcile the complete family at the next coverage transition without changing current diagnostic membership.
+
 Directory-pin diagnostic atfbc: original35626799645 compiles6/7, Golden remains failed. Required next evidence is exact caller/pin attribution plus immediate before/after owned exclusive-create facts under unchanged Restore7/D30 route; no production predicate correction or acceptance is claimed. Two fbc Erase peers remain pending sole audits. New snapshot-family regressions remain unexecuted.
 
 ## Owned-create correction and immutable-report control
