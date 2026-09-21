@@ -139,6 +139,7 @@ final class S6_5ReplacementUnionTests: XCTestCase {
     func testGoldenReplacementKeepsIncomingLiveAndUnionsCurrentRoot() async throws {
         var diagnosticPhase = "fixture.begin"
         var firstRecoveryOrigin: String?
+        var rowHistoryDiagnostics: [String] = []
         diagnosticPhase = "fixture.root"
         let root = try makeRoot("golden")
         // Keep cleanup outside the caught scope so original-error evidence is
@@ -193,6 +194,12 @@ final class S6_5ReplacementUnionTests: XCTestCase {
             service.restorePhaseDiagnosticForTesting = { value in
                 if value == "restore-error.recovery.begin", firstRecoveryOrigin == nil {
                     firstRecoveryOrigin = diagnosticPhase
+                }
+                if firstRecoveryOrigin == nil,
+                   value.hasPrefix("rows.history.") || value.hasPrefix("rows.schema."),
+                   rowHistoryDiagnostics.count < 32,
+                   !rowHistoryDiagnostics.contains(value) {
+                    rowHistoryDiagnostics.append(value)
                 }
                 diagnosticPhase = "restore." + value
             }
@@ -304,12 +311,84 @@ final class S6_5ReplacementUnionTests: XCTestCase {
             if let firstRecoveryOrigin {
                 print("ReplacementUnionGolden.firstRecoveryOrigin=\(firstRecoveryOrigin)")
             }
+            for value in rowHistoryDiagnostics {
+                print("ReplacementUnionGolden.historyDifference=\(value)")
+            }
             if let policyError = error as? ProtectedFilePolicyError,
                case .resourceValueMismatch = policyError {
                 print("ReplacementUnionGolden.failure.protectedFileResourceValueMismatch")
             }
             throw originalError
         }
+    }
+
+    @MainActor
+    func testFinalizedReportBytesAndReceiptsSurviveRepeatedForkAndColdReadback() async throws {
+        let root = try makeRoot("report-fork")
+        defer { try? fileManager.removeItem(at: root) }
+        let current = try await makeLiveHarness(
+            root: root, name: "current", base: 20_001, label: "Current sign",
+            observedAt: Date(timeIntervalSince1970: 1_786_708_000))
+        let incoming = try await makeLiveHarness(
+            root: root, name: "incoming", base: 21_001, label: "Finalized source sign",
+            observedAt: Date(timeIntervalSince1970: 1_786_709_000))
+        let frozen = try freezeReportPreservation(in: incoming)
+        let package = try exportPackage(incoming, root: root, name: "original-report")
+        let packageBefore = try fileTree(package)
+        let validated = try importPackage(package, into: current.session, stageID: uuid(22_001))
+        let first = try await BackupRestoreService(applicationSupportURL: current.support).restore(
+            validatedPackage: validated,
+            currentModelContext: current.session.modelContext,
+            currentGenerationID: current.session.generationID,
+            currentGenerationRootURL: current.session.generationRootURL,
+            mode: .fork)
+        XCTAssertNotEqual(first.workspaceID, current.session.workspaceID)
+        XCTAssertNotEqual(first.workspaceID, incoming.session.workspaceID)
+        XCTAssertNotEqual(first.workspaceIdentity.replicaID, current.session.workspaceIdentity.replicaID)
+        XCTAssertNotEqual(first.workspaceIdentity.replicaID, incoming.session.workspaceIdentity.replicaID)
+        XCTAssertNotEqual(first.generationID, current.session.generationID)
+        XCTAssertEqual(try fileTree(package), packageBefore)
+        XCTAssertFalse(fileManager.fileExists(atPath: validated.stagedPackageURL.path))
+
+        // Open a fresh factory and use the production lifecycle-bound report
+        // readers. A retained source model or PDF alone is not readback proof.
+        let firstFactory = StoreGenerationFactory(applicationSupportURL: current.support)
+        let firstReopened = try firstFactory.openOrBootstrapCurrent()
+        XCTAssertEqual(firstReopened.generationID, first.generationID)
+        XCTAssertEqual(firstReopened.workspaceIdentity, first.workspaceIdentity)
+        try assertPreservedReportAfterReopen(frozen, in: firstReopened)
+        let firstHarness = LiveHarness(
+            support: current.support, factory: firstFactory, session: firstReopened,
+            packetID: incoming.packetID, rootID: incoming.rootID,
+            packetCreatedAt: incoming.packetCreatedAt)
+        let secondPackage = try exportPackage(firstHarness, root: root, name: "forked-report")
+        let secondPackageBefore = try fileTree(secondPackage)
+        XCTAssertEqual(try fileTree(package), packageBefore)
+        try fileManager.removeItem(at: package)
+        XCTAssertFalse(fileManager.fileExists(atPath: package.path))
+
+        let secondValidated = try importPackage(
+            secondPackage, into: firstReopened, stageID: uuid(22_002))
+        let second = try await BackupRestoreService(applicationSupportURL: current.support).restore(
+            validatedPackage: secondValidated,
+            currentModelContext: firstReopened.modelContext,
+            currentGenerationID: firstReopened.generationID,
+            currentGenerationRootURL: firstReopened.generationRootURL,
+            mode: .fork)
+        XCTAssertNotEqual(second.workspaceID, first.workspaceID)
+        XCTAssertNotEqual(second.workspaceID, incoming.session.workspaceID)
+        XCTAssertNotEqual(second.workspaceIdentity.replicaID, first.workspaceIdentity.replicaID)
+        XCTAssertNotEqual(second.generationID, first.generationID)
+        XCTAssertEqual(try fileTree(secondPackage), secondPackageBefore)
+        XCTAssertFalse(fileManager.fileExists(atPath: secondValidated.stagedPackageURL.path))
+        XCTAssertFalse(fileManager.fileExists(atPath: package.path))
+        let secondFactory = StoreGenerationFactory(applicationSupportURL: current.support)
+        let secondReopened = try secondFactory.openOrBootstrapCurrent()
+        XCTAssertEqual(secondReopened.generationID, second.generationID)
+        XCTAssertEqual(secondReopened.workspaceIdentity, second.workspaceIdentity)
+        try assertPreservedReportAfterReopen(frozen, in: secondReopened)
+        XCTAssertFalse(fileManager.fileExists(atPath: current.support
+            .appendingPathComponent("FieldEvidenceRestore/restore.json").path))
     }
 
     @MainActor

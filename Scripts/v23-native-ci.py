@@ -46,8 +46,8 @@ NO_INDEX_PARENT = '5c1e9831153e9e5feddda08e1152de06ecbaaed2'
 NO_INDEX_TREES = {'FieldEvidenceApp': 'cf661d0cb9a754135dfdea02fc7fa81967163331', 'FieldEvidenceAppTests': '6ae80744a230727892ceb04617421d91fd17e53a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 NO_INDEX_RECEIPT = "no-index-build-command.json"
 RESTORE_BUILD_WATCHDOG_SELECTION_ID = "c36-restore-review-no-index-build30m"
-RESTORE_BUILD_WATCHDOG_PARENT = '817dcd8e5253d90a1f786003d85003e11aeb0969'
-RESTORE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '412d50f796ba972aacd08caf8f21aa7be17e8e51', 'FieldEvidenceAppTests': '7a6d0a5c79a67f40f626c069bb13fd28116b510a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+RESTORE_BUILD_WATCHDOG_PARENT = 'ffa750d806852c7bdf8b46120f4bd23c82792eb1'
+RESTORE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '412d50f796ba972aacd08caf8f21aa7be17e8e51', 'FieldEvidenceAppTests': '1429dc1170ee97d6875b80368a9deb0f64a85d86', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 RESTORE_BUILD_WATCHDOG_SELECTORS = tuple(
     "FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/" + method for method in (
         "testPhysicalForkCreatesReviewReceiptAndSecondHopSurvivesOriginalPackageRemoval",
@@ -59,8 +59,8 @@ RESTORE_BUILD_WATCHDOG_SELECTORS = tuple(
     )
 )
 REMINDER_BUILD_WATCHDOG_SELECTION_ID = "reminder-production-no-index-build30m"
-REMINDER_BUILD_WATCHDOG_PARENT = '817dcd8e5253d90a1f786003d85003e11aeb0969'
-REMINDER_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '412d50f796ba972aacd08caf8f21aa7be17e8e51', 'FieldEvidenceAppTests': '7a6d0a5c79a67f40f626c069bb13fd28116b510a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+REMINDER_BUILD_WATCHDOG_PARENT = 'ffa750d806852c7bdf8b46120f4bd23c82792eb1'
+REMINDER_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '412d50f796ba972aacd08caf8f21aa7be17e8e51', 'FieldEvidenceAppTests': '1429dc1170ee97d6875b80368a9deb0f64a85d86', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 REMINDER_BUILD_WATCHDOG_GROUPS = ('reminder-policy-edit', 'reminder-production-settings', 'reminder-detailed-delivery', 'reminder-control-continuation')
 REMINDER_BUILD_WATCHDOG_SELECTORS = (
     'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testUnboundAndRetiredOwnersCannotMintOrRebind',
@@ -98,8 +98,8 @@ REMINDER_BUILD_WATCHDOG_SELECTORS = (
     'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testNilContinuationPreservesLegacyCanonicalControlAndSubjectBytes',
 )
 RESTORE_HISTORY_SELECTION_ID = "restore-history-no-index-build30m"
-RESTORE_HISTORY_PARENT = '817dcd8e5253d90a1f786003d85003e11aeb0969'
-RESTORE_HISTORY_TREES = {'FieldEvidenceApp': '412d50f796ba972aacd08caf8f21aa7be17e8e51', 'FieldEvidenceAppTests': '7a6d0a5c79a67f40f626c069bb13fd28116b510a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+RESTORE_HISTORY_PARENT = 'ffa750d806852c7bdf8b46120f4bd23c82792eb1'
+RESTORE_HISTORY_TREES = {'FieldEvidenceApp': '412d50f796ba972aacd08caf8f21aa7be17e8e51', 'FieldEvidenceAppTests': '1429dc1170ee97d6875b80368a9deb0f64a85d86', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 RESTORE_HISTORY_GROUPS = ("c36-restore-review", "replacement-packet-union")
 RESTORE_HISTORY_PACKET_SELECTOR = 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testGoldenReplacementKeepsIncomingLiveAndUnionsCurrentRoot'
 RESTORE_HISTORY_SELECTORS = RESTORE_BUILD_WATCHDOG_SELECTORS + (RESTORE_HISTORY_PACKET_SELECTOR,)
@@ -187,9 +187,9 @@ ERASE_DIAGNOSTIC_PARTITIONS = (
     (ERASE_DRAIN_SELECTION_ID, ERASE_RECOVERY_SELECTORS[:1]),
     (ERASE_REMAINDER_SELECTION_ID, ERASE_RECOVERY_SELECTORS[1:]),
 )
-GENERATED_SELECTION_PROFILE = "snapshot-family-v1"
-GENERATED_SELECTION_POOL_SHA256 = "C4A8E689048D865A789F6B3A05CFB8373DD98736048F5596E9057A95AA1E2BCA"
-GENERATED_SELECTION_MAP_SHA256 = "78A280FF3A2EF1302BF2E800F77C3C2411C3F9475717D90A3D4008E65E586D08"
+GENERATED_SELECTION_PROFILE = 'replacement-history-coverage-v1'
+GENERATED_SELECTION_POOL_SHA256 = 'CAC57003CD7FFFA77BB4213C7132C62F2B74F16BBF12F4F6017D65372E293C06'
+GENERATED_SELECTION_MAP_SHA256 = 'ED7B55ACCE7622188EFC8DCE634F8ADC621EA384BD791E2397D3A568E74340D7'
 CONFIGURATION_CLONE_SELECTION_ID = "c36-photo-configuration-clone"
 CONFIGURATION_CLONE_SELECTORS = (
     'FieldEvidenceAppTests/S6_2BackupExportTests/testConfigurationCloneAcceptsEveryAuthenticPhotoPhaseAndOmitsOperationalFamily',
@@ -1184,8 +1184,13 @@ def resolve_selection(default, selection_map, selection_id):
     if "replacement-packet-union" in resolved:
         require(all(group in resolved for group in RESTORE_HISTORY_GROUPS),
                 "restore history complete groups")
+        require(resolved["replacement-packet-union"]["unitTestSelectors"].count(
+                    RESTORE_HISTORY_PACKET_SELECTOR) == 1,
+                "restore history enrolled packet method")
         members = tuple(method for group in RESTORE_HISTORY_GROUPS
-                        for method in resolved[group]["unitTestSelectors"])
+                        for method in (resolved[group]["unitTestSelectors"]
+                                       if group != "replacement-packet-union"
+                                       else [RESTORE_HISTORY_PACKET_SELECTOR]))
         require(len(members) == len(set(members)) == 7
                 and members == RESTORE_HISTORY_SELECTORS,
                 "restore history exact ordered disjoint union")
@@ -1397,7 +1402,15 @@ def executed_methods(result, expected, bundle, bundle_type):
             current_bundle = bundle
             bundles.append(bundle)
         if node.get("nodeType") == "Test Case":
-            require(current_bundle == bundle and not children, "leaf native case ownership")
+            require(current_bundle == bundle, "native case ownership")
+            # Xcode attaches runtime warnings to otherwise completed cases. Keep
+            # their original result evidence; annotations are not executions.
+            for child in children:
+                require(isinstance(child, dict)
+                        and set(child) == {"nodeType", "name"}
+                        and child["nodeType"] == "Runtime Warning"
+                        and isinstance(child["name"], str) and bool(child["name"].strip()),
+                        "native case warning annotation")
             identifier = node.get("nodeIdentifier")
             require(isinstance(identifier, str), "native identifier")
             identifier = re.sub(r"\(\)$", "", identifier)
