@@ -46,8 +46,8 @@ NO_INDEX_PARENT = '5c1e9831153e9e5feddda08e1152de06ecbaaed2'
 NO_INDEX_TREES = {'FieldEvidenceApp': 'cf661d0cb9a754135dfdea02fc7fa81967163331', 'FieldEvidenceAppTests': '6ae80744a230727892ceb04617421d91fd17e53a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 NO_INDEX_RECEIPT = "no-index-build-command.json"
 RESTORE_BUILD_WATCHDOG_SELECTION_ID = "c36-restore-review-no-index-build30m"
-RESTORE_BUILD_WATCHDOG_PARENT = '5610366fb9d8effc46bd29ab63cff31c216c737e'
-RESTORE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '77cf0c93a4b63c07f14a550900e99141d1777bab', 'FieldEvidenceAppTests': '7a6d0a5c79a67f40f626c069bb13fd28116b510a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+RESTORE_BUILD_WATCHDOG_PARENT = '817dcd8e5253d90a1f786003d85003e11aeb0969'
+RESTORE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '412d50f796ba972aacd08caf8f21aa7be17e8e51', 'FieldEvidenceAppTests': '7a6d0a5c79a67f40f626c069bb13fd28116b510a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 RESTORE_BUILD_WATCHDOG_SELECTORS = tuple(
     "FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/" + method for method in (
         "testPhysicalForkCreatesReviewReceiptAndSecondHopSurvivesOriginalPackageRemoval",
@@ -59,8 +59,8 @@ RESTORE_BUILD_WATCHDOG_SELECTORS = tuple(
     )
 )
 REMINDER_BUILD_WATCHDOG_SELECTION_ID = "reminder-production-no-index-build30m"
-REMINDER_BUILD_WATCHDOG_PARENT = '5610366fb9d8effc46bd29ab63cff31c216c737e'
-REMINDER_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '77cf0c93a4b63c07f14a550900e99141d1777bab', 'FieldEvidenceAppTests': '7a6d0a5c79a67f40f626c069bb13fd28116b510a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+REMINDER_BUILD_WATCHDOG_PARENT = '817dcd8e5253d90a1f786003d85003e11aeb0969'
+REMINDER_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '412d50f796ba972aacd08caf8f21aa7be17e8e51', 'FieldEvidenceAppTests': '7a6d0a5c79a67f40f626c069bb13fd28116b510a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 REMINDER_BUILD_WATCHDOG_GROUPS = ('reminder-policy-edit', 'reminder-production-settings', 'reminder-detailed-delivery', 'reminder-control-continuation')
 REMINDER_BUILD_WATCHDOG_SELECTORS = (
     'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testUnboundAndRetiredOwnersCannotMintOrRebind',
@@ -98,8 +98,8 @@ REMINDER_BUILD_WATCHDOG_SELECTORS = (
     'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testNilContinuationPreservesLegacyCanonicalControlAndSubjectBytes',
 )
 RESTORE_HISTORY_SELECTION_ID = "restore-history-no-index-build30m"
-RESTORE_HISTORY_PARENT = '5610366fb9d8effc46bd29ab63cff31c216c737e'
-RESTORE_HISTORY_TREES = {'FieldEvidenceApp': '77cf0c93a4b63c07f14a550900e99141d1777bab', 'FieldEvidenceAppTests': '7a6d0a5c79a67f40f626c069bb13fd28116b510a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+RESTORE_HISTORY_PARENT = '817dcd8e5253d90a1f786003d85003e11aeb0969'
+RESTORE_HISTORY_TREES = {'FieldEvidenceApp': '412d50f796ba972aacd08caf8f21aa7be17e8e51', 'FieldEvidenceAppTests': '7a6d0a5c79a67f40f626c069bb13fd28116b510a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 RESTORE_HISTORY_GROUPS = ("c36-restore-review", "replacement-packet-union")
 RESTORE_HISTORY_PACKET_SELECTOR = 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testGoldenReplacementKeepsIncomingLiveAndUnionsCurrentRoot'
 RESTORE_HISTORY_SELECTORS = RESTORE_BUILD_WATCHDOG_SELECTORS + (RESTORE_HISTORY_PACKET_SELECTOR,)

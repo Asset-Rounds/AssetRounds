@@ -15885,18 +15885,6 @@ private extension BackupRestoreService {
         return components
     }
 
-#if DEBUG
-    func c36WithPinnedRegularCreationForTesting<T>(
-        root: URL, relativePath: String,
-        authorityCheck: () throws -> Void,
-        body: (Int32, () throws -> Void, (String) throws -> Int32) throws -> T
-    ) throws -> T {
-        try withPinnedDirectory(
-            root: root, relativePath: relativePath, createMissing: false,
-            authorityCheck: authorityCheck, creationFailure: .materializationFailed,
-            body: body)
-    }
-#endif
 
     // Only this scoped primitive can advance a pin for a regular-file create.
     // The exact +1 transition is evidenced on the pinned native environment;
@@ -18859,6 +18847,17 @@ private extension BackupRestoreService {
 
 #if DEBUG
 internal extension BackupRestoreService {
+    func c36WithPinnedRegularCreationForTesting<T>(
+        root: URL, relativePath: String,
+        authorityCheck: () throws -> Void,
+        body: (Int32, () throws -> Void, (String) throws -> Int32) throws -> T
+    ) throws -> T {
+        try withPinnedDirectory(
+            root: root, relativePath: relativePath, createMissing: false,
+            authorityCheck: authorityCheck, creationFailure: .materializationFailed,
+            body: body)
+    }
+
     func c36RecoveryPlanForTesting(
         current: V4BackupRecordsV1,
         currentIdentity: WorkspaceReplicaIdentityV1,
