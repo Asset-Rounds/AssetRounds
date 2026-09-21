@@ -5957,7 +5957,9 @@ final class MutationJournalStoreV1 {
             lastLocalSequence: try domainRevision(state.lastLocalSequence),
             receipts: receipts,
             quarantines: quarantines,
-            entityRevisions: revisions
+            // Match the canonical restore planner independently of the store's
+            // string collation. Receipt order and persisted rows stay intact.
+            entityRevisions: revisions.sorted { $0.identity.stableKey < $1.identity.stableKey }
         )
     }
 
@@ -8047,6 +8049,162 @@ final class MutationJournalStoreV1 {
             PersistedPostImageDigestBasis(identity: identity, revision: revision, value: value)
         )
         return try Self.postImage(identity: identity, revision: revision, digest: digest)
+    }
+
+    /// Plan inherited row projections from authenticated, normalized input,
+    /// independently of the destination database that will be checked later.
+    static func planningCoreRestoreHistory(
+        in records: V4BackupRecordsV1,
+        workspaceID: WorkspaceID
+    ) throws -> MutationHistorySnapshotV1 {
+        guard let history = records.mutationHistory else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        try validateImportedSnapshot(history)
+        let receiptImages = try receiptTerminalImages(in: history, workspaceID: workspaceID)
+        let revisions = try history.entityRevisions.map { value in
+            guard let projected = try coreRestorePostImage(
+                value.identity, revision: value.revision,
+                records: records, workspaceID: workspaceID
+            ) else { return value }
+            if value.externalProjectionSHA256 == projected.semanticSHA256
+                || (value.externalProjectionSHA256 == nil
+                    && receiptImages[value.identity] == projected) {
+                return value
+            }
+            return MutationHistoryEntityRevisionV1(
+                identity: value.identity, revision: value.revision,
+                externalProjectionSHA256: projected.semanticSHA256
+            )
+        }
+        let result = MutationHistorySnapshotV1(
+            workspaceRevision: history.workspaceRevision,
+            lastLocalSequence: history.lastLocalSequence,
+            receipts: history.receipts, quarantines: history.quarantines,
+            entityRevisions: revisions.sorted { $0.identity.stableKey < $1.identity.stableKey }
+        )
+        try validateImportedSnapshot(result)
+        return result
+    }
+
+    private static func coreRestorePostImage(
+        _ identity: WorkspaceEntityIdentityV1,
+        revision: UInt64,
+        records: V4BackupRecordsV1,
+        workspaceID: WorkspaceID
+    ) throws -> MutationPostImageV1? {
+        func one<Value>(_ values: [Value]) throws -> Value? {
+            guard values.count <= 1 else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+            return values.first
+        }
+        func absent() throws -> MutationPostImageV1 {
+            .tombstone(identity: identity, revision: revision,
+                       semanticSHA256: try restoreTombstoneSHA256(identity: identity, revision: revision))
+        }
+        @MainActor func image<Value: Codable>(_ value: Value?) throws -> MutationPostImageV1 {
+            guard let value else { return try absent() }
+            let digest = try WorkspaceMutationCanonicalV1.sha256(
+                PersistedPostImageDigestBasis(identity: identity, revision: revision, value: value)
+            )
+            return try postImage(identity: identity, revision: revision, digest: digest)
+        }
+        let id = identity.id
+        switch identity.kind {
+        case .site:
+            return try image(one(records.sites.filter { $0.id == id }))
+        case .asset:
+            guard let asset = try one(records.assets.filter({ $0.id == id })) else { return try absent() }
+            let semantic = try restoreAssetSemanticSnapshot(in: records, workspaceID: workspaceID, assetID: id)
+            return try image(AssetSemanticAssetPostImageV1(asset: asset, semantic: semantic))
+        case .locationNode:
+            guard let row = try one(records.locationNodes.filter({ $0.id == id })) else { return try absent() }
+            let value = try LocationPersistenceCodecV1.decode(LocationNodeV1.self, from: row.canonicalData)
+            try value.validate()
+            guard value.id == id else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+            return try image(value)
+        case .assetPlacementEvent:
+            guard let row = try one(records.assetPlacementEvents.filter({ $0.id == id })) else { return try absent() }
+            let value = try LocationPersistenceCodecV1.decode(AssetPlacementEventV1.self, from: row.canonicalData)
+            try value.validate()
+            guard value.id == id else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+            return try image(value)
+        case .assetCompositionEdge:
+            guard let row = try one(records.assetCompositionEdges.filter({ $0.id == id })) else { return try absent() }
+            let value = try LocationPersistenceCodecV1.decode(AssetCompositionEdgeV1.self, from: row.canonicalData)
+            try value.validate()
+            guard value.id == id else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+            return try image(value)
+        case .assetCompositionEvent:
+            guard let row = try one(records.assetCompositionEvents.filter({ $0.id == id })) else { return try absent() }
+            let value = try LocationPersistenceCodecV1.decode(AssetCompositionEventV1.self, from: row.canonicalData)
+            try value.validate()
+            guard value.id == id else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+            return try image(value)
+        case .savedSmartView:
+            guard let row = try one(records.savedSmartViews.filter({ $0.id == id })) else { return try absent() }
+            return try image(row.descriptor())
+        case .workflowRecord:
+            guard let record = try one(records.workflowRecords.filter({ $0.id == id })) else { return try absent() }
+            let assurance = try one(records.requirementAssurance.filter { $0.workflowRecordID == id })
+            return try image(WorkflowRecordPostImageV8(record: record,
+                requirementAssurance: try assurance?.snapshot()))
+        case .evidenceFile:
+            return try image(one(records.evidenceFiles.filter { $0.id == id }))
+        case .issue:
+            return try image(one(records.issues.filter { $0.id == id }))
+        case .packet:
+            return try image(one(records.packets.filter { $0.id == id }))
+        case .report:
+            return try image(one(records.reports.filter { $0.id == id }))
+        case .deletionLedgerEntry:
+            return try image(one((records.deletionLedger?.entries ?? []).filter { $0.identity.id == id }))
+        default:
+            // Other families keep their existing, family-owned restore plans.
+            return nil
+        }
+    }
+
+    private static func restoreAssetSemanticSnapshot(
+        in records: V4BackupRecordsV1, workspaceID: WorkspaceID, assetID: UUID
+    ) throws -> AssetSemanticPersistentSnapshotV1 {
+        var kinds: [AssetKindBindingEventV1] = []
+        var capabilities: [AssetWorkflowCapabilityBindingEventV1] = []
+        var products: [AssetProductIdentityV1] = []
+        var lifecycles: [AssetLifecycleEventV1] = []
+        var links: [AssetSuccessorLinkV1] = []
+        var scopes: [WorkSubjectScopeSnapshotV1] = []
+        for row in records.assetSemantics where row.workspaceID == workspaceID.rawValue {
+            switch row.kind {
+            case .kindBindingEvent:
+                let value = try AssetSemanticCanonicalCodecV1.decode(AssetKindBindingEventV1.self, from: row.canonicalData)
+                if value.assetID == assetID { kinds.append(value) }
+            case .workflowCapabilityBindingEvent:
+                let value = try AssetSemanticCanonicalCodecV1.decode(AssetWorkflowCapabilityBindingEventV1.self, from: row.canonicalData)
+                if value.assetID == assetID { capabilities.append(value) }
+            case .productIdentity:
+                let value = try AssetSemanticCanonicalCodecV1.decode(AssetProductIdentityV1.self, from: row.canonicalData)
+                if value.assetID == assetID { products.append(value) }
+            case .lifecycleEvent:
+                let value = try AssetSemanticCanonicalCodecV1.decode(AssetLifecycleEventV1.self, from: row.canonicalData)
+                if value.record.assetID == assetID { lifecycles.append(value) }
+            case .successorLink:
+                let value = try AssetSemanticCanonicalCodecV1.decode(AssetSuccessorLinkV1.self, from: row.canonicalData)
+                if value.predecessorAssetID == assetID { links.append(value) }
+            case .workSubjectScopeSnapshot:
+                let value = try AssetSemanticCanonicalCodecV1.decode(WorkSubjectScopeSnapshotV1.self, from: row.canonicalData)
+                if value.subjects.contains(where: {
+                    ($0.kind == .asset && $0.subjectID == assetID) || $0.ownerAssetID == assetID
+                }) || value.semanticBindings.contains(where: { $0.assetID == assetID }) {
+                    scopes.append(value)
+                }
+            }
+        }
+        return try AssetSemanticPersistentSnapshotV1(
+            workspaceID: workspaceID, assetID: assetID,
+            kindBindings: kinds, workflowCapabilityBindings: capabilities,
+            productIdentities: products, lifecycleEvents: lifecycles,
+            successorLinks: links, workSubjectScopes: scopes
+        )
     }
 
     nonisolated static func restoreTombstoneSHA256(

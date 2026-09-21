@@ -215,6 +215,18 @@ private final class ReminderEditBlockingDefaults: UserDefaults {
         }
     }
 
+    private nonisolated static func observeSignal(
+        _ semaphore: DispatchSemaphore, until deadline: DispatchTime
+    ) async -> DispatchTimeoutResult {
+        // Observe the real lock-held handshake without blocking MainActor.
+        // Retain the caller's absolute deadline, including queue scheduling time.
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .default).async {
+                continuation.resume(returning: semaphore.wait(timeout: deadline))
+            }
+        }
+    }
+
     func testActualPreferenceWriteSerializesWithRevocationAndRetirement() async throws {
         for retiresOwner in [false, true] {
             let fixture = try ReminderEditFixture(blocksLeafRead: true)
@@ -230,7 +242,8 @@ private final class ReminderEditBlockingDefaults: UserDefaults {
             // Pause the real leaf after it owns both locks, without wrapping
             // update in a second acquisition of the nonrecursive reference.
             let writer = Task.detached { try preferences.updateReminderPolicy(command) }
-            XCTAssertEqual(blocked.entered.wait(timeout: .now() + 5), .success)
+            let entered = await Self.observeSignal(blocked.entered, until: .now() + 5)
+            XCTAssertEqual(entered, .success)
             let transitionStarted = blocked.transitionStarted
             let transitionFinished = blocked.transitionFinished
             let transition = Task.detached {
@@ -239,8 +252,10 @@ private final class ReminderEditBlockingDefaults: UserDefaults {
                 else { await gate.sceneBecameInactive() }
                 transitionFinished.signal()
             }
-            XCTAssertEqual(blocked.transitionStarted.wait(timeout: .now() + 5), .success)
-            XCTAssertEqual(blocked.transitionFinished.wait(timeout: .now() + 0.1), .timedOut)
+            let started = await Self.observeSignal(blocked.transitionStarted, until: .now() + 5)
+            XCTAssertEqual(started, .success)
+            let prematureFinish = await Self.observeSignal(blocked.transitionFinished, until: .now() + 0.1)
+            XCTAssertEqual(prematureFinish, .timedOut)
             blocked.release.signal()
             let updated = try await writer.value
             await transition.value

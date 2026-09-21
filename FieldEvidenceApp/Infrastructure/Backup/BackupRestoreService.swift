@@ -3986,6 +3986,8 @@ private extension BackupRestoreService {
             savedSmartViews: records.savedSmartViews,
             sites: records.sites,
             workflowRecords: records.workflowRecords,
+            evidenceContexts: records.evidenceContexts,
+            pairedObservationLinks: records.pairedObservationLinks,
             lighting: records.lighting,
             lightingDayInventoryWorkflows: records.lightingDayInventoryWorkflows,
             lightingNightWorkflows: records.lightingNightWorkflows,
@@ -4658,6 +4660,16 @@ private extension BackupRestoreService {
         normalized.practiceWorkspaceProvenance = records.practiceWorkspaceProvenance
         normalized.lightingDayInventoryWorkflows = records.lightingDayInventoryWorkflows
         normalized.lightingNightWorkflows = records.lightingNightWorkflows
+        // Freeze the destination projections from normalized input before any
+        // rows are written. Foreign original receipts remain immutable and do
+        // not become this workspace's receipt-backed terminal authority.
+        let projectionWorkspaceID = WorkspaceID(
+            rawValue: identityDecision?.targetPointer.workspaceID ?? legacyWorkspaceID
+        )
+        let projectedHistory = try MutationJournalStoreV1.planningCoreRestoreHistory(
+            in: normalized, workspaceID: projectionWorkspaceID
+        )
+        normalized = replacingMutationHistoryForCurrentWriter(in: normalized, with: projectedHistory)
         guard let history = normalized.mutationHistory else {
             throw BackupRestoreServiceError.invalidPackage
         }

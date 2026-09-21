@@ -189,6 +189,11 @@ final class S6_5ReplacementUnionTests: XCTestCase {
             diagnosticPhase = "restore.observation-schema-contract"
             let incomingRecords = try service.c55CurrentRecordsForTesting(
                 in: incoming.session.modelContext)
+            try assertCoreRestoreProjectionPlanning(
+                service: service, records: incomingRecords,
+                sourceWorkspaceID: incoming.session.workspaceIdentity.workspaceID,
+                destinationWorkspaceID: current.session.workspaceIdentity.workspaceID
+            )
             try assertObservationSchemaContract(service: service,
                 value: XCTUnwrap(incomingRecords.workflowRecords.first))
             service.restorePhaseDiagnosticForTesting = { value in
@@ -1265,6 +1270,102 @@ private extension S6_5ReplacementUnionTests {
         }
     }
 #endif
+
+    @MainActor
+    func assertCoreRestoreProjectionPlanning(
+        service: BackupRestoreService,
+        records: V4BackupRecordsV1,
+        sourceWorkspaceID: WorkspaceID,
+        destinationWorkspaceID: WorkspaceID
+    ) throws {
+        XCTAssertNotEqual(sourceWorkspaceID, destinationWorkspaceID)
+        let original = try XCTUnwrap(records.mutationHistory)
+        let sourcePlan = try MutationJournalStoreV1.planningCoreRestoreHistory(
+            in: records, workspaceID: sourceWorkspaceID
+        )
+        XCTAssertEqual(sourcePlan.entityRevisions,
+            original.entityRevisions.sorted { $0.identity.stableKey < $1.identity.stableKey })
+        let destinationPlan = try MutationJournalStoreV1.planningCoreRestoreHistory(
+            in: records, workspaceID: destinationWorkspaceID
+        )
+        for plan in [sourcePlan, destinationPlan] {
+            XCTAssertEqual(plan.receipts, original.receipts)
+            XCTAssertEqual(plan.quarantines, original.quarantines)
+            XCTAssertEqual(plan.workspaceRevision, original.workspaceRevision)
+            XCTAssertEqual(plan.lastLocalSequence, original.lastLocalSequence)
+            XCTAssertEqual(plan.entityRevisions.map(\.identity),
+                original.entityRevisions.map(\.identity).sorted { $0.stableKey < $1.stableKey })
+            for terminal in plan.entityRevisions {
+                XCTAssertEqual(terminal.revision,
+                    try XCTUnwrap(original.entityRevisions.first { $0.identity == terminal.identity }).revision)
+            }
+        }
+        let coreKinds: Set<WorkspaceEntityKindV1> = [
+            .site, .asset, .locationNode, .assetPlacementEvent,
+            .assetCompositionEdge, .assetCompositionEvent, .savedSmartView,
+            .workflowRecord, .evidenceFile, .issue, .packet, .report, .deletionLedgerEntry,
+        ]
+        let originalByID = Dictionary(uniqueKeysWithValues: original.entityRevisions.map { ($0.identity, $0) })
+        for terminal in destinationPlan.entityRevisions {
+            if coreKinds.contains(terminal.identity.kind) {
+                XCTAssertNotNil(terminal.externalProjectionSHA256)
+            } else {
+                XCTAssertEqual(terminal, originalByID[terminal.identity])
+            }
+        }
+        // Expected bytes come from the frozen site DTO, not the planner's output
+        // or a materialized destination journal.
+        let site = try XCTUnwrap(records.sites.first)
+        let siteIdentity = try WorkspaceEntityIdentityV1(kind: .site, id: site.id)
+        let siteTerminal = try XCTUnwrap(destinationPlan.entityRevisions.first { $0.identity == siteIdentity })
+        struct SiteBasis: Codable {
+            let identity: WorkspaceEntityIdentityV1
+            let revision: UInt64
+            let value: V4BackupSiteDTO
+        }
+        XCTAssertEqual(siteTerminal.externalProjectionSHA256, try WorkspaceMutationCanonicalV1.sha256(
+            SiteBasis(identity: siteIdentity, revision: siteTerminal.revision, value: site)))
+        XCTAssertEqual(records.mutationHistory, original)
+
+#if DEBUG
+        // This is a history-copy regression, not C30 semantic admission. Opaque
+        // payload sentinels must survive unchanged; the copier must not decode them.
+        let context = V30BackupEvidenceContextRecordV1(kind: .evidenceContext,
+            id: uuid(810), workspaceID: sourceWorkspaceID.rawValue, revision: 1,
+            canonicalData: Data("context-copy-sentinel".utf8))
+        let link = V30BackupEvidenceContextRecordV1(kind: .pairedObservationLink,
+            id: uuid(811), workspaceID: sourceWorkspaceID.rawValue, revision: 2,
+            canonicalData: Data("paired-link-copy-sentinel".utf8))
+        var populatedObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(records)) as? [String: Any])
+        populatedObject["evidenceContexts"] = try JSONSerialization.jsonObject(
+            with: JSONEncoder().encode([context]))
+        populatedObject["pairedObservationLinks"] = try JSONSerialization.jsonObject(
+            with: JSONEncoder().encode([link]))
+        let populated = try JSONDecoder().decode(V4BackupRecordsV1.self,
+            from: JSONSerialization.data(withJSONObject: populatedObject))
+        XCTAssertEqual(populated.evidenceContexts, [context])
+        XCTAssertEqual(populated.pairedObservationLinks, [link])
+        let copied = service.c36ReplacingMutationHistoryForTesting(
+            in: populated, with: destinationPlan)
+        populatedObject["mutationHistory"] = try JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(destinationPlan))
+        let expectedCopy = try JSONDecoder().decode(V4BackupRecordsV1.self,
+            from: JSONSerialization.data(withJSONObject: populatedObject))
+        XCTAssertEqual(copied, expectedCopy)
+#endif
+
+        // A duplicate planned row must reach and fail the changed entry point.
+        // Decoding happens outside the failure assertion so it cannot mask it.
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(records)) as? [String: Any])
+        let sites = try XCTUnwrap(object["sites"] as? [[String: Any]])
+        XCTAssertFalse(sites.isEmpty)
+        object["sites"] = sites + [try XCTUnwrap(sites.first)]
+        let duplicated = try JSONDecoder().decode(V4BackupRecordsV1.self,
+            from: JSONSerialization.data(withJSONObject: object))
+        XCTAssertThrowsError(try MutationJournalStoreV1.planningCoreRestoreHistory(
+            in: duplicated, workspaceID: destinationWorkspaceID))
+    }
 
     struct FrozenReportPreservation {
         let reportID: UUID
