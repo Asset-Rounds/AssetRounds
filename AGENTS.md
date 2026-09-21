@@ -42,13 +42,20 @@ Use the existing five GitHub and three Bitrise capacity only for distinct, sourc
 
 ## Reusable development build allowance — owner approved 2026-09-20
 
-The owner permits the 30-minute proposal to be permanent or temporary. Use the existing closed `c36-restore-review-no-index-build30m` route for dependency-ready development checks with build1800/total3000, setup/artifact300, tests900, UI0 and job90min unchanged. Each candidate still needs exact source/parent/environment binding, independent actual-index and committed-route review, original-attempt deduplication and sole collection. Rebind reviewed source pins for each causal candidate; do not create per-head helper copies. Keep ordinary and acceptance budgets unchanged. This supersedes the temporary-only development choice below; it does not reopen either historical original allowance.
+The owner permits the 30-minute proposal to be permanent or temporary. Reuse the closed no-index development routes below after source/helper qualification. All use build1800/test900/setup-artifact300/total3000/UI0/job90min; ordinary and acceptance budgets remain unchanged.
 
-Apply that same reusable development allowance to the closed `reminder-production-no-index-build30m` diagnostic after its source/helper qualification: the exact ordered33-method union of the four existing reminder groups, one no-index build, build1800/test900/setup-artifact300/total3000/UI0/job90min. Four originals at5b49597 reached build1200 with no compiler errors and no tests started; do not repeat them unchanged. Preserve ordinary groups, default868/53, every historical profile, assertions, environment and acceptance budgets. Each run must answer a new evidenced question; a larger limit grants no retry or acceptance. Measure compilation and method timings before deciding whether any later split or shared-build qualification would help. More available runners alone do not justify duplicate full builds.
+| Closed diagnostic selector | Exact existing method boundary |
+| --- | --- |
+| `c36-restore-review-no-index-build30m` | Six restore-review journeys |
+| `reminder-production-no-index-build30m` | Ordered33-method union of the four reminder groups |
+| `restore-history-no-index-build30m` | Six restore-review methods followed by the golden replacement-union method |
+| `erase-recovery-no-index-build30m` | Exact ordered13 methods from ordinary `erase-recovery` |
+
+Each candidate needs exact source/parent/environment binding, independent actual-index and committed-route review, original-attempt deduplication and sole collection. Rebind reviewed source pins; reuse parameterized helpers. Every original must answer a new evidenced question. Preserve all methods, historical selectors, normal budgets and acceptance gates. No unchanged retry, duplicate, Actions rerun, cancellation, paid capacity or provider/merge/release credit. Measure compilation and method timings before further splits or shared-build changes; idle runners alone do not justify repeated full builds. This reusable allowance supersedes the temporary-only development choice; it does not reopen consumed historical originals.
+
+Erase original35548772193 at0d1b340 is audited: build1200/exit124,0Swift errors,13NotStarted. Its next diagnostic preserves the app/tests/project and the13 methods while applying the qualified existing no-index30-minute recipe. Stop if that enlarged route yields no discriminating evidence; choose the next causal change from retained build evidence.
 
 Original `35488379036` at `94df47d940ef3cdbc993336a157c5145d84ee812` is audited: build hit1200 seconds/exit124, zero Swift errors, six tests NotStarted. The next development question is whether the unchanged corrected app/tests finish compilation and the six restore journeys execute with1800 seconds. No automatic retry, duplicate, Actions rerun, cancellation, paid capacity, provider/merge/release acceptance or test weakening. Stop if the enlarged limit yields no discriminating evidence; use the retained build evidence to choose the next causal change.
-
-The same reusable development allowance covers the closed `restore-history-no-index-build30m` question after source/helper qualification: the exact ordered six existing restore-review methods followed by `S6_5ReplacementUnionTests/testGoldenReplacementKeepsIncomingLiveAndUnionsCurrentRoot`. Use one no-index build with build1800/test900/setup-artifact300/total3000/UI0/job90min. Preserve original restore6/reminder33 routes, all historical profiles, normal/acceptance budgets and the pinned environment. Bind each candidate's exact source/parent/environment; require independent actual-index and committed-route review, original-attempt deduplication and sole collection. Each original must answer a new evidenced question. This permits no unchanged retry, provider qualification, merge/release acceptance, extra capacity or test weakening.
 
 ## Historical one-run GitHub build diagnostics — consumed
 

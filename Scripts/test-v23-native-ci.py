@@ -414,7 +414,7 @@ def frozen_begin_suite_source():
         'V23CheckRunnerFrozenBeginPreparationTests','V23CheckRunnerFrozenBeginWriterTests','V23CheckRunnerDurableInitialBeginTests'))
 
 def prepartition_workflow(workflow):
-    for group_id in ('erase-lease-lifecycle', CI.ERASE_RECOVERY_SELECTION_ID, 'replacement-packet-union', CI.RESTORE_HISTORY_SELECTION_ID):
+    for group_id in ('erase-lease-lifecycle', CI.ERASE_RECOVERY_SELECTION_ID, CI.ERASE_BUILD_WATCHDOG_SELECTION_ID, 'replacement-packet-union', CI.RESTORE_HISTORY_SELECTION_ID):
         choice = '          - ' + group_id + '\n'
         if workflow.count(choice) != 1: raise AssertionError('missing exact restore history choice')
         workflow = workflow.replace(choice, '')
@@ -542,7 +542,7 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
                   'DISPATCH_NATIVE_SELECTION_MAP_SHA256':record['selectionMapSHA256']})
         for stage in ('dispatch', 'worker'):
             self.assertEqual(CI.admission(selected, e, HEAD, stage, record)['selectionID'], CI.ERASE_RECOVERY_SELECTION_ID)
-        for name in ('erase-recovery-extra', 'erase-recovery-no-index-build30m'):
+        for name in ('erase-recovery-extra', 'erase-recovery-no-index-build30m-retry'):
             with self.assertRaises(ValueError): CI.resolve_selection(self.default, self.mapping, name)
         for position in (0, 8, 12):
             changed = copy.deepcopy(selected)
@@ -876,7 +876,7 @@ class ReportPartitionTests(unittest.TestCase):
         expected.insert(expected.index('replacement-packet-union') + 1, CI.RESTORE_HISTORY_SELECTION_ID)
         expected.remove('erase-lease-lifecycle')
         offset=expected.index('replacement-packet-union')
-        expected[offset:offset]=['erase-lease-lifecycle', CI.ERASE_RECOVERY_SELECTION_ID]
+        expected[offset:offset]=['erase-lease-lifecycle', CI.ERASE_RECOVERY_SELECTION_ID, CI.ERASE_BUILD_WATCHDOG_SELECTION_ID]
         self.assertEqual([line.strip()[2:] for line in field.splitlines() if line.startswith('          - ')],expected)
 
     def test_photo_backup_partitions_cover_exact_append_once_and_keep_native_contract(self):
@@ -1435,7 +1435,7 @@ class RestoreBuildWatchdogDiagnosticTests(unittest.TestCase):
 
     def test_development_binding_rejects_consumed_build30_source(self):
         self.assertEqual(CI.NO_INDEX_PARENT, '5c1e9831153e9e5feddda08e1152de06ecbaaed2')
-        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_PARENT, '6cd506d35883c9b2e1c31db9a3116319b05414d6')
+        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_PARENT, '0d1b340b3f994fa738724cc9d143aebc0e6cf833')
         self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_TREES['FieldEvidenceAppTests'], '68211f3af7cfe153584c25c319161d8410b5acd1')
         self.assertEqual(CI.NO_INDEX_TREES['FieldEvidenceAppTests'], '6ae80744a230727892ceb04617421d91fd17e53a')
         for stage in ('dispatch', 'worker'):
@@ -1713,6 +1713,106 @@ class RestoreHistoryBuildWatchdogDiagnosticTests(unittest.TestCase):
     def test_worker_budget_filter_accepts_complete_union_only(self):
         BuildWatchdogDiagnosticTests.test_actual_worker_budget_filter_accepts_only_exact_diagnostic_and_retains_ordinary_tiers(self)
 
+
+class EraseBuildWatchdogDiagnosticTests(unittest.TestCase):
+    bound_environment = NoIndexBuildDiagnosticTests.bound_environment
+    git_facts = NoIndexBuildDiagnosticTests.git_facts
+    build_fixture = NoIndexBuildDiagnosticTests.build_fixture
+    run_mock_build = NoIndexBuildDiagnosticTests.run_mock_build
+
+    def setUp(self):
+        self.default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        self.mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.selected = CI.resolve_selection(self.default, self.mapping, CI.ERASE_BUILD_WATCHDOG_SELECTION_ID)
+        self.record = {'selectionID': CI.ERASE_BUILD_WATCHDOG_SELECTION_ID,
+                       'selectionSHA256': CI.sha256(CI.canonical(self.selected)),
+                       'selectionMapSHA256': CI.sha256(CI.canonical(self.mapping)),
+                       'head': HEAD, 'runID': '123', 'runAttempt': '1'}
+        self.header = ('tree ' + 'a'*40 + '\nparent ' + CI.ERASE_BUILD_WATCHDOG_PARENT + '\n\nmessage\n').encode()
+
+    def test_public_dispatch_exposes_erase_development_selection_once(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        self.assertIsNotNone(block)
+        self.assertIn('        type: choice\n', block.group(1))
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        self.assertEqual(options.count(CI.ERASE_BUILD_WATCHDOG_SELECTION_ID), 1)
+        self.assertEqual(len(options), len(set(options)))
+
+    def test_exact_ordered_erase_selection_preserves_ordinary_and_default(self):
+        ordinary = CI.resolve_selection(self.default, self.mapping, CI.ERASE_RECOVERY_SELECTION_ID)
+        members = ordinary['unitTestSelectors']
+        self.assertEqual(tuple(members), CI.ERASE_RECOVERY_SELECTORS)
+        self.assertEqual(len(set(members)), 13)
+        self.assertEqual(ordinary['tier'], 'N8')
+        self.assertEqual(tuple(ordinary[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
+        self.assertNotIn(CI.ERASE_RECOVERY_SELECTION_ID, CI.NO_INDEX_ROUTES)
+        self.assertEqual(self.selected['unitTestSelectors'], members)
+        self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
+        self.assertFalse(self.selected['runUISmoke'])
+        self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.DEFAULT_SELECTION_ID), self.default)
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (880, 55))
+        for suffix in ('-retry', '-parallel', '-14'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.ERASE_BUILD_WATCHDOG_SELECTION_ID + suffix)
+        for altered in (tuple(members[:-1]), tuple(members[::-1]), tuple(members[:-1] + members[:1])):
+            with self.assertRaises(ValueError):
+                CI.validate_selection(dict(self.selected, unitTestSelectors=list(altered)))
+
+    def test_both_admissions_require_exact_original_github_parent_and_product_trees(self):
+        for stage in ('dispatch', 'worker'):
+            with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts):
+                result = CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            self.assertTrue(result['diagnosticOnly'])
+            self.assertFalse(result['acceptance']); self.assertFalse(result['providerQualification'])
+            for changed in (self.bound_environment('bitrise'), dict(self.bound_environment(), GITHUB_RUN_ATTEMPT='2')):
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(self.selected, changed, HEAD, stage, self.record)
+            for header in (b'tree a\n\nmessage\n', self.header.replace(CI.ERASE_BUILD_WATCHDOG_PARENT.encode(), b'f'*40),
+                           self.header.replace(b'\n\n', b'\nparent '+b'f'*40+b'\n\n')):
+                with mock.patch.object(CI.subprocess, 'check_output', return_value=header), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            for path in CI.ERASE_BUILD_WATCHDOG_TREES:
+                def wrong_tree(command, **kwargs):
+                    return 'f'*40+'\n' if command[-1] == HEAD+':'+path else self.git_facts(command, **kwargs)
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=wrong_tree), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+
+    def test_budget_or_member_or_selector_substitution_denies(self):
+        for stage in ('dispatch', 'worker'):
+            changes = [{'unitTestSelectors': self.selected['unitTestSelectors'][:-1]},
+                       {'unitTestSelectors': self.selected['unitTestSelectors'][::-1]},
+                       {'unitTestSelectors': list(CI.RESTORE_BUILD_WATCHDOG_SELECTORS)},
+                       {'tier': 'N8'}, {'runUISmoke': True}]
+            changes.extend({key: self.selected[key]+1} for key in CI.BUDGET_KEYS)
+            for fields in changes:
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(dict(self.selected, **fields), self.bound_environment(), HEAD, stage, self.record)
+            for selector in (CI.ERASE_RECOVERY_SELECTION_ID, CI.RESTORE_HISTORY_SELECTION_ID, 'unknown'):
+                e = dict(self.bound_environment(), DISPATCH_NATIVE_SELECTION_ID=selector)
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(self.selected, e, HEAD, stage, dict(self.record, selectionID=selector))
+
+    def test_real_shell_uses_exact_no_index_recipe_and_propagates_failures(self):
+        for receipt_exit, build_exit in ((0, 0), (79, 0), (0, 83)):
+            with tempfile.TemporaryDirectory() as directory:
+                result, e, events, args = self.run_mock_build(directory, CI.ERASE_BUILD_WATCHDOG_SELECTION_ID, receipt_exit, build_exit)
+                self.assertEqual(result.returncode, receipt_exit or build_exit, result.stderr)
+                self.assertEqual(events, ['receipt'] if receipt_exit else ['receipt', 'build'])
+                if not receipt_exit:
+                    self.assertEqual(args, ['-project', 'FieldEvidenceApp.xcodeproj', '-scheme', 'FieldEvidenceApp',
+                        '-configuration', 'Debug', '-destination', 'platform=iOS Simulator,id='+UDID,
+                        '-derivedDataPath', e['RUNNER_TEMP']+'/FieldEvidenceDerivedData',
+                        '-resultBundlePath', e['CI_ARTIFACT_DIR']+'/Build.xcresult',
+                        'CODE_SIGNING_ALLOWED=NO', 'COMPILER_INDEX_STORE_ENABLE=NO', 'build-for-testing'])
+
+    def test_receipt_cli_and_actual_execution_reject_omissions_and_tampering(self):
+        NoIndexBuildDiagnosticTests.test_receipt_cli_uses_actual_build_step_dispatch_inputs_and_fails_without_them(self)
+        NoIndexBuildDiagnosticTests.test_receipt_binds_admitted_configuration_and_executed_command(self)
+        NoIndexBuildDiagnosticTests.test_tampered_receipt_or_incomplete_indexed_or_changed_execution_is_denied(self)
+
+    def test_worker_budget_filter_accepts_complete_union_only(self):
+        BuildWatchdogDiagnosticTests.test_actual_worker_budget_filter_accepts_only_exact_diagnostic_and_retains_ordinary_tiers(self)
 
 class BuildOrderDiagnosticTests(unittest.TestCase):
     def setUp(self):

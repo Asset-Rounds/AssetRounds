@@ -1,10 +1,10 @@
 # Expansion into the existing AssetRounds app
 
-Current6cd506d original35545476239 is terminal, sole-collected and root-audited AC2CF128: buildPASS,2/13 tests pass,11fail,0compiler errors,1new warning signature. Initial-startup failures precede Erase; production fresh-owner publication remains unresolved. The creating EraseIntentStore observation invalidates one directory-absence assertion; six registry messages occur after failed publication assertions and do not establish their cause. No live run or collector. Parent0d5 restore35540673966 remains compilePASS2/7 and reminder35540763669 compilePASS32/33 (audits6585CDF0/36C84998). Main stays accepted S10;52drafts exact. No merge or release acceptance.
+Current native execution and audited outcomes: [ACTIVE_BRIEF](ACTIVE_BRIEF.md#native-evidence-and-next-questions). Reuse its head/run/evidence references; this navigation record grants no acceptance and does not replace the controlling requirements or the coverage ledger.
 
-Next causal batch runtime-6cd506d/recovery-diagnostics combines bounded restore history/first-failure/golden-stage observations with default-off startup and Erase retry phase/error-type capture. Correct the self-invalidating directory check before its creating observation and replace the warning-producing weak local with equivalent weak-capture nil observation. Preserve every method/assertion, original rethrows, access/lifetime/file-protection/history predicates and closed Erase13/restore7 membership. One fresh medium reviewer owns the complete changed callback/caller/actor/fixture contract after deterministic source and actual indexed configuration checks; retain committed-route and hosted gates. New evidence selects the next source-proven correction; no unchanged retry or acceptance credit.
+Follow [ACTIVE_BRIEF](ACTIVE_BRIEF.md#native-evidence-and-next-questions) for the current dependency-ready batch and exact native question. Retain all recorded startup, Erase publication, restore history and golden file-policy diagnostic obligations, their closed method membership and hosted acceptance gates.
 
-Committed6cd source147 and source/index/route gates passed; native Erase2/13 remains failing. Complete coverage, provider, visual, human and final-main gates remain open.
+Source/index/route reviews do not establish hosted functional acceptance. Complete coverage, provider, visual, human and final-main gates remain open.
 
 Current navigation checkpoint, 2026-09-20. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls scope and acceptance; [VERIFICATION_DUE](VERIFICATION_DUE.md) retains detailed obligations. Historical S10 is the accepted base, not a new workstream.
 
@@ -21,7 +21,7 @@ Current navigation checkpoint, 2026-09-20. [CURRENT_INTEGRATION](CURRENT_INTEGRA
 
 | Workstream | What remains | Completion evidence |
 | --- | --- | --- |
-| Current native blocker | Audited6cd Erase2/13 and0d5 restore2/7 compile. Startup, postcleanup publication, golden file policy and cold/initial-import history questions remain unresolved; directory-check fixture defect is proven. | Complete bounded diagnostics/correction and deterministic indexed configuration before medium full-contract review and exact route gates; unchanged closed Erase13/restore7 questions need new evidence. |
+| Current native blocker | Startup, completed-Erase publication, golden file policy and cold/initial-import history require causal closure. Current run/outcomes and retained evidence are linked from ACTIVE_BRIEF. | Resolve source-proven failures using the retained checkpoints; preserve closed Erase13/restore7 coverage and every source/index/route/native gate. |
 | Production adoption | Finish C36 destination/restore correspondence, Release-authorized staging review writes, cross-workspace photo-child remapping and authenticated retained review/photo closure; child/finalizer recovery; Work/Round field, scene, focus and resume flows; lifecycle/codec/backup registration. Resolution and confirmed discard already have production-service/AppAccess implementation, but complete user journeys remain due. | Real entry through the existing writer/service to durable effect and visible result, including populated stores, cold recovery and denied/no-effect cases. |
 | Replacement and fork history | Reconcile the remaining C55 replacement and C57 fork/mixed-history work and its owned drafts. | Original-history preservation plus paired functional, backup and restore results. |
 | Complete functional coverage | Reconcile the frozen requirements and all later regressions. The committed pool is880 methods/55 groups, not the final coverage ceiling. All39 destination methods are enrolled. Restore13 enrolled; authority7Pass at855ef0e, restore1Pass/5Fail at5c1e983 after successful import. The S6_3 import-schema compatibility method is COMMITTED/UNEXECUTED in868/53. Atd7, discard7Pass with INVALID transport; atacf, resolution7Pass; review13/production4/legacy1 still lack execution. Prior e1 continuation7Pass and discard6Pass remain tied to e1. ReceiptSafety55 and later causal cases still require reconciliation. | Complete retained functional/compatibility evidence on the final candidate; no credit for unselected tests or results from older heads. |
@@ -31,7 +31,7 @@ Current navigation checkpoint, 2026-09-20. [CURRENT_INTEGRATION](CURRENT_INTEGRA
 
 ## Execution order
 
-1. Reuse audited6cd Erase AC2CF128 and0d5 restore6585CDF0/reminder36C84998. Complete the scoped diagnostics and confirmed fixture correction; preserve tests and budget selectors. Run deterministic source/index checks, one full-contract semantic review and exact committed-route gates before a new diagnostic original.
+1. Follow ACTIVE_BRIEF for the current build blocker and dependency-ready batch. Reuse the retained startup/Erase/restore diagnosis; qualify the closed development route before one new diagnostic original.
 2. Continue the parent-finalization performance diagnosis from its retained phase timings; batch only source-proven fixes and keep one collector per original.
 3. Complete the remaining production journeys and enroll their missing regressions. Parallelize only disjoint, dependency-ready work on existing qualified capacity.
 4. Freeze one complete candidate; collect final coverage and affected-state reviews, then advance and verify main.

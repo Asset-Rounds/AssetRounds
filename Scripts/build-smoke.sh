@@ -51,7 +51,8 @@ v23_index_setting=""
 if [ "${NATIVE_SELECTION_ID:-none}" = c36-restore-review-no-index ] || \
    [ "${NATIVE_SELECTION_ID:-none}" = c36-restore-review-no-index-build30m ] || \
    [ "${NATIVE_SELECTION_ID:-none}" = reminder-production-no-index-build30m ] || \
-   [ "${NATIVE_SELECTION_ID:-none}" = restore-history-no-index-build30m ]; then
+   [ "${NATIVE_SELECTION_ID:-none}" = restore-history-no-index-build30m ] || \
+   [ "${NATIVE_SELECTION_ID:-none}" = erase-recovery-no-index-build30m ]; then
   python3 Scripts/v23-native-ci.py record-no-index-build
   v23_index_setting="COMPILER_INDEX_STORE_ENABLE=NO"
 fi
