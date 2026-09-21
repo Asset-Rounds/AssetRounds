@@ -19,6 +19,28 @@ enum ReportSnapshotEncodingErrorV1: Error, Equatable {
     case noncanonicalData
 }
 
+/// Format identity is separate from the numeric version shared by both families.
+private enum ReportSnapshotFamilyHeaderV1: Decodable {
+    case legacy(Int)
+    case completedActivity(Int)
+
+    private enum CodingKeys: String, CodingKey {
+        case snapshotSchemaVersion, schemaVersion
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        switch (values.contains(.snapshotSchemaVersion), values.contains(.schemaVersion)) {
+        case (true, false):
+            self = .legacy(try values.decode(Int.self, forKey: .snapshotSchemaVersion))
+        case (false, true):
+            self = .completedActivity(try values.decode(Int.self, forKey: .schemaVersion))
+        default:
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+    }
+}
+
 enum PracticeWorkspaceReportSnapshotEncodingBoundaryV1 {
     static func validate(_ snapshot: ReportSnapshotV1) throws {
         try snapshot.practiceWorkspace?.validate()
@@ -383,6 +405,30 @@ struct ReportSnapshotEncoderV1: Sendable {
             throw ReportSnapshotEncodingErrorV1.noncanonicalData
         }
         return snapshot
+    }
+
+    /// Nil means a validated canonical legacy report, never a failed typed decode.
+    func completedActivityV2SnapshotIfPresent(
+        _ data: Data,
+        declaredSchemaVersion: Int
+    ) throws -> CompletedActivitySnapshotV2? {
+        guard let header = try? JSONDecoder().decode(ReportSnapshotFamilyHeaderV1.self, from: data) else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        switch header {
+        case .legacy(let version):
+            guard version == declaredSchemaVersion else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+            _ = try decode(data)
+            return nil
+        case .completedActivity(let version):
+            guard version == declaredSchemaVersion,
+                  version == CompletedActivitySnapshotV2.schemaVersion else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+            return try CompletedActivitySnapshotCanonicalCodecV2.decode(data)
+        }
     }
 
     /// Provisional job-kernel entry point. The released synchronous encoder is

@@ -110,6 +110,23 @@ final class V9_11ObservationTemporalSemanticsTests: XCTestCase {
                                timeZoneID: "America/New_York", utcOffsetMinutes: -300)
         )
         let originalBytes = try ReportSnapshotEncoderV1().encode(snapshot)
+        let familyDecoder = ReportSnapshotEncoderV1()
+        XCTAssertNil(try familyDecoder.completedActivityV2SnapshotIfPresent(
+            originalBytes.data, declaredSchemaVersion: 2
+        ))
+        XCTAssertThrowsError(try familyDecoder.completedActivityV2SnapshotIfPresent(
+            originalBytes.data, declaredSchemaVersion: 1
+        ))
+        var ambiguousFamily = originalBytes.data
+        XCTAssertEqual(ambiguousFamily.first, UInt8(ascii: "{"))
+        ambiguousFamily.insert(contentsOf: Array("\"schemaVersion\":2,".utf8), at: 1)
+        XCTAssertThrowsError(try familyDecoder.completedActivityV2SnapshotIfPresent(
+            ambiguousFamily, declaredSchemaVersion: 2
+        ))
+        XCTAssertThrowsError(try familyDecoder.completedActivityV2SnapshotIfPresent(
+            originalBytes.data + Data("\n".utf8), declaredSchemaVersion: 2
+        ))
+
         let packet = PacketPayloadV1(id: packetID, schemaVersion: 1, stableRootID: snapshot.stableRootID,
             currentRecordID: recordID, evaluationCounted: true, contentDeletedAt: nil,
             createdAt: instant.addingTimeInterval(-10))

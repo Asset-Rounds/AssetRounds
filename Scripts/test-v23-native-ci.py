@@ -233,9 +233,23 @@ REMINDER_PRODUCTION_GROUPS = [{'classes': ['V23ReminderPolicyEditTests'], 'id': 
 
 SETTINGS_COMPATIBILITY_SELECTORS = ['FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testV23P03C45CompatibilityKeepsOutputActivationExplicitAndBounded', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testV23P03C51RuntimeAndCheckRunnerStayLocalExplicitAndDerived', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testTypedEvidenceContextContractAnchor', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testC31TypedLightingPackageContractAnchor', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testC33V914SettingsCapabilityLifecycleCompatibilityBindsTypedTemporalEvidenceToItsOwner', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testC32V914SettingsCapabilityLifecycleCompatibilityKeepsProposalAtExplicitReviewBoundary', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testC46SettingsCannotActivateAutomaticHandoff']
 
+SNAPSHOT_FAMILY_SELECTORS = ['FieldEvidenceAppTests/V9_11ObservationTemporalSemanticsTests/testReportCorrectionRequiresExactV2ObservationAndTemporalSourceValues', 'FieldEvidenceAppTests/V9_54ActivityContractFamiliesTests/testV23P03C47H01CrossFamilyClaimsInvalidTransitionsAndStaleInputsFailClosed']
+
 def prepartition_values(default, mapping):
-    if len(default.get('unitTestSelectors', [])) == 882:
+    if len(default.get('unitTestSelectors', [])) == 884:
         if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.GENERATED_SELECTION_POOL_SHA256, CI.GENERATED_SELECTION_MAP_SHA256):
+            raise AssertionError('changed snapshot-family generated inputs')
+        if default['unitTestSelectors'][-2:] != SNAPSHOT_FAMILY_SELECTORS:
+            raise AssertionError('changed exact snapshot-family append')
+        if mapping['groups'][-1:] != [{'id':'activity-contracts', 'classes':['V9_54ActivityContractFamiliesTests'], 'methodCount':1}]:
+            raise AssertionError('changed snapshot-family group')
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        default['unitTestSelectors'] = default['unitTestSelectors'][:-2]
+        mapping['groups'].pop()
+        group = next(g for g in mapping['groups'] if g['id'] == 'observation-temporal')
+        group['methodCount'] -= 1
+    if len(default.get('unitTestSelectors', [])) == 882:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != ('C3E8641F51A9EEFF34D0E4E65198C35E9AD18DA030B8FED4CB57026BD6D86930', '33C107349D7CA40E9F47B8391CE11A7C16DD800A3C5DD7754A96807248472DA7'):
             raise AssertionError('changed handoff generated inputs')
         extra = [
             'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testEraseManifestHandoffPreservesExactInodeAndSupportsRepeatedConstructorRecovery',
@@ -440,7 +454,10 @@ def prepartition_workflow(workflow):
         choice = '          - ' + group['id'] + '\n'
         if workflow.count(choice) != 1: raise AssertionError('missing exact reminder/restore choice')
         workflow = workflow.replace(choice, '')
-    workflow = workflow.replace('all 882 methods across 55 bounded groups', 'all 790 methods across 48 bounded groups')
+    workflow = workflow.replace('all methods in the checked-in selection manifest', 'all 790 methods across 48 bounded groups')
+    choice = '          - activity-contracts\n'
+    if workflow.count(choice) != 1: raise AssertionError('missing exact snapshot-family choice')
+    workflow = workflow.replace(choice, '')
     for group_id in ("c36-restore-review", CI.NO_INDEX_SELECTION_ID,
                      CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID, "c36-restore-authority"):
         choice = "          - " + group_id + "\n"
@@ -550,13 +567,13 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
 
     def test_current_generated_profile_admits_exact_new_groups_and_binds_protocol_sources(self):
         report = CI.verify_generated_selection(self.root, self.default, self.mapping)
-        self.assertEqual((report['selectorCount'], report['groupCount']), (882, 55))
+        self.assertEqual((report['selectorCount'], report['groupCount']), (884, 56))
         for group_id, count in [('mutation-receipt-safety', 1), ('c36-raw-staging', 5),
                                 ('notification-owner', 93), ('c36-startup-recovery', 2),
                                 ('backup-capacity', 1), ('c36-photo-backup-transport', 12),
                                 ('c36-photo-backup-restore', 3), ('c36-photo-configuration-clone', 7),
                                 ('c36-production-destination', 4), ('c36-restore-review', 6), ('c36-restore-authority', 7),
-                                ('notification-schedule-erase', 28)]:
+                                ('notification-schedule-erase', 28), ('activity-contracts', 1)]:
             e = environment()
             e['NATIVE_SELECTION_ID'] = group_id
             selected, record = CI.selected_input(self.root, e)
@@ -860,7 +877,7 @@ class ReportPartitionTests(unittest.TestCase):
         default=CI.read_json(ROOT / 'Scripts/ci-selection.json')
         mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
         prior, prior_map=prepartition_values(default,mapping)
-        self.assertEqual(len(default['unitTestSelectors']),882)
+        self.assertEqual(len(default['unitTestSelectors']),884)
         self.assertEqual(default['unitTestSelectors'][:677],prior['unitTestSelectors'][:677])
         seen=[]
         for group in mapping['groups']:
@@ -872,10 +889,12 @@ class ReportPartitionTests(unittest.TestCase):
                 source=(ROOT / 'FieldEvidenceAppTests' / (klass+'.swift')).read_text(encoding='utf-8')
                 declared=re.findall(r'^    func (test\w+)\(',source,re.M)
                 self.assertEqual({s.rsplit('/',1)[1] for s in members if s.split('/')[1]==klass},set(declared))
-            appended = [item for item in REMINDER_PRODUCTION_SELECTORS + SETTINGS_COMPATIBILITY_SELECTORS
+            appended = [item for item in REMINDER_PRODUCTION_SELECTORS + SETTINGS_COMPATIBILITY_SELECTORS + SNAPSHOT_FAMILY_SELECTORS
                         if CI.selection_class(item) in group['classes']]
             if group['id'] in [g['id'] for g in REMINDER_PRODUCTION_GROUPS]:
                 self.assertEqual(actual, dict(prior, unitTestSelectors=appended))
+            elif group['id'] == 'activity-contracts':
+                self.assertEqual(actual, dict(prior, unitTestSelectors=[SNAPSHOT_FAMILY_SELECTORS[1]]))
             elif group['id'] == 'erase-lease-lifecycle':
                 self.assertEqual(actual, dict(prior, unitTestSelectors=list(CI.ERASE_LEASE_SELECTORS)))
             elif group['id'] == 'app-myday-production':
@@ -1251,7 +1270,7 @@ class NoIndexBuildDiagnosticTests(unittest.TestCase):
         self.assertEqual(self.selected, CI.resolve_selection(self.default, self.mapping, 'c36-restore-review'))
         self.assertEqual(len(self.selected['unitTestSelectors']), 6)
         self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (882, 55))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (884, 56))
         for suffix in ('-retry', '-parallel', '-30m'):
             with self.assertRaises(ValueError):
                 CI.resolve_selection(self.default, self.mapping, CI.NO_INDEX_SELECTION_ID + suffix)
@@ -1472,15 +1491,15 @@ class RestoreBuildWatchdogDiagnosticTests(unittest.TestCase):
         self.assertEqual(len(self.selected['unitTestSelectors']), 6)
         self.assertEqual(tuple(ordinary[k] for k in CI.BUDGET_KEYS), (300,1200,900,0,2400))
         self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.NO_INDEX_SELECTION_ID), ordinary)
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (882,55))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (884,56))
         for suffix in ('-retry', '-parallel', '-permanent'):
             with self.assertRaises(ValueError):
                 CI.resolve_selection(self.default, self.mapping, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID + suffix)
 
     def test_development_binding_rejects_consumed_build30_source(self):
         self.assertEqual(CI.NO_INDEX_PARENT, '5c1e9831153e9e5feddda08e1152de06ecbaaed2')
-        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_PARENT, 'e4ffcaba1ed73348012a336be049fca3c27f4cc5')
-        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_TREES['FieldEvidenceAppTests'], 'd1faa45fdeaf81e11ec6e719663ec4202541977f')
+        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_PARENT, '16e82a8baded44cea8ed4a2c97a685df7d0b4154')
+        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_TREES['FieldEvidenceAppTests'], '9060b1c7c444a17d187f5001a61278fba507359b')
         self.assertEqual(CI.NO_INDEX_TREES['FieldEvidenceAppTests'], '6ae80744a230727892ceb04617421d91fd17e53a')
         for stage in ('dispatch', 'worker'):
             def substituted(command, **kwargs):
@@ -1590,7 +1609,7 @@ class ReminderBuildWatchdogDiagnosticTests(unittest.TestCase):
         self.assertEqual(self.selected['unitTestSelectors'], members)
         self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
         self.assertFalse(self.selected['runUISmoke'])
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (882, 55))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (884, 56))
         self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.DEFAULT_SELECTION_ID), self.default)
         for suffix in ('-retry', '-parallel', '-34'):
             with self.assertRaises(ValueError):
@@ -1693,7 +1712,7 @@ class RestoreHistoryBuildWatchdogDiagnosticTests(unittest.TestCase):
         self.assertEqual(self.selected['unitTestSelectors'], members)
         self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
         self.assertFalse(self.selected['runUISmoke'])
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (882, 55))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (884, 56))
         self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.DEFAULT_SELECTION_ID), self.default)
         for suffix in ('-retry', '-parallel', '-8'):
             with self.assertRaises(ValueError):
@@ -1795,7 +1814,7 @@ class EraseBuildWatchdogDiagnosticTests(unittest.TestCase):
         self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
         self.assertFalse(self.selected['runUISmoke'])
         self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.DEFAULT_SELECTION_ID), self.default)
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (882, 55))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (884, 56))
         for suffix in ('-retry', '-parallel', '-14'):
             with self.assertRaises(ValueError):
                 CI.resolve_selection(self.default, self.mapping, CI.ERASE_BUILD_WATCHDOG_SELECTION_ID + suffix)
@@ -2012,8 +2031,8 @@ class BuildOrderDiagnosticTests(unittest.TestCase):
         for suffix in ('-retry', '-parallel', '-30m'):
             with self.assertRaises(ValueError):
                 CI.resolve_selection(self.default, self.mapping, CI.BUILD_ORDER_SELECTION_ID + suffix)
-        self.assertEqual(len(self.default['unitTestSelectors']), 882)
-        self.assertEqual(len(self.mapping['groups']), 55)
+        self.assertEqual(len(self.default['unitTestSelectors']), 884)
+        self.assertEqual(len(self.mapping['groups']), 56)
 
     def test_both_admission_stages_require_original_github_parent_and_all_four_source_trees(self):
         for stage in ('dispatch', 'worker'):

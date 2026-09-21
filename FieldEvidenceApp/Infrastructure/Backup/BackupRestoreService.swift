@@ -7750,7 +7750,9 @@ private extension BackupRestoreService {
                   CanonicalJSONV1.sha256(data) == report.snapshotSHA256 else {
                 throw BackupRestoreServiceError.invalidPackage
             }
-            return try CompletedActivitySnapshotCanonicalCodecV2.decode(data)
+            return try ReportSnapshotEncoderV1().completedActivityV2SnapshotIfPresent(
+                data, declaredSchemaVersion: report.snapshotSchemaVersion
+            )
         }
         let evidenceByID = Dictionary(grouping: records.evidenceFiles, by: \.id)
         let planPlacements = try PlanBackupRecordSetV1.decode(records.plans).placements
@@ -9908,8 +9910,9 @@ private extension BackupRestoreService {
             guard let data = members[report.snapshotRelativePath] else {
                 throw BackupRestoreServiceError.invalidPackage
             }
-            if report.snapshotSchemaVersion == CompletedActivitySnapshotV2.schemaVersion {
-                _ = try CompletedActivitySnapshotCanonicalCodecV2.decode(data)
+            if try ReportSnapshotEncoderV1().completedActivityV2SnapshotIfPresent(
+                data, declaredSchemaVersion: report.snapshotSchemaVersion
+            ) != nil {
                 continue
             }
             let snapshot = try ReportSnapshotEncoderV1().decode(data)
@@ -10009,8 +10012,9 @@ private extension BackupRestoreService {
             guard let source = members[report.snapshotRelativePath] else {
                 throw BackupRestoreServiceError.invalidPackage
             }
-            if report.snapshotSchemaVersion == CompletedActivitySnapshotV2.schemaVersion {
-                _ = try CompletedActivitySnapshotCanonicalCodecV2.decode(source)
+            if try ReportSnapshotEncoderV1().completedActivityV2SnapshotIfPresent(
+                source, declaredSchemaVersion: report.snapshotSchemaVersion
+            ) != nil {
                 return report
             }
             let data = try reboundReportSnapshotData(
@@ -10512,8 +10516,9 @@ private extension BackupRestoreService {
                   let bytes = members[source.snapshotRelativePath] else {
                 throw BackupRestoreServiceError.invalidPackage
             }
-            if source.snapshotSchemaVersion == CompletedActivitySnapshotV2.schemaVersion {
-                let snapshot = try CompletedActivitySnapshotCanonicalCodecV2.decode(bytes)
+            if let snapshot = try ReportSnapshotEncoderV1().completedActivityV2SnapshotIfPresent(
+                bytes, declaredSchemaVersion: source.snapshotSchemaVersion
+            ) {
                 for id in [source.id.uuidString, snapshot.payload.activity.reportID,
                            snapshot.payload.activity.snapshotID,
                            snapshot.payload.activity.sourceActivityID] {
@@ -15931,14 +15936,47 @@ private extension BackupRestoreService {
                 O_RDONLY | O_DIRECTORY | O_NOFOLLOW
             )
             if descriptor < 0, errno == ENOENT, createMissing {
-                guard Darwin.mkdirat(
+                // A child directory changes its parent's link count. Bind that
+                // exact mutation to our successful mkdir; do not discard link
+                // checks or refresh a pin after an unexplained identity change.
+                try authorityCheck()
+                let parentIndex = pins.count - 1
+                let parentPin = pins[parentIndex]
+                var beforeCreation = stat()
+                guard parentPin.descriptor == current,
+                      Darwin.fstat(current, &beforeCreation) == 0,
+                      PinnedIdentity(beforeCreation) == parentPin.identity else {
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
+                }
+                let creationResult = Darwin.mkdirat(
                     current,
                     component,
                     mode_t(0o700)
-                ) == 0 || errno == EEXIST,
+                )
+                guard creationResult == 0 || errno == EEXIST,
                       Darwin.fsync(current) == 0 else {
                     throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
+                try authorityCheck()
+                var afterCreation = stat()
+                guard Darwin.fstat(current, &afterCreation) == 0 else {
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
+                }
+                let updatedIdentity = PinnedIdentity(afterCreation)
+                let expectedLinkCount = parentPin.identity.linkCount
+                    + (creationResult == 0 ? UInt64(1) : UInt64(0))
+                guard updatedIdentity.device == parentPin.identity.device,
+                      updatedIdentity.inode == parentPin.identity.inode,
+                      updatedIdentity.type == parentPin.identity.type,
+                      updatedIdentity.linkCount == expectedLinkCount else {
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
+                }
+                pins[parentIndex] = PinnedDirectory(
+                    descriptor: parentPin.descriptor,
+                    identity: updatedIdentity,
+                    parent: parentPin.parent,
+                    name: parentPin.name
+                )
                 descriptor = Darwin.openat(
                     current,
                     component,

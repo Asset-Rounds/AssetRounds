@@ -187,8 +187,9 @@ enum C33TemporalEvidencePackageValidationV1 {
                 guard let snapshotBytes = members[report.snapshotRelativePath] else {
                     throw BackupPackageValidationErrorV1.invalidPackage
                 }
-                if report.snapshotSchemaVersion == CompletedActivitySnapshotV2.schemaVersion {
-                    _ = try CompletedActivitySnapshotCanonicalCodecV2.decode(snapshotBytes)
+                if try ReportSnapshotEncoderV1().completedActivityV2SnapshotIfPresent(
+                    snapshotBytes, declaredSchemaVersion: report.snapshotSchemaVersion
+                ) != nil {
                     continue
                 }
                 let snapshot = try ReportSnapshotEncoderV1().decode(snapshotBytes)
@@ -296,7 +297,9 @@ enum C47ActivityContractPackageValidationV2 {
                       CanonicalJSONV1.sha256(data) == report.snapshotSHA256 else {
                     throw BackupPackageValidationErrorV1.invalidPackage
                 }
-                return try CompletedActivitySnapshotCanonicalCodecV2.decode(data)
+                return try ReportSnapshotEncoderV1().completedActivityV2SnapshotIfPresent(
+                    data, declaredSchemaVersion: report.snapshotSchemaVersion
+                )
             }
             let references = try records.mutationHistory?.receipts.compactMap {
                 record -> CompletedActivitySnapshotV2CompatibilityReferenceV1? in
@@ -2660,8 +2663,9 @@ private extension BackupPackageValidatorV1 {
             var previews: [UUID: AssuranceProjectionPreviewV1] = [:]
             for report in records.reports {
                 guard let bytes = members[report.snapshotRelativePath] else { throw invalid() }
-                if report.snapshotSchemaVersion == CompletedActivitySnapshotV2.schemaVersion {
-                    _ = try CompletedActivitySnapshotCanonicalCodecV2.decode(bytes)
+                if try ReportSnapshotEncoderV1().completedActivityV2SnapshotIfPresent(
+                    bytes, declaredSchemaVersion: report.snapshotSchemaVersion
+                ) != nil {
                     continue
                 }
                 let snapshot = try ReportSnapshotEncoderV1().decode(bytes)
@@ -2710,8 +2714,9 @@ private extension BackupPackageValidatorV1 {
             for report in records.reports {
                 guard let revision = UInt64(exactly: report.snapshotSchemaVersion),
                       let bytes = members[report.snapshotRelativePath] else { throw invalid() }
-                if report.snapshotSchemaVersion == CompletedActivitySnapshotV2.schemaVersion {
-                    let snapshot = try CompletedActivitySnapshotCanonicalCodecV2.decode(bytes)
+                if let snapshot = try ReportSnapshotEncoderV1().completedActivityV2SnapshotIfPresent(
+                    bytes, declaredSchemaVersion: report.snapshotSchemaVersion
+                ) {
                     for id in [report.id.uuidString, snapshot.payload.activity.reportID,
                                snapshot.payload.activity.snapshotID,
                                snapshot.payload.activity.sourceActivityID] {
@@ -3604,8 +3609,9 @@ private extension BackupPackageValidatorV1 {
             }
             for report in records.reports {
                 guard let bytes = members[report.snapshotRelativePath] else { throw invalid() }
-                if report.snapshotSchemaVersion == CompletedActivitySnapshotV2.schemaVersion {
-                    let snapshot = try CompletedActivitySnapshotCanonicalCodecV2.decode(bytes)
+                if let snapshot = try ReportSnapshotEncoderV1().completedActivityV2SnapshotIfPresent(
+                    bytes, declaredSchemaVersion: report.snapshotSchemaVersion
+                ) {
                     guard let reportRevision = UInt64(exactly: report.snapshotSchemaVersion) else {
                         throw invalid()
                     }
@@ -4927,8 +4933,9 @@ private extension BackupPackageValidatorV1 {
                   let asset = assets[source.assetID],
                   let site = sites[asset.siteID] else { throw invalid() }
             let lifecycle = try profile(for: source)
-            if report.snapshotSchemaVersion == CompletedActivitySnapshotV2.schemaVersion {
-                let snapshot = try CompletedActivitySnapshotCanonicalCodecV2.decode(bytes)
+            if let snapshot = try ReportSnapshotEncoderV1().completedActivityV2SnapshotIfPresent(
+                bytes, declaredSchemaVersion: report.snapshotSchemaVersion
+            ) {
                 let activity = snapshot.payload.activity
                 guard activity.reportID.lowercased() == report.id.uuidString.lowercased(),
                       activity.sourceActivityID.lowercased() == source.id.uuidString.lowercased(),

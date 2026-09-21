@@ -1654,6 +1654,23 @@ final class V9_54ActivityContractFamiliesTests: XCTestCase {
             assetID: basisSubjectID,
             sourceRevision: 2
         )
+        let completedBytes = try CompletedActivitySnapshotCanonicalCodecV2.encode(resolvedReport.snapshot)
+        let familyDecoder = ReportSnapshotEncoderV1()
+        XCTAssertEqual(try familyDecoder.completedActivityV2SnapshotIfPresent(
+            completedBytes, declaredSchemaVersion: 2
+        ), resolvedReport.snapshot)
+        XCTAssertThrowsError(try familyDecoder.completedActivityV2SnapshotIfPresent(
+            completedBytes, declaredSchemaVersion: 1
+        ))
+        var ambiguousCompletedFamily = completedBytes
+        XCTAssertEqual(ambiguousCompletedFamily.first, UInt8(ascii: "{"))
+        ambiguousCompletedFamily.insert(contentsOf: Array("\"snapshotSchemaVersion\":2,".utf8), at: 1)
+        XCTAssertThrowsError(try familyDecoder.completedActivityV2SnapshotIfPresent(
+            ambiguousCompletedFamily, declaredSchemaVersion: 2
+        ))
+        XCTAssertThrowsError(try familyDecoder.completedActivityV2SnapshotIfPresent(
+            completedBytes + Data("\n".utf8), declaredSchemaVersion: 2
+        ))
         let resolvedCompletedReference = try CompletedActivitySnapshotV2CompatibilityReferenceV1(
             resolvedReport.snapshot,
             activityCloseoutSHA256: resolvedCloseout.closeoutSHA256

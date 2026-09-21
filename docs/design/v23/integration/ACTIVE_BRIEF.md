@@ -1,32 +1,29 @@
 # Active integration brief
 
-[MERGE_READINESS](MERGE_READINESS.md) tracks the expansion into the accepted S10 app/main. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls gates; [VERIFICATION_DUE](VERIFICATION_DUE.md) retains obligations.
+[MERGE_READINESS](MERGE_READINESS.md) tracks full expansion into accepted S10/main. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls gates; [VERIFICATION_DUE](VERIFICATION_DUE.md) retains unexecuted coverage.
 
 ## Selected task and fixed boundaries
 
-- Work only in `C:\AssetRounds-v23-s10-integration`, branch `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
-- Main remains accepted S10 b1d04ae5; the expansion is not accepted.
-- Preserve the existing app/scheme/design system, S10 branding, five receipts,52 protected drafts, frozen inputs, V30 and coordination history.
-- Card135 is owner-only/skipped; minimum-runtime/physical verification are DEFERRED; `releaseReady=false`. No signing, distribution, submission or release action.
+- Only `C:\AssetRounds-v23-s10-integration`, `codex/v23-s10-integration-20260910`, task `V23-INTEGRATION-20260910`.
+- Main remains accepted S10 b1d04ae5; expansion is not accepted. Preserve one app/project/scheme/writer/design system, S10 branding, five receipts,52 protected drafts, frozen authority, V30 and coordination history.
+- Card135 owner-only/skipped; minimum-runtime/physical DEFERRED; releaseReady=false. No signing, distribution, submission or release action.
 
 ## Native evidence and next questions
 
-Original35613367185 ate4ffcaba is terminal, sole-collected and root-audited6C03F8FF. Build failed after588s with two Swift diagnostics from one new DEBUG actor-isolation defect; all7 Restore methods NotStarted,0newWarningSignatures.132files and26source pins verified; Simulator evidence INVALID because execution never began. No active native run or collector. Main remains unchanged; no provider or acceptance credit.
+Original35617536519 at16e82a8 is terminal, sole-collected and root-audited5AFD02F3: build PASS1321s,0Swift errors,6/7 Restore methods PASS, transportPASS;1296files/24source pins retained. No active native original or collector. All259 warning signatures match last completed compilation c99/35605835069; the187 added versus early compiler-failed e4 are not new versus that full build.
 
-Next causal correction moves diagnostic emission out of the synchronous nonisolated directory validator into the enclosing MainActor service method, carrying only default-off scalar text. Preserve security predicates and the original thrown error. C10 container retention and hostile/Golden runtime diagnostics remain unexecuted; retain their c99 evidence and exact seven methods. Source/protocol checks, same medium complete-boundary correction/index/commit review and hosted compilation remain due. Old-head Erase peers remain HOLD.
+C10 same-workspace replacement and hostile review-plan now pass. Golden alone fails40.12s: pinned-directory stat succeeds with unchanged device/inode/type but links5to6 while createMissing=true. Traversal retains a parent pin across its own child mkdir. Correct that exact self-mutation while retaining all authority, no-follow, identity/path/link-count and recovery predicates. Reuse the seven existing methods; no unchanged retry.
 
-Workflow startup original35600958836/7a failed with Maximum object size exceeded before any jobs; c99 exact-filter extraction cleared that blocker. Its startup-only audit5A815631 remains distinct from the current native audit. Historical462 original35593866475/E31D8BDF had5/7Pass; results are head-bound and the extra current failure is not yet an attributed regression.
+Prepared compatible source family fixes legacy ReportSnapshotV1 schema2 versus CompletedActivitySnapshotV2 schema2 routing at11 validator/restore/writer callers using exclusive canonical envelope discrimination. Two authentic paired regressions are newly enrolled in snapshot-family-v1,884methods/56groups; all16 historical generated selections/maps remain byte-exact. This does not grant native or acceptance credit, broaden schema admission or complete C43 adoption. Closed884 helper qualification, combined source/index/commit review and hosted execution remain due.
 
-## Current implementation
+Erase peers remain HOLD until final source/parent/product and helper bindings plus committed-route review pass. Distinct drain1/remainder12 preserve the exact13-method union and existing D30 limits. Idle capacity is not a reason to dispatch.
 
-Destination/AppAccess resolution, non-photo Replace/Fork composition, populated history/readback and authenticated recovery corrections are committed inside the existing app. CURRENT_INTEGRATION retains exact source/review/original pins and remaining photo/lifecycle/registration, clone, parent-finalization and maximum-graph questions; source readiness is not acceptance.
+## Production integration and cadence
 
-## Cadence and completion gates
+Finish C36 photo/lifecycle/registration and destination/field/scene/resume, Work/Round and C55/C57 preservation, reminder production and owned-draft reconciliation. C43 completed-work subject proof still needs durable origin/current provenance across Fork and a real entry/editor/history journey; retain the completed reports and do not restart its census.
 
-Astra xhigh root; one Astra medium reviewer owns each consequential affected contract, low for mechanical checks, Luna low for simple non-coding. Follow AGENTS review ordering and REVIEW_EFFICIENCY.md under the completed five-batch trial and its follow-up. Root alone commits/pushes. No duplicate or unchanged retry; one collector per original. Reuse audited summaries and parameterized helpers. Shared restore6/reminder33 D30 protocol qualification is complete; adopt only with reviewed candidate bindings. Follow MERGE_READINESS and validate-native-inputs.py.
+Astra xhigh root remains hands-on; at most one helper. Medium owns the complete consequential contract, low mechanical checks, Luna low simple non-coding. Deterministic source/protocol and real entry checks precede semantic review, then exact index/commit endorsement and native execution. Reuse parameterized helpers, one collector/original and retained diagnoses. REVIEW_EFFICIENCY records follow-up outcomes without claiming measured savings.
 
-Committed pool882/55 retains the13 restore journey/authority methods,78 earlier additions and the closed Erase dependency enrollment;14 historical profiles remain exact. Source/protocol and independent index/route checks precede new reviewed native originals; no duplicate or consumed-selector retry. Transport12, startup2/restore3, preparation6, lifecycle5, archive48/regular graph23, notification77, field49, ReceiptSafety1, six retirement interruptions and maximum graphs remain due. Keep evidence head-bound. Cache/shared-build and provider qualification remain separate work.
+VERIFICATION_DUE preserves broader source-proven methods beyond the current pool and unexecuted transport, lifecycle, archive/regular graph, notification, field, receipt, retirement, maximum graph, reminder and affected-state coverage. Windows checks are not Swift execution. Bitrise remains held pending exact-runtime availability and qualification.
 
-Complete C36 production/lifecycle/codec and recovery, destination/field/scene/resume, Work/Round and C55/C57 preservation. Reminder Settings is source-reviewed44B49A81: unlocked edits, approved Round/Work copy, generic AppLock copy, permission/Erase/privacy cleanup and retry. Coverage882/55 retains all15 historical profiles and the earlier obligations; complete same-head native coverage remains unexecuted. Strengthened semantic3 legacy/bounded/cold/tamper checks are due in archive-contracts. Source132 and past route reviews are head-bound; no new native pass.
-
-Main advances only after complete retained same-head functional/compatibility evidence, qualified provider routes as applicable, affected-state S10 visuals, independent integration review and genuine human visual review, followed by controlling non-force integration and exact-main verification.
+Main advances only after complete retained same-head functional/compatibility evidence, applicable provider qualification, affected-state S10 visuals, independent integration review and genuine human visual review, then non-force integration and exact-main verification. No partial merge or acceptance from development originals.

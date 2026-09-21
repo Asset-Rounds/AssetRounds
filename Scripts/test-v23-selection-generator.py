@@ -6,6 +6,9 @@ EXPECTED_REMINDER_PRODUCTION_SELECTORS = ['FieldEvidenceAppTests/V9_14SettingsCa
 EXPECTED_REMINDER_PRODUCTION_GROUPS = [{'classes': ['V23ReminderPolicyEditTests'], 'id': 'reminder-policy-edit', 'methodCount': 7}, {'classes': ['V23ReminderProductionSettingsTests'], 'id': 'reminder-production-settings', 'methodCount': 10}, {'classes': ['V23DetailedReminderDeliveryTests'], 'id': 'reminder-detailed-delivery', 'methodCount': 6}, {'classes': ['V23ReminderControlContinuationTests'], 'id': 'reminder-control-continuation', 'methodCount': 10}, {'classes': ['V23RoundRestoreHistoryTests'], 'id': 'round-restore-history', 'methodCount': 6}]
 HISTORICAL_PROFILE_PINS = {'incumbent-v1': {'selectionSHA256': '91E6F41D81E982D116611FF4A96219FE3631020B5CB264F76A8BDA1E4E27408E', 'mapSHA256': 'CD41DF01E106199B7CAE86CEDEB4BAA93F812C76D7B510BA6DC941DFCDDF7129'}, 'prospective-v1': {'selectionSHA256': '203335CCCC8FACDC8560C1F23BA28A762854664264884CBFAFB8A0F0EDF42F6E', 'mapSHA256': '6D74CFA1BA6EBC0B46ED0656F285F8BD59DA61D62CB60E02C2B37B2978973EBD'}, 'raw-photo-v1': {'selectionSHA256': '62673E1257EE72462439FA8770F3D3CFB50ED2FB06F0674C7C9E8D5FE2FDBEBB', 'mapSHA256': '77E605D5BE168687CC9EB81C4F695806C6A6E2FCD619411C64AA7E251676CEAC'}, 'pair-startup-v1': {'selectionSHA256': '62F78130A529F9BDAE378F9A9A152E32E178CC5F132BEC1FDEF37D2CAAAAE722', 'mapSHA256': '70D3F3C4C034D82397564BA554425A2FFB93E51A345B1075CBD72F82610FF110'}, 'photo-backup-v1': {'selectionSHA256': '930A9B3C186EDD0D09F9F630A9214A0FDD95362465B8FEFFBC735D78CF83AA5D', 'mapSHA256': '5BB4E7E1FA935EE74B962F4572F9384FBF5DC4E0BFA83178547D89E0A4287248'}, 'configuration-clone-v1': {'selectionSHA256': 'C5BFBCF739DCD2BCAF77801385CD1A16C116D6AFE07F1AD02162F0AEF9030AA0', 'mapSHA256': '955D579A27A62C179660C0F8A4A38FF4D91FB9241244BA3B0334A9AF1B0C7A6E'}, 'clone-retirement-v1': {'selectionSHA256': '42337B38E49081DA1D0F9265235B3787DE105C6E695123A6F2CEB560779E2878', 'mapSHA256': '1891580B81536B16989FDB4976A4288FB548A18DA0280C5D7345A22AD2DD5E85'}, 'parent-finalization-v1': {'selectionSHA256': '1F2C99A95F04D378A6FB6FB0656FC0A9A6DC6A42D711E3FDD55996F86D25D572', 'mapSHA256': 'E1128081C187ABE0B9E2B69CA3998EA79EA71B4124A8BBD14942418F066F3A4E'}, 'destination-review-v1': {'selectionSHA256': '575C83D0CAC78A35C9BB240193B5AC345425175762A73C7604A2EE5AABB04A1F', 'mapSHA256': '86AC237B0F2A650CCB3B083DD8C8DA50F7176D76C0B9F15816EBD27FD79E5411'}, 'production-destination-v1': {'selectionSHA256': 'C82EBC63F02BA3B0A6957A09859C41B4686340402C6D8113A6A45040FFFBEDB5', 'mapSHA256': '732FBF8DC385F248761064F8073AD44C9F057A00CEE02140E0285874896C5F76'}, 'restore-review-v1': {'selectionSHA256': '658B54FBAA5E5907778892FD8F6B07BA5DEE82E5542580AC20723DC711E33584', 'mapSHA256': '143C205A5011FDBF1688CDF885B047070F192471AEDC5BF5B06FBFC20517DB98'}}
 
+HISTORICAL_SNAPSHOT_PREDECESSOR_PINS = {'incumbent-v1': {'selectionSHA256': '91E6F41D81E982D116611FF4A96219FE3631020B5CB264F76A8BDA1E4E27408E', 'mapSHA256': 'CD41DF01E106199B7CAE86CEDEB4BAA93F812C76D7B510BA6DC941DFCDDF7129'}, 'prospective-v1': {'selectionSHA256': '203335CCCC8FACDC8560C1F23BA28A762854664264884CBFAFB8A0F0EDF42F6E', 'mapSHA256': '6D74CFA1BA6EBC0B46ED0656F285F8BD59DA61D62CB60E02C2B37B2978973EBD'}, 'raw-photo-v1': {'selectionSHA256': '62673E1257EE72462439FA8770F3D3CFB50ED2FB06F0674C7C9E8D5FE2FDBEBB', 'mapSHA256': '77E605D5BE168687CC9EB81C4F695806C6A6E2FCD619411C64AA7E251676CEAC'}, 'pair-startup-v1': {'selectionSHA256': '62F78130A529F9BDAE378F9A9A152E32E178CC5F132BEC1FDEF37D2CAAAAE722', 'mapSHA256': '70D3F3C4C034D82397564BA554425A2FFB93E51A345B1075CBD72F82610FF110'}, 'photo-backup-v1': {'selectionSHA256': '930A9B3C186EDD0D09F9F630A9214A0FDD95362465B8FEFFBC735D78CF83AA5D', 'mapSHA256': '5BB4E7E1FA935EE74B962F4572F9384FBF5DC4E0BFA83178547D89E0A4287248'}, 'configuration-clone-v1': {'selectionSHA256': 'C5BFBCF739DCD2BCAF77801385CD1A16C116D6AFE07F1AD02162F0AEF9030AA0', 'mapSHA256': '955D579A27A62C179660C0F8A4A38FF4D91FB9241244BA3B0334A9AF1B0C7A6E'}, 'clone-retirement-v1': {'selectionSHA256': '42337B38E49081DA1D0F9265235B3787DE105C6E695123A6F2CEB560779E2878', 'mapSHA256': '1891580B81536B16989FDB4976A4288FB548A18DA0280C5D7345A22AD2DD5E85'}, 'parent-finalization-v1': {'selectionSHA256': '1F2C99A95F04D378A6FB6FB0656FC0A9A6DC6A42D711E3FDD55996F86D25D572', 'mapSHA256': 'E1128081C187ABE0B9E2B69CA3998EA79EA71B4124A8BBD14942418F066F3A4E'}, 'destination-review-v1': {'selectionSHA256': '575C83D0CAC78A35C9BB240193B5AC345425175762A73C7604A2EE5AABB04A1F', 'mapSHA256': '86AC237B0F2A650CCB3B083DD8C8DA50F7176D76C0B9F15816EBD27FD79E5411'}, 'production-destination-v1': {'selectionSHA256': 'C82EBC63F02BA3B0A6957A09859C41B4686340402C6D8113A6A45040FFFBEDB5', 'mapSHA256': '732FBF8DC385F248761064F8073AD44C9F057A00CEE02140E0285874896C5F76'}, 'restore-review-v1': {'selectionSHA256': '658B54FBAA5E5907778892FD8F6B07BA5DEE82E5542580AC20723DC711E33584', 'mapSHA256': '143C205A5011FDBF1688CDF885B047070F192471AEDC5BF5B06FBFC20517DB98'}, 'reminder-production-v1': {'selectionSHA256': '5484325202957B1DFF6BCD00918273A7792D6D2E5280D32BFEE1368D67CBAE70', 'mapSHA256': '38554B50BAE48ED14098ED2B243B1D19497EB98EBA480A274741BDF6B6416B04'}, 'reminder-compatibility-v1': {'selectionSHA256': '63394DBA6A8D5EF9C18C556473C5B3B28BE8178D3C9BEAC5032B611CA797A72A', 'mapSHA256': '73A11321226C73B195635CB75DD3046F0B49AE5BA8671D3B5A8255DA4D58A0D1'}, 'restore-history-v1': {'selectionSHA256': 'C46A725BF7F425DACBB8DEFEBC31F2543354E6366958C385198DB48C22E9A978', 'mapSHA256': 'AC74ED40BF913D6CAC95195935FC142C261478DD4413188891026218231EB556'}, 'erase-recovery-v1': {'selectionSHA256': '74C22D3BC39737E08CE20331DD429724EF4DDBC5574B2346C4754FBDEAB94D27', 'mapSHA256': '714083DCC599E6D6A3F58B1B0D91C1E990B66327A60E3F500F1E68CDC5368840'}, 'erase-handoff-v1': {'selectionSHA256': 'C3E8641F51A9EEFF34D0E4E65198C35E9AD18DA030B8FED4CB57026BD6D86930', 'mapSHA256': '33C107349D7CA40E9F47B8391CE11A7C16DD800A3C5DD7754A96807248472DA7'}}
+SNAPSHOT_FAMILY_SELECTORS = ['FieldEvidenceAppTests/V9_11ObservationTemporalSemanticsTests/testReportCorrectionRequiresExactV2ObservationAndTemporalSourceValues', 'FieldEvidenceAppTests/V9_54ActivityContractFamiliesTests/testV23P03C47H01CrossFamilyClaimsInvalidTransitionsAndStaleInputsFailClosed']
+
 import copy
 import hashlib
 import importlib.util
@@ -130,6 +133,8 @@ class GeneratorTests(unittest.TestCase):
         for class_name in classes:
             relative = "FieldEvidenceAppTests/" + class_name + ".swift"
             overlays = {
+                'V9_11ObservationTemporalSemanticsTests': REPO / 'FieldEvidenceAppTests/V9_11ObservationTemporalSemanticsTests.swift',
+                'V9_54ActivityContractFamiliesTests': REPO / 'FieldEvidenceAppTests/V9_54ActivityContractFamiliesTests.swift',
                 'S2PersistenceLedgerTests': REPO / 'FieldEvidenceAppTests/S2PersistenceLedgerTests.swift',
                 'V23ProductionAppAccessTests': REPO / 'FieldEvidenceAppTests/V23ProductionAppAccessTests.swift',
                 'S6_6EraseRecoveryTests': REPO / 'FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift',
@@ -478,6 +483,24 @@ class GeneratorTests(unittest.TestCase):
                          for group in prior_map['groups']])
         self.assertEqual({k:v for k,v in current.items() if k != 'unitTestSelectors'},
                          {k:v for k,v in prior.items() if k != 'unitTestSelectors'})
+        self.assertFalse(report['nativeReady'])
+        self.assertFalse(report['acceptance'])
+
+    def test_snapshot_family_profile_preserves_all_historical_outputs_and_adds_exact_pair(self):
+        pins = HISTORICAL_SNAPSHOT_PREDECESSOR_PINS
+        for profile, expected in pins.items():
+            with self.subTest(profile=profile):
+                selection, mapping, _ = self.generate(profile)
+                self.assertEqual(generator.sha256(generator.canonical(selection)), expected['selectionSHA256'])
+                self.assertEqual(generator.sha256(generator.canonical(mapping)), expected['mapSHA256'])
+        prior, prior_map, _ = self.generate('erase-handoff-v1')
+        current, mapping, report = self.generate('snapshot-family-v1')
+        self.assertEqual(current['unitTestSelectors'], prior['unitTestSelectors'] + SNAPSHOT_FAMILY_SELECTORS)
+        self.assertEqual((report['selectorCount'], report['groupCount']), (884, 56))
+        expected_groups = [dict(group, methodCount=group['methodCount'] + (1 if group['id'] == 'observation-temporal' else 0)) for group in prior_map['groups']]
+        expected_groups.append({'id':'activity-contracts', 'classes':['V9_54ActivityContractFamiliesTests'], 'methodCount':1})
+        self.assertEqual(mapping['groups'], expected_groups)
+        self.assertEqual({k:v for k,v in current.items() if k != 'unitTestSelectors'}, {k:v for k,v in prior.items() if k != 'unitTestSelectors'})
         self.assertEqual(generator.canonical(current), (HERE / 'ci-selection.json').read_bytes())
         self.assertEqual(generator.canonical(mapping), (HERE / 'ci-selection-map.json').read_bytes())
         self.assertFalse(report['nativeReady'])
@@ -731,13 +754,13 @@ class DiagnosticPartitionTests(unittest.TestCase):
                 path.write_bytes(generator.canonical(manifest))
                 selection, mapping = root / "selection.json", root / "map.json"
                 result = subprocess.run([sys.executable, str(GENERATOR), "generate", "--manifest", str(path),
-                    "--checkout-root", str(self.checkout), "--profile", "erase-handoff-v1",
+                    "--checkout-root", str(self.checkout), "--profile", "snapshot-family-v1",
                     "--selection-output", str(selection), "--map-output", str(mapping)], capture_output=True)
                 self.assertEqual(result.returncode, 0 if label == "valid" else 65, result.stderr)
                 self.assertEqual(selection.exists(), label == "valid")
                 self.assertEqual(mapping.exists(), label == "valid")
                 if label == "valid":
-                    expected = generator.generate(self.manifest, "erase-handoff-v1", self.checkout)
+                    expected = generator.generate(self.manifest, "snapshot-family-v1", self.checkout)
                     self.assertEqual(selection.read_bytes(), generator.canonical(expected[0]))
                     self.assertEqual(mapping.read_bytes(), generator.canonical(expected[1]))
 

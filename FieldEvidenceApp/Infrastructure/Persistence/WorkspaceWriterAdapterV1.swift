@@ -2938,7 +2938,9 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
             guard KernelCanonicalHashV1.sha256(data) == report.snapshotSHA256 else {
                 throw WorkspaceMutationFailureV1.invalidCommand
             }
-            let snapshot = try CompletedActivitySnapshotCanonicalCodecV2.decode(data)
+            guard let snapshot = try ReportSnapshotEncoderV1().completedActivityV2SnapshotIfPresent(
+                data, declaredSchemaVersion: report.snapshotSchemaVersion
+            ) else { continue }
             if let context = try? CompletedActivitySnapshotResolutionContextV2(
                 reference: reference, snapshot: snapshot
             ) {
