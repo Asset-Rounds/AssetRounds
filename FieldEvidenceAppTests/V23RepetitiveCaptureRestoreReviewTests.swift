@@ -722,7 +722,7 @@ final class RestoreReviewHarness {
 
     func assertCurrentAuxiliaryReadback(in session: StoreGenerationSession) throws {
         let service = try BackupRestoreService(applicationSupportURL: support)
-        let records = try service.records(in: session.modelContext)
+        let records = try service.c55CurrentRecordsForTesting(in: session.modelContext)
         XCTAssertEqual(records.recordsSchemaVersion, LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
         XCTAssertNotNil(records.evidenceQuality)
         XCTAssertNotNil(records.fastSurveyInbox)
@@ -732,7 +732,7 @@ final class RestoreReviewHarness {
         if identity.mutationReceipts.isEmpty {
             XCTAssertEqual(identity.generationID, session.generationID)
         }
-        try service.validateRows(session.modelContext, expected: records)
+        try service.c36ValidateRowsForTesting(session.modelContext, expected: records)
     }
 
     /// Exercise the production reader and validator, including hostile physical
@@ -752,14 +752,14 @@ final class RestoreReviewHarness {
         context.insert(state)
         try context.save()
         let service = try BackupRestoreService(applicationSupportURL: support)
-        let current = try service.records(in: context)
+        let current = try service.c55CurrentRecordsForTesting(in: context)
         XCTAssertEqual(current.recordsSchemaVersion, 52)
         XCTAssertEqual(current.entityIdentityResolution?.generationID, generationID)
         XCTAssertNotNil(current.evidenceQuality)
         XCTAssertNotNil(current.fastSurveyInbox)
         XCTAssertNotNil(current.reinspectionExceptionQueue)
         let history = try XCTUnwrap(current.mutationHistory)
-        XCTAssertEqual(service.replacingMutationHistoryForCurrentWriter(in: current, with: history), current)
+        XCTAssertEqual(service.c36ReplacingMutationHistoryForTesting(in: current, with: history), current)
 
         let data = try JSONEncoder().encode(current)
         var legacyObject = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
@@ -769,13 +769,13 @@ final class RestoreReviewHarness {
         }
         let legacy = try JSONDecoder().decode(V4BackupRecordsV1.self,
             from: JSONSerialization.data(withJSONObject: legacyObject))
-        XCTAssertNoThrow(try service.validateRows(context, expected: legacy))
+        XCTAssertNoThrow(try service.c36ValidateRowsForTesting(context, expected: legacy))
 
         var wrongGeneration = current
         wrongGeneration.entityIdentityResolution = try EntityIdentityResolutionBackupSnapshotV1(
             workspaceID: workspaceID, generationID: UUID(), aliasLinks: [],
             consolidationReceipts: [], mutationReceipts: [])
-        XCTAssertThrowsError(try service.validateRows(context, expected: wrongGeneration))
+        XCTAssertThrowsError(try service.c36ValidateRowsForTesting(context, expected: wrongGeneration))
 
         let budget = try ImportStreamingBudgetV1(maximumSourceBytes: 1_024, maximumRows: 1,
             maximumColumns: 2, maximumCellBytes: 128, maximumScalarsPerCell: 128)
@@ -790,12 +790,12 @@ final class RestoreReviewHarness {
         let row = try ImportMappingProfileRowV1(profile)
         context.insert(row)
         try context.save()
-        XCTAssertEqual(try service.records(in: context).importMappingProfiles, [profile])
-        XCTAssertThrowsError(try service.validateRows(context, expected: legacy))
-        XCTAssertThrowsError(try service.validateRows(context, expected: current))
+        XCTAssertEqual(try service.c55CurrentRecordsForTesting(in: context).importMappingProfiles, [profile])
+        XCTAssertThrowsError(try service.c36ValidateRowsForTesting(context, expected: legacy))
+        XCTAssertThrowsError(try service.c36ValidateRowsForTesting(context, expected: current))
         context.delete(row)
         try context.save()
-        XCTAssertEqual(try service.records(in: context), current)
+        XCTAssertEqual(try service.c55CurrentRecordsForTesting(in: context), current)
 
         let foreignProfile = try ImportMappingProfileV1(profileID: UUID(),
             workspaceID: WorkspaceID(rawValue: UUID()), profileName: "Foreign readback",
@@ -803,42 +803,42 @@ final class RestoreReviewHarness {
         let foreign = try ImportMappingProfileRowV1(foreignProfile)
         context.insert(foreign)
         try context.save()
-        XCTAssertThrowsError(try service.records(in: context))
+        XCTAssertThrowsError(try service.c55CurrentRecordsForTesting(in: context))
         context.delete(foreign)
         try context.save()
 
         state.generationID = UUID()
         try context.save()
-        let rebound = try service.records(in: context)
+        let rebound = try service.c55CurrentRecordsForTesting(in: context)
         XCTAssertEqual(rebound.entityIdentityResolution?.generationID, state.generationID)
         XCTAssertNotEqual(rebound.entityIdentityResolution, current.entityIdentityResolution)
-        XCTAssertThrowsError(try service.validateRows(context, expected: current))
-        XCTAssertNoThrow(try service.validateRows(context, expected: legacy))
+        XCTAssertThrowsError(try service.c36ValidateRowsForTesting(context, expected: current))
+        XCTAssertNoThrow(try service.c36ValidateRowsForTesting(context, expected: legacy))
         // A post-review history copy must retain the newly normalized target
         // generation instead of restoring an original archive's empty identity.
-        XCTAssertEqual(service.replacingMutationHistoryForCurrentWriter(in: rebound,
+        XCTAssertEqual(service.c36ReplacingMutationHistoryForTesting(in: rebound,
             with: try XCTUnwrap(rebound.mutationHistory)), rebound)
 
         context.delete(state)
         context.insert(try ImportMappingProfileRowV1(profile))
         try context.save()
-        XCTAssertThrowsError(try service.records(in: context))
+        XCTAssertThrowsError(try service.c55CurrentRecordsForTesting(in: context))
         try assertPopulatedAuxiliaryCopyAndDuplicateRejection(service: service)
     }
 
     private func assertPopulatedAuxiliaryCopyAndDuplicateRejection(service: BackupRestoreService) throws {
         let fixture = try C10ProductionFixture(useActiveSchema: true)
-        let populated = try service.records(in: fixture.context)
+        let populated = try service.c55CurrentRecordsForTesting(in: fixture.context)
         let quality = try C10ProductionFixture.physicalBackupSnapshot(
             in: fixture.context, workspaceID: fixture.workspaceID)
         XCTAssertFalse(quality.ruleSets.isEmpty)
         XCTAssertFalse(quality.receipts.isEmpty)
         XCTAssertEqual(populated.evidenceQuality, quality)
         let history = try XCTUnwrap(populated.mutationHistory)
-        XCTAssertEqual(service.replacingMutationHistoryForCurrentWriter(in: populated, with: history), populated)
+        XCTAssertEqual(service.c36ReplacingMutationHistoryForTesting(in: populated, with: history), populated)
         var omitted = populated
         omitted.evidenceQuality = nil
-        XCTAssertThrowsError(try service.validateRows(fixture.context, expected: omitted))
+        XCTAssertThrowsError(try service.c36ValidateRowsForTesting(fixture.context, expected: omitted))
 
         // A typed copy-only probe covers nonnil optional practice provenance;
         // this does not claim that the physical REAL fixture is a practice store.
@@ -853,7 +853,7 @@ final class RestoreReviewHarness {
         var withPractice = populated
         withPractice.practiceWorkspaceProvenance = try PracticeWorkspaceBackupSnapshotV1(provenance:
             PracticeWorkspaceProvenanceV1(provenanceID: UUID(), plan: plan, receipt: receipt, revision: 1))
-        XCTAssertEqual(service.replacingMutationHistoryForCurrentWriter(in: withPractice, with: history), withPractice)
+        XCTAssertEqual(service.c36ReplacingMutationHistoryForTesting(in: withPractice, with: history), withPractice)
 
         // Deliberately hostile persisted history: two individually valid rows
         // have distinct revision keys but the same logical ruleSetID. The real
@@ -881,7 +881,7 @@ final class RestoreReviewHarness {
         XCTAssertNotEqual(row.rowID, originalRow.rowID)
         fixture.context.insert(row)
         try fixture.context.save()
-        XCTAssertThrowsError(try service.records(in: fixture.context)) { error in
+        XCTAssertThrowsError(try service.c55CurrentRecordsForTesting(in: fixture.context)) { error in
             XCTAssertEqual(error as? BackupRestoreServiceError, .invalidRestoreAuthority)
         }
     }

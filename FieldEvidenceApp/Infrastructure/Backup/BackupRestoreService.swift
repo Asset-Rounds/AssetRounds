@@ -18679,6 +18679,17 @@ private extension BackupRestoreService {
 
 #if DEBUG
 internal extension BackupRestoreService {
+    func c36ValidateRowsForTesting(_ context: ModelContext, expected: V4BackupRecordsV1) throws {
+        try validateRows(context, expected: expected)
+    }
+
+    func c36ReplacingMutationHistoryForTesting(
+        in records: V4BackupRecordsV1,
+        with history: MutationHistorySnapshotV1
+    ) -> V4BackupRecordsV1 {
+        replacingMutationHistoryForCurrentWriter(in: records, with: history)
+    }
+
     func c36ValidateFrozenEvidenceFileForTesting(root: URL, relativePath: String,
         expectedByteCount: Int, expectedSHA256: String,
         authorityCheck: () throws -> Void = {}) throws {
