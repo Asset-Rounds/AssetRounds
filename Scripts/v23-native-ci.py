@@ -46,8 +46,8 @@ NO_INDEX_PARENT = '5c1e9831153e9e5feddda08e1152de06ecbaaed2'
 NO_INDEX_TREES = {'FieldEvidenceApp': 'cf661d0cb9a754135dfdea02fc7fa81967163331', 'FieldEvidenceAppTests': '6ae80744a230727892ceb04617421d91fd17e53a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 NO_INDEX_RECEIPT = "no-index-build-command.json"
 RESTORE_BUILD_WATCHDOG_SELECTION_ID = "c36-restore-review-no-index-build30m"
-RESTORE_BUILD_WATCHDOG_PARENT = 'eb9e84e5d33411f21d9b648759cdf6635dfffd8c'
-RESTORE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '782dc0316e515f5d2e7894f1328a8f414ff89dde', 'FieldEvidenceAppTests': '0918e5d19390216a395574afa8c54ab1aa21a01d', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+RESTORE_BUILD_WATCHDOG_PARENT = '462a71141f0189598ff041b3a0dc9f2798e4b23e'
+RESTORE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '1d2dcbd90fd171e13f2934d8b866fccbabaffbe4', 'FieldEvidenceAppTests': '750961983ffc827c3ed7ca964eca9b53f68c2d2c', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 RESTORE_BUILD_WATCHDOG_SELECTORS = tuple(
     "FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/" + method for method in (
         "testPhysicalForkCreatesReviewReceiptAndSecondHopSurvivesOriginalPackageRemoval",
@@ -59,8 +59,8 @@ RESTORE_BUILD_WATCHDOG_SELECTORS = tuple(
     )
 )
 REMINDER_BUILD_WATCHDOG_SELECTION_ID = "reminder-production-no-index-build30m"
-REMINDER_BUILD_WATCHDOG_PARENT = 'eb9e84e5d33411f21d9b648759cdf6635dfffd8c'
-REMINDER_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '782dc0316e515f5d2e7894f1328a8f414ff89dde', 'FieldEvidenceAppTests': '0918e5d19390216a395574afa8c54ab1aa21a01d', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+REMINDER_BUILD_WATCHDOG_PARENT = '462a71141f0189598ff041b3a0dc9f2798e4b23e'
+REMINDER_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '1d2dcbd90fd171e13f2934d8b866fccbabaffbe4', 'FieldEvidenceAppTests': '750961983ffc827c3ed7ca964eca9b53f68c2d2c', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 REMINDER_BUILD_WATCHDOG_GROUPS = ('reminder-policy-edit', 'reminder-production-settings', 'reminder-detailed-delivery', 'reminder-control-continuation')
 REMINDER_BUILD_WATCHDOG_SELECTORS = (
     'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testUnboundAndRetiredOwnersCannotMintOrRebind',
@@ -98,15 +98,21 @@ REMINDER_BUILD_WATCHDOG_SELECTORS = (
     'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testNilContinuationPreservesLegacyCanonicalControlAndSubjectBytes',
 )
 RESTORE_HISTORY_SELECTION_ID = "restore-history-no-index-build30m"
-RESTORE_HISTORY_PARENT = 'eb9e84e5d33411f21d9b648759cdf6635dfffd8c'
-RESTORE_HISTORY_TREES = {'FieldEvidenceApp': '782dc0316e515f5d2e7894f1328a8f414ff89dde', 'FieldEvidenceAppTests': '0918e5d19390216a395574afa8c54ab1aa21a01d', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+RESTORE_HISTORY_PARENT = '462a71141f0189598ff041b3a0dc9f2798e4b23e'
+RESTORE_HISTORY_TREES = {'FieldEvidenceApp': '1d2dcbd90fd171e13f2934d8b866fccbabaffbe4', 'FieldEvidenceAppTests': '750961983ffc827c3ed7ca964eca9b53f68c2d2c', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 RESTORE_HISTORY_GROUPS = ("c36-restore-review", "replacement-packet-union")
 RESTORE_HISTORY_PACKET_SELECTOR = 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testGoldenReplacementKeepsIncomingLiveAndUnionsCurrentRoot'
 RESTORE_HISTORY_SELECTORS = RESTORE_BUILD_WATCHDOG_SELECTORS + (RESTORE_HISTORY_PACKET_SELECTOR,)
 ERASE_BUILD_WATCHDOG_SELECTION_ID = "erase-recovery-no-index-build30m"
-ERASE_BUILD_WATCHDOG_PARENT = 'eb9e84e5d33411f21d9b648759cdf6635dfffd8c'
-ERASE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '782dc0316e515f5d2e7894f1328a8f414ff89dde', 'FieldEvidenceAppTests': '0918e5d19390216a395574afa8c54ab1aa21a01d', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+ERASE_BUILD_WATCHDOG_PARENT = '462a71141f0189598ff041b3a0dc9f2798e4b23e'
+ERASE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '1d2dcbd90fd171e13f2934d8b866fccbabaffbe4', 'FieldEvidenceAppTests': '750961983ffc827c3ed7ca964eca9b53f68c2d2c', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+ERASE_DRAIN_SELECTION_ID = "erase-drain-timing-no-index-build30m"
+ERASE_REMAINDER_SELECTION_ID = "erase-remainder-no-index-build30m"
+ERASE_PARTITION_PARENT = '462a71141f0189598ff041b3a0dc9f2798e4b23e'
+ERASE_PARTITION_TREES = {'FieldEvidenceApp': '1d2dcbd90fd171e13f2934d8b866fccbabaffbe4', 'FieldEvidenceAppTests': '750961983ffc827c3ed7ca964eca9b53f68c2d2c', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 NO_INDEX_ROUTES = {
+    ERASE_DRAIN_SELECTION_ID: (ERASE_PARTITION_PARENT, "D30"),
+    ERASE_REMAINDER_SELECTION_ID: (ERASE_PARTITION_PARENT, "D30"),
     ERASE_BUILD_WATCHDOG_SELECTION_ID: (ERASE_BUILD_WATCHDOG_PARENT, "D30"),
     RESTORE_HISTORY_SELECTION_ID: (RESTORE_HISTORY_PARENT, "D30"),
     NO_INDEX_SELECTION_ID: (NO_INDEX_PARENT, "N8"),
@@ -117,6 +123,8 @@ NO_INDEX_ROUTES = {
 
 def no_index_source_trees(selection_id):
     require(selection_id in NO_INDEX_ROUTES, "no-index closed source binding")
+    if selection_id in (ERASE_DRAIN_SELECTION_ID, ERASE_REMAINDER_SELECTION_ID):
+        return ERASE_PARTITION_TREES
     if selection_id == ERASE_BUILD_WATCHDOG_SELECTION_ID:
         return ERASE_BUILD_WATCHDOG_TREES
     if selection_id == RESTORE_HISTORY_SELECTION_ID:
@@ -174,6 +182,10 @@ DESTINATION_LEGACY_SELECTOR = 'FieldEvidenceAppTests/V9_30FieldDraftResilienceTe
 ERASE_RECOVERY_SELECTION_ID = "erase-recovery"
 ERASE_LEASE_SELECTORS = ('FieldEvidenceAppTests/S2PersistenceLedgerTests/testDeferredEraseRetainsLiveOldContextAcrossAppAccessResumeUntilDrain', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testSuspendedRestoredActivationCannotReleaseANewerBindingInTheSameCoordinator', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testRepeatedLifecyclePausesRetainPostAdoptionActivationForExactRetry', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testPostAdoptionExecutionRevokedAtFirstAwaitCannotInstallAStaleTokenOrRead', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testSupersededPostAdoptionCatchCannotOverwriteNewReadyExecution', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testEraseCleanupReleaseFailureRetainsOriginalOwnerAndRetries', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testEraseCleanupInterruptionAfterRetirementResumesOriginalTicket', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testImmediateEraseCleanupReplacesRetiredWriterBeforePublication', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testErasedActivationMismatchAndRepeatedBeginReleaseOnlyTheAcquiredWriter')
 ERASE_RECOVERY_SELECTORS = ERASE_LEASE_SELECTORS + ('FieldEvidenceAppTests/V23ProductionAppAccessTests/testPresentationDeferredEraseRetainsDrainAcrossPauseAndResumesWithFreshService', 'FieldEvidenceAppTests/V23ProductionAppAccessTests/testProductionEraseAdoptsFreshSettingOwnerAndNextToggleCommits', 'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testProductionCompletedEraseReplacesOwnersAndRejectsPendingPermissionEdit', 'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testGoldenEraseActivatesEmptyGenerationAndClearsFrozenState')
+ERASE_DIAGNOSTIC_PARTITIONS = (
+    (ERASE_DRAIN_SELECTION_ID, ERASE_RECOVERY_SELECTORS[:1]),
+    (ERASE_REMAINDER_SELECTION_ID, ERASE_RECOVERY_SELECTORS[1:]),
+)
 GENERATED_SELECTION_PROFILE = "erase-handoff-v1"
 GENERATED_SELECTION_POOL_SHA256 = "C3E8641F51A9EEFF34D0E4E65198C35E9AD18DA030B8FED4CB57026BD6D86930"
 GENERATED_SELECTION_MAP_SHA256 = "33C107349D7CA40E9F47B8391CE11A7C16DD800A3C5DD7754A96807248472DA7"
@@ -931,7 +943,8 @@ def validate_selection(selection):
     if selection["tier"] == "D30":
         require(tuple(selection["unitTestSelectors"]) in (
             PARENT_FINALIZATION_METHOD_PARTITIONS[0][1], RESTORE_BUILD_WATCHDOG_SELECTORS,
-            REMINDER_BUILD_WATCHDOG_SELECTORS, RESTORE_HISTORY_SELECTORS, ERASE_RECOVERY_SELECTORS),
+            REMINDER_BUILD_WATCHDOG_SELECTORS, RESTORE_HISTORY_SELECTORS, ERASE_RECOVERY_SELECTORS,
+            *(members for _, members in ERASE_DIAGNOSTIC_PARTITIONS)),
             "build watchdog exact approved methods")
 
 
@@ -1195,6 +1208,11 @@ def resolve_selection(default, selection_map, selection_id):
         development = dict(diagnostic, tier="D30", **dict(zip(BUDGET_KEYS, TIERS["D30"])))
         validate_selection(development)
         resolved[ERASE_BUILD_WATCHDOG_SELECTION_ID] = development
+        for partition_id, partition_members in ERASE_DIAGNOSTIC_PARTITIONS:
+            require(partition_id not in resolved, "erase partition distinct selection")
+            partition = dict(development, unitTestSelectors=list(partition_members))
+            validate_selection(partition)
+            resolved[partition_id] = partition
     if selection_id == DEFAULT_SELECTION_ID:
         return default
     require(selection_id in resolved, "unknown selection ID")
@@ -1211,6 +1229,14 @@ def verify_generated_selection(root, default, selection_map):
     spec.loader.exec_module(generator)
     manifest = generator.load_json(root / "Scripts/v23-selection-manifest.json")
     expected, expected_map, report = generator.generate(manifest, GENERATED_SELECTION_PROFILE, root)
+    expected_partitions = {"schemaVersion": 1, "families": [{
+        "parentID": ERASE_RECOVERY_SELECTION_ID,
+        "parentSelectors": list(ERASE_RECOVERY_SELECTORS),
+        "partitions": [{"id": key, "selectors": list(members)}
+                       for key, members in ERASE_DIAGNOSTIC_PARTITIONS],
+    }]}
+    require(manifest.get("diagnosticPartitions") == expected_partitions,
+            "erase diagnostic manifest exact closed partition binding")
     require(canonical(default) == canonical(expected) and canonical(selection_map) == canonical(expected_map),
             "generated selection differs from manifest/source")
     require(report["selectionSHA256"] == GENERATED_SELECTION_POOL_SHA256
@@ -1305,6 +1331,8 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
         REMINDER_BUILD_WATCHDOG_SELECTION_ID: (REMINDER_BUILD_WATCHDOG_PARENT, REMINDER_BUILD_WATCHDOG_SELECTORS),
         RESTORE_HISTORY_SELECTION_ID: (RESTORE_HISTORY_PARENT, RESTORE_HISTORY_SELECTORS),
         ERASE_BUILD_WATCHDOG_SELECTION_ID: (ERASE_BUILD_WATCHDOG_PARENT, ERASE_RECOVERY_SELECTORS),
+        **{key: (ERASE_PARTITION_PARENT, members)
+           for key, members in ERASE_DIAGNOSTIC_PARTITIONS},
     }
     if selection["tier"] == "D30" or selection_record["selectionID"] in watchdog_routes:
         require(selection["tier"] == "D30"

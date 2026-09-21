@@ -98,8 +98,55 @@ def parse_selector(selector: str):
     return match.group(1), match.group(2)
 
 
+def validate_diagnostic_partitions(value, pool):
+    """Validate optional diagnostic metadata without changing generated selections."""
+    exact_keys(value, {"schemaVersion", "families"}, "diagnostic partitions")
+    require(type(value["schemaVersion"]) is int and value["schemaVersion"] == 1,
+            "diagnostic partitions schema")
+    families = value["families"]
+    require(isinstance(families, list) and families, "diagnostic partition families")
+    ids = set()
+    pool_set = set(pool)
+    for family in families:
+        exact_keys(family, {"parentID", "parentSelectors", "partitions"}, "diagnostic family")
+        parent_id = family["parentID"]
+        require(isinstance(parent_id, str) and IDENTIFIER.fullmatch(parent_id)
+                and parent_id != "default-132" and parent_id not in ids,
+                "diagnostic parent ID")
+        ids.add(parent_id)
+        parent = family["parentSelectors"]
+        require(isinstance(parent, list) and parent
+                and all(isinstance(item, str) for item in parent), "diagnostic parent selectors")
+        for item in parent:
+            parse_selector(item)
+        require(len(parent) == len(set(parent)) and set(parent) <= pool_set,
+                "diagnostic parent membership")
+        partitions = family["partitions"]
+        require(isinstance(partitions, list) and len(partitions) >= 2,
+                "diagnostic partitions list")
+        union = []
+        for partition in partitions:
+            exact_keys(partition, {"id", "selectors"}, "diagnostic partition")
+            partition_id = partition["id"]
+            require(isinstance(partition_id, str) and IDENTIFIER.fullmatch(partition_id)
+                    and partition_id != "default-132" and partition_id not in ids,
+                    "diagnostic partition ID")
+            ids.add(partition_id)
+            members = partition["selectors"]
+            require(isinstance(members, list) and members
+                    and all(isinstance(item, str) for item in members),
+                    "diagnostic partition selectors")
+            for item in members:
+                parse_selector(item)
+            union.extend(members)
+        require(union == parent and len(union) == len(set(union)),
+                "diagnostic exact ordered exhaustive disjoint union")
+    return value
+
+
 def validate_manifest(value):
-    exact_keys(value, TOP_KEYS, "manifest")
+    require(isinstance(value, dict) and set(value) in (TOP_KEYS, TOP_KEYS | {"diagnosticPartitions"}),
+            "manifest keys")
     require(value["schemaVersion"] == 1 and type(value["schemaVersion"]) is int,
             "manifest schema")
     require(value["contractID"] == CONTRACT and value["taskID"] == TASK,
@@ -117,6 +164,8 @@ def validate_manifest(value):
     require(isinstance(pool, list) and pool and all(isinstance(item, str) for item in pool)
             and len(pool) == len(set(pool)),
             "selector pool must be nonempty and unique")
+    if "diagnosticPartitions" in value:
+        validate_diagnostic_partitions(value["diagnosticPartitions"], pool)
     selector_classes = []
     for selector in pool:
         selector_classes.append(parse_selector(selector)[0])

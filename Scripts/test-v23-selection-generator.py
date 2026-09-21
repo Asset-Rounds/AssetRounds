@@ -441,8 +441,9 @@ class GeneratorTests(unittest.TestCase):
         current, mapping, report = self.generate('erase-recovery-v1')
         self.assertEqual((report['selectorCount'], report['groupCount']), (880, 55))
         self.assertEqual(current['unitTestSelectors'][-11:-2], ['FieldEvidenceAppTests/S2PersistenceLedgerTests/testDeferredEraseRetainsLiveOldContextAcrossAppAccessResumeUntilDrain', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testSuspendedRestoredActivationCannotReleaseANewerBindingInTheSameCoordinator', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testRepeatedLifecyclePausesRetainPostAdoptionActivationForExactRetry', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testPostAdoptionExecutionRevokedAtFirstAwaitCannotInstallAStaleTokenOrRead', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testSupersededPostAdoptionCatchCannotOverwriteNewReadyExecution', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testEraseCleanupReleaseFailureRetainsOriginalOwnerAndRetries', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testEraseCleanupInterruptionAfterRetirementResumesOriginalTicket', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testImmediateEraseCleanupReplacesRetiredWriterBeforePublication', 'FieldEvidenceAppTests/S2PersistenceLedgerTests/testErasedActivationMismatchAndRepeatedBeginReleaseOnlyTheAcquiredWriter'])
-        self.assertEqual(generator.canonical(current), (HERE / 'ci-selection.json').read_bytes())
-        self.assertEqual(generator.canonical(mapping), (HERE / 'ci-selection-map.json').read_bytes())
+        self.assertEqual([generator.sha256(generator.canonical(value)) for value in (current, mapping)],
+                         ['74C22D3BC39737E08CE20331DD429724EF4DDBC5574B2346C4754FBDEAB94D27',
+                          '714083DCC599E6D6A3F58B1B0D91C1E990B66327A60E3F500F1E68CDC5368840'])
 
     def test_legacy_consumer_shape_disjoint_exhaustive_and_deterministic(self):
         selection, selection_map, report = self.generate()
@@ -477,6 +478,8 @@ class GeneratorTests(unittest.TestCase):
                          for group in prior_map['groups']])
         self.assertEqual({k:v for k,v in current.items() if k != 'unitTestSelectors'},
                          {k:v for k,v in prior.items() if k != 'unitTestSelectors'})
+        self.assertEqual(generator.canonical(current), (HERE / 'ci-selection.json').read_bytes())
+        self.assertEqual(generator.canonical(mapping), (HERE / 'ci-selection-map.json').read_bytes())
         self.assertFalse(report['nativeReady'])
         self.assertFalse(report['acceptance'])
 
@@ -571,6 +574,7 @@ class GeneratorTests(unittest.TestCase):
 
     def generate_source_case(self, source):
         manifest = copy.deepcopy(self.manifest)
+        manifest.pop("diagnosticPartitions", None)  # This parser fixture defines its own unrelated one-method pool.
         manifest["selectorPool"] = ["FieldEvidenceAppTests/FixtureTests/testSelected"]
         manifest["groups"] = [{"id": "fixture", "classes": ["FixtureTests"]}]
         manifest["profiles"] = [{"id": "fixture-v1", "excludedGroupIDs": []}]
@@ -656,6 +660,86 @@ class GeneratorTests(unittest.TestCase):
                 with self.assertRaises(generator.ManifestError):
                     self.generate_source_case("class FixtureTests: XCTestCase {\n" + hidden + "\n}")
                 self.assertEqual(self.generate_source_case("class FixtureTests: XCTestCase {\n" + hidden + "\n" + method + "\n}")[2]["selectorCount"], 1)
+
+
+class DiagnosticPartitionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.manifest = generator.load_json(MANIFEST)
+        cls.temp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(cls.temp.cleanup)
+        cls.checkout = Path(cls.temp.name).resolve()
+        sources = cls.checkout / "FieldEvidenceAppTests"
+        sources.mkdir()
+        classes = {}
+        for selector in cls.manifest["selectorPool"]:
+            name, method = generator.parse_selector(selector)
+            classes.setdefault(name, []).append(method)
+        for name, methods in classes.items():
+            (sources / (name + ".swift")).write_text(
+                "import XCTest\nfinal class " + name + ": XCTestCase {\n" +
+                "".join("func " + method + "() {}\n" for method in methods) + "}\n")
+
+    def test_metadata_preserves_every_profile_output_and_legacy_manifest(self):
+        legacy = copy.deepcopy(self.manifest)
+        del legacy["diagnosticPartitions"]
+        for profile in self.manifest["profiles"]:
+            with self.subTest(profile=profile["id"]):
+                current = generator.generate(self.manifest, profile["id"], self.checkout)
+                prior = generator.generate(legacy, profile["id"], self.checkout)
+                self.assertEqual(current, prior)
+        family = self.manifest["diagnosticPartitions"]["families"][0]
+        self.assertEqual(family["parentID"], "erase-recovery")
+        self.assertEqual([part["id"] for part in family["partitions"]],
+                         ["erase-drain-timing-no-index-build30m", "erase-remainder-no-index-build30m"])
+        self.assertEqual([len(part["selectors"]) for part in family["partitions"]], [1, 12])
+
+    def test_real_cli_rejects_hostile_metadata_before_writing_outputs(self):
+        original = self.manifest["diagnosticPartitions"]
+        cases = []
+        def change(label, mutate):
+            value = copy.deepcopy(original)
+            mutate(value)
+            cases.append((label, value))
+        change("unknown key", lambda v: v.update(extra=True))
+        change("boolean version", lambda v: v.update(schemaVersion=True))
+        change("unknown version", lambda v: v.update(schemaVersion=2))
+        change("missing families", lambda v: v.pop("families"))
+        change("empty families", lambda v: v.update(families=[]))
+        change("duplicate family", lambda v: v["families"].append(copy.deepcopy(v["families"][0])))
+        change("unknown family key", lambda v: v["families"][0].update(extra=True))
+        change("missing parent", lambda v: v["families"][0].pop("parentID"))
+        change("invalid parent ID", lambda v: v["families"][0].update(parentID="../bad"))
+        change("foreign parent", lambda v: v["families"][0]["parentSelectors"].append("FieldEvidenceAppTests/ForeignTests/testForeign"))
+        change("duplicate parent", lambda v: v["families"][0]["parentSelectors"].append(v["families"][0]["parentSelectors"][0]))
+        change("reordered parent", lambda v: v["families"][0]["parentSelectors"].reverse())
+        change("duplicate partition ID", lambda v: v["families"][0]["partitions"][1].update(id=v["families"][0]["partitions"][0]["id"]))
+        change("parent ID collision", lambda v: v["families"][0]["partitions"][0].update(id="erase-recovery"))
+        change("unknown partition key", lambda v: v["families"][0]["partitions"][0].update(extra=True))
+        change("empty partition", lambda v: v["families"][0]["partitions"][0].update(selectors=[]))
+        change("missing method", lambda v: v["families"][0]["partitions"][1]["selectors"].pop())
+        change("reordered methods", lambda v: v["families"][0]["partitions"][1]["selectors"].reverse())
+        change("reordered partitions", lambda v: v["families"][0]["partitions"].reverse())
+        change("overlap", lambda v: v["families"][0]["partitions"][1]["selectors"].append(v["families"][0]["parentSelectors"][0]))
+        change("foreign method", lambda v: v["families"][0]["partitions"][1]["selectors"].append("FieldEvidenceAppTests/ForeignTests/testForeign"))
+        for label, metadata in [("valid", original)] + cases:
+            with self.subTest(case=label), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory).resolve()
+                manifest = copy.deepcopy(self.manifest)
+                manifest["diagnosticPartitions"] = metadata
+                path = root / "manifest.json"
+                path.write_bytes(generator.canonical(manifest))
+                selection, mapping = root / "selection.json", root / "map.json"
+                result = subprocess.run([sys.executable, str(GENERATOR), "generate", "--manifest", str(path),
+                    "--checkout-root", str(self.checkout), "--profile", "erase-handoff-v1",
+                    "--selection-output", str(selection), "--map-output", str(mapping)], capture_output=True)
+                self.assertEqual(result.returncode, 0 if label == "valid" else 65, result.stderr)
+                self.assertEqual(selection.exists(), label == "valid")
+                self.assertEqual(mapping.exists(), label == "valid")
+                if label == "valid":
+                    expected = generator.generate(self.manifest, "erase-handoff-v1", self.checkout)
+                    self.assertEqual(selection.read_bytes(), generator.canonical(expected[0]))
+                    self.assertEqual(mapping.read_bytes(), generator.canonical(expected[1]))
 
 
 if __name__ == "__main__":

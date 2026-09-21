@@ -82,6 +82,58 @@ final class S6_5ReplacementUnionTests: XCTestCase {
         ))
     }
 
+#if DEBUG
+    @MainActor
+    private func assertObservationSchemaContract(
+        service: BackupRestoreService,
+        value: V4BackupWorkflowRecordDTO
+    ) throws {
+        let basis = try XCTUnwrap(value.observationBasisV1Data)
+        let temporal = try XCTUnwrap(value.temporalContextV1Data)
+        let upperBound = LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
+        for version in 4...upperBound {
+            let restored = try service.c36ObservationAndTimeDataForTesting(
+                for: value, recordsSchemaVersion: version)
+            XCTAssertEqual(restored.basis, basis, "schema \(version)")
+            XCTAssertEqual(restored.temporal, temporal, "schema \(version)")
+        }
+
+        let legacy = value.replacingObservationAndTime(basisData: nil, temporalData: nil)
+        for version in 1...3 {
+            XCTAssertThrowsError(try service.c36ObservationAndTimeDataForTesting(
+                for: value, recordsSchemaVersion: version))
+            let migrated = try service.c36ObservationAndTimeDataForTesting(
+                for: legacy, recordsSchemaVersion: version)
+            let migratedBasis = try XCTUnwrap(migrated.basis)
+            let migratedTemporal = try XCTUnwrap(migrated.temporal)
+            XCTAssertEqual(try ObservationAndTimeCodecV1.encode(
+                ObservationAndTimeCodecV1.decodeObservationBasis(migratedBasis)), migratedBasis)
+            XCTAssertEqual(try ObservationAndTimeCodecV1.encode(
+                ObservationAndTimeCodecV1.decodeTemporalContext(migratedTemporal)), migratedTemporal)
+        }
+        for version in [0, upperBound + 1] {
+            for record in [value, legacy] {
+                XCTAssertThrowsError(try service.c36ObservationAndTimeDataForTesting(
+                    for: record, recordsSchemaVersion: version))
+            }
+        }
+        let invalidRecords: [V4BackupWorkflowRecordDTO] = [
+            value.replacingObservationAndTime(basisData: nil, temporalData: temporal),
+            value.replacingObservationAndTime(basisData: basis, temporalData: nil),
+            value.replacingObservationAndTime(basisData: Data([0xff]), temporalData: temporal),
+            value.replacingObservationAndTime(basisData: basis, temporalData: Data([0xff])),
+            value.replacingObservationAndTime(basisData: basis + Data([0x20]), temporalData: temporal),
+            value.replacingObservationAndTime(basisData: basis, temporalData: temporal + Data([0x20])),
+        ]
+        for version in [4, 9, upperBound] {
+            for record in invalidRecords {
+                XCTAssertThrowsError(try service.c36ObservationAndTimeDataForTesting(
+                    for: record, recordsSchemaVersion: version))
+            }
+        }
+    }
+#endif
+
     @MainActor
     func testGoldenReplacementKeepsIncomingLiveAndUnionsCurrentRoot() async throws {
         var diagnosticPhase = "fixture.begin"
@@ -128,6 +180,11 @@ final class S6_5ReplacementUnionTests: XCTestCase {
                 makeUUID: sequence([uuid(191), uuid(192)])
             )
 #if DEBUG
+            diagnosticPhase = "restore.observation-schema-contract"
+            let incomingRecords = try service.c55CurrentRecordsForTesting(
+                in: incoming.session.modelContext)
+            try assertObservationSchemaContract(service: service,
+                value: XCTUnwrap(incomingRecords.workflowRecords.first))
             service.restorePhaseDiagnosticForTesting = { value in
                 if value == "restore-error.recovery.begin", firstRecoveryOrigin == nil {
                     firstRecoveryOrigin = diagnosticPhase

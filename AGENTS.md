@@ -50,6 +50,10 @@ The owner permits the 30-minute proposal to be permanent or temporary. Reuse the
 | `reminder-production-no-index-build30m` | Ordered33-method union of the four reminder groups |
 | `restore-history-no-index-build30m` | Six restore-review methods followed by the golden replacement-union method |
 | `erase-recovery-no-index-build30m` | Exact ordered13 methods from ordinary `erase-recovery` |
+| `erase-drain-timing-no-index-build30m` | First Erase13 method: deferred old-context drain, with bounded phase timings |
+| `erase-remainder-no-index-build30m` | Remaining ordered12 Erase13 methods |
+
+The Erase1/12 split addresses audited original35586305552: its slow lifecycle method consumed661 seconds and the combined900-second test budget interrupted the final method. Require exact ordered disjoint union with historical13, unchanged assertions and separate timing/completion evidence. This isolates test budgets; it does not establish a performance fix or authorize an unchanged retry. Retain runner-cost measurements and all historical routes.
 
 Each candidate needs exact source/parent/environment binding, independent actual-index and committed-route review, original-attempt deduplication and sole collection. Rebind reviewed source pins; reuse parameterized helpers. Every original must answer a new evidenced question. Preserve all methods, historical selectors, normal budgets and acceptance gates. No unchanged retry, duplicate, Actions rerun, cancellation, paid capacity or provider/merge/release credit. Measure compilation and method timings before further splits or shared-build changes; idle runners alone do not justify repeated full builds. This reusable allowance supersedes the temporary-only development choice; it does not reopen consumed historical originals.
 

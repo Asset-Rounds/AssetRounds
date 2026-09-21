@@ -13571,9 +13571,8 @@ private extension BackupRestoreService {
         recordsSchemaVersion: Int
     ) throws -> (basis: Data?, temporal: Data?) {
         do {
-            if recordsSchemaVersion == 4 || recordsSchemaVersion == 5
-                || recordsSchemaVersion == 6 || recordsSchemaVersion == 7
-                || recordsSchemaVersion == 8 {
+            if (4...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
+                .contains(recordsSchemaVersion) {
                 guard let basisData = value.observationBasisV1Data,
                       let temporalData = value.temporalContextV1Data else {
                     throw BackupRestoreServiceError.invalidPackage
@@ -18722,6 +18721,13 @@ internal extension BackupRestoreService {
         try validateFrozenEvidenceFile(root: root, relativePath: relativePath,
             expectedByteCount: expectedByteCount, expectedSHA256: expectedSHA256,
             authorityCheck: authorityCheck)
+    }
+
+    func c36ObservationAndTimeDataForTesting(
+        for value: V4BackupWorkflowRecordDTO,
+        recordsSchemaVersion: Int
+    ) throws -> (basis: Data?, temporal: Data?) {
+        try observationAndTimeData(for: value, recordsSchemaVersion: recordsSchemaVersion)
     }
 
     func c55CurrentRecordsForTesting(

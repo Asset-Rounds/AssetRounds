@@ -1141,11 +1141,24 @@ extension S2PersistenceLedgerTests {
 
     @MainActor
     func testDeferredEraseRetainsLiveOldContextAcrossAppAccessResumeUntilDrain() async throws {
+        let traceStartedAt = DispatchTime.now().uptimeNanoseconds
+        var traceLines: [String] = []
+        traceLines.reserveCapacity(32)
         let trace: (String) -> Void = { phase in
-            FileHandle.standardError.write(Data(("S2EraseDrain." + phase + "\n").utf8))
+            let elapsedMilliseconds = (DispatchTime.now().uptimeNanoseconds - traceStartedAt) / 1_000_000
+            let line = "S2EraseDrain phase=\(phase) elapsedMs=\(elapsedMilliseconds)"
+            if traceLines.count < 32 { traceLines.append(line) }
+            FileHandle.standardError.write(Data((line + "\n").utf8))
         }
         trace("entry")
-        defer { trace("exit") }
+        // Registered first so the final observation includes existing cleanup.
+        defer {
+            trace("exit")
+            let attachment = XCTAttachment(string: traceLines.joined(separator: "\n") + "\n")
+            attachment.name = "S2EraseDrainTiming-v1"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
         let sandbox = try makeTemporaryApplicationSupportURL()
         defer { try? fileManager.removeItem(at: sandbox) }
         let root = try makeEraseApplicationSupportURL(in: sandbox)

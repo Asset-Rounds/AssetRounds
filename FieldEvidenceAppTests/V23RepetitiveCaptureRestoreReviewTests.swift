@@ -871,7 +871,10 @@ final class RestoreReviewHarness {
 
     private func assertPopulatedAuxiliaryCopyAndDuplicateRejection(service: BackupRestoreService) throws {
         timing?.mark("auxiliary.c10.init.begin")
-        let fixture = try C10ProductionFixture(useActiveSchema: true)
+        let fixture = try C10ProductionFixture(useActiveSchema: true,
+            diagnosticPhase: { (phase: String) -> Void in
+                self.timing?.mark("auxiliary.c10.init.\(phase)")
+            })
         timing?.mark("auxiliary.c10.init.end")
         let populated = try service.c55CurrentRecordsForTesting(in: fixture.context)
         timing?.mark("auxiliary.c10.readback.end")

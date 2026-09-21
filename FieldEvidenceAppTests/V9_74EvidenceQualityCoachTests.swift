@@ -329,7 +329,8 @@ final class C10ProductionFixture {
     var deleteDispositions: [EvidenceQualityLifecycleAdapterV1.DeleteDisposition] { deletionSink.values }
 
     init(failOnceAt boundary: MutationJournalFaultBoundaryV1? = nil, useActiveSchema: Bool = false,
-         session: StoreGenerationSession? = nil, applicationSupportURL: URL? = nil) throws {
+         session: StoreGenerationSession? = nil, applicationSupportURL: URL? = nil,
+         diagnosticPhase: ((String) -> Void)? = nil) throws {
         let modelContext: ModelContext
         let generationID: UUID, identity: WorkspaceReplicaIdentityV1
         let baseJournal: MutationJournalStoreV1, baseWriter: WorkspaceWriterV1
@@ -344,24 +345,53 @@ final class C10ProductionFixture {
         } else {
             currentBinding = nil
             workspaceID = WorkspaceID()
+            diagnosticPhase?("schema.begin")
             let schema = try useActiveSchema ? PersistentSchemaReleaseRegistryV1.activeSchema()
                 : Schema(PersistentSchemaV47.models, version: PersistentSchemaV47.versionIdentifier)
+                diagnosticPhase?("schema.end")
+            diagnosticPhase?("container.begin")
             let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [ModelConfiguration("C10Production", schema: schema, isStoredInMemoryOnly: true, allowsSave: true, cloudKitDatabase: .none)])
+            diagnosticPhase?("container.end")
+            diagnosticPhase?("context.begin")
             modelContext = container.mainContext
+            diagnosticPhase?("context.end")
             generationID = UUID()
             identity = try WorkspaceReplicaIdentityV1(workspaceID: workspaceID, replicaID: ReplicaID(rawValue: UUID()))
+            diagnosticPhase?("journal.begin")
             baseJournal = try MutationJournalStoreV1(modelContext: modelContext, identity: identity, generationID: generationID)
+            diagnosticPhase?("journal.end")
+            diagnosticPhase?("writer-revision.begin")
             baseWriter = try WorkspaceWriterV1(identity: identity, generationID: generationID, initialRevision: baseJournal.currentRevision(writerInstanceID: UUID()), clock: C10Clock(), idSource: C10IDSource(), fileAuthority: C10FileAuthority(), adapter: WorkspaceWriterAdapterV1(modelContext: modelContext), journalStore: baseJournal)
+            diagnosticPhase?("writer-revision.end")
+            diagnosticPhase?("branch-exit.begin")
         }
+        diagnosticPhase?("branch-exit.end")
+        diagnosticPhase?("autosave.begin")
         modelContext.autosaveEnabled = false
+        diagnosticPhase?("autosave.end")
+        diagnosticPhase?("rule.begin")
         let generatedRuleSet = try Self.makeRuleSet(workspaceID: workspaceID, date: date)
+        diagnosticPhase?("rule.end")
+        diagnosticPhase?("bootstrap-revision.begin")
         let baseRevision = try baseWriter.currentRevision(), target = try WorkspaceEntityIdentityV1(kind: .evidenceQualityRuleSet, id: generatedRuleSet.ruleSetID)
+        diagnosticPhase?("bootstrap-revision.end")
+        diagnosticPhase?("bootstrap-expected.begin")
         let ruleExpected = try WorkspaceExpectedRevisionV1(workspaceID: baseRevision.workspaceID, generationID: baseRevision.generationID, writerInstanceID: baseRevision.writerInstanceID, workspaceRevision: baseRevision.revision, entityRevisions: baseRevision.entityRevisions + [.init(identity: target, revision: 0)])
+        diagnosticPhase?("bootstrap-expected.end")
+        diagnosticPhase?("bootstrap-command.begin")
         let bootstrap = try EvidenceQualityMutationCommandV1(commandID: UUID(), workspaceID: workspaceID, expectedRevision: ruleExpected, mutationID: generatedRuleSet.mutationID, payload: .putRuleSet(generatedRuleSet), submittedAt: date)
+        diagnosticPhase?("bootstrap-command.end")
+        diagnosticPhase?("bootstrap-source.begin")
         let bootstrapSource = EvidenceQualitySwiftDataQuerySourceV1(modelContext: modelContext, workspaceID: workspaceID)
+        diagnosticPhase?("bootstrap-source.end")
+        diagnosticPhase?("bootstrap-lifecycle.begin")
         let bootstrapLifecycle = EvidenceQualityLifecycleAdapterV1(workspaceWriter: baseWriter, modelContext: modelContext, workspaceID: workspaceID, snapshotRestorer: { _, _ in throw EvidenceQualityFailureV1.invalidValue }, deleteExecutor: { _ in })
+        diagnosticPhase?("bootstrap-lifecycle.end")
+        diagnosticPhase?("bootstrap-replay.begin")
         _ = try bootstrapLifecycle.replay(bootstrap)
+        diagnosticPhase?("bootstrap-replay.end")
 
+        diagnosticPhase?("final-binding.begin")
         let selectedJournal: MutationJournalStoreV1, selectedWriter: WorkspaceWriterV1
         if let boundary {
             selectedJournal = try MutationJournalStoreV1(modelContext: modelContext, identity: identity, generationID: generationID, failureInjection: MutationJournalFailureInjectionV1(failOnceAt: boundary), allowStateBootstrap: false)
@@ -373,9 +403,14 @@ final class C10ProductionFixture {
         querySource = bootstrapSource
         let sink = C10DeletionSink()
         deletionSink = sink
+        diagnosticPhase?("final-binding.end")
+        diagnosticPhase?("final-lifecycle.begin")
         let productionLifecycle = EvidenceQualityLifecycleAdapterV1(workspaceWriter: selectedWriter, modelContext: modelContext, workspaceID: workspaceID, snapshotRestorer: { [modelContext] snapshot, replace in guard replace else { throw EvidenceQualityFailureV1.invalidValue }; try Self.restore(snapshot, into: modelContext) }, deleteExecutor: { sink.values.append($0) })
+        diagnosticPhase?("final-lifecycle.end")
         lifecycle = productionLifecycle
+        diagnosticPhase?("final-coordinator.begin")
         coordinator = EvidenceQualityCoordinatorV1(submit: { [productionLifecycle] in try productionLifecycle.replay($0) }, query: { [productionLifecycle] in try productionLifecycle.search($0) }, receiptLookup: { [modelContext] command in try modelContext.fetch(FetchDescriptor<EvidenceQualityMutationReceiptRowV1>()).map { try $0.value() }.first { $0.mutationID == command.mutationID } }, contentIntegrityVerifier: { binding, data in !data.isEmpty && binding.contentSHA256 == KernelCanonicalHashV1.sha256(data) })
+        diagnosticPhase?("final-coordinator.end")
     }
 
     func capture(id: String = "golden", revision: UInt64 = 1, bytes: [UInt8] = [64, 65, 66, 67], blur: Int64 = 250_000) -> EvidenceQualityCoordinatorV1.CanonicalCapture {

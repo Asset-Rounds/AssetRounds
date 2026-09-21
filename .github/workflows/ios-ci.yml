@@ -116,6 +116,8 @@ on:
           - erase-lease-lifecycle
           - erase-recovery
           - erase-recovery-no-index-build30m
+          - erase-drain-timing-no-index-build30m
+          - erase-remainder-no-index-build30m
           - replacement-packet-union
           - restore-history-no-index-build30m
           - c36-destination-legacy-bytes
