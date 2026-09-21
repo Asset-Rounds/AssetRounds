@@ -1999,6 +1999,14 @@ private extension EraseAllService {
             try intentStore.replace(expected: activated, with: completed)
             try inject(.afterCleanupPhaseWrite)
         }
+        // The journal replacement retains its migration-reservation guard,
+        // which opens a fresh Operations registry. Remove that control state
+        // while the durable Erase intent still excludes ordinary activity.
+        // A cleanupComplete recovery repeats this boundary before publishing.
+        traceErasePhase("cleanup.final-control-removal")
+        try auxiliary.removeCompletionControlRoot()
+        try auxiliary.verifyTargetsRemovedExceptDiagnostics()
+        try auxiliary.verifyDiagnostics(expectedData: diagnosticsZero)
         if completed.schemaVersion == 2 {
             if let preparation = try intentStore.loadPreparation() {
                 guard preparation.matches(completed) else {
@@ -2012,6 +2020,8 @@ private extension EraseAllService {
         try inject(.beforeJournalRemoval)
         try intentStore.remove(expected: completed)
         try auxiliary.removeEraseRootIfEmpty()
+        traceErasePhase("cleanup.final-roots-verified")
+        try auxiliary.verifyTargetsRemovedExceptDiagnostics()
         if let receipt = completedReceipt(
             subject: subject,
             reservation: reservation,
@@ -2814,6 +2824,15 @@ private final class EraseAuxiliaryAuthority {
         try Self.requireAbsentOrDirectory(
             parent: applicationSupportDescriptor,
             name: "FieldEvidenceDiagnostics"
+        )
+        try verify()
+    }
+
+    func removeCompletionControlRoot() throws {
+        try verify()
+        try Self.removeDirectoryIfPresent(
+            parent: applicationSupportDescriptor,
+            name: "FieldEvidenceOperations"
         )
         try verify()
     }

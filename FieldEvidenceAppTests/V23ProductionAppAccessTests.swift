@@ -514,6 +514,8 @@ final class V23ProductionAppAccessTests: XCTestCase {
 
     @MainActor
     func testProductionEraseAdoptsFreshSettingOwnerAndNextToggleCommits() async throws {
+        var diagnosticPhase = "setup"
+        defer { print("ProductionEraseOwner.exit phase=" + diagnosticPhase) }
         let suiteName = "V23.ProductionAppAccess.erase.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         let root = FileManager.default.temporaryDirectory
@@ -560,6 +562,7 @@ final class V23ProductionAppAccessTests: XCTestCase {
         let preferences = PreferencesAdapterV1(defaults: defaults)
         let originalControl = try AppLockNotificationControlStoreV1(
             applicationSupportURL: support, preferences: preferences)
+        diagnosticPhase = "perform-erase"
         try await presentation.performErase(applicationSupportURL: support,
             confirmation: "ERASE", coordinator: coordinator, diagnosticsStore: diagnostics)
         if case .eraseCleanupPending = router.route {
@@ -567,8 +570,10 @@ final class V23ProductionAppAccessTests: XCTestCase {
             XCTAssertNil(presentation.sceneNavigationAccess)
             XCTAssertNotNil(try EraseIntentStore(applicationSupportURL: support).load())
             XCTAssertTrue(session.sceneNavigationStatePort() === originalScenePort)
+            diagnosticPhase = "retry-startup"
             await presentation.retryStartup()
         }
+        diagnosticPhase = "completed-owner-readback"
         XCTAssertNotEqual(coordinator.generationID, originalGeneration)
         XCTAssertEqual(router.recoveryBootstrapState, .ready)
         XCTAssertTrue(presentation.permitsContentPresentation)
@@ -580,21 +585,29 @@ final class V23ProductionAppAccessTests: XCTestCase {
         XCTAssertEqual(try SceneNavigationStateAdapterV1(
             port: PreferencesAdapterV1(defaults: defaults)).loadAndReconcile(), .absent)
         XCTAssertThrowsError(try originalScene.load())
+        diagnosticPhase = "fresh-scene-access"
         XCTAssertEqual(try XCTUnwrap(presentation.sceneNavigationAccess).load(), .absent)
         let retainedGate = await session.lifecycle.accessGate()
         XCTAssertTrue(retainedGate === originalGate)
+        diagnosticPhase = "original-control-denial"
         XCTAssertThrowsError(try originalControl.verifyNotificationStorage())
+        diagnosticPhase = "fresh-control-open"
         let freshControl = try AppLockNotificationControlStoreV1(
             applicationSupportURL: support, preferences: preferences)
+        diagnosticPhase = "fresh-control-read"
         XCTAssertNil(try freshControl.loadControl())
 
+        diagnosticPhase = "enable"
         let enabled = try await session.lifecycle.enable(operationID: UUID())
         XCTAssertTrue(enabled.enabled)
+        diagnosticPhase = "enabled-control-read"
         let enabledControl = try XCTUnwrap(freshControl.loadControl())
         XCTAssertEqual(enabledControl.phase, .settingCommitted)
         XCTAssertEqual(try preferences.readAppLockSettingSnapshot(), enabledControl.settingWrite.successor)
+        diagnosticPhase = "disable"
         let disabled = try await session.lifecycle.disable(operationID: UUID())
         XCTAssertFalse(disabled.enabled)
+        diagnosticPhase = "disabled-control-read"
         let disabledControl = try XCTUnwrap(freshControl.loadControl())
         XCTAssertEqual(disabledControl.phase, .settingCommitted)
         XCTAssertEqual(try preferences.readAppLockSettingSnapshot(), disabledControl.settingWrite.successor)

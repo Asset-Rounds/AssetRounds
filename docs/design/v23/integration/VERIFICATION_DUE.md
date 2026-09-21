@@ -1,3 +1,5 @@
+Current follow-up: audited35560401461/A720EE83 compiles9/13 with valid transport; four failures remain. The isolated completion-order and paired context/container-lifetime changes are uncompiled. Existing absence, writer-retry, Golden, current-owner and interruption/hostile assertions remain required. Erase13 does not execute the two newly enrolled handoff methods or every cleanupComplete interruption; retain those exact separate obligations.
+
 Prepared, not active: runtime-6ea8f84/handoff-enrollment adds successor profile erase-handoff-v1 with exactly testEraseManifestHandoffPreservesExactInodeAndSupportsRepeatedConstructorRecovery and testEraseManifestHandoffRejectsHostileSidecarsTargetsAndChangedPointerWithoutConsumption in S6_6EraseRecoveryTests. Existing all-interruption method is already in notification-schedule-erase. All three remain NATIVE_UNEXECUTED; current880/55 and active Erase13 are unchanged until the full reviewed selection/route transition. Preserve all15 historical profiles and every acceptance obligation.
 
 Current native execution and audited outcomes: [ACTIVE_BRIEF](ACTIVE_BRIEF.md#native-evidence-and-next-questions). Reuse its head/run/evidence references; this navigation record grants no acceptance and does not replace the controlling requirements or the coverage ledger.
@@ -64,9 +66,9 @@ Parent-finalization workstream271CC472 adds explicit due coverage for real seven
 
 # Integration verification still due
 
-Navigation and obligation ledger under [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md), updated for committed candidate `6cd506d35883c9b2e1c31db9a3116319b05414d6`. Historical outcomes above remain bound to their original heads; they do not schedule current runs or grant coverage waivers. Update current rows from retained evidence; originals remain external.
+Navigation and obligation ledger under [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md), updated for committed candidate `358e2b2a9bfe74b3b685524ef491c1cb497988aa`. Historical outcomes above remain bound to their original heads; they do not schedule current runs or grant coverage waivers. Update current rows from retained evidence; originals remain external.
 
-The committed diagnostic pool contains **880 methods in55groups**. All14 prior generated profiles remain exact. The finite current questions are Erase13, restore7 and reminder33; their selection is not the final coverage ceiling. A selected test is not an executed test, and historical results apply only to their recorded heads.
+The committed diagnostic pool contains **882 methods in55groups**. All15 prior generated profiles remain exact. The finite current questions are Erase13, restore7 and reminder33; their selection is not the final coverage ceiling. A selected test is not an executed test, and historical results apply only to their recorded heads.
 
 | Obligation | Current state | Evidence required to close it |
 | --- | --- | --- |

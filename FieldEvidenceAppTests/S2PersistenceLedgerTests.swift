@@ -1184,6 +1184,13 @@ extension S2PersistenceLedgerTests {
         trace("router-ready")
         let oldGenerationID = coordinator.generationID
         var retainedOldContext: ModelContext? = coordinator.modelContext
+        var retainedOldContainer: ModelContainer? = coordinator.modelContext.container
+        let oldStateIsReleased: () -> Bool = {
+            [weak observedContext = retainedOldContext,
+             weak observedContainer = retainedOldContainer] in
+            observedContext == nil && observedContainer == nil
+        }
+        XCTAssertEqual(try coordinator.modelContext.fetchCount(FetchDescriptor<Site>()), 0)
         let startupStepCount = observedSteps.count
         XCTAssertEqual(startupStepCount, StartupStep.allCases.count)
         XCTAssertTrue(router.entitlementProcessor?.isStarted == true)
@@ -1331,16 +1338,26 @@ extension S2PersistenceLedgerTests {
         )
         XCTAssertEqual(alternateHeldIntent.phase, .sessionActivated)
         do {
-            guard let liveOldContext = retainedOldContext else {
-                return XCTFail("The original ModelContext must remain live until explicit release")
+            guard let liveOldContext = retainedOldContext,
+                  let liveOldContainer = retainedOldContainer else {
+                return XCTFail("The original context and backing container must remain live until explicit release")
             }
             trace("old-context-read")
-            let liveOldSiteCount = try liveOldContext.fetchCount(FetchDescriptor<Site>())
-            XCTAssertEqual(liveOldSiteCount, 0)
+            try withExtendedLifetime(liveOldContainer) {
+                XCTAssertTrue(liveOldContext.container === liveOldContainer)
+                let liveOldSiteCount = try liveOldContext.fetchCount(FetchDescriptor<Site>())
+                XCTAssertEqual(liveOldSiteCount, 0)
+            }
+            trace("old-context-read-complete")
         }
         trace("old-context-release")
         retainedOldContext = nil
-        await Task.yield()
+        retainedOldContainer = nil
+        let drained = expectation(
+            for: NSPredicate { _, _ in oldStateIsReleased() }, evaluatedWith: NSObject())
+        await fulfillment(of: [drained], timeout: 30)
+        XCTAssertTrue(oldStateIsReleased())
+        trace("old-state-drained")
         // Recovery gets a new service instance, while its admission hook
         // continues the exact retained subject/reservation without reminting.
         let recoveryService = EraseAllService(

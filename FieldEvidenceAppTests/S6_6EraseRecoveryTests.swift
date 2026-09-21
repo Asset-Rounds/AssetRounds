@@ -516,21 +516,28 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             coordinator.activate(session: session)
         }
 
+        print("EraseGolden.cleanupDeferred=\(erased.cleanupDeferred)")
         diagnosticPhase = "erase-postconditions"
         XCTAssertFalse(fileManager.fileExists(
             atPath: harness.support.appendingPathComponent("FieldEvidenceErase").path
         ))
         assertAuxiliaryRootsCleared(harness)
         let handedOffManifest = harness.support.appendingPathComponent("FieldEvidenceData/erase-current-manifest.json")
+        diagnosticPhase = "handoff-bytes"
         let erasedManifestBytes = try Data(contentsOf: handedOffManifest)
+        diagnosticPhase = "handoff-identity"
         let erasedManifestIdentity = try regularFileIdentity(handedOffManifest)
         let pointerURL = harness.support.appendingPathComponent("FieldEvidenceData/current.json")
+        diagnosticPhase = "pointer-bytes"
         let erasedPointerBytes = try Data(contentsOf: pointerURL)
         XCTAssertFalse(erased.cleanupDeferred)
         XCTAssertEqual(erased.session.generationID, newID)
         XCTAssertEqual(coordinator.generationID, newID)
+        diagnosticPhase = "factory-current-id"
         XCTAssertEqual(try harness.factory.currentGenerationID(), newID)
+        diagnosticPhase = "factory-retired-ids"
         XCTAssertEqual(try harness.factory.retiredGenerationIDs(), [])
+        diagnosticPhase = "empty-row-counts"
         XCTAssertEqual(
             try counts(erased.session.modelContext),
             [0, 0, 0, 0, 0, 0, 0]
@@ -562,6 +569,7 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         diagnosticPhase = "diagnostic-readback"
         let diagnosticsAfterErase = await harness.diagnostics.snapshot()
         XCTAssertEqual(diagnosticsAfterErase, .zero)
+        diagnosticPhase = "diagnostics-readback"
         let operationalAfterErase = try await harness.diagnostics.operationalSupportSnapshot()
         XCTAssertEqual(operationalAfterErase.schemaVersion, 2)
         XCTAssertEqual(operationalAfterErase.counters, .zero)
