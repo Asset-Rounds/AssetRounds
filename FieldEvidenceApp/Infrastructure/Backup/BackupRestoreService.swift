@@ -13060,11 +13060,10 @@ private extension BackupRestoreService {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
         }
-        var directoryCreationObservation: String?
-        try withPinnedDirectory(root: applicationSupportURL, relativePath: "FieldEvidenceRestore",
+        try withPinnedDirectoryForRegularCreation(root: applicationSupportURL, relativePath: "FieldEvidenceRestore",
             createMissing: false, authorityCheck: { try self.generationAuthority.requireNoEraseAuthority() },
-            diagnosticOperation: { directoryCreationObservation }
-        ) { parent, verify in
+            creationFailure: .invalidRestoreAuthority
+        ) { parent, verify, createExclusiveRegular in
             var current = try readCloneRetirementBindingLeaf(names.current, parent: parent, verify: verify)
             var next = try readCloneRetirementBindingLeaf(names.next, parent: parent, verify: verify)
             let selected = try selectedCloneRetirementBinding(current: current, next: next)
@@ -13097,17 +13096,7 @@ private extension BackupRestoreService {
             }
             if current?.value == value { return }
             guard next == nil else { throw BackupRestoreServiceError.invalidRestoreAuthority }
-#if DEBUG
-            let creationBefore = directoryCreationBeforeForTesting(parent)
-#endif
-            let fd = Darwin.openat(parent, names.next, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW,
-                mode_t(0o600))
-#if DEBUG
-            let creationErrno = fd >= 0 ? Int32(0) : errno
-            directoryCreationObservation = directoryCreationAfterForTesting(
-                parent: parent, descriptor: fd, syscallErrno: creationErrno, before: creationBefore)
-#endif
-            guard fd >= 0 else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+            let fd = try createExclusiveRegular(names.next)
             defer { _ = Darwin.close(fd) }
             var facts = stat()
             guard Darwin.fstat(fd, &facts) == 0, facts.st_nlink == 1 else {
@@ -13338,11 +13327,10 @@ private extension BackupRestoreService {
                     throw BackupRestoreServiceError.invalidRestoreAuthority
                 }
             }
-            var directoryCreationObservation: String?
-            try withPinnedDirectory(root: applicationSupportURL, relativePath: "FieldEvidenceRestore",
+            try withPinnedDirectoryForRegularCreation(root: applicationSupportURL, relativePath: "FieldEvidenceRestore",
                 createMissing: false, authorityCheck: { try self.generationAuthority.requireNoEraseAuthority() },
-                diagnosticOperation: { directoryCreationObservation }
-            ) { parent, verify in
+                creationFailure: .invalidRestoreAuthority
+            ) { parent, verify, createExclusiveRegular in
                 var current = try readPhotoBindingLeaf(names.current, parent: parent, verify: verify)
                 var next = try readPhotoBindingLeaf(names.next, parent: parent, verify: verify)
                 let selected = try selectedPhotoBinding(current: current, next: next)
@@ -13375,17 +13363,7 @@ private extension BackupRestoreService {
                 }
                 if current?.value == value { return }
                 guard next == nil else { throw BackupRestoreServiceError.invalidRestoreAuthority }
-#if DEBUG
-                let creationBefore = directoryCreationBeforeForTesting(parent)
-#endif
-                let fd = Darwin.openat(parent, names.next, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW,
-                    mode_t(0o600))
-#if DEBUG
-                let creationErrno = fd >= 0 ? Int32(0) : errno
-                directoryCreationObservation = directoryCreationAfterForTesting(
-                    parent: parent, descriptor: fd, syscallErrno: creationErrno, before: creationBefore)
-#endif
-                guard fd >= 0 else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                let fd = try createExclusiveRegular(names.next)
                 defer { _ = Darwin.close(fd) }
                 var facts = stat()
                 guard Darwin.fstat(fd, &facts) == 0, facts.st_nlink == 1 else {
@@ -15716,36 +15694,18 @@ private extension BackupRestoreService {
             try self.generationAuthority.requireStagingGeneration(id: generationID)
         }
 
-        var directoryCreationObservation: String?
-        try withPinnedDirectory(
+        try withPinnedDirectoryForRegularCreation(
             root: root,
             relativePath: parentRelative,
             createMissing: false,
             authorityCheck: authorityCheck,
-            diagnosticOperation: { directoryCreationObservation }
-        ) { parentDescriptor, verifyDirectories in
+            creationFailure: .materializationFailed
+        ) { parentDescriptor, verifyDirectories, createExclusiveRegular in
             guard try itemExists(parent: parentDescriptor, name: finalName) == false,
                   try itemExists(parent: parentDescriptor, name: temporaryName) == false else {
                 throw BackupRestoreServiceError.materializationFailed
             }
-#if DEBUG
-            let creationBefore = directoryCreationBeforeForTesting(parentDescriptor)
-#endif
-            let descriptor = Darwin.openat(
-                parentDescriptor,
-                temporaryName,
-                O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW,
-                mode_t(0o600)
-            )
-#if DEBUG
-            let creationErrno = descriptor >= 0 ? Int32(0) : errno
-            directoryCreationObservation = directoryCreationAfterForTesting(
-                parent: parentDescriptor, descriptor: descriptor,
-                syscallErrno: creationErrno, before: creationBefore)
-#endif
-            guard descriptor >= 0 else {
-                throw BackupRestoreServiceError.materializationFailed
-            }
+            let descriptor = try createExclusiveRegular(temporaryName)
             defer { _ = Darwin.close(descriptor) }
             var temporaryIdentity: PinnedIdentity?
             do {
@@ -15926,32 +15886,15 @@ private extension BackupRestoreService {
     }
 
 #if DEBUG
-    // Diagnostic-only syscall observations. These never authorize a pin refresh
-    // or invoke the phase sink inside the filesystem observation window.
-    private func directoryCreationBeforeForTesting(_ parent: Int32) -> stat? {
-        guard restorePhaseDiagnosticForTesting != nil else { return nil }
-        var information = stat()
-        return Darwin.fstat(parent, &information) == 0 ? information : nil
-    }
-
-    private func directoryCreationAfterForTesting(
-        parent: Int32, descriptor: Int32, syscallErrno: Int32, before: stat?
-    ) -> String? {
-        guard let before else { return nil }
-        var after = stat()
-        let parentStatOK = Darwin.fstat(parent, &after) == 0
-        var leaf = stat()
-        let leafStatOK = descriptor >= 0 && Darwin.fstat(descriptor, &leaf) == 0
-        var result: String = "operation=create-exclusive syscallOK=\(descriptor >= 0) syscallErrno=\(syscallErrno)"
-        result += " immediateParentStatOK=\(parentStatOK)"
-        result += " immediateDeviceEqual=\(before.st_dev == after.st_dev)"
-        result += " immediateInodeEqual=\(before.st_ino == after.st_ino)"
-        result += " immediateTypeEqual=\((before.st_mode & S_IFMT) == (after.st_mode & S_IFMT))"
-        result += " immediateLinksBefore=\(before.st_nlink) immediateLinksAfter=\(after.st_nlink)"
-        result += " openedLeafStatOK=\(leafStatOK)"
-        result += " openedLeafRegular=\(leafStatOK && (leaf.st_mode & S_IFMT) == S_IFREG)"
-        result += " openedLeafSingleLink=\(leafStatOK && leaf.st_nlink == 1)"
-        return result
+    func c36WithPinnedRegularCreationForTesting<T>(
+        root: URL, relativePath: String,
+        authorityCheck: () throws -> Void,
+        body: (Int32, () throws -> Void, (String) throws -> Int32) throws -> T
+    ) throws -> T {
+        try withPinnedDirectoryForRegularCreation(
+            root: root, relativePath: relativePath, createMissing: false,
+            authorityCheck: authorityCheck, creationFailure: .materializationFailed,
+            body: body)
     }
 #endif
 
@@ -15963,6 +15906,28 @@ private extension BackupRestoreService {
         diagnosticCaller: String = #function,
         diagnosticOperation: () -> String? = { nil },
         body: (Int32, () throws -> Void) throws -> T
+    ) throws -> T {
+        try withPinnedDirectoryForRegularCreation(
+            root: root, relativePath: relativePath, createMissing: createMissing,
+            authorityCheck: authorityCheck, creationFailure: .materializationFailed,
+            diagnosticCaller: diagnosticCaller, diagnosticOperation: diagnosticOperation
+        ) { descriptor, verify, _ in
+            try body(descriptor, verify)
+        }
+    }
+
+    // Only this scoped primitive can advance a pin for a regular-file create.
+    // The exact +1 transition is evidenced on the pinned native environment;
+    // other deltas fail closed and do not qualify another filesystem/provider.
+    private func withPinnedDirectoryForRegularCreation<T>(
+        root: URL,
+        relativePath: String,
+        createMissing: Bool,
+        authorityCheck: () throws -> Void,
+        creationFailure: BackupRestoreServiceError,
+        diagnosticCaller: String = #function,
+        diagnosticOperation: () -> String? = { nil },
+        body: (Int32, () throws -> Void, (String) throws -> Int32) throws -> T
     ) throws -> T {
         let components = try validatedPathComponents(relativePath)
         try authorityCheck()
@@ -16067,25 +16032,32 @@ private extension BackupRestoreService {
 #if DEBUG
         let directoryPinDiagnosticsEnabled = restorePhaseDiagnosticForTesting != nil
         var directoryPinRejection: String?
+        var ownedCreationObservation: String?
         var directoryPinBodyPhase = "before-body"
         var directoryPinVerification = 0
         defer {
             if let directoryPinRejection {
                 // The sink can perform I/O. Observe first and emit only after
                 // the body unwinds, outside the nonisolated verifier closure.
-                let operation = diagnosticOperation() ?? "operation=none-observed"
+                let operation = ownedCreationObservation ?? diagnosticOperation() ?? "operation=none-observed"
                 traceRestorePhase(directoryPinRejection + " " + operation)
             }
         }
 #endif
         return try withoutActuallyEscaping(authorityCheck) { authorityCheck in
-            let pinned = pins
-            func verifyDirectories() throws {
+            var pinned = pins
+            var scopeActive = true
+            var creationPoisoned = false
+            defer { scopeActive = false }
+            func verifyPinnedDirectories(_ expectedPins: [PinnedDirectory], checkingAuthority: Bool) throws {
+                guard scopeActive, !creationPoisoned else {
+                    throw attributedRestoreAuthorityFailureV1(line: #line)
+                }
 #if DEBUG
                 if directoryPinDiagnosticsEnabled { directoryPinVerification += 1 }
 #endif
-                try authorityCheck()
-                for (pinIndex, pin) in pinned.enumerated() {
+                if checkingAuthority { try authorityCheck() }
+                for (pinIndex, pin) in expectedPins.enumerated() {
                     var information = stat()
                     let statResult = Darwin.fstat(pin.descriptor, &information)
 #if DEBUG
@@ -16099,7 +16071,7 @@ private extension BackupRestoreService {
                             directoryPinRejection = "directory-pin.reject"
                                 + " caller=\(diagnosticCaller) bodyPhase=\(directoryPinBodyPhase)"
                                 + " verification=\(directoryPinVerification) pinIndex=\(pinIndex)"
-                                + " finalParent=\(pinIndex == pinned.count - 1) check=descriptor"
+                                + " finalParent=\(pinIndex == expectedPins.count - 1) check=descriptor"
                                 + " statOK=\(statResult == 0) errno=\(statErrno)"
                                 + " createMissing=\(createMissing)"
                                 + " deviceEqual=\(observed.device == pin.identity.device)"
@@ -16124,11 +16096,82 @@ private extension BackupRestoreService {
                     }
                 }
             }
+            func verifyDirectories() throws {
+                try verifyPinnedDirectories(pinned, checkingAuthority: true)
+            }
+            func createExclusiveRegular(_ name: String) throws -> Int32 {
+                try verifyDirectories()
+                guard !name.isEmpty, name != ".", name != "..",
+                      !name.contains("/"), !name.contains("\\"), !name.contains("\0"),
+                      let parentPin = pinned.last, parentPin.descriptor == current else {
+                    throw creationFailure
+                }
+                let (nextLinkCount, overflow) = parentPin.identity.linkCount.addingReportingOverflow(1)
+                guard !overflow else { throw creationFailure }
+                var absent = stat()
+                guard Darwin.fstatat(current, name, &absent, AT_SYMLINK_NOFOLLOW) != 0,
+                      errno == ENOENT else { throw creationFailure }
+                let descriptor = Darwin.openat(current, name,
+                    O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, mode_t(0o600))
+                guard descriptor >= 0 else { throw creationFailure }
+                var transferred = false
+                defer {
+                    if !transferred {
+                        // Ownership never reached the caller. Close our fd and
+                        // retain uncertain residue for guarded restore recovery;
+                        // never unlink a potentially substituted named leaf.
+                        creationPoisoned = true
+                        _ = Darwin.close(descriptor)
+#if DEBUG
+                        if directoryPinDiagnosticsEnabled && directoryPinRejection == nil {
+                            directoryPinRejection = "directory-owned-create.reject caller=\(diagnosticCaller)"
+                        }
+#endif
+                    }
+                }
+                var opened = stat()
+                var named = stat()
+                var parentAfter = stat()
+                guard Darwin.fstat(descriptor, &opened) == 0,
+                      Darwin.fstatat(current, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                      Darwin.fstat(current, &parentAfter) == 0 else { throw creationFailure }
+                let leafIdentity = PinnedIdentity(opened)
+                let parentIdentity = PinnedIdentity(parentAfter)
+#if DEBUG
+                if directoryPinDiagnosticsEnabled {
+                    ownedCreationObservation = "operation=owned-create-exclusive"
+                        + " linksBefore=\(parentPin.identity.linkCount) linksAfter=\(parentIdentity.linkCount)"
+                }
+#endif
+                guard leafIdentity.type == UInt32(S_IFREG), leafIdentity.linkCount == 1,
+                      PinnedIdentity(named) == leafIdentity,
+                      parentIdentity.device == parentPin.identity.device,
+                      parentIdentity.inode == parentPin.identity.inode,
+                      parentIdentity.type == parentPin.identity.type,
+                      parentIdentity.linkCount == nextLinkCount else { throw creationFailure }
+                var candidatePins = pinned
+                candidatePins[candidatePins.count - 1] = PinnedDirectory(
+                    descriptor: parentPin.descriptor, identity: parentIdentity,
+                    parent: parentPin.parent, name: parentPin.name)
+                // Establish the complete candidate chain before any callback,
+                // then recheck it and the leaf after authority returns.
+                try verifyPinnedDirectories(candidatePins, checkingAuthority: false)
+                try verifyPinnedDirectories(candidatePins, checkingAuthority: true)
+                var openedAfterAuthority = stat()
+                var namedAfterAuthority = stat()
+                guard Darwin.fstat(descriptor, &openedAfterAuthority) == 0,
+                      Darwin.fstatat(current, name, &namedAfterAuthority, AT_SYMLINK_NOFOLLOW) == 0,
+                      PinnedIdentity(openedAfterAuthority) == leafIdentity,
+                      PinnedIdentity(namedAfterAuthority) == leafIdentity else { throw creationFailure }
+                pinned = candidatePins
+                transferred = true
+                return descriptor
+            }
             try verifyDirectories()
 #if DEBUG
             directoryPinBodyPhase = "body"
 #endif
-            let result = try body(current, verifyDirectories)
+            let result = try body(current, verifyDirectories, createExclusiveRegular)
 #if DEBUG
             directoryPinBodyPhase = "after-body"
 #endif

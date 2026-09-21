@@ -1,4 +1,5 @@
 import CoreGraphics
+import Darwin
 import Foundation
 import ImageIO
 import SwiftData
@@ -160,6 +161,8 @@ final class S6_5ReplacementUnionTests: XCTestCase {
                 observedAt: Date(timeIntervalSince1970: 1_786_709_000),
                 diagnostic: { diagnosticPhase = "incoming." + $0 }
             )
+            diagnosticPhase = "incoming.freeze-report"
+            let incomingReport = try freezeReportPreservation(in: incoming)
             diagnosticPhase = "current.history"
             let currentHistory = try MutationJournalStoreV1(
                 modelContext: current.session.modelContext, identity: current.session.workspaceIdentity,
@@ -180,6 +183,8 @@ final class S6_5ReplacementUnionTests: XCTestCase {
                 makeUUID: sequence([uuid(191), uuid(192)])
             )
 #if DEBUG
+            diagnosticPhase = "restore.owned-create-contract"
+            try assertOwnedRegularCreationContract(service: service, root: root)
             diagnosticPhase = "restore.observation-schema-contract"
             let incomingRecords = try service.c55CurrentRecordsForTesting(
                 in: incoming.session.modelContext)
@@ -281,6 +286,8 @@ final class S6_5ReplacementUnionTests: XCTestCase {
                 Set(try reopened.modelContext.fetch(FetchDescriptor<Packet>()).map(\.stableRootID)),
                 Set([current.rootID, incoming.rootID])
             )
+            diagnosticPhase = "restore.reopened-report-readback"
+            try assertPreservedReportAfterReopen(incomingReport, in: reopened)
         } catch {
             let originalError = error
             let failureType = String(reflecting: type(of: originalError))
@@ -1062,6 +1069,233 @@ private extension S6_5ReplacementUnionTests {
         let packetID: UUID
         let rootID: UUID
         let packetCreatedAt: Date
+    }
+
+#if DEBUG
+    @MainActor
+    func assertOwnedRegularCreationContract(service: BackupRestoreService, root: URL) throws {
+        let contractRoot = root.appendingPathComponent("owned-create-contract", isDirectory: true)
+        try fileManager.createDirectory(at: contractRoot, withIntermediateDirectories: true)
+        let normal = contractRoot.appendingPathComponent("normal", isDirectory: true)
+        let normalParent = normal.appendingPathComponent("parent", isDirectory: true)
+        try fileManager.createDirectory(at: normalParent, withIntermediateDirectories: true)
+        try service.c36WithPinnedRegularCreationForTesting(
+            root: normal, relativePath: "parent", authorityCheck: {}
+        ) { parent, verify, create in
+            var before = stat()
+            XCTAssertEqual(Darwin.fstat(parent, &before), 0)
+            for name in ["first", "second"] {
+                let fd = try create(name)
+                defer { _ = Darwin.close(fd) }
+                var opened = stat()
+                var named = stat()
+                var after = stat()
+                XCTAssertEqual(Darwin.fstat(fd, &opened), 0)
+                XCTAssertEqual(Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW), 0)
+                XCTAssertEqual(opened.st_ino, named.st_ino)
+                XCTAssertEqual(opened.st_dev, named.st_dev)
+                XCTAssertEqual(opened.st_mode & S_IFMT, S_IFREG)
+                XCTAssertEqual(opened.st_nlink, 1)
+                XCTAssertEqual(Darwin.fstat(parent, &after), 0)
+                XCTAssertEqual(UInt64(after.st_nlink), UInt64(before.st_nlink) + 1)
+                try verify()
+                before = after
+            }
+        }
+        XCTAssertEqual(Set(try fileManager.contentsOfDirectory(atPath: normalParent.path)),
+                       Set(["first", "second"]))
+
+        for kind in ["regular", "symlink", "hardlink", "directory"] {
+            let caseRoot = contractRoot.appendingPathComponent("existing-" + kind, isDirectory: true)
+            let parent = caseRoot.appendingPathComponent("parent", isDirectory: true)
+            let target = caseRoot.appendingPathComponent("target")
+            let leaf = parent.appendingPathComponent("leaf")
+            try fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
+            let original = Data("preserved existing bytes".utf8)
+            try original.write(to: target)
+            switch kind {
+            case "regular": try original.write(to: leaf)
+            case "symlink": try fileManager.createSymbolicLink(at: leaf, withDestinationURL: target)
+            case "hardlink": try fileManager.linkItem(at: target, to: leaf)
+            default: try fileManager.createDirectory(at: leaf, withIntermediateDirectories: false)
+            }
+            try service.c36WithPinnedRegularCreationForTesting(
+                root: caseRoot, relativePath: "parent", authorityCheck: {}
+            ) { _, verify, create in
+                XCTAssertThrowsError(try create("leaf"))
+                try verify()
+            }
+            XCTAssertEqual(try Data(contentsOf: target), original)
+            if kind != "directory" { XCTAssertEqual(try Data(contentsOf: leaf), original) }
+            XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: parent.path), ["leaf"])
+        }
+        for name in ["", ".", "..", "../outside", "/absolute", "back\\slash", "nul\0suffix"] {
+            try service.c36WithPinnedRegularCreationForTesting(
+                root: normal, relativePath: "parent", authorityCheck: {}
+            ) { _, verify, create in
+                XCTAssertThrowsError(try create(name))
+                try verify()
+            }
+        }
+        XCTAssertEqual(Set(try fileManager.contentsOfDirectory(atPath: normalParent.path)),
+                       Set(["first", "second"]))
+
+        for mutation in ["authority-loss", "extra-entry", "replace-leaf", "hardlink-leaf",
+                         "replace-parent", "replace-ancestor"] {
+            let caseRoot = contractRoot.appendingPathComponent(mutation, isDirectory: true)
+            let ancestor = caseRoot.appendingPathComponent("ancestor", isDirectory: true)
+            let parent = ancestor.appendingPathComponent("parent", isDirectory: true)
+            let leaf = parent.appendingPathComponent("leaf")
+            try fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
+            var injected = false
+            let authorityCheck = {
+                guard !injected, self.fileManager.fileExists(atPath: leaf.path) else { return }
+                injected = true
+                switch mutation {
+                case "authority-loss": throw FixtureError.invalid
+                case "extra-entry": try Data("unrelated".utf8).write(to: parent.appendingPathComponent("extra"))
+                case "replace-leaf":
+                    try self.fileManager.removeItem(at: leaf)
+                    try Data("replacement must survive".utf8).write(to: leaf)
+                case "hardlink-leaf":
+                    try self.fileManager.linkItem(at: leaf,
+                        to: contractRoot.appendingPathComponent("outside-leaf-alias"))
+                case "replace-parent":
+                    try self.fileManager.moveItem(at: parent, to: ancestor.appendingPathComponent("old-parent"))
+                    try self.fileManager.createDirectory(at: parent, withIntermediateDirectories: false)
+                default:
+                    try self.fileManager.moveItem(at: ancestor, to: caseRoot.appendingPathComponent("old-ancestor"))
+                    try self.fileManager.createDirectory(at: ancestor, withIntermediateDirectories: false)
+                }
+            }
+            XCTAssertThrowsError(try service.c36WithPinnedRegularCreationForTesting(
+                root: caseRoot, relativePath: "ancestor/parent", authorityCheck: authorityCheck
+            ) { _, verify, create in
+                XCTAssertThrowsError(try create("leaf"))
+                // Catching a post-create failure cannot revive the pin scope.
+                XCTAssertThrowsError(try verify())
+                XCTAssertThrowsError(try create("must-not-create"))
+            })
+            XCTAssertTrue(injected)
+            XCTAssertFalse(fileManager.fileExists(atPath: parent.appendingPathComponent("must-not-create").path))
+            if mutation == "replace-leaf" {
+                XCTAssertEqual(try Data(contentsOf: leaf), Data("replacement must survive".utf8))
+            } else if ["authority-loss", "extra-entry", "hardlink-leaf"].contains(mutation) {
+                XCTAssertEqual(try Data(contentsOf: leaf), Data())
+            }
+        }
+    }
+#endif
+
+    struct FrozenReportPreservation {
+        let reportID: UUID
+        let packetID: UUID
+        let sourceRecordID: UUID
+        let snapshotSchemaVersion: Int
+        let snapshotRelativePath: String
+        let snapshotSHA256: String
+        let snapshotData: Data
+        let pdfRelativePath: String
+        let pdfSHA256: String
+        let pdfData: Data
+        let originalReceipts: [MutationHistoryReceiptRecordV1]
+    }
+
+    @MainActor
+    func freezeReportPreservation(in harness: LiveHarness) throws -> FrozenReportPreservation {
+        let reports = try harness.session.modelContext.fetch(FetchDescriptor<Report>())
+        XCTAssertEqual(reports.count, 1)
+        let report = try XCTUnwrap(reports.first)
+        XCTAssertEqual(report.packetID, harness.packetID)
+        XCTAssertEqual(report.pdfState, ReportPDFState.ready.rawValue)
+        let pdfPath = try XCTUnwrap(report.pdfRelativePath)
+        let pdfHash = try XCTUnwrap(report.pdfSHA256)
+        let snapshotData = try Data(contentsOf: harness.session.generationRootURL
+            .appendingPathComponent(report.snapshotRelativePath))
+        let pdfData = try Data(contentsOf: harness.session.generationRootURL.appendingPathComponent(pdfPath))
+        XCTAssertEqual(CanonicalJSONV1.sha256(snapshotData), report.snapshotSHA256)
+        XCTAssertEqual(CanonicalJSONV1.sha256(pdfData), pdfHash)
+        let snapshot = try ReportSnapshotEncoderV1().decode(snapshotData)
+        XCTAssertEqual(try ReportSnapshotEncoderV1().encode(snapshot).data, snapshotData)
+        XCTAssertEqual(snapshot.reportID, report.id)
+        XCTAssertEqual(snapshot.sourceRecordID, report.sourceRecordID)
+        // This authentic CheckRunner fixture is the ordinary legacy control.
+        // It does not prove temporal/assurance or typed snapshot preservation.
+        XCTAssertEqual(snapshot.snapshotSchemaVersion, 1)
+        XCTAssertNil(snapshot.temporalEvidenceLinks)
+        let journal = try MutationJournalStoreV1(modelContext: harness.session.modelContext,
+            identity: harness.session.workspaceIdentity, generationID: harness.session.generationID,
+            allowStateBootstrap: false)
+        try journal.validateAll()
+        let receipts = try journal.exportSnapshot().receipts
+        XCTAssertFalse(receipts.isEmpty)
+        return FrozenReportPreservation(reportID: report.id, packetID: report.packetID,
+            sourceRecordID: report.sourceRecordID, snapshotSchemaVersion: report.snapshotSchemaVersion,
+            snapshotRelativePath: report.snapshotRelativePath, snapshotSHA256: report.snapshotSHA256,
+            snapshotData: snapshotData, pdfRelativePath: pdfPath, pdfSHA256: pdfHash,
+            pdfData: pdfData, originalReceipts: receipts)
+    }
+
+    @MainActor
+    func assertPreservedReportAfterReopen(
+        _ expected: FrozenReportPreservation, in session: StoreGenerationSession
+    ) throws {
+        let reports = try session.modelContext.fetch(FetchDescriptor<Report>())
+        XCTAssertEqual(reports.count, 1)
+        let report = try XCTUnwrap(reports.first)
+        XCTAssertEqual(report.id, expected.reportID)
+        XCTAssertEqual(report.packetID, expected.packetID)
+        XCTAssertEqual(report.sourceRecordID, expected.sourceRecordID)
+        XCTAssertEqual(report.snapshotSchemaVersion, expected.snapshotSchemaVersion)
+        XCTAssertEqual(report.snapshotRelativePath, expected.snapshotRelativePath)
+        XCTAssertEqual(report.snapshotSHA256, expected.snapshotSHA256)
+        XCTAssertEqual(report.pdfRelativePath, expected.pdfRelativePath)
+        XCTAssertEqual(report.pdfSHA256, expected.pdfSHA256)
+        XCTAssertEqual(report.pdfState, ReportPDFState.ready.rawValue)
+        XCTAssertEqual(try Data(contentsOf: session.generationRootURL
+            .appendingPathComponent(expected.snapshotRelativePath)), expected.snapshotData)
+        XCTAssertEqual(try Data(contentsOf: session.generationRootURL
+            .appendingPathComponent(expected.pdfRelativePath)), expected.pdfData)
+        let journal = try MutationJournalStoreV1(modelContext: session.modelContext,
+            identity: session.workspaceIdentity, generationID: session.generationID,
+            allowStateBootstrap: false)
+        try journal.validateAll()
+        let beforeRead = try journal.exportSnapshot()
+        for receipt in expected.originalReceipts {
+            XCTAssertTrue(beforeRead.receipts.contains(receipt),
+                          "Preserve the exact original envelope, receipt and reversal bytes")
+        }
+        let owner = try StoreSessionCoordinator(validatingSession: session)
+        var writerReleased = false
+        defer { if !writerReleased { try? owner.invalidateAndReleaseWriter() } }
+        do {
+            let dependencies = try owner.packageLifecycleDependencies()
+            let sourceSnapshot = try ReportSnapshotEncoderV1().decode(expected.snapshotData)
+            let release = try PackageReleaseIdentityV1(package: SignPack.illuminatedSignV1)
+            let profile = try dependencies.profileRegistry.resolve(release)
+            let delivery = try ReportDeliveryCoordinator(modelContext: session.modelContext,
+                lifecycleDependencies: dependencies, lifecycleProfile: profile)
+            let ready = try delivery.validatedReadyReport(id: expected.reportID)
+            XCTAssertEqual(ready.delivery.reportID, expected.reportID)
+            XCTAssertEqual(ready.delivery.pdfSHA256, expected.pdfSHA256)
+            XCTAssertEqual(ready.delivery.pdfData, expected.pdfData)
+            XCTAssertEqual(try ReportSnapshotEncoderV1().encode(ready.snapshot).data, expected.snapshotData)
+            let history = ReportHistoryCoordinator(modelContext: session.modelContext,
+                deliveryCoordinator: delivery)
+            let visits = try history.index().visits
+            XCTAssertEqual(visits.count, 1)
+            let visit = try XCTUnwrap(visits.first)
+            XCTAssertEqual(visit.reportID, expected.reportID)
+            XCTAssertEqual(visit.packetID, expected.packetID)
+            XCTAssertEqual(visit.stableRootID, sourceSnapshot.stableRootID)
+            XCTAssertEqual(visit.assetLabel, sourceSnapshot.asset.label)
+            XCTAssertEqual(visit.siteLabel, sourceSnapshot.site.label)
+            XCTAssertEqual(visit.evidence.map(\.evidenceID), sourceSnapshot.evidence.map(\.evidenceID))
+        }
+        XCTAssertFalse(session.modelContext.hasChanges)
+        XCTAssertEqual(try journal.exportSnapshot(), beforeRead)
+        try owner.invalidateAndReleaseWriter()
+        writerReleased = true
     }
 
     struct FileFact: Equatable {
