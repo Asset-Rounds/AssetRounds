@@ -709,42 +709,41 @@ actor AppLockLifecycleCoordinatorV1 {
 
     func disable(operationID: UUID) async throws -> AppLockConfigurationReceiptV1 {
 #if DEBUG
-        var diagnosticPhase = "admission"
-        defer { configurationPhaseDiagnosticForTesting?("disable.exit." + diagnosticPhase) }
+        configurationPhaseDiagnosticForTesting?("disable.before.admission")
 #endif
         try validate(operationID)
         try await beginOperation(operationID)
         try claim(operationID, confirmingExisting: true)
         defer { release(operationID); endOperation(operationID) }
 #if DEBUG
-        diagnosticPhase = "authentication"
+        configurationPhaseDiagnosticForTesting?("disable.before.authentication")
 #endif
         let outcome = await gate.authenticate(trigger: .disableAppLock)
         guard outcome == .authenticated else {
             throw AppAccessContractFailureV1.accessDenied
         }
 #if DEBUG
-        diagnosticPhase = "unlocked-session"
+        configurationPhaseDiagnosticForTesting?("disable.before.unlocked-session")
 #endif
         let sessionID = try await unlockedSessionID()
 #if DEBUG
-        diagnosticPhase = "toggle-proof"
+        configurationPhaseDiagnosticForTesting?("disable.before.toggle-proof")
 #endif
         let proof = try await gate.toggleAuthenticationToken(targetEnabled: false)
         do {
 #if DEBUG
-        diagnosticPhase = "notification-subject"
+        configurationPhaseDiagnosticForTesting?("disable.before.notification-subject")
 #endif
             let subject = try await notifications.loadAuthenticationSubject()
             let initialAuthorization = NotificationOperationAuthorizationV1(gate: gate,
                 proof: .toggle(proof, targetEnabled: false), operationID: operationID, subject: subject)
 #if DEBUG
-        diagnosticPhase = "notification-prepare"
+        configurationPhaseDiagnosticForTesting?("disable.before.notification-prepare")
 #endif
             let journal = try await notifications.prepareDisable(operationID: operationID, authorization: initialAuthorization)
             try await requireSameUnlockedSession(sessionID)
 #if DEBUG
-        diagnosticPhase = "authorization-bind"
+        configurationPhaseDiagnosticForTesting?("disable.before.authorization-bind")
 #endif
             let authorization = try await bind(initialAuthorization, to: journal)
             guard journal.operationID == operationID, !journal.targetEnabled,
@@ -753,7 +752,7 @@ actor AppLockLifecycleCoordinatorV1 {
                 throw AppAccessContractFailureV1.effectMismatch
             }
 #if DEBUG
-        diagnosticPhase = "setting-write"
+        configurationPhaseDiagnosticForTesting?("disable.before.setting-write")
 #endif
             let write = try await setting.writeAppLockSetting(
                 DeviceLocalAppLockSettingV1(isEnabled: false),
@@ -767,7 +766,7 @@ actor AppLockLifecycleCoordinatorV1 {
             // can be restored. A rebuild failure therefore cannot expose
             // details while the durable lock setting is still enabled.
 #if DEBUG
-        diagnosticPhase = "notification-rebuild"
+        configurationPhaseDiagnosticForTesting?("disable.before.notification-rebuild")
 #endif
             let notification = try await notifications.rebuildPriorPolicy(journal, authorization: authorization)
             try await requireSameUnlockedSession(sessionID)
@@ -775,11 +774,11 @@ actor AppLockLifecycleCoordinatorV1 {
                 throw AppAccessContractFailureV1.notificationReconciliationRequired
             }
 #if DEBUG
-        diagnosticPhase = "gate-setting"
+        configurationPhaseDiagnosticForTesting?("disable.before.gate-setting")
 #endif
             try await gate.setEnabledAfterAuthenticated(false, toggleToken: proof)
 #if DEBUG
-        diagnosticPhase = "receipt"
+        configurationPhaseDiagnosticForTesting?("disable.before.receipt")
 #endif
             return try AppLockConfigurationReceiptV1(
                 operationID: operationID,
@@ -789,6 +788,9 @@ actor AppLockLifecycleCoordinatorV1 {
                 settingAdoptedExistingEffect: write.adoptedExistingEffect
             )
         } catch {
+#if DEBUG
+            configurationPhaseDiagnosticForTesting?("disable.effect-failed")
+#endif
             await gate.markConfigurationUnknown()
             throw error
         }

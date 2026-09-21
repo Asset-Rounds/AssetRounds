@@ -471,6 +471,39 @@ final class EraseIntentStore {
     private let eraseDescriptor: Int32
     private let eraseIdentity: Identity
 
+    /// Completed cleanup has removed the entire journal root. Observing that
+    /// postcondition must not initialize a new journal namespace.
+    static func completedCleanupRootIsAbsent(applicationSupportURL: URL) throws -> Bool {
+        let root = applicationSupportURL.standardizedFileURL
+        guard root.isFileURL else { throw EraseIntentStoreError.invalidAuthority }
+        let descriptor = Darwin.open(root.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        guard descriptor >= 0 else { throw EraseIntentStoreError.invalidAuthority }
+        defer { _ = Darwin.close(descriptor) }
+        let expected = try directoryIdentity(descriptor)
+
+        func verifyRoot() throws {
+            let reopened = Darwin.open(root.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            guard reopened >= 0 else { throw EraseIntentStoreError.invalidAuthority }
+            defer { _ = Darwin.close(reopened) }
+            guard try directoryIdentity(descriptor) == expected,
+                  try directoryIdentity(reopened) == expected else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+        }
+
+        try verifyRoot()
+        var info = stat()
+        let result = Darwin.fstatat(descriptor, directoryName, &info, AT_SYMLINK_NOFOLLOW)
+        let lookupError = errno
+        guard result == 0 || lookupError == ENOENT else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try verifyRoot()
+        // Every present entry, including an empty directory or dangling link,
+        // denies completed-cleanup admission. Never follow, repair or remove it.
+        return result != 0
+    }
+
     init(
         applicationSupportURL: URL,
         fileManager: FileManager = .default,

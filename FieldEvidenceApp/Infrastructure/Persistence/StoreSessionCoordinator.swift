@@ -405,7 +405,7 @@ final class StoreSessionCoordinator: ObservableObject {
               session.generationRootURL.standardizedFileURL == generationRootURL.standardizedFileURL,
               try generationFactory.currentGenerationID() == session.generationID,
               BackupRestoreService.isEmptyCurrent(session.modelContext),
-              try EraseIntentStore(applicationSupportURL: support).load() == nil else {
+              try EraseIntentStore.completedCleanupRootIsAbsent(applicationSupportURL: support) else {
             throw GenerationLeaseRegistryFailureV1.staleGeneration
         }
         // If pre-cleanup retirement failed, the handle still rejects its

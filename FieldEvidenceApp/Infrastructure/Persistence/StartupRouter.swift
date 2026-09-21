@@ -1547,7 +1547,7 @@ final class StartupRouter: ObservableObject {
            let retained = originalOperations[ticket.operationID],
            retained.owner === ticket.owner, retained.mint === ticket.mint,
            retained.kind == .erase {
-            guard try EraseIntentStore(applicationSupportURL: applicationSupportURL).load() == nil else {
+            guard try EraseIntentStore.completedCleanupRootIsAbsent(applicationSupportURL: applicationSupportURL) else {
                 throw AppAccessContractFailureV1.staleAttempt
             }
             operationID = ticket.operationID
@@ -1571,7 +1571,7 @@ final class StartupRouter: ObservableObject {
                   session.generationRootURL.standardizedFileURL
                     == retirement.session.generationRootURL.standardizedFileURL,
                   BackupRestoreService.isEmptyCurrent(session.modelContext),
-                  try EraseIntentStore(applicationSupportURL: applicationSupportURL).load() == nil,
+                  try EraseIntentStore.completedCleanupRootIsAbsent(applicationSupportURL: applicationSupportURL),
                   resolvePendingWriterCleanup() else {
                 throw AppAccessContractFailureV1.staleAttempt
             }

@@ -463,6 +463,7 @@ final class S6_6EraseRecoveryTests: XCTestCase {
 
     @MainActor
     func testGoldenEraseActivatesEmptyGenerationAndClearsFrozenState() async throws {
+        try verifyCompletedCleanupProbe()
         var diagnosticPhase = "harness"
         defer { print("EraseGolden.exit phase=" + diagnosticPhase) }
         let harness = try await makeHarness("golden", observePhase: { diagnosticPhase = $0 })
@@ -587,7 +588,10 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             .appendingPathComponent("FieldEvidenceDiagnostics", isDirectory: true)
             .appendingPathComponent("counters.json")
         let persistedBytes = try Data(contentsOf: diagnosticsURL)
-        let canonicalV3Bytes = try await harness.diagnostics
+        // The retained owner resets its in-memory health timestamp separately.
+        // Read physical canonical bytes through the actual reopened disk owner.
+        let reopenedDiagnostics = DiagnosticsStore(applicationSupportURL: harness.support)
+        let canonicalV3Bytes = try await reopenedDiagnostics
             .canonicalOperationalSupportEnvelopeDataV3()
         XCTAssertEqual(persistedBytes, canonicalV3Bytes)
         let persistedEnvelope = try XCTUnwrap(
@@ -649,9 +653,12 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             atPath: harness.factory.installedGenerationURL(id: oldID).path
         ))
         diagnosticPhase = "cold-open"
-        let reopened = try harness.factory.openOrBootstrapCurrent()
+        // Relaunch cannot reuse the factory's retained, physically erased lease
+        // registry. Keep its stale owner denied and create the real cold owner.
+        let reopenedFactory = StoreGenerationFactory(applicationSupportURL: harness.support)
+        let reopened = try reopenedFactory.openOrBootstrapCurrent()
         XCTAssertEqual(reopened.generationID, newID)
-        let pointer = try harness.factory.currentGenerationPointerV3(expectedGenerationID: newID)
+        let pointer = try reopenedFactory.currentGenerationPointerV3(expectedGenerationID: newID)
         diagnosticPhase = "manifest-readback"
         let manifest = try StoreMigrationJournalStoreV1(applicationSupportURL: harness.support)
             .loadManifest(targetGenerationID: newID, expectedDigest: pointer.generationManifestSHA256)
@@ -684,6 +691,47 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         XCTAssertFalse(coordinator.workspaceWriter === retiredWriter)
         XCTAssertNoThrow(try coordinator.workspaceWriter.currentRevision())
         diagnosticPhase = "complete"
+    }
+
+    @MainActor
+    private func verifyCompletedCleanupProbe() throws {
+        let root = fileManager.temporaryDirectory.appendingPathComponent(
+            "S66-completed-cleanup-probe-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: root) }
+        let erased = root.appendingPathComponent("FieldEvidenceErase", isDirectory: true)
+
+        XCTAssertTrue(try EraseIntentStore.completedCleanupRootIsAbsent(applicationSupportURL: root))
+        XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: root.path), [])
+
+        try fileManager.createDirectory(at: erased, withIntermediateDirectories: false)
+        XCTAssertFalse(try EraseIntentStore.completedCleanupRootIsAbsent(applicationSupportURL: root))
+        let pending = erased.appendingPathComponent(".preparation.json.next")
+        let pendingBytes = Data("untrusted pending authority".utf8)
+        try pendingBytes.write(to: pending)
+        XCTAssertFalse(try EraseIntentStore.completedCleanupRootIsAbsent(applicationSupportURL: root))
+        XCTAssertEqual(try Data(contentsOf: pending), pendingBytes)
+        try fileManager.removeItem(at: erased)
+
+        let regularBytes = Data("unexpected regular entry".utf8)
+        try regularBytes.write(to: erased)
+        XCTAssertFalse(try EraseIntentStore.completedCleanupRootIsAbsent(applicationSupportURL: root))
+        XCTAssertEqual(try Data(contentsOf: erased), regularBytes)
+        try fileManager.removeItem(at: erased)
+
+        let missing = root.appendingPathComponent("missing-target")
+        try fileManager.createSymbolicLink(at: erased, withDestinationURL: missing)
+        XCTAssertFalse(try EraseIntentStore.completedCleanupRootIsAbsent(applicationSupportURL: root))
+        XCTAssertEqual(try fileManager.destinationOfSymbolicLink(atPath: erased.path), missing.path)
+        XCTAssertFalse(fileManager.fileExists(atPath: missing.path))
+        try fileManager.removeItem(at: erased)
+        XCTAssertTrue(try EraseIntentStore.completedCleanupRootIsAbsent(applicationSupportURL: root))
+
+        let alias = root.appendingPathComponent("support-alias")
+        try fileManager.createSymbolicLink(at: alias, withDestinationURL: root)
+        XCTAssertThrowsError(try EraseIntentStore.completedCleanupRootIsAbsent(applicationSupportURL: alias))
+        XCTAssertThrowsError(try EraseIntentStore.completedCleanupRootIsAbsent(applicationSupportURL: missing))
+        XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: root.path), ["support-alias"])
     }
 
     @MainActor
@@ -915,7 +963,16 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             let pointerURL = harness.support.appendingPathComponent("FieldEvidenceData/current.json")
             if point == .afterCleanup || point == .beforeCleanupPhaseWrite
                 || point == .afterCleanupPhaseWrite || point == .beforeJournalRemoval {
-                assertAuxiliaryRootsCleared(harness)
+                if point == .afterCleanupPhaseWrite {
+                    // The immediate post-write crash leaves only the newly
+                    // opened empty lock registry. Recovery must remove it;
+                    // moving this injection would skip the real crash window.
+                    try assertOnlyCompletionControlRemains(
+                        harness, oldID: oldID, newID: newID
+                    )
+                } else {
+                    assertAuxiliaryRootsCleared(harness)
+                }
                 handoffBeforeRecovery = (
                     try Data(contentsOf: sidecarURL), try Data(contentsOf: pointerURL),
                     try regularFileIdentity(sidecarURL)
@@ -1686,6 +1743,54 @@ private extension S6_6EraseRecoveryTests {
             try context.fetchCount(FetchDescriptor<Packet>()),
             try context.fetchCount(FetchDescriptor<Report>()),
         ]
+    }
+
+    @MainActor
+    func assertOnlyCompletionControlRemains(
+        _ harness: Harness, oldID: UUID, newID: UUID,
+        file: StaticString = #filePath, line: UInt = #line
+    ) throws {
+        let operations = harness.support.appendingPathComponent("FieldEvidenceOperations")
+        let leases = operations.appendingPathComponent("generation-leases")
+        let owners = leases.appendingPathComponent("owners")
+        let directories: [(URL, [String])] = [
+            (operations, ["generation-leases"]),
+            (leases, ["mutation.lock", "owners", "registry.json"]),
+            (owners, []),
+        ]
+        for (url, expectedNames) in directories {
+            var information = stat()
+            guard url.path.withCString({ lstat($0, &information) }) == 0,
+                  information.st_mode & S_IFMT == S_IFDIR else {
+                XCTFail("Expected an exact completion-control directory", file: file, line: line)
+                throw FixtureError.invalid
+            }
+            XCTAssertEqual(
+                try fileManager.contentsOfDirectory(atPath: url.path).sorted(),
+                expectedNames, file: file, line: line
+            )
+        }
+        let registry = leases.appendingPathComponent("registry.json")
+        let mutationLock = leases.appendingPathComponent("mutation.lock")
+        _ = try regularFileIdentity(registry)
+        _ = try regularFileIdentity(mutationLock)
+        XCTAssertEqual(try Data(contentsOf: registry),
+            Data(#"{"leases":[],"schemaVersion":1}"#.utf8), file: file, line: line)
+        XCTAssertEqual(try Data(contentsOf: mutationLock), Data(), file: file, line: line)
+        for url in [
+            harness.support.appendingPathComponent("FieldEvidenceRestore"),
+            harness.support.appendingPathComponent("FieldEvidenceCommerce"),
+            harness.caches.appendingPathComponent("FieldEvidenceApp"),
+            harness.temporary.appendingPathComponent("FieldEvidenceApp"),
+        ] {
+            XCTAssertFalse(fileManager.fileExists(atPath: url.path), url.path, file: file, line: line)
+        }
+        let pending = try XCTUnwrap(try EraseIntentStore(
+            applicationSupportURL: harness.support
+        ).load(), file: file, line: line)
+        XCTAssertEqual(pending.phase, .cleanupComplete, file: file, line: line)
+        XCTAssertEqual(pending.oldGenerationID, oldID, file: file, line: line)
+        XCTAssertEqual(pending.newGenerationID, newID, file: file, line: line)
     }
 
     func assertAuxiliaryRootsCleared(
