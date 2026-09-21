@@ -298,6 +298,19 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
             _ = try harness.onlyReview(in: staged)
             try assertOriginals(source.history, retainedIn: harness.history(in: staged))
             try assertProjectedRoundRows(source.rounds, in: staged, history: harness.history(in: staged))
+            let recoveryService = try BackupRestoreService(applicationSupportURL: harness.support)
+            let oldRecords = try recoveryService.c55CurrentRecordsForTesting(in: current.modelContext)
+            let targetRecords = try recoveryService.c55CurrentRecordsForTesting(in: staged.modelContext)
+            let ordinary = try ReplacementRestoreRule.makeDeletionWinningPlan(.init(
+                currentRecords: oldRecords, currentIdentity: current.workspaceIdentity,
+                incomingRecords: targetRecords, incomingIdentity: staged.workspaceIdentity,
+                mode: .replaceExisting, replacementAt: RepetitiveCaptureSourcePackageFixture.date.addingTimeInterval(3_600)))
+            let recoveredPlan = try recoveryService.c36RecoveryPlanForTesting(
+                current: oldRecords, currentIdentity: current.workspaceIdentity,
+                target: staged, replacementAt: RepetitiveCaptureSourcePackageFixture.date.addingTimeInterval(3_600))
+            XCTAssertNotEqual(ordinary.recordsAfter.mutationHistory, targetRecords.mutationHistory)
+            XCTAssertEqual(recoveredPlan.recordsAfter, targetRecords)
+            try assertOriginals(before, retainedIn: XCTUnwrap(recoveredPlan.recordsAfter.mutationHistory))
             XCTAssertEqual(try harness.factory.currentGenerationID(), originalID)
             let reopened = try harness.factory.openOrBootstrapCurrent()
             XCTAssertEqual(try harness.history(in: reopened), before)
@@ -340,6 +353,18 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
         XCTAssertNil(repeated)
         XCTAssertEqual(try harness.history(in: cold), before)
         XCTAssertTrue(FileManager.default.fileExists(atPath: sourcePackage.path))
+        let unmodified = try recovery.c55CurrentRecordsForTesting(in: cold.modelContext)
+        let terminalRows = try cold.modelContext.fetch(FetchDescriptor<EntityMutationRevisionRow>())
+        let terminalRow = try XCTUnwrap(terminalRows.first)
+        let originalProjection = terminalRow.externalProjectionSHA256
+        terminalRow.externalProjectionSHA256 = String(repeating: "e", count: 64)
+        try cold.modelContext.save()
+        XCTAssertThrowsError(try recovery.c36RecoveryPlanForTesting(current: unmodified,
+            currentIdentity: cold.workspaceIdentity, target: cold,
+            replacementAt: RepetitiveCaptureSourcePackageFixture.date.addingTimeInterval(3_600)))
+        terminalRow.externalProjectionSHA256 = originalProjection
+        try cold.modelContext.save()
+        XCTAssertEqual(try recovery.c55CurrentRecordsForTesting(in: cold.modelContext), unmodified)
         }
     }
 
@@ -589,6 +614,8 @@ final class RestoreReviewTimingV1 {
         startedAt = DispatchTime.now().uptimeNanoseconds
     }
 
+    var isEnabled: Bool { enabled }
+
     func mark(_ phase: String) {
         guard enabled else { return }
         let elapsedMilliseconds = (DispatchTime.now().uptimeNanoseconds - startedAt) / 1_000_000
@@ -610,8 +637,21 @@ final class RestoreReviewHarness {
         root = FileManager.default.temporaryDirectory.appendingPathComponent("c36-real-restore-\(UUID())")
         support = root.appendingPathComponent("Application Support", isDirectory: true)
         try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
-        factory = StoreGenerationFactory(applicationSupportURL: support)
-        _ = try factory.openOrBootstrapCurrent()
+        var bootstrapFactory = StoreGenerationFactory(applicationSupportURL: support)
+#if DEBUG
+        bootstrapFactory.coldOpenDiagnosticForTesting = timing?.isEnabled == true
+#endif
+        timing?.mark("harness.bootstrap.begin")
+        do {
+            _ = try bootstrapFactory.openOrBootstrapCurrent()
+        } catch {
+            timing?.mark("harness.bootstrap.failure.type=\(String(reflecting: type(of: error)))")
+            throw error
+        }
+#if DEBUG
+        bootstrapFactory.coldOpenDiagnosticForTesting = false
+#endif
+        factory = bootstrapFactory
         timing?.mark("harness.end")
     }
 
@@ -738,6 +778,7 @@ final class RestoreReviewHarness {
     /// Exercise the production reader and validator, including hostile physical
     /// rows. Archive-format metadata never supplies a stored payload.
     func assertAuxiliaryReadbackContracts() throws {
+        timing?.mark("auxiliary.begin")
         let schema = Schema(PersistentSchemaV53.models, version: PersistentSchemaV53.versionIdentifier)
         let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [
             ModelConfiguration("RestoreAuxiliaryReadback", schema: schema, isStoredInMemoryOnly: true,
@@ -745,7 +786,7 @@ final class RestoreReviewHarness {
         ])
         let context = ModelContext(container)
         context.autosaveEnabled = false
-        let workspaceID = try WorkspaceID(rawValue: UUID())
+        let workspaceID = WorkspaceID(rawValue: UUID())
         let generationID = UUID()
         let state = WorkspaceMutationStateRow(workspaceID: workspaceID.rawValue,
             generationID: generationID, activeReplicaID: UUID())
@@ -823,12 +864,17 @@ final class RestoreReviewHarness {
         context.insert(try ImportMappingProfileRowV1(profile))
         try context.save()
         XCTAssertThrowsError(try service.c55CurrentRecordsForTesting(in: context))
+        timing?.mark("auxiliary.hostile-owner.end")
         try assertPopulatedAuxiliaryCopyAndDuplicateRejection(service: service)
+        timing?.mark("auxiliary.end")
     }
 
     private func assertPopulatedAuxiliaryCopyAndDuplicateRejection(service: BackupRestoreService) throws {
+        timing?.mark("auxiliary.c10.init.begin")
         let fixture = try C10ProductionFixture(useActiveSchema: true)
+        timing?.mark("auxiliary.c10.init.end")
         let populated = try service.c55CurrentRecordsForTesting(in: fixture.context)
+        timing?.mark("auxiliary.c10.readback.end")
         let quality = try C10ProductionFixture.physicalBackupSnapshot(
             in: fixture.context, workspaceID: fixture.workspaceID)
         XCTAssertFalse(quality.ruleSets.isEmpty)
@@ -858,6 +904,7 @@ final class RestoreReviewHarness {
         // Deliberately hostile persisted history: two individually valid rows
         // have distinct revision keys but the same logical ruleSetID. The real
         // reader must throw before constructing a unique-key Dictionary.
+        timing?.mark("auxiliary.c10.copy.end")
         let original = fixture.ruleSet
         let predecessor = try EvidenceQualityRuleSetV1(ruleSetID: UUID(), workspaceID: fixture.workspaceID,
             policyVersion: original.policyVersion, orderedRules: original.orderedRules, revision: 1,
@@ -879,8 +926,10 @@ final class RestoreReviewHarness {
         let originalRow = try XCTUnwrap(fixture.context.fetch(FetchDescriptor<EvidenceQualityRuleSetRowV1>()).first)
         XCTAssertEqual(try originalRow.value(), original)
         XCTAssertNotEqual(row.rowID, originalRow.rowID)
+        timing?.mark("auxiliary.c10.duplicate.insert")
         fixture.context.insert(row)
         try fixture.context.save()
+        timing?.mark("auxiliary.c10.duplicate.readback")
         XCTAssertThrowsError(try service.c55CurrentRecordsForTesting(in: fixture.context)) { error in
             XCTAssertEqual(error as? BackupRestoreServiceError, .invalidRestoreAuthority)
         }

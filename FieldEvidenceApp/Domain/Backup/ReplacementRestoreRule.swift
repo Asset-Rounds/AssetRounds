@@ -157,6 +157,23 @@ enum ReplacementRestoreRule {
     static func makeDeletionWinningPlan(
         _ input: DeletionWinningRestoreInputV2
     ) throws -> DeletionWinningRestorePlanV2 {
+        try makeDeletionWinningPlan(input, preferValidatedTargetOnEqualRevision: false)
+    }
+
+    static func makeRecoveredDeletionWinningPlan(
+        _ input: DeletionWinningRestoreInputV2,
+        validatedTarget: ValidatedRestoreRecoveryTargetV1
+    ) throws -> DeletionWinningRestorePlanV2 {
+        guard input.incomingRecords == validatedTarget.records else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        return try makeDeletionWinningPlan(input, preferValidatedTargetOnEqualRevision: true)
+    }
+
+    private static func makeDeletionWinningPlan(
+        _ input: DeletionWinningRestoreInputV2,
+        preferValidatedTargetOnEqualRevision: Bool
+    ) throws -> DeletionWinningRestorePlanV2 {
         #if DEBUG
         var diagnosticPhase = "replacement-time"
         #endif
@@ -246,7 +263,8 @@ enum ReplacementRestoreRule {
                     current: input.currentRecords.mutationHistory,
                     currentIdentity: input.currentIdentity,
                     incoming: input.incomingRecords.mutationHistory,
-                    incomingIdentity: input.incomingIdentity
+                    incomingIdentity: input.incomingIdentity,
+                    preferValidatedTargetOnEqualRevision: preferValidatedTargetOnEqualRevision
                 )
                 #if DEBUG
                 diagnosticPhase = "merged-assistance"
@@ -992,7 +1010,8 @@ private extension ReplacementRestoreRule {
         current: MutationHistorySnapshotV1?,
         currentIdentity: WorkspaceReplicaIdentityV1?,
         incoming: MutationHistorySnapshotV1?,
-        incomingIdentity: WorkspaceReplicaIdentityV1?
+        incomingIdentity: WorkspaceReplicaIdentityV1?,
+        preferValidatedTargetOnEqualRevision: Bool
     ) throws -> MutationHistorySnapshotV1? {
         guard let current else { return incoming }
         guard let incoming else { return current }
@@ -1064,7 +1083,10 @@ private extension ReplacementRestoreRule {
                 revisions[value.identity] = value
                 continue
             }
-            if value.revision > existing.revision {
+            // Only recovery's authenticated destination may replace equal-revision
+            // metadata. Raw archives retain the released current-first rule.
+            if value.revision > existing.revision
+                || (preferValidatedTargetOnEqualRevision && value.revision == existing.revision) {
                 revisions[value.identity] = value
             }
         }

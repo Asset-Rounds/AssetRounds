@@ -1035,26 +1035,42 @@ private extension S6_5ReplacementUnionTests {
         let siteID = uuid(base)
         let assetID = uuid(base + 1)
         diagnostic?("seed")
-        context.insert(Site(
-            id: siteID,
-            label: "\(label) site",
-            address: nil,
-            timeZoneID: "America/New_York",
-            createdAt: observedAt.addingTimeInterval(-10)
-        ))
-        context.insert(Asset(
-            id: assetID,
+        let sessionCoordinator = try StoreSessionCoordinator(validatingSession: session)
+        var writerReleased = false
+        defer {
+            if !writerReleased { try? sessionCoordinator.invalidateAndReleaseWriter() }
+        }
+        let placementMutationID = try MutationIDV1(rawValue: uuid(base + 70))
+        _ = try sessionCoordinator.workspaceWriter.execute(.createFirstSign(.init(
             siteID: siteID,
-            packID: pack.packID,
-            packSchemaVersion: pack.schemaVersion,
-            packContentVersion: pack.contentVersion,
-            label: label,
-            createdAt: observedAt.addingTimeInterval(-9)
-        ))
-        try context.save()
+            newSite: .init(id: siteID, label: "\(label) site", address: nil,
+                           timeZoneID: "America/New_York"),
+            assetID: assetID, assetLabel: label, packID: pack.packID,
+            packSchemaVersion: pack.schemaVersion, packContentVersion: pack.contentVersion,
+            createdAt: observedAt.addingTimeInterval(-9),
+            initialPlacementMutationID: placementMutationID,
+            initialPlacementEventID: uuid(base + 71),
+            initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: uuid(base + 72))
+        )), mutationID: placementMutationID)
+        let journal = try MutationJournalStoreV1(modelContext: context,
+            identity: session.workspaceIdentity, generationID: session.generationID,
+            allowStateBootstrap: false)
+        var committedRevision = try journal.exportSnapshot().workspaceRevision
+        XCTAssertFalse(context.hasChanges)
+        XCTAssertGreaterThan(committedRevision, 0)
+        func requireCommittedCapture() throws {
+            XCTAssertFalse(context.hasChanges)
+            let history = try journal.exportSnapshot()
+            XCTAssertGreaterThan(history.workspaceRevision, committedRevision)
+            committedRevision = history.workspaceRevision
+        }
 
         diagnostic?("capture.configure")
-        let coordinator = CheckRunnerCoordinator(modelContext: context, signPack: pack)
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: pack)
+        let dependencies = try sessionCoordinator.packageLifecycleDependencies(
+            profileRegistry: WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile]))
+        let coordinator = try CheckRunnerCoordinator(modelContext: context,
+            packageLifecycleDependencies: dependencies, packageLifecycleProfile: profile)
         coordinator.configureCapture(generationRootURL: session.generationRootURL)
         diagnostic?("capture.begin")
         _ = try coordinator.beginCheck(
@@ -1065,6 +1081,7 @@ private extension S6_5ReplacementUnionTests {
             safePositionAccepted: true,
             observedAt: observedAt
         )
+        try requireCommittedCapture()
         diagnostic?("wide.import")
         let wide = try await coordinator.importCandidate(
             assetID: assetID,
@@ -1073,6 +1090,7 @@ private extension S6_5ReplacementUnionTests {
         )
         diagnostic?("wide.accept")
         _ = try await coordinator.accept(candidate: wide, assetID: assetID)
+        try requireCommittedCapture()
         diagnostic?("close.import")
         let close = try await coordinator.importCandidate(
             assetID: assetID,
@@ -1081,6 +1099,8 @@ private extension S6_5ReplacementUnionTests {
         )
         diagnostic?("close.accept")
         _ = try await coordinator.accept(candidate: close, assetID: assetID)
+        try requireCommittedCapture()
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<EvidenceFile>()), 2)
         let packetID = packetIDOverride ?? uuid(base + 3)
         let rootID = uuid(base + 4)
         diagnostic?("finalize")
@@ -1098,6 +1118,7 @@ private extension S6_5ReplacementUnionTests {
                 issueID: nil
             )
         )
+        try requireCommittedCapture()
         diagnostic?("delivery")
         guard case .ready = try coordinator.prepareReportDelivery(result: result) else {
             throw FixtureError.invalid
@@ -1106,6 +1127,8 @@ private extension S6_5ReplacementUnionTests {
         let packet = try XCTUnwrap(
             try context.fetch(FetchDescriptor<Packet>()).first
         )
+        try sessionCoordinator.invalidateAndReleaseWriter()
+        writerReleased = true
         return LiveHarness(
             support: support,
             factory: factory,

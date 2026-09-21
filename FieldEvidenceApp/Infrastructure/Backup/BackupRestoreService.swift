@@ -28,6 +28,17 @@ enum C50IncumbentFileExchangeBackupRestoreServiceBoundaryV1 {
 }
 import SwiftData
 
+/// Recovery authority issued only in this file after the existing record export
+/// validates the destination journal against its stored postimages. A raw imported
+/// snapshot cannot construct this token or replace its immutable records.
+struct ValidatedRestoreRecoveryTargetV1 {
+    let records: V4BackupRecordsV1
+
+    fileprivate init(records: V4BackupRecordsV1) {
+        self.records = records
+    }
+}
+
 private struct PrivacyTransformRestoreManifestEnvelopeV1: Decodable {
     let policyID: UUID; let policyRevision: UInt64; let policySHA256: String
 }
@@ -3037,7 +3048,7 @@ final class BackupRestoreService {
             guard validRecoveredRecords(
                 intent: intent,
                 old: oldRecords,
-                target: newRecords
+                target: ValidatedRestoreRecoveryTargetV1(records: newRecords)
             ) else {
                 throw attributedRestoreAuthorityFailureV1(line: #line)
             }
@@ -3056,7 +3067,7 @@ final class BackupRestoreService {
             guard validRecoveredRecords(
                intent: intent,
                old: oldRecords,
-               target: stagedRecords
+               target: ValidatedRestoreRecoveryTargetV1(records: stagedRecords)
             ) else {
                 throw attributedRestoreAuthorityFailureV1(line: #line)
             }
@@ -3503,8 +3514,9 @@ private extension BackupRestoreService {
     func validRecoveredRecords(
         intent: RestoreIntentV1,
         old: V4BackupRecordsV1,
-        target: V4BackupRecordsV1
+        target validatedTarget: ValidatedRestoreRecoveryTargetV1
     ) -> Bool {
+        let target = validatedTarget.records
         guard let replacementAt = intent.replacementAt else { return false }
         guard let identity = intent.identity else {
             return validMonotonicUnion(
@@ -3513,7 +3525,7 @@ private extension BackupRestoreService {
                 replacementAt: replacementAt
             )
         }
-        guard let plan = try? ReplacementRestoreRule.makeDeletionWinningPlan(
+        guard let plan = try? ReplacementRestoreRule.makeRecoveredDeletionWinningPlan(
             DeletionWinningRestoreInputV2(
                 currentRecords: old,
                 currentIdentity: try? workspaceIdentity(identity.oldPointer),
@@ -3523,7 +3535,8 @@ private extension BackupRestoreService {
                 incomingIdentity: try? workspaceIdentity(identity.targetPointer),
                 mode: identity.mode,
                 replacementAt: replacementAt
-            )
+            ),
+            validatedTarget: validatedTarget
         ) else {
             traceRestorePhase("recovery.records.plan.failed")
             return false
@@ -11411,7 +11424,7 @@ private extension BackupRestoreService {
         } else { destination = nil }
         let destinationRecords = try destination.map { try requireCloneRetirementDestination(binding, session: $0) }
         if let destination, let values = destinationRecords {
-            guard validRecoveredRecords(intent: original, old: incumbent.records, target: values) else {
+            guard validRecoveredRecords(intent: original, old: incumbent.records, target: ValidatedRestoreRecoveryTargetV1(records: values)) else {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
             try validateUnpublishedTargetSession(destination, expected: values, staging: presence.staging)
@@ -18679,6 +18692,19 @@ private extension BackupRestoreService {
 
 #if DEBUG
 internal extension BackupRestoreService {
+    func c36RecoveryPlanForTesting(
+        current: V4BackupRecordsV1,
+        currentIdentity: WorkspaceReplicaIdentityV1,
+        target: StoreGenerationSession,
+        replacementAt: Date
+    ) throws -> DeletionWinningRestorePlanV2 {
+        let validated = ValidatedRestoreRecoveryTargetV1(records: try records(in: target.modelContext))
+        return try ReplacementRestoreRule.makeRecoveredDeletionWinningPlan(.init(
+            currentRecords: current, currentIdentity: currentIdentity,
+            incomingRecords: validated.records, incomingIdentity: target.workspaceIdentity,
+            mode: .replaceExisting, replacementAt: replacementAt), validatedTarget: validated)
+    }
+
     func c36ValidateRowsForTesting(_ context: ModelContext, expected: V4BackupRecordsV1) throws {
         try validateRows(context, expected: expected)
     }
