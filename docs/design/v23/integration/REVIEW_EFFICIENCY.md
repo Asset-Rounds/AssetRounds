@@ -1,3 +1,5 @@
+fbc directory-pin follow-up: root Astra xhigh; one fresh bounded Astra medium semantic diagnosis after reuse of the completed low census. Restore35626799645 compiles6/7 with0new warning signatures, but retained diagnostics omit the caller/pin/syscall needed to distinguish an owned regular-file mutation. That contract predatesfbc; count the original as partly spent on unresolved attribution, not as a newly introduced defect. Root authors a bounded default-off observation with unchanged predicates, requiring deterministic checks before complete-boundary medium review and related index/commit gates. Those required gates are distinct from avoidable incomplete attribution; no token/error savings established. Full five-batch trial and prior outcomes remain below.
+
 # Five-batch review efficiency trial
 
 Owner requested 2026-09-20. Start with the next consequential technical batch after adoption; this policy-only edit and already-reviewed227e370 are not trial batches. One row covers a causal batch through its related source/index/commit gates and later feedback; corrections remain linked to the originating row. Do not count gates as extra batches.

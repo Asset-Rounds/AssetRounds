@@ -10,13 +10,13 @@
 
 ## Native evidence and next questions
 
-Original35617536519 at16e82a8 is terminal, sole-collected and root-audited5AFD02F3: build PASS1321s,0Swift errors,6/7 Restore methods PASS, transportPASS;1296files/24source pins retained. No active native original or collector. All259 warning signatures match last completed compilation c99/35605835069; the187 added versus early compiler-failed e4 are not new versus that full build.
+Original35626799645 atfbc675d is terminal, sole-collected and root-audited7ED6011F: build PASS1440s,0Swift errors,6/7 Restore methods PASS, transportPASS;1267files/29source pins/14protocol-timing pins retained. All259 warning signatures match the completed16e compilation. This is development evidence only.
 
-C10 same-workspace replacement and hostile review-plan now pass. Golden alone fails40.12s: pinned-directory stat succeeds with unchanged device/inode/type but links5to6 while createMissing=true. Traversal retains a parent pin across its own child mkdir. Correct that exact self-mutation while retaining all authority, no-follow, identity/path/link-count and recovery predicates. Reuse the seven existing methods; no unchanged retry.
+Golden now fails71.71s with createMissing=false, unchanged device/inode/type and links2to3. Prior traversal mkdir accounting progressed to a later boundary. The retained complete direct-caller census finds regular-file entry mutations in writeExact and binding persistence/removal; the exact failing caller/pin/syscall is not yet established. Do not refresh pins or infer a universal filesystem delta. Root's isolated default-off diagnostic records the caller, verification ordinal, body phase, pin index and immediate exclusive-create facts. Predicates, errors, test methods and watchdogs stay exact. Deterministic checks, medium complete-boundary review, index/commit review and hosted observation remain required before a successor can answer that question.
 
-Prepared compatible source family fixes legacy ReportSnapshotV1 schema2 versus CompletedActivitySnapshotV2 schema2 routing at11 validator/restore/writer callers using exclusive canonical envelope discrimination. Two authentic paired regressions are newly enrolled in snapshot-family-v1,884methods/56groups; all16 historical generated selections/maps remain byte-exact. This does not grant native or acceptance credit, broaden schema admission or complete C43 adoption. Closed884 helper qualification, combined source/index/commit review and hosted execution remain due.
+Distinct same-fbc Erase originals35630114318(drain1) and35630277792(remainder12) have exact-checkout admissions and93 immutable inputs archived each. Their sole collectors remain active64765/67195 at this checkpoint. Preserve live helper/support/packet inputs, audit each original once and never duplicate/retry unchanged. Update their terminal outcomes at the next causal checkpoint.
 
-Erase peers remain HOLD until final source/parent/product and helper bindings plus committed-route review pass. Distinct drain1/remainder12 preserve the exact13-method union and existing D30 limits. Idle capacity is not a reason to dispatch.
+Legacy2/typed2 canonical discrimination is committed at11 callers; its two new regressions compiled but were not selected by Restore7 or Erase13. Pool884/56 and all16 historical generated outputs remain exact. Broader native coverage and all final gates remain due.
 
 ## Production integration and cadence
 
