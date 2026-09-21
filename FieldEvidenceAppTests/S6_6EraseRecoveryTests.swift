@@ -123,7 +123,7 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         XCTAssertTrue(system.requests.isEmpty)
         XCTAssertFalse(fileManager.fileExists(atPath: harness.factory.installedGenerationURL(id: oldID).path))
         XCTAssertNil(harness.defaults.object(forKey: "notification-erase-sentinel"))
-        XCTAssertNil(try EraseIntentStore(applicationSupportURL: harness.support).load())
+        XCTAssertTrue(try EraseIntentStore.completedCleanupRootIsAbsent(applicationSupportURL: harness.support))
         XCTAssertThrowsError(try control.requireNotificationPublicationAllowed())
     }
 
@@ -217,7 +217,10 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             didCompleteErase: { receipt in
                 XCTAssertFalse(self.fileManager.fileExists(atPath: harness.support
                     .appendingPathComponent("FieldEvidenceErase").path))
-                XCTAssertNil(try? EraseIntentStore(applicationSupportURL: harness.support).load())
+                XCTAssertTrue((try? EraseIntentStore.completedCleanupRootIsAbsent(
+                    applicationSupportURL: harness.support)) == true)
+                XCTAssertFalse(self.fileManager.fileExists(atPath: harness.support
+                    .appendingPathComponent("FieldEvidenceErase").path))
                 received = receipt
             }
         )

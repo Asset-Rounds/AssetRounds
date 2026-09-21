@@ -86,10 +86,12 @@ final class S6_5ReplacementUnionTests: XCTestCase {
     func testGoldenReplacementKeepsIncomingLiveAndUnionsCurrentRoot() async throws {
         var diagnosticPhase = "fixture.begin"
         var firstRecoveryOrigin: String?
+        diagnosticPhase = "fixture.root"
+        let root = try makeRoot("golden")
+        // Keep cleanup outside the caught scope so original-error evidence is
+        // captured before this defer can encounter an unrelated cleanup error.
+        defer { try? fileManager.removeItem(at: root) }
         do {
-            diagnosticPhase = "fixture.root"
-            let root = try makeRoot("golden")
-            defer { try? fileManager.removeItem(at: root) }
             let current = try await makeLiveHarness(
                 root: root,
                 name: "current",
@@ -223,7 +225,18 @@ final class S6_5ReplacementUnionTests: XCTestCase {
                 Set([current.rootID, incoming.rootID])
             )
         } catch {
-            print("ReplacementUnionGolden.failure phase=\(diagnosticPhase) type=\(String(reflecting: type(of: error)))")
+            let originalError = error
+            let failureType = String(reflecting: type(of: originalError))
+            let failureDomain = (originalError as NSError).domain
+            let failureCode = (originalError as NSError).code
+            let failureRecord = "ReplacementUnionGolden.caught phase=\(diagnosticPhase) type=\(failureType) domain=\(failureDomain) code=\(failureCode)"
+            XCTContext.runActivity(named: "Retained original failure before cleanup") { activity in
+                let attachment = XCTAttachment(string: failureRecord)
+                attachment.lifetime = .keepAlways
+                activity.add(attachment)
+            }
+            XCTFail(failureRecord)
+            print(failureRecord)
             if let firstRecoveryOrigin {
                 print("ReplacementUnionGolden.firstRecoveryOrigin=\(firstRecoveryOrigin)")
             }
@@ -231,7 +244,7 @@ final class S6_5ReplacementUnionTests: XCTestCase {
                case .resourceValueMismatch = policyError {
                 print("ReplacementUnionGolden.failure.protectedFileResourceValueMismatch")
             }
-            throw error
+            throw originalError
         }
     }
 

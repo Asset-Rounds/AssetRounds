@@ -488,11 +488,10 @@ final class V23ProductionAppAccessTests: XCTestCase {
         XCTAssertEqual(serviceCount, 2)
         XCTAssertTrue(presentation.permitsContentPresentation)
         XCTAssertNil(presentation.failure)
-        // Fresh activation validates intent absence through the creating store.
-        // Its recreated control directory must contain no retained Erase payload.
-        XCTAssertEqual(try FileManager.default.contentsOfDirectory(
-            atPath: support.appendingPathComponent("FieldEvidenceErase", isDirectory: true).path), [])
-        XCTAssertNil(try EraseIntentStore(applicationSupportURL: support).load())
+        // Fresh activation must preserve the completed physical cleanup.
+        XCTAssertTrue(try EraseIntentStore.completedCleanupRootIsAbsent(applicationSupportURL: support))
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: support.appendingPathComponent("FieldEvidenceErase", isDirectory: true).path))
         guard case let .ready(recoveredCoordinator, _, _) = router.route else {
             return XCTFail("Fresh-service recovery must publish the retained ticket's Erase session")
         }
@@ -610,7 +609,28 @@ final class V23ProductionAppAccessTests: XCTestCase {
         }
 #endif
         diagnosticPhase = "disable"
-        let disabled = try await session.lifecycle.disable(operationID: UUID())
+        let disabled: AppLockConfigurationReceiptV1
+        do {
+            disabled = try await session.lifecycle.disable(operationID: UUID())
+        } catch {
+            let originalError = error
+            let failureType = String(reflecting: type(of: originalError))
+            let failureDomain = (originalError as NSError).domain
+            let failureCode = (originalError as NSError).code
+#if DEBUG
+            let retainedPhases = await session.lifecycle.configurationPhasesForTesting()
+#else
+            let retainedPhases: [String] = ["diagnostics-unavailable"]
+#endif
+            let failureRecord = "ProductionEraseOwner.caught phase=\(retainedPhases.joined(separator: ">")) type=\(failureType) domain=\(failureDomain) code=\(failureCode)"
+            XCTContext.runActivity(named: "Retained original failure before cleanup") { activity in
+                let attachment = XCTAttachment(string: failureRecord)
+                attachment.lifetime = .keepAlways
+                activity.add(attachment)
+            }
+            XCTFail(failureRecord)
+            throw originalError
+        }
         XCTAssertFalse(disabled.enabled)
         diagnosticPhase = "disabled-control-read"
         let disabledControl = try XCTUnwrap(freshControl.loadControl())

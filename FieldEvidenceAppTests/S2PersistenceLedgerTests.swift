@@ -1641,6 +1641,7 @@ extension S2PersistenceLedgerTests {
         beforeCommerceActivation: @escaping @MainActor (UUID) async -> Void = { _ in },
         cleanupCase: EraseCleanupCase = .ordinary
     ) async throws -> S2PostAdoptionEraseFixture {
+        var cleanupDiagnosticPhase = "fixture.setup"
         let sandbox = try makeTemporaryApplicationSupportURL()
         var fixtureCreated = false
         defer {
@@ -1750,6 +1751,7 @@ extension S2PersistenceLedgerTests {
             let prepare: @MainActor () throws -> Void = {
                 try router.prepareErasedSessionCleanup(ticket)
             }
+            cleanupDiagnosticPhase = "erase.initial"
             let outcome: EraseAllOutcome
             if cleanupCase == .immediate {
                 // Exercise the real compatibility entry without retaining live
@@ -1781,6 +1783,7 @@ extension S2PersistenceLedgerTests {
                     let drained = expectation(for: NSPredicate { _, _ in oldContextIsReleased() }, evaluatedWith: NSObject())
                     await fulfillment(of: [drained], timeout: 30)
                     XCTAssertTrue(oldContextIsReleased())
+                    cleanupDiagnosticPhase = "cleanup.intent-and-registry-read"
                     let intentBefore = try EraseIntentStore(applicationSupportURL: root).load()
                     let retiredWriter = coordinator.workspaceWriter
                     let registryURL = root.appendingPathComponent("FieldEvidenceOperations/generation-leases/registry.json")
@@ -1790,6 +1793,7 @@ extension S2PersistenceLedgerTests {
                         // registry content so the actual close must fail.
                         try Data("invalid-registry".utf8).write(to: registryURL)
                     }
+                    cleanupDiagnosticPhase = "cleanup.injected-resume"
                     do {
                         _ = try await router.resumeDeferredErase(ticket) {
                             try await makeService().reconcileAtStartup(
@@ -1797,13 +1801,16 @@ extension S2PersistenceLedgerTests {
                         }
                         XCTFail("The injected cleanup failure must not complete")
                     } catch { }
+                    cleanupDiagnosticPhase = "cleanup.retained-owner-check"
                     XCTAssertEqual(try EraseIntentStore(applicationSupportURL: root).load(), intentBefore)
                     XCTAssertNil(receipt)
                     XCTAssertTrue(coordinator.workspaceWriter === retiredWriter)
                     XCTAssertThrowsError(try retiredWriter.currentRevision())
                     if cleanupCase == .releaseFailure {
                         XCTAssertEqual(try Data(contentsOf: registryURL), Data("invalid-registry".utf8))
+                        cleanupDiagnosticPhase = "cleanup.registry-restore"
                         try registryBytes.write(to: registryURL)
+                        cleanupDiagnosticPhase = "cleanup.registry-restored-readback"
                         XCTAssertEqual(try writerLeaseIDs(in: root).count, 1)
                     } else {
                         XCTAssertEqual(try writerLeaseIDs(in: root).count, 0)
@@ -1812,6 +1819,7 @@ extension S2PersistenceLedgerTests {
                         throw AppAccessContractFailureV1.staleAttempt
                     }
                 }
+                cleanupDiagnosticPhase = "cleanup.final-resume"
                 let resumed = try await router.resumeDeferredErase(ticket) {
                     try await makeService().reconcileAtStartup(
                         diagnosticsStore: DiagnosticsStore(applicationSupportURL: root)
@@ -1824,6 +1832,7 @@ extension S2PersistenceLedgerTests {
             }
             let retiredWriter = coordinator.workspaceWriter
             XCTAssertThrowsError(try retiredWriter.currentRevision())
+            cleanupDiagnosticPhase = "cleanup.completed-receipt"
             let completed = try XCTUnwrap(receipt)
             if cleanupCase == .rebindFailure {
                 // Fail the real fresh-binding entry after its authentic receipt,
@@ -1840,18 +1849,20 @@ extension S2PersistenceLedgerTests {
                 XCTAssertEqual(try Data(contentsOf: operationsRoot), blocker)
                 XCTAssertTrue(coordinator.workspaceWriter === retiredWriter)
                 XCTAssertThrowsError(try retiredWriter.currentRevision())
-                XCTAssertNil(try EraseIntentStore(applicationSupportURL: root).load())
+                XCTAssertTrue(try EraseIntentStore.completedCleanupRootIsAbsent(applicationSupportURL: root))
                 XCTAssertEqual(completionCount, 1)
                 try fileManager.removeItem(at: operationsRoot)
             }
+            cleanupDiagnosticPhase = "cleanup.fresh-activation"
             try await router.beginErasedSessionActivation(
                 session, coordinator: coordinator, ticket: ticket
             )
             XCTAssertFalse(coordinator.workspaceWriter === retiredWriter)
             XCTAssertNoThrow(try coordinator.workspaceWriter.currentRevision())
-            XCTAssertNil(try EraseIntentStore(applicationSupportURL: root).load())
+            XCTAssertTrue(try EraseIntentStore.completedCleanupRootIsAbsent(applicationSupportURL: root))
             XCTAssertEqual(completionCount, 1, "Activation retry must not repeat physical completion")
             let adopted = try XCTUnwrap(reservation)
+            cleanupDiagnosticPhase = "cleanup.gate-adoption"
             try await gate.adoptCompletedErase(completed, token: adopted)
             fixtureCreated = true
             return S2PostAdoptionEraseFixture(
@@ -1860,12 +1871,23 @@ extension S2PersistenceLedgerTests {
                 coordinator: coordinator, session: session, ticket: ticket
             )
         } catch {
+            let originalError = error
+            let failureType = String(reflecting: type(of: originalError))
+            let failureDomain = (originalError as NSError).domain
+            let failureCode = (originalError as NSError).code
+            let failureRecord = "S2EraseCleanup.caught phase=\(String(describing: cleanupCase) + "/" + cleanupDiagnosticPhase) type=\(failureType) domain=\(failureDomain) code=\(failureCode)"
+            XCTContext.runActivity(named: "Retained original failure before cleanup") { activity in
+                let attachment = XCTAttachment(string: failureRecord)
+                attachment.lifetime = .keepAlways
+                activity.add(attachment)
+            }
+            XCTFail(failureRecord)
             router.failClosedPDFRecovery()
             defaults.removePersistentDomain(forName: defaultsSuiteName)
             try? fileManager.removeItem(at: root)
             try? fileManager.removeItem(at: caches)
             try? fileManager.removeItem(at: temporary)
-            throw error
+            throw originalError
         }
     }
 

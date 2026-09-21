@@ -319,11 +319,25 @@ actor AppLockLifecycleCoordinatorV1 {
 
 #if DEBUG
     private var configurationPhaseDiagnosticForTesting: (@Sendable (String) -> Void)?
+    private var retainedConfigurationPhasesForTesting: [String] = []
 
     func setConfigurationPhaseDiagnosticForTesting(
         _ observer: (@Sendable (String) -> Void)?
     ) {
         configurationPhaseDiagnosticForTesting = observer
+        retainedConfigurationPhasesForTesting.removeAll(keepingCapacity: false)
+    }
+
+    func configurationPhasesForTesting() -> [String] {
+        retainedConfigurationPhasesForTesting
+    }
+
+    private func recordConfigurationPhaseForTesting(_ phase: String) {
+        guard let observer = configurationPhaseDiagnosticForTesting else { return }
+        if retainedConfigurationPhasesForTesting.count < 32 {
+            retainedConfigurationPhasesForTesting.append(phase)
+        }
+        observer(phase)
     }
 #endif
 
@@ -709,41 +723,44 @@ actor AppLockLifecycleCoordinatorV1 {
 
     func disable(operationID: UUID) async throws -> AppLockConfigurationReceiptV1 {
 #if DEBUG
-        configurationPhaseDiagnosticForTesting?("disable.before.admission")
+        recordConfigurationPhaseForTesting("disable.before.admission")
 #endif
         try validate(operationID)
         try await beginOperation(operationID)
         try claim(operationID, confirmingExisting: true)
         defer { release(operationID); endOperation(operationID) }
 #if DEBUG
-        configurationPhaseDiagnosticForTesting?("disable.before.authentication")
+        recordConfigurationPhaseForTesting("disable.before.authentication")
 #endif
         let outcome = await gate.authenticate(trigger: .disableAppLock)
+#if DEBUG
+        recordConfigurationPhaseForTesting("disable.after.authentication")
+#endif
         guard outcome == .authenticated else {
             throw AppAccessContractFailureV1.accessDenied
         }
 #if DEBUG
-        configurationPhaseDiagnosticForTesting?("disable.before.unlocked-session")
+        recordConfigurationPhaseForTesting("disable.before.unlocked-session")
 #endif
         let sessionID = try await unlockedSessionID()
 #if DEBUG
-        configurationPhaseDiagnosticForTesting?("disable.before.toggle-proof")
+        recordConfigurationPhaseForTesting("disable.before.toggle-proof")
 #endif
         let proof = try await gate.toggleAuthenticationToken(targetEnabled: false)
         do {
 #if DEBUG
-        configurationPhaseDiagnosticForTesting?("disable.before.notification-subject")
+        recordConfigurationPhaseForTesting("disable.before.notification-subject")
 #endif
             let subject = try await notifications.loadAuthenticationSubject()
             let initialAuthorization = NotificationOperationAuthorizationV1(gate: gate,
                 proof: .toggle(proof, targetEnabled: false), operationID: operationID, subject: subject)
 #if DEBUG
-        configurationPhaseDiagnosticForTesting?("disable.before.notification-prepare")
+        recordConfigurationPhaseForTesting("disable.before.notification-prepare")
 #endif
             let journal = try await notifications.prepareDisable(operationID: operationID, authorization: initialAuthorization)
             try await requireSameUnlockedSession(sessionID)
 #if DEBUG
-        configurationPhaseDiagnosticForTesting?("disable.before.authorization-bind")
+        recordConfigurationPhaseForTesting("disable.before.authorization-bind")
 #endif
             let authorization = try await bind(initialAuthorization, to: journal)
             guard journal.operationID == operationID, !journal.targetEnabled,
@@ -752,7 +769,7 @@ actor AppLockLifecycleCoordinatorV1 {
                 throw AppAccessContractFailureV1.effectMismatch
             }
 #if DEBUG
-        configurationPhaseDiagnosticForTesting?("disable.before.setting-write")
+        recordConfigurationPhaseForTesting("disable.before.setting-write")
 #endif
             let write = try await setting.writeAppLockSetting(
                 DeviceLocalAppLockSettingV1(isEnabled: false),
@@ -766,7 +783,7 @@ actor AppLockLifecycleCoordinatorV1 {
             // can be restored. A rebuild failure therefore cannot expose
             // details while the durable lock setting is still enabled.
 #if DEBUG
-        configurationPhaseDiagnosticForTesting?("disable.before.notification-rebuild")
+        recordConfigurationPhaseForTesting("disable.before.notification-rebuild")
 #endif
             let notification = try await notifications.rebuildPriorPolicy(journal, authorization: authorization)
             try await requireSameUnlockedSession(sessionID)
@@ -774,11 +791,11 @@ actor AppLockLifecycleCoordinatorV1 {
                 throw AppAccessContractFailureV1.notificationReconciliationRequired
             }
 #if DEBUG
-        configurationPhaseDiagnosticForTesting?("disable.before.gate-setting")
+        recordConfigurationPhaseForTesting("disable.before.gate-setting")
 #endif
             try await gate.setEnabledAfterAuthenticated(false, toggleToken: proof)
 #if DEBUG
-        configurationPhaseDiagnosticForTesting?("disable.before.receipt")
+        recordConfigurationPhaseForTesting("disable.before.receipt")
 #endif
             return try AppLockConfigurationReceiptV1(
                 operationID: operationID,
@@ -789,7 +806,7 @@ actor AppLockLifecycleCoordinatorV1 {
             )
         } catch {
 #if DEBUG
-            configurationPhaseDiagnosticForTesting?("disable.effect-failed")
+            recordConfigurationPhaseForTesting("disable.effect-failed")
 #endif
             await gate.markConfigurationUnknown()
             throw error

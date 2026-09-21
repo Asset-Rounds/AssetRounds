@@ -685,8 +685,18 @@ final class RestoreReviewHarness {
             XCTAssertEqual(try publishedPointer.identity(), restored.workspaceIdentity)
             return restored
         } catch {
-            // Fixed phase and error type only: no paths, identifiers or error payload.
-            print("RestoreReviewHarness.failure phase=\(phase) type=\(String(reflecting: type(of: error)))")
+            let originalError = error
+            let failureType = String(reflecting: type(of: originalError))
+            let failureDomain = (originalError as NSError).domain
+            let failureCode = (originalError as NSError).code
+            let failureRecord = "RestoreReviewHarness.caught phase=\(phase) type=\(failureType) domain=\(failureDomain) code=\(failureCode)"
+            XCTContext.runActivity(named: "Retained original failure before cleanup") { activity in
+                let attachment = XCTAttachment(string: failureRecord)
+                attachment.lifetime = .keepAlways
+                activity.add(attachment)
+            }
+            // Immutable scalar evidence is retained before XCTest serializes Error.
+            print(failureRecord)
             if let firstRecoveryOrigin {
                 print("RestoreReviewHarness.firstRecoveryOrigin=\(firstRecoveryOrigin)")
             }
@@ -696,7 +706,7 @@ final class RestoreReviewHarness {
                 case .dataGenerationMissing: print("RestoreReviewHarness.generationFailure.dataGenerationMissing")
                 }
             }
-            throw error
+            throw originalError
         }
     }
 

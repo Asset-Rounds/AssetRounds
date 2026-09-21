@@ -313,7 +313,7 @@ extension V23ReminderProductionSettingsTests {
         let freshOwners = try fixture.owners()
         XCTAssertNil(fixture.presentation.failure)
         XCTAssertTrue(fixture.presentation.permitsContentPresentation)
-        XCTAssertNil(try EraseIntentStore(applicationSupportURL: fixture.support).load())
+        XCTAssertTrue(try EraseIntentStore.completedCleanupRootIsAbsent(applicationSupportURL: fixture.support))
         if case .ready(let coordinator, _, _) = fixture.router.route {
             XCTAssertNoThrow(try coordinator.workspaceWriter.currentRevision())
         } else {
