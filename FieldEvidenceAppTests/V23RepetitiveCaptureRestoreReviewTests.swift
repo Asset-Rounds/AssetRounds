@@ -48,6 +48,7 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
         let reopened = try harness.factory.openOrBootstrapCurrent()
         timing.mark("reopen.end")
         XCTAssertEqual(reopened.generationID, second.generationID)
+        try harness.assertCurrentAuxiliaryReadback(in: reopened)
         timing.mark("coordinator.begin")
         let coordinator = try StoreSessionCoordinator(validatingSession: reopened)
         timing.mark("coordinator.end")
@@ -97,6 +98,7 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
         XCTAssertEqual(try restored.modelContext.fetchCount(FetchDescriptor<DraftContentReservationRow>()), 0)
         let cold = try harness.factory.openOrBootstrapCurrent()
         XCTAssertEqual(cold.generationID, restored.generationID)
+        try harness.assertCurrentAuxiliaryReadback(in: cold)
         XCTAssertEqual(try harness.history(in: cold), history)
         try assertProjectedRoundRows(source.rounds, in: cold, history: history)
     }
@@ -106,6 +108,7 @@ final class V23RepetitiveCaptureRestoreReviewTests: XCTestCase {
         defer { source.removePackages() }
         let harness = try RestoreReviewHarness(timing: RestoreReviewTimingV1(enabled: true))
         defer { harness.remove() }
+        try harness.assertAuxiliaryReadbackContracts()
         let first = try await harness.restore(try source.package(named: "install"), mode: .emptyInstall)
         let firstRows = try first.modelContext.fetch(FetchDescriptor<FieldDraftCheckpointRow>()).map { try $0.value() }
         let firstHistory = try harness.history(in: first)
@@ -683,6 +686,7 @@ final class RestoreReviewHarness {
                 expectedGenerationID: restored.generationID)
             XCTAssertEqual(publishedPointer.storeSchemaVersion, incumbentPointer.storeSchemaVersion)
             XCTAssertEqual(try publishedPointer.identity(), restored.workspaceIdentity)
+            try assertCurrentAuxiliaryReadback(in: restored)
             return restored
         } catch {
             let originalError = error
@@ -714,6 +718,172 @@ final class RestoreReviewHarness {
         try MutationJournalStoreV1(modelContext: session.modelContext,
             identity: session.workspaceIdentity, generationID: session.generationID,
             allowStateBootstrap: false).exportSnapshot()
+    }
+
+    func assertCurrentAuxiliaryReadback(in session: StoreGenerationSession) throws {
+        let service = try BackupRestoreService(applicationSupportURL: support)
+        let records = try service.records(in: session.modelContext)
+        XCTAssertEqual(records.recordsSchemaVersion, LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
+        XCTAssertNotNil(records.evidenceQuality)
+        XCTAssertNotNil(records.fastSurveyInbox)
+        XCTAssertNotNil(records.reinspectionExceptionQueue)
+        let identity = try XCTUnwrap(records.entityIdentityResolution)
+        XCTAssertEqual(identity.workspaceID, session.workspaceIdentity.workspaceID)
+        if identity.mutationReceipts.isEmpty {
+            XCTAssertEqual(identity.generationID, session.generationID)
+        }
+        try service.validateRows(session.modelContext, expected: records)
+    }
+
+    /// Exercise the production reader and validator, including hostile physical
+    /// rows. Archive-format metadata never supplies a stored payload.
+    func assertAuxiliaryReadbackContracts() throws {
+        let schema = Schema(PersistentSchemaV53.models, version: PersistentSchemaV53.versionIdentifier)
+        let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [
+            ModelConfiguration("RestoreAuxiliaryReadback", schema: schema, isStoredInMemoryOnly: true,
+                               allowsSave: true, cloudKitDatabase: .none)
+        ])
+        let context = ModelContext(container)
+        context.autosaveEnabled = false
+        let workspaceID = try WorkspaceID(rawValue: UUID())
+        let generationID = UUID()
+        let state = WorkspaceMutationStateRow(workspaceID: workspaceID.rawValue,
+            generationID: generationID, activeReplicaID: UUID())
+        context.insert(state)
+        try context.save()
+        let service = try BackupRestoreService(applicationSupportURL: support)
+        let current = try service.records(in: context)
+        XCTAssertEqual(current.recordsSchemaVersion, 52)
+        XCTAssertEqual(current.entityIdentityResolution?.generationID, generationID)
+        XCTAssertNotNil(current.evidenceQuality)
+        XCTAssertNotNil(current.fastSurveyInbox)
+        XCTAssertNotNil(current.reinspectionExceptionQueue)
+        let history = try XCTUnwrap(current.mutationHistory)
+        XCTAssertEqual(service.replacingMutationHistoryForCurrentWriter(in: current, with: history), current)
+
+        let data = try JSONEncoder().encode(current)
+        var legacyObject = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        legacyObject["recordsSchemaVersion"] = C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion
+        for key in ["evidenceQuality", "fastSurveyInbox", "reinspectionExceptionQueue", "entityIdentityResolution"] {
+            legacyObject.removeValue(forKey: key)
+        }
+        let legacy = try JSONDecoder().decode(V4BackupRecordsV1.self,
+            from: JSONSerialization.data(withJSONObject: legacyObject))
+        XCTAssertNoThrow(try service.validateRows(context, expected: legacy))
+
+        var wrongGeneration = current
+        wrongGeneration.entityIdentityResolution = try EntityIdentityResolutionBackupSnapshotV1(
+            workspaceID: workspaceID, generationID: UUID(), aliasLinks: [],
+            consolidationReceipts: [], mutationReceipts: [])
+        XCTAssertThrowsError(try service.validateRows(context, expected: wrongGeneration))
+
+        let budget = try ImportStreamingBudgetV1(maximumSourceBytes: 1_024, maximumRows: 1,
+            maximumColumns: 2, maximumCellBytes: 128, maximumScalarsPerCell: 128)
+        let release = try ImportSchemaReleaseV1(releaseID: "restore_readback_schema", release: 1,
+            entityKind: .asset, externalKeyColumn: "asset_key", columns: [
+                try .init(key: "asset_key", scalar: .identifier, required: true,
+                    editableOnExactUpdate: false, maximumCellBytes: 128, maximumScalars: 128)
+            ], budget: budget)
+        let profile = try ImportMappingProfileV1(profileID: UUID(), workspaceID: workspaceID,
+            profileName: "Restore readback", schemaRelease: release,
+            mappings: [try .init(sourceColumn: "external_key", targetColumn: "asset_key")])
+        let row = try ImportMappingProfileRowV1(profile)
+        context.insert(row)
+        try context.save()
+        XCTAssertEqual(try service.records(in: context).importMappingProfiles, [profile])
+        XCTAssertThrowsError(try service.validateRows(context, expected: legacy))
+        XCTAssertThrowsError(try service.validateRows(context, expected: current))
+        context.delete(row)
+        try context.save()
+        XCTAssertEqual(try service.records(in: context), current)
+
+        let foreignProfile = try ImportMappingProfileV1(profileID: UUID(),
+            workspaceID: WorkspaceID(rawValue: UUID()), profileName: "Foreign readback",
+            schemaRelease: release, mappings: profile.mappings)
+        let foreign = try ImportMappingProfileRowV1(foreignProfile)
+        context.insert(foreign)
+        try context.save()
+        XCTAssertThrowsError(try service.records(in: context))
+        context.delete(foreign)
+        try context.save()
+
+        state.generationID = UUID()
+        try context.save()
+        let rebound = try service.records(in: context)
+        XCTAssertEqual(rebound.entityIdentityResolution?.generationID, state.generationID)
+        XCTAssertNotEqual(rebound.entityIdentityResolution, current.entityIdentityResolution)
+        XCTAssertThrowsError(try service.validateRows(context, expected: current))
+        XCTAssertNoThrow(try service.validateRows(context, expected: legacy))
+        // A post-review history copy must retain the newly normalized target
+        // generation instead of restoring an original archive's empty identity.
+        XCTAssertEqual(service.replacingMutationHistoryForCurrentWriter(in: rebound,
+            with: try XCTUnwrap(rebound.mutationHistory)), rebound)
+
+        context.delete(state)
+        context.insert(try ImportMappingProfileRowV1(profile))
+        try context.save()
+        XCTAssertThrowsError(try service.records(in: context))
+        try assertPopulatedAuxiliaryCopyAndDuplicateRejection(service: service)
+    }
+
+    private func assertPopulatedAuxiliaryCopyAndDuplicateRejection(service: BackupRestoreService) throws {
+        let fixture = try C10ProductionFixture(useActiveSchema: true)
+        let populated = try service.records(in: fixture.context)
+        let quality = try C10ProductionFixture.physicalBackupSnapshot(
+            in: fixture.context, workspaceID: fixture.workspaceID)
+        XCTAssertFalse(quality.ruleSets.isEmpty)
+        XCTAssertFalse(quality.receipts.isEmpty)
+        XCTAssertEqual(populated.evidenceQuality, quality)
+        let history = try XCTUnwrap(populated.mutationHistory)
+        XCTAssertEqual(service.replacingMutationHistoryForCurrentWriter(in: populated, with: history), populated)
+        var omitted = populated
+        omitted.evidenceQuality = nil
+        XCTAssertThrowsError(try service.validateRows(fixture.context, expected: omitted))
+
+        // A typed copy-only probe covers nonnil optional practice provenance;
+        // this does not claim that the physical REAL fixture is a practice store.
+        let template = try StarterWorkspaceTemplateReleaseV1(templateID: UUID(), release: 1,
+            titleKey: "workspace.starter.practice.title", packageReleaseIDs: ["shipping.illuminated-sign.v1"],
+            practiceWatermark: "PRACTICE — NOT FOR FIELD USE")
+        let plan = try StarterWorkspaceInstallPlanV1(planID: UUID(), workspaceID: fixture.workspaceID,
+            template: template, mutationID: MutationIDV1(rawValue: UUID()), requestedAt: fixture.date,
+            explicitUserRequest: true, destinationWasEmpty: true)
+        let receipt = try StarterWorkspaceInstallReceiptV1(receiptID: UUID(), plan: plan,
+            resultingWorkspaceRevision: 1, installedAt: fixture.date.addingTimeInterval(1), disposition: .committed)
+        var withPractice = populated
+        withPractice.practiceWorkspaceProvenance = try PracticeWorkspaceBackupSnapshotV1(provenance:
+            PracticeWorkspaceProvenanceV1(provenanceID: UUID(), plan: plan, receipt: receipt, revision: 1))
+        XCTAssertEqual(service.replacingMutationHistoryForCurrentWriter(in: withPractice, with: history), withPractice)
+
+        // Deliberately hostile persisted history: two individually valid rows
+        // have distinct revision keys but the same logical ruleSetID. The real
+        // reader must throw before constructing a unique-key Dictionary.
+        let original = fixture.ruleSet
+        let predecessor = try EvidenceQualityRuleSetV1(ruleSetID: UUID(), workspaceID: fixture.workspaceID,
+            policyVersion: original.policyVersion, orderedRules: original.orderedRules, revision: 1,
+            mutationID: MutationIDV1(rawValue: UUID()), recordedAt: fixture.date)
+        let duplicate = try EvidenceQualityRuleSetV1(ruleSetID: original.ruleSetID,
+            workspaceID: fixture.workspaceID, policyVersion: original.policyVersion,
+            orderedRules: original.orderedRules, predecessor: predecessor, revision: 2,
+            mutationID: MutationIDV1(rawValue: UUID()), recordedAt: fixture.date.addingTimeInterval(1))
+        let revision = try fixture.writer.currentRevision()
+        let expected = try WorkspaceExpectedRevisionV1(workspaceID: revision.workspaceID,
+            generationID: revision.generationID, writerInstanceID: revision.writerInstanceID,
+            workspaceRevision: revision.revision, entityRevisions: revision.entityRevisions)
+        let command = try EvidenceQualityMutationCommandV1(commandID: UUID(), workspaceID: fixture.workspaceID,
+            expectedRevision: expected, mutationID: duplicate.mutationID, payload: .putRuleSet(duplicate),
+            submittedAt: fixture.date.addingTimeInterval(1))
+        let row = try EvidenceQualityRuleSetRowV1(duplicate, command: command,
+            resultingWorkspaceRevision: revision.revision + 1)
+        XCTAssertEqual(try row.value(), duplicate)
+        let originalRow = try XCTUnwrap(fixture.context.fetch(FetchDescriptor<EvidenceQualityRuleSetRowV1>()).first)
+        XCTAssertEqual(try originalRow.value(), original)
+        XCTAssertNotEqual(row.rowID, originalRow.rowID)
+        fixture.context.insert(row)
+        try fixture.context.save()
+        XCTAssertThrowsError(try service.records(in: fixture.context)) { error in
+            XCTAssertEqual(error as? BackupRestoreServiceError, .invalidRestoreAuthority)
+        }
     }
 
     func onlyReview(in session: StoreGenerationSession) throws -> FieldDraftCheckpointV1 {

@@ -3998,7 +3998,12 @@ private extension BackupRestoreService {
             myDayCarryoverReceipts: records.myDayCarryoverReceipts,
             nonactivePlanReferences: records.nonactivePlanReferences,
             evidenceAssociationEvents: records.evidenceAssociationEvents,
-            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions, importMappingProfiles: records.importMappingProfiles, bulkSessions: records.bulkSessions, bulkCommitReceipts: records.bulkCommitReceipts
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions, importMappingProfiles: records.importMappingProfiles, bulkSessions: records.bulkSessions, bulkCommitReceipts: records.bulkCommitReceipts,
+            evidenceQuality: records.evidenceQuality,
+            fastSurveyInbox: records.fastSurveyInbox,
+            reinspectionExceptionQueue: records.reinspectionExceptionQueue,
+            entityIdentityResolution: records.entityIdentityResolution,
+            practiceWorkspaceProvenance: records.practiceWorkspaceProvenance
         )
     }
 
@@ -4628,6 +4633,15 @@ private extension BackupRestoreService {
         normalized.fastSurveyInbox = records.fastSurveyInbox
         normalized.reinspectionExceptionQueue = records.reinspectionExceptionQueue
         normalized.entityIdentityResolution = records.entityIdentityResolution
+        if let snapshot = records.entityIdentityResolution, let identityDecision,
+           snapshot.aliasLinks.isEmpty, snapshot.consolidationReceipts.isEmpty,
+           snapshot.mutationReceipts.isEmpty {
+            try snapshot.validate()
+            normalized.entityIdentityResolution = try EntityIdentityResolutionBackupSnapshotV1(
+                workspaceID: WorkspaceID(rawValue: identityDecision.targetPointer.workspaceID),
+                generationID: identityDecision.targetPointer.generationID,
+                aliasLinks: [], consolidationReceipts: [], mutationReceipts: [])
+        }
         normalized.practiceWorkspaceProvenance = records.practiceWorkspaceProvenance
         normalized.lightingDayInventoryWorkflows = records.lightingDayInventoryWorkflows
         normalized.lightingNightWorkflows = records.lightingNightWorkflows
@@ -4659,7 +4673,7 @@ private extension BackupRestoreService {
         reset.evidenceQuality = records.evidenceQuality
         reset.fastSurveyInbox = records.fastSurveyInbox
         reset.reinspectionExceptionQueue = records.reinspectionExceptionQueue
-        reset.entityIdentityResolution = records.entityIdentityResolution
+        reset.entityIdentityResolution = normalized.entityIdentityResolution
         reset.practiceWorkspaceProvenance = records.practiceWorkspaceProvenance
         reset.lightingDayInventoryWorkflows = records.lightingDayInventoryWorkflows
         reset.lightingNightWorkflows = records.lightingNightWorkflows
@@ -15169,9 +15183,7 @@ private extension BackupRestoreService {
                 let workspaceID = identityDecision?.targetPointer.workspaceID
                     ?? legacyDestinationIdentity.workspaceID.rawValue
                 let restoredSnapshot: EntityIdentityResolutionBackupSnapshotV1
-                if sourceIsEmpty,
-                   let identityDecision,
-                   identityDecision.mode == .clone || identityDecision.mode == .fork {
+                if sourceIsEmpty {
                     restoredSnapshot = try EntityIdentityResolutionBackupSnapshotV1(
                         workspaceID: WorkspaceID(rawValue: workspaceID),
                         generationID: generationID,
@@ -16784,7 +16796,8 @@ private extension BackupRestoreService {
         _ context: ModelContext,
         expected: V4BackupRecordsV1
     ) throws {
-        let actual = try records(in: context)
+        let actual = try records(in: context, includingDeletionLedger: true,
+                                 includesObservationAndTime: true, format: ReadbackFormatV1(expected))
         if actual == expected { return }
         traceRestoreRecordDifferences(actual: actual, expected: expected, phase: "rows")
         guard expected.recordsSchemaVersion < 9,
@@ -17110,6 +17123,278 @@ private extension BackupRestoreService {
         }
     }
 
+    /// Complete persisted auxiliary state, independent of an expected payload.
+    private struct AuxiliaryReadbackV1 {
+        var importMappingProfiles: [ImportMappingProfileV1] = []
+        var bulkSessions: [BulkSessionV1] = []
+        var bulkCommitReceipts: [BulkCommitReceiptV1] = []
+        var evidenceQuality: EvidenceQualityBackupSnapshotV1? = nil
+        var fastSurveyInbox: FastSurveyInboxBackupSnapshotV1? = nil
+        var reinspectionExceptionQueue: ReinspectionExceptionQueueBackupSnapshotV1? = nil
+        var entityIdentityResolution: EntityIdentityResolutionBackupSnapshotV1? = nil
+        var practiceWorkspaceProvenance: PracticeWorkspaceBackupSnapshotV1? = nil
+    }
+
+    /// Only representation metadata is used from the expected archive. Values
+    /// always come from the store, and omission requires proven empty state.
+    private struct ReadbackFormatV1 {
+        let schemaVersion: Int
+        let evidenceQuality: Bool
+        let fastSurveyInbox: Bool
+        let reinspectionExceptionQueue: Bool
+        let entityIdentityResolution: Bool
+        let practiceWorkspaceProvenance: Bool
+
+        init(_ records: V4BackupRecordsV1) {
+            schemaVersion = records.recordsSchemaVersion
+            evidenceQuality = records.evidenceQuality != nil
+            fastSurveyInbox = records.fastSurveyInbox != nil
+            reinspectionExceptionQueue = records.reinspectionExceptionQueue != nil
+            entityIdentityResolution = records.entityIdentityResolution != nil
+            practiceWorkspaceProvenance = records.practiceWorkspaceProvenance != nil
+        }
+    }
+
+    private func auxiliaryReadback(
+        in context: ModelContext,
+        hasMutationHistory: Bool,
+        format: ReadbackFormatV1?
+    ) throws -> AuxiliaryReadbackV1 {
+        let states = try context.fetch(FetchDescriptor<WorkspaceMutationStateRow>())
+        guard states.count <= 1, hasMutationHistory == (states.count == 1) else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        func ownedRows<T: PersistentModel>(
+            _ type: T.Type, workspaceID: (T) -> UUID
+        ) throws -> [T] {
+            let rows = try context.fetch(FetchDescriptor<T>())
+            guard let state = states.first else {
+                guard rows.isEmpty else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                return rows
+            }
+            guard rows.allSatisfy({ workspaceID($0) == state.workspaceID }) else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            return rows
+        }
+        let allBulkCommitReceiptRowV1 = try ownedRows(BulkCommitReceiptRowV1.self, workspaceID: { $0.workspaceID })
+        let allBulkSessionRowV1 = try ownedRows(BulkSessionRowV1.self, workspaceID: { $0.workspaceID })
+        let allCaptureInboxItemRowV1 = try ownedRows(CaptureInboxItemRowV1.self, workspaceID: { $0.workspaceID })
+        let allCapturePromotionRowV1 = try ownedRows(CapturePromotionRowV1.self, workspaceID: { $0.workspaceID })
+        let allEntityAliasLinkRowV1 = try ownedRows(EntityAliasLinkRowV1.self, workspaceID: { $0.workspaceID })
+        let allEntityConsolidationReceiptRowV1 = try ownedRows(EntityConsolidationReceiptRowV1.self, workspaceID: { $0.workspaceID })
+        let allEntityIdentityResolutionMutationReceiptRowV1 = try ownedRows(EntityIdentityResolutionMutationReceiptRowV1.self, workspaceID: { $0.workspaceID })
+        let allEvidenceQualityAssessmentRowV1 = try ownedRows(EvidenceQualityAssessmentRowV1.self, workspaceID: { $0.workspaceID })
+        let allEvidenceQualityMutationReceiptRowV1 = try ownedRows(EvidenceQualityMutationReceiptRowV1.self, workspaceID: { $0.workspaceID })
+        let allEvidenceQualityRuleSetRowV1 = try ownedRows(EvidenceQualityRuleSetRowV1.self, workspaceID: { $0.workspaceID })
+        let allEvidenceQualityWaiverRowV1 = try ownedRows(EvidenceQualityWaiverRowV1.self, workspaceID: { $0.workspaceID })
+        let allExceptionQueueAcknowledgementRowV1 = try ownedRows(ExceptionQueueAcknowledgementRowV1.self, workspaceID: { $0.workspaceID })
+        _ = try ownedRows(FastSurveyInboxMutationReceiptRowV1.self, workspaceID: { $0.workspaceID })
+        let allImportMappingProfileRowV1 = try ownedRows(ImportMappingProfileRowV1.self, workspaceID: { $0.workspaceID })
+        let allPracticeWorkspaceProvenanceRowV1 = try ownedRows(PracticeWorkspaceProvenanceRowV1.self, workspaceID: { $0.workspaceID })
+        _ = try ownedRows(ReinspectionExceptionMutationReceiptRowV1.self, workspaceID: { $0.workspaceID })
+        let allReinspectionPlanRowV1 = try ownedRows(ReinspectionPlanRowV1.self, workspaceID: { $0.workspaceID })
+        let allSnippetInsertionHistoryRowV1 = try ownedRows(SnippetInsertionHistoryRowV1.self, workspaceID: { $0.workspaceID })
+        let allSnippetRowV1 = try ownedRows(SnippetRowV1.self, workspaceID: { $0.workspaceID })
+        let allUnchangedAttestationRowV1 = try ownedRows(UnchangedAttestationRowV1.self, workspaceID: { $0.workspaceID })
+        guard let state = states.first else { return AuxiliaryReadbackV1() }
+        let workspaceID = try WorkspaceID(rawValue: state.workspaceID)
+        let importMappingProfiles = try allImportMappingProfileRowV1.map { try $0.value() }
+            .sorted { $0.profileID.uuidString < $1.profileID.uuidString }
+        let bulkSessions = try allBulkSessionRowV1.map { try $0.value() }
+            .sorted { $0.sessionID.uuidString < $1.sessionID.uuidString }
+        let bulkCommitReceipts = try allBulkCommitReceiptRowV1.map { try $0.value() }
+            .sorted { $0.receiptID.uuidString < $1.receiptID.uuidString }
+        let evidenceQuality: EvidenceQualityBackupSnapshotV1? = try {
+            let ruleSetRows = allEvidenceQualityRuleSetRowV1
+            let ruleSetValues = try ruleSetRows.map { row in
+                (try row.value(), try EvidenceQualityBackupEffectProvenanceV1(
+                    mutationID: row.mutationID, writerInstanceID: row.writerInstanceID
+                ))
+            }
+            let ruleSets = ruleSetValues.map(\.0)
+            guard Set(ruleSets.map(\.ruleSetID)).count == ruleSets.count else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            let ruleSetsByID = Dictionary(uniqueKeysWithValues: ruleSets.map { ($0.ruleSetID, $0) })
+            let assessmentRows = allEvidenceQualityAssessmentRowV1
+            let assessmentValues = try assessmentRows
+                .compactMap { row -> (EvidenceQualityAssessmentV1, EvidenceQualityBackupEffectProvenanceV1)? in
+                    for ruleSet in ruleSetsByID.values {
+                        if let value = try? row.value(ruleSet: ruleSet) {
+                            return (value, try EvidenceQualityBackupEffectProvenanceV1(
+                                mutationID: row.mutationID, writerInstanceID: row.writerInstanceID
+                            ))
+                        }
+                    }
+                    return nil
+                }
+            let assessments = assessmentValues.map(\.0)
+            guard assessments.count == assessmentRows.count else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            guard Set(assessments.map(\.assessmentID)).count == assessments.count else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            let assessmentsByID = Dictionary(uniqueKeysWithValues: assessments.map { ($0.assessmentID, $0) })
+            let waiverRows = allEvidenceQualityWaiverRowV1
+            let waiverValues = try waiverRows
+                .compactMap { row -> (EvidenceQualityWaiverV1, EvidenceQualityBackupEffectProvenanceV1)? in
+                    for assessment in assessmentsByID.values {
+                        if let value = try? row.value(assessment: assessment) {
+                            return (value, try EvidenceQualityBackupEffectProvenanceV1(
+                                mutationID: row.mutationID, writerInstanceID: row.writerInstanceID
+                            ))
+                        }
+                    }
+                    return nil
+                }
+            let waivers = waiverValues.map(\.0)
+            guard waivers.count == waiverRows.count else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+            let receipts = try allEvidenceQualityMutationReceiptRowV1
+                .map { try $0.value() }
+            return try .init(
+                ruleSets: ruleSets, assessments: assessments, waivers: waivers, receipts: receipts,
+                effectProvenance: ruleSetValues.map(\.1) + assessmentValues.map(\.1) + waiverValues.map(\.1)
+            )
+        }()
+        let fastSurveyInbox: FastSurveyInboxBackupSnapshotV1? = try {
+            let source = FastSurveyInboxLifecycleAdapterV1(
+                modelContext: context, workspaceID: workspaceID
+            )
+            let snapshot = try source.snapshot()
+            let itemProvenance = try allCaptureInboxItemRowV1
+                .map { try FastSurveyInboxBackupEffectProvenanceV1(
+                    mutationID: $0.mutationID, semanticSHA256: $0.canonicalSHA256,
+                    writerInstanceID: $0.writerInstanceID
+                ) }
+            let promotionProvenance = try allCapturePromotionRowV1
+                .map { try FastSurveyInboxBackupEffectProvenanceV1(
+                    mutationID: $0.mutationID, semanticSHA256: $0.canonicalSHA256,
+                    writerInstanceID: $0.writerInstanceID
+                ) }
+            let snippetProvenance = try allSnippetRowV1
+                .map { try FastSurveyInboxBackupEffectProvenanceV1(
+                    mutationID: $0.mutationID, semanticSHA256: $0.canonicalSHA256,
+                    writerInstanceID: $0.writerInstanceID
+                ) }
+            let insertionProvenance = try allSnippetInsertionHistoryRowV1
+                .map { try FastSurveyInboxBackupEffectProvenanceV1(
+                    mutationID: $0.mutationID, semanticSHA256: $0.canonicalSHA256,
+                    writerInstanceID: $0.writerInstanceID
+                ) }
+            return try .init(inboxItems: snapshot.inboxItems, promotions: snapshot.promotions,
+                             snippets: snapshot.snippets, snippetInsertions: snapshot.snippetInsertions,
+                             receipts: snapshot.receipts,
+                             effectProvenance: itemProvenance + promotionProvenance + snippetProvenance + insertionProvenance)
+        }()
+        let reinspectionExceptionQueue: ReinspectionExceptionQueueBackupSnapshotV1? = try {
+            let source = ReinspectionExceptionQueueLifecycleAdapterV1(
+                modelContext: context, workspaceID: workspaceID
+            )
+            let planProvenance = try allReinspectionPlanRowV1
+                .map { try ReinspectionExceptionBackupEffectProvenanceV1(
+                    mutationID: $0.mutationID, semanticSHA256: $0.canonicalSHA256,
+                    writerInstanceID: $0.writerInstanceID
+                ) }
+            let attestationProvenance = try allUnchangedAttestationRowV1
+                .map { try ReinspectionExceptionBackupEffectProvenanceV1(
+                    mutationID: $0.mutationID, semanticSHA256: $0.canonicalSHA256,
+                    writerInstanceID: $0.writerInstanceID
+                ) }
+            let acknowledgementProvenance = try allExceptionQueueAcknowledgementRowV1
+                .map { try ReinspectionExceptionBackupEffectProvenanceV1(
+                    mutationID: $0.mutationID, semanticSHA256: $0.canonicalSHA256,
+                    writerInstanceID: $0.writerInstanceID
+                ) }
+            return try source.backupSnapshot(
+                effectProvenance: planProvenance + attestationProvenance + acknowledgementProvenance
+            )
+        }()
+        let entityIdentityResolution: EntityIdentityResolutionBackupSnapshotV1? = try {
+            let aliases = try allEntityAliasLinkRowV1
+                .map { try $0.value() }
+            let consolidations = try allEntityConsolidationReceiptRowV1
+                .map { try $0.value() }
+            let receipts = try allEntityIdentityResolutionMutationReceiptRowV1
+                .map { try $0.value() }
+            let generations = Set(receipts.map(\.generationID))
+            guard generations.count <= 1 else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+            return try EntityIdentityResolutionBackupSnapshotV1(
+                workspaceID: workspaceID,
+                generationID: generations.first ?? state.generationID,
+                aliasLinks: aliases,
+                consolidationReceipts: consolidations,
+                mutationReceipts: receipts
+            )
+        }()
+        let practiceWorkspaceProvenance: PracticeWorkspaceBackupSnapshotV1? = try {
+            let rows = allPracticeWorkspaceProvenanceRowV1
+            guard rows.count <= 1 else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+            guard let row = rows.first else { return nil }
+            return try PracticeWorkspaceBackupSnapshotV1(provenance: row.value())
+        }()
+        var result = AuxiliaryReadbackV1()
+        result.importMappingProfiles = importMappingProfiles
+        result.bulkSessions = bulkSessions
+        result.bulkCommitReceipts = bulkCommitReceipts
+        result.evidenceQuality = evidenceQuality
+        result.fastSurveyInbox = fastSurveyInbox
+        result.reinspectionExceptionQueue = reinspectionExceptionQueue
+        result.entityIdentityResolution = entityIdentityResolution
+        result.practiceWorkspaceProvenance = practiceWorkspaceProvenance
+        guard let format else { return result }
+        guard (1...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
+            .contains(format.schemaVersion) else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        guard (!format.evidenceQuality || format.schemaVersion >= EvidenceQualityBackupEnrollmentV1.recordsSchemaVersion),
+              (!format.fastSurveyInbox || format.schemaVersion >= FastSurveyInboxBackupEnrollmentV1.recordsSchemaVersion),
+              (!format.reinspectionExceptionQueue || format.schemaVersion >= ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion),
+              (!format.entityIdentityResolution || format.schemaVersion >= EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion),
+              (format.schemaVersion < ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion || format.reinspectionExceptionQueue),
+              (format.schemaVersion < EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion || format.entityIdentityResolution),
+              (!format.practiceWorkspaceProvenance || format.schemaVersion >= 50) else {
+            throw BackupRestoreServiceError.invalidRestoreAuthority
+        }
+        if format.schemaVersion < C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion {
+            guard result.importMappingProfiles.isEmpty, result.bulkSessions.isEmpty,
+                  result.bulkCommitReceipts.isEmpty else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
+            }
+        }
+        if !format.evidenceQuality {
+            let empty = try EvidenceQualityBackupSnapshotV1(
+                ruleSets: [], assessments: [], waivers: [], receipts: [], effectProvenance: [])
+            guard result.evidenceQuality == empty else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+            result.evidenceQuality = nil
+        }
+        if !format.fastSurveyInbox {
+            let empty = try FastSurveyInboxBackupSnapshotV1(inboxItems: [], promotions: [],
+                snippets: [], snippetInsertions: [], receipts: [], effectProvenance: [])
+            guard result.fastSurveyInbox == empty else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+            result.fastSurveyInbox = nil
+        }
+        if !format.reinspectionExceptionQueue {
+            let empty = try ReinspectionExceptionQueueBackupSnapshotV1(
+                plans: [], attestations: [], acknowledgements: [], receipts: [], effectProvenance: [])
+            guard result.reinspectionExceptionQueue == empty else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+            result.reinspectionExceptionQueue = nil
+        }
+        if !format.entityIdentityResolution {
+            let empty = try EntityIdentityResolutionBackupSnapshotV1(workspaceID: workspaceID,
+                generationID: state.generationID, aliasLinks: [], consolidationReceipts: [], mutationReceipts: [])
+            guard result.entityIdentityResolution == empty else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+            result.entityIdentityResolution = nil
+        }
+        if !format.practiceWorkspaceProvenance {
+            guard result.practiceWorkspaceProvenance == nil else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+        }
+        return result
+    }
+
     func records(in context: ModelContext) throws -> V4BackupRecordsV1 {
         try records(
             in: context,
@@ -17122,6 +17407,16 @@ private extension BackupRestoreService {
         in context: ModelContext,
         includingDeletionLedger: Bool,
         includesObservationAndTime: Bool
+    ) throws -> V4BackupRecordsV1 {
+        try records(in: context, includingDeletionLedger: includingDeletionLedger,
+                    includesObservationAndTime: includesObservationAndTime, format: nil)
+    }
+
+    private func records(
+        in context: ModelContext,
+        includingDeletionLedger: Bool,
+        includesObservationAndTime: Bool,
+        format: ReadbackFormatV1?
     ) throws -> V4BackupRecordsV1 {
         let sites = try context.fetch(FetchDescriptor<Site>())
         let assets = try context.fetch(FetchDescriptor<Asset>())
@@ -17310,6 +17605,9 @@ private extension BackupRestoreService {
             deletionLedger = nil
             mutationHistory = nil
         }
+        let auxiliary = try includingDeletionLedger
+            ? auxiliaryReadback(in: context, hasMutationHistory: mutationHistory != nil, format: format)
+            : AuxiliaryReadbackV1()
         let privacyPolicies = try Dictionary(uniqueKeysWithValues: privacyTransformPolicies.map { let value = try $0.value(); return (value.policyID, value) })
         let privacyManifests = try Dictionary(uniqueKeysWithValues: privacyTransformManifests.map { row in
             guard let policy = privacyPolicies[row.policyID] else { throw attributedRestoreAuthorityFailureV1(line: #line) }
@@ -17900,7 +18198,9 @@ private extension BackupRestoreService {
                 "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
                     < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
             },
-            recordsSchemaVersion: partsStockSnapshot == nil ? ((!serviceReliabilityIncidentRecords.isEmpty
+            recordsSchemaVersion: mutationHistory != nil && (format?.schemaVersion ?? 9) >= 9
+                ? (format?.schemaVersion ?? LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
+                : (partsStockSnapshot == nil ? ((!serviceReliabilityIncidentRecords.isEmpty
                 || !serviceImpactSegmentRecords.isEmpty
                 || !serviceCauseAssertionRecords.isEmpty
                 || !serviceRemedyAssertionRecords.isEmpty
@@ -17967,7 +18267,7 @@ private extension BackupRestoreService {
                     : 11)
                 : 12)
                 : 13)
-                : 14) : C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion,
+                : 14) : C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion),
             reports: reports.map {
                 .init(
                     id: $0.id, schemaVersion: $0.schemaVersion,
@@ -18028,7 +18328,15 @@ private extension BackupRestoreService {
             myDayCarryoverReceipts: myDayCarryoverReceipts,
             nonactivePlanReferences: nonactivePlanReferences,
             evidenceAssociationEvents: evidenceAssociationEvents,
-            evidenceSequenceRevisions: evidenceSequenceRevisions, shopReportProfiles: shopReportProfiles, roundSessions: roundSessions
+            evidenceSequenceRevisions: evidenceSequenceRevisions, shopReportProfiles: shopReportProfiles, roundSessions: roundSessions,
+            importMappingProfiles: auxiliary.importMappingProfiles,
+            bulkSessions: auxiliary.bulkSessions,
+            bulkCommitReceipts: auxiliary.bulkCommitReceipts,
+            evidenceQuality: auxiliary.evidenceQuality,
+            fastSurveyInbox: auxiliary.fastSurveyInbox,
+            reinspectionExceptionQueue: auxiliary.reinspectionExceptionQueue,
+            entityIdentityResolution: auxiliary.entityIdentityResolution,
+            practiceWorkspaceProvenance: auxiliary.practiceWorkspaceProvenance
         )
     }
 

@@ -603,6 +603,20 @@ final class V23ProductionAppAccessTests: XCTestCase {
         let enabledControl = try XCTUnwrap(freshControl.loadControl())
         XCTAssertEqual(enabledControl.phase, .settingCommitted)
         XCTAssertEqual(try preferences.readAppLockSettingSnapshot(), enabledControl.settingWrite.successor)
+        let lockedState = await session.gate.currentState()
+        XCTAssertEqual(lockedState, .locked(reason: .coldLaunch))
+        diagnosticPhase = "locked-disable-denial"
+        do {
+            _ = try await session.lifecycle.disable(operationID: UUID())
+            XCTFail("Disabling AppLock must require an unlocked app")
+        } catch {
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
+        }
+        XCTAssertEqual(try freshControl.loadControl(), enabledControl)
+        XCTAssertEqual(try preferences.readAppLockSettingSnapshot(), enabledControl.settingWrite.successor)
+        diagnosticPhase = "unlock-before-disable"
+        let unlockOutcome = await session.gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(unlockOutcome, .authenticated)
 #if DEBUG
         await session.lifecycle.setConfigurationPhaseDiagnosticForTesting { phase in
             print("ProductionEraseOwner.lifecycle." + phase)
