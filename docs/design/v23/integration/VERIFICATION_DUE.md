@@ -1,6 +1,6 @@
 Current native execution and audited outcomes: [ACTIVE_BRIEF](ACTIVE_BRIEF.md#native-evidence-and-next-questions). Reuse its head/run/evidence references; this navigation record grants no acceptance and does not replace the controlling requirements or the coverage ledger.
 
-Erase recovery retains the closed13-method lifecycle/hostile/golden coverage. Current execution state and failure-family evidence are linked from ACTIVE_BRIEF; enrollment, compilation and per-method execution remain separate claims.
+Erase recovery retains the closed13-method lifecycle/hostile/golden coverage. The d2dd original compiled and executed2Pass/11Fail; the current manifest/fixture repair and its added exact-byte/cold/interruption/hostile/repeated-handoff regressions remain NATIVE_UNEXECUTED. Added methods require reviewed closed-selector enrollment; the historical13 remain exact. Current state and failure-family evidence are linked from ACTIVE_BRIEF; enrollment, compilation and per-method execution remain separate claims.
 
 Restore-history source corrections are committed and original35540673966 is audited2/7; remaining differences require the bounded diagnostics in runtime-6cd506d/restore-diagnostics. Existing7/33 and newErase13 are distinct closed questions within880/55; all14 prior profiles remain exact. Unselected regressions below remain due.
 

@@ -1920,6 +1920,10 @@ private extension EraseAllService {
                   try notificationControl.loadPrivateNotificationMapping() == nil else {
                 throw EraseAllServiceError.recoveryRequired
             }
+            // Keep the sole current manifest outside Operations while Erase
+            // requires that entire auxiliary root to remain absent at return.
+            try StoreMigrationJournalStoreV1(applicationSupportURL: applicationSupportURL)
+                .preserveCurrentManifestForErase(expectedGenerationID: activated.newGenerationID)
             try auxiliary.removeFrozenTargets()
             try ratingStore.preparePreferencesForCompletedErase(
                 operationID: activated.eraseID,

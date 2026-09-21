@@ -694,6 +694,16 @@ final class S2PersistenceLedgerTests: XCTestCase {
         return root
     }
 
+    /// Match startup's Application Support/Caches sibling layout inside one
+    /// owned sandbox; never create a shared Caches directory under system tmp.
+    private func makeEraseApplicationSupportURL(in sandbox: URL) throws -> URL {
+        let support = sandbox.appendingPathComponent("ApplicationSupport", isDirectory: true)
+        let caches = sandbox.appendingPathComponent("Caches", isDirectory: true)
+        try fileManager.createDirectory(at: support, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: caches, withIntermediateDirectories: true)
+        return support
+    }
+
     private func dataRootURL(in applicationSupportURL: URL) -> URL {
         applicationSupportURL.appendingPathComponent("FieldEvidenceData", isDirectory: true)
     }
@@ -1131,8 +1141,9 @@ extension S2PersistenceLedgerTests {
 
     @MainActor
     func testDeferredEraseRetainsLiveOldContextAcrossAppAccessResumeUntilDrain() async throws {
-        let root = try makeTemporaryApplicationSupportURL()
-        defer { try? fileManager.removeItem(at: root) }
+        let sandbox = try makeTemporaryApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: sandbox) }
+        let root = try makeEraseApplicationSupportURL(in: sandbox)
         var observedSteps: [StartupStep] = []
         let authentication = S2StartupAuthentication(outcomes: [.authenticated, .authenticated])
         let gate = AppAccessGateV1(
@@ -1590,9 +1601,14 @@ extension S2PersistenceLedgerTests {
         beforeCommerceActivation: @escaping @MainActor (UUID) async -> Void = { _ in },
         cleanupCase: EraseCleanupCase = .ordinary
     ) async throws -> S2PostAdoptionEraseFixture {
-        let root = try makeTemporaryApplicationSupportURL()
+        let sandbox = try makeTemporaryApplicationSupportURL()
+        var fixtureCreated = false
+        defer {
+            if !fixtureCreated { try? fileManager.removeItem(at: sandbox) }
+        }
+        let root = try makeEraseApplicationSupportURL(in: sandbox)
         let caches = root.deletingLastPathComponent().appendingPathComponent(
-            "S2PostAdoptionCaches-\(UUID().uuidString)", isDirectory: true
+            "Caches", isDirectory: true
         )
         let temporary = root.deletingLastPathComponent().appendingPathComponent(
             "S2PostAdoptionTemporary-\(UUID().uuidString)", isDirectory: true
@@ -1658,7 +1674,7 @@ extension S2PersistenceLedgerTests {
                     cachesDirectoryURL: caches,
                     temporaryDirectoryURL: temporary,
                     userDefaults: defaults,
-                    bundleIdentifier: defaultsSuiteName,
+                    bundleIdentifier: "com.palatis3.fieldrecord",
                     defaultsDomainName: defaultsSuiteName,
                     failureInjection: cleanupFailure,
                     privateSystemDiscoveryIndex: nil,
@@ -1797,6 +1813,7 @@ extension S2PersistenceLedgerTests {
             XCTAssertEqual(completionCount, 1, "Activation retry must not repeat physical completion")
             let adopted = try XCTUnwrap(reservation)
             try await gate.adoptCompletedErase(completed, token: adopted)
+            fixtureCreated = true
             return S2PostAdoptionEraseFixture(
                 root: root, caches: caches, temporary: temporary,
                 defaultsSuiteName: defaultsSuiteName, gate: gate, router: router,
@@ -1817,9 +1834,7 @@ extension S2PersistenceLedgerTests {
         fixture.router.failClosedPDFRecovery()
         UserDefaults(suiteName: fixture.defaultsSuiteName)?
             .removePersistentDomain(forName: fixture.defaultsSuiteName)
-        try? fileManager.removeItem(at: fixture.root)
-        try? fileManager.removeItem(at: fixture.caches)
-        try? fileManager.removeItem(at: fixture.temporary)
+        try? fileManager.removeItem(at: fixture.root.deletingLastPathComponent())
     }
 
     private var isolatedStartupRuntime: StoreKitEntitlementRuntimeV1 {

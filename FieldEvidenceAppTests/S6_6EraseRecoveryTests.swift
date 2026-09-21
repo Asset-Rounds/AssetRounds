@@ -400,10 +400,13 @@ final class S6_6EraseRecoveryTests: XCTestCase {
 
     @MainActor
     func testGoldenEraseActivatesEmptyGenerationAndClearsFrozenState() async throws {
-        let harness = try await makeHarness("golden")
+        var diagnosticPhase = "harness"
+        defer { print("EraseGolden.exit phase=" + diagnosticPhase) }
+        let harness = try await makeHarness("golden", observePhase: { diagnosticPhase = $0 })
         defer { cleanup(harness) }
         let coordinator = try XCTUnwrap(harness.coordinator)
         let oldID = coordinator.generationID
+        diagnosticPhase = "authority-source"
         let authoritySource = try C40BackupLifecycleTestValues.source(
             workspace: coordinator.workspaceIdentity.workspaceID.rawValue
         )
@@ -417,6 +420,7 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             ),
             revision: persistedAuthoritySource.revision
         ))
+        diagnosticPhase = "journal-adoption"
         let journal = try MutationJournalStoreV1(
             modelContext: coordinator.modelContext,
             identity: coordinator.workspaceIdentity,
@@ -434,6 +438,7 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             "66000000-0000-0000-0000-000000000100"
         ))
         let writer = coordinator.workspaceWriter
+        diagnosticPhase = "writer-revision"
         let beforeMutation = try writer.currentRevision()
         let eraseSiteIdentity = try WorkspaceEntityIdentityV1(
             kind: .site,
@@ -446,6 +451,7 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             workspaceRevision: beforeMutation.revision,
             entityRevisions: [.init(identity: eraseSiteIdentity, revision: 0)]
         )
+        diagnosticPhase = "writer-execute"
         _ = try writer.execute(WorkspaceMutationRequestV1(
             mutationID: mutationID,
             expectedRevision: mutationExpected,
@@ -456,12 +462,14 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             ))
         ))
         XCTAssertNotNil(try writer.durableReceipt(mutationID: mutationID))
+        diagnosticPhase = "diagnostic-seed"
         try await harness.diagnostics.recordOperationalFailure(try OperationalFailureV1(
             code: .interrupted,
             occurredAt: Date(timeIntervalSince1970: 1_786_800_011)
         ))
         let diagnosticBeforeErase = try await harness.diagnostics.operationalSupportSnapshot()
         XCTAssertEqual(diagnosticBeforeErase.health.failures.count, 1)
+        diagnosticPhase = "scratch-open"
         let scratch = try ScratchDataLeaseStoreV1(
             applicationSupportURL: harness.support,
             clock: { Date(timeIntervalSince1970: 1_786_800_012) },
@@ -476,7 +484,9 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             createdAt: Date(timeIntervalSince1970: 1_786_800_012),
             expiresAt: Date(timeIntervalSince1970: 1_786_800_912)
         )
+        diagnosticPhase = "scratch-acquire"
         let scratchLease = try await scratch.acquireScratchLease(scratchRequest)
+        diagnosticPhase = "scratch-write"
         _ = try await scratch.writeScratchData(
             Data("erase scratch".utf8), named: "support.json", lease: scratchLease
         )
@@ -496,6 +506,8 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             ])
         )
 
+        service.erasePhaseDiagnosticForTesting = { diagnosticPhase = "service." + $0 }
+        diagnosticPhase = "service-erase"
         let erased = try await service.erase(
             confirmation: "ERASE",
             coordinator: coordinator,
@@ -504,6 +516,16 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             coordinator.activate(session: session)
         }
 
+        diagnosticPhase = "erase-postconditions"
+        XCTAssertFalse(fileManager.fileExists(
+            atPath: harness.support.appendingPathComponent("FieldEvidenceErase").path
+        ))
+        assertAuxiliaryRootsCleared(harness)
+        let handedOffManifest = harness.support.appendingPathComponent("FieldEvidenceData/erase-current-manifest.json")
+        let erasedManifestBytes = try Data(contentsOf: handedOffManifest)
+        let erasedManifestIdentity = try regularFileIdentity(handedOffManifest)
+        let pointerURL = harness.support.appendingPathComponent("FieldEvidenceData/current.json")
+        let erasedPointerBytes = try Data(contentsOf: pointerURL)
         XCTAssertFalse(erased.cleanupDeferred)
         XCTAssertEqual(erased.session.generationID, newID)
         XCTAssertEqual(coordinator.generationID, newID)
@@ -537,6 +559,7 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         XCTAssertEqual(try erased.session.modelContext.fetchCount(FetchDescriptor<MeasurementProtocolReleaseRow>()), 0)
         XCTAssertEqual(try erased.session.modelContext.fetchCount(FetchDescriptor<DerivedFactEvaluatorDescriptorRow>()), 0)
         XCTAssertEqual(try erased.session.modelContext.fetchCount(FetchDescriptor<DerivedFactProvenanceRow>()), 0)
+        diagnosticPhase = "diagnostic-readback"
         let diagnosticsAfterErase = await harness.diagnostics.snapshot()
         XCTAssertEqual(diagnosticsAfterErase, .zero)
         let operationalAfterErase = try await harness.diagnostics.operationalSupportSnapshot()
@@ -580,6 +603,7 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         ))
         // A fresh adapter represents relaunch: Erase may retain only its
         // customer-free installation cooldown, never the old Defaults domain.
+        diagnosticPhase = "defaults-readback"
         let relaunchedDefaults = try XCTUnwrap(
             UserDefaults(suiteName: harness.defaultsSuiteName)
         )
@@ -607,16 +631,18 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         XCTAssertFalse(fileManager.fileExists(
             atPath: harness.factory.installedGenerationURL(id: oldID).path
         ))
-        XCTAssertFalse(fileManager.fileExists(
-            atPath: harness.support.appendingPathComponent("FieldEvidenceErase").path
-        ))
-        assertAuxiliaryRootsCleared(harness)
-
+        diagnosticPhase = "cold-open"
         let reopened = try harness.factory.openOrBootstrapCurrent()
         XCTAssertEqual(reopened.generationID, newID)
         let pointer = try harness.factory.currentGenerationPointerV3(expectedGenerationID: newID)
+        diagnosticPhase = "manifest-readback"
         let manifest = try StoreMigrationJournalStoreV1(applicationSupportURL: harness.support)
             .loadManifest(targetGenerationID: newID, expectedDigest: pointer.generationManifestSHA256)
+        let restoredManifestURL = manifestURL(harness, generationID: newID)
+        XCTAssertEqual(try Data(contentsOf: restoredManifestURL), erasedManifestBytes)
+        XCTAssertEqual(try regularFileIdentity(restoredManifestURL), erasedManifestIdentity)
+        XCTAssertEqual(try Data(contentsOf: pointerURL), erasedPointerBytes)
+        XCTAssertFalse(fileManager.fileExists(atPath: handedOffManifest.path))
         let marker = try XCTUnwrap(reopened.modelContext.fetch(FetchDescriptor<PersistentSchemaReleaseMarker>()).first)
         XCTAssertEqual(pointer.storeSchemaVersion, 53)
         XCTAssertEqual(manifest.storeSchemaRelease, .v53)
@@ -636,9 +662,132 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         // after those postconditions have been checked.
         let retiredWriter = coordinator.workspaceWriter
         XCTAssertThrowsError(try retiredWriter.currentRevision())
+        diagnosticPhase = "standalone-activation"
         try coordinator.activateAfterErasedCleanup(session: erased.session)
         XCTAssertFalse(coordinator.workspaceWriter === retiredWriter)
         XCTAssertNoThrow(try coordinator.workspaceWriter.currentRevision())
+        diagnosticPhase = "complete"
+    }
+
+    @MainActor
+    func testEraseManifestHandoffPreservesExactInodeAndSupportsRepeatedConstructorRecovery() async throws {
+        let harness = try await makeHarness("manifest-handoff")
+        defer { cleanup(harness) }
+        let generationID = try XCTUnwrap(harness.coordinator).generationID
+        let pointerURL = harness.support.appendingPathComponent("FieldEvidenceData/current.json")
+        let sidecarURL = harness.support.appendingPathComponent("FieldEvidenceData/erase-current-manifest.json")
+        let sourceURL = manifestURL(harness, generationID: generationID)
+        let pointerBytes = try Data(contentsOf: pointerURL)
+        let manifestBytes = try Data(contentsOf: sourceURL)
+        let identity = try regularFileIdentity(sourceURL)
+        let pointer = try harness.factory.currentGenerationPointerV3(expectedGenerationID: generationID)
+
+        for attempt in 0..<2 {
+            let store = try StoreMigrationJournalStoreV1(applicationSupportURL: harness.support)
+            XCTAssertThrowsError(try store.preserveCurrentManifestForErase(expectedGenerationID: UUID()))
+            XCTAssertEqual(try Data(contentsOf: sourceURL), manifestBytes)
+            XCTAssertFalse(fileManager.fileExists(atPath: sidecarURL.path))
+            try store.preserveCurrentManifestForErase(expectedGenerationID: generationID)
+            XCTAssertFalse(fileManager.fileExists(atPath: sourceURL.path))
+            XCTAssertEqual(try Data(contentsOf: sidecarURL), manifestBytes)
+            XCTAssertEqual(try regularFileIdentity(sidecarURL), identity)
+            XCTAssertEqual(try Data(contentsOf: pointerURL), pointerBytes)
+            XCTAssertThrowsError(try store.preserveCurrentManifestForErase(expectedGenerationID: generationID))
+            if attempt == 1 {
+                // An exact already-restored target is an idempotent completion,
+                // while the conflicting target case below must remain denied.
+                try manifestBytes.write(to: sourceURL)
+            }
+            let recovered = try StoreMigrationJournalStoreV1(applicationSupportURL: harness.support)
+            XCTAssertEqual(try recovered.loadManifest(targetGenerationID: generationID,
+                expectedDigest: pointer.generationManifestSHA256).generationID, generationID)
+            XCTAssertEqual(try Data(contentsOf: sourceURL), manifestBytes)
+            if attempt == 0 { XCTAssertEqual(try regularFileIdentity(sourceURL), identity) }
+            XCTAssertEqual(try Data(contentsOf: pointerURL), pointerBytes)
+            XCTAssertFalse(fileManager.fileExists(atPath: sidecarURL.path))
+        }
+        let reopened = try harness.factory.openOrBootstrapCurrent()
+        XCTAssertEqual(reopened.generationID, generationID)
+        XCTAssertEqual(try reopened.modelContext.fetchCount(FetchDescriptor<Asset>()), 1)
+    }
+
+    @MainActor
+    func testEraseManifestHandoffRejectsHostileSidecarsTargetsAndChangedPointerWithoutConsumption() async throws {
+        let harness = try await makeHarness("manifest-hostile")
+        defer { cleanup(harness) }
+        let generationID = try XCTUnwrap(harness.coordinator).generationID
+        let pointerURL = harness.support.appendingPathComponent("FieldEvidenceData/current.json")
+        let sidecarURL = harness.support.appendingPathComponent("FieldEvidenceData/erase-current-manifest.json")
+        let sourceURL = manifestURL(harness, generationID: generationID)
+        let heldURL = harness.root.appendingPathComponent("held-manifest.json")
+        let pointerBytes = try Data(contentsOf: pointerURL)
+        let manifestBytes = try Data(contentsOf: sourceURL)
+        let malformed = Data("{partial-manifest".utf8)
+
+        for scenario in ["partial-sidecar", "conflicting-target", "symlink-sidecar", "hardlink-sidecar",
+                         "symlink-target", "hardlink-target", "changed-pointer"] {
+            let store = try StoreMigrationJournalStoreV1(applicationSupportURL: harness.support)
+            try store.preserveCurrentManifestForErase(expectedGenerationID: generationID)
+            switch scenario {
+            case "partial-sidecar":
+                try malformed.write(to: sidecarURL)
+            case "conflicting-target":
+                try malformed.write(to: sourceURL)
+            case "symlink-sidecar":
+                try fileManager.moveItem(at: sidecarURL, to: heldURL)
+                try fileManager.createSymbolicLink(at: sidecarURL, withDestinationURL: heldURL)
+            case "hardlink-sidecar":
+                try fileManager.linkItem(at: sidecarURL, to: heldURL)
+            case "symlink-target":
+                try manifestBytes.write(to: heldURL)
+                try fileManager.createSymbolicLink(at: sourceURL, withDestinationURL: heldURL)
+            case "hardlink-target":
+                try manifestBytes.write(to: heldURL)
+                try fileManager.linkItem(at: heldURL, to: sourceURL)
+            case "changed-pointer":
+                var changed = try XCTUnwrap(JSONSerialization.jsonObject(with: pointerBytes) as? [String: Any])
+                changed["generationID"] = UUID().uuidString.lowercased()
+                try JSONSerialization.data(withJSONObject: changed, options: [.sortedKeys, .withoutEscapingSlashes])
+                    .write(to: pointerURL)
+            default:
+                throw FixtureError.invalid
+            }
+            let hostilePointer = try Data(contentsOf: pointerURL)
+            let hostileSidecar = try Data(contentsOf: sidecarURL)
+            XCTAssertThrowsError(try StoreMigrationJournalStoreV1(applicationSupportURL: harness.support), scenario)
+            XCTAssertEqual(try Data(contentsOf: pointerURL), hostilePointer, scenario)
+            XCTAssertEqual(try Data(contentsOf: sidecarURL), hostileSidecar, scenario)
+            if scenario == "conflicting-target" {
+                XCTAssertEqual(try Data(contentsOf: sourceURL), malformed)
+                try fileManager.removeItem(at: sourceURL)
+            } else if scenario == "symlink-target" || scenario == "hardlink-target" {
+                XCTAssertEqual(try Data(contentsOf: sourceURL), manifestBytes)
+                XCTAssertEqual(try Data(contentsOf: heldURL), manifestBytes)
+                if scenario == "symlink-target" {
+                    XCTAssertEqual(try fileManager.destinationOfSymbolicLink(atPath: sourceURL.path), heldURL.path)
+                }
+                try fileManager.removeItem(at: sourceURL)
+                try fileManager.removeItem(at: heldURL)
+            } else {
+                XCTAssertFalse(fileManager.fileExists(atPath: sourceURL.path), scenario)
+            }
+            if scenario == "symlink-sidecar" {
+                XCTAssertEqual(try fileManager.destinationOfSymbolicLink(atPath: sidecarURL.path), heldURL.path)
+                try fileManager.removeItem(at: sidecarURL)
+                try fileManager.moveItem(at: heldURL, to: sidecarURL)
+            } else if scenario == "hardlink-sidecar" {
+                XCTAssertEqual(try Data(contentsOf: heldURL), manifestBytes)
+                try fileManager.removeItem(at: heldURL)
+            } else if scenario == "partial-sidecar" {
+                try manifestBytes.write(to: sidecarURL)
+            }
+            try pointerBytes.write(to: pointerURL)
+            _ = try StoreMigrationJournalStoreV1(applicationSupportURL: harness.support)
+            XCTAssertEqual(try Data(contentsOf: sourceURL), manifestBytes)
+            XCTAssertEqual(try Data(contentsOf: pointerURL), pointerBytes)
+            XCTAssertFalse(fileManager.fileExists(atPath: sidecarURL.path))
+        }
+        XCTAssertEqual(try harness.factory.openOrBootstrapCurrent().generationID, generationID)
     }
 
     @MainActor
@@ -744,6 +893,21 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                 XCTAssertEqual(error as? EraseAllServiceError, .injectedFailure)
             }
 
+            let handoffBeforeRecovery: (manifest: Data, pointer: Data, identity: ManifestFileIdentity)?
+            let sidecarURL = harness.support.appendingPathComponent("FieldEvidenceData/erase-current-manifest.json")
+            let pointerURL = harness.support.appendingPathComponent("FieldEvidenceData/current.json")
+            if point == .afterCleanup || point == .beforeCleanupPhaseWrite
+                || point == .afterCleanupPhaseWrite || point == .beforeJournalRemoval {
+                assertAuxiliaryRootsCleared(harness)
+                handoffBeforeRecovery = (
+                    try Data(contentsOf: sidecarURL), try Data(contentsOf: pointerURL),
+                    try regularFileIdentity(sidecarURL)
+                )
+                XCTAssertFalse(fileManager.fileExists(atPath: manifestURL(harness, generationID: newID).path))
+            } else {
+                handoffBeforeRecovery = nil
+            }
+
             let cooldownBeforeRecovery: (
                 RatingRequestAttemptLedgerStateV1,
                 Data
@@ -795,6 +959,12 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             } else {
                 let session = try XCTUnwrap(recovered, "\(point)")
                 XCTAssertEqual(session.generationID, newID, "\(point)")
+                assertAuxiliaryRootsCleared(harness)
+                if let handoff = handoffBeforeRecovery {
+                    XCTAssertEqual(try Data(contentsOf: sidecarURL), handoff.manifest, "\(point)")
+                    XCTAssertEqual(try regularFileIdentity(sidecarURL), handoff.identity, "\(point)")
+                    XCTAssertEqual(try Data(contentsOf: pointerURL), handoff.pointer, "\(point)")
+                }
                 XCTAssertEqual(try harness.factory.currentGenerationID(), newID)
                 XCTAssertEqual(try harness.factory.retiredGenerationIDs(), [])
                 XCTAssertEqual(
@@ -804,7 +974,16 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                 )
                 let clearedDiagnostics = await harness.diagnostics.snapshot()
                 XCTAssertEqual(clearedDiagnostics, .zero)
-                assertAuxiliaryRootsCleared(harness)
+                if let handoff = handoffBeforeRecovery {
+                    let reopened = try harness.factory.openOrBootstrapCurrent()
+                    XCTAssertEqual(reopened.generationID, newID, "\(point)")
+                    XCTAssertEqual(try counts(reopened.modelContext), [0, 0, 0, 0, 0, 0, 0], "\(point)")
+                    let restoredURL = manifestURL(harness, generationID: newID)
+                    XCTAssertEqual(try Data(contentsOf: restoredURL), handoff.manifest, "\(point)")
+                    XCTAssertEqual(try regularFileIdentity(restoredURL), handoff.identity, "\(point)")
+                    XCTAssertEqual(try Data(contentsOf: pointerURL), handoff.pointer, "\(point)")
+                    XCTAssertFalse(fileManager.fileExists(atPath: sidecarURL.path), "\(point)")
+                }
                 if let beforeRecovery = cooldownBeforeRecovery {
                     let relaunchedDefaults = try XCTUnwrap(
                         UserDefaults(suiteName: harness.defaultsSuiteName)
@@ -1337,10 +1516,32 @@ private extension S6_6EraseRecoveryTests {
         let bytes: Data
     }
 
+    struct ManifestFileIdentity: Equatable {
+        let device: UInt64
+        let inode: UInt64
+    }
+
+    func regularFileIdentity(_ url: URL) throws -> ManifestFileIdentity {
+        var information = stat()
+        guard url.path.withCString({ lstat($0, &information) }) == 0,
+              information.st_mode & S_IFMT == S_IFREG,
+              information.st_nlink == 1 else { throw FixtureError.invalid }
+        return ManifestFileIdentity(device: UInt64(information.st_dev), inode: UInt64(information.st_ino))
+    }
+
+    func manifestURL(_ harness: Harness, generationID: UUID) -> URL {
+        harness.support.appendingPathComponent(
+            "FieldEvidenceOperations/schema-migration/manifest-" + generationID.uuidString.lowercased() + ".json"
+        )
+    }
+
     enum FixtureError: Error { case invalid }
 
     @MainActor
-    func makeHarness(_ name: String) async throws -> Harness {
+    func makeHarness(
+        _ name: String,
+        observePhase: (@MainActor (String) -> Void)? = nil
+    ) async throws -> Harness {
         let root = fileManager.temporaryDirectory.appendingPathComponent(
             "S6_6-\(name)-\(UUID().uuidString)",
             isDirectory: true
@@ -1352,10 +1553,12 @@ private extension S6_6EraseRecoveryTests {
         )
         let caches = library.appendingPathComponent("Caches", isDirectory: true)
         let temporary = root.appendingPathComponent("tmp", isDirectory: true)
+        observePhase?("harness.directories")
         try fileManager.createDirectory(at: support, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: caches, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: temporary, withIntermediateDirectories: true)
         let factory = StoreGenerationFactory(applicationSupportURL: support)
+        observePhase?("harness.open-current")
         let session = try factory.openOrBootstrapCurrent()
         let context = session.modelContext
         let created = Date(timeIntervalSince1970: 1_786_800_000)
@@ -1384,8 +1587,10 @@ private extension S6_6EraseRecoveryTests {
             contentDeletedAt: created.addingTimeInterval(3),
             createdAt: created.addingTimeInterval(2)
         ))
+        observePhase?("harness.seed-journal")
         try adoptSeededEraseBaseline(session)
 
+        observePhase?("harness.auxiliary-seed")
         for relative in [
             "FieldEvidenceRestore/owned.bin",
             "FieldEvidenceOperations/owned.bin",
@@ -1398,6 +1603,7 @@ private extension S6_6EraseRecoveryTests {
             )
             try Data(relative.utf8).write(to: url)
         }
+        observePhase?("harness.cache-seed")
         for rootURL in [
             caches.appendingPathComponent("FieldEvidenceApp"),
             temporary.appendingPathComponent("FieldEvidenceApp"),
@@ -1407,12 +1613,15 @@ private extension S6_6EraseRecoveryTests {
                 to: rootURL.appendingPathComponent("owned.bin")
             )
         }
+        observePhase?("harness.diagnostics")
         let diagnostics = DiagnosticsStore(applicationSupportURL: support)
         await diagnostics.prepare()
         await diagnostics.increment(.reportSaved)
+        observePhase?("harness.defaults")
         let defaultsSuiteName = "S6_6-\(UUID())"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsSuiteName))
         defaults.setPersistentDomain(["erase-test": true], forName: bundleID)
+        observePhase?("harness.coordinator")
         return Harness(
             root: root,
             support: support,

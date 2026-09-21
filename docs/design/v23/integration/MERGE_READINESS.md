@@ -21,7 +21,7 @@ Current navigation checkpoint, 2026-09-20. [CURRENT_INTEGRATION](CURRENT_INTEGRA
 
 | Workstream | What remains | Completion evidence |
 | --- | --- | --- |
-| Current native blocker | Startup, completed-Erase publication, golden file policy and cold/initial-import history require causal closure. Current run/outcomes and retained evidence are linked from ACTIVE_BRIEF. | Resolve source-proven failures using the retained checkpoints; preserve closed Erase13/restore7 coverage and every source/index/route/native gate. |
+| Current native blocker | Erase startup fixtures and deletion of the current manifest during cleanup are source-proven repair targets; golden file policy and cold/initial-import history retain separate diagnostic obligations. Current run/outcomes and retained evidence are linked from ACTIVE_BRIEF. | Resolve source-proven failures using the retained checkpoints; preserve closed Erase13/restore7 coverage and every source/index/route/native gate. |
 | Production adoption | Finish C36 destination/restore correspondence, Release-authorized staging review writes, cross-workspace photo-child remapping and authenticated retained review/photo closure; child/finalizer recovery; Work/Round field, scene, focus and resume flows; lifecycle/codec/backup registration. Resolution and confirmed discard already have production-service/AppAccess implementation, but complete user journeys remain due. | Real entry through the existing writer/service to durable effect and visible result, including populated stores, cold recovery and denied/no-effect cases. |
 | Replacement and fork history | Reconcile the remaining C55 replacement and C57 fork/mixed-history work and its owned drafts. | Original-history preservation plus paired functional, backup and restore results. |
 | Complete functional coverage | Reconcile the frozen requirements and all later regressions. The committed pool is880 methods/55 groups, not the final coverage ceiling. All39 destination methods are enrolled. Restore13 enrolled; authority7Pass at855ef0e, restore1Pass/5Fail at5c1e983 after successful import. The S6_3 import-schema compatibility method is COMMITTED/UNEXECUTED in868/53. Atd7, discard7Pass with INVALID transport; atacf, resolution7Pass; review13/production4/legacy1 still lack execution. Prior e1 continuation7Pass and discard6Pass remain tied to e1. ReceiptSafety55 and later causal cases still require reconciliation. | Complete retained functional/compatibility evidence on the final candidate; no credit for unselected tests or results from older heads. |
@@ -31,7 +31,7 @@ Current navigation checkpoint, 2026-09-20. [CURRENT_INTEGRATION](CURRENT_INTEGRA
 
 ## Execution order
 
-1. Follow ACTIVE_BRIEF for the current build blocker and dependency-ready batch. Reuse the retained startup/Erase/restore diagnosis; qualify the closed development route before one new diagnostic original.
+1. Follow ACTIVE_BRIEF for the current runtime failures and dependency-ready repair batch. Reuse the retained startup/Erase/restore diagnosis; qualify the closed development route before one new diagnostic original.
 2. Continue the parent-finalization performance diagnosis from its retained phase timings; batch only source-proven fixes and keep one collector per original.
 3. Complete the remaining production journeys and enroll their missing regressions. Parallelize only disjoint, dependency-ready work on existing qualified capacity.
 4. Freeze one complete candidate; collect final coverage and affected-state reviews, then advance and verify main.
