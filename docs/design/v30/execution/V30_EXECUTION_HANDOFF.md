@@ -4800,3 +4800,429 @@ Implementation paths (9 within the 22-path fence):
 - `FieldEvidenceAppTests/V9_72ImportBulkEngineTests.swift`
 
 This bookkeeping commit only appends this handoff and refreshes the read-only ledger projection to observed checkpoint 55. CURRENT_TASK and the V30 selector remain at Card 26. The owner pause prevents Card 27 selection, hydration, implementation or dispatch. No main or Phase 10 read/poll/mutation occurred. On a later explicit resume, continue only with the immediate authorized next card; the 18-card post-S10 cohort remains locked. Replay or reimplement in graph order after S, preserve accepted Phase 10 design and rerun invalidated/native evidence; never merge wholesale. This entry does not self-record its containing commit.
+
+
+## Card 27 of 55 - V30-P03-C06
+
+Share, email, print, and label surfaces — PROVISIONAL_CHECKPOINTED (Windows-static only). The owner explicitly resumed after the preserved Card 26 pause.
+
+- Frozen V23 base B/P: `acbfb68355f903fe98638b6ef22e4814e7b48328`; no accepted S or phase-main integration exists for this provisional lane.
+- Immediate predecessor/card base M: `3f902a774e978c8c5c5c953f1e59298c7f9da29b`, tree `068d703866f816bd065962c79991f960ac1091e1`. Direct prerequisites P02-C04 and P03-C04 retain their exact checkpoint evidence in CURRENT_TASK.
+- Observed authority A: `047236981c20c0655d0c53f0819c1f1a1641f80e`; M..A contains exactly the four V30 execution documents. G0 pins and exact shared-path permissions passed before implementation.
+- Product implementation E: `4fa30b15d50e5bdd6a090c426ec9fd2d5628f864`, tree `cc1def7d18773709375388ba7bfea281361370c2`. Direct child of A; no correction head or K was needed.
+- Isolated coordination checkpoint: sequence 57, head `4ad2526542d23bb14414234cb9986506da09a99d`, ledger digest `b3ea3c3dd84112bb7b50404a237c11b0e54952d1cbd37530a6f48b4ab5278502`. Request `ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P03-C06/CHECKPOINT/1`.
+- Fourteen implementation/test paths changed inside the exact twenty-two-path fence. Only `ReportDetailView.swift` among the three pre-authorized S10 shared UI paths changed, limited to existing share/print action text, accessibility disclosure and advisory metadata; styling and report content identity remain intact.
+- Existing report delivery retains exact PDF bytes/name/hash and now exposes source-bound recorded language in localized share/email summaries. Historic missing language remains unknown; app and formatting preferences do not relabel saved documents. Feedback drafts preserve consent and reviewed diagnostic bytes. Label language remains fixed by the frozen English renderer, unsupported explicit requests fail before output, and existing exact exports provide localized status/warning without print/delivery/scan claims. Label canonical schema and codec bytes are unchanged.
+- Verification: `git diff --check` PASS; `python -B Scripts/v30/validate_v30_provisional_ci_contract.py` PASS WINDOWS_STATIC; bounded current-card static audit PASS (14 fenced paths; eight new native test methods, existing tests retained; exact committed hashes below). Independent Terra review found a missing recorded-language equality comparison, fixed before E; focused follow-up confirmed resolution.
+- Native compiler, XCTest, Simulator, UIKit mail/share/print interaction and linguistic acceptance: NOT EXECUTED. No hosted run ID, macOS runner, Xcode build, Simulator UDID, xcresult or UI screenshot exists for this card. Selector and tier are null by the authorized Windows-static route. Synthetic locale resources are not shipping translations.
+- KNOWN_BUGS was read and remains the empty template. No outstanding actionable defect was accepted; native/resource/linguistic behavior remains unqualified. The exact tuple must be replayed or reimplemented after accepted S. No canonical/final, main integration, release or post-S10 successor credit.
+- Next unstarted card: Card 28 `V30-P03-C07`. Its selection requires a separate ordered transition and fresh G0.
+
+The immutable implementation/checkpoint evidence follows. This entry does not record its own future bookkeeping commit.
+
+```json
+{
+  "actualSharedPaths": [
+    "FieldEvidenceApp/Features/Reports/ReportDetailView.swift"
+  ],
+  "attempt": 1,
+  "authority": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
+    "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+  },
+  "authorityOnlyDiffResult": "M..A EXACTLY FOUR V30 EXECUTION DOCUMENTS",
+  "candidate": {
+    "base": "3f902a774e978c8c5c5c953f1e59298c7f9da29b",
+    "baseTree": "068d703866f816bd065962c79991f960ac1091e1",
+    "changedPaths": [
+      "FieldEvidenceApp/Application/Labels/AssetLabelCoordinatorV1.swift",
+      "FieldEvidenceApp/Application/Reporting/GlobalizedShareDeliveryCoordinatorV1.swift",
+      "FieldEvidenceApp/Domain/Labels/AssetLabelContractsV1.swift",
+      "FieldEvidenceApp/Features/Globalization/GlobalizedSharePrintLabelSurfacesV1.swift",
+      "FieldEvidenceApp/Features/Reporting/ShopProfileOpenEvidenceHandoffView.swift",
+      "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+      "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift",
+      "FieldEvidenceApp/Infrastructure/Reporting/AssetLabelLifecycleAdapterV1.swift",
+      "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+      "FieldEvidenceAppTests/Fixtures/V30/Share/globalized-share-print-label-cases-v1.json",
+      "FieldEvidenceAppTests/S4_3ReportDeliveryTests.swift",
+      "FieldEvidenceAppTests/V30_P03_C06SharePrintLabelTests.swift",
+      "FieldEvidenceAppTests/V9_52AssetLabelTests.swift",
+      "FieldEvidenceAppTests/V9_93AssetLabelOutputTests.swift",
+      "docs/design/v30/execution/V30_CI_SELECTION.json",
+      "docs/design/v30/execution/V30_CURRENT_TASK.md",
+      "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+      "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    ],
+    "head": "4fa30b15d50e5bdd6a090c426ec9fd2d5628f864",
+    "tree": "cc1def7d18773709375388ba7bfea281361370c2"
+  },
+  "cardID": "V30-P03-C06",
+  "credit": {
+    "canonicalAcceptance": false,
+    "finalCredit": false,
+    "mainIntegrationCredit": false,
+    "postS10SuccessorStart": false,
+    "provisionalDependencySatisfied": true,
+    "releaseCredit": false
+  },
+  "evidence": {
+    "acceptanceMap": {
+      "feedback": "Existing feedback draft builder uses app-language-bound localized subject/body templates. Original version/build/device/OS arguments, recipient validation, diagnostics consent, exact reviewed attachment bytes, and system composer behavior remain unchanged.",
+      "handoff": "Existing shop-profile audience labels and catalog helper now resolve app language, preserving the profile audience, authored semantic text, exact-byte privacy confirmation and no delivery claim.",
+      "labels": "The frozen renderer release explicitly identifies English document chrome independent of plan.localeIdentifier. An unsupported explicit language fails before render, staging or canonical writes. Exact accepted exports retain immutable plan/manifest/artifacts and provide localized preview/status/language/claim-boundary and historic do-not-deploy warning. Canonical label fields, schema and codecs are byte-for-byte unchanged.",
+      "language": "Delivery reads the existing embedded PDF language selection only after stored PDF digest and snapshot authority validation. Embedded source SHA/time must match the exact snapshot. Historical missing metadata remains unrecorded. Current app language, formatting locale and transient generation request cannot relabel a saved PDF. Equality now includes recorded provenance.",
+      "regression": "Eight new native methods plus existing label-export assertions cover six-language input fixtures, exact Unicode and attachment bytes, app/document separation, source-bound metadata, equality, positional resource templates, diagnostics consent and unsupported-label rejection. All are authored, unexecuted.",
+      "report": "The existing PDF item provider still yields the identical filename and bytes. Public UIKit metadata supplies localized subject/body summaries, using authored title/site verbatim; the existing share button names share/print and exposes document language accessibly without style changes."
+    },
+    "defects": [],
+    "limitations": "Windows-static provisional source/API evidence only. No native compiler, XCTest, Simulator, share/mail/print interaction, resource-routing execution or linguistic qualification occurred. English-source defaults are not six-language shipping catalogs; synthetic test resources are not professional translations. System activity recipients may ignore advisory metadata. The card does not add a label renderer or alter frozen document bytes.",
+    "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "outcome": "Localize app-owned chrome, subject/body templates, print controls, labels, and share summaries while preserving authored content and explicit document language.",
+    "static": {
+      "G0": {
+        "A": "047236981c20c0655d0c53f0819c1f1a1641f80e",
+        "M": "3f902a774e978c8c5c5c953f1e59298c7f9da29b",
+        "allowedPathCount": 22,
+        "baseTree": "068d703866f816bd065962c79991f960ac1091e1",
+        "cardID": "V30-P03-C06",
+        "coordinationHead": "556e1b1022c9b54063c002751a2c1b1fb60ae1f4",
+        "ledgerDigest": "651fe89db5085231719d578501dd4d0d22799753a717671b91f78b198389b15a",
+        "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+        "result": "PASS_G0",
+        "sequence": 56,
+        "sharedPaths": [
+          "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+          "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+          "FieldEvidenceApp/Features/Settings/FeedbackView.swift"
+        ],
+        "taskDigest": "59290b451a58fd67aaaf3100915b58f3bbeaea13cc8cfa714c55018084b72ef7"
+      },
+      "actualSharedPaths": [
+        "FieldEvidenceApp/Features/Reports/ReportDetailView.swift"
+      ],
+      "allowedPathCount": 22,
+      "auditOutputSHA256": "99b0a701ecd81e6132b6dcdfcd8f3977c6e3fdfd19de47053c25cb9d62c19334",
+      "auditScriptSHA256": "aa266ac7ddcfbb49cc7a8005810652bbe374b328bab2c53d6034903749a12702",
+      "canonicalLabelWireUnchanged": true,
+      "cardID": "V30-P03-C06",
+      "fixtureUTF8Bytes": 160,
+      "implementationPathCount": 14,
+      "independentReview": "Terra medium source/API review found one equality-provenance omission; corrected before E with focused regression and independently confirmed resolved. No outstanding actionable finding.",
+      "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+      "newNativeTestMethods": [
+        "testV30C06RecordedShareLanguageIsSourceBoundAndSurvivesReloadWithoutByteChanges",
+        "testDeliveryEqualityIncludesRecordedLanguageButExcludesCurrentPresentationPreferences",
+        "testHistoricDeliveryDoesNotInferDocumentLanguageFromAppLanguageOrGenerationIntent",
+        "testInjectedResourceLanguageControlsChromeAndPositionalTemplatesWithoutTranslatingArguments",
+        "testLocalizedFeedbackDraftKeepsConsentAndExactReviewedDiagnosticAttachment",
+        "testPublicActivityMetadataCarriesSummaryWithoutAnotherAttachmentOrOutcome",
+        "testSixLanguageFixturesPreserveAuthoredUTF8AndExactAttachment",
+        "testV30C06LabelLanguageIsExplicitAndUnsupportedRequestCannotRenderOrWrite"
+      ],
+      "normalization": "Git normalized the JSON fixture CRLF to LF at staging; fixture content and UTF-8 scalar values are unchanged. sourceArtifacts names exact committed blobs; workingSourceArtifacts names audited pre-staging bytes.",
+      "result": "PASS_WINDOWS_STATIC",
+      "scope": "EXACT_FENCE_NO_AUTHORITY_CHANGE",
+      "sourceArtifacts": [
+        {
+          "bytes": 7322,
+          "path": "FieldEvidenceApp/Application/Labels/AssetLabelCoordinatorV1.swift",
+          "sha256": "890de2c432c2743e287cc82742e77683c507160ca48a978374adbc7768b79e6e"
+        },
+        {
+          "bytes": 2846,
+          "path": "FieldEvidenceApp/Application/Reporting/GlobalizedShareDeliveryCoordinatorV1.swift",
+          "sha256": "d969cc1bede79e3f4b690e4e4a39fa53d3fd5d759fcc2307e3ba1872b2aace3e"
+        },
+        {
+          "bytes": 92623,
+          "path": "FieldEvidenceApp/Domain/Labels/AssetLabelContractsV1.swift",
+          "sha256": "52cc04885616040a3df392548e8b21bd59d78295fb5231bea6f4deacb9e55dae"
+        },
+        {
+          "bytes": 6175,
+          "path": "FieldEvidenceApp/Features/Globalization/GlobalizedSharePrintLabelSurfacesV1.swift",
+          "sha256": "0f60e221e006b4ecf11130be38d67796533848e44d175b4fd4b746d06fbc9c15"
+        },
+        {
+          "bytes": 14534,
+          "path": "FieldEvidenceApp/Features/Reporting/ShopProfileOpenEvidenceHandoffView.swift",
+          "sha256": "13b18df5c96d223f063db5619b190a183051d305fc7170a097b6dcf86e78f6fa"
+        },
+        {
+          "bytes": 18953,
+          "path": "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+          "sha256": "a9dfe8dd31bb6b217cc069ace7b6da76f74a2d6c3b278ecd5a61eeacc9b8fd27"
+        },
+        {
+          "bytes": 11021,
+          "path": "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift",
+          "sha256": "08d6fa71549d0a35368a3130d0840f9f4e2c364614b8bf96031e6ba4d7467139"
+        },
+        {
+          "bytes": 34592,
+          "path": "FieldEvidenceApp/Infrastructure/Reporting/AssetLabelLifecycleAdapterV1.swift",
+          "sha256": "0e66866ee4a78d67b8fe8ef3200eebe41eb13db3826e54e57ad477bab80a97ca"
+        },
+        {
+          "bytes": 127141,
+          "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+          "sha256": "2af5b8229b0f73318a2a68c63a8681bfae4c24add0add4cf9c205461a0a5f0e8"
+        },
+        {
+          "bytes": 918,
+          "path": "FieldEvidenceAppTests/Fixtures/V30/Share/globalized-share-print-label-cases-v1.json",
+          "sha256": "5633460175fdc63931b9a66fcfa735efabd04aa81308bdad4c7818440beb5f39"
+        },
+        {
+          "bytes": 56399,
+          "path": "FieldEvidenceAppTests/S4_3ReportDeliveryTests.swift",
+          "sha256": "7378c17071c17fd777efbcadd883dc5881f801814e99629ac8ede970e9b8acae"
+        },
+        {
+          "bytes": 10367,
+          "path": "FieldEvidenceAppTests/V30_P03_C06SharePrintLabelTests.swift",
+          "sha256": "84c8d907e26e0f80936f4015ac0303d99e2f7998280c7a3962510ba19b992ada"
+        },
+        {
+          "bytes": 128932,
+          "path": "FieldEvidenceAppTests/V9_52AssetLabelTests.swift",
+          "sha256": "92ffe7c1eae1a071787b61a4551835b69162f13bd164444b02606a7572a28115"
+        },
+        {
+          "bytes": 42062,
+          "path": "FieldEvidenceAppTests/V9_93AssetLabelOutputTests.swift",
+          "sha256": "9bef12068c20aef3b34cd2b2b4a5ec657dcb1507f9f31a83cc94a65d3c732ed3"
+        },
+        {
+          "bytes": 1090,
+          "path": "docs/design/v30/execution/V30_CI_SELECTION.json",
+          "sha256": "7a06f93ea2e72c549a2565fbaa94d9edec1667fec739cef0aa62b7662cd62cee"
+        },
+        {
+          "bytes": 17610,
+          "path": "docs/design/v30/execution/V30_CURRENT_TASK.md",
+          "sha256": "9c4b2d6160ba79a77227292cd51d9958e6c52c40c88071237a5409de404fb712"
+        },
+        {
+          "bytes": 288433,
+          "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+          "sha256": "7ab86227046ecbe4c12ece22e1a9d5f6d9d9ed2396e9b8e10347d0c744a369f9"
+        },
+        {
+          "bytes": 700,
+          "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json",
+          "sha256": "ed5c0c52d3b45c69c81c21036fd4cd14a6f2cb3c6eb98049bd6934a7f9c672a5"
+        }
+      ],
+      "testCounts": {
+        "FieldEvidenceAppTests/S4_3ReportDeliveryTests.swift": {
+          "after": 34,
+          "before": 33
+        },
+        "FieldEvidenceAppTests/V30_P03_C06SharePrintLabelTests.swift": {
+          "after": 6,
+          "before": 0
+        },
+        "FieldEvidenceAppTests/V9_52AssetLabelTests.swift": {
+          "after": 7,
+          "before": 6
+        },
+        "FieldEvidenceAppTests/V9_93AssetLabelOutputTests.swift": {
+          "after": 5,
+          "before": 5
+        }
+      },
+      "workingSourceArtifacts": [
+        {
+          "bytes": 7322,
+          "path": "FieldEvidenceApp/Application/Labels/AssetLabelCoordinatorV1.swift",
+          "sha256": "890de2c432c2743e287cc82742e77683c507160ca48a978374adbc7768b79e6e"
+        },
+        {
+          "bytes": 2846,
+          "path": "FieldEvidenceApp/Application/Reporting/GlobalizedShareDeliveryCoordinatorV1.swift",
+          "sha256": "d969cc1bede79e3f4b690e4e4a39fa53d3fd5d759fcc2307e3ba1872b2aace3e"
+        },
+        {
+          "bytes": 92623,
+          "path": "FieldEvidenceApp/Domain/Labels/AssetLabelContractsV1.swift",
+          "sha256": "52cc04885616040a3df392548e8b21bd59d78295fb5231bea6f4deacb9e55dae"
+        },
+        {
+          "bytes": 6175,
+          "path": "FieldEvidenceApp/Features/Globalization/GlobalizedSharePrintLabelSurfacesV1.swift",
+          "sha256": "0f60e221e006b4ecf11130be38d67796533848e44d175b4fd4b746d06fbc9c15"
+        },
+        {
+          "bytes": 14534,
+          "path": "FieldEvidenceApp/Features/Reporting/ShopProfileOpenEvidenceHandoffView.swift",
+          "sha256": "13b18df5c96d223f063db5619b190a183051d305fc7170a097b6dcf86e78f6fa"
+        },
+        {
+          "bytes": 18953,
+          "path": "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+          "sha256": "a9dfe8dd31bb6b217cc069ace7b6da76f74a2d6c3b278ecd5a61eeacc9b8fd27"
+        },
+        {
+          "bytes": 11021,
+          "path": "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift",
+          "sha256": "08d6fa71549d0a35368a3130d0840f9f4e2c364614b8bf96031e6ba4d7467139"
+        },
+        {
+          "bytes": 34592,
+          "path": "FieldEvidenceApp/Infrastructure/Reporting/AssetLabelLifecycleAdapterV1.swift",
+          "sha256": "0e66866ee4a78d67b8fe8ef3200eebe41eb13db3826e54e57ad477bab80a97ca"
+        },
+        {
+          "bytes": 127141,
+          "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+          "sha256": "2af5b8229b0f73318a2a68c63a8681bfae4c24add0add4cf9c205461a0a5f0e8"
+        },
+        {
+          "bytes": 960,
+          "path": "FieldEvidenceAppTests/Fixtures/V30/Share/globalized-share-print-label-cases-v1.json",
+          "sha256": "84e53e6ac498b1477e672b565940c95cc810842d8a54d9cf4da127fbb0e19adb"
+        },
+        {
+          "bytes": 56399,
+          "path": "FieldEvidenceAppTests/S4_3ReportDeliveryTests.swift",
+          "sha256": "7378c17071c17fd777efbcadd883dc5881f801814e99629ac8ede970e9b8acae"
+        },
+        {
+          "bytes": 10367,
+          "path": "FieldEvidenceAppTests/V30_P03_C06SharePrintLabelTests.swift",
+          "sha256": "84c8d907e26e0f80936f4015ac0303d99e2f7998280c7a3962510ba19b992ada"
+        },
+        {
+          "bytes": 128932,
+          "path": "FieldEvidenceAppTests/V9_52AssetLabelTests.swift",
+          "sha256": "92ffe7c1eae1a071787b61a4551835b69162f13bd164444b02606a7572a28115"
+        },
+        {
+          "bytes": 42062,
+          "path": "FieldEvidenceAppTests/V9_93AssetLabelOutputTests.swift",
+          "sha256": "9bef12068c20aef3b34cd2b2b4a5ec657dcb1507f9f31a83cc94a65d3c732ed3"
+        }
+      ]
+    },
+    "workflow": {
+      "branchRef": "refs/heads/phase/v30-globalization",
+      "expectedHead": "4fa30b15d50e5bdd6a090c426ec9fd2d5628f864",
+      "runID": null,
+      "selectorInput": null,
+      "selectorTier": null,
+      "url": null
+    }
+  },
+  "expectedLedgerDigest": "651fe89db5085231719d578501dd4d0d22799753a717671b91f78b198389b15a",
+  "expectedOldRef": "556e1b1022c9b54063c002751a2c1b1fb60ae1f4",
+  "expectedSequence": 56,
+  "next": "V30-P03-C07",
+  "observedAuthorityHead": "047236981c20c0655d0c53f0819c1f1a1641f80e",
+  "operationalProvenance": [
+    "Explicit owner resume after Card 26 allowed immediate Card 27 selection. G0 froze A, prior M and coordination sequence56; implementation touched fourteen paths within the exact twenty-two-path fence.",
+    "Only ReportDetailView of the three pre-authorized S10 shared UI paths changed. Its existing action text, accessibility hint and share metadata changed; styling, navigation, authored content and report content identity were preserved. The other two shared UI paths were left unchanged.",
+    "Independent static review caught a missing recorded-language equality comparison. The uncommitted fix and focused regression were reviewed and resolved before the single implementation E.",
+    "The bounded static audit passed and existing native test methods were preserved. No native, hosted CI, final/canonical acceptance, main integration, phase-close or release credit was requested or accepted."
+  ],
+  "pathFenceDigest": "548a7126e2e05b9793dc0cc08c5cbcb67a2f54f4345fff10acb04ab7bd4f2d3d",
+  "preAuthorizedOverlapTuples": [
+    {
+      "boundedPurpose": "localize only feedback/share action chrome in FeedbackView; preserve Phase10 settings styling and user-authored content",
+      "cardID": "V30-P03-C06",
+      "expectedBBlobOID": "82bd8b590e238f8f5c5f119dd91b20dbd57893ea",
+      "expectedBSHA256": "64e594839fbc4d3dfb2974539449c4644fe07cda52a1c30a06078ac8f427398a",
+      "path": "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P03-C06-SHARE-SURFACE-INTEGRATOR"
+    },
+    {
+      "boundedPurpose": "localize only existing report share/print chrome in FieldEvidenceApp/Features/Reports/ReportDetailView.swift; preserve Phase10 styling and report content identity",
+      "cardID": "V30-P03-C06",
+      "expectedBBlobOID": "c02680e9870fa348f1b8237f03f66496ff393418",
+      "expectedBSHA256": "22387f27d46acfbf2e021b89e3f2bc2caf63fcdc95f8dc5cb6d2259d73ff3716",
+      "path": "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P03-C06-SHARE-SURFACE-INTEGRATOR"
+    },
+    {
+      "boundedPurpose": "localize only existing report share/print chrome in FieldEvidenceApp/Features/Reports/ReportsRootView.swift; preserve Phase10 styling and report content identity",
+      "cardID": "V30-P03-C06",
+      "expectedBBlobOID": "295917ff019fa349871946b8dcdeaa4727eb807d",
+      "expectedBSHA256": "73161df4862a170d8232b61e922d7cb60d577e95d7e6727406ff754d83a80350",
+      "path": "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P03-C06-SHARE-SURFACE-INTEGRATOR"
+    }
+  ],
+  "reconciliation": "Replay or reimplement in graph order after accepted S; reconcile the exact shared UI tuple with accepted Phase 10 styling and repeat native, resource and linguistic qualification. No wholesale merge, final, exact-main, phase-close or release credit.",
+  "reconciliationManifest": {
+    "B": {
+      "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+      "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225"
+    },
+    "acceptedS": null,
+    "candidateHistory": [
+      {
+        "changedPaths": [
+          "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+        ],
+        "head": "7fc14738240f57bfb9d996ed901565efc4ec78a0",
+        "parent": "3f902a774e978c8c5c5c953f1e59298c7f9da29b",
+        "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+        "subject": "Record provisional export contracts and pause before Card 27",
+        "tree": "ff2276ea84c3d0acac8fbfd36217d620433dc36b"
+      },
+      {
+        "changedPaths": [
+          "docs/design/v30/execution/V30_CI_SELECTION.json",
+          "docs/design/v30/execution/V30_CURRENT_TASK.md",
+          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+        ],
+        "head": "047236981c20c0655d0c53f0819c1f1a1641f80e",
+        "parent": "7fc14738240f57bfb9d996ed901565efc4ec78a0",
+        "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+        "subject": "Hydrate P03 C06 share email print and label surfaces",
+        "tree": "823c7e9ce35a1523c6f6db844526c8714c68bdc1"
+      },
+      {
+        "changedPaths": [
+          "FieldEvidenceApp/Application/Labels/AssetLabelCoordinatorV1.swift",
+          "FieldEvidenceApp/Application/Reporting/GlobalizedShareDeliveryCoordinatorV1.swift",
+          "FieldEvidenceApp/Domain/Labels/AssetLabelContractsV1.swift",
+          "FieldEvidenceApp/Features/Globalization/GlobalizedSharePrintLabelSurfacesV1.swift",
+          "FieldEvidenceApp/Features/Reporting/ShopProfileOpenEvidenceHandoffView.swift",
+          "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+          "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift",
+          "FieldEvidenceApp/Infrastructure/Reporting/AssetLabelLifecycleAdapterV1.swift",
+          "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+          "FieldEvidenceAppTests/Fixtures/V30/Share/globalized-share-print-label-cases-v1.json",
+          "FieldEvidenceAppTests/S4_3ReportDeliveryTests.swift",
+          "FieldEvidenceAppTests/V30_P03_C06SharePrintLabelTests.swift",
+          "FieldEvidenceAppTests/V9_52AssetLabelTests.swift",
+          "FieldEvidenceAppTests/V9_93AssetLabelOutputTests.swift"
+        ],
+        "head": "4fa30b15d50e5bdd6a090c426ec9fd2d5628f864",
+        "parent": "047236981c20c0655d0c53f0819c1f1a1641f80e",
+        "state": "PROVISIONAL_CHECKPOINTED",
+        "subject": "Localize share and label delivery chrome with recorded document language",
+        "tree": "cc1def7d18773709375388ba7bfea281361370c2"
+      }
+    ],
+    "invalidatedEvidence": [],
+    "kind": "V30_PER_CARD_PROVISIONAL_CANDIDATE",
+    "originalCandidate": {
+      "head": "4fa30b15d50e5bdd6a090c426ec9fd2d5628f864",
+      "tree": "cc1def7d18773709375388ba7bfea281361370c2"
+    },
+    "replayedCandidate": null,
+    "terminalP": null
+  },
+  "requestID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P03-C06/CHECKPOINT/1",
+  "revision": 1
+}
+```
