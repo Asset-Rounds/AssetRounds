@@ -6455,3 +6455,264 @@ This evidence does not record its own future bookkeeping commit.
   "revision": 1
 }
 ```
+
+## Card 31 of 55 - V30-P04-C01
+
+Termbase, do-not-translate list, and secure review workflow — PROVISIONAL_CHECKPOINTED (Windows-static foundation).
+
+- M `c91f1a1cf9b82c133a6b66be18a856d9dd4cd328`, observed A `0d1761199d58166909da02378f70f369dbade822`, E `78fa91c4e08e1061672b0720bacb830abc31011d` (tree `17d4d4e3168290030821571659b7297857f98d33`); coordination checkpoint `ef94bc2ca23eefc495bfde631cd0e3d7d4812025`, sequence 65, ledger digest `5a3d2f656102d8e259d51c6cd09eed3e88835bc5842525a52f8843cb8c3da4bd`. M..A contains only four V30 execution documents.
+- Five new files inside the nine-path fence; no S10 shared paths or existing app/product/resource changes. Thirty-four source concepts, exact do-not-translate tokens and five reserved research namespaces preserve sign scope and claim boundaries.
+- Frozen workflow covers minimal synthetic vendor packets, role independence, license/usage terms, import/export, screenshots, offline/fallback behavior and append-only same-candidate correction. Closed packet schema and read-only validator check provenance, exact keys, typed placeholders, variants, tokens, artifact hashes, roles and actual predecessor correction evidence.
+- Verification: git diff --check PASS; V30 CI contract PASS WINDOWS_STATIC; foundation audit PASS; validator temporary synthetic cases: 5 positive and 45 negative PASS. Five native Swift tests authored, NOT EXECUTED. Independent review: Independent Terra review identified correction predecessor linkage and historical source pin gaps. Both were corrected and focused re-review passed with 5 positive / 45 negative synthetic tests; no residual actionable defect. Native tests, actual reviewers, privacy inspection and linguistic quality remain unverified.
+- No native compiler/XCTest, Apple export/import, real screenshot or language/vendor review. No fabricated participants or acceptance receipts. Structural checks cannot prove privacy, reviewer identity or linguistic quality. Null selector/tier and no workflow/runner/Simulator identity.
+- KNOWN_BUGS read; no outstanding actionable defect. No canonical/final/main/release or post-S10 successor credit. Next unstarted card: Card32 V30-P04-C02, requiring ordered selection and fresh G0.
+
+This evidence does not record its own future bookkeeping commit.
+
+```json
+{
+  "actualSharedPaths": [],
+  "attempt": 1,
+  "authority": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
+    "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+  },
+  "authorityOnlyDiffResult": "M..A EXACTLY FOUR V30 EXECUTION DOCUMENTS",
+  "candidate": {
+    "base": "c91f1a1cf9b82c133a6b66be18a856d9dd4cd328",
+    "baseTree": "0661cdcb8e1c63ae4cd34bdffd2f5b3a630f996f",
+    "changedPaths": [
+      "FieldEvidenceAppTests/V30_P04_C01TranslationWorkflowTests.swift",
+      "Scripts/v30/validate_v30_translation_review_packet.py",
+      "docs/design/v30/execution/V30_CI_SELECTION.json",
+      "docs/design/v30/execution/V30_CURRENT_TASK.md",
+      "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+      "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json",
+      "docs/design/v30/translation/V30SecureLinguisticReviewWorkflowV1.json",
+      "docs/design/v30/translation/V30TermbaseV1.json",
+      "docs/design/v30/translation/V30TranslationReviewPacketSchemaV1.json"
+    ],
+    "head": "78fa91c4e08e1061672b0720bacb830abc31011d",
+    "tree": "17d4d4e3168290030821571659b7297857f98d33"
+  },
+  "cardID": "V30-P04-C01",
+  "credit": {
+    "canonicalAcceptance": false,
+    "finalCredit": false,
+    "mainIntegrationCredit": false,
+    "postS10SuccessorStart": false,
+    "provisionalDependencySatisfied": true,
+    "releaseCredit": false
+  },
+  "evidence": {
+    "acceptanceMap": {
+      "packet": "Closed versioned schema binds exact source revision/tree/key set, termbase/workflow bytes, placeholder types/counts, variant families, exact tokens, artifact bytes/context, role receipts and complete candidate tuple. Corrections require actual predecessor packet digest, rejected receipt and tuple.",
+      "termbase": "Thirty-four immutable source concept IDs cover required field nouns/actions, state/severity/confidence, exact brand/ERASE/technical tokens and forbidden stronger claims. Locale terms remain empty pending real review. Five research-only namespaces preserve verified portfolio order and grant no activation.",
+      "validation": "Read-only dependency-free validator checks foundation pins and source Git blobs, closed packet shape and supplied evidence. Five positive and forty-five negative temporary synthetic cases passed, including reordered placeholders, plural branches, missing keys, token changes, hashes, independent roles and correction lineage. Five Swift contract tests authored but not executed.",
+      "workflow": "Defines source/import custodians, translator, independent native/professional and bilingual roles, minimum synthetic vendor scope, explicit license and privacy attestation, Apple workflow import/export boundaries, screenshots, offline/fallback truth and same-candidate reopen/supersession law."
+    },
+    "defects": [],
+    "limitations": "Windows-static foundation only. No native build, XCTest, Apple export/import, screenshot capture, translation, real vendor transfer or professional/native/bilingual review performed. Structural validation cannot authenticate participants, prove image privacy, or establish linguistic quality. No shipping/canonical/main/release/final credit.",
+    "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "outcome": "Freeze concept IDs, field terminology, claim boundaries, screenshots, placeholders, translation-vendor minimization, roles, import/export, correction/supersession, and future vertical namespaces.",
+    "static": {
+      "G0": {
+        "A": "0d1761199d58166909da02378f70f369dbade822",
+        "M": "c91f1a1cf9b82c133a6b66be18a856d9dd4cd328",
+        "allowedPathCount": 9,
+        "baseTree": "0661cdcb8e1c63ae4cd34bdffd2f5b3a630f996f",
+        "cardID": "V30-P04-C01",
+        "coordinationHead": "242779c2ef1b872947e407b35bc2a2904fb1abcf",
+        "ledgerDigest": "b598a73cee1f485113791357aeb878e277da447be1e02a97d61e77d3cc218466",
+        "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+        "result": "PASS_G0",
+        "sequence": 64,
+        "sharedPaths": [],
+        "taskDigest": "0e4401ace0e654a01a841c0e6322f9665086b163988f3742e788917a94b1e96a"
+      },
+      "actualSharedPaths": [],
+      "allowedPathCount": 9,
+      "auditOutputSHA256": "dec6a7c2d9b551e507b046b37acb374d8bf1736cfa629b841c8c7c5484ad0135",
+      "auditScriptSHA256": "5e7a4b1de8519f7d85dc79dea4a24f387559ca1fe1bd4b657c5818bb7b1d7a77",
+      "cardID": "V30-P04-C01",
+      "foundation": {
+        "concepts": 34,
+        "finalCredit": false,
+        "linguisticAcceptance": false,
+        "nativeCredit": false,
+        "result": "PASS_FOUNDATION_STATIC",
+        "selfTest": {
+          "negativeCases": 45,
+          "positiveCases": 5,
+          "syntheticOnly": true
+        }
+      },
+      "implementationPathCount": 5,
+      "independentReview": "Independent Terra review identified correction predecessor linkage and historical source pin gaps. Both were corrected and focused re-review passed with 5 positive / 45 negative synthetic tests; no residual actionable defect. Native tests, actual reviewers, privacy inspection and linguistic quality remain unverified.",
+      "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+      "newNativeTestMethods": [
+        "testConceptIdentitySeparatesActionsNounsAndUnprovenOutcomes",
+        "testDestructiveTokenIsExactWhileItsInstructionIsLocalized",
+        "testFutureNamespacesRetainResearchOrderAndGrantNoActivation",
+        "testReviewWorkflowPreservesSameCandidateCorrectionLawAndPrivacy",
+        "testPacketCohortAndCandidateTupleMatchFrozenAuthority"
+      ],
+      "result": "PASS_WINDOWS_STATIC",
+      "sourceArtifacts": [
+        {
+          "bytes": 5537,
+          "path": "FieldEvidenceAppTests/V30_P04_C01TranslationWorkflowTests.swift",
+          "sha256": "f56f9af43bbc2f7b45a7afefbd6657dd628219d72792ae110a763cd4bc96d66d"
+        },
+        {
+          "bytes": 29171,
+          "path": "Scripts/v30/validate_v30_translation_review_packet.py",
+          "sha256": "74f987f2d58d609108a3c10f403a7fc70ca7cf6c7d8b0b09f89bab8a16eba0e3"
+        },
+        {
+          "bytes": 1110,
+          "path": "docs/design/v30/execution/V30_CI_SELECTION.json",
+          "sha256": "703ac21ad2527a0877d5ed19757459600b4953649b5299ece225715b4b721ab3"
+        },
+        {
+          "bytes": 15797,
+          "path": "docs/design/v30/execution/V30_CURRENT_TASK.md",
+          "sha256": "88f96e61f78adc0e4765ccbdc718b7ec7018946467221fc8057dbcffcaf6148e"
+        },
+        {
+          "bytes": 388942,
+          "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+          "sha256": "aee0f8eb654e8e69496d9fe702271e45959f399d91f0b1a633669847df88041f"
+        },
+        {
+          "bytes": 700,
+          "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json",
+          "sha256": "4210b6ce95d4f5e8fe4a2e82a0525f5d35c697058d6ac4240d034325dc6d6341"
+        },
+        {
+          "bytes": 7481,
+          "path": "docs/design/v30/translation/V30SecureLinguisticReviewWorkflowV1.json",
+          "sha256": "dd48d7c0dce560d9de8a2434466610dc8bcabbdd0c253e45000b6d1113170f09"
+        },
+        {
+          "bytes": 25791,
+          "path": "docs/design/v30/translation/V30TermbaseV1.json",
+          "sha256": "13bad2e73ee47d2f77b53aff73dd48705821853d32546b85139a391edd9ddb6c"
+        },
+        {
+          "bytes": 18223,
+          "path": "docs/design/v30/translation/V30TranslationReviewPacketSchemaV1.json",
+          "sha256": "d612822114ca6bfed8e43b7aeedf5dc88ca8b867b9e390d3a26ab07d0619e1e4"
+        }
+      ],
+      "workingSourceArtifacts": [
+        {
+          "bytes": 5537,
+          "path": "FieldEvidenceAppTests/V30_P04_C01TranslationWorkflowTests.swift",
+          "sha256": "f56f9af43bbc2f7b45a7afefbd6657dd628219d72792ae110a763cd4bc96d66d"
+        },
+        {
+          "bytes": 29171,
+          "path": "Scripts/v30/validate_v30_translation_review_packet.py",
+          "sha256": "74f987f2d58d609108a3c10f403a7fc70ca7cf6c7d8b0b09f89bab8a16eba0e3"
+        },
+        {
+          "bytes": 7612,
+          "path": "docs/design/v30/translation/V30SecureLinguisticReviewWorkflowV1.json",
+          "sha256": "f1de2b0f2ea0d39bf83ddbf24c8149e9908b347ed842e7410ff9191cf8e1bece"
+        },
+        {
+          "bytes": 26484,
+          "path": "docs/design/v30/translation/V30TermbaseV1.json",
+          "sha256": "b93fa65057e59fb3ad27888a33f6416f17d6cc4d490d19f9ce082c670b14db1a"
+        },
+        {
+          "bytes": 18896,
+          "path": "docs/design/v30/translation/V30TranslationReviewPacketSchemaV1.json",
+          "sha256": "eb2eb4bc0d4357ef7cbf7300f730c262d06f85d6f34a0b8dcfa8e6892df9f515"
+        }
+      ]
+    },
+    "workflow": {
+      "branchRef": "refs/heads/phase/v30-globalization",
+      "expectedHead": "78fa91c4e08e1061672b0720bacb830abc31011d",
+      "runID": null,
+      "selectorInput": null,
+      "selectorTier": null,
+      "url": null
+    }
+  },
+  "expectedLedgerDigest": "b598a73cee1f485113791357aeb878e277da447be1e02a97d61e77d3cc218466",
+  "expectedOldRef": "242779c2ef1b872947e407b35bc2a2904fb1abcf",
+  "expectedSequence": 64,
+  "next": "V30-P04-C02",
+  "observedAuthorityHead": "0d1761199d58166909da02378f70f369dbade822",
+  "operationalProvenance": [
+    "Immediate ordered Card31 selection and fresh G0 passed. Five new implementation paths inside the nine-path fence; no actual or allowed S10 shared product paths.",
+    "Historical source provenance is pinned to Card31 A and exact raw Git blobs, independent of checkout line endings. App source/resources, project, V4 authority and inherited selector unchanged.",
+    "Independent review identified missing correction predecessor binding and insufficient historical revision pinning. Both corrected before commit and covered by negative tests. No unresolved actionable review finding.",
+    "Validator and V30 Windows-static CI contract passed; native tests authored only. No network transfer or final acceptance performed."
+  ],
+  "pathFenceDigest": "67e19ee8c7da05faea52433daaf9c84b4bd561ddca23f1ef9ee3fde57b666f1e",
+  "preAuthorizedOverlapTuples": [],
+  "reconciliation": "Replay or reimplement in graph order after accepted S; retain provisional original candidate/history and rerun affected machine/native/linguistic gates. This foundation creates no real acceptance receipts.",
+  "reconciliationManifest": {
+    "B": {
+      "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+      "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225"
+    },
+    "acceptedS": null,
+    "candidateHistory": [
+      {
+        "changedPaths": [
+          "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+        ],
+        "head": "c92a6ec32b7741b49071f9a6b48c9ffb2c5fdba1",
+        "parent": "c91f1a1cf9b82c133a6b66be18a856d9dd4cd328",
+        "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+        "subject": "Record provisional critical surface localization evidence",
+        "tree": "640bd88b2ad6695fb49e6a31c7223bb96f7c00f0"
+      },
+      {
+        "changedPaths": [
+          "docs/design/v30/execution/V30_CI_SELECTION.json",
+          "docs/design/v30/execution/V30_CURRENT_TASK.md",
+          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+        ],
+        "head": "0d1761199d58166909da02378f70f369dbade822",
+        "parent": "c92a6ec32b7741b49071f9a6b48c9ffb2c5fdba1",
+        "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+        "subject": "Hydrate P04 C01 translation review foundation",
+        "tree": "f98d36975367cac3e15d889a8ca0c08ef935246b"
+      },
+      {
+        "changedPaths": [
+          "FieldEvidenceAppTests/V30_P04_C01TranslationWorkflowTests.swift",
+          "Scripts/v30/validate_v30_translation_review_packet.py",
+          "docs/design/v30/translation/V30SecureLinguisticReviewWorkflowV1.json",
+          "docs/design/v30/translation/V30TermbaseV1.json",
+          "docs/design/v30/translation/V30TranslationReviewPacketSchemaV1.json"
+        ],
+        "head": "78fa91c4e08e1061672b0720bacb830abc31011d",
+        "parent": "0d1761199d58166909da02378f70f369dbade822",
+        "state": "PROVISIONAL_CHECKPOINTED",
+        "subject": "Freeze translation terminology and secure review packet contracts",
+        "tree": "17d4d4e3168290030821571659b7297857f98d33"
+      }
+    ],
+    "invalidatedEvidence": [],
+    "kind": "V30_PER_CARD_PROVISIONAL_CANDIDATE",
+    "originalCandidate": {
+      "head": "78fa91c4e08e1061672b0720bacb830abc31011d",
+      "tree": "17d4d4e3168290030821571659b7297857f98d33"
+    },
+    "replayedCandidate": null,
+    "terminalP": null
+  },
+  "requestID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P04-C01/CHECKPOINT/1",
+  "revision": 1
+}
+```
