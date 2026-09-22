@@ -1301,6 +1301,13 @@ final class V9_54ActivityContractFamiliesTests: XCTestCase {
     }
 
     func testV23P03C47H01CrossFamilyClaimsInvalidTransitionsAndStaleInputsFailClosed() throws {
+        let retiredSupport = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "c47-retired-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        defer { try? FileManager.default.removeItem(at: retiredSupport) }
+        var diagnosticPhase: String = "contracts.preflight"
+        do {
         let unknownBytes = Data("\"FUTURE_ACTIVITY_KIND\"".utf8)
         let unknown = try JSONDecoder().decode(ActivityKindV2.self, from: unknownBytes)
         XCTAssertEqual(unknown, .unknown("FUTURE_ACTIVITY_KIND"))
@@ -1459,14 +1466,14 @@ final class V9_54ActivityContractFamiliesTests: XCTestCase {
         // A retired workflow release remains valid for historic read/export,
         // but it can never be used to start a new activity.
         let shipping = try ShippingIlluminatedSignAdapterV1.inspectionPackage()
-        let retiredSupport = FileManager.default.temporaryDirectory.appendingPathComponent(
-            "c47-retired-\(UUID().uuidString)",
-            isDirectory: true
-        )
-        defer { try? FileManager.default.removeItem(at: retiredSupport) }
-        let retiredSession = try StoreGenerationFactory(
-            applicationSupportURL: retiredSupport
-        ).openOrBootstrapCurrent()
+        diagnosticPhase = "retired.factory"
+        var retiredFactory = StoreGenerationFactory(applicationSupportURL: retiredSupport)
+        #if DEBUG
+        retiredFactory.coldOpenDiagnosticForTesting = true
+        #endif
+        diagnosticPhase = "retired.open"
+        let retiredSession = try retiredFactory.openOrBootstrapCurrent()
+        diagnosticPhase = "retired.package.insert"
         let retiredAuthority = try C47ActivityTestSupport.packageAuthority(
             workspaceID: retiredSession.workspaceID,
             slot: 560
@@ -1492,7 +1499,9 @@ final class V9_54ActivityContractFamiliesTests: XCTestCase {
                 release: retiredAuthority.packageRelease
             )
         )
+        diagnosticPhase = "retired.save"
         try retiredSession.modelContext.save()
+        diagnosticPhase = "retired.package.resolve"
         let retiredRegistry = try InspectionPackageRegistryV2(packages: [shipping])
         let retiredRelease = try C47ActivityTestSupport.installationRelease(
             registry: retiredRegistry,
@@ -1544,6 +1553,7 @@ final class V9_54ActivityContractFamiliesTests: XCTestCase {
             package: shipping
         )
 
+        diagnosticPhase = "contracts.basis-and-completion"
         // Basis lineage is append-only. Both optional-plan and externally
         // supplied references remain accepted without turning the no-plan
         // fallback into a requirement on the selected basis source.
@@ -2248,8 +2258,11 @@ final class V9_54ActivityContractFamiliesTests: XCTestCase {
         )
         try C47ActivityContractConformance_FieldEvidenceApp_Infrastructure_Reporting_ReportProjectionRegistryV1_swift
             .validate(punchReportProjection)
+        diagnosticPhase = "render.installation-audience"
         try assertActivityReportAudienceBoundary(template: resolvedEnvelope)
+        diagnosticPhase = "render.punch-audience"
         try assertActivityReportAudienceBoundary(template: punchFinalizedEnvelope, punch: punchBasis)
+        diagnosticPhase = "contracts.restore-and-rejection"
         XCTAssertThrowsError(try ActivityContractReportProjectionV2(
             envelope: punchFinalizedEnvelope,
             completed: punchCompletedReport.snapshot,
@@ -2582,6 +2595,24 @@ final class V9_54ActivityContractFamiliesTests: XCTestCase {
                 .completionClaimsCommissioningComplianceApprovalOrCertification
         )
         XCTAssertTrue(ActivityContractPersistenceEnrollmentV2.inspectionNamedCanonicalStorageForbidden)
+        } catch {
+            let caught: NSError = error as NSError
+            let diagnosticFields: [String] = [
+                "phase=" + diagnosticPhase,
+                "type=" + String(reflecting: type(of: error)),
+                "domain=" + caught.domain,
+                "code=" + String(caught.code),
+                "description=" + String(describing: error)
+            ]
+            print("C47_H01_FAILURE_V1|" + diagnosticFields.joined(separator: "|"))
+            XCTContext.runActivity(named: "C47 H01 original failure before cleanup") { activity in
+                let attachment = XCTAttachment(string: diagnosticFields.joined(separator: "\n"))
+                attachment.name = "c47-h01-original-failure.txt"
+                attachment.lifetime = .keepAlways
+                activity.add(attachment)
+            }
+            throw error
+        }
     }
 
     func testV23P03C47I01ThreeReceiptWriterInterruptionRecoversWithoutCrossFamilyMutation() async throws {
