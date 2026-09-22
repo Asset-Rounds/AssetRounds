@@ -5226,3 +5226,439 @@ The immutable implementation/checkpoint evidence follows. This entry does not re
   "revision": 1
 }
 ```
+
+
+## Card 28 of 55 - V30-P03-C07
+
+OCR, dictation, speech, and assisted-input capability truth — PROVISIONAL_CHECKPOINTED (Windows-static only).
+
+- Frozen B/P: `acbfb68355f903fe98638b6ef22e4814e7b48328`; no accepted S or phase-main integration.
+- Predecessor/card base M: `4fa30b15d50e5bdd6a090c426ec9fd2d5628f864`, tree `cc1def7d18773709375388ba7bfea281361370c2`. Direct prerequisites P01-C06 and P03-C01 retain exact checkpoint evidence in CURRENT_TASK.
+- Observed authority A: `341e65a7d2e876838884b76e73c22d9467f5810e`; M..A is exactly the four V30 execution documents. G0 passed; no S10 shared path is authorized or changed.
+- Product E: `3c0dfd33cac5b4d12a98c0b44c699639150cc560`, tree `5be4c1a16a938fb1e0c8305437f41e8290eda2ea`, direct child of A. No K or correction commit.
+- Isolated coordination: sequence 59, head `4579e49b18db394c913e03c5e9d687becda83f12`, ledger digest `80566bc6d954ea0bc8688d3813eb37870ba62d242a25863e9fc66990ed469e8c`; request `ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P03-C07/CHECKPOINT/1`.
+- Eighteen implementation/test paths change within the twenty-six-path fence. Exact invocation, locale, provider and OS/device/app-build observations gate OCR/dictation before scratch/provider use. Returned provider revisions and environment are checked again. Native speech requires an explicit locale and exact runtime evidence; grammar is checked before microphone capture. Missing or online-only support retains manual entry and never enables a cloud fallback. Existing activation remains disabled where previously disabled.
+- Corrected two incumbent OCR constructor recursion cycles while retaining intrinsic guards, fields, digest basis and reconstruction validation. No persistent schema, canonical key, source text, acceptance writer, location behavior, routing or permissions were added.
+- Verification: `git diff --check` PASS; `python -B Scripts/v30/validate_v30_provisional_ci_contract.py` PASS WINDOWS_STATIC; current-card audit PASS (18 paths, seven new native methods, all previous test methods retained, canonical Basis declarations and accessibility identifiers preserved, eleven synthetic fixture cases). Independent Terra source/API/test review found no remaining substantive defect.
+- Native compile/XCTest/Simulator, runtime Speech/permission/audio behavior and simulator runtime-build metadata: NOT EXECUTED. Null selector/tier; no workflow run, runner/Xcode/Simulator identity, xcresult or UI screenshot. Synthetic support observations are not a shipping locale-support matrix or linguistic acceptance. Exact environment metadata failure intentionally remains unavailable/manual.
+- KNOWN_BUGS was read; no outstanding actionable defect is accepted. Reconciliation after S and native qualification remain required. No canonical/final, main, release or post-S10 successor credit.
+- Next unstarted card: Card 29 `V30-P03-C08`; separate ordered selection and fresh G0 required.
+
+This evidence does not record its own future bookkeeping commit.
+
+```json
+{
+  "actualSharedPaths": [],
+  "attempt": 1,
+  "authority": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
+    "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+  },
+  "authorityOnlyDiffResult": "M..A EXACTLY FOUR V30 EXECUTION DOCUMENTS",
+  "candidate": {
+    "base": "4fa30b15d50e5bdd6a090c426ec9fd2d5628f864",
+    "baseTree": "cc1def7d18773709375388ba7bfea281361370c2",
+    "changedPaths": [
+      "FieldEvidenceApp/Application/Assistance/DictationLocationProposalCoordinatorV1.swift",
+      "FieldEvidenceApp/Application/Assistance/OCRProposalCoordinatorV1.swift",
+      "FieldEvidenceApp/Application/Globalization/AssistedInputCapabilityCoordinatorV1.swift",
+      "FieldEvidenceApp/Application/VoiceCapture/VoicePushToTalkCoordinatorV1.swift",
+      "FieldEvidenceApp/Application/VoiceStructuring/VoiceStructuringServiceV1.swift",
+      "FieldEvidenceApp/Domain/Assistance/DictationLocationProposalContractsV1.swift",
+      "FieldEvidenceApp/Domain/Assistance/OCRProposalContractsV1.swift",
+      "FieldEvidenceApp/Domain/Globalization/AssistedInputCapabilityContractsV1.swift",
+      "FieldEvidenceApp/Features/VoiceCapture/VoicePushToTalkCaptureView.swift",
+      "FieldEvidenceApp/Infrastructure/Assistance/DictationLocationProposalLifecycleAdapterV1.swift",
+      "FieldEvidenceApp/Infrastructure/Assistance/OCRProposalLifecycleAdapterV1.swift",
+      "FieldEvidenceApp/Infrastructure/System/SystemCapabilityAdaptersV1.swift",
+      "FieldEvidenceApp/Infrastructure/VoiceCapture/OnDevicePushToTalkVoiceCaptureAdapterV1.swift",
+      "FieldEvidenceAppTests/Fixtures/V30/AssistedInput/assisted-input-capability-cases-v1.json",
+      "FieldEvidenceAppTests/V30_P03_C07AssistedInputCapabilityTests.swift",
+      "FieldEvidenceAppTests/V9_108StructuredVoiceCaptureTests.swift",
+      "FieldEvidenceAppTests/V9_86OCRProposalTests.swift",
+      "FieldEvidenceAppTests/V9_87DictationLocationProposalTests.swift",
+      "docs/design/v30/execution/V30_CI_SELECTION.json",
+      "docs/design/v30/execution/V30_CURRENT_TASK.md",
+      "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+      "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    ],
+    "head": "3c0dfd33cac5b4d12a98c0b44c699639150cc560",
+    "tree": "5be4c1a16a938fb1e0c8305437f41e8290eda2ea"
+  },
+  "cardID": "V30-P03-C07",
+  "credit": {
+    "canonicalAcceptance": false,
+    "finalCredit": false,
+    "mainIntegrationCredit": false,
+    "postS10SuccessorStart": false,
+    "provisionalDependencySatisfied": true,
+    "releaseCredit": false
+  },
+  "evidence": {
+    "acceptanceMap": {
+      "dictation": "Existing activation, AppAccess and microphone/speech permission checks remain. Fresh locale/build/device evidence is required before scratch and provider use; result request, provider version and environment remain bound. Online capability is never authority for cloud fallback. Location behavior is unchanged.",
+      "grammar": "The existing structuring service exposes its exact released supported locale. VoicePushToTalkCoordinator checks this before starting capture; missing or mismatched grammar yields manual fallback without microphone side effects. Translated start text explicitly says speech/grammar support is checked at start.",
+      "ocr": "Existing AppAccess/activation/locale checks precede the provider observation. Unknown or unsupported capability falls back before scratch/provider access. Successful output must match the observed framework/request revision and current environment. Provider errors still trigger existing scratch cleanup. Two incumbent initializer-validation recursion cycles were removed while retaining intrinsic checks and canonical reconstruction validation.",
+      "regression": "Seven new native methods plus existing test-helper evidence cover six fixture locales and eleven conditions, invocation/environment/provider changes, online-only and unknown support, exact provider outputs, unsupported grammar before audio, and OCR validation termination. Existing tests are retained; none executed.",
+      "scope": "Each nonpersistent query binds a new invocation UUID, capability kind, exact sorted locale identifiers, provider release and observed OS version/build, device model, app version/build and simulator status. UI translation is not an input. Missing, stale, unsupported, disabled, unknown-offline or online-only evidence cannot start on-device work.",
+      "voice": "The existing native adapter requires an explicit context locale, exact supported locale identity, recognizer availability, on-device recognition and audio input. It binds environment before permission requests and verifies it again before audio setup. The optional configured locale is a constraint, never an ambient language fallback. Unknown simulator runtime-build metadata fails closed rather than substituting host kernel metadata."
+    },
+    "defects": [],
+    "limitations": "Windows-static source/API evidence only; no native compile, XCTest, Simulator, real OCR/Speech, permission, audio, offline/network observation, environment-variable availability or linguistic qualification. Fixture support is synthetic and not a shipping per-locale support matrix. OCR and dictation shipping activation remains disabled. Exact missing runtime metadata deliberately yields unavailable/manual behavior.",
+    "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "outcome": "Freeze per-locale capability and online/offline truth. A translated label never implies recognition, dictation, speech, or grammar support unavailable to the exact OS/device/build.",
+    "static": {
+      "G0": {
+        "A": "341e65a7d2e876838884b76e73c22d9467f5810e",
+        "M": "4fa30b15d50e5bdd6a090c426ec9fd2d5628f864",
+        "allowedPathCount": 26,
+        "baseTree": "cc1def7d18773709375388ba7bfea281361370c2",
+        "cardID": "V30-P03-C07",
+        "coordinationHead": "54f3040508967df146edae33debcba0e6da70a37",
+        "ledgerDigest": "bb3c8933e28c4df32c25492f526554f3ca8452c7958c083d47f0e0751fbe853b",
+        "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+        "result": "PASS_G0",
+        "sequence": 58,
+        "sharedPaths": [],
+        "taskDigest": "3b420df6e90f3ce33e70d1e9267048c9fba050c998215edbc62f8d89b5767e60"
+      },
+      "accessibilityIdentifiersPreserved": true,
+      "actualSharedPaths": [],
+      "allowedPathCount": 26,
+      "auditOutputSHA256": "b9058913cbc9e04de039ab89518943ae44d4ec8fee300a7fcbdca4f2bc4a33d7",
+      "auditScriptSHA256": "2720e80beacea1067aaf43010544b8be24eb4eee43e6fb567dc1c3f010632619",
+      "canonicalBasisDeclarationsUnchanged": true,
+      "cardID": "V30-P03-C07",
+      "fixtureCases": 11,
+      "implementationPathCount": 18,
+      "independentReview": "Terra medium read-only source/API/test review found no substantive defect. Actual simulator metadata and SFSpeech runtime behavior remain unverified.",
+      "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+      "newNativeTestMethods": [
+        "testEnvironmentProviderKindAndLocaleChangesInvalidateObservation",
+        "testIncompleteAndDuplicateScopeCannotBecomeEvidence",
+        "testLocaleMatrixIsObservedPerInvocationAndDoesNotInferSupportFromTranslation",
+        "testOnlineOnlyUnknownAndUnsupportedLocaleNeverEnableOfflineOperation",
+        "testV30C07MissingOrUnsupportedGrammarLocaleFallsBackBeforeMicrophoneCapture",
+        "testV30C07OCRRequiresFreshExactOnDeviceEvidenceAndBindsProviderRevision",
+        "testV30C07OnlineOnlyDictationKeepsManualFallbackWithoutScratchOrProviderUse"
+      ],
+      "result": "PASS_WINDOWS_STATIC",
+      "sourceArtifacts": [
+        {
+          "bytes": 12189,
+          "path": "FieldEvidenceApp/Application/Assistance/DictationLocationProposalCoordinatorV1.swift",
+          "sha256": "840d365160be84e03ff502e2a1ff8161279406656e109237b9673584f0a0368f"
+        },
+        {
+          "bytes": 7056,
+          "path": "FieldEvidenceApp/Application/Assistance/OCRProposalCoordinatorV1.swift",
+          "sha256": "b1e2e69492812997c8a5085e94037221cc3c8e8d03a47ce26583834ed081183a"
+        },
+        {
+          "bytes": 1207,
+          "path": "FieldEvidenceApp/Application/Globalization/AssistedInputCapabilityCoordinatorV1.swift",
+          "sha256": "f10ccadec55b36e35b2a84c60a9cf392a68fea7cc9243bf7b7342cf11728d53d"
+        },
+        {
+          "bytes": 24165,
+          "path": "FieldEvidenceApp/Application/VoiceCapture/VoicePushToTalkCoordinatorV1.swift",
+          "sha256": "81bd8f982903cd0d9a7e3553091c98398cd57c32ccaa8a04d19604961132e04b"
+        },
+        {
+          "bytes": 20278,
+          "path": "FieldEvidenceApp/Application/VoiceStructuring/VoiceStructuringServiceV1.swift",
+          "sha256": "d30964043e628503ecaf657ea27df34613287e68d622fe5c7924dc0f945100ff"
+        },
+        {
+          "bytes": 27608,
+          "path": "FieldEvidenceApp/Domain/Assistance/DictationLocationProposalContractsV1.swift",
+          "sha256": "1bb0375ef26e509350629d9a00774cf397582939583fe3ccb7e6f4792dc573dc"
+        },
+        {
+          "bytes": 16845,
+          "path": "FieldEvidenceApp/Domain/Assistance/OCRProposalContractsV1.swift",
+          "sha256": "8947ec7cfbbb7debfdbfb5dceef12948dea3a419441f4482aaf394a7c1e55d66"
+        },
+        {
+          "bytes": 4033,
+          "path": "FieldEvidenceApp/Domain/Globalization/AssistedInputCapabilityContractsV1.swift",
+          "sha256": "ad1e148392ad93e07dc29054bf64f9df24b9085ac21865a10c4bfb185c61537a"
+        },
+        {
+          "bytes": 66307,
+          "path": "FieldEvidenceApp/Features/VoiceCapture/VoicePushToTalkCaptureView.swift",
+          "sha256": "f8e4b0cfcd38a185814d658ac46e88200763ffb840a39e703b42c306eed361e8"
+        },
+        {
+          "bytes": 5127,
+          "path": "FieldEvidenceApp/Infrastructure/Assistance/DictationLocationProposalLifecycleAdapterV1.swift",
+          "sha256": "1cffc070417e8b313ae736b9c60d35eace8c3c4174a4a0383c2e2733a8b0ed0b"
+        },
+        {
+          "bytes": 2692,
+          "path": "FieldEvidenceApp/Infrastructure/Assistance/OCRProposalLifecycleAdapterV1.swift",
+          "sha256": "a80e1e874c5798387195bdf839ff773eca6f5c5385fd64bd27b4a18fb75c919f"
+        },
+        {
+          "bytes": 14010,
+          "path": "FieldEvidenceApp/Infrastructure/System/SystemCapabilityAdaptersV1.swift",
+          "sha256": "9cae27423e13ccf41558c72e5431d249cc6d6a760da790312a1418f98f0e964a"
+        },
+        {
+          "bytes": 29292,
+          "path": "FieldEvidenceApp/Infrastructure/VoiceCapture/OnDevicePushToTalkVoiceCaptureAdapterV1.swift",
+          "sha256": "f7418e2e86b78843aed16accfe9e3ce8c5f6d42bd4cc31f817380d9c5f19a238"
+        },
+        {
+          "bytes": 749,
+          "path": "FieldEvidenceAppTests/Fixtures/V30/AssistedInput/assisted-input-capability-cases-v1.json",
+          "sha256": "499ef5a12eb5e8e3e7dba3d6309ab3f290b264bc4b0b0d8885dad3105e02180d"
+        },
+        {
+          "bytes": 7145,
+          "path": "FieldEvidenceAppTests/V30_P03_C07AssistedInputCapabilityTests.swift",
+          "sha256": "620c62efd80567828ae32ae702aaa9ac1dcf2bba99d49aec14f65d8d8320f5a0"
+        },
+        {
+          "bytes": 23781,
+          "path": "FieldEvidenceAppTests/V9_108StructuredVoiceCaptureTests.swift",
+          "sha256": "e4e4b03748db81a6e7619a408914808f1260298195f3b6688ffc46b753fd0d7b"
+        },
+        {
+          "bytes": 27982,
+          "path": "FieldEvidenceAppTests/V9_86OCRProposalTests.swift",
+          "sha256": "80b43ded15d9cad43fc62d27ee8f9874a31e343dbb0a51d7fddd01088cb62520"
+        },
+        {
+          "bytes": 38553,
+          "path": "FieldEvidenceAppTests/V9_87DictationLocationProposalTests.swift",
+          "sha256": "88fee902f9294f3b501e4c86051329199f0d61bdf8fdeb05d80ffdd4377b9b74"
+        },
+        {
+          "bytes": 1110,
+          "path": "docs/design/v30/execution/V30_CI_SELECTION.json",
+          "sha256": "c831381be898f859c8618c332b6d5694ffa948c3663deca4ee40481a1a92e293"
+        },
+        {
+          "bytes": 17394,
+          "path": "docs/design/v30/execution/V30_CURRENT_TASK.md",
+          "sha256": "a50f8a86cc37a45aaf8171b2dfcfb442d912eaa4852fc8646985ef9d7f227571"
+        },
+        {
+          "bytes": 314103,
+          "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+          "sha256": "22b60ed7ed48d4b8f982b438a4a312e2ae6af42446dfc8d528b95d56496c0e43"
+        },
+        {
+          "bytes": 700,
+          "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json",
+          "sha256": "bfa2dfec862b87799643a8403362908deb34877be4de303364539bebc127ecf4"
+        }
+      ],
+      "testCounts": {
+        "FieldEvidenceAppTests/V30_P03_C07AssistedInputCapabilityTests.swift": {
+          "after": 4,
+          "before": 0
+        },
+        "FieldEvidenceAppTests/V9_108StructuredVoiceCaptureTests.swift": {
+          "after": 8,
+          "before": 7
+        },
+        "FieldEvidenceAppTests/V9_86OCRProposalTests.swift": {
+          "after": 6,
+          "before": 5
+        },
+        "FieldEvidenceAppTests/V9_87DictationLocationProposalTests.swift": {
+          "after": 6,
+          "before": 5
+        }
+      },
+      "workingSourceArtifacts": [
+        {
+          "bytes": 12189,
+          "path": "FieldEvidenceApp/Application/Assistance/DictationLocationProposalCoordinatorV1.swift",
+          "sha256": "840d365160be84e03ff502e2a1ff8161279406656e109237b9673584f0a0368f"
+        },
+        {
+          "bytes": 7056,
+          "path": "FieldEvidenceApp/Application/Assistance/OCRProposalCoordinatorV1.swift",
+          "sha256": "b1e2e69492812997c8a5085e94037221cc3c8e8d03a47ce26583834ed081183a"
+        },
+        {
+          "bytes": 1207,
+          "path": "FieldEvidenceApp/Application/Globalization/AssistedInputCapabilityCoordinatorV1.swift",
+          "sha256": "f10ccadec55b36e35b2a84c60a9cf392a68fea7cc9243bf7b7342cf11728d53d"
+        },
+        {
+          "bytes": 24165,
+          "path": "FieldEvidenceApp/Application/VoiceCapture/VoicePushToTalkCoordinatorV1.swift",
+          "sha256": "81bd8f982903cd0d9a7e3553091c98398cd57c32ccaa8a04d19604961132e04b"
+        },
+        {
+          "bytes": 20278,
+          "path": "FieldEvidenceApp/Application/VoiceStructuring/VoiceStructuringServiceV1.swift",
+          "sha256": "d30964043e628503ecaf657ea27df34613287e68d622fe5c7924dc0f945100ff"
+        },
+        {
+          "bytes": 27608,
+          "path": "FieldEvidenceApp/Domain/Assistance/DictationLocationProposalContractsV1.swift",
+          "sha256": "1bb0375ef26e509350629d9a00774cf397582939583fe3ccb7e6f4792dc573dc"
+        },
+        {
+          "bytes": 16845,
+          "path": "FieldEvidenceApp/Domain/Assistance/OCRProposalContractsV1.swift",
+          "sha256": "8947ec7cfbbb7debfdbfb5dceef12948dea3a419441f4482aaf394a7c1e55d66"
+        },
+        {
+          "bytes": 4033,
+          "path": "FieldEvidenceApp/Domain/Globalization/AssistedInputCapabilityContractsV1.swift",
+          "sha256": "ad1e148392ad93e07dc29054bf64f9df24b9085ac21865a10c4bfb185c61537a"
+        },
+        {
+          "bytes": 66307,
+          "path": "FieldEvidenceApp/Features/VoiceCapture/VoicePushToTalkCaptureView.swift",
+          "sha256": "f8e4b0cfcd38a185814d658ac46e88200763ffb840a39e703b42c306eed361e8"
+        },
+        {
+          "bytes": 5127,
+          "path": "FieldEvidenceApp/Infrastructure/Assistance/DictationLocationProposalLifecycleAdapterV1.swift",
+          "sha256": "1cffc070417e8b313ae736b9c60d35eace8c3c4174a4a0383c2e2733a8b0ed0b"
+        },
+        {
+          "bytes": 2692,
+          "path": "FieldEvidenceApp/Infrastructure/Assistance/OCRProposalLifecycleAdapterV1.swift",
+          "sha256": "a80e1e874c5798387195bdf839ff773eca6f5c5385fd64bd27b4a18fb75c919f"
+        },
+        {
+          "bytes": 14010,
+          "path": "FieldEvidenceApp/Infrastructure/System/SystemCapabilityAdaptersV1.swift",
+          "sha256": "9cae27423e13ccf41558c72e5431d249cc6d6a760da790312a1418f98f0e964a"
+        },
+        {
+          "bytes": 29292,
+          "path": "FieldEvidenceApp/Infrastructure/VoiceCapture/OnDevicePushToTalkVoiceCaptureAdapterV1.swift",
+          "sha256": "f7418e2e86b78843aed16accfe9e3ce8c5f6d42bd4cc31f817380d9c5f19a238"
+        },
+        {
+          "bytes": 749,
+          "path": "FieldEvidenceAppTests/Fixtures/V30/AssistedInput/assisted-input-capability-cases-v1.json",
+          "sha256": "499ef5a12eb5e8e3e7dba3d6309ab3f290b264bc4b0b0d8885dad3105e02180d"
+        },
+        {
+          "bytes": 7145,
+          "path": "FieldEvidenceAppTests/V30_P03_C07AssistedInputCapabilityTests.swift",
+          "sha256": "620c62efd80567828ae32ae702aaa9ac1dcf2bba99d49aec14f65d8d8320f5a0"
+        },
+        {
+          "bytes": 23781,
+          "path": "FieldEvidenceAppTests/V9_108StructuredVoiceCaptureTests.swift",
+          "sha256": "e4e4b03748db81a6e7619a408914808f1260298195f3b6688ffc46b753fd0d7b"
+        },
+        {
+          "bytes": 27982,
+          "path": "FieldEvidenceAppTests/V9_86OCRProposalTests.swift",
+          "sha256": "80b43ded15d9cad43fc62d27ee8f9874a31e343dbb0a51d7fddd01088cb62520"
+        },
+        {
+          "bytes": 38553,
+          "path": "FieldEvidenceAppTests/V9_87DictationLocationProposalTests.swift",
+          "sha256": "88fee902f9294f3b501e4c86051329199f0d61bdf8fdeb05d80ffdd4377b9b74"
+        }
+      ]
+    },
+    "workflow": {
+      "branchRef": "refs/heads/phase/v30-globalization",
+      "expectedHead": "3c0dfd33cac5b4d12a98c0b44c699639150cc560",
+      "runID": null,
+      "selectorInput": null,
+      "selectorTier": null,
+      "url": null
+    }
+  },
+  "expectedLedgerDigest": "bb3c8933e28c4df32c25492f526554f3ca8452c7958c083d47f0e0751fbe853b",
+  "expectedOldRef": "54f3040508967df146edae33debcba0e6da70a37",
+  "expectedSequence": 58,
+  "next": "V30-P03-C08",
+  "observedAuthorityHead": "341e65a7d2e876838884b76e73c22d9467f5810e",
+  "operationalProvenance": [
+    "Immediate Card28 selected after Card27 provisional checkpoint. Fresh G0 passed at A with eighteen implementation/test paths inside the twenty-six-path fence and no S10 shared paths.",
+    "Root and bounded Luna inventory confirmed incumbent OCRExtractionRequestV1 and OCRProposalEvidenceV1 init-to-validate-to-Self recursion. The two terminal initializer calls were removed as a prerequisite for capability request/evidence execution, preserving intrinsic guards, fields, digests and reconstruction parity.",
+    "Existing injected positive test providers now supply explicit synthetic capability observations and a synthetic environment; no shipping support claims were manufactured. Unknown on-device plus available online evidence remains unobserved, not an unsupported-offline claim.",
+    "Independent Terra review found no remaining substantive source/API/test defect. Source review and static checks do not confer native, canonical/final, main, release or post-S10 successor credit."
+  ],
+  "pathFenceDigest": "440b543207c40d15baae6034b2cfc7a521f1963ef355895c5ef314bb20fab921",
+  "preAuthorizedOverlapTuples": [],
+  "reconciliation": "Replay or reimplement in graph order after accepted S; repeat exact device/OS/build/locale, on-device and permission/cleanup tests through the authorized native route. No wholesale merge or final/main/release credit.",
+  "reconciliationManifest": {
+    "B": {
+      "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+      "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225"
+    },
+    "acceptedS": null,
+    "candidateHistory": [
+      {
+        "changedPaths": [
+          "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+        ],
+        "head": "f7a96703379f2f35dbdd2d54d40b178947bbd4ea",
+        "parent": "4fa30b15d50e5bdd6a090c426ec9fd2d5628f864",
+        "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+        "subject": "Record provisional share print and label surface evidence",
+        "tree": "75d65d171cf9a9d9bf1c572c6f0663403b5c6798"
+      },
+      {
+        "changedPaths": [
+          "docs/design/v30/execution/V30_CI_SELECTION.json",
+          "docs/design/v30/execution/V30_CURRENT_TASK.md",
+          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+        ],
+        "head": "341e65a7d2e876838884b76e73c22d9467f5810e",
+        "parent": "f7a96703379f2f35dbdd2d54d40b178947bbd4ea",
+        "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+        "subject": "Hydrate P03 C07 assisted input capability truth",
+        "tree": "f30765daa1994c64c28d297034c83e0ef42d18f8"
+      },
+      {
+        "changedPaths": [
+          "FieldEvidenceApp/Application/Assistance/DictationLocationProposalCoordinatorV1.swift",
+          "FieldEvidenceApp/Application/Assistance/OCRProposalCoordinatorV1.swift",
+          "FieldEvidenceApp/Application/Globalization/AssistedInputCapabilityCoordinatorV1.swift",
+          "FieldEvidenceApp/Application/VoiceCapture/VoicePushToTalkCoordinatorV1.swift",
+          "FieldEvidenceApp/Application/VoiceStructuring/VoiceStructuringServiceV1.swift",
+          "FieldEvidenceApp/Domain/Assistance/DictationLocationProposalContractsV1.swift",
+          "FieldEvidenceApp/Domain/Assistance/OCRProposalContractsV1.swift",
+          "FieldEvidenceApp/Domain/Globalization/AssistedInputCapabilityContractsV1.swift",
+          "FieldEvidenceApp/Features/VoiceCapture/VoicePushToTalkCaptureView.swift",
+          "FieldEvidenceApp/Infrastructure/Assistance/DictationLocationProposalLifecycleAdapterV1.swift",
+          "FieldEvidenceApp/Infrastructure/Assistance/OCRProposalLifecycleAdapterV1.swift",
+          "FieldEvidenceApp/Infrastructure/System/SystemCapabilityAdaptersV1.swift",
+          "FieldEvidenceApp/Infrastructure/VoiceCapture/OnDevicePushToTalkVoiceCaptureAdapterV1.swift",
+          "FieldEvidenceAppTests/Fixtures/V30/AssistedInput/assisted-input-capability-cases-v1.json",
+          "FieldEvidenceAppTests/V30_P03_C07AssistedInputCapabilityTests.swift",
+          "FieldEvidenceAppTests/V9_108StructuredVoiceCaptureTests.swift",
+          "FieldEvidenceAppTests/V9_86OCRProposalTests.swift",
+          "FieldEvidenceAppTests/V9_87DictationLocationProposalTests.swift"
+        ],
+        "head": "3c0dfd33cac5b4d12a98c0b44c699639150cc560",
+        "parent": "341e65a7d2e876838884b76e73c22d9467f5810e",
+        "state": "PROVISIONAL_CHECKPOINTED",
+        "subject": "Bind assisted input to fresh locale and runtime capability observations",
+        "tree": "5be4c1a16a938fb1e0c8305437f41e8290eda2ea"
+      }
+    ],
+    "invalidatedEvidence": [],
+    "kind": "V30_PER_CARD_PROVISIONAL_CANDIDATE",
+    "originalCandidate": {
+      "head": "3c0dfd33cac5b4d12a98c0b44c699639150cc560",
+      "tree": "5be4c1a16a938fb1e0c8305437f41e8290eda2ea"
+    },
+    "replayedCandidate": null,
+    "terminalP": null
+  },
+  "requestID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P03-C07/CHECKPOINT/1",
+  "revision": 1
+}
+```
