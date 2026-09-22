@@ -1,0 +1,162 @@
+{
+  "kind": "V30SpanishLocaleFixtureV1",
+  "schemaVersion": 1,
+  "locale": "es",
+  "profiles": [
+    "es-US",
+    "es-MX",
+    "es-419"
+  ],
+  "resourceIdentifier": "es",
+  "executionEpoch": "PRE_S10_PROVISIONAL",
+  "status": "DRAFT_NONSHIPPING",
+  "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+  "linguisticAcceptance": false,
+  "sourceRevision": "b418cd68cf5242ecbab046f16c47b389e64f9dbd",
+  "sourceTree": "f458674264c10872bb12cd0adcc3964dc38c0be2",
+  "sourceCount": 3212,
+  "laneCounts": {
+    "app": 2717,
+    "report": 113,
+    "accessibility": 382
+  },
+  "sourceBindings": [
+    {
+      "path": "FieldEvidenceApp/Features/Globalization/CriticalSurfaceLocalizationRegistryV1.swift",
+      "sha256": "e487841a0789d8e521d82da07918f02aafe22d2bc8c1b80ebb184c2278f703f7"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Globalization/GlobalizedSharePrintLabelSurfacesV1.swift",
+      "sha256": "0f60e221e006b4ecf11130be38d67796533848e44d175b4fd4b746d06fbc9c15"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/VoiceCapture/VoicePushToTalkCaptureView.swift",
+      "sha256": "f8e4b0cfcd38a185814d658ac46e88200763ffb840a39e703b42c306eed361e8"
+    },
+    {
+      "path": "FieldEvidenceApp/InfoPlist.xcstrings",
+      "sha256": "39a62e938b8c83b53aef6bf05a5c1394d870baf28ef0489a3b01c0aab73745e1"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+      "sha256": "eaca1dffcda6ca7aa78519741b274e610470032a2c06b61b4e3b27cc87ce2314"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Localizable.xcstrings",
+      "sha256": "cef2d893c18f35e82299127ab3d95112035df7fc57dd65fb3f142f4c1d71e075"
+    }
+  ],
+  "invariants": {
+    "confirmationToken": "ERASE",
+    "storefront": "US",
+    "projectJurisdiction": "US",
+    "calendar": "GREGORIAN",
+    "timeZone": "America/New_York",
+    "languageDoesNotChangeJurisdiction": true,
+    "canonicalRecordsUnchanged": true
+  },
+  "formattingCases": {
+    "decimal": "12345.625",
+    "gregorianDate": "2026-09-22",
+    "wallTime": "14:05:09",
+    "currency": "USD",
+    "phone": "+1 212 555 0100",
+    "addressLines": [
+      "123 Example St",
+      "Synthetic City, NY 10001"
+    ]
+  },
+  "metadataDraft": {
+    "appStoreLanguage": "Spanish (Mexico)",
+    "storefront": "US",
+    "status": "DRAFT_REQUIRES_NATIVE_KEYWORD_RESEARCH_AND_OWNER_REVIEW",
+    "name": "AssetRounds",
+    "subtitle": "Inspecciones de letreros",
+    "promotionalText": "Registre observaciones de letreros, fotos y trabajo realizado. Conserve el historial local y prepare informes PDF para compartir.",
+    "description": "AssetRounds ayuda a registrar verificaciones de letreros. Guarde observaciones de condiciones visibles, notas, fotos y trabajo registrado. Consulte el historial, haga nuevas verificaciones y prepare informes PDF.\n\nLos registros permanecen en este dispositivo. Compartir un informe abre las opciones del sistema y no confirma su entrega. Una observación no constituye una certificación, un diagnóstico ni una determinación de cumplimiento.\n\nBorrador de contenido para revisión. Las funciones y los idiomas disponibles deben confirmarse contra la versión final antes de publicar.",
+    "keywords": "letreros,inspección,fotos,evidencia,informe,rondas,trabajo",
+    "publicationAuthorized": false,
+    "currentAppStoreRulesValidated": false,
+    "nativeKeywordEvidence": null
+  },
+  "reviewRequirements": [
+    "Professional translator and independent native review",
+    "Bilingual sign-workflow review; regional neutrality for es-US/es-MX/es-419",
+    "Rendered report, VoiceOver, Dynamic Type, permission, error, recovery and destructive-state review",
+    "Reconcile after S and integrate only through P04-C07"
+  ],
+  "sourceDefects": [
+    {
+      "key": "v30.manual-work-resource.units",
+      "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+      "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+      "intendedEnglish": "units",
+      "spanishDraft": "unidades",
+      "baselineEvidence": {
+        "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+        "path": "FieldEvidenceApp/Features/WorkResources/ManualWorkResourceWorkflowView.swift",
+        "sha256": "7763f72a2b820861915cb6d814132cf7c3da9de0980997a44abefd6f1b8dd28b"
+      },
+      "currentSourcePaths": [
+        "FieldEvidenceApp/Resources/Localizable.xcstrings",
+        "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+      ],
+      "disposition": "Spanish draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+      "finalAcceptanceBlocked": true
+    },
+    {
+      "key": "v30.my-day.no-duration-estimate-lowercase",
+      "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+      "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+      "intendedEnglish": "no duration estimate",
+      "spanishDraft": "sin duración estimada",
+      "baselineEvidence": {
+        "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+        "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+        "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+      },
+      "currentSourcePaths": [
+        "FieldEvidenceApp/Resources/Localizable.xcstrings",
+        "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+      ],
+      "disposition": "Spanish draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+      "finalAcceptanceBlocked": true
+    },
+    {
+      "key": "v30.my-day.no-total-estimate",
+      "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+      "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+      "intendedEnglish": "No total estimate",
+      "spanishDraft": "Sin estimación total",
+      "baselineEvidence": {
+        "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+        "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+        "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+      },
+      "currentSourcePaths": [
+        "FieldEvidenceApp/Resources/Localizable.xcstrings",
+        "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+      ],
+      "disposition": "Spanish draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+      "finalAcceptanceBlocked": true
+    },
+    {
+      "key": "v30.my-day.start",
+      "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+      "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+      "intendedEnglish": "Start",
+      "spanishDraft": "Iniciar",
+      "baselineEvidence": {
+        "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+        "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+        "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+      },
+      "currentSourcePaths": [
+        "FieldEvidenceApp/Resources/Localizable.xcstrings",
+        "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+      ],
+      "disposition": "Spanish draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+      "finalAcceptanceBlocked": true
+    }
+  ]
+}
