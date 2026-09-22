@@ -1,0 +1,3515 @@
+{
+  "codec": {
+    "binaryEncoding": "RFC4648_BASE64_PADDED",
+    "canonicalJSON": "UTF8_SORTED_KEYS_NO_INSIGNIFICANT_WHITESPACE",
+    "codecVersion": 1,
+    "formatAssertion": false,
+    "integerEncoding": "BASE10_INTEGER_NO_EXPONENT",
+    "nullEncoding": "EXPLICIT_NULL_ONLY_WHEN_REQUIRED_NULLABLE",
+    "stringNormalization": "NFC_WITH_C0_C1_BIDI_CONTROLS_AND_NONCHARACTERS_REJECTED",
+    "timeEncoding": "UTC_RFC3339_MILLISECONDS_Z"
+  },
+  "compatibility": {
+    "maximumReaderVersion": 1,
+    "minimumReaderVersion": 1,
+    "publishedVersionsImmutable": true,
+    "unknownObjectFields": "REJECT"
+  },
+  "enums": [
+    {
+      "knownValues": [
+        "BLOCKED",
+        "PASS"
+      ],
+      "policy": "CLOSED",
+      "typeID": "audience-privacy-detector-disposition-v1",
+      "version": 1
+    },
+    {
+      "knownValues": [
+        "PROHIBITED_ANNOTATION",
+        "PROHIBITED_FIELD",
+        "PROHIBITED_REFERENCE_LABEL",
+        "PROHIBITED_SEMANTIC_TEXT"
+      ],
+      "policy": "CLOSED",
+      "typeID": "audience-privacy-finding-kind-v1",
+      "version": 1
+    },
+    {
+      "knownValues": [
+        "SERVICE_HISTORY",
+        "SERVICE_REQUEST",
+        "SERVICE_STATUS"
+      ],
+      "policy": "CLOSED",
+      "typeID": "completed-service-fact-kind-v1",
+      "version": 1
+    },
+    {
+      "knownValues": [
+        "DERIVATIVE",
+        "IMMUTABLE_ORIGINAL"
+      ],
+      "policy": "CLOSED",
+      "typeID": "content-byte-role-v1",
+      "version": 1
+    },
+    {
+      "knownValues": [
+        "CLOSED",
+        "PRESERVE_UNKNOWN"
+      ],
+      "policy": "CLOSED",
+      "typeID": "contract-enum-policy-v1",
+      "version": 1
+    },
+    {
+      "knownValues": [
+        "ARRAY",
+        "BASE64_BYTES",
+        "BOOLEAN",
+        "ENUM",
+        "INTEGER",
+        "OBJECT",
+        "SHA256",
+        "STRING",
+        "UTC_INSTANT"
+      ],
+      "policy": "CLOSED",
+      "typeID": "contract-scalar-kind-v1",
+      "version": 1
+    },
+    {
+      "knownValues": [
+        "PRESERVE",
+        "REJECT"
+      ],
+      "policy": "CLOSED",
+      "typeID": "contract-unknown-field-policy-v1",
+      "version": 1
+    },
+    {
+      "knownValues": [
+        "AUDIENCE_SAFE",
+        "CAPABILITY_SECRET",
+        "CONTACT_DATA",
+        "DIAGNOSTIC",
+        "DIRECT_COST",
+        "LOCAL_IDENTIFIER",
+        "ORIGINAL_MEDIA",
+        "PRIVATE_NOTE"
+      ],
+      "policy": "CLOSED",
+      "typeID": "evidence-detail-sensitivity-v1",
+      "version": 1
+    },
+    {
+      "knownValues": [
+        "CUSTOMER_SAFE",
+        "INTERNAL"
+      ],
+      "policy": "CLOSED",
+      "typeID": "report-audience-v1",
+      "version": 1
+    },
+    {
+      "knownValues": [
+        "COMPLETE",
+        "SUMMARY"
+      ],
+      "policy": "CLOSED",
+      "typeID": "report-detail-level-v1",
+      "version": 1
+    },
+    {
+      "knownValues": [
+        "COMPACT_GRID",
+        "FULL_WIDTH",
+        "NONE",
+        "STANDARD_GRID"
+      ],
+      "policy": "CLOSED",
+      "typeID": "report-media-layout-v1",
+      "version": 1
+    },
+    {
+      "knownValues": [
+        "LANDSCAPE",
+        "PORTRAIT"
+      ],
+      "policy": "CLOSED",
+      "typeID": "report-orientation-v1",
+      "version": 1
+    },
+    {
+      "knownValues": [
+        "COMBINED",
+        "SEPARATE_PER_WORK_ITEM"
+      ],
+      "policy": "CLOSED",
+      "typeID": "report-packaging-v1",
+      "version": 1
+    },
+    {
+      "knownValues": [
+        "AUDIENCE_SAFE",
+        "INTERNAL_ONLY",
+        "MANDATORY_PUBLIC_TRUTH"
+      ],
+      "policy": "CLOSED",
+      "typeID": "report-privacy-class-v1",
+      "version": 1
+    },
+    {
+      "knownValues": [
+        "FORMULA_SAFE_CSV",
+        "MANIFEST",
+        "MEDIA",
+        "OPEN_JSON",
+        "PDF",
+        "STRUCTURED_TEXT"
+      ],
+      "policy": "CLOSED",
+      "typeID": "report-projection-format-v1",
+      "version": 1
+    }
+  ],
+  "manifestID": "v23-p03-c06-contract-manifest-v1",
+  "manifestVersion": 1,
+  "objects": [
+    {
+      "fields": [
+        {
+          "fieldID": "audience",
+          "jsonName": "audience",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "report-audience-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "policy-id",
+          "jsonName": "policyID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "policy-sha256",
+          "jsonName": "policySHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "policy-version",
+          "jsonName": "policyVersion",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "arrayElementKind": "STRING",
+          "fieldID": "prohibited-canaries",
+          "jsonName": "prohibitedCanaries",
+          "kind": "ARRAY",
+          "maximumItems": 256,
+          "nullable": false,
+          "ordered": true,
+          "required": true,
+          "uniqueItems": true
+        },
+        {
+          "fieldID": "schema-version",
+          "jsonName": "schemaVersion",
+          "kind": "INTEGER",
+          "maximumInteger": 1,
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "audience-privacy-policy-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "fieldID": "amendment-reason",
+          "jsonName": "amendmentReason",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 4096,
+          "nullable": false,
+          "ordered": false,
+          "required": false,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "completed-at",
+          "jsonName": "completedAt",
+          "kind": "UTC_INSTANT",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "arrayElementKind": "OBJECT",
+          "fieldID": "evidence-cards",
+          "jsonName": "evidenceCards",
+          "kind": "ARRAY",
+          "maximumItems": 256,
+          "nullable": false,
+          "ordered": true,
+          "referencedTypeID": "evidence-detail-card-v1",
+          "required": true,
+          "uniqueItems": true
+        },
+        {
+          "fieldID": "generated-at",
+          "jsonName": "generatedAt",
+          "kind": "UTC_INSTANT",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "arrayElementKind": "STRING",
+          "fieldID": "limitations",
+          "jsonName": "limitations",
+          "kind": "ARRAY",
+          "maximumItems": 64,
+          "nullable": false,
+          "ordered": true,
+          "required": true,
+          "uniqueItems": true
+        },
+        {
+          "fieldID": "package-release-id",
+          "jsonName": "packageReleaseID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "profile-binding",
+          "jsonName": "profileBinding",
+          "kind": "OBJECT",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "finalized-report-profile-binding-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "report-id",
+          "jsonName": "reportID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "schema-version",
+          "jsonName": "schemaVersion",
+          "kind": "INTEGER",
+          "maximumInteger": 1,
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "arrayElementKind": "OBJECT",
+          "fieldID": "service-facts",
+          "jsonName": "serviceFacts",
+          "kind": "ARRAY",
+          "maximumItems": 256,
+          "nullable": false,
+          "ordered": true,
+          "referencedTypeID": "completed-service-fact-v1",
+          "required": true,
+          "uniqueItems": true
+        },
+        {
+          "fieldID": "snapshot-id",
+          "jsonName": "snapshotID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "snapshot-revision",
+          "jsonName": "snapshotRevision",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "source-activity-id",
+          "jsonName": "sourceActivityID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "source-revision",
+          "jsonName": "sourceRevision",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "superseded-snapshot-sha256",
+          "jsonName": "supersededSnapshotSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": false,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "supersedes-snapshot-id",
+          "jsonName": "supersedesSnapshotID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": false,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "workspace-id",
+          "jsonName": "workspaceID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "completed-activity-snapshot-payload-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "fieldID": "payload",
+          "jsonName": "payload",
+          "kind": "OBJECT",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "completed-activity-snapshot-payload-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "schema-version",
+          "jsonName": "schemaVersion",
+          "kind": "INTEGER",
+          "maximumInteger": 1,
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "snapshot-sha256",
+          "jsonName": "snapshotSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "completed-activity-snapshot-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "fieldID": "effective-at",
+          "jsonName": "effectiveAt",
+          "kind": "UTC_INSTANT",
+          "nullable": false,
+          "ordered": false,
+          "required": false,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "fact-id",
+          "jsonName": "factID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "kind",
+          "jsonName": "kind",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "completed-service-fact-kind-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "label",
+          "jsonName": "label",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 4096,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "privacy-class",
+          "jsonName": "privacyClass",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "report-privacy-class-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "value",
+          "jsonName": "value",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 4096,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "completed-service-fact-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "fieldID": "binary-encoding",
+          "jsonName": "binaryEncoding",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "canonical-json",
+          "jsonName": "canonicalJSON",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "codec-version",
+          "jsonName": "codecVersion",
+          "kind": "INTEGER",
+          "maximumInteger": 1,
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "format-assertion",
+          "jsonName": "formatAssertion",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "integer-encoding",
+          "jsonName": "integerEncoding",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "null-encoding",
+          "jsonName": "nullEncoding",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "string-normalization",
+          "jsonName": "stringNormalization",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "time-encoding",
+          "jsonName": "timeEncoding",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "contract-codec-rule-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "fieldID": "maximum-reader-version",
+          "jsonName": "maximumReaderVersion",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "minimum-reader-version",
+          "jsonName": "minimumReaderVersion",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "published-versions-immutable",
+          "jsonName": "publishedVersionsImmutable",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "unknown-object-fields",
+          "jsonName": "unknownObjectFields",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "contract-unknown-field-policy-v1",
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "contract-compatibility-rule-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "arrayElementKind": "STRING",
+          "fieldID": "known-values",
+          "jsonName": "knownValues",
+          "kind": "ARRAY",
+          "maximumItems": 512,
+          "nullable": false,
+          "ordered": true,
+          "required": true,
+          "uniqueItems": true
+        },
+        {
+          "fieldID": "policy",
+          "jsonName": "policy",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "contract-enum-policy-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "type-id",
+          "jsonName": "typeID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "version",
+          "jsonName": "version",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "contract-enum-definition-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "fieldID": "array-element-kind",
+          "jsonName": "arrayElementKind",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "contract-scalar-kind-v1",
+          "required": false,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "field-id",
+          "jsonName": "fieldID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "json-name",
+          "jsonName": "jsonName",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "kind",
+          "jsonName": "kind",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "contract-scalar-kind-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "maximum-integer",
+          "jsonName": "maximumInteger",
+          "kind": "INTEGER",
+          "nullable": false,
+          "ordered": false,
+          "required": false,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "maximum-items",
+          "jsonName": "maximumItems",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": false,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "maximum-utf8-bytes",
+          "jsonName": "maximumUTF8Bytes",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": false,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "minimum-integer",
+          "jsonName": "minimumInteger",
+          "kind": "INTEGER",
+          "nullable": false,
+          "ordered": false,
+          "required": false,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "nullable",
+          "jsonName": "nullable",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "ordered",
+          "jsonName": "ordered",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "referenced-type-id",
+          "jsonName": "referencedTypeID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": false,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "required",
+          "jsonName": "required",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "unique-items",
+          "jsonName": "uniqueItems",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "contract-field-definition-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "fieldID": "codec",
+          "jsonName": "codec",
+          "kind": "OBJECT",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "contract-codec-rule-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "compatibility",
+          "jsonName": "compatibility",
+          "kind": "OBJECT",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "contract-compatibility-rule-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "arrayElementKind": "OBJECT",
+          "fieldID": "enums",
+          "jsonName": "enums",
+          "kind": "ARRAY",
+          "maximumItems": 256,
+          "nullable": false,
+          "ordered": true,
+          "referencedTypeID": "contract-enum-definition-v1",
+          "required": true,
+          "uniqueItems": true
+        },
+        {
+          "fieldID": "manifest-id",
+          "jsonName": "manifestID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "manifest-version",
+          "jsonName": "manifestVersion",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "arrayElementKind": "OBJECT",
+          "fieldID": "objects",
+          "jsonName": "objects",
+          "kind": "ARRAY",
+          "maximumItems": 512,
+          "nullable": false,
+          "ordered": true,
+          "referencedTypeID": "contract-object-definition-v1",
+          "required": true,
+          "uniqueItems": true
+        },
+        {
+          "fieldID": "persistent-contract-schema",
+          "jsonName": "persistentContractSchema",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "report-section-registry",
+          "jsonName": "reportSectionRegistry",
+          "kind": "OBJECT",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "report-section-registry-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "schema-version",
+          "jsonName": "schemaVersion",
+          "kind": "INTEGER",
+          "maximumInteger": 1,
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "contract-manifest-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "arrayElementKind": "OBJECT",
+          "fieldID": "fields",
+          "jsonName": "fields",
+          "kind": "ARRAY",
+          "maximumItems": 512,
+          "nullable": false,
+          "ordered": true,
+          "referencedTypeID": "contract-field-definition-v1",
+          "required": true,
+          "uniqueItems": true
+        },
+        {
+          "fieldID": "type-id",
+          "jsonName": "typeID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "unknown-field-policy",
+          "jsonName": "unknownFieldPolicy",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "contract-unknown-field-policy-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "version",
+          "jsonName": "version",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "contract-object-definition-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "fieldID": "independent-instance-validation-owner",
+          "jsonName": "independentInstanceValidationOwner",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "manifest-sha256",
+          "jsonName": "manifestSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "official-meta-schema-valid",
+          "jsonName": "officialMetaSchemaValid",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "receipt-id",
+          "jsonName": "receiptID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "release-dependency-added",
+          "jsonName": "releaseDependencyAdded",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "repeated-generation-byte-identical",
+          "jsonName": "repeatedGenerationByteIdentical",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "schema-sha256",
+          "jsonName": "schemaSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "schema-version",
+          "jsonName": "schemaVersion",
+          "kind": "INTEGER",
+          "maximumInteger": 1,
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "contract-schema-derivation-receipt-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "fieldID": "audience",
+          "jsonName": "audience",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "report-audience-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "audience-privacy-policy",
+          "jsonName": "audiencePrivacyPolicy",
+          "kind": "OBJECT",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "audience-privacy-policy-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "display-profile-id",
+          "jsonName": "displayProfileID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "arrayElementKind": "STRING",
+          "fieldID": "included-field-i-ds",
+          "jsonName": "includedFieldIDs",
+          "kind": "ARRAY",
+          "maximumItems": 256,
+          "nullable": false,
+          "ordered": true,
+          "required": true,
+          "uniqueItems": true
+        },
+        {
+          "fieldID": "limitations-text",
+          "jsonName": "limitationsText",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 4096,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "locale-identifier",
+          "jsonName": "localeIdentifier",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 64,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "markup-profile-id",
+          "jsonName": "markupProfileID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "markup-profile-version",
+          "jsonName": "markupProfileVersion",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "output-scope-id",
+          "jsonName": "outputScopeID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "privacy-transform-id",
+          "jsonName": "privacyTransformID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "privacy-transform-version",
+          "jsonName": "privacyTransformVersion",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "profile-id",
+          "jsonName": "profileID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "profile-release",
+          "jsonName": "profileRelease",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "renderer-version",
+          "jsonName": "rendererVersion",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "schema-version",
+          "jsonName": "schemaVersion",
+          "kind": "INTEGER",
+          "maximumInteger": 1,
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "evidence-detail-card-profile-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "fieldID": "audience",
+          "jsonName": "audience",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "report-audience-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "capture-time-verified",
+          "jsonName": "captureTimeVerified",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "card-id",
+          "jsonName": "cardID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "composed-output-sha256",
+          "jsonName": "composedOutputSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "confirmation",
+          "jsonName": "confirmation",
+          "kind": "OBJECT",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "final-audience-privacy-confirmation-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "confirmation-id",
+          "jsonName": "confirmationID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "limitations-presented",
+          "jsonName": "limitationsPresented",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "location-verified",
+          "jsonName": "locationVerified",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "output-scope-id",
+          "jsonName": "outputScopeID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "person-verified",
+          "jsonName": "personVerified",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "privacy-transform-sha256",
+          "jsonName": "privacyTransformSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "profile-sha256",
+          "jsonName": "profileSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "receipt-id",
+          "jsonName": "receiptID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "reviewed-markup-sha256",
+          "jsonName": "reviewedMarkupSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "schema-version",
+          "jsonName": "schemaVersion",
+          "kind": "INTEGER",
+          "maximumInteger": 1,
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "semantic-sha256",
+          "jsonName": "semanticSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "semantic-text-sha256",
+          "jsonName": "semanticTextSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "snapshot-id",
+          "jsonName": "snapshotID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "source-snapshot-sha256",
+          "jsonName": "sourceSnapshotSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "evidence-detail-card-render-receipt-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "arrayElementKind": "STRING",
+          "fieldID": "annotations",
+          "jsonName": "annotations",
+          "kind": "ARRAY",
+          "maximumItems": 128,
+          "nullable": false,
+          "ordered": true,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "audience",
+          "jsonName": "audience",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "report-audience-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "audience-privacy-policy",
+          "jsonName": "audiencePrivacyPolicy",
+          "kind": "OBJECT",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "audience-privacy-policy-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "audience-privacy-policy-id",
+          "jsonName": "audiencePrivacyPolicyID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "audience-privacy-policy-sha256",
+          "jsonName": "audiencePrivacyPolicySHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "audience-privacy-policy-version",
+          "jsonName": "audiencePrivacyPolicyVersion",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "card-id",
+          "jsonName": "cardID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "display-profile-id",
+          "jsonName": "displayProfileID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "evidence-id",
+          "jsonName": "evidenceID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "arrayElementKind": "OBJECT",
+          "fieldID": "fields",
+          "jsonName": "fields",
+          "kind": "ARRAY",
+          "maximumItems": 256,
+          "nullable": false,
+          "ordered": true,
+          "referencedTypeID": "evidence-detail-field-v1",
+          "required": true,
+          "uniqueItems": true
+        },
+        {
+          "fieldID": "limitations-text",
+          "jsonName": "limitationsText",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 4096,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "locale-identifier",
+          "jsonName": "localeIdentifier",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 64,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "arrayElementKind": "OBJECT",
+          "fieldID": "output-references",
+          "jsonName": "outputReferences",
+          "kind": "ARRAY",
+          "maximumItems": 256,
+          "nullable": false,
+          "ordered": true,
+          "referencedTypeID": "output-scoped-content-reference-v1",
+          "required": true,
+          "uniqueItems": true
+        },
+        {
+          "fieldID": "output-scope-id",
+          "jsonName": "outputScopeID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "privacy-transform-id",
+          "jsonName": "privacyTransformID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "privacy-transform-version",
+          "jsonName": "privacyTransformVersion",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "privacy-transformed-sha256",
+          "jsonName": "privacyTransformedSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "profile",
+          "jsonName": "profile",
+          "kind": "OBJECT",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "evidence-detail-card-profile-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "profile-id",
+          "jsonName": "profileID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "profile-sha256",
+          "jsonName": "profileSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "arrayElementKind": "STRING",
+          "fieldID": "reference-labels",
+          "jsonName": "referenceLabels",
+          "kind": "ARRAY",
+          "maximumItems": 256,
+          "nullable": false,
+          "ordered": true,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "renderer-version",
+          "jsonName": "rendererVersion",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "reviewed-markup",
+          "jsonName": "reviewedMarkup",
+          "kind": "OBJECT",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "reviewed-evidence-markup-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "reviewed-markup-id",
+          "jsonName": "reviewedMarkupID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "reviewed-markup-sha256",
+          "jsonName": "reviewedMarkupSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "schema-version",
+          "jsonName": "schemaVersion",
+          "kind": "INTEGER",
+          "maximumInteger": 1,
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "workspace-id",
+          "jsonName": "workspaceID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "evidence-detail-card-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "fieldID": "field-id",
+          "jsonName": "fieldID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "label",
+          "jsonName": "label",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 4096,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "sensitivity",
+          "jsonName": "sensitivity",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "evidence-detail-sensitivity-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "value",
+          "jsonName": "value",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 4096,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "evidence-detail-field-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "fieldID": "export-profile-id",
+          "jsonName": "exportProfileID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "export-profile-release",
+          "jsonName": "exportProfileRelease",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "arrayElementKind": "ENUM",
+          "fieldID": "formats",
+          "jsonName": "formats",
+          "kind": "ARRAY",
+          "maximumItems": 6,
+          "nullable": false,
+          "ordered": true,
+          "referencedTypeID": "report-projection-format-v1",
+          "required": true,
+          "uniqueItems": true
+        },
+        {
+          "fieldID": "maximum-archive-bytes",
+          "jsonName": "maximumArchiveBytes",
+          "kind": "INTEGER",
+          "maximumInteger": 8388608,
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "maximum-media-items",
+          "jsonName": "maximumMediaItems",
+          "kind": "INTEGER",
+          "maximumInteger": 256,
+          "minimumInteger": 0,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "packaging",
+          "jsonName": "packaging",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "report-packaging-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "privacy-transform-id",
+          "jsonName": "privacyTransformID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "schema-version",
+          "jsonName": "schemaVersion",
+          "kind": "INTEGER",
+          "maximumInteger": 1,
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "export-profile-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "fieldID": "approval-verified",
+          "jsonName": "approvalVerified",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "audience",
+          "jsonName": "audience",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "report-audience-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "audience-privacy-policy-id",
+          "jsonName": "audiencePrivacyPolicyID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "audience-privacy-policy-sha256",
+          "jsonName": "audiencePrivacyPolicySHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "audience-privacy-policy-version",
+          "jsonName": "audiencePrivacyPolicyVersion",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "capture-time-verified",
+          "jsonName": "captureTimeVerified",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "card",
+          "jsonName": "card",
+          "kind": "OBJECT",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "evidence-detail-card-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "card-sha256",
+          "jsonName": "cardSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "composed-output-sha256",
+          "jsonName": "composedOutputSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "confirmation-id",
+          "jsonName": "confirmationID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "delivery-verified",
+          "jsonName": "deliveryVerified",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "detection",
+          "jsonName": "detection",
+          "kind": "OBJECT",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "post-markup-audience-privacy-detection-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "detector-disposition",
+          "jsonName": "detectorDisposition",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "audience-privacy-detector-disposition-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "detector-id",
+          "jsonName": "detectorID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "detector-version",
+          "jsonName": "detectorVersion",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "display-profile-id",
+          "jsonName": "displayProfileID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "historical-rewrite-claimed",
+          "jsonName": "historicalRewriteClaimed",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "locale-identifier",
+          "jsonName": "localeIdentifier",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 64,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "location-verified",
+          "jsonName": "locationVerified",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "output-scope-id",
+          "jsonName": "outputScopeID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "person-verified",
+          "jsonName": "personVerified",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "privacy-transform-applied-before-markup",
+          "jsonName": "privacyTransformAppliedBeforeMarkup",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "privacy-transform-sha256",
+          "jsonName": "privacyTransformSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "profile-id",
+          "jsonName": "profileID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "profile-sha256",
+          "jsonName": "profileSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "renderer-version",
+          "jsonName": "rendererVersion",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "reviewed-markup-sha256",
+          "jsonName": "reviewedMarkupSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "schema-version",
+          "jsonName": "schemaVersion",
+          "kind": "INTEGER",
+          "maximumInteger": 1,
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "security-verified",
+          "jsonName": "securityVerified",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "semantic-sha256",
+          "jsonName": "semanticSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "semantic-text-sha256",
+          "jsonName": "semanticTextSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "source-snapshot-sha256",
+          "jsonName": "sourceSnapshotSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "user-confirmed-exact-composed-bytes",
+          "jsonName": "userConfirmedExactComposedBytes",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "workspace-id",
+          "jsonName": "workspaceID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "final-audience-privacy-confirmation-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "fieldID": "audience",
+          "jsonName": "audience",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "report-audience-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "contract-manifest-id",
+          "jsonName": "contractManifestID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "contract-manifest-sha256",
+          "jsonName": "contractManifestSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "contract-manifest-version",
+          "jsonName": "contractManifestVersion",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "detail",
+          "jsonName": "detail",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "report-detail-level-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "display-profile-id",
+          "jsonName": "displayProfileID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "export-profile-id",
+          "jsonName": "exportProfileID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "export-profile-release",
+          "jsonName": "exportProfileRelease",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "export-profile-sha256",
+          "jsonName": "exportProfileSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "locale-identifier",
+          "jsonName": "localeIdentifier",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 64,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "media-layout",
+          "jsonName": "mediaLayout",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "report-media-layout-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "orientation",
+          "jsonName": "orientation",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "report-orientation-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "output-scope-id",
+          "jsonName": "outputScopeID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "privacy-transform-id",
+          "jsonName": "privacyTransformID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "projection-version",
+          "jsonName": "projectionVersion",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "renderer-version",
+          "jsonName": "rendererVersion",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "report-profile-id",
+          "jsonName": "reportProfileID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "report-profile-release",
+          "jsonName": "reportProfileRelease",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "report-profile-sha256",
+          "jsonName": "reportProfileSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "schema-version",
+          "jsonName": "schemaVersion",
+          "kind": "INTEGER",
+          "maximumInteger": 1,
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "arrayElementKind": "STRING",
+          "fieldID": "section-i-ds",
+          "jsonName": "sectionIDs",
+          "kind": "ARRAY",
+          "maximumItems": 64,
+          "nullable": false,
+          "ordered": true,
+          "required": true,
+          "uniqueItems": true
+        },
+        {
+          "fieldID": "section-registry-id",
+          "jsonName": "sectionRegistryID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "section-registry-sha256",
+          "jsonName": "sectionRegistrySHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "section-registry-version",
+          "jsonName": "sectionRegistryVersion",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "snapshot-id",
+          "jsonName": "snapshotID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "units-profile-id",
+          "jsonName": "unitsProfileID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "workspace-id",
+          "jsonName": "workspaceID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "finalized-report-profile-binding-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "fieldID": "dialect",
+          "jsonName": "dialect",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 4096,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "manifest-id",
+          "jsonName": "manifestID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "manifest-sha256",
+          "jsonName": "manifestSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "manifest-version",
+          "jsonName": "manifestVersion",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "network-fetch-required",
+          "jsonName": "networkFetchRequired",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "schema-id",
+          "jsonName": "schemaID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 4096,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "schema-sha256",
+          "jsonName": "schemaSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "schema-version",
+          "jsonName": "schemaVersion",
+          "kind": "INTEGER",
+          "maximumInteger": 1,
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "open-json-schema-projection-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "fieldID": "byte-role",
+          "jsonName": "byteRole",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "content-byte-role-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "content-sha256",
+          "jsonName": "contentSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "media-type",
+          "jsonName": "mediaType",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 4096,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "output-reference-id",
+          "jsonName": "outputReferenceID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "output-scope-id",
+          "jsonName": "outputScopeID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "workspace-binding-sha256",
+          "jsonName": "workspaceBindingSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "output-scoped-content-reference-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "fieldID": "audience",
+          "jsonName": "audience",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "report-audience-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "card-sha256",
+          "jsonName": "cardSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "composed-output",
+          "jsonName": "composedOutput",
+          "kind": "BASE64_BYTES",
+          "maximumUTF8Bytes": 8388608,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "composed-output-sha256",
+          "jsonName": "composedOutputSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "detector-id",
+          "jsonName": "detectorID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "detector-version",
+          "jsonName": "detectorVersion",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "disposition",
+          "jsonName": "disposition",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "audience-privacy-detector-disposition-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "arrayElementKind": "ENUM",
+          "fieldID": "finding-kinds",
+          "jsonName": "findingKinds",
+          "kind": "ARRAY",
+          "maximumItems": 4,
+          "nullable": false,
+          "ordered": true,
+          "referencedTypeID": "audience-privacy-finding-kind-v1",
+          "required": true,
+          "uniqueItems": true
+        },
+        {
+          "fieldID": "policy-id",
+          "jsonName": "policyID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "policy-sha256",
+          "jsonName": "policySHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "policy-version",
+          "jsonName": "policyVersion",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "schema-version",
+          "jsonName": "schemaVersion",
+          "kind": "INTEGER",
+          "maximumInteger": 1,
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "semantic-text",
+          "jsonName": "semanticText",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 4096,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "semantic-text-sha256",
+          "jsonName": "semanticTextSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "post-markup-audience-privacy-detection-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "fieldID": "audience",
+          "jsonName": "audience",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "report-audience-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "detail",
+          "jsonName": "detail",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "report-detail-level-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "display-profile-id",
+          "jsonName": "displayProfileID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "locale-identifier",
+          "jsonName": "localeIdentifier",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 64,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "media-layout",
+          "jsonName": "mediaLayout",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "report-media-layout-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "orientation",
+          "jsonName": "orientation",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "report-orientation-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "profile-id",
+          "jsonName": "profileID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "profile-release",
+          "jsonName": "profileRelease",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "schema-version",
+          "jsonName": "schemaVersion",
+          "kind": "INTEGER",
+          "maximumInteger": 1,
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "arrayElementKind": "STRING",
+          "fieldID": "section-i-ds",
+          "jsonName": "sectionIDs",
+          "kind": "ARRAY",
+          "maximumItems": 64,
+          "nullable": false,
+          "ordered": true,
+          "required": true,
+          "uniqueItems": true
+        },
+        {
+          "fieldID": "units-profile-id",
+          "jsonName": "unitsProfileID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "report-layout-profile-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "fieldID": "has-metric-effect",
+          "jsonName": "hasMetricEffect",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "has-report-effect",
+          "jsonName": "hasReportEffect",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "has-share-effect",
+          "jsonName": "hasShareEffect",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "marked-preview",
+          "jsonName": "markedPreview",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "preview-id",
+          "jsonName": "previewID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "profile-sha256",
+          "jsonName": "profileSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "schema-version",
+          "jsonName": "schemaVersion",
+          "kind": "INTEGER",
+          "maximumInteger": 1,
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "source-revision",
+          "jsonName": "sourceRevision",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "report-preview-projection-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "fieldID": "acceptance-credit",
+          "jsonName": "acceptanceCredit",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "adoption-enabled",
+          "jsonName": "adoptionEnabled",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "downgrade-disposition",
+          "jsonName": "downgradeDisposition",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "hosted-dispatch-ran",
+          "jsonName": "hostedDispatchRan",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "native-compile-ran",
+          "jsonName": "nativeCompileRan",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "persistent-contract-schema",
+          "jsonName": "persistentContractSchema",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "registry-id",
+          "jsonName": "registryID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "release-credit",
+          "jsonName": "releaseCredit",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "arrayElementKind": "ENUM",
+          "fieldID": "required-formats",
+          "jsonName": "requiredFormats",
+          "kind": "ARRAY",
+          "maximumItems": 6,
+          "nullable": false,
+          "ordered": true,
+          "referencedTypeID": "report-projection-format-v1",
+          "required": true,
+          "uniqueItems": true
+        },
+        {
+          "fieldID": "requires-accepted-s10-6-reconciliation",
+          "jsonName": "requiresAcceptedS10_6Reconciliation",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "schema-version",
+          "jsonName": "schemaVersion",
+          "kind": "INTEGER",
+          "maximumInteger": 1,
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "sole-renderer",
+          "jsonName": "soleRenderer",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "report-projection-registry-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "fieldID": "order",
+          "jsonName": "order",
+          "kind": "INTEGER",
+          "minimumInteger": 0,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "privacy-class",
+          "jsonName": "privacyClass",
+          "kind": "ENUM",
+          "nullable": false,
+          "ordered": false,
+          "referencedTypeID": "report-privacy-class-v1",
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "required",
+          "jsonName": "required",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "requires-heading",
+          "jsonName": "requiresHeading",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "requires-text-alternative",
+          "jsonName": "requiresTextAlternative",
+          "kind": "BOOLEAN",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "section-id",
+          "jsonName": "sectionID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "arrayElementKind": "ENUM",
+          "fieldID": "supported-formats",
+          "jsonName": "supportedFormats",
+          "kind": "ARRAY",
+          "maximumItems": 6,
+          "nullable": false,
+          "ordered": true,
+          "referencedTypeID": "report-projection-format-v1",
+          "required": true,
+          "uniqueItems": true
+        },
+        {
+          "fieldID": "version",
+          "jsonName": "version",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "report-section-definition-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "fieldID": "registry-id",
+          "jsonName": "registryID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "registry-version",
+          "jsonName": "registryVersion",
+          "kind": "INTEGER",
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "schema-version",
+          "jsonName": "schemaVersion",
+          "kind": "INTEGER",
+          "maximumInteger": 1,
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "arrayElementKind": "OBJECT",
+          "fieldID": "sections",
+          "jsonName": "sections",
+          "kind": "ARRAY",
+          "maximumItems": 64,
+          "nullable": false,
+          "ordered": true,
+          "referencedTypeID": "report-section-definition-v1",
+          "required": true,
+          "uniqueItems": true
+        }
+      ],
+      "typeID": "report-section-registry-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "fieldID": "label",
+          "jsonName": "label",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 4096,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "output-reference-id",
+          "jsonName": "outputReferenceID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": false,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "role",
+          "jsonName": "role",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "section-id",
+          "jsonName": "sectionID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "semantic-id",
+          "jsonName": "semanticID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "value",
+          "jsonName": "value",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 4096,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "report-semantic-node-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "fieldID": "manifest-sha256",
+          "jsonName": "manifestSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "arrayElementKind": "OBJECT",
+          "fieldID": "nodes",
+          "jsonName": "nodes",
+          "kind": "ARRAY",
+          "maximumItems": 512,
+          "nullable": false,
+          "ordered": true,
+          "referencedTypeID": "report-semantic-node-v1",
+          "required": true,
+          "uniqueItems": true
+        },
+        {
+          "fieldID": "profile-binding-sha256",
+          "jsonName": "profileBindingSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "projection-version",
+          "jsonName": "projectionVersion",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "schema-version",
+          "jsonName": "schemaVersion",
+          "kind": "INTEGER",
+          "maximumInteger": 1,
+          "minimumInteger": 1,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "semantic-sha256",
+          "jsonName": "semanticSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "snapshot-id",
+          "jsonName": "snapshotID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "snapshot-sha256",
+          "jsonName": "snapshotSHA256",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "report-semantic-projection-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    },
+    {
+      "fields": [
+        {
+          "fieldID": "markup-id",
+          "jsonName": "markupID",
+          "kind": "STRING",
+          "maximumUTF8Bytes": 128,
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "arrayElementKind": "STRING",
+          "fieldID": "ordered-annotations",
+          "jsonName": "orderedAnnotations",
+          "kind": "ARRAY",
+          "maximumItems": 128,
+          "nullable": false,
+          "ordered": true,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "arrayElementKind": "STRING",
+          "fieldID": "ordered-reference-labels",
+          "jsonName": "orderedReferenceLabels",
+          "kind": "ARRAY",
+          "maximumItems": 256,
+          "nullable": false,
+          "ordered": true,
+          "required": true,
+          "uniqueItems": false
+        },
+        {
+          "fieldID": "source-privacy-digest",
+          "jsonName": "sourcePrivacyDigest",
+          "kind": "SHA256",
+          "nullable": false,
+          "ordered": false,
+          "required": true,
+          "uniqueItems": false
+        }
+      ],
+      "typeID": "reviewed-evidence-markup-v1",
+      "unknownFieldPolicy": "REJECT",
+      "version": 1
+    }
+  ],
+  "persistentContractSchema": "KERNEL_SNAPSHOT_V1",
+  "reportSectionRegistry": {
+    "registryID": "v23-p03-c06-report-sections-v1",
+    "registryVersion": 1,
+    "schemaVersion": 1,
+    "sections": [
+      {
+        "order": 0,
+        "privacyClass": "MANDATORY_PUBLIC_TRUTH",
+        "required": true,
+        "requiresHeading": true,
+        "requiresTextAlternative": true,
+        "sectionID": "identity",
+        "supportedFormats": [
+          "OPEN_JSON",
+          "PDF",
+          "STRUCTURED_TEXT"
+        ],
+        "version": 1
+      },
+      {
+        "order": 1,
+        "privacyClass": "AUDIENCE_SAFE",
+        "required": false,
+        "requiresHeading": true,
+        "requiresTextAlternative": true,
+        "sectionID": "service",
+        "supportedFormats": [
+          "OPEN_JSON",
+          "PDF",
+          "STRUCTURED_TEXT"
+        ],
+        "version": 1
+      },
+      {
+        "order": 2,
+        "privacyClass": "AUDIENCE_SAFE",
+        "required": false,
+        "requiresHeading": true,
+        "requiresTextAlternative": true,
+        "sectionID": "evidence",
+        "supportedFormats": [
+          "OPEN_JSON",
+          "PDF",
+          "STRUCTURED_TEXT"
+        ],
+        "version": 1
+      },
+      {
+        "order": 3,
+        "privacyClass": "MANDATORY_PUBLIC_TRUTH",
+        "required": true,
+        "requiresHeading": true,
+        "requiresTextAlternative": true,
+        "sectionID": "limitations",
+        "supportedFormats": [
+          "OPEN_JSON",
+          "PDF",
+          "STRUCTURED_TEXT"
+        ],
+        "version": 1
+      },
+      {
+        "order": 4,
+        "privacyClass": "MANDATORY_PUBLIC_TRUTH",
+        "required": true,
+        "requiresHeading": true,
+        "requiresTextAlternative": true,
+        "sectionID": "provenance",
+        "supportedFormats": [
+          "OPEN_JSON",
+          "PDF",
+          "STRUCTURED_TEXT"
+        ],
+        "version": 1
+      },
+      {
+        "order": 5,
+        "privacyClass": "MANDATORY_PUBLIC_TRUTH",
+        "required": true,
+        "requiresHeading": true,
+        "requiresTextAlternative": true,
+        "sectionID": "supersession",
+        "supportedFormats": [
+          "OPEN_JSON",
+          "PDF",
+          "STRUCTURED_TEXT"
+        ],
+        "version": 1
+      },
+      {
+        "order": 6,
+        "privacyClass": "MANDATORY_PUBLIC_TRUTH",
+        "required": true,
+        "requiresHeading": true,
+        "requiresTextAlternative": true,
+        "sectionID": "manifest",
+        "supportedFormats": [
+          "OPEN_JSON",
+          "PDF",
+          "STRUCTURED_TEXT"
+        ],
+        "version": 1
+      }
+    ]
+  },
+  "schemaVersion": 1
+}

@@ -1899,8 +1899,15 @@ extension EvidenceDetailCardV1 {
             projection,
             audience: audience
         )
-        guard privacyTransformedSHA256 == projection.derivativeSHA256,
-              outputReferences.allSatisfy({ $0.byteRole == .derivative }) else {
+        // The card digest describes canonical transformed fields. The C20
+        // digest describes the approved media bytes; these are different
+        // contracts and must not be substituted for each other.
+        try validate()
+        guard UUID(uuidString: workspaceID) == projection.workspaceID.rawValue,
+              !outputReferences.isEmpty,
+              outputReferences.allSatisfy({
+                  $0.byteRole == .derivative && $0.contentSHA256 == projection.derivativeSHA256
+              }) else {
             throw SnapshotProjectionFailureV1.privacyViolation
         }
         return projection

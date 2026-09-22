@@ -1550,6 +1550,280 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         return history
     }
 
+    /// Shares the writer's canonical row readers. The caller is the owning
+    /// writer, which checks its live lease before and after this synchronous
+    /// read. No optional provider or absent query is interpreted as empty data.
+    func readActivityCompletionSource(
+        journal: MutationJournalStoreV1,
+        expectedRevision: WorkspaceExpectedRevisionV1,
+        activityID: UUID,
+        profile: ShopReportProfileReferenceV1
+    ) throws -> ActivityCompletionSourceFrameV1 {
+        // This incumbent check binds the journal's live lease to this exact,
+        // clean ModelContext; a same-workspace unrelated context cannot pass.
+        try journal.validateFieldDraftReadContext(modelContext)
+        try profile.validate()
+        guard expectedRevision.writerInstanceID != ActivityContractValidationV2.zeroUUID else {
+            throw ActivityCompletionCaptureFailureV1.sourceUnavailable
+        }
+        let workspaceID = expectedRevision.workspaceID
+        let query = ActivityContractRowQueryV2(modelContext: modelContext, workspaceID: workspaceID)
+        guard let predecessor = try query.currentEnvelope(workspaceID: workspaceID, activityID: activityID),
+              predecessor.schemaVersion == ActivitySessionEnvelopeV2.schemaVersion,
+              predecessor.state == .readyForReview,
+              predecessor.completedFileReference == nil,
+              predecessor.completedSnapshotReference == nil,
+              predecessor.kind == .installation || predecessor.kind == .punchReview else {
+            throw ActivityCompletionCaptureFailureV1.sourceUnavailable
+        }
+        try predecessor.validateForRead()
+        let identity = try WorkspaceEntityIdentityV1(kind: .activitySessionEnvelope, id: activityID)
+        let frontier = expectedRevision.entityRevisions.filter { $0.identity == identity }
+        guard frontier.count == 1, frontier.first?.revision == predecessor.revision else {
+            throw ActivityCompletionCaptureFailureV1.staleSource
+        }
+
+        let history = try activityCompletionCommandHistory(journal: journal, workspaceID: workspaceID, activityID: activityID)
+        guard history.last?.successorEnvelope == predecessor else {
+            throw ActivityCompletionCaptureFailureV1.invalidHistory
+        }
+        let installationBases = history.compactMap(\.installationBasisSnapshot)
+            .sorted { $0.revision < $1.revision }
+        _ = try currentInstallationBasis(in: installationBases)
+        let punchBases = try query.punchReviewBasisSnapshots(workspaceID: workspaceID, activityID: activityID)
+        _ = try currentPunchBasis(in: punchBases)
+        let taskHistory = try query.installationTaskResults(workspaceID: workspaceID, activityID: activityID)
+        _ = try InstallationTaskResultLineageV1.validateAndCurrentHeads(taskHistory)
+        let asBuilt = try query.installationAsBuiltSnapshots(workspaceID: workspaceID, activityID: activityID)
+        let transitions = try query.transitions(workspaceID: workspaceID, activityID: activityID)
+
+        // Bind persisted family membership to the accepted commands as well as
+        // their intrinsic row hashes. Inserts/removals at an unchanged writer
+        // frontier must not be accepted as a different completion source.
+        let expectedTransitions = history.compactMap(\.transition).sorted { $0.revision < $1.revision }
+        let expectedTasks = history.flatMap(\.installationTaskResults).sorted()
+        let expectedAsBuilt = history.compactMap(\.installationAsBuiltSnapshot).sorted { $0.revision < $1.revision }
+        let expectedPunchBases = history.compactMap(\.punchReviewBasisSnapshot).sorted { $0.revision < $1.revision }
+        guard transitions == expectedTransitions, taskHistory == expectedTasks,
+              asBuilt == expectedAsBuilt, punchBases == expectedPunchBases else {
+            throw ActivityCompletionCaptureFailureV1.invalidHistory
+        }
+
+        let profiles = try shopReportProfileHistory(workspaceID: workspaceID, profileID: profile.profileID)
+        guard profiles.count <= ShopReportProfileLimitsV1.maximumHistoryRevisions,
+              let selected = profiles.last,
+              selected.workspaceID == workspaceID,
+              selected.activation == .on,
+              try selected.reference == profile else {
+            throw ActivityCompletionCaptureFailureV1.selectedProfileUnavailable
+        }
+        let profileIdentity = try WorkspaceEntityIdentityV1(kind: .shopReportProfile, id: profile.profileID)
+        let profileFrontier = expectedRevision.entityRevisions.filter { $0.identity == profileIdentity }
+        guard profileFrontier.count == 1, profileFrontier.first?.revision == selected.revision else {
+            throw ActivityCompletionCaptureFailureV1.staleSource
+        }
+        let acceptedProfiles = try activityCompletionProfileHistory(
+            journal: journal, workspaceID: workspaceID, profileID: profile.profileID
+        )
+        guard acceptedProfiles == profiles else {
+            throw ActivityCompletionCaptureFailureV1.invalidHistory
+        }
+        for (index, value) in profiles.enumerated() {
+            try value.validate(sectionRegistry: value.sectionRegistry)
+            guard value.workspaceID == workspaceID, value.profileID == profile.profileID,
+                  value.revision == UInt64(index + 1) else {
+                throw ActivityCompletionCaptureFailureV1.invalidHistory
+            }
+            if index > 0 {
+                try value.validateSuccessor(of: profiles[index - 1], sectionRegistry: value.sectionRegistry)
+            }
+        }
+        let workflow = try activityCompletionWorkflowSource(
+            predecessor: predecessor, installationBases: installationBases, punchBases: punchBases
+        )
+        return ActivityCompletionSourceFrameV1(
+            expectedRevision: expectedRevision, predecessor: predecessor,
+            transitions: transitions, installationBasisHistory: installationBases,
+            taskHistory: taskHistory, asBuiltHistory: asBuilt,
+            punchBasisHistory: punchBases, shopProfileHistory: profiles,
+            packageRelease: workflow.packageRelease, workflowSource: workflow.source
+        )
+    }
+
+    private func activityCompletionWorkflowSource(
+        predecessor: ActivitySessionEnvelopeV2,
+        installationBases: [InstallationBasisSnapshotV1],
+        punchBases: [PunchReviewBasisSnapshotV1]
+    ) throws -> (packageRelease: InspectionPackageReleaseV1, source: ActivityCompletionWorkflowSourceV1) {
+        let reference: ActivityWorkflowReleaseReferenceV2
+        switch predecessor.kind {
+        case .installation:
+            guard let basis = installationBases.last, punchBases.isEmpty,
+                  predecessor.currentBasisReference == .installation(try InstallationBasisReferenceV1(basis)) else {
+                throw ActivityCompletionCaptureFailureV1.invalidHistory
+            }
+            reference = basis.workflowReleaseReference
+        case .punchReview:
+            guard let basis = punchBases.last, installationBases.isEmpty,
+                  predecessor.currentBasisReference == .punchReview(try PunchReviewBasisReferenceV1(basis)) else {
+                throw ActivityCompletionCaptureFailureV1.invalidHistory
+            }
+            reference = basis.workflowReleaseReference
+        default: throw ActivityCompletionCaptureFailureV1.sourceUnavailable
+        }
+        let context = try PackageEvolutionLifecycleAdapterV1.resolveActivityWorkflowRelease(
+            reference: reference, kind: predecessor.kind, forStart: false, modelContext: modelContext
+        )
+        try context.validate(expectedReference: reference, forStart: false)
+        let workspace = predecessor.workspaceID.rawValue
+        let rows = try modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>(
+            predicate: #Predicate { $0.workspaceID == workspace }
+        ))
+        var matching: [InspectionPackageReleaseV1] = []
+        for row in rows {
+            let promoted = try row.value()
+            let release = promoted.packageRelease
+            if release.packageID == reference.packageID,
+               release.packageContentVersion == reference.packageContentVersion,
+               release.packageSHA256 == reference.packageSHA256 {
+                try release.validate()
+                guard release.state == .published else {
+                    throw ActivityCompletionCaptureFailureV1.invalidHistory
+                }
+                matching.append(release)
+            }
+        }
+        // Multiple promotions may retain identical immutable bytes. They must
+        // not let a caller choose a different workflow under the same package.
+        guard let release = matching.first, matching.allSatisfy({ $0 == release }) else {
+            throw ActivityCompletionCaptureFailureV1.sourceUnavailable
+        }
+        let package = try InspectionPackageCanonicalCodecV2.decode(release.canonicalPackageBytes)
+        let registry = try InspectionPackageRegistryV2(packages: [package])
+        let original = try registry.bundledActivityWorkflowRelease(
+            kind: predecessor.kind, packageID: reference.packageID,
+            workspaceID: reference.sourceWorkspaceID
+        )
+        let source: ActivityCompletionWorkflowSourceV1
+        switch (context, original.release) {
+        case let (.installation(_, target, resolvedPackage, _), .installation(originalRelease)):
+            guard resolvedPackage == package else { throw ActivityCompletionCaptureFailureV1.invalidHistory }
+            try reference.validateSource(installation: originalRelease, package: package)
+            try reference.validateTarget(installation: target, package: package)
+            source = .installation(source: originalRelease, target: target)
+        case let (.punchReview(_, target, resolvedPackage, _), .punch(originalRelease)):
+            guard resolvedPackage == package else { throw ActivityCompletionCaptureFailureV1.invalidHistory }
+            try reference.validateSource(punchReview: originalRelease, package: package)
+            try reference.validateTarget(punchReview: target, package: package)
+            source = .punchReview(source: originalRelease, target: target)
+        default: throw ActivityCompletionCaptureFailureV1.invalidHistory
+        }
+        return (release, source)
+    }
+
+    private func activityCompletionCommandHistory(
+        journal: MutationJournalStoreV1,
+        workspaceID: WorkspaceID,
+        activityID: UUID
+    ) throws -> [ActivityContractMutationV2] {
+        let rawWorkspaceID = workspaceID.rawValue
+        let activityCommandKind = WorkspaceCommandKindV1.applyActivityContract.rawValue
+        let rows = try modelContext.fetch(FetchDescriptor<MutationReceiptRow>(
+            predicate: #Predicate {
+                $0.workspaceID == rawWorkspaceID && $0.commandKind == activityCommandKind
+            }
+        ))
+        var commands: [ActivityContractMutationV2] = []
+        for row in rows {
+            let authenticated = try authenticatedActivityCompletionReceipt(row, journal: journal, workspaceID: workspaceID)
+            let envelope = authenticated.envelope
+            let receipt = authenticated.receipt
+            guard case let .applyActivityContract(command) = envelope.command,
+                  command.workspaceID == workspaceID,
+                  command.successorEnvelope.activityID == activityID else { continue }
+            let successor = command.successorEnvelope
+            let postImages = receipt.postImages.filter { image in
+                if case let .activitySessionEnvelope(id, _, _, _) = image { return id == activityID }
+                return false
+            }
+            guard postImages.count == 1,
+                  let image = postImages.first,
+                  case let .activitySessionEnvelope(_, concurrencyIdentity, revision, digest) = image,
+                  concurrencyIdentity == (try WorkspaceEntityIdentityV1(kind: .activitySessionEnvelope, id: activityID)),
+                  revision == successor.revision, digest == successor.envelopeSHA256 else {
+                throw ActivityCompletionCaptureFailureV1.invalidHistory
+            }
+            commands.append(command)
+        }
+        commands.sort { $0.successorEnvelope.revision < $1.successorEnvelope.revision }
+        var previous: ActivitySessionEnvelopeV2?
+        for command in commands {
+            guard command.predecessorEnvelope == previous else {
+                throw ActivityCompletionCaptureFailureV1.invalidHistory
+            }
+            if previous == nil {
+                guard command.successorEnvelope.revision == 1 else {
+                    throw ActivityCompletionCaptureFailureV1.invalidHistory
+                }
+            }
+            previous = command.successorEnvelope
+        }
+        return commands
+    }
+
+    private func activityCompletionProfileHistory(
+        journal: MutationJournalStoreV1,
+        workspaceID: WorkspaceID,
+        profileID: UUID
+    ) throws -> [ShopReportProfileV1] {
+        let rawWorkspaceID = workspaceID.rawValue
+        let profileCommandKind = WorkspaceCommandKindV1.applyShopReportProfile.rawValue
+        let rows = try modelContext.fetch(FetchDescriptor<MutationReceiptRow>(
+            predicate: #Predicate {
+                $0.workspaceID == rawWorkspaceID && $0.commandKind == profileCommandKind
+            }
+        ))
+        var profiles: [ShopReportProfileV1] = []
+        let identity = try WorkspaceEntityIdentityV1(kind: .shopReportProfile, id: profileID)
+        for row in rows {
+            let authenticated = try authenticatedActivityCompletionReceipt(row, journal: journal, workspaceID: workspaceID)
+            guard case let .applyShopReportProfile(mutation) = authenticated.envelope.command,
+                  mutation.profile.profileID == profileID else { continue }
+            let profile = mutation.profile
+            guard profile.workspaceID == workspaceID else {
+                throw ActivityCompletionCaptureFailureV1.invalidHistory
+            }
+            let images = authenticated.receipt.postImages.filter { image in
+                if case let .shopReportProfile(id, _, _, _) = image { return id == profileID }
+                return false
+            }
+            guard images.count == 1, let image = images.first,
+                  case let .shopReportProfile(_, concurrencyIdentity, revision, digest) = image,
+                  concurrencyIdentity == identity, revision == profile.revision,
+                  digest == profile.profileSHA256 else {
+                throw ActivityCompletionCaptureFailureV1.invalidHistory
+            }
+            profiles.append(profile)
+        }
+        profiles.sort { $0.revision < $1.revision }
+        return profiles
+    }
+
+    private func authenticatedActivityCompletionReceipt(
+        _ row: MutationReceiptRow,
+        journal: MutationJournalStoreV1,
+        workspaceID: WorkspaceID
+    ) throws -> (envelope: MutationEnvelopeV1, receipt: MutationReceiptV1) {
+        let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+        guard envelope.workspaceID == workspaceID,
+              let receipt = try journal.checkedReceipt(mutationID: envelope.mutationID),
+              receipt.envelopeSHA256 == (try envelope.canonicalSHA256()),
+              receipt.commandBodySHA256 == envelope.commandBodySHA256 else {
+            throw ActivityCompletionCaptureFailureV1.invalidHistory
+        }
+        return (envelope, receipt)
+    }
+
     func persistedShopReportProfileEffectMatches(
         _ mutation: ShopReportProfileMutationV1
     ) throws -> Bool {

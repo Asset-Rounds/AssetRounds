@@ -564,6 +564,33 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         return authority
     }
 
+    /// The capture reader uses this writer's actual adapter, never a separately
+    /// supplied ModelContext paired with an unrelated writer revision provider.
+    func readActivityCompletionSource(
+        workspaceID: WorkspaceID,
+        activityID: UUID,
+        profile: ShopReportProfileReferenceV1
+    ) throws -> ActivityCompletionSourceFrameV1 {
+        let before = try currentRevision()
+        guard before.workspaceID == workspaceID else {
+            throw WorkspaceMutationFailureV1.wrongWorkspace
+        }
+        guard let concreteAdapter = adapter as? WorkspaceWriterAdapterV1,
+              let journalStore else {
+            throw ActivityCompletionCaptureFailureV1.sourceUnavailable
+        }
+        let value = try concreteAdapter.readActivityCompletionSource(
+            journal: journalStore,
+            expectedRevision: WorkspaceExpectedRevisionV1(snapshot: before),
+            activityID: activityID,
+            profile: profile
+        )
+        guard try currentRevision() == before else {
+            throw ActivityCompletionCaptureFailureV1.staleSource
+        }
+        return value
+    }
+
     func currentRevision() throws -> WorkspaceRevisionV1 {
         guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
         if let journalStore {

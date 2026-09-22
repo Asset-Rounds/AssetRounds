@@ -55,6 +55,7 @@ The owner permits the 30-minute proposal to be permanent or temporary. Reuse the
 | `restore-history-no-index-build30m` | Six restore-review methods followed by the golden replacement-union method |
 | `activity-contracts-no-index-build30m` | Exact existing C47 H01 method from ordinary `activity-contracts`; no product/test changes |
 | `activity-codec-punch-no-index-build30m` | Ordered11 methods from the closed `activity-codec-evolution` group, then the four existing enrolled C34 G01/H01/I01/R01 methods in pool order, then existing C47 H01; qualify the exact16 union before use |
+| `activity-completed-source-no-index-build30m` | Ordered62 new completed-contract/source-read methods (manifest13, file21, production12, C20seven, bundled-release9), then existing C47H01; qualify exact63 before use; development only, full publication/lifecycle gates retained |
 | `replacement-union-no-index-build30m` | Exact complete ordered12 methods from existing `replacement-packet-union`; qualify before use |
 | `replacement-remainder-no-index-build30m` | Exact first11 methods of the same ordered12; qualify the disjoint partition before use |
 | `replacement-report-fork-no-index-build30m` | Exact final report-Fork method of the same ordered12; qualify the disjoint partition before use |

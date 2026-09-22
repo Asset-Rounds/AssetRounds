@@ -56,9 +56,17 @@ enum ContractEnumPolicyV1: String, Codable, CaseIterable, Hashable, Sendable {
 enum ContractScalarKindV1: String, Codable, CaseIterable, Hashable, Sendable {
     case base64Bytes = "BASE64_BYTES"
     case string = "STRING"
+    // Schema 2 preserves authenticated source text without silently normalizing it.
+    case preservedString = "PRESERVED_STRING"
+    case stringMap = "STRING_MAP"
     case integer = "INTEGER"
+    // Schema 2: exact base-10 integer in 0...UInt64.max, never a Double.
+    case unsignedInteger = "UNSIGNED_INTEGER"
     case boolean = "BOOLEAN"
     case utcInstant = "UTC_INSTANT"
+    // Schema 2: finite JSON seconds since 2001-01-01T00:00:00Z. This preserves
+    // the incumbent Date encoding without rounding captured source values.
+    case referenceDateSeconds = "REFERENCE_DATE_SECONDS"
     case sha256 = "SHA256"
     case object = "OBJECT"
     case array = "ARRAY"
@@ -69,6 +77,7 @@ struct ContractFieldDefinitionV1: Codable, Equatable, Hashable, Comparable, Send
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case fieldID, jsonName, kind, arrayElementKind, required, nullable, referencedTypeID
         case minimumInteger, maximumInteger, maximumUTF8Bytes, maximumItems, ordered, uniqueItems
+        case minimumUnsignedInteger, maximumUnsignedInteger, maximumKeyUTF8Bytes
     }
 
     let fieldID: String
@@ -80,7 +89,10 @@ struct ContractFieldDefinitionV1: Codable, Equatable, Hashable, Comparable, Send
     let referencedTypeID: String?
     let minimumInteger: Int64?
     let maximumInteger: Int64?
+    let minimumUnsignedInteger: UInt64?
+    let maximumUnsignedInteger: UInt64?
     let maximumUTF8Bytes: Int?
+    let maximumKeyUTF8Bytes: Int?
     let maximumItems: Int?
     let ordered: Bool
     let uniqueItems: Bool
@@ -109,8 +121,17 @@ struct ContractFieldDefinitionV1: Codable, Equatable, Hashable, Comparable, Send
         maximumInteger = try ClosedContractDecodingV1.decodeOptional(
             Int64.self, from: values, forKey: .maximumInteger
         )
+        minimumUnsignedInteger = try ClosedContractDecodingV1.decodeOptional(
+            UInt64.self, from: values, forKey: .minimumUnsignedInteger
+        )
+        maximumUnsignedInteger = try ClosedContractDecodingV1.decodeOptional(
+            UInt64.self, from: values, forKey: .maximumUnsignedInteger
+        )
         maximumUTF8Bytes = try ClosedContractDecodingV1.decodeOptional(
             Int.self, from: values, forKey: .maximumUTF8Bytes
+        )
+        maximumKeyUTF8Bytes = try ClosedContractDecodingV1.decodeOptional(
+            Int.self, from: values, forKey: .maximumKeyUTF8Bytes
         )
         maximumItems = try ClosedContractDecodingV1.decodeOptional(
             Int.self, from: values, forKey: .maximumItems
@@ -133,7 +154,10 @@ struct ContractFieldDefinitionV1: Codable, Equatable, Hashable, Comparable, Send
         maximumUTF8Bytes: Int? = nil,
         maximumItems: Int? = nil,
         ordered: Bool = false,
-        uniqueItems: Bool = false
+        uniqueItems: Bool = false,
+        minimumUnsignedInteger: UInt64? = nil,
+        maximumUnsignedInteger: UInt64? = nil,
+        maximumKeyUTF8Bytes: Int? = nil
     ) throws {
         self.fieldID = fieldID
         self.jsonName = jsonName
@@ -144,7 +168,10 @@ struct ContractFieldDefinitionV1: Codable, Equatable, Hashable, Comparable, Send
         self.referencedTypeID = referencedTypeID
         self.minimumInteger = minimumInteger
         self.maximumInteger = maximumInteger
+        self.minimumUnsignedInteger = minimumUnsignedInteger
+        self.maximumUnsignedInteger = maximumUnsignedInteger
         self.maximumUTF8Bytes = maximumUTF8Bytes
+        self.maximumKeyUTF8Bytes = maximumKeyUTF8Bytes
         self.maximumItems = maximumItems
         self.ordered = ordered
         self.uniqueItems = uniqueItems
@@ -158,6 +185,7 @@ struct ContractFieldDefinitionV1: Codable, Equatable, Hashable, Comparable, Send
                     || (0x30...0x39).contains($0) || $0 == 0x5F
         }
         let hasIntegerBounds = minimumInteger != nil || maximumInteger != nil
+        let hasUnsignedBounds = minimumUnsignedInteger != nil || maximumUnsignedInteger != nil
         let isReferenceKind = kind == .object || kind == .enumeration
         let hasValidReferenceShape: Bool
         if isReferenceKind {
@@ -170,15 +198,23 @@ struct ContractFieldDefinitionV1: Codable, Equatable, Hashable, Comparable, Send
         guard SnapshotProjectionValidationV1.validID(fieldID), hasValidJSONName,
               !(nullable && !required),
               !hasIntegerBounds || kind == .integer,
+              !hasUnsignedBounds || kind == .unsignedInteger,
               !(kind == .integer && minimumInteger != nil && maximumInteger != nil && minimumInteger! > maximumInteger!),
+              !(minimumUnsignedInteger != nil && maximumUnsignedInteger != nil
+                && minimumUnsignedInteger! > maximumUnsignedInteger!),
               maximumUTF8Bytes.map({ $0 > 0 }) ?? true,
-              maximumUTF8Bytes == nil || kind == .string || kind == .base64Bytes,
+              maximumUTF8Bytes == nil || kind == .string || kind == .base64Bytes
+                || kind == .preservedString || kind == .stringMap,
+              maximumKeyUTF8Bytes.map({ $0 > 0 }) ?? true,
+              maximumKeyUTF8Bytes == nil || kind == .stringMap,
               referencedTypeID.map(SnapshotProjectionValidationV1.validID) ?? true,
               hasValidReferenceShape,
               (kind == .array) == (arrayElementKind != nil),
-              kind == .array || (maximumItems == nil && !ordered && !uniqueItems),
-              kind != .array || (maximumItems.map({ $0 > 0 }) == true),
-              arrayElementKind != .array,
+              kind == .array || (!ordered && !uniqueItems),
+              kind == .array || kind == .stringMap || maximumItems == nil,
+              maximumItems.map({ $0 > 0 }) ?? true,
+              kind != .array || maximumItems != nil,
+              arrayElementKind != .array, arrayElementKind != .stringMap,
               kind != .array || {
                   guard let elementKind = arrayElementKind else { return false }
                   let elementUsesReference = elementKind == .object || elementKind == .enumeration
@@ -260,7 +296,7 @@ struct ContractObjectDefinitionV1: Codable, Equatable, Hashable, Comparable, Sen
 
     func validate() throws {
         guard SnapshotProjectionValidationV1.validID(typeID), version > 0,
-              !fields.isEmpty, fields == fields.sorted(),
+              (!fields.isEmpty || unknownFieldPolicy == .reject), fields == fields.sorted(),
               Set(fields.map(\.fieldID)).count == fields.count,
               Set(fields.map(\.jsonName)).count == fields.count else {
             throw SnapshotProjectionFailureV1.invalidValue
@@ -270,12 +306,15 @@ struct ContractObjectDefinitionV1: Codable, Equatable, Hashable, Comparable, Sen
 }
 
 struct ContractEnumDefinitionV1: Codable, Equatable, Hashable, Comparable, Sendable {
-    private enum CodingKeys: String, CodingKey, CaseIterable { case typeID, version, policy, knownValues }
+    private enum CodingKeys: String, CodingKey, CaseIterable { case typeID, version, policy, knownValues, knownIntegerValues }
 
     let typeID: String
     let version: Int
     let policy: ContractEnumPolicyV1
     let knownValues: [String]
+    // Schema 2 numeric enums preserve their actual JSON integer wire values.
+    // Nil is omitted so published schema 1 bytes remain unchanged.
+    let knownIntegerValues: [Int64]?
 
     static func < (lhs: ContractEnumDefinitionV1, rhs: ContractEnumDefinitionV1) -> Bool {
         lhs.typeID < rhs.typeID
@@ -288,25 +327,39 @@ struct ContractEnumDefinitionV1: Codable, Equatable, Hashable, Comparable, Senda
         version = try values.decode(Int.self, forKey: .version)
         policy = try values.decode(ContractEnumPolicyV1.self, forKey: .policy)
         knownValues = try values.decode([String].self, forKey: .knownValues)
+        knownIntegerValues = values.contains(.knownIntegerValues)
+            ? try values.decode([Int64].self, forKey: .knownIntegerValues) : nil
         try validate()
     }
 
-    init(typeID: String, version: Int, policy: ContractEnumPolicyV1, knownValues: [String]) throws {
+    init(typeID: String, version: Int, policy: ContractEnumPolicyV1, knownValues: [String],
+         knownIntegerValues: [Int64]? = nil) throws {
         self.typeID = typeID
         self.version = version
         self.policy = policy
         self.knownValues = knownValues
+        self.knownIntegerValues = knownIntegerValues
         try validate()
     }
 
     func validate() throws {
-        guard SnapshotProjectionValidationV1.validID(typeID), version > 0,
-              !knownValues.isEmpty, knownValues == knownValues.sorted(),
-              Set(knownValues).count == knownValues.count,
-              knownValues.allSatisfy({
-                  $0.utf8.count <= 128 && SnapshotProjectionValidationV1.validText($0)
-              }) else {
+        guard SnapshotProjectionValidationV1.validID(typeID), version > 0 else {
             throw SnapshotProjectionFailureV1.invalidValue
+        }
+        if let knownIntegerValues {
+            guard policy == .closed, knownValues.isEmpty, !knownIntegerValues.isEmpty,
+                  knownIntegerValues == knownIntegerValues.sorted(),
+                  Set(knownIntegerValues).count == knownIntegerValues.count else {
+                throw SnapshotProjectionFailureV1.invalidValue
+            }
+        } else {
+            guard !knownValues.isEmpty, knownValues == knownValues.sorted(),
+                  Set(knownValues).count == knownValues.count,
+                  knownValues.allSatisfy({
+                      $0.utf8.count <= 128 && SnapshotProjectionValidationV1.validText($0)
+                  }) else {
+                throw SnapshotProjectionFailureV1.invalidValue
+            }
         }
     }
 }
@@ -341,29 +394,45 @@ struct ContractCodecRuleV1: Codable, Equatable, Sendable {
     }
 
     init(codecVersion: Int) throws {
-        guard codecVersion == 1 else { throw SnapshotProjectionFailureV1.incompatibleVersion }
+        guard codecVersion == 1 || codecVersion == 2 else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
         self.codecVersion = codecVersion
         canonicalJSON = "UTF8_SORTED_KEYS_NO_INSIGNIFICANT_WHITESPACE"
         integerEncoding = "BASE10_INTEGER_NO_EXPONENT"
-        timeEncoding = "UTC_RFC3339_MILLISECONDS_Z"
+        timeEncoding = Self.timeEncoding(for: codecVersion)
         nullEncoding = "EXPLICIT_NULL_ONLY_WHEN_REQUIRED_NULLABLE"
         binaryEncoding = "RFC4648_BASE64_PADDED"
-        stringNormalization = "NFC_WITH_C0_C1_BIDI_CONTROLS_AND_NONCHARACTERS_REJECTED"
+        stringNormalization = Self.stringNormalization(for: codecVersion)
         formatAssertion = false
         try validate()
     }
 
     func validate() throws {
-        guard codecVersion == 1,
+        guard codecVersion == 1 || codecVersion == 2,
               canonicalJSON == "UTF8_SORTED_KEYS_NO_INSIGNIFICANT_WHITESPACE",
               integerEncoding == "BASE10_INTEGER_NO_EXPONENT",
-              timeEncoding == "UTC_RFC3339_MILLISECONDS_Z",
+              timeEncoding == Self.timeEncoding(for: codecVersion),
               nullEncoding == "EXPLICIT_NULL_ONLY_WHEN_REQUIRED_NULLABLE",
               binaryEncoding == "RFC4648_BASE64_PADDED",
-              stringNormalization == "NFC_WITH_C0_C1_BIDI_CONTROLS_AND_NONCHARACTERS_REJECTED",
+              stringNormalization == Self.stringNormalization(for: codecVersion),
               !formatAssertion else {
             throw SnapshotProjectionFailureV1.incompatibleVersion
         }
+    }
+
+    private static func stringNormalization(for version: Int) -> String {
+        if version == 2 {
+            return "PER_FIELD_NFC_WITH_C0_C1_BIDI_CONTROLS_AND_NONCHARACTERS_REJECTED_OR_PRESERVED_SOURCE_UNICODE"
+        }
+        return "NFC_WITH_C0_C1_BIDI_CONTROLS_AND_NONCHARACTERS_REJECTED"
+    }
+
+    private static func timeEncoding(for version: Int) -> String {
+        if version == 2 {
+            return "PER_FIELD_UTC_RFC3339_MILLISECONDS_Z_OR_FINITE_APPLE_REFERENCE_SECONDS"
+        }
+        return "UTC_RFC3339_MILLISECONDS_Z"
     }
 }
 
@@ -413,6 +482,7 @@ struct ContractManifestV1: Codable, Equatable, Sendable {
     }
 
     static let schemaVersion = 1
+    static let extendedSchemaVersion = 2
     static let persistentContractSchema = "KERNEL_SNAPSHOT_V1"
     let schemaVersion: Int
     let manifestID: String
@@ -446,9 +516,10 @@ struct ContractManifestV1: Codable, Equatable, Sendable {
         compatibility: ContractCompatibilityRuleV1,
         objects: [ContractObjectDefinitionV1],
         enums: [ContractEnumDefinitionV1],
-        reportSectionRegistry: ReportSectionRegistryV1
+        reportSectionRegistry: ReportSectionRegistryV1,
+        schemaVersion: Int = ContractManifestV1.schemaVersion
     ) throws {
-        schemaVersion = Self.schemaVersion
+        self.schemaVersion = schemaVersion
         self.manifestID = manifestID
         self.manifestVersion = manifestVersion
         persistentContractSchema = Self.persistentContractSchema
@@ -461,7 +532,7 @@ struct ContractManifestV1: Codable, Equatable, Sendable {
     }
 
     func validate() throws {
-        guard schemaVersion == Self.schemaVersion,
+        guard schemaVersion == Self.schemaVersion || schemaVersion == Self.extendedSchemaVersion,
               persistentContractSchema == Self.persistentContractSchema,
               SnapshotProjectionValidationV1.validID(manifestID), manifestVersion > 0,
               !objects.isEmpty, objects == objects.sorted(),
@@ -471,8 +542,18 @@ struct ContractManifestV1: Codable, Equatable, Sendable {
         }
         try codec.validate()
         try compatibility.validate()
+        guard codec.codecVersion == schemaVersion,
+              schemaVersion == Self.schemaVersion || compatibility.minimumReaderVersion >= Self.extendedSchemaVersion else {
+            throw SnapshotProjectionFailureV1.incompatibleVersion
+        }
         try objects.forEach { try $0.validate() }
         try enums.forEach { try $0.validate() }
+        if schemaVersion == Self.schemaVersion {
+            guard objects.allSatisfy({ !$0.fields.isEmpty }),
+                  enums.allSatisfy({ $0.knownIntegerValues == nil }) else {
+                throw SnapshotProjectionFailureV1.incompatibleVersion
+            }
+        }
         try Self.validate(reportSectionRegistry)
 
         let objectTypeIDs = Set(objects.map(\.typeID))
@@ -489,6 +570,19 @@ struct ContractManifestV1: Codable, Equatable, Sendable {
                 effectiveKind = arrayElementKind
             } else {
                 effectiveKind = field.kind
+            }
+            // Published schema 1 keeps its original scalar vocabulary. The
+            // extended grammar is explicit, so an old manifest cannot acquire
+            // a new meaning by smuggling in a recognized schema 2 field.
+            if schemaVersion == Self.schemaVersion {
+                guard effectiveKind != .unsignedInteger,
+                      effectiveKind != .referenceDateSeconds,
+                      effectiveKind != .preservedString, effectiveKind != .stringMap,
+                      field.maximumKeyUTF8Bytes == nil,
+                      field.minimumUnsignedInteger == nil,
+                      field.maximumUnsignedInteger == nil else {
+                    throw SnapshotProjectionFailureV1.incompatibleVersion
+                }
             }
             switch effectiveKind {
             case .object:

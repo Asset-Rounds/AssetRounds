@@ -17,6 +17,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -124,6 +125,72 @@ DESTINATION_GROUP_IDS = ['c36-destination-review', 'c36-destination-resolution',
 EXPECTED_SETTINGS_COMPATIBILITY_SELECTORS = ['FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testV23P03C45CompatibilityKeepsOutputActivationExplicitAndBounded', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testV23P03C51RuntimeAndCheckRunnerStayLocalExplicitAndDerived', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testTypedEvidenceContextContractAnchor', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testC31TypedLightingPackageContractAnchor', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testC33V914SettingsCapabilityLifecycleCompatibilityBindsTypedTemporalEvidenceToItsOwner', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testC32V914SettingsCapabilityLifecycleCompatibilityKeepsProposalAtExplicitReviewBoundary', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testC46SettingsCannotActivateAutomaticHandoff']
 
 
+ACTIVITY_COMPLETED_GROUPS = [{'id': 'activity-completed-manifest', 'classes': ['V23ActivityCompletedManifestEvolutionTests'], 'methodCount': 13}, {'id': 'activity-completed-file', 'classes': ['V23ActivityCompletedFileTests'], 'methodCount': 21}, {'id': 'activity-completed-production', 'classes': ['V23ActivityCompletedProductionTests'], 'methodCount': 12}, {'id': 'activity-evidence-projection', 'classes': ['V23ActivityEvidenceProjectionTests'], 'methodCount': 7}, {'id': 'activity-completed-release', 'classes': ['V23ActivityCompletedReportReleaseTests'], 'methodCount': 9}]
+ACTIVITY_COMPLETED_SELECTORS = [
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testPublishedV1ManifestRoundTripPreservesCanonicalBytesAndOmitsExtensions',
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testUnsignedBoundsRoundTripPreservesEntireUInt64Domain',
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testSignedDomainAndMixedWrongKindOrInvertedBounds',
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testManifestVersionsRequireMatchingCodecAndReader',
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testExtendedScalarAndArrayKindsRequireManifestTwo',
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testManifestDecoderRejectsInvalidNumericBoundsWithoutRounding',
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testManifestDecoderRejectsUnknownMalformedAndExplicitNullFields',
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testCodecTwoKeepsExistingRulesAndClosesVersionSpecificTimeMetadata',
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testPreservedStringAndStringMapMetadataRoundTripWithoutInventedCountLimit',
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testStringMapMetadataRejectsInvalidBoundsShapesAndArrayUse',
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testNumericEnumMetadataPreservesExactSourceRotationWireValues',
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testNumericEnumMetadataRejectsMixedMalformedAndLegacyDefinitions',
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testClosedEmptyObjectMetadataRequiresSchemaTwoAndMatchesPoseWire',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testClosedCompletedFileRoundTripPreservesRealNestedV2AndSeparateHashes',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testCaptureUsesActivityRevisionsAndKeepsWorkspaceFrontierPortable',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testCaptureRejectsStaleActivityRevisionAndInvalidTransitionOrderingOrStateChain',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testCaptureRejectsOverflowAndNonfiniteOrResampledTime',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testFileRejectsWrongFamilyVersionOutputAndUnknownFields',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testTypedPayloadTamperFailsEvenWithRecomputedWholeFileHash',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testWholeFileTamperFailsEvenWhenNestedSnapshotIsUnchanged',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testCapturedAbsenceRequiresEveryClosedQueryAtExactFrontier',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testFullFrozenProfileAndManifestAreBoundToSnapshot',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testExplicitSelectionUsesCanonicalObjectsAndClosedKeys',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testStandalonePunchDoesNotManufactureInstallationOrAccountabilityAbsence',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testLegacyPredecessorOwnerKeepsUUIDPathAndWholeFileDigestDistinct',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testCrossActivityCorrectionOwnsNewOriginalForLegacyAndClosedPredecessors',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testUnfinishedAmendmentRetainsActualPriorWithoutInventingCompletedOutput',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testApprovedMediaRequiresExactBytesLengthWorkspaceAndOutputScope',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testPlacementSourcesRetainExactPoseAndPhysicalAncestors',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testPlacementSourcesRejectMissingForeignAndUnselectedValues',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testReviewedEvidenceFreezesPlanProjectionAndSeparateFieldMediaHashes',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testReviewedEvidenceRejectsMissingTamperedAndForeignSources',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testNewProvenanceArraysAreRequiredClosedWireFields',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testLegacy32CorpusPreservesLiteralBytesAndBareV2Codec',
+    'FieldEvidenceAppTests/V23ActivityCompletedProductionTests/testRealWriterReadsPopulatedInstallationAndEntireSelectedProfileWithoutEffects',
+    'FieldEvidenceAppTests/V23ActivityCompletedProductionTests/testCaptureFreezesExactPromotedPackageAndSourceWorkflow',
+    'FieldEvidenceAppTests/V23ActivityCompletedProductionTests/testHistoricalCompletionRetainsRecordedPackageWithoutCurrentStartPointer',
+    'FieldEvidenceAppTests/V23ActivityCompletedProductionTests/testMissingRecordedPackageRejectsCaptureAndOldFrameWithoutEffects',
+    'FieldEvidenceAppTests/V23ActivityCompletedProductionTests/testCaptureUsesActualActivityRevisionTransitionsIncludingTaskAndAsBuiltGaps',
+    'FieldEvidenceAppTests/V23ActivityCompletedProductionTests/testWrongWorkspaceMissingActivityAndUnavailableSelectedProfileRejectWithoutEffects',
+    'FieldEvidenceAppTests/V23ActivityCompletedProductionTests/testCommittedProfileChangeRejectsOldSelectionAndFrameWithoutAdoptingNewProfile',
+    'FieldEvidenceAppTests/V23ActivityCompletedProductionTests/testWriterInvalidationAndGenerationChangeRejectPreviouslyReadFrameWithoutEffects',
+    'FieldEvidenceAppTests/V23ActivityCompletedProductionTests/testSameFrontierTaskReplacementAndFamilyInsertionOrRemovalRejectWithoutEffects',
+    'FieldEvidenceAppTests/V23ActivityCompletedProductionTests/testSameFrontierAcceptedReceiptTamperRejectsWithoutEffects',
+    'FieldEvidenceAppTests/V23ActivityCompletedProductionTests/testSameRevisionRehashedProfileCannotReplaceAcceptedBytesEvenWhenSelectedByNewReference',
+    'FieldEvidenceAppTests/V23ActivityCompletedProductionTests/testQuarantinedActivityOrProfileReceiptCannotAuthorizeSourceRead',
+    'FieldEvidenceAppTests/V23ActivityEvidenceProjectionTests/testV23P03C20CompletedProjectionAcceptsDistinctFieldAndApprovedMediaDigests',
+    'FieldEvidenceAppTests/V23ActivityEvidenceProjectionTests/testV23P03C20CompletedProjectionRejectsUnapprovedAndMixedMedia',
+    'FieldEvidenceAppTests/V23ActivityEvidenceProjectionTests/testV23P03C20CompletedProjectionRejectsOriginalAndMissingOutputReferences',
+    'FieldEvidenceAppTests/V23ActivityEvidenceProjectionTests/testV23P03C20CompletedProjectionRejectsWrongWorkspaceAndAudience',
+    'FieldEvidenceAppTests/V23ActivityEvidenceProjectionTests/testV23P03C20CompletedProjectionRejectsMissingRejectedStaleAndChangedSource',
+    'FieldEvidenceAppTests/V23ActivityEvidenceProjectionTests/testV23P03C20CompletedProjectionRejectsSemanticCardTampering',
+    'FieldEvidenceAppTests/V23ActivityEvidenceProjectionTests/testV23P03C20CompletedProjectionRebuildsMarkupWithoutChangingReviewedPlan',
+    'FieldEvidenceAppTests/V23ActivityCompletedReportReleaseTests/testActualAppBundleAdmitsExactCompleteManifestAndBothSchemas',
+    'FieldEvidenceAppTests/V23ActivityCompletedReportReleaseTests/testPublishedDefinitionsAndSevenSectionRegistryRemainExactButOldReleaseIsExcluded',
+    'FieldEvidenceAppTests/V23ActivityCompletedReportReleaseTests/testActualBundleLookupSupportsFlattenedAndPreservedResourceLayouts',
+    'FieldEvidenceAppTests/V23ActivityCompletedReportReleaseTests/testMissingAndRenamedResourcesCannotFallBackToAnotherBundle',
+    'FieldEvidenceAppTests/V23ActivityCompletedReportReleaseTests/testDuplicateResourceIdentityFailsEvenWhenBothCopiesAreAuthentic',
+    'FieldEvidenceAppTests/V23ActivityCompletedReportReleaseTests/testTruncatedOversizedAndSameSizeTamperedResourcesFailAtRealLoader',
+    'FieldEvidenceAppTests/V23ActivityCompletedReportReleaseTests/testSchemaResourceIdentityCannotBeSwappedAndManifestIdentityCannotBeRewritten',
+    'FieldEvidenceAppTests/V23ActivityCompletedReportReleaseTests/testSymlinkedResourceIsNotAnAppOwnedResource',
+    'FieldEvidenceAppTests/V23ActivityCompletedReportReleaseTests/testFrozenReadbackRejectsWrongIdentityVersionReaderRegistryAndIncompleteCatalog',
+]
+
 class GeneratorTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -137,6 +204,12 @@ class GeneratorTests(unittest.TestCase):
         for class_name in classes:
             relative = "FieldEvidenceAppTests/" + class_name + ".swift"
             overlays = {
+                'V23ActivityCompletedManifestEvolutionTests': REPO / 'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests.swift',
+                'V23ActivityCompletedFileTests': REPO / 'FieldEvidenceAppTests/V23ActivityCompletedFileTests.swift',
+                'V23ActivityCompletedProductionTests': REPO / 'FieldEvidenceAppTests/V23ActivityCompletedProductionTests.swift',
+                'V23ActivityEvidenceProjectionTests': REPO / 'FieldEvidenceAppTests/V23ActivityEvidenceProjectionTests.swift',
+                'V23ActivityCompletedReportReleaseTests': REPO / 'FieldEvidenceAppTests/V23ActivityCompletedReportReleaseTests.swift',
+
                 'V23ActivityEnvelopeCodecEvolutionTests': REPO / 'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests.swift',
                 'S6_5ReplacementUnionTests': REPO / 'FieldEvidenceAppTests/S6_5ReplacementUnionTests.swift',
                 'V9_11ObservationTemporalSemanticsTests': REPO / 'FieldEvidenceAppTests/V9_11ObservationTemporalSemanticsTests.swift',
@@ -552,14 +625,43 @@ class GeneratorTests(unittest.TestCase):
             'id': 'activity-codec-evolution', 'classes': ['V23ActivityEnvelopeCodecEvolutionTests'], 'methodCount': 11}])
         self.assertEqual({k:v for k,v in current.items() if k != 'unitTestSelectors'},
                          {k:v for k,v in prior.items() if k != 'unitTestSelectors'})
-        self.assertEqual(generator.canonical(current), (HERE / 'ci-selection.json').read_bytes())
-        self.assertEqual(generator.canonical(mapping), (HERE / 'ci-selection-map.json').read_bytes())
+        self.assertEqual(report['selectionSHA256'], '148CA7FF50E4100B0AD0272CB40A64DA34D38842499A317EE4EB2128A408E857')
+        self.assertEqual(report['selectionMapSHA256'], 'EC7CF71ED309E4CCC55C439DAAB2E9B22F5D4A1A2F4AB3137A20071E3C766040')
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
             selected, mapped = root/'selection.json', root/'map.json'
             result = subprocess.run([sys.executable, str(GENERATOR), 'generate',
                 '--manifest', str(MANIFEST), '--checkout-root', str(self.checkout),
                 '--profile', 'activity-codec-evolution-v1', '--selection-output', str(selected),
+                '--map-output', str(mapped)], capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(selected.read_bytes(), generator.canonical(current))
+            self.assertEqual(mapped.read_bytes(), generator.canonical(mapping))
+        self.assertFalse(report['nativeReady'])
+        self.assertFalse(report['acceptance'])
+
+    def test_completed_source_profile_preserves_906_and_enrolls_exact_ordered_62(self):
+        prior, prior_map, _ = self.generate('activity-codec-evolution-v1')
+        current, mapping, report = self.generate('activity-completed-source-v1')
+        self.assertEqual((report['selectorCount'], report['groupCount']), (968, 62))
+        self.assertEqual(current['unitTestSelectors'], prior['unitTestSelectors'] + ACTIVITY_COMPLETED_SELECTORS)
+        self.assertEqual(mapping['groups'], prior_map['groups'] + ACTIVITY_COMPLETED_GROUPS)
+        self.assertEqual({k:v for k,v in current.items() if k != 'unitTestSelectors'},
+                         {k:v for k,v in prior.items() if k != 'unitTestSelectors'})
+        self.assertEqual(generator.canonical(current), (HERE / 'ci-selection.json').read_bytes())
+        self.assertEqual(generator.canonical(mapping), (HERE / 'ci-selection-map.json').read_bytes())
+        for group in ACTIVITY_COMPLETED_GROUPS:
+            name = group['classes'][0]
+            source = (self.checkout / 'FieldEvidenceAppTests' / (name + '.swift')).read_text()
+            declared = re.findall(r'^    func (test\w+)\s*\(', source, re.M)
+            self.assertEqual([m.rsplit('/', 1)[1] for m in ACTIVITY_COMPLETED_SELECTORS if m.split('/')[1] == name], declared)
+            self.assertEqual(len(declared), group['methodCount'])
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            selected, mapped = root/'selection.json', root/'map.json'
+            result = subprocess.run([sys.executable, str(GENERATOR), 'generate',
+                '--manifest', str(MANIFEST), '--checkout-root', str(self.checkout),
+                '--profile', 'activity-completed-source-v1', '--selection-output', str(selected),
                 '--map-output', str(mapped)], capture_output=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(selected.read_bytes(), generator.canonical(current))
