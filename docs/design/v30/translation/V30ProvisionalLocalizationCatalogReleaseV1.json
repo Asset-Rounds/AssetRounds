@@ -1,0 +1,714 @@
+{
+  "authority": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
+    "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+  },
+  "automatedEvidence": {
+    "CI": null,
+    "auditSHA256": "251e890ce8bc2bafcf6bf9a69da0c5a1fbf3fd61f673baefc114822fded67f99",
+    "auditScriptSHA256": "3328ef69018da8cb08a6e8efab3ca0a3675535ad5c2cbceda48f24e4b4a2b672",
+    "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "static": "PASS_WINDOWS_STATIC_STRUCTURAL_INTEGRATION"
+  },
+  "binding": {
+    "capabilitySHA256": "bf40a305914191f965b34f8106c70a1b3923bcb0b12ac8fda153bd75e663ccf0",
+    "catalogSHA256": "68a1faedaad001af0630897bcc0578fe8e9de4b9ed5b9e2db3eed4a2627ea5b2",
+    "englishSourceSHA256": "95eae457b3e4108a9c900fa03b7e150258ca6ec92c0665361b10e8871d923d2b",
+    "finalAcceptance": false,
+    "keySetSHA256": "29839192452e8ae666cf74498fb9809962a1afa19a50076d7c332c3cdecbf6b1",
+    "languages": [
+      "en",
+      "es",
+      "zh-Hans",
+      "zh-Hant",
+      "vi",
+      "ko"
+    ],
+    "nativeCredit": false,
+    "permissionCatalogSHA256": "4f9b12b2746ff556612c2a34b2a34f01ac3414258837c746b5046f9ba8b7512c",
+    "professionalReviewCredit": false,
+    "qualification": "PROVISIONAL_UNQUALIFIED",
+    "releaseCredit": false,
+    "requiresPostS10Reconciliation": true,
+    "schemaVersion": 1,
+    "sourceCandidateHead": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+    "sourceCandidateTree": "c0ce5222da96af804c1bea4b4ab0b6fe023dd5bf",
+    "termbaseSHA256": "13bad2e73ee47d2f77b53aff73dd48705821853d32546b85139a391edd9ddb6c",
+    "translationSHA256": "4dba4bca396f19b9a4949c84f1561dd239025eab492f6c5fd5aba991a08f569d"
+  },
+  "capabilities": [
+    {
+      "appResourceLookup": "WIRED_NATIVE_UNVERIFIED",
+      "authoredUnicodeReportBody": "PENDING_NATIVE_RENDER_AND_EXTRACTION",
+      "canonicalPayloadsIndependent": true,
+      "catalogMembership": "COMPLETE_STRUCTURAL_DRAFT",
+      "effectiveReportChrome": "en",
+      "formattingLocaleIndependent": true,
+      "jurisdiction": "US",
+      "language": "en",
+      "localizedReportChromeEnabled": false,
+      "permissionCatalog": "INTEGRATED_NATIVE_UNVERIFIED",
+      "professionalReview": "PENDING",
+      "profiles": [
+        "en-US"
+      ],
+      "reportCatalog": "DRAFT_PREPARED",
+      "script": "Latn",
+      "shippingClaim": false,
+      "storefront": "US"
+    },
+    {
+      "appResourceLookup": "WIRED_NATIVE_UNVERIFIED",
+      "authoredUnicodeReportBody": "PENDING_NATIVE_RENDER_AND_EXTRACTION",
+      "canonicalPayloadsIndependent": true,
+      "catalogMembership": "COMPLETE_STRUCTURAL_DRAFT",
+      "effectiveReportChrome": "en",
+      "formattingLocaleIndependent": true,
+      "jurisdiction": "US",
+      "language": "es",
+      "localizedReportChromeEnabled": false,
+      "permissionCatalog": "INTEGRATED_NATIVE_UNVERIFIED",
+      "professionalReview": "PENDING",
+      "profiles": [
+        "es-US",
+        "es-MX",
+        "es-419"
+      ],
+      "reportCatalog": "DRAFT_PREPARED",
+      "script": "Latn",
+      "shippingClaim": false,
+      "storefront": "US"
+    },
+    {
+      "appResourceLookup": "WIRED_NATIVE_UNVERIFIED",
+      "authoredUnicodeReportBody": "PENDING_NATIVE_RENDER_AND_EXTRACTION",
+      "canonicalPayloadsIndependent": true,
+      "catalogMembership": "COMPLETE_STRUCTURAL_DRAFT",
+      "effectiveReportChrome": "en",
+      "formattingLocaleIndependent": true,
+      "jurisdiction": "US",
+      "language": "zh-Hans",
+      "localizedReportChromeEnabled": false,
+      "permissionCatalog": "INTEGRATED_NATIVE_UNVERIFIED",
+      "professionalReview": "PENDING",
+      "profiles": [
+        "zh-Hans-US",
+        "zh-Hans-CN"
+      ],
+      "reportCatalog": "DRAFT_PREPARED",
+      "script": "Hans",
+      "shippingClaim": false,
+      "storefront": "US"
+    },
+    {
+      "appResourceLookup": "WIRED_NATIVE_UNVERIFIED",
+      "authoredUnicodeReportBody": "PENDING_NATIVE_RENDER_AND_EXTRACTION",
+      "canonicalPayloadsIndependent": true,
+      "catalogMembership": "COMPLETE_STRUCTURAL_DRAFT",
+      "effectiveReportChrome": "en",
+      "formattingLocaleIndependent": true,
+      "jurisdiction": "US",
+      "language": "zh-Hant",
+      "localizedReportChromeEnabled": false,
+      "permissionCatalog": "INTEGRATED_NATIVE_UNVERIFIED",
+      "professionalReview": "PENDING",
+      "profiles": [
+        "zh-Hant-US",
+        "zh-Hant-TW"
+      ],
+      "reportCatalog": "DRAFT_PREPARED",
+      "script": "Hant",
+      "shippingClaim": false,
+      "storefront": "US"
+    },
+    {
+      "appResourceLookup": "WIRED_NATIVE_UNVERIFIED",
+      "authoredUnicodeReportBody": "PENDING_NATIVE_RENDER_AND_EXTRACTION",
+      "canonicalPayloadsIndependent": true,
+      "catalogMembership": "COMPLETE_STRUCTURAL_DRAFT",
+      "effectiveReportChrome": "en",
+      "formattingLocaleIndependent": true,
+      "jurisdiction": "US",
+      "language": "vi",
+      "localizedReportChromeEnabled": false,
+      "permissionCatalog": "INTEGRATED_NATIVE_UNVERIFIED",
+      "professionalReview": "PENDING",
+      "profiles": [
+        "vi-US",
+        "vi-VN"
+      ],
+      "reportCatalog": "DRAFT_PREPARED",
+      "script": "Latn",
+      "shippingClaim": false,
+      "storefront": "US"
+    },
+    {
+      "appResourceLookup": "WIRED_NATIVE_UNVERIFIED",
+      "authoredUnicodeReportBody": "PENDING_NATIVE_RENDER_AND_EXTRACTION",
+      "canonicalPayloadsIndependent": true,
+      "catalogMembership": "COMPLETE_STRUCTURAL_DRAFT",
+      "effectiveReportChrome": "en",
+      "formattingLocaleIndependent": true,
+      "jurisdiction": "US",
+      "language": "ko",
+      "localizedReportChromeEnabled": false,
+      "permissionCatalog": "INTEGRATED_NATIVE_UNVERIFIED",
+      "professionalReview": "PENDING",
+      "profiles": [
+        "ko-US",
+        "ko-KR"
+      ],
+      "reportCatalog": "DRAFT_PREPARED",
+      "script": "Kore",
+      "shippingClaim": false,
+      "storefront": "US"
+    }
+  ],
+  "cardID": "V30-P04-C07",
+  "contentManifest": [
+    {
+      "bytes": 17385,
+      "path": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "sha256": "d65221088b16288ad98c98e2e5f891eb4ecd6ce56fc7e49afc5e4e842a93de34"
+    },
+    {
+      "bytes": 396057,
+      "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+      "sha256": "24a7a43c8b81fb5eaffe33232365a5bc0bd990f4cf15cd40f4c5206f4e2e65e0"
+    },
+    {
+      "bytes": 7315,
+      "path": "FieldEvidenceApp/InfoPlist.xcstrings",
+      "sha256": "4f9b12b2746ff556612c2a34b2a34f01ac3414258837c746b5046f9ba8b7512c"
+    },
+    {
+      "bytes": 383672,
+      "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+      "sha256": "422633893171421b673bd9cb61bef268c8511d2dd004415ad00b1cc52bce4b57"
+    },
+    {
+      "bytes": 4386165,
+      "path": "FieldEvidenceApp/Resources/Localizable.xcstrings",
+      "sha256": "68a1faedaad001af0630897bcc0578fe8e9de4b9ed5b9e2db3eed4a2627ea5b2"
+    },
+    {
+      "bytes": 9853,
+      "path": "FieldEvidenceAppTests/V30_P04_C07LocaleReleaseIntegrationTests.swift",
+      "sha256": "f1bafea4c2a1cf89562d1896de8cfb585b391d48352d7e00b6f57ece5a3a87df"
+    },
+    {
+      "bytes": 117247,
+      "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
+      "sha256": "1b8728340c84f68d271fa83941d00796c2e0caa4e5e4964f6e1a17e4dcafb59c"
+    }
+  ],
+  "draftReviewEvidence": [
+    {
+      "bytes": 8454,
+      "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/Locales/es.json",
+      "sha256": "8674720c4d84d99778750d95d79a5ea81c7fd2f664c2c470971a13d5001d2b65",
+      "status": "HISTORICAL_MACHINE_ASSISTED_DRAFT_NOT_EXACT_E_HUMAN_REVIEW"
+    },
+    {
+      "bytes": 4354955,
+      "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+      "path": "docs/design/v30/locales/es/V30P04C02ReviewPacketV1.json",
+      "sha256": "1254e315c9702e24f69ddea9d94a4fe4cb9501664a7c87e7b3a1d4b8cc868d9d",
+      "status": "HISTORICAL_MACHINE_ASSISTED_DRAFT_NOT_EXACT_E_HUMAN_REVIEW"
+    },
+    {
+      "bytes": 11194,
+      "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/Locales/zh-Hans.json",
+      "sha256": "600718b23fb4c3fb9bc9c8d2957d88e77d4e58d8a263dfa19f816f9f72422d77",
+      "status": "HISTORICAL_MACHINE_ASSISTED_DRAFT_NOT_EXACT_E_HUMAN_REVIEW"
+    },
+    {
+      "bytes": 4302188,
+      "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+      "path": "docs/design/v30/locales/zh-Hans/V30P04C03ReviewPacketV1.json",
+      "sha256": "77f83bd2b31fad4d7f2538f77ed77a615a8a3e2db32e895918a25e52045104a6",
+      "status": "HISTORICAL_MACHINE_ASSISTED_DRAFT_NOT_EXACT_E_HUMAN_REVIEW"
+    },
+    {
+      "bytes": 12051,
+      "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/Locales/zh-Hant.json",
+      "sha256": "59fac19ca8cafdc59a1637893894a6f5213a1c62a7e4976f2532dc8cfc14466f",
+      "status": "HISTORICAL_MACHINE_ASSISTED_DRAFT_NOT_EXACT_E_HUMAN_REVIEW"
+    },
+    {
+      "bytes": 4304121,
+      "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+      "path": "docs/design/v30/locales/zh-Hant/V30P04C04ReviewPacketV1.json",
+      "sha256": "894372ee5f3bf00fba64c1680be0b4da667980fbb1efc719ea29c886b948425a",
+      "status": "HISTORICAL_MACHINE_ASSISTED_DRAFT_NOT_EXACT_E_HUMAN_REVIEW"
+    },
+    {
+      "bytes": 11824,
+      "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/Locales/vi.json",
+      "sha256": "f009744ccc0be8926919c043392f59225f912a32e5fdc6f7d6e973e69e14546c",
+      "status": "HISTORICAL_MACHINE_ASSISTED_DRAFT_NOT_EXACT_E_HUMAN_REVIEW"
+    },
+    {
+      "bytes": 4377887,
+      "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+      "path": "docs/design/v30/locales/vi/V30P04C05ReviewPacketV1.json",
+      "sha256": "4a22617b3aae196fcad9f6b8b1dac2ec92f8a12f8db090b086c53661b04eead6",
+      "status": "HISTORICAL_MACHINE_ASSISTED_DRAFT_NOT_EXACT_E_HUMAN_REVIEW"
+    },
+    {
+      "bytes": 12168,
+      "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+      "path": "FieldEvidenceAppTests/Fixtures/V30/Locales/ko.json",
+      "sha256": "141414dcc607cf2da4ec4320fe1db3290826e96262e5d811e06af9adbd0de0f1",
+      "status": "HISTORICAL_MACHINE_ASSISTED_DRAFT_NOT_EXACT_E_HUMAN_REVIEW"
+    },
+    {
+      "bytes": 4353088,
+      "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+      "path": "docs/design/v30/locales/ko/V30P04C06ReviewPacketV1.json",
+      "sha256": "1d840d0da6037bed87bc736963f21662bba3f3994819af9e92e12f7cb34962ce",
+      "status": "HISTORICAL_MACHINE_ASSISTED_DRAFT_NOT_EXACT_E_HUMAN_REVIEW"
+    }
+  ],
+  "kind": "V30ProvisionalLocalizationCatalogReleaseV1",
+  "laneSources": [
+    {
+      "bytes": 2023792,
+      "keyCount": 2717,
+      "path": "FieldEvidenceApp/Resources/Globalization/es.app.json",
+      "sha256": "82e4ff862580cb48de6b8eb641c8ce3299d7111f507d0eacf879e239cd42e0a6",
+      "sourceRevision": "b418cd68cf5242ecbab046f16c47b389e64f9dbd",
+      "sourceTree": "f458674264c10872bb12cd0adcc3964dc38c0be2"
+    },
+    {
+      "bytes": 86421,
+      "keyCount": 113,
+      "path": "FieldEvidenceApp/Resources/Globalization/es.report.json",
+      "sha256": "e9119550ee12c654b4bc6f201f87089e9317b9356b71a29423da4608bcf0659f",
+      "sourceRevision": "b418cd68cf5242ecbab046f16c47b389e64f9dbd",
+      "sourceTree": "f458674264c10872bb12cd0adcc3964dc38c0be2"
+    },
+    {
+      "bytes": 282897,
+      "keyCount": 382,
+      "path": "FieldEvidenceApp/Resources/Globalization/es.accessibility.json",
+      "sha256": "74145ce3072ed18e57de5433785cf8068854997028582bd0ce8b021109e44ca1",
+      "sourceRevision": "b418cd68cf5242ecbab046f16c47b389e64f9dbd",
+      "sourceTree": "f458674264c10872bb12cd0adcc3964dc38c0be2"
+    },
+    {
+      "bytes": 1990403,
+      "keyCount": 2717,
+      "path": "FieldEvidenceApp/Resources/Globalization/zh-Hans.app.json",
+      "sha256": "adbf7e6e2f86fb1844ab018643369d9b033484a4b598979f14046a85d4e99359",
+      "sourceRevision": "4f9e9bdcbadac95d738a089952a9519c6c65f37c",
+      "sourceTree": "d35e62c2a38ce7303acc42d63ffdec9052d6d11b"
+    },
+    {
+      "bytes": 84946,
+      "keyCount": 113,
+      "path": "FieldEvidenceApp/Resources/Globalization/zh-Hans.report.json",
+      "sha256": "1e0a73c8b98fff1199a710e7828c7e3bf12520114ef27f220616ab2da8654980",
+      "sourceRevision": "4f9e9bdcbadac95d738a089952a9519c6c65f37c",
+      "sourceTree": "d35e62c2a38ce7303acc42d63ffdec9052d6d11b"
+    },
+    {
+      "bytes": 278681,
+      "keyCount": 382,
+      "path": "FieldEvidenceApp/Resources/Globalization/zh-Hans.accessibility.json",
+      "sha256": "ccb505877efe8d048677c9d66bbcd44639cefc73e35ab961a644b34d2d974474",
+      "sourceRevision": "4f9e9bdcbadac95d738a089952a9519c6c65f37c",
+      "sourceTree": "d35e62c2a38ce7303acc42d63ffdec9052d6d11b"
+    },
+    {
+      "bytes": 1991112,
+      "keyCount": 2717,
+      "path": "FieldEvidenceApp/Resources/Globalization/zh-Hant.app.json",
+      "sha256": "1738fd5b5e1eb2e4afc2871ad4a6295cf23aa381aa7bb0e285762b14473f6aef",
+      "sourceRevision": "d0548045660c82a9c00e90b58cdcb5fd9be7a37c",
+      "sourceTree": "40e4b6eaf825387357afcbe6134e2418c1481640"
+    },
+    {
+      "bytes": 84898,
+      "keyCount": 113,
+      "path": "FieldEvidenceApp/Resources/Globalization/zh-Hant.report.json",
+      "sha256": "e8a19a17515301acc033fefe6f1dfba8f6c0e147ff515d8904eedbd339123cbe",
+      "sourceRevision": "d0548045660c82a9c00e90b58cdcb5fd9be7a37c",
+      "sourceTree": "40e4b6eaf825387357afcbe6134e2418c1481640"
+    },
+    {
+      "bytes": 278914,
+      "keyCount": 382,
+      "path": "FieldEvidenceApp/Resources/Globalization/zh-Hant.accessibility.json",
+      "sha256": "7868ee4d68baa478666d7e05c79ad347da45c5dcda8fe59c1a5bb8a1540916a4",
+      "sourceRevision": "d0548045660c82a9c00e90b58cdcb5fd9be7a37c",
+      "sourceTree": "40e4b6eaf825387357afcbe6134e2418c1481640"
+    },
+    {
+      "bytes": 2038730,
+      "keyCount": 2717,
+      "path": "FieldEvidenceApp/Resources/Globalization/vi.app.json",
+      "sha256": "4d166db9aeca37fe7b6e2cc528a74e8d87c75e604eb5de2b393b354fc2685e4d",
+      "sourceRevision": "eaffe95cb75e9185826b095ecf07c0e5a0c2c817",
+      "sourceTree": "aa86f326731f3a35187e103b7de5699c12fc8b38"
+    },
+    {
+      "bytes": 85931,
+      "keyCount": 113,
+      "path": "FieldEvidenceApp/Resources/Globalization/vi.report.json",
+      "sha256": "66bed707bace452c2d96044dc421d4b36707158a2487060130153f6113ad9879",
+      "sourceRevision": "eaffe95cb75e9185826b095ecf07c0e5a0c2c817",
+      "sourceTree": "aa86f326731f3a35187e103b7de5699c12fc8b38"
+    },
+    {
+      "bytes": 284807,
+      "keyCount": 382,
+      "path": "FieldEvidenceApp/Resources/Globalization/vi.accessibility.json",
+      "sha256": "6207abc37bb90830db46a64858f74ec3f9f96b56be67e29a173d8cd5fe2cd3c2",
+      "sourceRevision": "eaffe95cb75e9185826b095ecf07c0e5a0c2c817",
+      "sourceTree": "aa86f326731f3a35187e103b7de5699c12fc8b38"
+    },
+    {
+      "bytes": 2015625,
+      "keyCount": 2717,
+      "path": "FieldEvidenceApp/Resources/Globalization/ko.app.json",
+      "sha256": "1212339322fe5f5eca316c121d470675fd90bc3709ecb7f8b0d6d2ce1df901a0",
+      "sourceRevision": "8206f03439789132fb2144400c5a91ed7d2fafcb",
+      "sourceTree": "a438c5fe05392bb6040e2d133b9abf3900f1aa2d"
+    },
+    {
+      "bytes": 85346,
+      "keyCount": 113,
+      "path": "FieldEvidenceApp/Resources/Globalization/ko.report.json",
+      "sha256": "a6ec97d690be39f4f74dbbc0d7ade2e69d935d51d01c163dfc557d448746af9b",
+      "sourceRevision": "8206f03439789132fb2144400c5a91ed7d2fafcb",
+      "sourceTree": "a438c5fe05392bb6040e2d133b9abf3900f1aa2d"
+    },
+    {
+      "bytes": 283841,
+      "keyCount": 382,
+      "path": "FieldEvidenceApp/Resources/Globalization/ko.accessibility.json",
+      "sha256": "6fd217eb9c254fe59afd5a3c457b33ff726729f816fef3489d9d87a9556c1ca8",
+      "sourceRevision": "8206f03439789132fb2144400c5a91ed7d2fafcb",
+      "sourceTree": "a438c5fe05392bb6040e2d133b9abf3900f1aa2d"
+    }
+  ],
+  "localeReleases": [
+    {
+      "appKeys": 3209,
+      "catalogKeyCount": 3212,
+      "compatibility": "REQUIRES_POST_S10_RECONCILIATION_AND_EXACT_CANDIDATE_REQUALIFICATION",
+      "contentSHA256": "bb14d8e65c0b3c8b60376f5666f7029f460c3d01f08a3a4465b9dd70babfd26a",
+      "fallback": "Missing or unsupported app resource uses exact English default; report chrome remains English under inherited policy; no locale-based jurisdiction or persistence migration.",
+      "language": "en",
+      "permissionKeys": 3,
+      "qualification": "PROVISIONAL_UNQUALIFIED",
+      "sourceCandidate": {
+        "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+        "tree": "c0ce5222da96af804c1bea4b4ab0b6fe023dd5bf"
+      },
+      "supersedes": null
+    },
+    {
+      "appKeys": 3209,
+      "catalogKeyCount": 3212,
+      "compatibility": "REQUIRES_POST_S10_RECONCILIATION_AND_EXACT_CANDIDATE_REQUALIFICATION",
+      "contentSHA256": "144ce7f66381399e957410823716639d3ee3a9eaea81894ef64e181aab31233b",
+      "fallback": "Missing or unsupported app resource uses exact English default; report chrome remains English under inherited policy; no locale-based jurisdiction or persistence migration.",
+      "language": "es",
+      "permissionKeys": 3,
+      "qualification": "PROVISIONAL_UNQUALIFIED",
+      "sourceCandidate": {
+        "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+        "tree": "c0ce5222da96af804c1bea4b4ab0b6fe023dd5bf"
+      },
+      "supersedes": null
+    },
+    {
+      "appKeys": 3209,
+      "catalogKeyCount": 3212,
+      "compatibility": "REQUIRES_POST_S10_RECONCILIATION_AND_EXACT_CANDIDATE_REQUALIFICATION",
+      "contentSHA256": "febdf36daafc41ba5df073cb3630f67128cad7ea8b194c18c2e7ae481c71193d",
+      "fallback": "Missing or unsupported app resource uses exact English default; report chrome remains English under inherited policy; no locale-based jurisdiction or persistence migration.",
+      "language": "zh-Hans",
+      "permissionKeys": 3,
+      "qualification": "PROVISIONAL_UNQUALIFIED",
+      "sourceCandidate": {
+        "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+        "tree": "c0ce5222da96af804c1bea4b4ab0b6fe023dd5bf"
+      },
+      "supersedes": null
+    },
+    {
+      "appKeys": 3209,
+      "catalogKeyCount": 3212,
+      "compatibility": "REQUIRES_POST_S10_RECONCILIATION_AND_EXACT_CANDIDATE_REQUALIFICATION",
+      "contentSHA256": "d1ea24b5e06ea4757eb2fcf804438d9af83418c5a16de67c029daedad3cc688c",
+      "fallback": "Missing or unsupported app resource uses exact English default; report chrome remains English under inherited policy; no locale-based jurisdiction or persistence migration.",
+      "language": "zh-Hant",
+      "permissionKeys": 3,
+      "qualification": "PROVISIONAL_UNQUALIFIED",
+      "sourceCandidate": {
+        "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+        "tree": "c0ce5222da96af804c1bea4b4ab0b6fe023dd5bf"
+      },
+      "supersedes": null
+    },
+    {
+      "appKeys": 3209,
+      "catalogKeyCount": 3212,
+      "compatibility": "REQUIRES_POST_S10_RECONCILIATION_AND_EXACT_CANDIDATE_REQUALIFICATION",
+      "contentSHA256": "a7594e43d6db0a18e9ad184979d2f8195b66864a036688812e06f63c1bb3d7c0",
+      "fallback": "Missing or unsupported app resource uses exact English default; report chrome remains English under inherited policy; no locale-based jurisdiction or persistence migration.",
+      "language": "vi",
+      "permissionKeys": 3,
+      "qualification": "PROVISIONAL_UNQUALIFIED",
+      "sourceCandidate": {
+        "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+        "tree": "c0ce5222da96af804c1bea4b4ab0b6fe023dd5bf"
+      },
+      "supersedes": null
+    },
+    {
+      "appKeys": 3209,
+      "catalogKeyCount": 3212,
+      "compatibility": "REQUIRES_POST_S10_RECONCILIATION_AND_EXACT_CANDIDATE_REQUALIFICATION",
+      "contentSHA256": "b80c88d319c9b7cfc74678b3be32a5b0017faff917a9183daf1f5fda7bd5a176",
+      "fallback": "Missing or unsupported app resource uses exact English default; report chrome remains English under inherited policy; no locale-based jurisdiction or persistence migration.",
+      "language": "ko",
+      "permissionKeys": 3,
+      "qualification": "PROVISIONAL_UNQUALIFIED",
+      "sourceCandidate": {
+        "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+        "tree": "c0ce5222da96af804c1bea4b4ab0b6fe023dd5bf"
+      },
+      "supersedes": null
+    }
+  ],
+  "payloadDigest": "153eb4311af6e600893b40eefd1587bbc210dc85ce43acb9e3734b8802eb220b",
+  "provenance": {
+    "authorityHead": "2e45ef7722b80c4cd3f88225c62a4ea0a99487d7",
+    "bindingCommitRole": "DIRECT_CHILD_EVIDENCE_ONLY_OBSERVED_EXTERNALLY_AFTER_COMMIT",
+    "cardBase": "02c7b78884865e3392c164b0165f703499da9f61",
+    "expectedBindingPaths": [
+      "docs/design/v30/translation/V30ProvisionalLocalizationCatalogReleaseV1.json",
+      "docs/design/v30/execution/receipts/V30-P04-C07-provisional-integration-receipt.json",
+      "docs/design/v30/verification/V30P04C07LocaleIntegrationMatrixV1.json"
+    ],
+    "identityRule": "payloadDigest hashes canonical UTF8 sorted-key two-space JSON with LF, omitting only payloadDigest. No future Git identity is self-recorded.",
+    "sourceCandidate": {
+      "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+      "tree": "c0ce5222da96af804c1bea4b4ab0b6fe023dd5bf"
+    },
+    "sourceCommitRole": "PRODUCT_CANDIDATE"
+  },
+  "qualificationGaps": [
+    {
+      "id": "NATIVE_ROUTE_UNEXECUTED",
+      "required": "Authorized native compile/unit/UI/Simulator/VoiceOver/DynamicType/font/keyboard/PDF/print validation after reconciliation; 8 new native tests authored only.",
+      "state": "NOT_EXECUTED_NO_NATIVE_CREDIT"
+    },
+    {
+      "id": "PROFESSIONAL_TRANSLATION_REVIEW",
+      "required": "Independent professional translator/reviewer roles, native in-context screenshots, error/permission/report copy, regional profiles, review receipts rebound to reconciled candidate.",
+      "state": "PENDING"
+    },
+    {
+      "id": "ENGLISH_EXTRACTION_DEFECTS",
+      "keys": [
+        "v30.manual-work-resource.units",
+        "v30.my-day.no-duration-estimate-lowercase",
+        "v30.my-day.no-total-estimate",
+        "v30.my-day.start"
+      ],
+      "required": "Atomic causal-owner repair of registry producer and shared English catalog; regenerate source-bound locale packets and requalify.",
+      "state": "KNOWN_INHERITED_BLOCKER"
+    },
+    {
+      "id": "HISTORICAL_C01_ASSERTIONS",
+      "path": "FieldEvidenceAppTests/V30_P02_C01EnglishCatalogNormalizationTests.swift",
+      "required": "Causal-owner authorized update of historical whole-entry/key-set equality assertions for intentional six-locale +119-key integration; file outside C37 fence remains unchanged.",
+      "state": "EXPECTED_RECONCILIATION_GAP_NOT_EXECUTED"
+    },
+    {
+      "id": "INHERITED_TRANSLATOR_COMMENTS",
+      "keys": [
+        "c12.queue.acknowledge",
+        "c12.queue.acknowledged",
+        "c12.queue.deduplicated",
+        "c12.queue.disclosure",
+        "c12.queue.heading",
+        "c12.queue.not_acknowledged",
+        "c12.queue.preview",
+        "c12.queue.severity",
+        "c12.queue.unavailable",
+        "c12.reduced_motion",
+        "c12.reinspection.disclosure",
+        "c12.reinspection.fresh",
+        "c12.reinspection.heading",
+        "c12.reinspection.unchanged",
+        "c12.state.empty",
+        "c12.state.error",
+        "c12.state.interrupted",
+        "c12.state.offline",
+        "c12.state.protected",
+        "c12.state.storage",
+        "c13.identity.accepted",
+        "c13.identity.ambiguity",
+        "c13.identity.confirm_consolidation",
+        "c13.identity.confirmation",
+        "c13.identity.handoff",
+        "c13.identity.heading",
+        "c13.identity.historic_alias",
+        "c13.identity.interrupted",
+        "c13.identity.no_automatic_mutation",
+        "c13.identity.reduced_motion",
+        "c13.identity.stale_conflict",
+        "evidence.quality.coach.accept_with_reason",
+        "evidence.quality.coach.accept_with_reason.hint",
+        "evidence.quality.coach.cancel",
+        "evidence.quality.coach.cancel.hint",
+        "evidence.quality.coach.input",
+        "evidence.quality.coach.limitation.heading",
+        "evidence.quality.coach.limitation.required",
+        "evidence.quality.coach.original_preserved",
+        "evidence.quality.coach.reason.conditions_changed",
+        "evidence.quality.coach.reason.evidence_unavailable",
+        "evidence.quality.coach.reason.heading",
+        "evidence.quality.coach.reason.required",
+        "evidence.quality.coach.reason.retake_not_possible",
+        "evidence.quality.coach.reduced_motion",
+        "evidence.quality.coach.remedy",
+        "evidence.quality.coach.retake",
+        "evidence.quality.coach.retake.hint",
+        "evidence.quality.coach.rule_version",
+        "evidence.quality.coach.threshold",
+        "evidence.quality.coach.unavailable",
+        "evidence.quality.coach.unavailable.cancelled",
+        "evidence.quality.coach.unavailable.corrupt",
+        "evidence.quality.coach.unavailable.heading",
+        "evidence.quality.coach.unavailable.offline",
+        "evidence.quality.coach.unavailable.protected",
+        "evidence.quality.coach.unavailable.stale",
+        "evidence.quality.coach.unavailable.storage",
+        "evidence.quality.coach.warning",
+        "fast.inbox.capture",
+        "fast.inbox.heading",
+        "fast.inbox.local_only",
+        "fast.inbox.no_acceptance",
+        "fast.inbox.not_promoted",
+        "fast.inbox.preview_only",
+        "fast.inbox.promoted",
+        "fast.inbox.reduced_motion",
+        "fast.inbox.review",
+        "fast.inbox.snippet",
+        "fast.inbox.state.collision",
+        "fast.inbox.state.inbox",
+        "fast.inbox.state.protected",
+        "fast.inbox.state.recovery",
+        "fast.inbox.state.storage",
+        "fast.inbox.state.unassigned",
+        "import.preview.all_or_nothing",
+        "import.preview.ambiguous",
+        "import.preview.chunked",
+        "import.preview.conflict",
+        "import.preview.create",
+        "import.preview.duplicate",
+        "import.preview.heading",
+        "import.preview.identity_disclosure",
+        "import.preview.interrupted",
+        "import.preview.invalid",
+        "import.preview.mapping",
+        "import.preview.no_receipt_claim",
+        "import.preview.no_write",
+        "import.preview.partial",
+        "import.preview.plan",
+        "import.preview.schema",
+        "import.preview.skipped",
+        "import.preview.source",
+        "import.preview.stale",
+        "import.preview.unchanged",
+        "import.preview.unsupported",
+        "import.preview.update",
+        "round.session.back",
+        "round.session.batch_handoff",
+        "round.session.closeout.complete",
+        "round.session.closeout.incomplete",
+        "round.session.completed",
+        "round.session.completed_count",
+        "round.session.flagged_count",
+        "round.session.handoff.completed",
+        "round.session.handoff.pending",
+        "round.session.handoff.ready",
+        "round.session.handoff.unavailable",
+        "round.session.heading",
+        "round.session.incomplete",
+        "round.session.incomplete_count",
+        "round.session.items",
+        "round.session.jump_flagged",
+        "round.session.jump_incomplete",
+        "round.session.manual_path",
+        "round.session.move_earlier",
+        "round.session.move_later",
+        "round.session.ordered_only",
+        "round.session.out_of_order",
+        "round.session.position_preserved",
+        "round.session.progress",
+        "round.session.projection_unavailable",
+        "round.session.readiness.blocked",
+        "round.session.readiness.blocked_disclosure",
+        "round.session.readiness.ready",
+        "round.session.readiness.stale",
+        "round.session.readiness.unavailable",
+        "round.session.readiness.warning",
+        "round.session.recovery",
+        "round.session.save_failure",
+        "round.session.saving",
+        "round.session.terminal"
+      ],
+      "required": "Curate missing inherited translator context during authorized source review; no invented professional context.",
+      "state": "PRESERVED_SOURCE_METADATA_GAP"
+    },
+    {
+      "id": "LEGACY_RELEASE_AND_REPORT_QUALIFICATION",
+      "required": "This provisional binding does not alter C08 descriptor acceptance, shipping manifest, report chrome policy, App Store publication or metadata qualification.",
+      "state": "PRESERVED_INHERITED_ENGLISH_ONLY"
+    }
+  ],
+  "reconciliation": "Frozen provisional content only; all changed head/tree/content/human/render/CI evidence requires post-S10 requalification. No automatic promotion to accepted C08 descriptor, canonical ledger, main or release.",
+  "renderedArtifacts": [],
+  "reviewRoles": [
+    {
+      "identity": null,
+      "receipt": null,
+      "role": "professional_translator",
+      "state": "PENDING"
+    },
+    {
+      "identity": null,
+      "receipt": null,
+      "role": "independent_bilingual_reviewer",
+      "state": "PENDING"
+    },
+    {
+      "identity": null,
+      "receipt": null,
+      "role": "native_in_context_reviewer",
+      "state": "PENDING"
+    },
+    {
+      "identity": null,
+      "receipt": null,
+      "role": "release_custodian",
+      "state": "PENDING"
+    }
+  ],
+  "schemaVersion": 1,
+  "supersedes": null
+}
