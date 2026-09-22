@@ -5,7 +5,13 @@ import Foundation
 struct InjectedOnDeviceOCRProposalAdapterV1: OCRProposalExtractingV1 {
     typealias Operation = @Sendable (OCRExtractionRequestV1) async throws -> [OCRProposalEvidenceV1]
     private let operation: Operation
-    init(operation: @escaping Operation) { self.operation = operation }
+    private let capabilityProbe: AssistedInputCapabilityProbeV1?
+    init(capabilityProbe: AssistedInputCapabilityProbeV1? = nil, operation: @escaping Operation) {
+        self.capabilityProbe = capabilityProbe; self.operation = operation
+    }
+    func capabilityObservation(for query: AssistedInputCapabilityQueryV1) async throws -> AssistedInputCapabilityObservationV1? {
+        try await capabilityProbe?(query)
+    }
     func extract(_ request: OCRExtractionRequestV1) async throws -> [OCRProposalEvidenceV1] {
         try request.validate()
         let values = try await operation(request)

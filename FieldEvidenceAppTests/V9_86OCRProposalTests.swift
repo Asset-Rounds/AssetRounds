@@ -4,6 +4,46 @@ import XCTest
 
 @MainActor
 final class V9_86OCRProposalTests: XCTestCase {
+    func testV30C07OCRRequiresFreshExactOnDeviceEvidenceAndBindsProviderRevision() async throws {
+        let bundle = try C23OCRSupport.bundle()
+        let before = try AssistanceCanonicalCodecV1.encode(bundle.request)
+        // Construction and parity validation must terminate without recursion.
+        try bundle.request.validate(); try bundle.evidence.validate()
+        for mode in ["missing", "online", "stale", "wrong-revision", "available"] {
+            let counter = C23CallCounter()
+            let scratch = C23ScratchLifecycle()
+            let evidence = bundle.evidence
+            let extractor = InjectedOnDeviceOCRProposalAdapterV1(capabilityProbe: { query in
+                if mode == "missing" { return nil }
+                let scope: AssistedInputCapabilityQueryV1
+                if mode == "stale" {
+                    scope = try .init(kind: query.kind, localeIdentifiers: query.localeIdentifiers,
+                                      providerRelease: query.providerRelease, environment: query.environment)
+                } else { scope = query }
+                return try .init(query: scope, supportedLocaleIdentifiers: query.localeIdentifiers,
+                    onDevice: mode == "online" ? .unavailable : .available,
+                    online: mode == "online" ? .available : .unobserved,
+                    implementationRevision: mode == "wrong-revision" ? "OTHER_REVISION" : evidence.capabilityImplementationRevision)
+            }) { _ in await counter.increment(); return [evidence] }
+            let coordinator = try OCRProposalCoordinatorV1(policy: C23OCRSupport.policy(activation: .enabledOnDevice),
+                access: C23AccessGate(state: .disabled), extractor: extractor, scratch: scratch,
+                assistance: AssistanceCoordinatorV1(lifecycle: C23AssistanceLifecycle()),
+                environment: { try V30AssistedInputTestSupport.environment() })
+            if mode == "wrong-revision" {
+                await XCTAssertThrowsErrorAsync(try await coordinator.extractText(bundle.request))
+                XCTAssertEqual(scratch.discardCount, 1)
+            } else {
+                let outcome = try await coordinator.extractText(bundle.request)
+                XCTAssertEqual(outcome, mode == "available" ? .proposals([evidence]) : .manualFallback(.typeManually))
+            }
+            let calls = await counter.value()
+            let invokes = mode == "available" || mode == "wrong-revision"
+            XCTAssertEqual(calls, invokes ? 1 : 0)
+            XCTAssertEqual(scratch.prepareCount, invokes ? 1 : 0)
+            XCTAssertEqual(try AssistanceCanonicalCodecV1.encode(bundle.request), before)
+        }
+    }
+
     func testV23P04C23G01SupportedExplicitOCRReviewAcceptAndNoAutomaticWrite() async throws {
         let bundle = try C23OCRSupport.bundle()
         try bundle.evidence.validate()
@@ -165,7 +205,9 @@ final class V9_86OCRProposalTests: XCTestCase {
         let prepareFailureScratch = C23PrepareThenThrowScratch()
         let providerCalls = C23CallCounter()
         let failureEvidence = bundle.evidence
-        let neverReachedProvider = InjectedOnDeviceOCRProposalAdapterV1 { _ in
+        let neverReachedProvider = InjectedOnDeviceOCRProposalAdapterV1(capabilityProbe: {
+            try V30AssistedInputTestSupport.available($0, revision: failureEvidence.capabilityImplementationRevision)
+        }) { _ in
             await providerCalls.increment()
             return [failureEvidence]
         }
@@ -174,7 +216,8 @@ final class V9_86OCRProposalTests: XCTestCase {
             access: C23AccessGate(state: .disabled),
             extractor: neverReachedProvider,
             scratch: prepareFailureScratch,
-            assistance: AssistanceCoordinatorV1(lifecycle: C23AssistanceLifecycle())
+            assistance: AssistanceCoordinatorV1(lifecycle: C23AssistanceLifecycle()),
+            environment: { try V30AssistedInputTestSupport.environment() }
         )
         await XCTAssertThrowsErrorAsync(
             try await enabledCoordinator.extractText(bundle.request)

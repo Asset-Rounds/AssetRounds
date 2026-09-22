@@ -481,7 +481,7 @@ struct VoicePushToTalkCaptureView: View {
 
     private var canStartCapture: Bool {
         guard model.canStartCapture,
-              model.captureContext != nil,
+              model.captureContext?.capability.localeIdentifier != nil,
               model.draft.state == .current,
               model.draft.canEdit else { return false }
         switch model.state {
@@ -613,7 +613,10 @@ struct VoicePushToTalkCaptureView: View {
                     .buttonStyle(WorklightPrimaryButtonStyle())
                     .disabled(!canStartCapture)
                     .keyboardShortcut("s", modifiers: [.command])
-                    .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.voiceCaptureStartHint))
+                    .accessibilityHint(String(localized: "v30.voice-capture.capability-check-hint",
+                        defaultValue: "Speech and grammar availability for the selected language are checked when you start. Manual entry remains available.",
+                        locale: Locale(identifier: SystemLanguageResolverV1().resolve().effectiveLanguage.rawValue),
+                        comment: "Start action hint: a localized label does not establish on-device speech or grammar support."))
                     .accessibilityIdentifier(Self.speakDetailsAccessibilityIdentifier)
                 } else {
                     Text(BundledLocalizationCatalogV1.v30Text(.voiceCaptureStartUnavailable))

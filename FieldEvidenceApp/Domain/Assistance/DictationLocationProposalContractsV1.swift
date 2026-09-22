@@ -447,10 +447,15 @@ enum DictationLocationProposalOutcomeV1: Equatable, Sendable {
 }
 
 protocol SpeechCapabilityAdapterV1: Sendable {
+    func capabilityObservation(for query: AssistedInputCapabilityQueryV1) async throws -> AssistedInputCapabilityObservationV1?
     func permissionDisposition() async throws -> SpeechPermissionDispositionV1
     func requestMicrophonePermission() async throws -> SpeechPermissionDispositionV1
     func requestSpeechRecognitionPermission() async throws -> SpeechPermissionDispositionV1
     func dictateOnDevice(_ request:OnDeviceDictationRequestV1)async throws->OnDeviceDictationProposalV1
+}
+
+extension SpeechCapabilityAdapterV1 {
+    func capabilityObservation(for query: AssistedInputCapabilityQueryV1) async throws -> AssistedInputCapabilityObservationV1? { nil }
 }
 
 protocol OneShotLocationCapabilityAdapterV1: Sendable {

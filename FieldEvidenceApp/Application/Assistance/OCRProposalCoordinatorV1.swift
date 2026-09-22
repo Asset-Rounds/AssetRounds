@@ -9,12 +9,15 @@ import Foundation
     private let extractor: any OCRProposalExtractingV1
     private let scratch: any OCRProposalScratchLifecycleV1
     private let assistance: AssistanceCoordinatorV1
+    private let environment: AssistedInputEnvironmentProbeV1
 
     init(policy: OCRCapabilityPolicyV1, access: any AppAccessGatePortV1,
          extractor: any OCRProposalExtractingV1, scratch: any OCRProposalScratchLifecycleV1,
-         assistance: AssistanceCoordinatorV1) throws {
+         assistance: AssistanceCoordinatorV1,
+         environment: @escaping AssistedInputEnvironmentProbeV1 = { try SystemAssistedInputEnvironmentV1.current() }) throws {
         try policy.validate();self.policy=policy;self.access=access
         self.extractor=extractor;self.scratch=scratch;self.assistance=assistance
+        self.environment = environment
     }
 
     func extractText(_ request: OCRExtractionRequestV1) async throws -> OCRProposalOutcomeV1 {
@@ -27,11 +30,23 @@ import Foundation
         guard policy.activation == .enabledOnDevice else {
             return .manualFallback(policy.manualFallback)
         }
+        guard let observedEnvironment = try? environment(),
+              let query = try? AssistedInputCapabilityQueryV1(kind: .ocr,
+                  localeIdentifiers: request.requestedLanguageIdentifiers,
+                  providerRelease: policy.assistancePolicy.capability.version, environment: observedEnvironment),
+              let observation = try? await extractor.capabilityObservation(for: query),
+              let currentEnvironment = try? environment(),
+              AssistedInputCapabilityCoordinatorV1.evaluate(query: query, observation: observation,
+                  currentEnvironment: currentEnvironment, featureEnabled: true).mayStartOnDevice else {
+            return .manualFallback(policy.manualFallback)
+        }
         do {
             try await scratch.prepare(request)
             let values = try await extractor.extract(request)
             guard values.count == 1, values[0].request == request,
-                  values[0].proposal.proposalID == request.requestID else {
+                  values[0].proposal.proposalID == request.requestID,
+                  observation.implementationRevision == values[0].capabilityImplementationRevision,
+                  (try environment()) == query.environment else {
                 throw OCRProposalFailureV1.invalidValue
             }
             try values[0].validate(policy:policy)

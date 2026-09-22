@@ -7,14 +7,17 @@ import Foundation
     private let location:any OneShotLocationCapabilityAdapterV1
     private let scratch:any DictationAudioScratchLifecycleV1
     private let assistance:AssistanceCoordinatorV1
+    private let environment: AssistedInputEnvironmentProbeV1
 
     init(policy:DictationLocationCapabilityPolicyV1,access:any AppAccessGatePortV1,
          speech:any SpeechCapabilityAdapterV1,
          location:any OneShotLocationCapabilityAdapterV1,
          scratch:any DictationAudioScratchLifecycleV1,
-         assistance:AssistanceCoordinatorV1)throws{
+         assistance:AssistanceCoordinatorV1,
+         environment: @escaping AssistedInputEnvironmentProbeV1 = { try SystemAssistedInputEnvironmentV1.current() })throws{
         try policy.validate();self.policy=policy;self.access=access;self.speech=speech
         self.location=location;self.scratch=scratch;self.assistance=assistance
+        self.environment=environment
     }
 
     func currentSpeechPermission()async throws->SpeechPermissionDispositionV1{
@@ -46,10 +49,26 @@ import Foundation
         guard permission.permitsOnDeviceDictation else{
             return .manualDictation(DictationManualFallbackV1.allCases)
         }
+        guard let observedEnvironment = try? environment(),
+              let query = try? AssistedInputCapabilityQueryV1(kind: .dictation,
+                  localeIdentifiers: [request.localeIdentifier],
+                  providerRelease: "\(policy.dictationPolicy.capability.version):\(request.recognitionRequestRevision)",
+                  environment: observedEnvironment),
+              let observation = try? await speech.capabilityObservation(for: query),
+              let currentEnvironment = try? environment(),
+              AssistedInputCapabilityCoordinatorV1.evaluate(query: query, observation: observation,
+                  currentEnvironment: currentEnvironment, featureEnabled: true).mayStartOnDevice else {
+            return .manualDictation(DictationManualFallbackV1.allCases)
+        }
         do{
             try await scratch.prepare(request)
             let value=try await speech.dictateOnDevice(request)
             guard value.permission == permission else{throw DictationLocationProposalFailureV1.permissionDenied}
+            guard value.request == request,
+                  observation.implementationRevision == value.providerVersion,
+                  (try environment()) == query.environment else {
+                throw AssistedInputCapabilityFailureV1.invalidObservation
+            }
             try value.validate(policy:policy)
             return .dictation(value)
         }catch{

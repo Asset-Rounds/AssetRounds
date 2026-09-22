@@ -76,6 +76,13 @@ struct VoiceStructuringServiceV1: Sendable, VoiceStructuredProposalAuthenticatin
         )
     }
 
+    /// Recognition and grammar are separate capabilities. Only this exact
+    /// released parser locale is supported, regardless of translated UI labels.
+    func supportsInputLocale(_ identifier: String?) -> Bool {
+        guard let identifier else { return false }
+        return identifier == grammar.localeIdentifier && Self.supportedLocaleIdentifiers.contains(identifier)
+    }
+
     func validateDeterministicProposal(_ proposal: StructuredVoiceProposalV1) throws {
         try proposal.validate()
         let rebuilt = try buildDeterministicProposal(

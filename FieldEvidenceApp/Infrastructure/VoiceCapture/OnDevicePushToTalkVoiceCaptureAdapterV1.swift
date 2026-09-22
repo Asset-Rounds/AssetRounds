@@ -58,6 +58,7 @@ final class OnDevicePushToTalkVoiceCaptureAdapterV1:
     }
 
     private let defaultLocaleIdentifier: String?
+    private let environment: AssistedInputEnvironmentProbeV1
     private let transcriptUpdateHandler: TranscriptUpdateHandler
     private let eventHandler: EventHandler
     private var activeCapture: ActiveCapture?
@@ -70,10 +71,12 @@ final class OnDevicePushToTalkVoiceCaptureAdapterV1:
 
     init(
         defaultLocaleIdentifier: String? = nil,
+        environment: @escaping AssistedInputEnvironmentProbeV1 = { try SystemAssistedInputEnvironmentV1.current() },
         onTranscriptUpdate: @escaping TranscriptUpdateHandler = { _ in },
         onEvent: @escaping EventHandler = { _ in }
     ) {
         self.defaultLocaleIdentifier = defaultLocaleIdentifier
+        self.environment = environment
         transcriptUpdateHandler = onTranscriptUpdate
         eventHandler = onEvent
     }
@@ -128,10 +131,17 @@ final class OnDevicePushToTalkVoiceCaptureAdapterV1:
             cancelledPendingSessionIDs.remove(context.sessionID)
         }
 
-        guard let locale = Self.supportedLocale(
-            context.capability.localeIdentifier ?? defaultLocaleIdentifier ?? Locale.current.identifier
-        ) else {
+        guard let requestedLocale = context.capability.localeIdentifier,
+              defaultLocaleIdentifier.map({ Self.localeIdentity($0) == Self.localeIdentity(requestedLocale) }) ?? true,
+              let locale = Self.supportedLocale(requestedLocale) else {
             emitFailure(for: context, sequence: 1, fallback: .unsupportedLocale)
+            throw VoiceCaptureFailureV1.captureRejected
+        }
+        guard let observedEnvironment = try? environment(),
+              let capabilityQuery = try? AssistedInputCapabilityQueryV1(kind: .speechRecognition,
+                  localeIdentifiers: [requestedLocale], providerRelease: context.capability.version,
+                  environment: observedEnvironment) else {
+            emitFailure(for: context, sequence: 1, fallback: .unavailable)
             throw VoiceCaptureFailureV1.captureRejected
         }
 
@@ -162,6 +172,16 @@ final class OnDevicePushToTalkVoiceCaptureAdapterV1:
               recognizer.supportsOnDeviceRecognition,
               AVAudioSession.sharedInstance().isInputAvailable else {
             emitFailure(for: context, sequence: 1, fallback: .unsupportedDevice)
+            throw VoiceCaptureFailureV1.captureRejected
+        }
+
+        let observation = try AssistedInputCapabilityObservationV1(query: capabilityQuery,
+            supportedLocaleIdentifiers: [requestedLocale], onDevice: .available, online: .unobserved,
+            implementationRevision: "Speech.SFSpeechRecognizer")
+        guard let currentEnvironment = try? environment(),
+              AssistedInputCapabilityCoordinatorV1.evaluate(query: capabilityQuery, observation: observation,
+                  currentEnvironment: currentEnvironment, featureEnabled: true).mayStartOnDevice else {
+            emitFailure(for: context, sequence: 1, fallback: .unavailable)
             throw VoiceCaptureFailureV1.captureRejected
         }
 
@@ -612,10 +632,14 @@ final class OnDevicePushToTalkVoiceCaptureAdapterV1:
     }
 
     private static func supportedLocale(_ identifier: String) -> Locale? {
-        let normalized = identifier.lowercased()
+        let normalized = localeIdentity(identifier)
         return SFSpeechRecognizer.supportedLocales().first {
-            $0.identifier.lowercased() == normalized
+            localeIdentity($0.identifier) == normalized
         }
+    }
+
+    private static func localeIdentity(_ identifier: String) -> String {
+        identifier.replacingOccurrences(of: "_", with: "-").lowercased()
     }
 
     private static func manualFallback(

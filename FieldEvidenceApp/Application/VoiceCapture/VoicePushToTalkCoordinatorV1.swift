@@ -63,6 +63,9 @@ final class VoicePushToTalkCoordinatorV1 {
     func start(_ context: StructuredVoiceCaptureContextV1) async throws -> Outcome {
         try context.validate()
         guard active == nil else { throw VoiceCaptureFailureV1.sessionAlreadyActive }
+        guard structuring.supportsInputLocale(context.capability.localeIdentifier) else {
+            return .manualFallback(.unsupportedLocale)
+        }
         active = ActiveSession(context: context, lastCallbackSequence: 0, proposal: nil,
                                captureClosed: false, cleanupPending: nil, completedCleanup: nil,
                                retryableCleanup: nil, terminalCancellation: nil,

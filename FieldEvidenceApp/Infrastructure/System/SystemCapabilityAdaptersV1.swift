@@ -1,5 +1,51 @@
 import Foundation
+import Darwin
 import UIKit
+
+enum SystemAssistedInputEnvironmentV1 {
+    /// Metadata-only and permission-free. Missing exact runtime/build evidence
+    /// is an unavailable observation, never a guessed capability claim.
+    static func current() throws -> AssistedInputEnvironmentV1 {
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        guard let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String,
+              let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String else {
+            throw AssistedInputCapabilityFailureV1.environmentUnavailable
+        }
+        let model: String
+        let osBuild: String
+        let simulator: Bool
+        #if targetEnvironment(simulator)
+        simulator = true
+        // A simulator's host kernel is not its iOS runtime build.
+        guard let runtimeBuild = ProcessInfo.processInfo.environment["SIMULATOR_RUNTIME_BUILD_VERSION"],
+              let runtimeModel = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] else {
+            throw AssistedInputCapabilityFailureV1.environmentUnavailable
+        }
+        osBuild = runtimeBuild; model = runtimeModel
+        #else
+        simulator = false
+        osBuild = try systemString("kern.osversion")
+        model = try systemString("hw.machine")
+        #endif
+        return try .init(operatingSystemVersion: "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)",
+                         operatingSystemBuild: osBuild, deviceModel: model,
+                         applicationBuild: "\(appVersion):\(build)", isSimulator: simulator)
+    }
+
+    private static func systemString(_ key: String) throws -> String {
+        var size = 0
+        guard sysctlbyname(key, nil, &size, nil, 0) == 0, size > 1, size <= 256 else {
+            throw AssistedInputCapabilityFailureV1.environmentUnavailable
+        }
+        var bytes = [UInt8](repeating: 0, count: size)
+        let result = bytes.withUnsafeMutableBytes { sysctlbyname(key, $0.baseAddress, &size, nil, 0) }
+        guard result == 0, let end = bytes.firstIndex(of: 0),
+              let value = String(bytes: bytes[..<end], encoding: .utf8), !value.isEmpty else {
+            throw AssistedInputCapabilityFailureV1.environmentUnavailable
+        }
+        return value
+    }
+}
 
 actor SystemCapabilityRuntimeAdapterV1: CapabilityRuntimePortV1 {
     typealias StateProbe = @Sendable () async -> CapabilityStateV1

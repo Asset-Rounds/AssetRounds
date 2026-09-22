@@ -118,7 +118,8 @@ struct OCRExtractionRequestV1: Codable, Equatable, Sendable {
         packageCustomWordsSHA256=try AssistanceCanonicalCodecV1.sha256(words)
         self.explicitUserAction=explicitUserAction;self.requestedAt=requestedAt
         requestSHA256=try AssistanceCanonicalCodecV1.sha256(Basis(requestID:requestID,workspaceID:workspaceID,target:target,source:source,sourceCrop:sourceCrop,requestedLanguageIdentifiers:languages,packageCustomWords:words,packageCustomWordsSHA256:packageCustomWordsSHA256,explicitUserAction:explicitUserAction,requestedAt:requestedAt))
-        try validate()
+        // Intrinsic checks above and the calculated digest complete construction.
+        // validate() reconstructs this value; calling it here would recurse.
     }
     func validate() throws {
         guard self == (try Self(requestID:requestID,workspaceID:workspaceID,target:target,source:source,sourceCrop:sourceCrop,requestedLanguageIdentifiers:requestedLanguageIdentifiers,packageCustomWords:packageCustomWords,explicitUserAction:explicitUserAction,requestedAt:requestedAt)) else { throw OCRProposalFailureV1.invalidDigest }
@@ -127,6 +128,9 @@ struct OCRExtractionRequestV1: Codable, Equatable, Sendable {
 }
 
 struct OCRProposalEvidenceV1: Codable, Equatable, Sendable {
+    var capabilityImplementationRevision: String {
+        "\(frameworkIdentifier):\(frameworkRevision):\(recognitionRequestRevision)"
+    }
     let request: OCRExtractionRequestV1
     let frameworkIdentifier: String
     let frameworkRevision: Int
@@ -168,7 +172,7 @@ struct OCRProposalEvidenceV1: Codable, Equatable, Sendable {
         self.observation=observation;self.proposal=proposal;customWordsAreHintsOnly=true
         processedOnDevice=true;networkAccessUsed=false
         evidenceSHA256=try AssistanceCanonicalCodecV1.sha256(Basis(request:request,frameworkIdentifier:frameworkIdentifier,frameworkRevision:frameworkRevision,recognitionRequestRevision:recognitionRequestRevision,configuredLanguageIdentifiers:languages,maximumRecognizedTextBytes:maximumRecognizedTextBytes,observation:observation,proposal:proposal,customWordsAreHintsOnly:true,processedOnDevice:true,networkAccessUsed:false))
-        try validate()
+        // validate() reconstructs this intrinsically checked value.
     }
     func validate() throws {
         guard self == (try Self(request:request,frameworkIdentifier:frameworkIdentifier,
@@ -213,7 +217,12 @@ enum OCRProposalOutcomeV1: Equatable, Sendable {
 }
 
 protocol OCRProposalExtractingV1: Sendable {
+    func capabilityObservation(for query: AssistedInputCapabilityQueryV1) async throws -> AssistedInputCapabilityObservationV1?
     func extract(_ request: OCRExtractionRequestV1) async throws -> [OCRProposalEvidenceV1]
+}
+
+extension OCRProposalExtractingV1 {
+    func capabilityObservation(for query: AssistedInputCapabilityQueryV1) async throws -> AssistedInputCapabilityObservationV1? { nil }
 }
 
 @MainActor protocol OCRProposalScratchLifecycleV1: AnyObject {

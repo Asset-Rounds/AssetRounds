@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "cardID": "V30-P03-C07",
+  "locales": [
+    "en-US",
+    "es-US",
+    "zh-Hans-CN",
+    "zh-Hant-TW",
+    "vi-VN",
+    "ko-KR"
+  ],
+  "shippingCapabilityClaims": false,
+  "observations": "SYNTHETIC_TEST_INPUTS_NOT_A_SHIPPING_SUPPORT_MATRIX",
+  "kinds": [
+    "ocr",
+    "dictation",
+    "speechRecognition",
+    "grammar"
+  ],
+  "cases": [
+    "MISSING_OBSERVATION",
+    "EXACT_ON_DEVICE",
+    "ONLINE_ONLY",
+    "UNSUPPORTED_EXACT_LOCALE",
+    "STALE_INVOCATION",
+    "CHANGED_OS_BUILD",
+    "CHANGED_DEVICE",
+    "CHANGED_APP_BUILD",
+    "CHANGED_PROVIDER_RELEASE",
+    "WRONG_OUTPUT_PROVIDER_REVISION",
+    "FEATURE_DISABLED"
+  ],
+  "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+  "sourceTextIsTranslated": false
+}

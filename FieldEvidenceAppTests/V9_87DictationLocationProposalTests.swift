@@ -4,6 +4,30 @@ import XCTest
 
 @MainActor
 final class V9_87DictationLocationProposalTests: XCTestCase {
+    func testV30C07OnlineOnlyDictationKeepsManualFallbackWithoutScratchOrProviderUse() async throws {
+        let policy = try C24Support.policy(enabled: true)
+        let bundle = try C24Support.dictationBundle(policy: policy)
+        let permission = bundle.permission
+        let draft = bundle.draft
+        let counter = C24CallCounter()
+        let scratch = C24ScratchLifecycle()
+        let speech = InjectedOnDeviceSpeechCapabilityAdapterV1(permission: { permission },
+            requestMicrophone: { permission }, requestSpeechRecognition: { permission },
+            capabilityProbe: { query in
+                try .init(query: query, supportedLocaleIdentifiers: query.localeIdentifiers,
+                          onDevice: .unavailable, online: .available, implementationRevision: draft.providerVersion)
+            }, dictate: { _ in await counter.increment(); return draft })
+        let coordinator = try DictationLocationProposalCoordinatorV1(policy: policy, access: C24AccessGate(),
+            speech: speech, location: PreparedDisabledOneShotLocationCapabilityAdapterV1(), scratch: scratch,
+            assistance: AssistanceCoordinatorV1(lifecycle: C24AssistanceLifecycle()),
+            environment: { try V30AssistedInputTestSupport.environment() })
+        let result = try await coordinator.dictate(bundle.request)
+        XCTAssertEqual(result, .manualDictation(DictationManualFallbackV1.allCases))
+        XCTAssertEqual(scratch.prepareCount, 0)
+        let calls = await counter.value()
+        XCTAssertEqual(calls, 0)
+    }
+
     func testV23P04C24G01EnabledOnDeviceDictationEditAcceptAndOneShotLocationReview() async throws {
         let policy = try C24Support.policy(enabled: true)
         let dictation = try C24Support.dictationBundle(policy: policy)
@@ -274,6 +298,7 @@ final class V9_87DictationLocationProposalTests: XCTestCase {
             permission: { speechPermission },
             requestMicrophone: { speechPermission },
             requestSpeechRecognition: { speechPermission },
+            capabilityProbe: { try V30AssistedInputTestSupport.available($0, revision: "APPLE_SPEECH_V1") },
             dictate: { _ in throw C24TestFailure.audioInterrupted }
         )
         let locationAdapter = InjectedOneShotLocationCapabilityAdapterV1(
@@ -287,7 +312,8 @@ final class V9_87DictationLocationProposalTests: XCTestCase {
             speech: speech,
             location: locationAdapter,
             scratch: scratch,
-            assistance: AssistanceCoordinatorV1(lifecycle: C24AssistanceLifecycle())
+            assistance: AssistanceCoordinatorV1(lifecycle: C24AssistanceLifecycle()),
+            environment: { try V30AssistedInputTestSupport.environment() }
         )
         await XCTAssertThrowsC24(try await coordinator.dictate(dictation.request)) { error in
             XCTAssertEqual(error as? C24TestFailure, .audioInterrupted)
@@ -580,6 +606,7 @@ private enum C24Support {
                 permission: { speechPermission },
                 requestMicrophone: { speechPermission },
                 requestSpeechRecognition: { speechPermission },
+                capabilityProbe: { try V30AssistedInputTestSupport.available($0, revision: speechValue.providerVersion) },
                 dictate: { _ in await providerCalls?.increment(); return speechValue }
             ),
             location: InjectedOneShotLocationCapabilityAdapterV1(
@@ -588,7 +615,8 @@ private enum C24Support {
                 locate: { _ in await providerCalls?.increment(); return locationValue }
             ),
             scratch: C24ScratchLifecycle(),
-            assistance: AssistanceCoordinatorV1(lifecycle: lifecycle)
+            assistance: AssistanceCoordinatorV1(lifecycle: lifecycle),
+            environment: { try V30AssistedInputTestSupport.environment() }
         )
     }
 

@@ -6,10 +6,16 @@ struct InjectedOnDeviceSpeechCapabilityAdapterV1:SpeechCapabilityAdapterV1{
     typealias Dictate=@Sendable (OnDeviceDictationRequestV1)async throws->OnDeviceDictationProposalV1
     private let permission:Permission;private let microphone:RequestPermission
     private let recognition:RequestPermission;private let dictate:Dictate
+    private let capabilityProbe: AssistedInputCapabilityProbeV1?
     init(permission:@escaping Permission,requestMicrophone:@escaping RequestPermission,
-         requestSpeechRecognition:@escaping RequestPermission,dictate:@escaping Dictate){
+         requestSpeechRecognition:@escaping RequestPermission,
+         capabilityProbe: AssistedInputCapabilityProbeV1? = nil,dictate:@escaping Dictate){
         self.permission=permission;microphone=requestMicrophone;recognition=requestSpeechRecognition
         self.dictate=dictate
+        self.capabilityProbe=capabilityProbe
+    }
+    func capabilityObservation(for query: AssistedInputCapabilityQueryV1) async throws -> AssistedInputCapabilityObservationV1? {
+        try await capabilityProbe?(query)
     }
     func permissionDisposition()async throws->SpeechPermissionDispositionV1{try await permission()}
     func requestMicrophonePermission()async throws->SpeechPermissionDispositionV1{try await microphone()}

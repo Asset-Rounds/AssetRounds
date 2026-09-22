@@ -75,6 +75,24 @@ private enum C45 {
 }
 
 @MainActor final class V9_108StructuredVoiceCaptureTests: XCTestCase {
+    func testV30C07MissingOrUnsupportedGrammarLocaleFallsBackBeforeMicrophoneCapture() async throws {
+        let base = try C45.context()
+        let locales: [String?] = [nil, "es-US", "zh-Hans-CN", "zh-Hant-TW", "vi-VN", "ko-KR"]
+        for locale in locales {
+            let context = try StructuredVoiceCaptureContextV1(sessionID: base.sessionID,
+                capability: .init(capabilityID: base.capability.capabilityID, version: base.capability.version, localeIdentifier: locale),
+                workspaceID: base.workspaceID, entity: base.entity, targetRevision: base.targetRevision,
+                lifecycleGeneration: base.lifecycleGeneration)
+            let (value, capture, scratch, _) = try coordinator()
+            let outcome = try await value.start(context)
+            XCTAssertEqual(outcome, .manualFallback(.unsupportedLocale))
+            XCTAssertTrue(capture.begun.isEmpty)
+            XCTAssertTrue(scratch.calls.isEmpty)
+        }
+        XCTAssertTrue(try C45.service().supportsInputLocale("en-US"))
+        XCTAssertFalse(try C45.service().supportsInputLocale("en-GB"))
+    }
+
     private func coordinator(_ scratch: C45Scratch = C45Scratch(), capture: C45Capture = C45Capture(), review: C45Review = C45Review()) throws -> (VoicePushToTalkCoordinatorV1, C45Capture, C45Scratch, C45Review) { (try .init(capture: capture, scratch: scratch, structuring: C45.service(), review: review), capture, scratch, review) }
     private func corpus() throws -> [String: Any] {
         let name = "V23P04C45StructuredVoiceCaptureCorpusV1"
