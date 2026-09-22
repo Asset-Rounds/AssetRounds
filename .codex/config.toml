@@ -7,7 +7,7 @@ model = "gpt-6-astra"
 model_reasoning_effort = "xhigh"
 
 # Root implements; one bounded helper. Select model and effort explicitly
-# when spawning, following AGENTS.md (medium for consequential reviews).
+# when spawning, following AGENTS.md (high for consequential reviews until the owner changes it back).
 # Installed CLI 0.144.5 rejects the newer default_subagent_* settings.
 [agents]
 max_threads = 2

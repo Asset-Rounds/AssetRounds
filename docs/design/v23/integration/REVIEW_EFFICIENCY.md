@@ -1,8 +1,10 @@
 # Review efficiency — current record
 
-Root stays hands-on on Astra xhigh. One Astra medium reviewer owns each consequential affected contract through related source/index/commit gates; low handles narrow mechanical checks. Deterministic checks precede semantic review. AGENTS.md controls routing and gates; this file records outcomes, not additional policy.
+Root stays hands-on on Astra xhigh. One Astra high reviewer owns each consequential affected contract until the owner changes it back through related source/index/commit gates; low handles narrow mechanical checks. Deterministic checks precede semantic review. AGENTS.md controls routing and gates; this file records outcomes, not additional policy.
 
 ## Current batch
+
+1d91e84 three-var correction:173 deterministic checks and same-medium correction/index/commit review passed. Original35692436341/D870EFCE compiles and report-Fork passes; aggregate900s interrupts recovery after six passes. No newly proven source defect; the diagnostic original supplied new runtime evidence, not acceptance. Root xhigh and one fresh high bounded diagnosis established timing/259-signature warning parity. Next C47 batch reuses earlier medium findings, then fresh high reviews the fixture/policy corrections and actual combined boundary. Local policy qualification caught Windows raw-versus-Git-normalized policy pins before dispatch (0native); qualification results and hashes stay in runtime-1d91e84/c47-native-support. Native/index/commit gates remain due. No measured token savings.
 
 7814ec0 report-Fork diagnostic: root Astra xhigh; one fresh Astra medium diagnostic reviewer retained through source/index/commit.173 deterministic checks and index/route review passed with0findings. Native35689436825/7DFAB94E exposes a confirmed post-approval compiler miss: three let-bound StoreGenerationFactory struct values received mutable DEBUG flag assignments.12NotStarted,0new warning signatures; one native original consumed by this defect. Root corrects the three declarations, without delegate diagnosis or a higher watchdog. Runtime attribution is still unknown. The separate C47 privacy draft remains outside this correction until its supported native group is selected. Required gates stay separate from this avoidable run; no net savings claim.
 

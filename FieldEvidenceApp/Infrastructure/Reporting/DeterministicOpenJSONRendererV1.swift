@@ -529,6 +529,21 @@ private enum C30OperatingContextOpenJSONLabelsV1 {
 enum ReportSemanticProjectorV1 {
     static let rendererVersion = "report-semantic-projector-v1"
 
+    private static func outputScopedID(
+        _ kind: String, _ value: String, binding: FinalizedReportProfileBindingV1
+    ) -> String {
+        guard binding.audience == .customerSafe else { return value }
+        let hash = KernelCanonicalHashV1.sha256(Data("\(binding.outputScopeID)|\(kind)|\(value)".utf8))
+        return "out-\(kind)-\(hash.prefix(16))"
+    }
+
+    private static func outputScopedDigest(
+        _ kind: String, _ value: String, binding: FinalizedReportProfileBindingV1
+    ) -> String {
+        guard binding.audience == .customerSafe else { return value }
+        return KernelCanonicalHashV1.sha256(Data("\(binding.outputScopeID)|\(kind)|\(value)".utf8))
+    }
+
     static func project(
         snapshot: CompletedActivitySnapshotV1,
         manifest: ContractManifestV1
@@ -724,14 +739,11 @@ enum ReportSemanticProjectorV1 {
         }
 
         func visibleID(_ kind: String, _ value: String) -> String {
-            guard binding.audience == .customerSafe else { return value }
-            let hash = KernelCanonicalHashV1.sha256(Data("\(binding.outputScopeID)|\(kind)|\(value)".utf8))
-            return "out-\(kind)-\(hash.prefix(16))"
+            outputScopedID(kind, value, binding: binding)
         }
 
         func visibleDigest(_ kind: String, _ value: String) -> String {
-            guard binding.audience == .customerSafe else { return value }
-            return KernelCanonicalHashV1.sha256(Data("\(binding.outputScopeID)|\(kind)|\(value)".utf8))
+            outputScopedDigest(kind, value, binding: binding)
         }
 
         try append("identity", "heading", "Report", visibleID("report", activity.reportID))
@@ -3426,6 +3438,13 @@ extension ReportSemanticProjectorV1 {
             throw SnapshotProjectionFailureV1.missingBinding
         }
         let base = try project(snapshot: completed, manifest: manifest)
+        let binding = completed.payload.activity.profileBinding
+        func visibleID(_ kind: String, _ value: String) -> String {
+            outputScopedID(kind, value, binding: binding)
+        }
+        func visibleDigest(_ kind: String, _ value: String) -> String {
+            outputScopedDigest(kind, value, binding: binding)
+        }
         let section = base.nodes.contains(where: { $0.sectionID == "service" })
             ? "service" : (base.nodes.first?.sectionID ?? "identity")
         var nodes = base.nodes
@@ -3448,22 +3467,22 @@ extension ReportSemanticProjectorV1 {
                 try ReportSemanticNodeV1(
                     semanticID: "c47-snapshot-target-workspace", sectionID: section,
                     role: "identity", label: "Snapshot target workspace",
-                    value: reference.workspaceID.rawValue.uuidString.lowercased()
+                    value: visibleID("workspace", reference.workspaceID.rawValue.uuidString.lowercased())
                 ),
                 try ReportSemanticNodeV1(
                     semanticID: "c47-snapshot-target-activity", sectionID: section,
                     role: "identity", label: "Snapshot target activity",
-                    value: reference.activityID.uuidString.lowercased()
+                    value: visibleID("activity", reference.activityID.uuidString.lowercased())
                 ),
                 try ReportSemanticNodeV1(
                     semanticID: "c47-snapshot-source-workspace", sectionID: section,
                     role: "identity", label: "Snapshot source workspace",
-                    value: reference.sourceWorkspaceID.rawValue.uuidString.lowercased()
+                    value: visibleID("workspace", reference.sourceWorkspaceID.rawValue.uuidString.lowercased())
                 ),
                 try ReportSemanticNodeV1(
                     semanticID: "c47-snapshot-source-activity", sectionID: section,
                     role: "identity", label: "Snapshot source activity",
-                    value: reference.sourceActivityID.uuidString.lowercased()
+                    value: visibleID("activity", reference.sourceActivityID.uuidString.lowercased())
                 ),
                 try ReportSemanticNodeV1(
                     semanticID: "c47-snapshot-source-revision", sectionID: section,
@@ -3473,12 +3492,12 @@ extension ReportSemanticProjectorV1 {
                 try ReportSemanticNodeV1(
                     semanticID: "c47-snapshot-source-closeout", sectionID: section,
                     role: "digest", label: "Snapshot source closeout SHA-256",
-                    value: reference.sourceCloseoutSHA256
+                    value: visibleDigest("activity-closeout", reference.sourceCloseoutSHA256)
                 ),
                 try ReportSemanticNodeV1(
                     semanticID: "c47-snapshot-target-closeout", sectionID: section,
                     role: "digest", label: "Snapshot target closeout SHA-256",
-                    value: reference.targetCloseoutSHA256
+                    value: visibleDigest("activity-closeout", reference.targetCloseoutSHA256)
                 ),
             ]
         }
@@ -3499,7 +3518,7 @@ extension ReportSemanticProjectorV1 {
                 try ReportSemanticNodeV1(
                     semanticID: "c47-installation-closeout-as-built", sectionID: section,
                     role: "digest", label: "As-built snapshot SHA-256",
-                    value: closeout.asBuiltSnapshotSHA256
+                    value: visibleDigest("installation-as-built", closeout.asBuiltSnapshotSHA256)
                 ),
                 try ReportSemanticNodeV1(
                     semanticID: "c47-installation-closeout-open-findings", sectionID: section,
@@ -3509,7 +3528,7 @@ extension ReportSemanticProjectorV1 {
                 try ReportSemanticNodeV1(
                     semanticID: "c47-installation-closeout-sha256", sectionID: section,
                     role: "digest", label: "Installation closeout SHA-256",
-                    value: closeout.closeoutSHA256
+                    value: visibleDigest("activity-closeout", closeout.closeoutSHA256)
                 ),
             ]
             if let limitation = closeout.limitation {
@@ -3520,9 +3539,9 @@ extension ReportSemanticProjectorV1 {
             }
             for link in closeout.openFindings {
                 nodes.append(try ReportSemanticNodeV1(
-                    semanticID: "c47-installation-finding-\(link.findingID.uuidString.lowercased())",
+                    semanticID: "c47-installation-finding-\(visibleID("finding", link.findingID.uuidString.lowercased()))",
                     sectionID: section, role: "digest", label: "Recorded finding SHA-256",
-                    value: link.findingSHA256
+                    value: visibleDigest("finding-digest", link.findingSHA256)
                 ))
             }
         }
@@ -3530,7 +3549,7 @@ extension ReportSemanticProjectorV1 {
             nodes.append(try ReportSemanticNodeV1(
                 semanticID: "c47-punch-basis", sectionID: section,
                 role: "digest", label: "Punch review basis SHA-256",
-                value: punch.basisSHA256
+                value: visibleDigest("punch-basis", punch.basisSHA256)
             ))
         }
         if let closeout = projection.punchReviewCloseout {
@@ -3543,7 +3562,7 @@ extension ReportSemanticProjectorV1 {
                 try ReportSemanticNodeV1(
                     semanticID: "c47-punch-closeout-basis", sectionID: section,
                     role: "digest", label: "Punch review basis SHA-256",
-                    value: closeout.basisSHA256
+                    value: visibleDigest("punch-basis", closeout.basisSHA256)
                 ),
                 try ReportSemanticNodeV1(
                     semanticID: "c47-punch-closeout-limitation", sectionID: section,
@@ -3553,20 +3572,20 @@ extension ReportSemanticProjectorV1 {
                 try ReportSemanticNodeV1(
                     semanticID: "c47-punch-closeout-sha256", sectionID: section,
                     role: "digest", label: "Punch review closeout SHA-256",
-                    value: closeout.closeoutSHA256
+                    value: visibleDigest("activity-closeout", closeout.closeoutSHA256)
                 ),
             ]
             for (itemIndex, item) in closeout.scope.enumerated() {
                 nodes.append(try ReportSemanticNodeV1(
                     semanticID: "c47-punch-item-\(itemIndex)", sectionID: section,
-                    role: "fact", label: "Punch scope item \(item.scopeItemID)",
+                    role: "fact", label: "Punch scope item \(visibleID("punch-scope", item.scopeItemID))",
                     value: "\(item.disposition.rawValue)|findings=\(item.findingLinks.count)"
                 ))
                 for (findingIndex, link) in item.findingLinks.enumerated() {
                     nodes.append(try ReportSemanticNodeV1(
                         semanticID: "c47-punch-item-\(itemIndex)-finding-\(findingIndex)",
                         sectionID: section, role: "digest", label: "Recorded finding SHA-256",
-                        value: link.findingSHA256
+                        value: visibleDigest("finding-digest", link.findingSHA256)
                     ))
                 }
             }

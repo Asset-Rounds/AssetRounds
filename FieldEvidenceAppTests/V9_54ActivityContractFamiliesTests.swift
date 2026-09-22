@@ -346,7 +346,9 @@ private enum C47ActivityTestSupport {
         workspaceID: WorkspaceID,
         activityID: UUID,
         assetID: UUID,
-        sourceRevision: Int
+        sourceRevision: Int,
+        audience: ReportAudienceV1 = .customerSafe,
+        outputScopeID: String = "c47-output-scope-v1"
     ) throws -> CompletedReportFixture {
         let formats: [ReportProjectionFormatV1] = [.openJSON, .pdf, .structuredText]
         let sections = try [
@@ -408,7 +410,7 @@ private enum C47ActivityTestSupport {
         let layout = try ReportLayoutProfileV1(
             profileID: "c47-customer-complete-v1",
             profileRelease: 1,
-            audience: .customerSafe,
+            audience: audience,
             detail: .complete,
             sectionIDs: sections.map(\.sectionID),
             mediaLayout: .standardGrid,
@@ -423,7 +425,7 @@ private enum C47ActivityTestSupport {
             exportProfileRelease: 1,
             formats: formats,
             packaging: .combined,
-            privacyTransformID: "customer-safe-v1",
+            privacyTransformID: audience == .customerSafe ? "customer-safe-v1" : "internal-v1",
             maximumMediaItems: 32,
             maximumArchiveBytes: Int64(SnapshotProjectionLimitsV1.maximumProjectionBytes)
         )
@@ -435,7 +437,7 @@ private enum C47ActivityTestSupport {
         let profileBinding = try FinalizedReportProfileBindingV1(
             workspaceID: workspaceToken,
             snapshotID: snapshotID,
-            outputScopeID: "c47-output-scope-v1",
+            outputScopeID: outputScopeID,
             reportProfileID: layout.profileID,
             reportProfileRelease: layout.profileRelease,
             reportProfileSHA256: KernelCanonicalHashV1.sha256(try encoder.encode(layout)),
@@ -449,7 +451,7 @@ private enum C47ActivityTestSupport {
             contractManifestVersion: manifest.manifestVersion,
             contractManifestSHA256: KernelCanonicalHashV1.sha256(try encoder.encode(manifest)),
             sectionIDs: layout.sectionIDs,
-            audience: .customerSafe,
+            audience: audience,
             detail: .complete,
             privacyTransformID: export.privacyTransformID,
             localeIdentifier: layout.localeIdentifier,
@@ -522,6 +524,179 @@ private enum C47ActivityTestSupport {
 
 @MainActor
 final class V9_54ActivityContractFamiliesTests: XCTestCase {
+    private func assertActivityReportAudienceBoundary(
+        template: ActivitySessionEnvelopeV2,
+        punch: PunchReviewBasisSnapshotV1? = nil
+    ) throws {
+        let sourceBytes = try template.canonicalData()
+        let scopeItemID = "private.scope.c47"
+        let finding = try PunchFindingLinkV1(
+            findingID: C47ActivityTestSupport.id(9910), findingRevision: 1,
+            findingSHA256: C47ActivityTestSupport.digest("7"),
+            sourceContext: FindingSourceContextV1(
+                workspaceID: template.workspaceID, activityID: template.activityID,
+                activityKind: template.kind, activityRevision: template.revision,
+                activitySHA256: template.envelopeSHA256, taskOrScopeID: scopeItemID
+            )
+        )
+        let installationCloseout: InstallationCloseoutV1?
+        let punchCloseout: PunchReviewCloseoutV1?
+        if template.kind == .installation {
+            installationCloseout = try InstallationCloseoutV1(
+                completion: .completedWithOpenItems,
+                asBuiltSnapshotSHA256: XCTUnwrap(template.installationCloseout).asBuiltSnapshotSHA256,
+                openFindings: [finding], limitation: "Recorded open items remain unresolved."
+            )
+            punchCloseout = nil
+        } else {
+            installationCloseout = nil
+            punchCloseout = try PunchReviewCloseoutV1(
+                completion: .completedWithPunchItemsRecorded,
+                basisSHA256: XCTUnwrap(punch).basisSHA256,
+                scope: [PunchItemProjectionV1(
+                    scopeItemID: scopeItemID, disposition: .reviewedWithItems,
+                    findingLinks: [finding]
+                )],
+                scopeAndTimeLimitation: "Only the recorded scope and time were reviewed."
+            )
+        }
+        let closeoutSHA256 = try XCTUnwrap(
+            installationCloseout?.closeoutSHA256 ?? punchCloseout?.closeoutSHA256
+        )
+        let cases: [(ReportAudienceV1, String)] = [
+            (.internalUse, "c47-output-scope-v1"),
+            (.customerSafe, "c47-output-scope-v1"),
+            (.customerSafe, "c47-output-scope-v2")
+        ]
+        var customerReferences: [String] = []
+        for (audience, outputScopeID) in cases {
+            let fixture = try C47ActivityTestSupport.completedReportFixture(
+                workspaceID: template.workspaceID, activityID: template.activityID,
+                assetID: template.subjectID,
+                sourceRevision: XCTUnwrap(Int(exactly: template.revision)),
+                audience: audience, outputScopeID: outputScopeID
+            )
+            let reference = try CompletedActivitySnapshotV2CompatibilityReferenceV1(
+                fixture.snapshot, activityCloseoutSHA256: closeoutSHA256
+            )
+            let envelope = try ActivitySessionEnvelopeV2(
+                activityID: template.activityID, workspaceID: template.workspaceID,
+                kind: template.kind, state: template.state, reviewState: template.reviewState,
+                subjectID: template.subjectID, title: template.title, readiness: template.readiness,
+                readinessPolicy: template.readinessPolicy, variations: template.variations,
+                amendment: template.amendment, currentBasisReference: template.currentBasisReference,
+                installationCloseout: installationCloseout, punchReviewCloseout: punchCloseout,
+                completedSnapshotReference: reference, startedAt: template.startedAt,
+                finalizedAt: template.finalizedAt, revision: template.revision,
+                mutationID: template.mutationID,
+                predecessorEnvelopeSHA256: template.predecessorEnvelopeSHA256
+            )
+            let projection = try ActivityContractReportProjectionV2(
+                envelope: envelope, completed: fixture.snapshot, punch: punch
+            )
+            let snapshotBytes = try CompletedActivitySnapshotCanonicalCodecV2.encode(fixture.snapshot)
+            let envelopeBytes = try envelope.canonicalData()
+            let registry = ReportProjectionRegistryV1()
+            let bundle = try registry.renderActivityContract(
+                projection, manifest: fixture.manifest,
+                reportProfile: fixture.layout, exportProfile: fixture.export
+            )
+            XCTAssertEqual(try registry.recoverActivityContract(
+                projection, manifest: fixture.manifest, reportProfile: fixture.layout,
+                exportProfile: fixture.export, storedBundle: bundle
+            ), bundle)
+            XCTAssertEqual(try registry.renderActivityContract(
+                projection, manifest: fixture.manifest,
+                reportProfile: fixture.layout, exportProfile: fixture.export
+            ), bundle)
+            XCTAssertEqual(try DeterministicOpenJSONRendererV1.reopen(bundle.openJSON.data), bundle.semanticProjection)
+            XCTAssertEqual(try DeterministicOpenJSONRendererV1.reopenStructuredText(bundle.structuredText.data), bundle.semanticProjection)
+            XCTAssertEqual(try DeterministicPDFRendererV1.reopen(bundle.pdf.data), bundle.semanticProjection)
+            XCTAssertEqual(try CompletedActivitySnapshotCanonicalCodecV2.encode(fixture.snapshot), snapshotBytes)
+            XCTAssertEqual(try envelope.canonicalData(), envelopeBytes)
+            XCTAssertFalse(bundle.externalPublicationAuthorized)
+
+            let nodes = Dictionary(uniqueKeysWithValues: bundle.semanticProjection.nodes.map { ($0.semanticID, $0) })
+            let workspaceToken = template.workspaceID.rawValue.uuidString.lowercased()
+            let activityToken = template.activityID.uuidString.lowercased()
+            let findingToken = finding.findingID.uuidString.lowercased()
+            let rawDigests = [reference.sourceCloseoutSHA256, reference.targetCloseoutSHA256,
+                              finding.findingSHA256]
+                + (installationCloseout.map { [$0.asBuiltSnapshotSHA256, $0.closeoutSHA256] } ?? [])
+                + (punchCloseout.map { [$0.basisSHA256, $0.closeoutSHA256] } ?? [])
+            if audience == .customerSafe {
+                // Inspect full encoded semantic output too: identifiers can leak in node IDs or labels.
+                let semanticBytes = try WorkspaceMutationCanonicalV1.data(bundle.semanticProjection)
+                let canaries = [workspaceToken, activityToken, findingToken, scopeItemID] + rawDigests
+                for canary in canaries {
+                    XCTAssertNil(semanticBytes.range(of: Data(canary.utf8)))
+                    XCTAssertNil(bundle.openJSON.data.range(of: Data(canary.utf8)))
+                    XCTAssertNil(bundle.structuredText.data.range(of: Data(canary.utf8)))
+                    XCTAssertNil(bundle.pdf.data.range(of: Data(canary.utf8)))
+                }
+                let expectedWorkspace = "out-workspace-" + String(KernelCanonicalHashV1.sha256(
+                    Data("\(outputScopeID)|workspace|\(workspaceToken)".utf8)
+                ).prefix(16))
+                XCTAssertEqual(nodes["c47-snapshot-target-workspace"]?.value, expectedWorkspace)
+                XCTAssertEqual(nodes["c47-snapshot-source-workspace"]?.value, expectedWorkspace)
+                let expectedCloseout = KernelCanonicalHashV1.sha256(
+                    Data("\(outputScopeID)|activity-closeout|\(closeoutSHA256)".utf8)
+                )
+                XCTAssertEqual(nodes["c47-snapshot-source-closeout"]?.value, expectedCloseout)
+                XCTAssertEqual(nodes["c47-snapshot-target-closeout"]?.value, expectedCloseout)
+                customerReferences.append(try XCTUnwrap(nodes["c47-snapshot-target-workspace"]).value)
+            } else {
+                XCTAssertEqual(nodes["c47-snapshot-target-workspace"]?.value, workspaceToken)
+                XCTAssertEqual(nodes["c47-snapshot-source-activity"]?.value, activityToken)
+                XCTAssertEqual(nodes["c47-snapshot-source-closeout"]?.value, closeoutSHA256)
+                XCTAssertEqual(nodes["c47-snapshot-target-closeout"]?.value, closeoutSHA256)
+                if template.kind == .installation {
+                    XCTAssertEqual(nodes["c47-installation-finding-\(findingToken)"]?.value, finding.findingSHA256)
+                    XCTAssertEqual(nodes["c47-installation-closeout-as-built"]?.value, installationCloseout?.asBuiltSnapshotSHA256)
+                } else {
+                    XCTAssertEqual(nodes["c47-punch-item-0"]?.label, "Punch scope item \(scopeItemID)")
+                    XCTAssertEqual(nodes["c47-punch-item-0-finding-0"]?.value, finding.findingSHA256)
+                    XCTAssertEqual(nodes["c47-punch-basis"]?.value, punch?.basisSHA256)
+                }
+            }
+            XCTAssertEqual(nodes["c47-activity-title"]?.value, template.title)
+            let archive = try V36BackupActivityContractRecordV2(envelope)
+            XCTAssertEqual(try archive.envelopeValue(), envelope)
+            let archiveBytes = try WorkspaceMutationCanonicalV1.data(archive)
+            let fixtureManifest: [String: String] = [
+                "kind": template.kind.rawValue,
+                "audience": audience.rawValue,
+                "outputScopeID": outputScopeID,
+                "envelopeSchemaVersion": String(envelope.schemaVersion),
+                "envelopeSemanticSHA256": envelope.envelopeSHA256,
+                "envelopeFileSHA256": KernelCanonicalHashV1.sha256(envelopeBytes),
+                "archiveFileSHA256": KernelCanonicalHashV1.sha256(archiveBytes),
+                "snapshotFileSHA256": KernelCanonicalHashV1.sha256(snapshotBytes)
+            ]
+            let fixtureManifestBytes = try WorkspaceMutationCanonicalV1.data(fixtureManifest)
+            let retainedFixtures: [(String, Data)] = [
+                ("activity-envelope-v2.json", envelopeBytes),
+                ("activity-archive-v36.json", archiveBytes),
+                ("completed-snapshot-v2.json", snapshotBytes),
+                ("fixture-manifest.json", fixtureManifestBytes)
+            ]
+            XCTContext.runActivity(named: "C47 legacy codec fixture \(template.kind.rawValue) \(audience.rawValue) \(outputScopeID)") { activity in
+                for (name, bytes) in retainedFixtures {
+                    let text = String(decoding: bytes, as: UTF8.self)
+                    XCTAssertEqual(Data(text.utf8), bytes)
+                    let attachment = XCTAttachment(string: text)
+                    attachment.name = name
+                    attachment.lifetime = .keepAlways
+                    activity.add(attachment)
+                    print("C47_CODEC_FIXTURE_V1|\(template.kind.rawValue)|\(audience.rawValue)|\(outputScopeID)|\(name)|\(KernelCanonicalHashV1.sha256(bytes))|\(bytes.base64EncodedString())")
+                }
+            }
+        }
+        XCTAssertEqual(customerReferences.count, 2)
+        XCTAssertNotEqual(customerReferences[0], customerReferences[1])
+        XCTAssertEqual(try template.canonicalData(), sourceBytes)
+    }
+
     func testPunchFindingLinksRetainBothAllowedKindsAndStrictSupportingRecords() throws {
         let corrective = try ActivitySupportingRecordReferenceV2(kind: .correctiveAction,
             recordID: C47ActivityTestSupport.id(9901), revision: 1,
@@ -2073,6 +2248,8 @@ final class V9_54ActivityContractFamiliesTests: XCTestCase {
         )
         try C47ActivityContractConformance_FieldEvidenceApp_Infrastructure_Reporting_ReportProjectionRegistryV1_swift
             .validate(punchReportProjection)
+        try assertActivityReportAudienceBoundary(template: resolvedEnvelope)
+        try assertActivityReportAudienceBoundary(template: punchFinalizedEnvelope, punch: punchBasis)
         XCTAssertThrowsError(try ActivityContractReportProjectionV2(
             envelope: punchFinalizedEnvelope,
             completed: punchCompletedReport.snapshot,
