@@ -3,15 +3,15 @@
   "canonicalLedgerExternal": true,
   "creditedCards": [],
   "kind": "PRODUCT_BRANCH_READ_ONLY_PROJECTION",
-  "payloadDigest": "9966e7cb9d89402272286ae35aa597b2bea0f4545ce7a757d43b29f37374f206",
+  "payloadDigest": "6a32f77ebf2c3b84ead170e32f5f46a6019b4f5696795b16bb8498dae780ed23",
   "preS10FinalCredit": false,
   "schemaVersion": "V30ProvisionalLedgerProjectionV1",
-  "selectedCard": "V30-P03-C05",
+  "selectedCard": "V30-P03-C06",
   "source": {
-    "head": "7ea49a6feb8cdf5d75950cf0b0c8d5619fd43df3",
-    "ledgerDigest": "0e2f3ed322b46b17ab34c5ce35e12d40439f045ac47fef00b21de7f51f2d3b34",
-    "sequence": 55
+    "head": "556e1b1022c9b54063c002751a2c1b1fb60ae1f4",
+    "ledgerDigest": "651fe89db5085231719d578501dd4d0d22799753a717671b91f78b198389b15a",
+    "sequence": 56
   },
-  "state": "PROVISIONAL_CHECKPOINTED",
-  "writeDisposition": "READ_ONLY_OBSERVED_CHECKPOINT; owner paused before Card 27; isolated provisional ledger remains sole writer"
+  "state": "PROVISIONAL_IMPLEMENTING",
+  "writeDisposition": "READ_ONLY_PROJECTION; isolated provisional coordination ledger remains sole writer"
 }

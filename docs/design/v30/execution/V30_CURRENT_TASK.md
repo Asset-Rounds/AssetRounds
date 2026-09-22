@@ -1,14 +1,14 @@
 # V30 Current Task
 
-Card 26 of 55 - Stable JSON, CSV, export, and import contracts
+Card 27 of 55 - Share, email, print, and label surfaces
 
-Only the exact pre-issued fence below is writable. Embedded context is the active hydration. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation.
+Only the exact pre-issued fence below is writable. Embedded context is the active hydration. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation. Three exact shared UI paths are S10_SHARED_RECONCILIATION_REQUIRED under the recorded tuples.
 
 ```json
 {
   "acceptance": {
     "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
-    "required": "Preserve language-neutral machine keys/values, add explicit localized-human variants, locale manifests, formula safety, media references, unambiguous parsing, and exact canonical round trip.",
+    "required": "Localize app-owned chrome, subject/body templates, print controls, labels, and share summaries while preserving authored content and explicit document language.",
     "staticEvidence": "Current-card fenced proof and receipt; exact committed paths/hashes"
   },
   "attempt": 1,
@@ -19,10 +19,10 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
   "base": {
-    "head": "77b1538aad3ff7229b7f3edcca4045dda7b3e711",
-    "tree": "5d967a47111b63f0d3db3f91793abde0bc08b486"
+    "head": "3f902a774e978c8c5c5c953f1e59298c7f9da29b",
+    "tree": "068d703866f816bd065962c79991f960ac1091e1"
   },
-  "cardID": "V30-P03-C05",
+  "cardID": "V30-P03-C06",
   "class": "IMPLEMENTATION",
   "credit": {
     "canonicalAcceptance": false,
@@ -33,8 +33,8 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "releaseCredit": false
   },
   "directPrerequisites": [
-    "V30-P01-C05",
-    "V30-P03-C01"
+    "V30-P02-C04",
+    "V30-P03-C04"
   ],
   "executionEpoch": "PRE_S10_PROVISIONAL",
   "fence": {
@@ -75,161 +75,193 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Domain/ImportExport/GlobalizedMachineExportContractsV1.swift",
-        "purpose": "Language-neutral machine export/import and localized-human variant contracts.",
+        "path": "FieldEvidenceApp/Features/Globalization/GlobalizedSharePrintLabelSurfacesV1.swift",
+        "purpose": "Share/email/print/label chrome and explicit document-language surfaces.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Infrastructure/ImportExport/GlobalizedMachineExportAdapterV1.swift",
-        "purpose": "Locale manifests, formula safety, media references, and canonical round-trip adapter.",
+        "path": "FieldEvidenceApp/Application/Reporting/GlobalizedShareDeliveryCoordinatorV1.swift",
+        "purpose": "Localized subject/body/summary delivery coordinator.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/V30_P03_C05GlobalizedMachineExportTests.swift",
-        "purpose": "JSON/CSV/import stable-key and exact round-trip tests.",
+        "path": "FieldEvidenceAppTests/V30_P03_C06SharePrintLabelTests.swift",
+        "purpose": "Share, email, print, label, and authored-content preservation tests.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/Fixtures/V30/ImportExport/globalized-machine-export-cases-v1.json",
-        "purpose": "Export/import locale-manifest fixtures.",
+        "path": "FieldEvidenceAppTests/Fixtures/V30/Share/globalized-share-print-label-cases-v1.json",
+        "purpose": "Share/print/label fixtures.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "961ca6ad753a73aff61c9b574ef0af11319e5f1f",
-        "expectedBSHA256": "38629e4a55a5d5d07ebc7159de15ccd6ffe45edfeddae777db40cdab32ab850b",
-        "path": "FieldEvidenceApp/Domain/ImportExport/ImportBulkContractsV1.swift",
-        "purpose": "Preserve language-neutral machine keys and add explicit localized-human variants in existing import/export contracts.",
+        "expectedBBlobOID": "445b88c91a7d901f2c978440a11c2278a44ebccf",
+        "expectedBSHA256": "87e230a01acd36b88a6f138826f1052ab1d0327ce90bd3c01d66f95f4ad9670c",
+        "path": "FieldEvidenceApp/Application/Reporting/ShopReportProfileCoordinatorV1.swift",
+        "purpose": "Select localized share/email/print chrome without changing report content identity.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "382c11ed2c1e1676fd987613cfb2115649cf204d",
-        "expectedBSHA256": "620600e8ddfb3844f13433a66e75bb45e1e1020a1336003f654217736a3f3473",
-        "path": "FieldEvidenceApp/Infrastructure/ImportExport/ImportBulkLifecycleAdapterV1.swift",
-        "purpose": "Apply locale manifests/formula safety/media references through the existing import/export lifecycle seam.",
+        "expectedBBlobOID": "28e7f335a3337fb6e353a94181e67daab40b0a50",
+        "expectedBSHA256": "b4b2627fe05210957e51e54a48841b0cd3b385bf1ba6a384e94e3f6b9a75ecf7",
+        "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+        "purpose": "Deliver explicit document language and localized subject/body templates through existing delivery code.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "d8dcc7fe5f5bca80bf21e964ad411aaac2baa837",
-        "expectedBSHA256": "444d71a74c2b4336ffd4ab7e46850fcb7ee7afc7edaebb1bf311d0431e6d99b4",
-        "path": "FieldEvidenceApp/Infrastructure/Reporting/DeterministicOpenJSONRendererV1.swift",
-        "purpose": "Preserve stable JSON machine fields and add bounded human display metadata.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "ed958cc6b4b16f0ef0c6523dd44226453c43d47b",
-        "expectedBSHA256": "295cc34f95eb9b3bad1e40dae524131ea77bbbb975e37714cef39ea1b8ac7c3b",
-        "path": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticExportV1.swift",
-        "purpose": "Keep diagnostic/export machine data stable across language changes.",
+        "expectedBBlobOID": "2b96a63848c5b77eef63055baf58ed12ba60cca4",
+        "expectedBSHA256": "243ffe889a67d5ddb032325d35854f3bd4a1fb84ebb23fa3c7069836e53da2ac",
+        "path": "FieldEvidenceApp/Features/Reporting/ShopProfileOpenEvidenceHandoffView.swift",
+        "purpose": "Localize existing open-evidence handoff/share presentation.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "48e816bbe971ef570667572d3faa380c0e3e2241",
-        "expectedBSHA256": "6e30e95f92b4427205f63e68650acf948bfe29115b250782e06abdbb46ed1c41",
-        "path": "FieldEvidenceAppTests/V9_72ImportBulkEngineTests.swift",
-        "purpose": "Extend existing import/export round-trip regression coverage.",
+        "expectedBBlobOID": "86c9dffb92cdee4a97fe346770053dc4cba12dbb",
+        "expectedBSHA256": "5eb0d7928d4a757e65a0355657fb8b1f0f8d0eefe5c294bb575fb6a02289d1a2",
+        "path": "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift",
+        "purpose": "Localize app-owned mail chrome while preserving authored content.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "d1848b8298b82ca30070ed3453faa5de532654d1",
-        "expectedBSHA256": "867636d904e5088b6e334ed1893725ab7df947e588ebcd43eaf3629cca95cfeb",
-        "path": "FieldEvidenceApp/Application/ImportExport/ImportBulkCoordinatorV1.swift",
-        "purpose": "Route stable machine/localized-human import-export semantics through the existing coordinator.",
+        "expectedBBlobOID": "82bd8b590e238f8f5c5f119dd91b20dbd57893ea",
+        "expectedBSHA256": "64e594839fbc4d3dfb2974539449c4644fe07cda52a1c30a06078ac8f427398a",
+        "path": "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+        "purpose": "Localize feedback/share action chrome without changing Phase10 settings styling.",
+        "serializedSharedPath": true
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "b68419345153053c5e63dfb8edd585f38cbcd6d8",
+        "expectedBSHA256": "ed062fa1c2ab895c483799ad66fbc7e5f7ff7b2e0420092af7ea68cc0c5e32f9",
+        "path": "FieldEvidenceApp/Domain/Labels/AssetLabelContractsV1.swift",
+        "purpose": "Add explicit document-language/chrome semantics through the existing asset-label contract.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "66066190eb633d3a8b7513c0a8d07d2732064044",
-        "expectedBSHA256": "3d33b479173d30c56245f48fa46db2637b388ff27eb4e5220944979932fce4bf",
-        "path": "FieldEvidenceApp/Infrastructure/ImportExport/EntityIdentityResolutionLifecycleAdapterV1.swift",
-        "purpose": "Preserve stable identity during localized import/export normalization.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "6dbfedde09fbd158b1f44a16e692f5e06e4be0ee",
-        "expectedBSHA256": "d7a2b194dff13e4b63976a288f7ac5aa7561a56df17fb86f717dff1ed18c514d",
-        "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift",
-        "purpose": "Keep machine export/backup canonical encoding language-neutral.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "54e9abdae8e0daea7810e286cac6de8fc08e71ab",
-        "expectedBSHA256": "1c82f2bb1d449c0a21f65e3e2883c8cb16a06f6211c292aecf070c733c6341a0",
-        "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift",
-        "purpose": "Keep machine import/backup canonical decoding language-neutral.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "14416e89d89568aa00881fdaf08302f423aed468",
-        "expectedBSHA256": "15a454955e266afcf8f3277111bd45d7ba939f8d89ba9add5c93ecb7fd2d1d6f",
-        "path": "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
-        "purpose": "Export locale manifests without changing canonical backup fields.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "e563b9940061485c693f82f967dcd04b67227b48",
-        "expectedBSHA256": "0706245f5d51f835246b66a0cca19783ff524f1b7a5a7ef57c56e9b0e7fb94f9",
-        "path": "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
-        "purpose": "Import locale manifests without changing canonical backup fields.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "0bf7f754158823aaa93879f35bcb2993355fef2e",
-        "expectedBSHA256": "e65a95dd10cb1e1fde2673f80271bf5aea7257867f253fbc91c7d658b25378b5",
-        "path": "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
-        "purpose": "Validate locale manifests/formula safety without changing canonical machine fields.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "7aba91ae3ce2c9e70f5b499ce217481d4490d0a0",
-        "expectedBSHA256": "d1c72a9ad7dcc747384bb3c65dd312a65686592905da86868ca2c6b23a7bb8bd",
-        "path": "FieldEvidenceAppTests/V9_95PartyContactSiteRoleImportTests.swift",
-        "purpose": "Regression-test stable imported identifiers under localized-human variants.",
+        "expectedBBlobOID": "50b87e2a2fdbcc4b1c35b339751d6e3a645bfa6a",
+        "expectedBSHA256": "f9964963a642838adf677240c70dd272b1730d70238572aade876d5fa5e55d24",
+        "path": "FieldEvidenceApp/Application/Labels/AssetLabelCoordinatorV1.swift",
+        "purpose": "Route localized label generation through the existing label coordinator.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "1cb8997fae05384aac4eb8ade5df2651d32cfcee",
-        "expectedBSHA256": "ab692ca95973359dda379bfbf01911ad157c2a1c5f6878b214214091462ad640",
-        "path": "FieldEvidenceAppTests/S6_2BackupExportTests.swift",
-        "purpose": "Regression-test machine export/backup locale manifest boundaries.",
+        "expectedBBlobOID": "43612cd6cbe36ba197220e03d1b0a00721b5f1e1",
+        "expectedBSHA256": "354f10a16f9173e583d361f27bd2341a5ab26e2c6ab4247109859fe837025818",
+        "path": "FieldEvidenceApp/Infrastructure/Reporting/AssetLabelLifecycleAdapterV1.swift",
+        "purpose": "Preserve label lifecycle/provenance with localized app-owned chrome.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "2f35aa6105f83fa7e390622a6dc89c12087aec6e",
+        "expectedBSHA256": "aafee8825fc36969967009bf10a2dce241474b4e525f40352ed6bcf9fb549aa9",
+        "path": "FieldEvidenceApp/App/Composition/ProductionCompositionRoot.swift",
+        "purpose": "Compose existing delivery/mail/label localization seams without a parallel sending flow.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "c02680e9870fa348f1b8237f03f66496ff393418",
+        "expectedBSHA256": "22387f27d46acfbf2e021b89e3f2bc2caf63fcdc95f8dc5cb6d2259d73ff3716",
+        "path": "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+        "purpose": "Localize only existing report share/print chrome in the detail surface; preserve Phase10 styling.",
         "serializedSharedPath": true
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "295917ff019fa349871946b8dcdeaa4727eb807d",
+        "expectedBSHA256": "73161df4862a170d8232b61e922d7cb60d577e95d7e6727406ff754d83a80350",
+        "path": "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+        "purpose": "Localize only existing report share/print chrome in the root surface; preserve Phase10 styling.",
+        "serializedSharedPath": true
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "86a55cf4145939361ebdf82af7b16f052ecdb1c4",
+        "expectedBSHA256": "74e2ac75ce267ccc455d15c1780f7e0dfb6c8ff8c19433179719a29b2dd2c00e",
+        "path": "FieldEvidenceAppTests/S4_3ReportDeliveryTests.swift",
+        "purpose": "Regression-test report delivery with explicit document language.",
+        "serializedSharedPath": true
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "100b60c05ee9858cbd1ec3d231d25364349d6828",
+        "expectedBSHA256": "973fd0ace49699d6fa8dfadbe0a94804b023c08c298b09ed20abe57602b937b3",
+        "path": "FieldEvidenceAppTests/V9_93AssetLabelOutputTests.swift",
+        "purpose": "Regression-test localized label output and provenance.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "6b12a81b0a65e56baa9fab53bcaa614e9b8ac012",
+        "expectedBSHA256": "314fe6f1387c418a90387f24a9576b2fa1482a8da80e6c19dbd4aa8c01e1a70f",
+        "path": "FieldEvidenceAppTests/V9_52AssetLabelTests.swift",
+        "purpose": "Regression-test asset-label lifecycle semantics.",
+        "serializedSharedPath": false
       }
     ],
-    "cardID": "V30-P03-C05",
+    "cardID": "V30-P03-C06",
     "class": "IMPLEMENTATION",
     "directPrerequisites": [
-      "V30-P01-C05",
-      "V30-P03-C01"
+      "V30-P02-C04",
+      "V30-P03-C04"
     ],
-    "ordinal": 26,
-    "preAuthorizedOverlapTuples": [],
-    "s10SharedPaths": [],
+    "ordinal": 27,
+    "preAuthorizedOverlapTuples": [
+      {
+        "boundedPurpose": "localize only feedback/share action chrome in FeedbackView; preserve Phase10 settings styling and user-authored content",
+        "cardID": "V30-P03-C06",
+        "expectedBBlobOID": "82bd8b590e238f8f5c5f119dd91b20dbd57893ea",
+        "expectedBSHA256": "64e594839fbc4d3dfb2974539449c4644fe07cda52a1c30a06078ac8f427398a",
+        "path": "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P03-C06-SHARE-SURFACE-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "localize only existing report share/print chrome in FieldEvidenceApp/Features/Reports/ReportDetailView.swift; preserve Phase10 styling and report content identity",
+        "cardID": "V30-P03-C06",
+        "expectedBBlobOID": "c02680e9870fa348f1b8237f03f66496ff393418",
+        "expectedBSHA256": "22387f27d46acfbf2e021b89e3f2bc2caf63fcdc95f8dc5cb6d2259d73ff3716",
+        "path": "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P03-C06-SHARE-SURFACE-INTEGRATOR"
+      },
+      {
+        "boundedPurpose": "localize only existing report share/print chrome in FieldEvidenceApp/Features/Reports/ReportsRootView.swift; preserve Phase10 styling and report content identity",
+        "cardID": "V30-P03-C06",
+        "expectedBBlobOID": "295917ff019fa349871946b8dcdeaa4727eb807d",
+        "expectedBSHA256": "73161df4862a170d8232b61e922d7cb60d577e95d7e6727406ff754d83a80350",
+        "path": "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+        "writerLane": "V30-P03-C06-SHARE-SURFACE-INTEGRATOR"
+      }
+    ],
+    "s10SharedPaths": [
+      "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+      "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+      "FieldEvidenceApp/Features/Reports/ReportsRootView.swift"
+    ],
     "status": "PRE_S10_PROVISIONAL_ELIGIBLE",
-    "title": "Stable JSON, CSV, export, and import contracts"
+    "title": "Share, email, print, and label surfaces"
   },
   "fenceSource": {
-    "cardID": "V30-P03-C05",
+    "cardID": "V30-P03-C06",
     "path": "docs/design/v30/authority/V30PreS10PathFencesV1.json",
     "sha256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a"
   },
@@ -240,86 +272,79 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
     "Scripts/ci-selection.json"
   ],
-  "next": "V30-P03-C06",
+  "next": "V30-P03-C07",
   "observedCoordination": {
-    "head": "4a0ed48fc412bbde6e4464d7f775104ab9cb23a8",
-    "ledgerDigest": "76b7e7602efc93ef5951fb5efa861b46d51197b90a8b0aeee36857567bcbc6fd",
-    "sequence": 53
+    "head": "7ea49a6feb8cdf5d75950cf0b0c8d5619fd43df3",
+    "ledgerDigest": "0e2f3ed322b46b17ab34c5ce35e12d40439f045ac47fef00b21de7f51f2d3b34",
+    "sequence": 55
   },
-  "ordinal": 26,
-  "outcome": "Preserve language-neutral machine keys/values, add explicit localized-human variants, locale manifests, formula safety, media references, unambiguous parsing, and exact canonical round trip.",
-  "payloadDigest": "7f78beab4c9fb30ccf6a97d05e889adf143b26ecb3cf4b4502756a62b91b92ce",
+  "ordinal": 27,
+  "outcome": "Localize app-owned chrome, subject/body templates, print controls, labels, and share summaries while preserving authored content and explicit document language.",
+  "payloadDigest": "59290b451a58fd67aaaf3100915b58f3bbeaea13cc8cfa714c55018084b72ef7",
   "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
   "preS10FinalCredit": false,
   "predecessorEvidence": {
-    "V30-P01-C05": {
+    "V30-P02-C04": {
       "candidate": {
-        "base": "a96e445a572ef4a83b39f10899cc78df52ff9a23",
-        "baseTree": "4107ccdc7b2c2dbd1b6829148797be67c2fecb13",
+        "base": "0a7a4d9d82683a4b2aab06508623fc0a1f910586",
+        "baseTree": "551a18514c114181227dcaf8010c0f1f55f1217a",
         "changedPaths": [
-          "FieldEvidenceApp/Application/Globalization/CanonicalIdentityAuditCoordinatorV1.swift",
-          "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift",
-          "FieldEvidenceApp/Domain/Globalization/CanonicalIdentityInvarianceV1.swift",
-          "FieldEvidenceApp/Domain/Mutation/MutationEnvelopeV1.swift",
-          "FieldEvidenceApp/Domain/Replication/ChangeJournalContractsV1.swift",
-          "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift",
-          "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift",
-          "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift",
-          "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
-          "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
-          "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift",
-          "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
-          "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift",
-          "FieldEvidenceAppTests/Fixtures/V30/CanonicalIdentity/en-us-identity-baseline-v1.json",
-          "FieldEvidenceAppTests/S6_3BackupValidationTests.swift",
-          "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift",
-          "FieldEvidenceAppTests/V30_P01_C05CanonicalIdentityInvarianceTests.swift",
-          "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift",
+          "FieldEvidenceApp/DesignSystem/GlobalizationAdaptiveLayoutPolicyV1.swift",
+          "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
+          "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+          "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+          "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+          "FieldEvidenceApp/Features/Recovery/RecoveryCenterView.swift",
+          "FieldEvidenceApp/Features/Rounds/RoundSessionView.swift",
+          "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+          "FieldEvidenceAppTests/Fixtures/V30/Accessibility/expansion-and-type-cases-v1.json",
+          "FieldEvidenceAppTests/V30_P02_C04AdaptiveAccessibilityTests.swift",
           "docs/design/v30/execution/V30_CI_SELECTION.json",
           "docs/design/v30/execution/V30_CURRENT_TASK.md",
           "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
           "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
         ],
-        "head": "66ef581ea88ce2ee1d6cb35586574d5df5c94bf7",
-        "tree": "4c5b3b3e0f72e9f4e947ceb75d1ac30e5db542f7"
+        "head": "d804f60308bcfdcaadf01780d429132e4bcbd77d",
+        "tree": "0cde23d9cf27616f10d4465ef4ee5a9ac387791e"
       },
-      "sequence": 24
+      "sequence": 39
     },
-    "V30-P03-C01": {
+    "V30-P03-C04": {
       "candidate": {
-        "base": "60815291c28d232c021274fddd352fbe293296ef",
-        "baseTree": "765ec10f2e1034f25b7fe91646d0bb34482ed886",
+        "base": "45eb5bb4dca6b32f3434d57ccada1059bf8fb0e6",
+        "baseTree": "2bd1a2364e17c9185812e43439c95870eb21e29e",
         "changedPaths": [
-          "FieldEvidenceApp/Application/Globalization/AuthoredContentLanguageCoordinatorV1.swift",
-          "FieldEvidenceApp/Domain/Content/ContentProvenanceContractsV1.swift",
-          "FieldEvidenceApp/Domain/Globalization/AuthoredContentLanguageContractsV1.swift",
-          "FieldEvidenceApp/Domain/Packs/SurveyDefinitionContractsV1.swift",
+          "FieldEvidenceApp/Application/Reporting/AccessibleDocumentCoordinatorV1.swift",
           "FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift",
-          "FieldEvidenceApp/Domain/Workflow/ReportSnapshotV1.swift",
-          "FieldEvidenceApp/Infrastructure/Content/ContentContractRegistryV1.swift",
-          "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
-          "FieldEvidenceApp/Infrastructure/Reporting/ReportProjectionRegistryV1.swift",
-          "FieldEvidenceAppTests/Fixtures/V30/AuthoredContent/authored-content-language-cases-v1.json",
-          "FieldEvidenceAppTests/V30_P03_C01AuthoredContentLanguageTests.swift",
-          "FieldEvidenceAppTests/V9_15ContentReferenceProvenanceTests.swift",
-          "FieldEvidenceAppTests/V9_16SnapshotProjectionTests.swift",
-          "FieldEvidenceAppTests/V9_39SurveyDefinitionTests.swift",
+          "FieldEvidenceApp/Domain/Reporting/GlobalizedAccessibleDocumentContractsV1.swift",
+          "FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift",
+          "FieldEvidenceApp/Infrastructure/Reporting/AccessibleDocumentLifecycleAdapterV1.swift",
+          "FieldEvidenceApp/Infrastructure/Reporting/DeterministicPDFRendererV1.swift",
+          "FieldEvidenceApp/Infrastructure/Reporting/GlobalizedAccessibleDocumentRendererV1.swift",
+          "FieldEvidenceApp/Infrastructure/Reporting/ReportHistoryCoordinator.swift",
+          "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift",
+          "FieldEvidenceApp/Infrastructure/Reporting/WorklightPDFRendererV1.swift",
+          "FieldEvidenceAppTests/Fixtures/V30/Reports/globalized-accessible-document-cases-v1.json",
+          "FieldEvidenceAppTests/S4_1DeterministicRendererTests.swift",
+          "FieldEvidenceAppTests/S4_2PDFRecoveryTests.swift",
+          "FieldEvidenceAppTests/V30_P03_C04GlobalizedAccessibleDocumentTests.swift",
+          "FieldEvidenceAppTests/V9_38AccessibleDocumentTests.swift",
           "docs/design/v30/execution/V30_CI_SELECTION.json",
           "docs/design/v30/execution/V30_CURRENT_TASK.md",
           "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
           "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
         ],
-        "head": "c004b4bdd19bc037e3373e7f3a8f508343e5dca0",
-        "tree": "7d63520aabb3424f3a2fea35b0bd268400a7517d"
+        "head": "77b1538aad3ff7229b7f3edcca4045dda7b3e711",
+        "tree": "5d967a47111b63f0d3db3f91793abde0bc08b486"
       },
-      "sequence": 47
+      "sequence": 53
     }
   },
   "revision": 1,
   "selector": null,
   "selectorReason": "Windows-static provisional card; no native dispatch is selected.",
-  "sourceEndLine": 1010,
-  "sourceStartLine": 1010,
-  "title": "Stable JSON, CSV, export, and import contracts"
+  "sourceEndLine": 1011,
+  "sourceStartLine": 1011,
+  "title": "Share, email, print, and label surfaces"
 }
 ```
