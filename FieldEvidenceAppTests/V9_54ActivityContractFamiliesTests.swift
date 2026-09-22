@@ -2382,7 +2382,7 @@ final class V9_54ActivityContractFamiliesTests: XCTestCase {
         )
         let targetCloseout = try InstallationCloseoutV1(
             completion: .completedAsRecorded,
-            asBuiltSnapshotSHA256: C47ActivityTestSupport.digest("g")
+            asBuiltSnapshotSHA256: C47ActivityTestSupport.digest("e")
         )
         let reboundEnvelope = try resolvedEnvelope.rebound(
             to: targetWorkspace,
