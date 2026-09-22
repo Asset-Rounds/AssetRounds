@@ -331,69 +331,113 @@ final class S6_5ReplacementUnionTests: XCTestCase {
     func testFinalizedReportBytesAndReceiptsSurviveRepeatedForkAndColdReadback() async throws {
         let root = try makeRoot("report-fork")
         defer { try? fileManager.removeItem(at: root) }
-        let current = try await makeLiveHarness(
-            root: root, name: "current", base: 20_001, label: "Current sign",
-            observedAt: Date(timeIntervalSince1970: 1_786_708_000))
-        let incoming = try await makeLiveHarness(
-            root: root, name: "incoming", base: 21_001, label: "Finalized source sign",
-            observedAt: Date(timeIntervalSince1970: 1_786_709_000))
-        let frozen = try freezeReportPreservation(in: incoming)
-        let package = try exportPackage(incoming, root: root, name: "original-report")
-        let packageBefore = try fileTree(package)
-        let validated = try importPackage(package, into: current.session, stageID: uuid(22_001))
-        let first = try await BackupRestoreService(applicationSupportURL: current.support).restore(
-            validatedPackage: validated,
-            currentModelContext: current.session.modelContext,
-            currentGenerationID: current.session.generationID,
-            currentGenerationRootURL: current.session.generationRootURL,
-            mode: .fork)
-        XCTAssertNotEqual(first.workspaceID, current.session.workspaceID)
-        XCTAssertNotEqual(first.workspaceID, incoming.session.workspaceID)
-        XCTAssertNotEqual(first.workspaceIdentity.replicaID, current.session.workspaceIdentity.replicaID)
-        XCTAssertNotEqual(first.workspaceIdentity.replicaID, incoming.session.workspaceIdentity.replicaID)
-        XCTAssertNotEqual(first.generationID, current.session.generationID)
-        XCTAssertEqual(try fileTree(package), packageBefore)
-        XCTAssertFalse(fileManager.fileExists(atPath: validated.stagedPackageURL.path))
+        var diagnosticPhase = "current.enter"
+        do {
+            let current = try await makeLiveHarness(
+                root: root, name: "current", base: 20_001, label: "Current sign",
+                observedAt: Date(timeIntervalSince1970: 1_786_708_000),
+                coldOpenDiagnostic: true,
+                diagnostic: { diagnosticPhase = "current.\($0)" })
+            let incoming = try await makeLiveHarness(
+                root: root, name: "incoming", base: 21_001, label: "Finalized source sign",
+                observedAt: Date(timeIntervalSince1970: 1_786_709_000),
+                coldOpenDiagnostic: true,
+                diagnostic: { diagnosticPhase = "incoming.\($0)" })
+            diagnosticPhase = "incoming.freeze-report"
+            let frozen = try freezeReportPreservation(in: incoming)
+            diagnosticPhase = "incoming.export"
+            let package = try exportPackage(incoming, root: root, name: "original-report")
+            diagnosticPhase = "incoming.capture-package"
+            let packageBefore = try fileTree(package)
+            diagnosticPhase = "first.import"
+            let validated = try importPackage(package, into: current.session, stageID: uuid(22_001))
+            diagnosticPhase = "first.restore"
+            let first = try await BackupRestoreService(applicationSupportURL: current.support).restore(
+                validatedPackage: validated,
+                currentModelContext: current.session.modelContext,
+                currentGenerationID: current.session.generationID,
+                currentGenerationRootURL: current.session.generationRootURL,
+                mode: .fork)
+            diagnosticPhase = "first.post-restore-checks"
+            XCTAssertNotEqual(first.workspaceID, current.session.workspaceID)
+            XCTAssertNotEqual(first.workspaceID, incoming.session.workspaceID)
+            XCTAssertNotEqual(first.workspaceIdentity.replicaID, current.session.workspaceIdentity.replicaID)
+            XCTAssertNotEqual(first.workspaceIdentity.replicaID, incoming.session.workspaceIdentity.replicaID)
+            XCTAssertNotEqual(first.generationID, current.session.generationID)
+            XCTAssertEqual(try fileTree(package), packageBefore)
+            XCTAssertFalse(fileManager.fileExists(atPath: validated.stagedPackageURL.path))
 
-        // Open a fresh factory and use the production lifecycle-bound report
-        // readers. A retained source model or PDF alone is not readback proof.
-        let firstFactory = StoreGenerationFactory(applicationSupportURL: current.support)
-        let firstReopened = try firstFactory.openOrBootstrapCurrent()
-        XCTAssertEqual(firstReopened.generationID, first.generationID)
-        XCTAssertEqual(firstReopened.workspaceIdentity, first.workspaceIdentity)
-        try assertPreservedReportAfterReopen(frozen, in: firstReopened)
-        let firstHarness = LiveHarness(
-            support: current.support, factory: firstFactory, session: firstReopened,
-            packetID: incoming.packetID, rootID: incoming.rootID,
-            packetCreatedAt: incoming.packetCreatedAt)
-        let secondPackage = try exportPackage(firstHarness, root: root, name: "forked-report")
-        let secondPackageBefore = try fileTree(secondPackage)
-        XCTAssertEqual(try fileTree(package), packageBefore)
-        try fileManager.removeItem(at: package)
-        XCTAssertFalse(fileManager.fileExists(atPath: package.path))
+            // Open a fresh factory and use the production lifecycle-bound report
+            // readers. A retained source model or PDF alone is not readback proof.
+            diagnosticPhase = "first.factory"
+            let firstFactory = StoreGenerationFactory(applicationSupportURL: current.support)
+            #if DEBUG
+            firstFactory.coldOpenDiagnosticForTesting = true
+            #endif
+            diagnosticPhase = "first.reopen"
+            let firstReopened = try firstFactory.openOrBootstrapCurrent()
+            XCTAssertEqual(firstReopened.generationID, first.generationID)
+            XCTAssertEqual(firstReopened.workspaceIdentity, first.workspaceIdentity)
+            diagnosticPhase = "first.report-readback"
+            try assertPreservedReportAfterReopen(frozen, in: firstReopened)
+            let firstHarness = LiveHarness(
+                support: current.support, factory: firstFactory, session: firstReopened,
+                packetID: incoming.packetID, rootID: incoming.rootID,
+                packetCreatedAt: incoming.packetCreatedAt)
+            diagnosticPhase = "first.export"
+            let secondPackage = try exportPackage(firstHarness, root: root, name: "forked-report")
+            diagnosticPhase = "first.capture-package"
+            let secondPackageBefore = try fileTree(secondPackage)
+            XCTAssertEqual(try fileTree(package), packageBefore)
+            diagnosticPhase = "first.remove-original-package"
+            try fileManager.removeItem(at: package)
+            XCTAssertFalse(fileManager.fileExists(atPath: package.path))
 
-        let secondValidated = try importPackage(
-            secondPackage, into: firstReopened, stageID: uuid(22_002))
-        let second = try await BackupRestoreService(applicationSupportURL: current.support).restore(
-            validatedPackage: secondValidated,
-            currentModelContext: firstReopened.modelContext,
-            currentGenerationID: firstReopened.generationID,
-            currentGenerationRootURL: firstReopened.generationRootURL,
-            mode: .fork)
-        XCTAssertNotEqual(second.workspaceID, first.workspaceID)
-        XCTAssertNotEqual(second.workspaceID, incoming.session.workspaceID)
-        XCTAssertNotEqual(second.workspaceIdentity.replicaID, first.workspaceIdentity.replicaID)
-        XCTAssertNotEqual(second.generationID, first.generationID)
-        XCTAssertEqual(try fileTree(secondPackage), secondPackageBefore)
-        XCTAssertFalse(fileManager.fileExists(atPath: secondValidated.stagedPackageURL.path))
-        XCTAssertFalse(fileManager.fileExists(atPath: package.path))
-        let secondFactory = StoreGenerationFactory(applicationSupportURL: current.support)
-        let secondReopened = try secondFactory.openOrBootstrapCurrent()
-        XCTAssertEqual(secondReopened.generationID, second.generationID)
-        XCTAssertEqual(secondReopened.workspaceIdentity, second.workspaceIdentity)
-        try assertPreservedReportAfterReopen(frozen, in: secondReopened)
-        XCTAssertFalse(fileManager.fileExists(atPath: current.support
-            .appendingPathComponent("FieldEvidenceRestore/restore.json").path))
+            diagnosticPhase = "second.import"
+            let secondValidated = try importPackage(
+                secondPackage, into: firstReopened, stageID: uuid(22_002))
+            diagnosticPhase = "second.restore"
+            let second = try await BackupRestoreService(applicationSupportURL: current.support).restore(
+                validatedPackage: secondValidated,
+                currentModelContext: firstReopened.modelContext,
+                currentGenerationID: firstReopened.generationID,
+                currentGenerationRootURL: firstReopened.generationRootURL,
+                mode: .fork)
+            diagnosticPhase = "second.post-restore-checks"
+            XCTAssertNotEqual(second.workspaceID, first.workspaceID)
+            XCTAssertNotEqual(second.workspaceID, incoming.session.workspaceID)
+            XCTAssertNotEqual(second.workspaceIdentity.replicaID, first.workspaceIdentity.replicaID)
+            XCTAssertNotEqual(second.generationID, first.generationID)
+            XCTAssertEqual(try fileTree(secondPackage), secondPackageBefore)
+            XCTAssertFalse(fileManager.fileExists(atPath: secondValidated.stagedPackageURL.path))
+            XCTAssertFalse(fileManager.fileExists(atPath: package.path))
+            diagnosticPhase = "second.factory"
+            let secondFactory = StoreGenerationFactory(applicationSupportURL: current.support)
+            #if DEBUG
+            secondFactory.coldOpenDiagnosticForTesting = true
+            #endif
+            diagnosticPhase = "second.reopen"
+            let secondReopened = try secondFactory.openOrBootstrapCurrent()
+            XCTAssertEqual(secondReopened.generationID, second.generationID)
+            XCTAssertEqual(secondReopened.workspaceIdentity, second.workspaceIdentity)
+            diagnosticPhase = "second.report-readback"
+            try assertPreservedReportAfterReopen(frozen, in: secondReopened)
+            XCTAssertFalse(fileManager.fileExists(atPath: current.support
+                .appendingPathComponent("FieldEvidenceRestore/restore.json").path))
+        } catch {
+            let originalError = error
+            let failureType = String(reflecting: type(of: originalError))
+            let failureDomain = (originalError as NSError).domain
+            let failureCode = (originalError as NSError).code
+            let failureRecord = "ReplacementReportFork.caught phase=\(diagnosticPhase) type=\(failureType) domain=\(failureDomain) code=\(failureCode)"
+            XCTContext.runActivity(named: "Retained report-Fork failure before cleanup") { activity in
+                let attachment = XCTAttachment(string: failureRecord)
+                attachment.lifetime = .keepAlways
+                activity.add(attachment)
+            }
+            print(failureRecord)
+            throw originalError
+        }
     }
 
     @MainActor
@@ -1497,6 +1541,7 @@ private extension S6_5ReplacementUnionTests {
         label: String,
         observedAt: Date,
         packetIDOverride: UUID? = nil,
+        coldOpenDiagnostic: Bool = false,
         diagnostic: (@MainActor (String) -> Void)? = nil
     ) async throws -> LiveHarness {
         diagnostic?("support")
@@ -1504,6 +1549,9 @@ private extension S6_5ReplacementUnionTests {
         try fileManager.createDirectory(at: support, withIntermediateDirectories: true)
         diagnostic?("bootstrap")
         let factory = StoreGenerationFactory(applicationSupportURL: support)
+        #if DEBUG
+        factory.coldOpenDiagnosticForTesting = coldOpenDiagnostic
+        #endif
         let session = try factory.openOrBootstrapCurrent()
         let context = session.modelContext
         let pack = SignPack.illuminatedSignV1
