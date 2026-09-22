@@ -1300,6 +1300,64 @@ final class V9_54ActivityContractFamiliesTests: XCTestCase {
                        punchRelease.releaseSHA256)
     }
 
+    @MainActor
+    private func assertAndRetainLegacyActivityMutationFixture(
+        _ mutation: ActivityContractMutationV2,
+        caseID: String
+    ) throws {
+        try mutation.validate()
+        let command: WorkspaceCommandV1 = .applyActivityContract(mutation)
+        let request = WorkspaceMutationRequestV1(
+            mutationID: mutation.mutationID,
+            expectedRevision: mutation.expectedRevision,
+            command: command
+        )
+        let mutationBytes: Data = try WorkspaceMutationCanonicalV1.data(mutation)
+        let commandBytes: Data = try WorkspaceMutationCanonicalV1.data(command)
+        let requestBytes: Data = try WorkspaceMutationCanonicalV1.data(request)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        let decodedMutation = try decoder.decode(ActivityContractMutationV2.self, from: mutationBytes)
+        let decodedCommand = try decoder.decode(WorkspaceCommandV1.self, from: commandBytes)
+        let decodedRequest = try decoder.decode(WorkspaceMutationRequestV1.self, from: requestBytes)
+        try decodedMutation.validate()
+        XCTAssertEqual(decodedMutation, mutation)
+        XCTAssertEqual(decodedCommand, command)
+        XCTAssertEqual(decodedRequest, request)
+        XCTAssertEqual(try WorkspaceMutationCanonicalV1.data(decodedMutation), mutationBytes)
+        XCTAssertEqual(try WorkspaceMutationCanonicalV1.data(decodedCommand), commandBytes)
+        XCTAssertEqual(try WorkspaceMutationCanonicalV1.data(decodedRequest), requestBytes)
+        let manifest: [String: String] = [
+            "caseID": caseID,
+            "mutationSHA256": mutation.mutationSHA256,
+            "successorEnvelopeSHA256": mutation.successorEnvelope.envelopeSHA256,
+            "completedReference": mutation.completedSnapshotReference == nil ? "absent" : "present",
+            "activity-mutation-v2.json": KernelCanonicalHashV1.sha256(mutationBytes),
+            "workspace-command-v1.json": KernelCanonicalHashV1.sha256(commandBytes),
+            "workspace-request-v1.json": KernelCanonicalHashV1.sha256(requestBytes)
+        ]
+        let manifestBytes: Data = try WorkspaceMutationCanonicalV1.data(manifest)
+        let files: [(String, Data)] = [
+            ("activity-mutation-v2.json", mutationBytes),
+            ("workspace-command-v1.json", commandBytes),
+            ("workspace-request-v1.json", requestBytes),
+            ("fixture-manifest.json", manifestBytes)
+        ]
+        XCTContext.runActivity(named: "C47 legacy mutation fixture " + caseID) { activity in
+            for (name, bytes) in files {
+                let attachment = XCTAttachment(data: bytes, uniformTypeIdentifier: "public.json")
+                attachment.name = caseID + "-" + name
+                attachment.lifetime = .keepAlways
+                activity.add(attachment)
+                let fields: [String] = [
+                    "C47_MUTATION_FIXTURE_V1", caseID, name,
+                    KernelCanonicalHashV1.sha256(bytes), bytes.base64EncodedString()
+                ]
+                print(fields.joined(separator: "|"))
+            }
+        }
+    }
+
     func testV23P03C47H01CrossFamilyClaimsInvalidTransitionsAndStaleInputsFailClosed() throws {
         let retiredSupport = FileManager.default.temporaryDirectory.appendingPathComponent(
             "c47-retired-\(UUID().uuidString)",
@@ -2084,6 +2142,7 @@ final class V9_54ActivityContractFamiliesTests: XCTestCase {
             kind: .installation,
             fromState: .finalized,
             toState: .superseded,
+            reason: "Supersede the recorded completion to verify retained closeout truth",
             actor: C47ActivityTestSupport.actor(workspaceID: basisOne.workspaceID, slot: 724),
             occurredAt: C47ActivityTestSupport.fixedDate.addingTimeInterval(61),
             revision: supersededEnvelope.revision,
@@ -2595,6 +2654,11 @@ final class V9_54ActivityContractFamiliesTests: XCTestCase {
                 .completionClaimsCommissioningComplianceApprovalOrCertification
         )
         XCTAssertTrue(ActivityContractPersistenceEnrollmentV2.inspectionNamedCanonicalStorageForbidden)
+        diagnosticPhase = "codec.legacy-mutation-request"
+        XCTAssertNil(multiBasisMutation.completedSnapshotReference)
+        XCTAssertNotNil(resolvedMutation.completedSnapshotReference)
+        try assertAndRetainLegacyActivityMutationFixture(multiBasisMutation, caseID: "unfinished")
+        try assertAndRetainLegacyActivityMutationFixture(resolvedMutation, caseID: "completed")
         } catch {
             let caught: NSError = error as NSError
             let diagnosticFields: [String] = [
