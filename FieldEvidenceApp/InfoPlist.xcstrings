@@ -1,30 +1,42 @@
 {
-  "sourceLanguage" : "en",
-  "strings" : {
-    "NSCameraUsageDescription" : {
-      "comment" : "Explains why AssetRounds requests camera access.",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Take photos or record short video evidence only when you choose a camera action. Media stays on this iPhone unless you explicitly export or share it."
+  "sourceLanguage": "en",
+  "strings": {
+    "NSCameraUsageDescription": {
+      "comment": "System permission prompt. Preserve explicit user initiation, device-local handling, review/manual alternatives, and retention limits. Translation does not grant permission or imply capability support.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Take photos or record short video evidence only when you choose a camera action. Media stays on this iPhone unless you explicitly export or share it."
           }
         }
       }
     },
-    "NSMicrophoneUsageDescription" : {
-      "comment" : "Explains why AssetRounds requests microphone access for explicit foreground evidence capture.",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Record short audio evidence only when you choose Record Audio. Recordings stay on this iPhone unless you explicitly export or share them."
+    "NSMicrophoneUsageDescription": {
+      "comment": "System permission prompt. Preserve explicit user initiation, device-local handling, review/manual alternatives, and retention limits. Translation does not grant permission or imply capability support.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Record short audio evidence or transcribe voice details only when you choose those actions. Audio evidence stays on this iPhone unless you explicitly export or share it; voice-detail audio is temporary and not archived."
+          }
+        }
+      }
+    },
+    "NSSpeechRecognitionUsageDescription": {
+      "comment": "System permission prompt. Preserve explicit user initiation, device-local handling, review/manual alternatives, and retention limits. Translation does not grant permission or imply capability support.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcribe user-triggered voice details on this iPhone into reviewable structured-work suggestions. You can type instead; voice audio is not archived or sent to a cloud recognition service."
           }
         }
       }
     }
   },
-  "version" : "1.0"
+  "version": "1.0"
 }

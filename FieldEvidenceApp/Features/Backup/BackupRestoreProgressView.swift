@@ -93,7 +93,8 @@ struct BackupRestoreProgressView: View {
                         }
 
                         if let errorMessage {
-                            let message = restoreStateText(.failed) + "\n" + errorMessage
+                            let message = CriticalSurfaceLocalizationRegistryV1().messageWithDetail(
+                                message: restoreStateText(.failed), detail: errorMessage)
                             WorklightStatusBadge(
                                 kind: .blocked,
                                 text: message

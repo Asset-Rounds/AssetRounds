@@ -158,7 +158,8 @@ struct RecoveryCenterView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            Text("\(localized(.statusHeading)): \(syncStateText(projection.state))")
+            Text(CriticalSurfaceLocalizationRegistryV1().status(
+                label: localized(.statusHeading), state: syncStateText(projection.state)))
         )
     }
 
@@ -240,7 +241,12 @@ struct RecoveryCenterView: View {
 
             ForEach(Array(projection.reliability.failures.enumerated()), id: \.offset) { _, failure in
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-                    if let actionKey = actionKey(failure.primaryAction) {
+                    Text((try? CriticalSurfaceRecoveryCoordinatorV1.presentation(for: failure))?.message
+                        ?? CriticalSurfaceLocalizationRegistryV1().failure(.unknown))
+                        .font(.body)
+                        .foregroundStyle(DesignTokens.Colors.primaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let actionKey = CriticalSurfaceRecoveryCoordinatorV1.actionKey(failure.primaryAction) {
                         actionRow(
                             labelKey: .failurePrimary,
                             actionKey: actionKey,
@@ -248,7 +254,7 @@ struct RecoveryCenterView: View {
                         )
                     }
                     if let fallback = failure.fallbackAction,
-                       let actionKey = actionKey(fallback) {
+                       let actionKey = CriticalSurfaceRecoveryCoordinatorV1.actionKey(fallback) {
                         actionRow(
                             labelKey: .failureFallback,
                             actionKey: actionKey,
@@ -256,7 +262,7 @@ struct RecoveryCenterView: View {
                         )
                     }
                     if let helpTopic = failure.helpTopic,
-                       let helpKey = helpKey(helpTopic) {
+                       let helpKey = CriticalSurfaceRecoveryCoordinatorV1.helpKey(helpTopic) {
                         actionRow(
                             labelKey: .failureHelp,
                             actionKey: helpKey,
@@ -598,38 +604,6 @@ struct RecoveryCenterView: View {
         case .current: return .freshnessCurrent
         case .historic: return .freshnessHistoric
         case .unavailable: return .freshnessUnavailable
-        }
-    }
-
-    private func actionKey(
-        _ action: OperationalActionV1
-    ) -> RecoveryCenterLocalizationKeyV1? {
-        switch action {
-        case .cancel: return .actionCancel
-        case .chooseFile: return .actionChooseFile
-        case .closeOtherOperation: return .actionCloseOtherOperation
-        case .contactSupport: return .actionContactSupport
-        case .freeStorage: return .actionFreeStorage
-        case .none: return nil
-        case .openSettings: return .actionOpenSettings
-        case .retry: return .actionRetry
-        case .restart: return .actionRestart
-        case .resume: return .actionResume
-        case .unlockDevice: return .actionUnlockDevice
-        }
-    }
-
-    private func helpKey(
-        _ topic: OperationalHelpTopicV1
-    ) -> RecoveryCenterLocalizationKeyV1? {
-        switch topic {
-        case .backup: return .helpBackup
-        case .commerce: return .helpCommerce
-        case .diagnosticsReset: return .helpDiagnosticsReset
-        case .permissions: return .helpPermissions
-        case .reports: return .helpReports
-        case .storage: return .helpStorage
-        case .supportExport: return .helpSupportExport
         }
     }
 

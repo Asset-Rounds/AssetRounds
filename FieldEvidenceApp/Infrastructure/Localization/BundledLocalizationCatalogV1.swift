@@ -777,6 +777,37 @@ enum LocalizationCatalogPublicationV1: Equatable, Sendable {
 enum BundledLocalizationCatalogV1 {
     typealias Interruption = @Sendable (LocalizationCatalogPublicationBoundaryV1) throws -> Void
 
+    /// Current-card critical copy is additive; the historical catalog digest
+    /// registry stays unchanged until the shared catalog integration card.
+    static func criticalSurfaceRegistry() throws -> LocalizationKeyRegistryV1 {
+        let base = try formSemanticsRegistry()
+        var additions = try OperationalFailureCodeV1.allCases.map { code in
+            LocalizationKeyDefinitionV1(
+                key: try LocalizationKeyV1(CriticalSurfaceLocalizationRegistryV1.failureKey(code)),
+                meaningID: "critical.failure." + code.rawValue.lowercased(),
+                translatorComment: "Recovery failure or cancellation; preserve exact meaning, without implying saved data, successful recovery or delivery.",
+                englishDefaultValue: CriticalSurfaceLocalizationRegistryV1.failureEnglish(code),
+                arguments: [], requiredEnglishPluralCategories: [], state: .active,
+                deprecatedFallbackKey: nil)
+        }
+        for (key, value, names, comment) in [
+            ("v30.critical.status-with-label", "%1$@: %2$@", ["label", "state"],
+             "Arguments: 1 localized label, 2 localized actual state. Preserve both when reordering."),
+            ("v30.critical.message-with-detail", "%1$@\n%2$@", ["message", "detail"],
+             "Arguments: 1 localized failure message, 2 localized recovery detail. Preserve both; no success claim."),
+            ("v30.critical.erase-confirmation", "Type %@ to confirm.", ["token"],
+             "Argument: exact confirmation token. Never translate, case-fold or normalize it; only the instruction is localized."),
+        ] {
+            additions.append(LocalizationKeyDefinitionV1(
+                key: try LocalizationKeyV1(key), meaningID: key,
+                translatorComment: comment,
+                englishDefaultValue: value,
+                arguments: names.sorted().map { .init(name: $0, shape: .plain) },
+                requiredEnglishPluralCategories: [], state: .active, deprecatedFallbackKey: nil))
+        }
+        return try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
+    }
+
     static var runtimeLanguage: String {
         SystemLanguageResolverV1().resolve().effectiveLanguage.rawValue
     }
@@ -5778,13 +5809,13 @@ extension BundledLocalizationCatalogV1 {
     static func recoveryCenterLocalized(
         _ key: RecoveryCenterLocalizationKeyV1,
         bundle: Bundle = .main,
-        locale: Locale = .current
+        locale: Locale? = nil
     ) -> String {
         String(
             localized: key.rawValue,
             defaultValue: recoveryCenterEnglish(key),
             bundle: bundle,
-            locale: locale,
+            locale: locale ?? Locale(identifier: SystemLanguageResolverV1(bundle: bundle).resolve().effectiveLanguage.rawValue),
             comment: "C01 typed local recovery and support-center presentation text; no customer, work, secret, legal, delivery, or capability claim."
         )
     }

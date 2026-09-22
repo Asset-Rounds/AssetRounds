@@ -1,11 +1,11 @@
 import SwiftUI
 
 struct StartupMaintenanceView: View {
-    static let titleText = BundledLocalizationCatalogV1.v30Text(.startupMaintenanceTitle)
-    static let messageText = BundledLocalizationCatalogV1.v30Text(.startupMaintenanceMessage)
-    static let recoveryStepsText = BundledLocalizationCatalogV1.v30Text(.startupMaintenanceRecoverySteps)
-    static let retryButtonText = BundledLocalizationCatalogV1.v30Text(.startupMaintenanceRetryChecks)
-    static let recoveryButtonText = BundledLocalizationCatalogV1.v30Text(.startupMaintenanceRecoveryStepsButton)
+    nonisolated static var titleText: String { BundledLocalizationCatalogV1.v30Text(.startupMaintenanceTitle) }
+    nonisolated static var messageText: String { BundledLocalizationCatalogV1.v30Text(.startupMaintenanceMessage) }
+    nonisolated static var recoveryStepsText: String { BundledLocalizationCatalogV1.v30Text(.startupMaintenanceRecoverySteps) }
+    nonisolated static var retryButtonText: String { BundledLocalizationCatalogV1.v30Text(.startupMaintenanceRetryChecks) }
+    nonisolated static var recoveryButtonText: String { BundledLocalizationCatalogV1.v30Text(.startupMaintenanceRecoveryStepsButton) }
 
     static let screenAccessibilityIdentifier = "s2.maintenance.screen"
     static let retryAccessibilityIdentifier = "s2.maintenance.retry"

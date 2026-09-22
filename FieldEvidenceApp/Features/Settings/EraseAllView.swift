@@ -9,9 +9,9 @@ struct EraseAllView: View {
     static let eraseAccessibilityIdentifier = "s6.6.erase.confirm"
     static let errorAccessibilityIdentifier = "s6.6.erase.error"
 
-    static let title = BundledLocalizationCatalogV1.v30Text(.eraseAllEraseLabel)
-    static let warning = BundledLocalizationCatalogV1.v30Text(.eraseAllPhotoLabel)
-    static let subscriptionCopy = BundledLocalizationCatalogV1.v30Text(.eraseAllBackupLabel)
+    static var title: String { BundledLocalizationCatalogV1.v30Text(.eraseAllEraseLabel) }
+    static var warning: String { BundledLocalizationCatalogV1.v30Text(.eraseAllPhotoLabel) }
+    static var subscriptionCopy: String { BundledLocalizationCatalogV1.v30Text(.eraseAllBackupLabel) }
 
     @Environment(\.dismiss) private var dismiss
     @FocusState private var confirmationFocused: Bool
@@ -49,12 +49,14 @@ struct EraseAllView: View {
                         .foregroundStyle(DesignTokens.Colors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text(BundledLocalizationCatalogV1.v30Text(.eraseAllEraseLabel2))
+                    Text(CriticalSurfaceLocalizationRegistryV1().eraseInstructions(token: EraseAllService.requiredConfirmation))
                         .font(.headline)
                         .foregroundStyle(DesignTokens.Colors.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    TextField("ERASE", text: $confirmation)
+                    TextField(text: $confirmation) {
+                        Text(verbatim: EraseAllService.requiredConfirmation)
+                    }
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
                         .focused($confirmationFocused)
@@ -77,7 +79,7 @@ struct EraseAllView: View {
                                 lineWidth: 1
                             )
                         }
-                        .accessibilityLabel(BundledLocalizationCatalogV1.v30Text(.eraseAllEraseAccessibility))
+                        .accessibilityLabel(CriticalSurfaceLocalizationRegistryV1().eraseInstructions(token: EraseAllService.requiredConfirmation))
                         .accessibilityIdentifier(
                             Self.confirmationAccessibilityIdentifier
                         )

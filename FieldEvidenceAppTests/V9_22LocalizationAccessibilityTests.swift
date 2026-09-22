@@ -263,15 +263,17 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
         let infoPlistCatalog = try infoPlistCatalogObject()
         XCTAssertEqual(infoPlistCatalog["sourceLanguage"] as? String, "en")
         let permissionKeys = try XCTUnwrap(infoPlistCatalog["strings"] as? [String: Any])
-        XCTAssertEqual(Set(permissionKeys.keys), ["NSCameraUsageDescription"])
-        let camera = try XCTUnwrap(permissionKeys["NSCameraUsageDescription"] as? [String: Any])
-        let localizations = try XCTUnwrap(camera["localizations"] as? [String: Any])
-        let english = try XCTUnwrap(localizations["en"] as? [String: Any])
-        let stringUnit = try XCTUnwrap(english["stringUnit"] as? [String: Any])
-        XCTAssertEqual(
-            stringUnit["value"] as? String,
-            "Use the camera to add sign photos to reports stored on this iPhone."
-        )
+        XCTAssertEqual(Set(permissionKeys.keys), Set(CriticalPermissionPurposeV1.allCases.map(\.rawValue)))
+        let plistData = try Data(contentsOf: repositoryRootURL().appendingPathComponent("FieldEvidenceApp/Info.plist"))
+        let plist = try XCTUnwrap(PropertyListSerialization.propertyList(from: plistData, format: nil) as? [String: Any])
+        for purpose in CriticalPermissionPurposeV1.allCases {
+            let entry = try XCTUnwrap(permissionKeys[purpose.rawValue] as? [String: Any])
+            let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any])
+            let english = try XCTUnwrap(localizations["en"] as? [String: Any])
+            let unit = try XCTUnwrap(english["stringUnit"] as? [String: Any])
+            XCTAssertEqual(unit["value"] as? String, purpose.english)
+            XCTAssertEqual(plist[purpose.rawValue] as? String, purpose.english)
+        }
     }
 
     func testV9_22A01TestOnlyPseudoLocalesAndLocaleAwarePresentationRemainBounded() throws {
