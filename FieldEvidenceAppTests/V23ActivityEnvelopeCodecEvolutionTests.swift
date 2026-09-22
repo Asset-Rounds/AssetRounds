@@ -57,11 +57,17 @@ final class V23ActivityEnvelopeCodecEvolutionTests: XCTestCase {
         XCTAssertEqual(corpus.originalRunID, 35723712558)
         XCTAssertEqual(corpus.sourceHead, "beaa8f487f0a3cf3267e7465a6195a7d844e8d6c")
         XCTAssertEqual(corpus.rootAuditSHA256, expectedRootAuditSHA256)
-        let expected = Set(codecCases.flatMap { caseID in
-            codecFiles.map { "codec/" + caseID + "/" + $0 }
-        } + ["unfinished", "completed"].flatMap { caseID in
-            mutationFiles.map { "mutations/" + caseID + "/" + $0 }
-        })
+        var expected: Set<String> = []
+        for caseID in codecCases {
+            for filename in codecFiles {
+                expected.insert("codec/\(caseID)/\(filename)")
+            }
+        }
+        for caseID in ["unfinished", "completed"] {
+            for filename in mutationFiles {
+                expected.insert("mutations/\(caseID)/\(filename)")
+            }
+        }
         XCTAssertEqual(corpus.records.count, 32)
         XCTAssertEqual(Set(corpus.records.map(\.path)), expected)
         var result: [String: Data] = [:]
