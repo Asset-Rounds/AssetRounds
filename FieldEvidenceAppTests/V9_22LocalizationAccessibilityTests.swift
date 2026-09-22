@@ -122,6 +122,19 @@ private final class C30EvidenceContextAnchorV9_22LocalizationAccessibility: XCTe
 
 @MainActor
 final class V9_22LocalizationAccessibilityTests: XCTestCase {
+    func testV30SixLocaleProvisionalCohortPreservesHistoricalShippingManifest() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let app = try Data(contentsOf: root.appendingPathComponent("FieldEvidenceApp/Resources/Localizable.xcstrings"))
+        let permissions = try Data(contentsOf: root.appendingPathComponent("FieldEvidenceApp/InfoPlist.xcstrings"))
+        try V30ProvisionalCatalogIntegrationV1.validateCatalog(app, permissionCatalog: false)
+        try V30ProvisionalCatalogIntegrationV1.validateCatalog(permissions, permissionCatalog: true)
+        try BundledLocalizationCatalogV1.validateSourceCatalog(app, registry: BundledLocalizationCatalogV1.registry())
+        XCTAssertEqual(V30ProvisionalCatalogIntegrationV1.languages, ["en", "es", "zh-Hans", "zh-Hant", "vi", "ko"])
+        try LocalizationLocaleManifestV1.shippingV1().validate()
+        XCTAssertEqual(LocalizationLocaleManifestV1.shippingV1().shippingRuntimeLanguages, ["en"])
+        XCTAssertFalse(V30LocalizationAxisBridgeV1.finalLocaleCatalogClaimed)
+    }
+
     func testV23P03C37TypedPoseContractAnchor() throws {
         let axis = try PoseAxisDescriptorV1(
             axisID: PoseAxisID(rawValue: "axis.c37.anchor"),

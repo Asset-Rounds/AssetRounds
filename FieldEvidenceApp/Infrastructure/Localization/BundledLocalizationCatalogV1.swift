@@ -2863,13 +2863,20 @@ enum BundledLocalizationCatalogV1 {
         }
     }
 
+    /// Static typed labels use the same resolved language as the interpolated
+    /// String(localized:) cases. Missing resources retain the exact English default.
+    static func localizedStatic(key: String, english: String, language: String, bundle: Bundle = .main) -> String {
+        let selected = V30ProvisionalCatalogIntegrationV1.languages.contains(language) ? language : "en"
+        guard let path = bundle.path(forResource: selected, ofType: "lproj"),
+              let localizedBundle = Bundle(path: path) else { return english }
+        return localizedBundle.localizedString(forKey: key, value: english, table: "Localizable")
+    }
+
     static func localized(_ key: BundledLocalizationKeyV1, bundle: Bundle = .main) -> String {
         let locale = Locale(identifier: SystemLanguageResolverV1(bundle: bundle).resolve().effectiveLanguage.rawValue)
         if let fieldDraftKey = FieldDraftLocalizationKeyV1(rawValue: key.rawValue) {
-            // C36 is English-only by policy.  Returning the typed default here
-            // keeps this path compatible with the dynamic bundled-key switch
-            // while preventing raw lifecycle values from becoming UI copy.
-            return fieldDraftKey.englishDefaultValue
+            // Resolve the existing typed static label through the integrated bundle.
+            return localizedStatic(key: key.rawValue, english: fieldDraftKey.englishDefaultValue, language: locale.identifier, bundle: bundle)
         }
         switch key {
         case .feedbackSubject:
@@ -3215,109 +3222,109 @@ enum BundledLocalizationCatalogV1 {
         case .workPacketMinimumNextRequirement:
             return String(localized: "work.packet.next_step.minimum_requirement", defaultValue: "Minimum requirement", bundle: bundle, locale: locale, comment: "Actionable label for the minimum recorded requirement before the next step.")
         case .measurementIntegrityHeading:
-            return MeasurementIntegrityLocalizationKeyV1.heading.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.heading.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityInstrument:
-            return MeasurementIntegrityLocalizationKeyV1.instrument.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.instrument.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityInstrumentKind:
-            return MeasurementIntegrityLocalizationKeyV1.instrumentKind.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.instrumentKind.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityInstrumentKindMeasuring:
-            return MeasurementIntegrityLocalizationKeyV1.instrumentKindMeasuring.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.instrumentKindMeasuring.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityInstrumentKindReference:
-            return MeasurementIntegrityLocalizationKeyV1.instrumentKindReference.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.instrumentKindReference.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityInstrumentKindOther:
-            return MeasurementIntegrityLocalizationKeyV1.instrumentKindOther.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.instrumentKindOther.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityInstrumentLifecycle:
-            return MeasurementIntegrityLocalizationKeyV1.instrumentLifecycle.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.instrumentLifecycle.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityInstrumentLifecycleActive:
-            return MeasurementIntegrityLocalizationKeyV1.instrumentLifecycleActive.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.instrumentLifecycleActive.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityInstrumentLifecycleOutOfService:
-            return MeasurementIntegrityLocalizationKeyV1.instrumentLifecycleOutOfService.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.instrumentLifecycleOutOfService.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityInstrumentLifecycleRetired:
-            return MeasurementIntegrityLocalizationKeyV1.instrumentLifecycleRetired.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.instrumentLifecycleRetired.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityCalibration:
-            return MeasurementIntegrityLocalizationKeyV1.calibration.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.calibration.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityCalibrationStatus:
-            return MeasurementIntegrityLocalizationKeyV1.calibrationStatus.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.calibrationStatus.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityCalibrationNotRequired:
-            return MeasurementIntegrityLocalizationKeyV1.calibrationNotRequired.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.calibrationNotRequired.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityCalibrationCurrent:
-            return MeasurementIntegrityLocalizationKeyV1.calibrationCurrent.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.calibrationCurrent.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityCalibrationExpired:
-            return MeasurementIntegrityLocalizationKeyV1.calibrationExpired.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.calibrationExpired.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityCalibrationUnknown:
-            return MeasurementIntegrityLocalizationKeyV1.calibrationUnknown.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.calibrationUnknown.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityCalibrationOutOfService:
-            return MeasurementIntegrityLocalizationKeyV1.calibrationOutOfService.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.calibrationOutOfService.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityCalibrationBasis:
-            return MeasurementIntegrityLocalizationKeyV1.calibrationBasis.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.calibrationBasis.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityCalibrationBasisDeclared:
-            return MeasurementIntegrityLocalizationKeyV1.calibrationBasisDeclared.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.calibrationBasisDeclared.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityCalibrationBasisEvidence:
-            return MeasurementIntegrityLocalizationKeyV1.calibrationBasisEvidence.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.calibrationBasisEvidence.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityCalibrationBasisLocal:
-            return MeasurementIntegrityLocalizationKeyV1.calibrationBasisLocal.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.calibrationBasisLocal.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityCalibrationBasisUnknown:
-            return MeasurementIntegrityLocalizationKeyV1.calibrationBasisUnknown.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.calibrationBasisUnknown.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityCapture:
-            return MeasurementIntegrityLocalizationKeyV1.capture.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.capture.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityCaptureValue:
-            return MeasurementIntegrityLocalizationKeyV1.captureValue.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.captureValue.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityCaptureUnit:
-            return MeasurementIntegrityLocalizationKeyV1.captureUnit.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.captureUnit.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityCaptureSource:
-            return MeasurementIntegrityLocalizationKeyV1.captureSource.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.captureSource.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityCaptureSourceManual:
-            return MeasurementIntegrityLocalizationKeyV1.captureSourceManual.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.captureSourceManual.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityCaptureSourceLocalObservation:
-            return MeasurementIntegrityLocalizationKeyV1.captureSourceLocalObservation.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.captureSourceLocalObservation.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegritySeries:
-            return MeasurementIntegrityLocalizationKeyV1.series.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.series.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegritySeriesState:
-            return MeasurementIntegrityLocalizationKeyV1.seriesState.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.seriesState.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegritySeriesOpen:
-            return MeasurementIntegrityLocalizationKeyV1.seriesOpen.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.seriesOpen.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegritySeriesFinalized:
-            return MeasurementIntegrityLocalizationKeyV1.seriesFinalized.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.seriesFinalized.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityProtocol:
-            return MeasurementIntegrityLocalizationKeyV1.`protocol`.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.`protocol`.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityQuality:
-            return MeasurementIntegrityLocalizationKeyV1.quality.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.quality.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityQualityResult:
-            return MeasurementIntegrityLocalizationKeyV1.qualityResult.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.qualityResult.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityQualityClear:
-            return MeasurementIntegrityLocalizationKeyV1.qualityClear.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.qualityClear.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityQualityReviewRequired:
-            return MeasurementIntegrityLocalizationKeyV1.qualityReviewRequired.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.qualityReviewRequired.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityQualityOverridden:
-            return MeasurementIntegrityLocalizationKeyV1.qualityOverridden.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.qualityOverridden.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityQualityReason:
-            return MeasurementIntegrityLocalizationKeyV1.qualityReason.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.qualityReason.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityQualityReasonDeclaredChecksClear:
-            return MeasurementIntegrityLocalizationKeyV1.qualityReasonDeclaredChecksClear.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.qualityReasonDeclaredChecksClear.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityQualityReasonCalibrationNotRequired:
-            return MeasurementIntegrityLocalizationKeyV1.qualityReasonCalibrationNotRequired.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.qualityReasonCalibrationNotRequired.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityQualityReasonCalibrationExpired:
-            return MeasurementIntegrityLocalizationKeyV1.qualityReasonCalibrationExpired.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.qualityReasonCalibrationExpired.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityQualityReasonCalibrationUnknown:
-            return MeasurementIntegrityLocalizationKeyV1.qualityReasonCalibrationUnknown.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.qualityReasonCalibrationUnknown.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityQualityReasonInstrumentOutOfService:
-            return MeasurementIntegrityLocalizationKeyV1.qualityReasonInstrumentOutOfService.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.qualityReasonInstrumentOutOfService.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityQualityReasonMissingUncertainty:
-            return MeasurementIntegrityLocalizationKeyV1.qualityReasonMissingUncertainty.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.qualityReasonMissingUncertainty.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityQualityReasonUncertaintyCrossesBoundary:
-            return MeasurementIntegrityLocalizationKeyV1.qualityReasonUncertaintyCrossesBoundary.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.qualityReasonUncertaintyCrossesBoundary.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityQualityReasonIncompleteSampleSet:
-            return MeasurementIntegrityLocalizationKeyV1.qualityReasonIncompleteSampleSet.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.qualityReasonIncompleteSampleSet.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityQualityReasonDuplicateSample:
-            return MeasurementIntegrityLocalizationKeyV1.qualityReasonDuplicateSample.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.qualityReasonDuplicateSample.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityQualityReasonRetainedOutlier:
-            return MeasurementIntegrityLocalizationKeyV1.qualityReasonRetainedOutlier.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.qualityReasonRetainedOutlier.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityQualityReasonObservationLimitation:
-            return MeasurementIntegrityLocalizationKeyV1.qualityReasonObservationLimitation.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.qualityReasonObservationLimitation.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityQualityReasonHumanOverride:
-            return MeasurementIntegrityLocalizationKeyV1.qualityReasonHumanOverride.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.qualityReasonHumanOverride.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .measurementIntegrityNextStep:
-            return MeasurementIntegrityLocalizationKeyV1.nextStep.englishDefaultValue
+            return localizedStatic(key: key.rawValue, english: MeasurementIntegrityLocalizationKeyV1.nextStep.englishDefaultValue, language: locale.identifier, bundle: bundle)
         case .privacyTransformHeading,
              .privacyTransformRedactionDeclaration,
              .privacyTransformDerivative,
@@ -3340,7 +3347,7 @@ enum BundledLocalizationCatalogV1 {
              .privacyTransformDenialMetadataNotSanitized,
              .privacyTransformOriginalAccessSeparate,
              .privacyTransformNextStep:
-            return PrivacyTransformLocalizationKeyV1(rawValue: key.rawValue)?.englishDefaultValue ?? key.rawValue
+            return localizedStatic(key: key.rawValue, english: PrivacyTransformLocalizationKeyV1(rawValue: key.rawValue)?.englishDefaultValue ?? key.rawValue, language: locale.identifier, bundle: bundle)
         case .clientCapabilityHeading,
              .clientCapabilityAdmission,
              .clientCapabilityAdmissionReadWrite,
@@ -3381,7 +3388,7 @@ enum BundledLocalizationCatalogV1 {
              .packageLifecycleWithdrawal,
              .packageLifecycleBlocked,
              .clientCapabilityNextStep:
-            return ClientCapabilityLocalizationKeyV1(rawValue: key.rawValue)?.englishDefaultValue ?? key.rawValue
+            return localizedStatic(key: key.rawValue, english: ClientCapabilityLocalizationKeyV1(rawValue: key.rawValue)?.englishDefaultValue ?? key.rawValue, language: locale.identifier, bundle: bundle)
         case .fieldReferenceHeading,
              .fieldReferenceProvenance,
              .fieldReferencePack,
@@ -3420,7 +3427,7 @@ enum BundledLocalizationCatalogV1 {
              .fieldReferenceRequiredContent,
              .fieldReferenceMissingContent,
              .fieldReferenceNextStep:
-            return FieldReferenceLocalizationKeyV1(rawValue: key.rawValue)?.englishDefaultValue ?? key.rawValue
+            return localizedStatic(key: key.rawValue, english: FieldReferenceLocalizationKeyV1(rawValue: key.rawValue)?.englishDefaultValue ?? key.rawValue, language: locale.identifier, bundle: bundle)
         case .accessibleDocumentScreen,
              .accessibleDocumentHeading,
              .accessibleDocumentNode,
@@ -3454,7 +3461,7 @@ enum BundledLocalizationCatalogV1 {
              .accessibleDocumentEvidenceLimited,
              .accessibleDocumentClaimBoundary,
              .accessibleDocumentNextStep:
-            return AccessibleDocumentLocalizationKeyV1(rawValue: key.rawValue)?.englishDefaultValue ?? key.rawValue
+            return localizedStatic(key: key.rawValue, english: AccessibleDocumentLocalizationKeyV1(rawValue: key.rawValue)?.englishDefaultValue ?? key.rawValue, language: locale.identifier, bundle: bundle)
         case .poseHeading,
              .poseAxis,
              .poseCurrent,
@@ -3491,7 +3498,7 @@ enum BundledLocalizationCatalogV1 {
              .poseClaimBoundary,
              .poseNextStep,
              .poseMissing:
-            return C37PoseLocalizationKeyV1(rawValue: key.rawValue)?.englishDefaultValue ?? key.rawValue
+            return localizedStatic(key: key.rawValue, english: C37PoseLocalizationKeyV1(rawValue: key.rawValue)?.englishDefaultValue ?? key.rawValue, language: locale.identifier, bundle: bundle)
         }
     }
 
@@ -3551,12 +3558,18 @@ enum BundledLocalizationCatalogV1 {
         _ data: Data,
         registry: LocalizationKeyRegistryV1
     ) throws {
-        guard data.count <= 2_097_152,
+        guard data.count <= V30ProvisionalCatalogIntegrationV1.maximumCatalogBytes,
               let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               root["sourceLanguage"] as? String == "en",
               root["version"] as? String == "1.0",
               let strings = root["strings"] as? [String: Any] else {
             throw LocalizationContractFailureV1.invalidValue
+        }
+        let integrated = strings.values.contains { value in
+            ((value as? [String: Any])?["localizations"] as? [String: Any])?.count != 1
+        }
+        if integrated {
+            try V30ProvisionalCatalogIntegrationV1.validateCatalog(data, permissionCatalog: false)
         }
         let registeredKeys = Set(registry.definitions.map(\.key.rawValue))
         // The source catalog may be validated against any currently declared
@@ -3601,7 +3614,7 @@ enum BundledLocalizationCatalogV1 {
         // registry or changing its historical definition/receipt schema.
         supportedKeys.formUnion(V30EnglishCatalogRegistryV1.keys)
         guard registeredKeys.isSubset(of: Set(strings.keys)),
-              Set(strings.keys).isSubset(of: supportedKeys) else {
+              (integrated || Set(strings.keys).isSubset(of: supportedKeys)) else {
             throw LocalizationContractFailureV1.invalidValue
         }
         for definition in registry.definitions {
@@ -3617,7 +3630,7 @@ enum BundledLocalizationCatalogV1 {
                   let comment = entry["comment"] as? String,
                   !comment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                   let localizations = entry["localizations"] as? [String: Any],
-                  Set(localizations.keys) == Set(["en"]),
+                  Set(localizations.keys) == Set(integrated ? V30ProvisionalCatalogIntegrationV1.languages : ["en"]),
                   (try? registry.definition(for: LocalizationKeyV1(rawKey))) != nil else {
                 throw LocalizationContractFailureV1.missingComment
             }

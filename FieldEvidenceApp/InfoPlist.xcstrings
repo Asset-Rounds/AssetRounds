@@ -10,6 +10,36 @@
             "state": "translated",
             "value": "Take photos or record short video evidence only when you choose a camera action. Media stays on this iPhone unless you explicitly export or share it."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tome fotos o grabe evidencia de video breve solo cuando elija una acción de cámara. El contenido multimedia permanece en este iPhone a menos que lo exporte o comparta explícitamente."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "仅在您选择相机操作时拍摄照片或录制简短视频证据。除非您明确导出或共享，媒体始终保留在此 iPhone 上。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "僅在您選擇相機動作時，拍攝照片或錄製簡短影片證據。除非您明確匯出或分享，媒體會留在此 iPhone 上。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Chỉ chụp ảnh hoặc quay bằng chứng video ngắn khi bạn chọn hành động camera. Nội dung đa phương tiện ở trên iPhone này trừ khi bạn chủ động xuất hoặc chia sẻ."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "카메라 작업을 직접 선택한 경우에만 사진을 찍거나 짧은 동영상 증거를 녹화합니다. 미디어는 직접 내보내거나 공유하지 않는 한 이 iPhone에 보관됩니다."
+          }
         }
       }
     },
@@ -22,6 +52,36 @@
             "state": "translated",
             "value": "Record short audio evidence or transcribe voice details only when you choose those actions. Audio evidence stays on this iPhone unless you explicitly export or share it; voice-detail audio is temporary and not archived."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Grabe evidencia de audio breve o transcriba detalles de voz solo cuando elija esas acciones. La evidencia de audio permanece en este iPhone a menos que la exporte o comparta explícitamente; el audio de los detalles de voz es temporal y no se archiva."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "仅在您选择相应操作时录制简短音频证据或转写语音详情。除非您明确导出或共享，音频证据始终保留在此 iPhone 上；语音详情音频为临时数据，不会存档。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "僅在您選擇相應動作時，錄製簡短音訊證據或轉寫語音詳情。除非您明確匯出或分享，音訊證據會留在此 iPhone 上；語音詳情的音訊屬暫存資料，不會封存。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Chỉ thu bằng chứng âm thanh ngắn hoặc chép lời chi tiết giọng nói khi bạn chọn các hành động đó. Bằng chứng âm thanh ở trên iPhone này trừ khi bạn chủ động xuất hoặc chia sẻ; âm thanh chi tiết giọng nói chỉ là tạm thời và không được lưu trữ lâu dài."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "해당 작업을 직접 선택한 경우에만 짧은 오디오 증거를 녹음하거나 음성 세부 정보를 전사합니다. 오디오 증거는 직접 내보내거나 공유하지 않는 한 이 iPhone에 보관되며, 음성 세부 정보 오디오는 임시로 사용되고 보관되지 않습니다."
+          }
         }
       }
     },
@@ -33,6 +93,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Transcribe user-triggered voice details on this iPhone into reviewable structured-work suggestions. You can type instead; voice audio is not archived or sent to a cloud recognition service."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Transcriba los detalles de voz que active el usuario en este iPhone para convertirlos en sugerencias de trabajo estructurado que se puedan revisar. También puede escribir; el audio de voz no se archiva ni se envía a un servicio de reconocimiento en la nube."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "在此 iPhone 上，将用户主动录入的语音详情转写为可供审阅的结构化工作建议。您也可以键入；语音音频不会存档，也不会发送到云端识别服务。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "在此 iPhone 上，將使用者主動錄入的語音詳情轉寫為可供審閱的結構化工作建議。您也可以鍵入；語音音訊不會封存，也不會傳送至雲端辨識服務。"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Chép lời chi tiết giọng nói do người dùng chủ động ghi trên iPhone này thành gợi ý công việc có cấu trúc để xem xét. Bạn cũng có thể gõ; âm thanh giọng nói không được lưu trữ lâu dài hoặc gửi tới dịch vụ nhận dạng đám mây."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "사용자가 시작한 음성 세부 정보를 이 iPhone에서 전사하여 검토 가능한 구조화된 작업 제안으로 만듭니다. 대신 직접 입력할 수 있으며, 음성 오디오는 보관되거나 클라우드 음성 인식 서비스로 전송되지 않습니다."
           }
         }
       }

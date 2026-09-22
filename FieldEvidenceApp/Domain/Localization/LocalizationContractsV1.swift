@@ -7101,9 +7101,12 @@ struct V30EnglishMessageContractV1: Equatable, Sendable {
         try validate()
         guard entry["comment"] as? String == translatorComment,
               let localizations = entry["localizations"] as? [String: Any],
-              Set(localizations.keys) == ["en"],
+              (Set(localizations.keys) == ["en"] || Set(localizations.keys) == Set(V30ProvisionalCatalogIntegrationV1.languages)),
               let english = localizations["en"] as? [String: Any] else {
             throw LocalizationContractFailureV1.invalidValue
+        }
+        if localizations.count > 1 {
+            try V30ProvisionalCatalogIntegrationV1.validateLocalizations(localizations)
         }
         if let one = englishPluralOne {
             guard Set(english.keys) == ["variations"],
@@ -7395,5 +7398,188 @@ enum GlobalizationSettingsLocalizationKeyV1: String, CaseIterable, Sendable {
         case .authoredContentNotice: return "This setting does not translate authored content."
         case .jurisdictionBoundaryNotice: return "Worksite jurisdiction remains limited to the recorded United States jurisdiction; language and formatting do not enable another jurisdiction."
         }
+    }
+}
+
+/// The integrated pre-S10 catalog is a draft content cohort, not a shipping
+/// manifest or an accepted C08 catalog release. Historical receipts stay unchanged.
+enum V30ProvisionalCatalogIntegrationV1 {
+    static let languages = ["en", "es", "zh-Hans", "zh-Hant", "vi", "ko"]
+    static let maximumCatalogBytes = 8_388_608
+    static let appKeySetSHA256 = "29839192452e8ae666cf74498fb9809962a1afa19a50076d7c332c3cdecbf6b1"
+    static let permissionKeySetSHA256 = "1e59467c1998b0785f743a44dcb986d0de69b59b70f8bd087440bf14babb2b0a"
+    static let inheritedSourceDefectKeys = [
+        "v30.manual-work-resource.units", "v30.my-day.no-duration-estimate-lowercase",
+        "v30.my-day.no-total-estimate", "v30.my-day.start",
+    ]
+
+    static func validateCatalog(_ data: Data, permissionCatalog: Bool) throws {
+        guard !data.isEmpty, data.count <= maximumCatalogBytes,
+              let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              Set(root.keys) == ["sourceLanguage", "version", "strings"],
+              root["sourceLanguage"] as? String == "en", root["version"] as? String == "1.0",
+              let strings = root["strings"] as? [String: Any],
+              strings.count == (permissionCatalog ? 3 : 3_209),
+              KernelCanonicalHashV1.sha256(Data((strings.keys.sorted().joined(separator: "\n") + "\n").utf8))
+                == (permissionCatalog ? permissionKeySetSHA256 : appKeySetSHA256) else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+        for value in strings.values {
+            guard let entry = value as? [String: Any],
+                  (entry["comment"] == nil || (entry["comment"] as? String)?.isEmpty == false),
+                  let localizations = entry["localizations"] as? [String: Any] else {
+                throw LocalizationContractFailureV1.missingComment
+            }
+            try validateLocalizations(localizations)
+        }
+    }
+
+    static func validateLocalizations(_ localizations: [String: Any]) throws {
+        guard Set(localizations.keys) == Set(languages),
+              let english = localizations["en"] as? [String: Any] else {
+            throw LocalizationContractFailureV1.invalidShippingLocale
+        }
+        for language in languages {
+            guard let target = localizations[language] as? [String: Any] else {
+                throw LocalizationContractFailureV1.invalidValue
+            }
+            try validateBranch(source: english, target: target, language: language)
+        }
+    }
+
+    private static func validateBranch(
+        source: [String: Any], target: [String: Any], language: String, argument: String? = nil
+    ) throws {
+        guard !source.isEmpty, Set(source.keys) == Set(target.keys),
+              Set(source.keys).isSubset(of: ["stringUnit", "variations", "substitutions"]),
+              (source["variations"] == nil) != (source["stringUnit"] == nil),
+              source["substitutions"] == nil || source["stringUnit"] != nil else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+        if let rawUnit = source["stringUnit"] {
+            guard let unit = rawUnit as? [String: Any], Set(unit.keys) == ["state", "value"],
+                  unit["state"] as? String == "translated", let text = unit["value"] as? String,
+                  let translated = target["stringUnit"] as? [String: Any],
+                  Set(translated.keys) == ["state", "value"],
+                  translated["state"] as? String == (language == "en" ? "translated" : "needs_review"),
+                  let value = translated["value"] as? String,
+                  !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  text.utf8.count <= 8_000, value.utf8.count <= 8_000,
+                  try signature(text, argument: argument) == signature(value, argument: argument) else {
+                throw LocalizationContractFailureV1.invalidValue
+            }
+        }
+        if let rawVariations = source["variations"] {
+            guard let variations = rawVariations as? [String: Any], Set(variations.keys) == ["plural"],
+                  let plural = variations["plural"] as? [String: Any], Set(plural.keys) == ["one", "other"],
+                  let translated = target["variations"] as? [String: Any], Set(translated.keys) == ["plural"],
+                  let targetPlural = translated["plural"] as? [String: Any],
+                  Set(targetPlural.keys) == Set(["en", "es"].contains(language) ? ["one", "other"] : ["other"]) else {
+                throw LocalizationContractFailureV1.invalidValue
+            }
+            for (category, value) in targetPlural {
+                guard let original = plural[category] as? [String: Any], let branch = value as? [String: Any] else {
+                    throw LocalizationContractFailureV1.invalidValue
+                }
+                try validateBranch(source: original, target: branch, language: language, argument: argument)
+            }
+        }
+        if let rawSubstitutions = source["substitutions"] {
+            guard let substitutions = rawSubstitutions as? [String: Any], !substitutions.isEmpty,
+                  let translated = target["substitutions"] as? [String: Any],
+                  Set(substitutions.keys) == Set(translated.keys) else {
+                throw LocalizationContractFailureV1.invalidValue
+            }
+            for (name, value) in substitutions {
+                guard let original = value as? [String: Any], let branch = translated[name] as? [String: Any],
+                      Set(original.keys) == ["argNum", "formatSpecifier", "variations"],
+                      Set(branch.keys) == Set(original.keys),
+                      let index = original["argNum"] as? Int, (1...12).contains(index),
+                      branch["argNum"] as? Int == index, original["formatSpecifier"] as? String == "lld",
+                      branch["formatSpecifier"] as? String == "lld",
+                      let variations = original["variations"], let targetVariations = branch["variations"] else {
+                    throw LocalizationContractFailureV1.invalidValue
+                }
+                try validateBranch(source: ["variations": variations], target: ["variations": targetVariations],
+                                   language: language, argument: "%\(index)$lld")
+            }
+        }
+    }
+
+    /// Preserve argument position, type and multiplicity. Explicit positions may
+    /// reorder; mixed styles, unsupported formatting and stray percents fail.
+    private static func signature(_ input: String, argument: String?) throws -> [String: Int] {
+        let text = argument.map { input.replacingOccurrences(of: "%arg", with: $0) } ?? input
+        let pattern = #"%(?:([1-9][0-9]*)\$)?(@|lld|llu|ld|lu|d|u|f)|%#@([A-Za-z_][A-Za-z0-9_]*)@|%%"#
+        let regex = try NSRegularExpression(pattern: pattern)
+        let ns = text as NSString
+        var offset = 0, sequential = 0
+        var styles = Set<Bool>(), result: [String: Int] = [:]
+        for match in regex.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
+            guard !ns.substring(with: NSRange(location: offset, length: match.range.location - offset)).contains("%") else {
+                throw LocalizationContractFailureV1.invalidValue
+            }
+            offset = NSMaxRange(match.range)
+            if ns.substring(with: match.range) == "%%" { continue }
+            if match.range(at: 3).location != NSNotFound {
+                result["named:" + ns.substring(with: match.range(at: 3)), default: 0] += 1
+            } else {
+                let positional = match.range(at: 1).location != NSNotFound
+                styles.insert(positional); sequential += 1
+                let index = positional ? ns.substring(with: match.range(at: 1)) : String(sequential)
+                result[index + ":" + ns.substring(with: match.range(at: 2)), default: 0] += 1
+            }
+        }
+        guard styles.count <= 1, !ns.substring(from: offset).contains("%") else {
+            throw LocalizationContractFailureV1.invalidValue
+        }
+        return result
+    }
+}
+
+/// A binding to observed content, with no accepted release identity or shipping
+/// qualification. It cannot be loaded as a C08 accepted catalog descriptor.
+struct V30ProvisionalLocaleReleaseBindingV1: Codable, Equatable, Sendable {
+    let schemaVersion: Int
+    let qualification: String
+    let sourceCandidateHead: String
+    let sourceCandidateTree: String
+    let languages: [String]
+    let catalogSHA256: String
+    let permissionCatalogSHA256: String
+    let keySetSHA256: String
+    let englishSourceSHA256: String
+    let translationSHA256: String
+    let termbaseSHA256: String
+    let capabilitySHA256: String
+    let nativeCredit: Bool
+    let professionalReviewCredit: Bool
+    let finalAcceptance: Bool
+    let releaseCredit: Bool
+    let requiresPostS10Reconciliation: Bool
+
+    func validate() throws {
+        let gitIdentity: (String) -> Bool = { value in
+            value.utf8.count == 40 && value.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
+        }
+        guard schemaVersion == 1, qualification == "PROVISIONAL_UNQUALIFIED",
+              gitIdentity(sourceCandidateHead), gitIdentity(sourceCandidateTree),
+              languages == V30ProvisionalCatalogIntegrationV1.languages,
+              keySetSHA256 == V30ProvisionalCatalogIntegrationV1.appKeySetSHA256,
+              [catalogSHA256, permissionCatalogSHA256, keySetSHA256, englishSourceSHA256,
+               translationSHA256, termbaseSHA256, capabilitySHA256].allSatisfy(KernelCanonicalHashV1.validSHA256),
+              !nativeCredit, !professionalReviewCredit, !finalAcceptance, !releaseCredit,
+              requiresPostS10Reconciliation else { throw LocalizationContractFailureV1.invalidValue }
+    }
+
+    func validateCatalogs(app: Data, permissions: Data) throws {
+        try validate()
+        guard KernelCanonicalHashV1.sha256(app) == catalogSHA256,
+              KernelCanonicalHashV1.sha256(permissions) == permissionCatalogSHA256 else {
+            throw LocalizationContractFailureV1.digestMismatch
+        }
+        try V30ProvisionalCatalogIntegrationV1.validateCatalog(app, permissionCatalog: false)
+        try V30ProvisionalCatalogIntegrationV1.validateCatalog(permissions, permissionCatalog: true)
     }
 }
