@@ -51,6 +51,7 @@ v23_index_setting=""
 if [ "${NATIVE_SELECTION_ID:-none}" = c36-restore-review-no-index ] || \
    [ "${NATIVE_SELECTION_ID:-none}" = c36-restore-review-no-index-build30m ] || \
    [ "${NATIVE_SELECTION_ID:-none}" = reminder-production-no-index-build30m ] || \
+   [ "${NATIVE_SELECTION_ID:-none}" = notification-schedule-erase-no-index-build30m ] || \
    [ "${NATIVE_SELECTION_ID:-none}" = restore-history-no-index-build30m ] || \
    [ "${NATIVE_SELECTION_ID:-none}" = replacement-union-no-index-build30m ] || \
    [ "${NATIVE_SELECTION_ID:-none}" = activity-contracts-no-index-build30m ] || \

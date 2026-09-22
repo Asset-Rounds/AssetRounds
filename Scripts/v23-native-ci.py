@@ -238,7 +238,41 @@ ACTIVITY_COMPLETED_SOURCE_GROUPS = (
 ACTIVITY_COMPLETED_SOURCE_SELECTORS = tuple(
     member for _, members in ACTIVITY_COMPLETED_SOURCE_GROUPS for member in members
 ) + ACTIVITY_CONTRACT_SELECTORS
+NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID = 'notification-schedule-erase-no-index-build30m'
+NOTIFICATION_SCHEDULE_ERASE_BUILD30_PARENT = '6b227c1dca605cfa92e3d49d9cba9eefce9a4b86'
+NOTIFICATION_SCHEDULE_ERASE_BUILD30_TREES = {'FieldEvidenceApp': 'b0e15d6aff470235bac00758b26f367c7863354d', 'FieldEvidenceAppTests': '9373278bf3f1eef592b248c746cb1033ad5acab2', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS = (
+    'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testNotificationPreferenceEraseFencePreservesExactCooldownAndRejectsHeldSettingAuthority',
+    'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testAbsentApplicationSupportHasNoEraseAuthority',
+    'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testGoldenEraseActivatesEmptyGenerationAndClearsFrozenState',
+    'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testRetainedLiveContextDefersCleanupUntilColdRecovery',
+    'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testEveryInterruptionRecoversOldOrFullyErasedNew',
+    'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testCancelAndDirtyContextChangeNothingBeforeMarker',
+    'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testLiveCleanupWaitsForOldContextReferenceDrain',
+    'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testSystemNotificationReadbackRejectsAlteredContentAndCalendarComponents',
+    'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testConcreteReminderOwnerRejectsCallerProjectionAndUsesPrivateOpaqueSystemIDs',
+    'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testConcreteReminderEraseAcrossOwnersDrainsLateAddBeforeDeletingMapping',
+    'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testV23P04C22G01FixedCompletionRelativeEditorDueAndStartOnce',
+    'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testV23P04C22A01ReminderDenialEvictionStableIDReconcileKeepsDueTruth',
+    'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testV23P04C22H01DSTTimeZoneActiveEditHorizonRetiredPartialPacketFailClosed',
+    'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testV23P04C22I01InterruptedWritesAndSameMutationIDRecoverIdempotently',
+    'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testV23P04C22R01BackupReplaceCloneForkRebuildAndHistoryRemainImmutable',
+    'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testActualEraseRetainsGenerationAndPreferencesUntilNotificationAbsenceIsVerified',
+    'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testC22RecoverabilityVerificationAnchor',
+    'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testSeededEraseFixtureRejectsLaterDirectMutationWithoutCheckpointAdoption',
+    'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testSavedDetailedPolicyUsesAuthenticatedKindsAndReplacesChangedPayloads',
+    'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testAppLockEnableProjectsGenericAndDisableUsesCurrentDetailedConsent',
+    'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testExpiredDetailedRequestIsRemovedOnPrivacyDowngradeWithoutReadding',
+    'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testExpiredUnobservedGenericReminderStillFailsWithoutEffects',
+    'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testPermissionDenialStillRemovesForbiddenDetailWithoutClaimingDelivery',
+    'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testSavedReconciliationCannotRenewRevokedOriginalProof',
+    'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testNotificationCopySourcesBindExactReleaseAndEffectiveBasis',
+    'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testGenericPolicyRejectsDetailedDurableMappingWithoutSystemEffects',
+    'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testEraseManifestHandoffPreservesExactInodeAndSupportsRepeatedConstructorRecovery',
+    'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testEraseManifestHandoffRejectsHostileSidecarsTargetsAndChangedPointerWithoutConsumption',
+)
 NO_INDEX_ROUTES = {
+    NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID: (NOTIFICATION_SCHEDULE_ERASE_BUILD30_PARENT, "D30"),
     ACTIVITY_COMPLETED_SOURCE_SELECTION_ID: (ACTIVITY_COMPLETED_SOURCE_PARENT, "D30"),
     ACTIVITY_CODEC_PUNCH_SELECTION_ID: (REPLACEMENT_UNION_PARENT, "D30"),
     ACTIVITY_BUILD30_SELECTION_ID: (REPLACEMENT_UNION_PARENT, "D30"),
@@ -256,6 +290,8 @@ NO_INDEX_ROUTES = {
 
 def no_index_source_trees(selection_id):
     require(selection_id in NO_INDEX_ROUTES, "no-index closed source binding")
+    if selection_id == NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID:
+        return NOTIFICATION_SCHEDULE_ERASE_BUILD30_TREES
     if selection_id == ACTIVITY_COMPLETED_SOURCE_SELECTION_ID:
         return ACTIVITY_COMPLETED_SOURCE_TREES
     if selection_id in (ACTIVITY_CODEC_PUNCH_SELECTION_ID, ACTIVITY_BUILD30_SELECTION_ID, REPLACEMENT_UNION_SELECTION_ID, *(key for key, _ in REPLACEMENT_DIAGNOSTIC_PARTITIONS)):
@@ -1082,6 +1118,7 @@ def validate_selection(selection):
         require(tuple(selection["unitTestSelectors"]) in (
             PARENT_FINALIZATION_METHOD_PARTITIONS[0][1], RESTORE_BUILD_WATCHDOG_SELECTORS,
             REMINDER_BUILD_WATCHDOG_SELECTORS, RESTORE_HISTORY_SELECTORS, REPLACEMENT_UNION_SELECTORS, ERASE_RECOVERY_SELECTORS, ACTIVITY_CONTRACT_SELECTORS, ACTIVITY_CODEC_PUNCH_SELECTORS, ACTIVITY_COMPLETED_SOURCE_SELECTORS,
+            NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS,
             *(members for _, members in ERASE_DIAGNOSTIC_PARTITIONS),
             *(members for _, members in REPLACEMENT_DIAGNOSTIC_PARTITIONS)),
             "build watchdog exact approved methods")
@@ -1304,6 +1341,17 @@ def resolve_selection(default, selection_map, selection_id):
             diagnostic.update(tier="D30", **dict(zip(BUDGET_KEYS, TIERS["D30"])))
             validate_selection(diagnostic)
             resolved[RESTORE_BUILD_WATCHDOG_SELECTION_ID] = diagnostic
+    if generated_profile_shape:
+        members = tuple(resolved["notification-schedule-erase"]["unitTestSelectors"])
+        require(members == NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS
+                and len(members) == len(set(members)) == 28,
+                "notification schedule erase exact ordered complete family")
+        require(NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID not in resolved,
+                "notification schedule erase distinct selection")
+        diagnostic = dict(resolved["notification-schedule-erase"])
+        diagnostic.update(tier="D30", **dict(zip(BUDGET_KEYS, TIERS["D30"])))
+        validate_selection(diagnostic)
+        resolved[NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID] = diagnostic
     if any(group in resolved for group in REMINDER_BUILD_WATCHDOG_GROUPS):
         require(all(group in resolved for group in REMINDER_BUILD_WATCHDOG_GROUPS),
                 "reminder build watchdog complete source groups")
@@ -1520,6 +1568,7 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
     require(all(re.fullmatch(r"[1-9][0-9]*", e.get(key, ""))
                 for key in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT")), "original run identity")
     watchdog_routes = {
+        NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID: (NOTIFICATION_SCHEDULE_ERASE_BUILD30_PARENT, NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS),
         ACTIVITY_COMPLETED_SOURCE_SELECTION_ID: (ACTIVITY_COMPLETED_SOURCE_PARENT, ACTIVITY_COMPLETED_SOURCE_SELECTORS),
         ACTIVITY_CODEC_PUNCH_SELECTION_ID: (REPLACEMENT_UNION_PARENT, ACTIVITY_CODEC_PUNCH_SELECTORS),
         ACTIVITY_BUILD30_SELECTION_ID: (REPLACEMENT_UNION_PARENT, ACTIVITY_CONTRACT_SELECTORS),

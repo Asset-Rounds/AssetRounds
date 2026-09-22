@@ -52,6 +52,7 @@ The owner permits the 30-minute proposal to be permanent or temporary. Reuse the
 | --- | --- |
 | `c36-restore-review-no-index-build30m` | Six restore-review journeys |
 | `reminder-production-no-index-build30m` | Ordered33-method union of the four reminder groups |
+| `notification-schedule-erase-no-index-build30m` | Exact existing ordered28 notification-schedule-erase methods, including the eight populated reminder cases; qualify before use |
 | `restore-history-no-index-build30m` | Six restore-review methods followed by the golden replacement-union method |
 | `activity-contracts-no-index-build30m` | Exact existing C47 H01 method from ordinary `activity-contracts`; no product/test changes |
 | `activity-codec-punch-no-index-build30m` | Ordered11 methods from the closed `activity-codec-evolution` group, then the four existing enrolled C34 G01/H01/I01/R01 methods in pool order, then existing C47 H01; qualify the exact16 union before use |

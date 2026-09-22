@@ -549,6 +549,9 @@ def frozen_begin_suite_source():
         'V23CheckRunnerFrozenBeginPreparationTests','V23CheckRunnerFrozenBeginWriterTests','V23CheckRunnerDurableInitialBeginTests'))
 
 def prepartition_workflow(workflow):
+    choice = '          - notification-schedule-erase-no-index-build30m\n'
+    if workflow.count(choice) != 1: raise AssertionError('missing exact notification schedule erase choice')
+    workflow = workflow.replace(choice, '')
     for group_id in [group['id'] for group in ACTIVITY_COMPLETED_GROUPS] + [CI.ACTIVITY_COMPLETED_SOURCE_SELECTION_ID]:
         choice = '          - ' + group_id + '\n'
         if workflow.count(choice) != 1: raise AssertionError('missing exact completed-source choice')
@@ -664,7 +667,7 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
         path = self.root / 'Scripts/v23-selection-manifest.json'
         original = path.read_bytes()
         try:
-            for identifier, members in (*CI.ERASE_DIAGNOSTIC_PARTITIONS, *CI.REPLACEMENT_DIAGNOSTIC_PARTITIONS, (CI.ACTIVITY_BUILD30_SELECTION_ID, CI.ACTIVITY_CONTRACT_SELECTORS), (CI.ACTIVITY_CODEC_PUNCH_SELECTION_ID, CI.ACTIVITY_CODEC_PUNCH_SELECTORS), (CI.ACTIVITY_COMPLETED_SOURCE_SELECTION_ID, CI.ACTIVITY_COMPLETED_SOURCE_SELECTORS)):
+            for identifier, members in (*CI.ERASE_DIAGNOSTIC_PARTITIONS, *CI.REPLACEMENT_DIAGNOSTIC_PARTITIONS, (CI.ACTIVITY_BUILD30_SELECTION_ID, CI.ACTIVITY_CONTRACT_SELECTORS), (CI.ACTIVITY_CODEC_PUNCH_SELECTION_ID, CI.ACTIVITY_CODEC_PUNCH_SELECTORS), (CI.ACTIVITY_COMPLETED_SOURCE_SELECTION_ID, CI.ACTIVITY_COMPLETED_SOURCE_SELECTORS), (CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID, CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS)):
                 e = dict(environment(), NATIVE_SELECTION_ID=identifier)
                 selected, record = CI.selected_input(self.root, e)
                 self.assertEqual(selected['unitTestSelectors'], list(members))
@@ -1167,6 +1170,7 @@ class ReportPartitionTests(unittest.TestCase):
         expected.insert(expected.index('c36-destination-discard') + 1, CI.BUILD_ORDER_SELECTION_ID)
         expected.insert(expected.index('c36-restore-review') + 1, CI.NO_INDEX_SELECTION_ID)
         expected.insert(expected.index(CI.NO_INDEX_SELECTION_ID) + 1, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID)
+        expected.insert(expected.index('notification-schedule-erase') + 1, CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID)
         expected.insert(expected.index('reminder-control-continuation') + 1, CI.REMINDER_BUILD_WATCHDOG_SELECTION_ID)
         expected.insert(expected.index('activity-codec-evolution') + 1, CI.ACTIVITY_CODEC_PUNCH_SELECTION_ID)
         expected.insert(expected.index('activity-completed-release') + 1, CI.ACTIVITY_COMPLETED_SOURCE_SELECTION_ID)
@@ -2610,6 +2614,122 @@ class ActivityCompletedSourceDiagnosticTests(ReplacementPartitionDiagnosticTests
                 self.assertEqual(CI.no_index_source_trees(identifier), old.no_index_source_trees(identifier))
 
     def test_collection_requires_all_63_methods_once_and_passed(self):
+        expected = self.selected['unitTestSelectors']
+        tree = native_tree(expected[0])
+        cases = tree['testNodes'][0]['children'][0]['children'][0]['children']
+        cases[:] = [copy.deepcopy(leaf(native_tree(method))) for method in expected]
+        self.assertEqual(CI.executed_methods(tree, expected, 'FieldEvidenceAppTests', 'Unit test bundle'), sorted(expected))
+        for mutation in ('missing', 'duplicate', 'unexpected', 'failed', 'skipped'):
+            changed = copy.deepcopy(tree)
+            leaves = changed['testNodes'][0]['children'][0]['children'][0]['children']
+            if mutation == 'missing': leaves.pop()
+            elif mutation == 'duplicate': leaves.append(copy.deepcopy(leaves[0]))
+            elif mutation == 'unexpected': leaves.append(copy.deepcopy(leaf(native_tree(UNIT))))
+            elif mutation == 'failed': leaves[-1]['result'] = 'Failed'
+            else: leaves[-1]['result'] = 'Skipped'
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                CI.executed_methods(changed, expected, 'FieldEvidenceAppTests', 'Unit test bundle')
+
+
+class NotificationScheduleEraseBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
+    # Reuse the real build/test shells, receipt CLI and strict original admission
+    # against the full existing group; this route enrolls no additional method.
+    diagnostic_routes = ((CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID,
+                          CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS),)
+    source_parent = CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_PARENT
+    source_trees = CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_TREES
+
+    def test_public_choices_and_report_boundary_are_exact(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        self.assertIsNotNone(block)
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        identifier = CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID
+        self.assertEqual(options.count(identifier), 1)
+        self.assertEqual(options[options.index('notification-schedule-erase') + 1], identifier)
+        self.assertEqual(len(options), len(set(options)))
+        self.assertEqual(self.source_parent, '6b227c1dca605cfa92e3d49d9cba9eefce9a4b86')
+        self.assertEqual(self.source_trees, {'FieldEvidenceApp': 'b0e15d6aff470235bac00758b26f367c7863354d', 'FieldEvidenceAppTests': '9373278bf3f1eef592b248c746cb1033ad5acab2', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'})
+
+    def test_exact_disjoint_ordered_union_and_historical_routes(self):
+        ordinary = CI.resolve_selection(self.default, self.mapping, 'notification-schedule-erase')
+        expected = ordinary['unitTestSelectors']
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (968, 62))
+        self.assertEqual(self.selected['unitTestSelectors'], expected)
+        self.assertEqual(len(expected), 28)
+        self.assertEqual(len(set(expected)), 28)
+        self.assertEqual(tuple(self.selected[key] for key in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
+        self.assertEqual(tuple(ordinary[key] for key in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
+        self.assertEqual((self.selected['runUISmoke'], self.selected['uiTestSelectors']), (False, []))
+        self.assertNotIn('notification-schedule-erase', CI.NO_INDEX_ROUTES)
+        for suffix in ('-retry', '-parallel', '-45m'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, self.record['selectionID'] + suffix)
+        # Omission (including an eight-only shortcut), reordering, duplication and
+        # foreign additions must fail both source resolution and the actual jq filter.
+        for changed in (expected[:-1], expected[18:26], expected[::-1], expected[:-1] + expected[:1], expected + [UNIT]):
+            with self.subTest(members=changed):
+                with mock.patch.object(CI, 'NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS', tuple(changed)), self.assertRaises(ValueError):
+                    CI.resolve_selection(self.default, self.mapping, self.record['selectionID'])
+                value = dict(self.selected, unitTestSelectors=changed)
+                with self.assertRaises(ValueError): CI.validate_selection(value)
+                result = subprocess.run(['jq', '-e', '-f', str(ROOT / 'Scripts/ci-worker-selection.jq')],
+                                        input=CI.canonical(value), capture_output=True)
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+
+    def test_every_prior_public_selection_and_source_binding_remains_byte_exact(self):
+        # The complete immutable predecessor, including default968 and every D30
+        # route, is replayed independently of the new alias constants.
+        pin = '6b227c1dca605cfa92e3d49d9cba9eefce9a4b86'
+        def frozen(path):
+            return subprocess.check_output(['git', 'show', pin + ':' + path], cwd=ROOT)
+        prior = json.loads(frozen('Scripts/ci-selection.json'))
+        prior_map = json.loads(frozen(CI.SELECTION_MAP_PATH))
+        self.assertEqual(self.default, prior)
+        self.assertEqual(self.mapping, prior_map)
+        workflow = frozen('.github/workflows/ios-ci.yml').decode('utf-8')
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / 'prior_native.py'
+            source.write_bytes(frozen('Scripts/v23-native-ci.py'))
+            spec = importlib.util.spec_from_file_location('prior_notification_native_ci', source)
+            old = importlib.util.module_from_spec(spec); spec.loader.exec_module(old)
+            for identifier in options:
+                self.assertEqual(CI.canonical(CI.resolve_selection(self.default, self.mapping, identifier)),
+                                 old.canonical(old.resolve_selection(prior, prior_map, identifier)), identifier)
+            self.assertEqual(set(CI.NO_INDEX_ROUTES) - set(old.NO_INDEX_ROUTES), {self.record['selectionID']})
+            for identifier, binding in old.NO_INDEX_ROUTES.items():
+                self.assertEqual(CI.NO_INDEX_ROUTES[identifier], binding)
+                self.assertEqual(CI.no_index_source_trees(identifier), old.no_index_source_trees(identifier))
+        choice = ('          - ' + self.record['selectionID'] + '\n').encode()
+        current_workflow = (ROOT / '.github/workflows/ios-ci.yml').read_bytes()
+        self.assertEqual(current_workflow.count(choice), 1)
+        self.assertEqual(current_workflow.replace(choice, b''), workflow.encode())
+        for path in ('Scripts/v23-selection-manifest.json', 'Scripts/v23-selection-generator.py',
+                     'Scripts/ci-selection.json', CI.SELECTION_MAP_PATH, '.github/workflows/ios-ci-worker.yml'):
+            self.assertEqual((ROOT / path).read_bytes(), frozen(path), path)
+
+    def test_foreign_checkout_original_identity_and_worker_dispatch_inputs_fail(self):
+        for stage in ('dispatch', 'worker'):
+            cases = [dict(self.bound_environment(), **{key: value}) for key, value in (
+                ('GITHUB_SHA', 'f' * 40), ('GITHUB_REF', 'refs/heads/main'),
+                ('GITHUB_REPOSITORY', 'foreign/AssetRounds'), ('GITHUB_EVENT_NAME', 'push'),
+                ('GITHUB_RUN_ATTEMPT', '2'), ('GITHUB_RUN_ID', '0'))]
+            if stage == 'worker':
+                cases += [dict(self.bound_environment(), **{key: value}) for key, value in (
+                    ('CI_RUNNER_LABEL', 'macos-15'), ('CI_NATIVE_ACCEPTANCE_CONTRACT', 'none'),
+                    ('DISPATCH_NATIVE_SELECTION_ID', 'notification-schedule-erase'),
+                    ('DISPATCH_NATIVE_SELECTION_SHA256', 'F' * 64),
+                    ('DISPATCH_NATIVE_SELECTION_MAP_SHA256', 'F' * 64))]
+            for e in cases:
+                with self.subTest(stage=stage, environment=e), mock.patch.object(
+                        CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(self.selected, e, HEAD, stage, self.record)
+            with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                CI.admission(self.selected, self.bound_environment(), 'f' * 40, stage, self.record)
+
+    def test_collection_requires_all_28_methods_once_and_passed(self):
         expected = self.selected['unitTestSelectors']
         tree = native_tree(expected[0])
         cases = tree['testNodes'][0]['children'][0]['children'][0]['children']

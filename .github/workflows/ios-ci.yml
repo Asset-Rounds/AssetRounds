@@ -35,6 +35,7 @@ on:
           - notification-controls
           - notification-owner
           - notification-schedule-erase
+          - notification-schedule-erase-no-index-build30m
           - rating-eligibility
           - field-reference-pack
           - catalog-file-authority

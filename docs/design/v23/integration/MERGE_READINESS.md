@@ -1,8 +1,8 @@
 # Expansion into the existing AssetRounds app
 
-Current native execution and audited outcomes: [ACTIVE_BRIEF](ACTIVE_BRIEF.md#current-native-question-and-retained-evidence). Reuse its head/run/evidence references; this navigation record grants no acceptance and does not replace the controlling requirements or the coverage ledger.
+Current native execution and audited outcomes: [ACTIVE_BRIEF](ACTIVE_BRIEF.md#current-critical-path). Reuse its head/run/evidence references; this navigation record grants no acceptance and does not replace the controlling requirements or the coverage ledger.
 
-Follow [ACTIVE_BRIEF](ACTIVE_BRIEF.md#current-native-question-and-retained-evidence) for the current dependency-ready batch and exact native question. Retain all recorded startup, Erase publication, restore history and golden file-policy diagnostic obligations, their closed method membership and hosted acceptance gates.
+Follow [ACTIVE_BRIEF](ACTIVE_BRIEF.md#current-critical-path) for the current dependency-ready batch and exact native question. Retain all recorded startup, Erase publication, restore history and golden file-policy diagnostic obligations, their closed method membership and hosted acceptance gates.
 
 Source/index/route reviews do not establish hosted functional acceptance. Complete coverage, provider, visual, human and final-main gates remain open.
 
@@ -14,7 +14,7 @@ Current navigation checkpoint, 2026-09-22. [CURRENT_INTEGRATION](CURRENT_INTEGRA
 - Committed implementation, current native outcomes and the next causal question are recorded in ACTIVE_BRIEF; historical diagnostics stay in CURRENT_INTEGRATION and their sealed original audits.
 - The branch has one `FieldEvidenceApp.xcodeproj`, one shared `FieldEvidenceApp` scheme and the existing app architecture. The remaining problem is completing and verifying its production integration, not combining two app projects.
 - Parent-finalization performance and its unexecuted coverage remain explicit obligations in VERIFICATION_DUE. Reuse its retained phase timings and diagnosed work; do not infer a new cause from old log volume.
-- 52 protected local drafts remain preserved; their presence does not mean they are reconciled, committed or accepted.
+- 54 protected local inputs remain preserved; their presence does not mean they are reconciled, committed or accepted.
 
 ## Work required before main advances
 
@@ -25,12 +25,12 @@ Current navigation checkpoint, 2026-09-22. [CURRENT_INTEGRATION](CURRENT_INTEGRA
 | Replacement and fork history | Reconcile the remaining C55 replacement and C57 fork/mixed-history work and its owned drafts. | Original-history preservation plus paired functional, backup and restore results. |
 | Complete functional coverage | Reconcile frozen requirements and later regressions using VERIFICATION_DUE. The committed selector pool is not the final coverage ceiling; enrollment, execution, artifact integrity and acceptance are separate. | Complete retained functional/compatibility evidence on the final candidate; no credit for unselected tests or older heads. |
 | Qualified routes and affected UI | Retain exact native qualification for required execution kinds; Bitrise is held for exact-runtime availability/qualification. Verify affected expansion states in the existing S10 design system, accessibility and real human review. | Qualified same-head native/UI evidence, independent integration review and genuine human visual approval. Do not replay unrelated historical S10 states. |
-| Reminder settings adoption | Complete and verify the real Settings/current-owner/Preferences/OS journeys, including pending cleanup, Erase owner replacement, failed/denied operations and remaining enrolled coverage. Retained results are in ACTIVE_BRIEF and VERIFICATION_DUE. | Complete native coverage, failure/recovery/Erase cases and affected-state human review. No source-only or older-head acceptance. |
+| Reminder verification | Real Settings mounting, saved Preferences, permission handling, retry/error behavior and Erase owner replacement are implemented; the20 relevant source/test paths are unchanged from audited d83 Reminder33PASS. Complete the enrolled populated notification-schedule-erase28 boundary before the Finding1038 transition, remaining affected coverage and actual UI/OS interaction. A six-state human checklist is prepared; five C22 UI methods still skip. Keep the earlier intermittent cause unresolved. | Exact current-head native coverage, real UI/OS behavior, affected S10 visuals and genuine human review. The d83 pass remains head-specific; no repeated implementation or acceptance transfer. |
 | Main integration | Freeze the final candidate only after production adoption and corrections are complete. | All preceding gates, then the verified non-force fast-forward of main and required exact-main GitHub verification. |
 
 ## Execution order
 
-1. C47 H01 now passes on beaa8f4. Complete the dependent codec and source-proven Punch correction, enroll their exact coverage and qualify the resulting closed route before native execution. Reuse all retained earlier diagnoses.
+1. Completed-source63 now passes on6b227c1 (original35788221262/audit B4A67E2B); codec/Punch16 passed on90304b1. Qualify and execute the existing Reminder28 boundary before the Finding1038 coverage transition. Reuse retained source/evidence; do not reopen settled H01/codec/Settings or profile-fixture work.
 2. Continue production integration from the frozen capture/lifecycle contracts; use retained phase timings when an evidenced performance question blocks that work. Keep one collector per original.
 3. Complete the remaining production journeys and enroll their missing regressions. Parallelize only disjoint, dependency-ready work on existing qualified capacity.
 4. Freeze one complete candidate; collect final coverage and affected-state reviews, then advance and verify main.
