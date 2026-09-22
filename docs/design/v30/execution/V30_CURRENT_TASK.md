@@ -1,6 +1,6 @@
 # V30 Current Task
 
-Card 32 of 55 - U.S. Spanish
+Card 33 of 55 - Simplified Chinese
 
 Only the exact pre-issued fence below is writable. Embedded context is the active hydration. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation. Shared paths are authorized only by the exact listed V30 overlap tuples; preserve Phase10 styling and behavior.
 
@@ -8,7 +8,7 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
 {
   "acceptance": {
     "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
-    "required": "Complete the provisional es app/report/help/accessibility/permission/error/recovery/destructive/notification catalogs and metadata draft using U.S./Latin-American field terminology; validate es-US, es-MX, and es-419 behavior. No App Store mutation.",
+    "required": "Complete provisional zh-Hans catalogs and fixtures; qualify CJK typography, input, segmentation, line breaking, report shaping/extraction, accessibility, and terminology.",
     "staticEvidence": "Current-card fenced proof and receipt; exact committed paths/hashes"
   },
   "attempt": 1,
@@ -19,10 +19,10 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
   "base": {
-    "head": "78fa91c4e08e1061672b0720bacb830abc31011d",
-    "tree": "17d4d4e3168290030821571659b7297857f98d33"
+    "head": "8380c834bc97a888cdf75900ba6d644309beef04",
+    "tree": "a9f53b003ba443b36e1611ef7e40677c9f02e518"
   },
-  "cardID": "V30-P04-C02",
+  "cardID": "V30-P04-C03",
   "class": "IMPLEMENTATION",
   "credit": {
     "canonicalAcceptance": false,
@@ -74,64 +74,64 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Resources/Globalization/es.app.json",
-        "purpose": "Locale-exclusive es app-owned catalog.",
+        "path": "FieldEvidenceApp/Resources/Globalization/zh-Hans.app.json",
+        "purpose": "Locale-exclusive zh-Hans app-owned catalog.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Resources/Globalization/es.report.json",
-        "purpose": "Locale-exclusive es report chrome catalog.",
+        "path": "FieldEvidenceApp/Resources/Globalization/zh-Hans.report.json",
+        "purpose": "Locale-exclusive zh-Hans report chrome catalog.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Resources/Globalization/es.accessibility.json",
-        "purpose": "Locale-exclusive es accessibility/permission/error catalog.",
+        "path": "FieldEvidenceApp/Resources/Globalization/zh-Hans.accessibility.json",
+        "purpose": "Locale-exclusive zh-Hans accessibility/permission/error catalog.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/Fixtures/V30/Locales/es.json",
-        "purpose": "Locale-exclusive es fixture corpus.",
+        "path": "FieldEvidenceAppTests/Fixtures/V30/Locales/zh-Hans.json",
+        "purpose": "Locale-exclusive zh-Hans fixture corpus.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/V30_P04_C02SpanishLocalizationTests.swift",
-        "purpose": "es locale implementation tests.",
+        "path": "FieldEvidenceAppTests/V30_P04_C03SimplifiedChineseLocalizationTests.swift",
+        "purpose": "zh-Hans locale implementation tests.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "docs/design/v30/locales/es/V30P04C02ReviewPacketV1.json",
-        "purpose": "es provisional review packet.",
+        "path": "docs/design/v30/locales/zh-Hans/V30P04C03ReviewPacketV1.json",
+        "purpose": "zh-Hans provisional review packet.",
         "serializedSharedPath": false
       }
     ],
-    "cardID": "V30-P04-C02",
+    "cardID": "V30-P04-C03",
     "class": "IMPLEMENTATION",
     "directPrerequisites": [
       "V30-P04-C01"
     ],
-    "ordinal": 32,
+    "ordinal": 33,
     "preAuthorizedOverlapTuples": [],
     "s10SharedPaths": [],
     "status": "PRE_S10_PROVISIONAL_ELIGIBLE",
-    "title": "U.S. Spanish"
+    "title": "Simplified Chinese"
   },
   "fenceSource": {
-    "cardID": "V30-P04-C02",
+    "cardID": "V30-P04-C03",
     "path": "docs/design/v30/authority/V30PreS10PathFencesV1.json",
     "sha256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a"
   },
@@ -142,15 +142,15 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
     "Scripts/ci-selection.json"
   ],
-  "next": "V30-P04-C03",
+  "next": "V30-P04-C04",
   "observedCoordination": {
-    "head": "ef94bc2ca23eefc495bfde631cd0e3d7d4812025",
-    "ledgerDigest": "5a3d2f656102d8e259d51c6cd09eed3e88835bc5842525a52f8843cb8c3da4bd",
-    "sequence": 65
+    "head": "f53026d6fc8b31544bdc64674d8d6063a1c0a7bf",
+    "ledgerDigest": "bc4d1af2b48e0764ecaf58054cd93a0be297acf2d422f190da6398c92169cee2",
+    "sequence": 67
   },
-  "ordinal": 32,
-  "outcome": "Complete the provisional es app/report/help/accessibility/permission/error/recovery/destructive/notification catalogs and metadata draft using U.S./Latin-American field terminology; validate es-US, es-MX, and es-419 behavior. No App Store mutation.",
-  "payloadDigest": "9819dbae74f2b91fe963f389503bb807e1644973e01bfa1a1d746fec19386e08",
+  "ordinal": 33,
+  "outcome": "Complete provisional zh-Hans catalogs and fixtures; qualify CJK typography, input, segmentation, line breaking, report shaping/extraction, accessibility, and terminology.",
+  "payloadDigest": "1a06d29c3770d700e1089113cbbfe3622d84dc4aee300b8b9928f358670709ea",
   "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
   "preS10FinalCredit": false,
   "predecessorEvidence": {
@@ -178,8 +178,8 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
   "revision": 1,
   "selector": null,
   "selectorReason": "Windows-static provisional card; no native dispatch is selected.",
-  "sourceEndLine": 1023,
-  "sourceStartLine": 1023,
-  "title": "U.S. Spanish"
+  "sourceEndLine": 1024,
+  "sourceStartLine": 1024,
+  "title": "Simplified Chinese"
 }
 ```
