@@ -1,0 +1,2155 @@
+{
+  "kind": "V30ProvisionalLocaleCatalogV1",
+  "schemaVersion": 1,
+  "locale": "vi",
+  "lane": "report",
+  "status": "DRAFT_NONSHIPPING",
+  "machineAssisted": true,
+  "sourceRevision": "eaffe95cb75e9185826b095ecf07c0e5a0c2c817",
+  "sourceTree": "aa86f326731f3a35187e103b7de5699c12fc8b38",
+  "sourceKeySetDigest": "4e8075449bc30b00c1eb6b73000593fd074667053f7263fa4d270def4ab23a3a",
+  "strings": {
+    "evidence.visibility.audience.customer_report": {
+      "comment": "Accessible text for the customer report audience.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Customer report"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Báo cáo cho khách hàng"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "illuminated.playbook.facts.report_trace": {
+      "comment": "C03 traceability presentation.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Facts retain their capture and playbook trace."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Dữ kiện giữ lại dấu vết thu thập và hướng dẫn thao tác."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "operations_dashboard.timeline.report": {
+      "comment": "Typed timeline event for a canonical report.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Report recorded"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Đã ghi nhận báo cáo"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "private.system.discovery.intent.open-reports": {
+      "comment": "C14 read-only foreground App Intent title.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Reports"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Mở Báo cáo"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "shell.practice.share.cancel": {
+      "comment": "C16 Practice sharing cancellation action.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Hủy"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "shell.practice.share.confirm": {
+      "comment": "C16 explicit Practice sharing action.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share practice content"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Chia sẻ nội dung thực hành"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "shell.practice.share.message": {
+      "comment": "C16 Practice sharing limitation.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This content is marked as practice and is not field evidence."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nội dung này được đánh dấu là thực hành, không phải bằng chứng hiện trường."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "shell.practice.share.title": {
+      "comment": "C16 explicit Practice sharing confirmation title.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share practice content?"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Chia sẻ nội dung thực hành?"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "shell.root.reports.hint": {
+      "comment": "C16 Reports root accessibility hint.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review reports in the selected workspace."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Xem báo cáo trong không gian làm việc đã chọn."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "shell.root.reports.title": {
+      "comment": "C16 provisional fourth task-first shell root.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reports"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Báo cáo"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "survey.definition.report.activity_kind": {
+      "comment": "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activity kind"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Loại hoạt động"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "survey.definition.report.claim_boundary": {
+      "comment": "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recorded definition metadata only"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Chỉ siêu dữ liệu định nghĩa đã ghi nhận"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "survey.definition.report.definition": {
+      "comment": "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Definition"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Định nghĩa"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "survey.definition.report.facts": {
+      "comment": "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Facts"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Dữ kiện"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "survey.definition.report.heading": {
+      "comment": "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Survey definition"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Định nghĩa khảo sát"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "survey.definition.report.lifecycle": {
+      "comment": "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recorded lifecycle"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Vòng đời đã ghi nhận"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "survey.definition.report.release": {
+      "comment": "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Definition release"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Phiên bản phát hành định nghĩa"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "survey.definition.report.sections": {
+      "comment": "English-only C25 label for bounded survey-definition metadata; do not imply inspection results, compliance, certification, training, safety, authorization, identity, or legal status.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sections"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Các phần"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "survey.template.action.report": {
+      "comment": "C20 immutable publication report action.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open survey report"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Mở báo cáo khảo sát"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "survey.template.report.frozen": {
+      "comment": "C20 finalized report remains bound to its exact source release.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This published survey report remains bound to its recorded release"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Báo cáo khảo sát đã công bố này vẫn gắn với phiên bản phát hành được ghi nhận"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "temporal_evidence.report.link": {
+      "comment": "C25 report link to separately stored bounded media.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open linked recording"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Mở bản ghi liên kết"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "temporal_evidence.report.poster": {
+      "comment": "C25 accessible poster-image label; original media is not embedded by default.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recording poster image"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Ảnh bìa bản ghi"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "temporal_evidence.report.waveform": {
+      "comment": "C25 accessible audio waveform label; original audio is not embedded by default.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Audio waveform preview"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Xem trước dạng sóng âm thanh"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.globalization-settings.current-pdf-english-only": {
+      "comment": "App-owned source default; preserve the existing meaning and typed arguments.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Current PDF reports are available in English only."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Các báo cáo PDF hiện tại chỉ có bằng tiếng Anh."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift"
+    },
+    "v30.globalization-settings.effective-report-language": {
+      "comment": "App-owned source default; preserve the existing meaning and typed arguments.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effective report language"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Ngôn ngữ báo cáo thực tế"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift"
+    },
+    "v30.globalization-settings.frozen-reports-notice": {
+      "comment": "App-owned source default; preserve the existing meaning and typed arguments.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Existing reports keep their original language and formatting."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Các báo cáo hiện có giữ nguyên ngôn ngữ và định dạng ban đầu."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift"
+    },
+    "v30.globalization-settings.report-language": {
+      "comment": "App-owned source default; preserve the existing meaning and typed arguments.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Report language"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Ngôn ngữ báo cáo"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift"
+    },
+    "v30.globalization-settings.report-language-unavailable": {
+      "comment": "App-owned source default; preserve the existing meaning and typed arguments.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unavailable for current PDF reports"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Không khả dụng cho báo cáo PDF hiện tại"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift"
+    },
+    "v30.globalization-settings.requested-report-language": {
+      "comment": "App-owned source default; preserve the existing meaning and typed arguments.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Requested report language"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Ngôn ngữ báo cáo được yêu cầu"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift"
+    },
+    "v30.installation.workflow.closeout.and.reporting": {
+      "comment": "Screen: Installation workflow screen. Meaning: Uses the English default “Closeout and reporting”. Role: visible Text. Arguments: none. Plural/select: none. Accessibility: This call itself adds visible Text; the enclosing view controls any combined accessibility exposure. Screenshot: Installation workflow screen. state where this visible Text is visible or announced; descriptive context only and not a screenshot-evidence claim.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Closeout and reporting"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Hoàn tất hồ sơ và báo cáo"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.installation.workflow.report.not.ready": {
+      "comment": "Screen: Installation workflow screen. Meaning: Uses the English default “No accepted finalized closeout is report-ready.”. Role: visible Label title. Arguments: none. Plural/select: none. Accessibility: SwiftUI combines the Label title with its symbol for accessibility. Screenshot: Installation workflow screen. state where this visible Label title is visible or announced; descriptive context only and not a screenshot-evidence claim.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No accepted finalized closeout is report-ready."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Chưa có hồ sơ hoàn tất đã chấp nhận và chốt nào sẵn sàng để lập báo cáo."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.installation.workflow.report.ready": {
+      "comment": "Screen: Installation workflow screen. Meaning: Uses the English default “The accepted recorded closeout is report-ready for the existing renderer.”. Role: visible Label title. Arguments: none. Plural/select: none. Accessibility: SwiftUI combines the Label title with its symbol for accessibility. Screenshot: Installation workflow screen. state where this visible Label title is visible or announced; descriptive context only and not a screenshot-evidence claim.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The accepted recorded closeout is report-ready for the existing renderer."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Hồ sơ hoàn tất đã ghi nhận và chấp nhận sẵn sàng để bộ kết xuất hiện có lập báo cáo."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.installation.workflow.report.ready.boundary": {
+      "comment": "Screen: Installation workflow screen. Meaning: Uses the English default “Report-ready does not mean rendered, sent, delivered, received, reviewed, verified, safe, compliant, permitted, commissioned, approved, or in service.”. Role: visible Text. Arguments: none. Plural/select: none. Accessibility: This call itself adds visible Text; the enclosing view controls any combined accessibility exposure. Screenshot: Installation workflow screen. state where this visible Text is visible or announced; descriptive context only and not a screenshot-evidence claim.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Report-ready does not mean rendered, sent, delivered, received, reviewed, verified, safe, compliant, permitted, commissioned, approved, or in service."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Sẵn sàng lập báo cáo không có nghĩa là đã kết xuất, gửi, giao, nhận, xem xét, xác minh, an toàn, tuân thủ, được cấp phép, nghiệm thu vận hành, phê duyệt hoặc đưa vào sử dụng."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.parts-stock.report-boundary": {
+      "comment": "Screen: Parts & Stock. Meaning: Explains report boundary in the current screen state. Role: body copy. Arguments: none. Plural/select: none. Accessibility: Read as static content by VoiceOver. Screenshot: Parts & Stock body copy state; no screenshot is claimed.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Customer-safe work-material reports contain only reviewed material snapshots. They never contain stock balances or internal storage locations."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Báo cáo vật tư công việc dành cho khách hàng chỉ chứa ảnh chụp dữ liệu vật tư đã được xem xét. Báo cáo không bao giờ chứa số dư tồn kho hoặc vị trí lưu trữ nội bộ."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.punch.review.closeout.and.report.projection": {
+      "comment": "Screen: Punch-review workflow screen. Meaning: Uses the English default “Closeout and report projection”. Role: visible Text. Arguments: none. Plural/select: none. Accessibility: This call itself adds visible Text; the enclosing view controls any combined accessibility exposure. Screenshot: Punch-review workflow screen. state where this visible Text is visible or announced; descriptive context only and not a screenshot-evidence claim.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Closeout and report projection"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Hoàn tất hồ sơ và bản chiếu báo cáo"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.punch.review.report.not.ready": {
+      "comment": "Screen: Punch-review workflow screen. Meaning: Uses the English default “No recorded closeout is report-ready.”. Role: visible Label title. Arguments: none. Plural/select: none. Accessibility: SwiftUI combines the Label title with its symbol for accessibility. Screenshot: Punch-review workflow screen. state where this visible Label title is visible or announced; descriptive context only and not a screenshot-evidence claim.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No recorded closeout is report-ready."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Chưa có hồ sơ hoàn tất đã ghi nhận nào sẵn sàng để lập báo cáo."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.punch.review.report.ready": {
+      "comment": "Screen: Punch-review workflow screen. Meaning: Uses the English default “Recorded closeout is report-ready for the existing renderer.”. Role: visible Label title. Arguments: none. Plural/select: none. Accessibility: SwiftUI combines the Label title with its symbol for accessibility. Screenshot: Punch-review workflow screen. state where this visible Label title is visible or announced; descriptive context only and not a screenshot-evidence claim.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recorded closeout is report-ready for the existing renderer."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Hồ sơ hoàn tất đã ghi nhận sẵn sàng để bộ kết xuất hiện có lập báo cáo."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.punch.review.report.ready.boundary": {
+      "comment": "Screen: Punch-review workflow screen. Meaning: Uses the English default “This view exposes a renderer-neutral projection only. Report-ready does not mean rendered, delivered, accepted, identity-verified, safe, compliant, or approved.”. Role: visible Text. Arguments: none. Plural/select: none. Accessibility: This call itself adds visible Text; the enclosing view controls any combined accessibility exposure. Screenshot: Punch-review workflow screen. state where this visible Text is visible or announced; descriptive context only and not a screenshot-evidence claim.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This view exposes a renderer-neutral projection only. Report-ready does not mean rendered, delivered, accepted, identity-verified, safe, compliant, or approved."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Màn hình này chỉ cung cấp bản chiếu độc lập với bộ kết xuất. Sẵn sàng lập báo cáo không có nghĩa là đã kết xuất, giao, chấp nhận, xác minh danh tính, an toàn, tuân thủ hay phê duyệt."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.receipt.preparing.report.p.d.f": {
+      "comment": "Screen: Check receipt. Meaning: announces the localized operation currently in progress. Role: progress or status copy. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Check receipt rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing report PDF"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Đang chuẩn bị PDF báo cáo"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.receipt.report.saved.heading": {
+      "comment": "Screen: Check receipt. Meaning: provides the localized screen-specific label or explanatory guidance. Role: visible heading, label, or guidance. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Check receipt rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Report saved on this device."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Đã lưu báo cáo trên thiết bị này."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.receipt.share.p.d.f.action": {
+      "comment": "Screen: Check receipt. Meaning: names the localized action available on this screen. Role: button title. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Check receipt rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share PDF"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Chia sẻ PDF"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.receipt.view.report.action": {
+      "comment": "Screen: Check receipt. Meaning: names the localized action available on this screen. Role: button title. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Check receipt rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View report"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Xem báo cáo"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.report-correction.correction.disclosure": {
+      "comment": "Screen: Report correction. Meaning: provides the localized screen-specific label or explanatory guidance. Role: visible heading, label, or guidance. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Report correction rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change the note only. Evidence, outcome, time, and report history stay unchanged."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Chỉ sửa ghi chú. Bằng chứng, kết quả, thời gian và lịch sử báo cáo không thay đổi."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.report-correction.correction.heading": {
+      "comment": "Screen: Report correction. Meaning: provides the localized screen-specific label or explanatory guidance. Role: visible heading, label, or guidance. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Report correction rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Correct report"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Sửa báo cáo"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.report-correction.correction.navigation.title": {
+      "comment": "Screen: Report correction. Meaning: names the localized current screen context. Role: navigation title. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Report correction rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Correct report"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Sửa báo cáo"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.report-correction.correction.note.label": {
+      "comment": "Screen: Report correction. Meaning: provides the localized screen-specific label or explanatory guidance. Role: visible heading, label, or guidance. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Report correction rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Correction note"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Ghi chú sửa đổi"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.report-correction.correction.note.length.validation": {
+      "comment": "Screen: Report correction. Meaning: provides the localized screen-specific label or explanatory guidance. Role: visible heading, label, or guidance. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Report correction rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Correction note must be 1,000 characters or fewer."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Ghi chú sửa đổi không được vượt quá 1.000 ký tự."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.report-correction.correction.note.placeholder": {
+      "comment": "Screen: Report correction. Meaning: provides the localized screen-specific label or explanatory guidance. Role: visible heading, label, or guidance. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Report correction rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Correction note"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Ghi chú sửa đổi"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.report-correction.correction.note.unchanged.validation": {
+      "comment": "Screen: Report correction. Meaning: announces the localized operation currently in progress. Role: progress or status copy. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Report correction rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change the note before saving."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Hãy sửa ghi chú trước khi lưu."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.report-correction.correction.prior.report.preserved.message": {
+      "comment": "Screen: Report correction. Meaning: provides the localized screen-specific label or explanatory guidance. Role: visible heading, label, or guidance. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Report correction rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The prior report and evidence remain unchanged."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Báo cáo trước và bằng chứng không thay đổi."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.report-correction.correction.save.action": {
+      "comment": "Screen: Report correction. Meaning: names the localized action available on this screen. Role: button title. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Report correction rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save correction"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Lưu sửa đổi"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.report-correction.correction.saved.badge": {
+      "comment": "Screen: Report correction. Meaning: explains the localized completion, unavailable, or recovery state. Role: status message. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Report correction rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Correction saved"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Đã lưu sửa đổi"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.report-correction.correction.saving.progress": {
+      "comment": "Screen: Report correction. Meaning: announces the localized operation currently in progress. Role: progress or status copy. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Report correction rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saving correction"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Đang lưu sửa đổi"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.report-correction.correction.view.corrected.report.action": {
+      "comment": "Screen: Report correction. Meaning: names the localized action available on this screen. Role: button title. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Report correction rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View corrected report"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Xem báo cáo đã sửa"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.report-correction.correction.view.prior.report.action": {
+      "comment": "Screen: Report correction. Meaning: names the localized action available on this screen. Role: button title. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Report correction rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View prior report"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Xem báo cáo trước"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.report-detail.detail.report.action": {
+      "comment": "Screen: Report detail. Meaning: names the localized action available on this screen. Role: button title. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Report detail rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share PDF"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Chia sẻ PDF"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.report-detail.detail.report.action2": {
+      "comment": "Screen: Report detail. Meaning: names the localized action available on this screen. Role: button title. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Report detail rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save to Files"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Lưu vào Tệp"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.report-detail.detail.report.action3": {
+      "comment": "Screen: Report detail. Meaning: names the localized action available on this screen. Role: button title. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Report detail rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Đóng"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.report-detail.detail.report.action4": {
+      "comment": "Screen: Report detail. Meaning: names the localized action available on this screen. Role: button title. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Report detail rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Correct report"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Sửa báo cáo"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.report-detail.detail.report.action5": {
+      "comment": "Screen: Report detail. Meaning: names the localized action available on this screen. Role: button title. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Report detail rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View prior report"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Xem báo cáo trước"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.report-detail.detail.report.action6": {
+      "comment": "Screen: Report detail. Meaning: names the localized action available on this screen. Role: button title. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Report detail rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View corrected report"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Xem báo cáo đã sửa"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.report-detail.detail.report.label": {
+      "comment": "Screen: Report detail. Meaning: provides the localized screen-specific label or explanatory guidance. Role: visible heading, label, or guidance. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Report detail rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Current revision"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Bản sửa đổi hiện tại"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.report-detail.detail.report.label2": {
+      "comment": "Screen: Report detail. Meaning: provides the localized screen-specific label or explanatory guidance. Role: visible heading, label, or guidance. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Report detail rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prior revision"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Bản sửa đổi trước"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.report-detail.detail.report.navigation": {
+      "comment": "Screen: Report detail. Meaning: names the localized current screen context. Role: navigation title. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Report detail rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Report"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Báo cáo"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.report-detail.detail.report.retry": {
+      "comment": "Screen: Report detail. Meaning: provides the localized screen-specific label or explanatory guidance. Role: visible heading, label, or guidance. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Report detail rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Correction saved, but its PDF couldn’t be created. Retry from the saved report."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Đã lưu sửa đổi nhưng không tạo được PDF. Hãy thử lại từ báo cáo đã lưu."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.report-detail.detail.report.status": {
+      "comment": "Screen: Report detail. Meaning: explains the localized completion, unavailable, or recovery state. Role: status message. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Report detail rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Report ready"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Báo cáo đã sẵn sàng"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.reports.report.action": {
+      "comment": "Screen: Reports. Meaning: names the localized action available on this screen. Role: button title. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Reports rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All sites"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tất cả địa điểm"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.reports.report.action2": {
+      "comment": "Screen: Reports. Meaning: names the localized action available on this screen. Role: button title. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Reports rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All signs"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tất cả biển hiệu"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.reports.report.label": {
+      "comment": "Screen: Reports. Meaning: provides the localized screen-specific label or explanatory guidance. Role: visible heading, label, or guidance. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Reports rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filter reports"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Lọc báo cáo"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.reports.report.label2": {
+      "comment": "Screen: Reports. Meaning: provides the localized screen-specific label or explanatory guidance. Role: visible heading, label, or guidance. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Reports rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved reports will appear here."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Các báo cáo đã lưu sẽ xuất hiện ở đây."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.reports.report.label3": {
+      "comment": "Screen: Reports. Meaning: provides the localized screen-specific label or explanatory guidance. Role: visible heading, label, or guidance. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Reports rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chronological report history"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Lịch sử báo cáo theo thời gian"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.reports.report.label4": {
+      "comment": "Screen: Reports. Meaning: provides the localized screen-specific label or explanatory guidance. Role: visible heading, label, or guidance. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Reports rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No saved reports for this sign."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Chưa có báo cáo đã lưu cho biển hiệu này."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.reports.report.label5": {
+      "comment": "Screen: Reports. Meaning: provides the localized screen-specific label or explanatory guidance. Role: visible heading, label, or guidance. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Reports rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Visit"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Lần đến"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.reports.report.label6": {
+      "comment": "Screen: Reports. Meaning: provides the localized screen-specific label or explanatory guidance. Role: visible heading, label, or guidance. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Reports rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View report"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Xem báo cáo"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.reports.report.label7": {
+      "comment": "Screen: Reports. Meaning: provides the localized screen-specific label or explanatory guidance. Role: visible heading, label, or guidance. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Reports rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compare with previous"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "So sánh với lần trước"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.reports.report.label8": {
+      "comment": "Screen: Reports. Meaning: provides the localized screen-specific label or explanatory guidance. Role: visible heading, label, or guidance. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Reports rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compares this visit with the immediately previous visit"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "So sánh lần đến này với lần đến ngay trước đó"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.reports.report.navigation": {
+      "comment": "Screen: Reports. Meaning: names the localized current screen context. Role: navigation title. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Reports rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reports"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Báo cáo"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.reports.report.navigation2": {
+      "comment": "Screen: Reports. Meaning: names the localized current screen context. Role: navigation title. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Reports rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Report history"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Lịch sử báo cáo"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.reports.report.navigation3": {
+      "comment": "Screen: Reports. Meaning: names the localized current screen context. Role: navigation title. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Reports rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Then and Now"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Trước đây và hiện tại"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.reports.report.progress": {
+      "comment": "Screen: Reports. Meaning: announces the localized operation currently in progress. Role: progress or status copy. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Reports rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opening report"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Đang mở báo cáo"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.reports.report.status": {
+      "comment": "Screen: Reports. Meaning: explains the localized completion, unavailable, or recovery state. Role: status message. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Reports rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Current revision"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Bản sửa đổi hiện tại"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.reports.root.now": {
+      "comment": "Screen: Reports. Meaning: provides the localized screen-specific label or explanatory guidance. Role: visible heading, label, or guidance. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Reports rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Now"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Hiện tại"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.reports.root.outcome": {
+      "comment": "Screen: Reports. Meaning: provides the localized screen-specific label or explanatory guidance. Role: visible heading, label, or guidance. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Reports rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Outcome"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Kết quả"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.reports.root.stage": {
+      "comment": "Screen: Reports. Meaning: provides the localized screen-specific label or explanatory guidance. Role: visible heading, label, or guidance. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Reports rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stage"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Giai đoạn"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.reports.root.then": {
+      "comment": "Screen: Reports. Meaning: provides the localized screen-specific label or explanatory guidance. Role: visible heading, label, or guidance. Arguments: none. Plural/select: none. Accessibility: no. Screenshot: Reports rendered state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Then"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Trước đây"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.service-request.no-pdf-handoff": {
+      "comment": "Screen: Service request. Meaning: Explains no pdf handoff in the current screen state. Role: body copy. Arguments: none. Plural/select: none. Accessibility: Read as static content by VoiceOver. Screenshot: Service request body copy state; no screenshot is claimed.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A customer-safe PDF handoff is not supplied. This view cannot create, render, send, deliver, or confirm a PDF."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Chưa có bản PDF phù hợp để bàn giao cho khách hàng. Màn hình này không thể tạo, kết xuất, gửi, giao hoặc xác nhận PDF."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.service-request.pdf-handoff-available": {
+      "comment": "Screen: Service request. Meaning: Explains pdf handoff available in the current screen state. Role: body copy. Arguments: none. Plural/select: none. Accessibility: Read as static content by VoiceOver. Screenshot: Service request body copy state; no screenshot is claimed.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A customer-safe status artifact is supplied for the existing handoff route. It does not claim delivery, receipt, reading, identity verification, approval, or a service outcome."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Đã cung cấp tài liệu trạng thái phù hợp cho khách hàng qua luồng bàn giao hiện có. Điều này không khẳng định đã giao, đã nhận, đã đọc, đã xác minh danh tính, đã phê duyệt hay đã đạt kết quả dịch vụ."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.share.action.share-or-print": {
+      "comment": "App-owned source default; preserve the existing meaning and typed arguments.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share or print PDF"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Chia sẻ hoặc in PDF"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Features/Globalization/GlobalizedSharePrintLabelSurfacesV1.swift"
+    },
+    "v30.share.audience.customer-safe": {
+      "comment": "App-owned source default; preserve the existing meaning and typed arguments.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Customer-safe"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Phù hợp cho khách hàng"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Features/Globalization/GlobalizedSharePrintLabelSurfacesV1.swift"
+    },
+    "v30.share.audience.internal": {
+      "comment": "App-owned source default; preserve the existing meaning and typed arguments.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Internal use"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Dùng nội bộ"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Features/Globalization/GlobalizedSharePrintLabelSurfacesV1.swift"
+    },
+    "v30.share.document-language.exact": {
+      "comment": "App-owned source default; preserve the existing meaning and typed arguments.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Document language: %@."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Ngôn ngữ tài liệu: %@."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Features/Globalization/GlobalizedSharePrintLabelSurfacesV1.swift"
+    },
+    "v30.share.document-language.fallback": {
+      "comment": "App-owned source default; preserve the existing meaning and typed arguments.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Document language: %1$@ (requested %2$@; English fallback confirmed)."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Ngôn ngữ tài liệu: %1$@ (yêu cầu %2$@; đã xác nhận dùng tiếng Anh dự phòng)."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Features/Globalization/GlobalizedSharePrintLabelSurfacesV1.swift"
+    },
+    "v30.share.document-language.unrecorded": {
+      "comment": "App-owned source default; preserve the existing meaning and typed arguments.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Document language was not recorded. The saved document is unchanged."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Chưa ghi nhận ngôn ngữ tài liệu. Tài liệu đã lưu không thay đổi."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Features/Globalization/GlobalizedSharePrintLabelSurfacesV1.swift"
+    },
+    "v30.share.labels.do-not-deploy": {
+      "comment": "App-owned source default; preserve the existing meaning and typed arguments.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Historic output: do not deploy retired or replaced labels."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Kết quả lịch sử: không triển khai nhãn đã ngừng dùng hoặc đã thay thế."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Features/Globalization/GlobalizedSharePrintLabelSurfacesV1.swift"
+    },
+    "v30.share.report.body": {
+      "comment": "App-owned source default; preserve the existing meaning and typed arguments.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@\n%2$@\n\n%3$@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%1$@\n%2$@\n\n%3$@"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Features/Globalization/GlobalizedSharePrintLabelSurfacesV1.swift"
+    },
+    "v30.share.report.subject": {
+      "comment": "App-owned source default; preserve the existing meaning and typed arguments.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Report: %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Báo cáo: %@"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Features/Globalization/GlobalizedSharePrintLabelSurfacesV1.swift"
+    },
+    "v30.shell.reports.tab": {
+      "comment": "Screen: App shell Settings and Language & Region screen. Meaning: Uses the English default “Reports”. Role: visible Label title. Arguments: none. Plural/select: none. Accessibility: SwiftUI combines the Label title with its symbol for accessibility. Screenshot: App shell Settings and Language & Region screen. state where this visible Label title is visible or announced; descriptive context only and not a screenshot-evidence claim.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reports"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Báo cáo"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.sign.detail.report.history": {
+      "comment": "Screen: Sign detail screen. Meaning: Uses the English default “Report history”. Role: VoiceOver hint. Arguments: none. Plural/select: none. Accessibility: The call is assigned directly as the accessibility hint. Screenshot: Sign detail screen. state where this VoiceOver hint is visible or announced; descriptive context only and not a screenshot-evidence claim.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Report history"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Lịch sử báo cáo"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.sign.detail.report.history.hint": {
+      "comment": "Screen: Sign detail screen. Meaning: Uses the English default “Opens report history for this sign”. Role: VoiceOver hint. Arguments: none. Plural/select: none. Accessibility: The call is assigned directly as the accessibility hint. Screenshot: Sign detail screen. state where this VoiceOver hint is visible or announced; descriptive context only and not a screenshot-evidence claim.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens report history for this sign"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Mở lịch sử báo cáo của biển hiệu này"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.sign.detail.view.report": {
+      "comment": "Screen: Sign detail screen. Meaning: Uses the English default “View report”. Role: VoiceOver hint. Arguments: none. Plural/select: none. Accessibility: The call is assigned directly as the accessibility hint. Screenshot: Sign detail screen. state where this VoiceOver hint is visible or announced; descriptive context only and not a screenshot-evidence claim.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View report"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Xem báo cáo"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.sign.detail.view.report.hint": {
+      "comment": "Screen: Sign detail screen. Meaning: Uses the English default “Opens the saved report for this sign”. Role: VoiceOver hint. Arguments: none. Plural/select: none. Accessibility: The call is assigned directly as the accessibility hint. Screenshot: Sign detail screen. state where this VoiceOver hint is visible or announced; descriptive context only and not a screenshot-evidence claim.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens the saved report for this sign"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Mở báo cáo đã lưu của biển hiệu này"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.signs.root.report.history.unavailable": {
+      "comment": "Screen: Signs welcome, list, and sample screen. Meaning: Uses the English default “Report history could not be opened.”. Role: status-badge text. Arguments: none. Plural/select: none. Accessibility: The Worklight status badge exposes its text with the badge. Screenshot: Signs welcome, list, and sample screen. state where this status-badge text is visible or announced; descriptive context only and not a screenshot-evidence claim.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Report history could not be opened."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Không mở được lịch sử báo cáo."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.signs.root.report.unavailable": {
+      "comment": "Screen: Signs welcome, list, and sample screen. Meaning: Uses the English default “Report unavailable”. Role: status-badge text. Arguments: none. Plural/select: none. Accessibility: The Worklight status badge exposes its text with the badge. Screenshot: Signs welcome, list, and sample screen. state where this status-badge text is visible or announced; descriptive context only and not a screenshot-evidence claim.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Report unavailable"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Báo cáo không khả dụng"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.signs.root.saved.report.unavailable": {
+      "comment": "Screen: Signs welcome, list, and sample screen. Meaning: Uses the English default “The saved report could not be opened.”. Role: status-badge text. Arguments: none. Plural/select: none. Accessibility: The Worklight status badge exposes its text with the badge. Screenshot: Signs welcome, list, and sample screen. state where this status-badge text is visible or announced; descriptive context only and not a screenshot-evidence claim.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The saved report could not be opened."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Không mở được báo cáo đã lưu."
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.ui.backup.export.report.count": {
+      "comment": "Screen: Backup export. Meaning: formats screen-specific presentation values. Role: formatted presentation. Arguments: count: Int (aggregateCount). Plural/select: CLDR one/other. Accessibility: no. Screenshot: Backup export summary state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld report"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld reports"
+                }
+              }
+            }
+          }
+        },
+        "vi": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%lld báo cáo"
+                }
+              }
+            }
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.ui.backup.restore.current.report.count": {
+      "comment": "Screen: Backup restore. Meaning: presents the current or incoming backup inventory count. Role: count summary. Arguments: count: Int (aggregateCount). Plural/select: CLDR one/other. Accessibility: no. Screenshot: Backup restore summary state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld report"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld reports"
+                }
+              }
+            }
+          }
+        },
+        "vi": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%lld báo cáo"
+                }
+              }
+            }
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.ui.backup.restore.incoming.report.count": {
+      "comment": "Screen: Backup restore. Meaning: presents the current or incoming backup inventory count. Role: count summary. Arguments: count: Int (aggregateCount). Plural/select: CLDR one/other. Accessibility: no. Screenshot: Backup restore summary state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld report"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld reports"
+                }
+              }
+            }
+          }
+        },
+        "vi": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%lld báo cáo"
+                }
+              }
+            }
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.ui.backup.validation.report.count": {
+      "comment": "Screen: Backup validation. Meaning: presents the incoming backup validation inventory count. Role: count summary. Arguments: count: Int (aggregateCount). Plural/select: CLDR one/other. Accessibility: no. Screenshot: Backup validation summary state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld report"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld reports"
+                }
+              }
+            }
+          }
+        },
+        "vi": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "%lld báo cáo"
+                }
+              }
+            }
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.ui.diagnostics.report.share.sheets.count": {
+      "comment": "Screen: Diagnostics export and Feedback. Meaning: formats privacy-safe diagnostic metadata or aggregate counters. Role: diagnostic summary value. Arguments: count: Int (aggregateCount). Plural/select: CLDR one/other. Accessibility: no. Screenshot: Diagnostics export and Feedback summary state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Report share sheet: %lld"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Report share sheets: %lld"
+                }
+              }
+            }
+          }
+        },
+        "vi": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "Bảng chia sẻ báo cáo: %lld"
+                }
+              }
+            }
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.ui.diagnostics.reports.saved.count": {
+      "comment": "Screen: Diagnostics export and Feedback. Meaning: formats privacy-safe diagnostic metadata or aggregate counters. Role: diagnostic summary value. Arguments: count: Int (aggregateCount). Plural/select: CLDR one/other. Accessibility: no. Screenshot: Diagnostics export and Feedback summary state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Report saved: %lld"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Reports saved: %lld"
+                }
+              }
+            }
+          }
+        },
+        "vi": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "needs_review",
+                  "value": "Báo cáo đã lưu: %lld"
+                }
+              }
+            }
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.ui.report.correction.character.count": {
+      "comment": "Screen: Report correction. Meaning: shows entered note length against the limit. Role: character count. Arguments: count: Int (aggregateCount). Plural/select: none. Accessibility: no. Screenshot: Report correction summary state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld of 1,000 characters"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%lld trên 1.000 ký tự"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.ui.reports.root.visit.date.time": {
+      "comment": "Screen: Reports. Meaning: formats a report visit date and local time. Role: report history value. Arguments: date: String (formattedPresentation), time: String (formattedPresentation). Plural/select: none. Accessibility: no. Screenshot: Reports summary state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ at %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%@ lúc %@"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    },
+    "v30.ui.reports.root.visit.stage.outcome": {
+      "comment": "Screen: Reports. Meaning: formats a report visit stage and outcome. Role: report history value. Arguments: stage: String (formattedPresentation), outcome: String (formattedPresentation). Plural/select: none. Accessibility: no. Screenshot: Reports summary state; no screenshot is asserted.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "%@ · %@"
+          }
+        }
+      },
+      "sourceReference": "FieldEvidenceApp/Resources/Localizable.xcstrings"
+    }
+  }
+}

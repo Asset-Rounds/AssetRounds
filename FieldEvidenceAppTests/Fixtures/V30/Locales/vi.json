@@ -1,0 +1,267 @@
+{
+  "kind": "V30VietnameseLocaleFixtureV1",
+  "schemaVersion": 1,
+  "locale": "vi",
+  "profiles": [
+    "vi-US",
+    "vi-VN"
+  ],
+  "resourceIdentifier": "vi",
+  "executionEpoch": "PRE_S10_PROVISIONAL",
+  "status": "DRAFT_NONSHIPPING",
+  "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+  "linguisticAcceptance": false,
+  "sourceRevision": "eaffe95cb75e9185826b095ecf07c0e5a0c2c817",
+  "sourceTree": "aa86f326731f3a35187e103b7de5699c12fc8b38",
+  "sourceCount": 3212,
+  "laneCounts": {
+    "app": 2717,
+    "report": 113,
+    "accessibility": 382
+  },
+  "sourceBindings": [
+    {
+      "path": "FieldEvidenceApp/Features/Globalization/CriticalSurfaceLocalizationRegistryV1.swift",
+      "sha256": "e487841a0789d8e521d82da07918f02aafe22d2bc8c1b80ebb184c2278f703f7"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Globalization/GlobalizedSharePrintLabelSurfacesV1.swift",
+      "sha256": "0f60e221e006b4ecf11130be38d67796533848e44d175b4fd4b746d06fbc9c15"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/VoiceCapture/VoicePushToTalkCaptureView.swift",
+      "sha256": "f8e4b0cfcd38a185814d658ac46e88200763ffb840a39e703b42c306eed361e8"
+    },
+    {
+      "path": "FieldEvidenceApp/InfoPlist.xcstrings",
+      "sha256": "39a62e938b8c83b53aef6bf05a5c1394d870baf28ef0489a3b01c0aab73745e1"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+      "sha256": "eaca1dffcda6ca7aa78519741b274e610470032a2c06b61b4e3b27cc87ce2314"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Localizable.xcstrings",
+      "sha256": "cef2d893c18f35e82299127ab3d95112035df7fc57dd65fb3f142f4c1d71e075"
+    }
+  ],
+  "invariants": {
+    "confirmationToken": "ERASE",
+    "storefront": "US",
+    "projectJurisdiction": "US",
+    "calendar": "GREGORIAN",
+    "timeZone": "America/New_York",
+    "languageDoesNotChangeJurisdiction": true,
+    "canonicalRecordsUnchanged": true
+  },
+  "formattingCases": {
+    "decimal": "12345.625",
+    "gregorianDate": "2026-09-22",
+    "wallTime": "14:05:09",
+    "currency": "USD",
+    "phone": "+1 212 555 0100",
+    "addressLines": [
+      "123 Example St",
+      "Synthetic City, NY 10001"
+    ]
+  },
+  "metadataDraft": {
+    "appStoreLanguage": "Vietnamese",
+    "storefront": "US",
+    "status": "DRAFT_REQUIRES_NATIVE_KEYWORD_RESEARCH_AND_OWNER_REVIEW",
+    "name": "AssetRounds",
+    "subtitle": "Kiểm tra biển hiệu",
+    "promotionalText": "Ghi lại quan sát biển hiệu, ảnh và công việc đã thực hiện. Giữ lịch sử cục bộ và chuẩn bị báo cáo PDF để chia sẻ.",
+    "description": "AssetRounds giúp ghi nhận việc kiểm tra biển hiệu. Lưu các quan sát về tình trạng nhìn thấy, ghi chú, ảnh và công việc đã ghi nhận. Xem lịch sử, kiểm tra lại và chuẩn bị báo cáo PDF.\n\nBản ghi ở trên thiết bị này. Chia sẻ báo cáo sẽ mở tùy chọn hệ thống, không xác nhận đã giao. Quan sát không phải chứng nhận, chẩn đoán hay kết luận tuân thủ.\n\nĐây là nội dung nháp để xem xét. Phải xác nhận các chức năng và ngôn ngữ có sẵn theo phiên bản cuối trước khi công bố.",
+    "keywords": "biển hiệu,kiểm tra,ảnh,bằng chứng,báo cáo,công việc",
+    "publicationAuthorized": false,
+    "currentAppStoreRulesValidated": false,
+    "nativeKeywordEvidence": null
+  },
+  "reviewRequirements": [
+    "Professional Vietnamese translator and independent native review",
+    "Bilingual U.S. sign-workflow terminology and diacritic meaning review",
+    "Telex/VNI marked-text composition, paste and exact NFC/NFD persistence",
+    "Compact/wrapped labels, tone-mark clipping, Dynamic Type and VoiceOver",
+    "Font licensing/coverage, Vietnamese PDF shaping/extraction on Letter/A4 and physical print",
+    "Reconcile after S; shared integration only through P04-C07"
+  ],
+  "sourceDefects": [
+    {
+      "key": "v30.manual-work-resource.units",
+      "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+      "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+      "intendedEnglish": "units",
+      "baselineEvidence": {
+        "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+        "path": "FieldEvidenceApp/Features/WorkResources/ManualWorkResourceWorkflowView.swift",
+        "sha256": "7763f72a2b820861915cb6d814132cf7c3da9de0980997a44abefd6f1b8dd28b"
+      },
+      "currentSourcePaths": [
+        "FieldEvidenceApp/Resources/Localizable.xcstrings",
+        "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+      ],
+      "disposition": "Vietnamese draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+      "finalAcceptanceBlocked": true,
+      "vietnameseDraft": "đơn vị"
+    },
+    {
+      "key": "v30.my-day.no-duration-estimate-lowercase",
+      "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+      "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+      "intendedEnglish": "no duration estimate",
+      "baselineEvidence": {
+        "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+        "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+        "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+      },
+      "currentSourcePaths": [
+        "FieldEvidenceApp/Resources/Localizable.xcstrings",
+        "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+      ],
+      "disposition": "Vietnamese draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+      "finalAcceptanceBlocked": true,
+      "vietnameseDraft": "không có thời lượng ước tính"
+    },
+    {
+      "key": "v30.my-day.no-total-estimate",
+      "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+      "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+      "intendedEnglish": "No total estimate",
+      "baselineEvidence": {
+        "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+        "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+        "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+      },
+      "currentSourcePaths": [
+        "FieldEvidenceApp/Resources/Localizable.xcstrings",
+        "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+      ],
+      "disposition": "Vietnamese draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+      "finalAcceptanceBlocked": true,
+      "vietnameseDraft": "Không có tổng thời lượng ước tính"
+    },
+    {
+      "key": "v30.my-day.start",
+      "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+      "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+      "intendedEnglish": "Start",
+      "baselineEvidence": {
+        "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+        "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+        "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+      },
+      "currentSourcePaths": [
+        "FieldEvidenceApp/Resources/Localizable.xcstrings",
+        "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+      ],
+      "disposition": "Vietnamese draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+      "finalAcceptanceBlocked": true,
+      "vietnameseDraft": "Bắt đầu"
+    }
+  ],
+  "unicodeQualification": {
+    "status": "AUTHORED_NOT_EXECUTED",
+    "inputCases": [
+      {
+        "id": "nfc-sign-note",
+        "text": "Kiểm tra biển hiệu"
+      },
+      {
+        "id": "nfd-sign-note",
+        "text": "Kiểm tra biển hiệu"
+      },
+      {
+        "id": "mixed-identifier",
+        "text": "Biển hiệu AR-42; số lượng 12; ngày 2026-09-22."
+      },
+      {
+        "id": "grapheme-note",
+        "text": "Kỹ thuật viên 👩🏽‍🔧 ghi chú: thay bóng đèn."
+      }
+    ],
+    "toneVariants": [
+      "ma",
+      "má",
+      "mà",
+      "mả",
+      "mã",
+      "mạ"
+    ],
+    "search": {
+      "source": "Kiểm tra biển hiệu",
+      "query": "biển",
+      "expectedQuery": "bien",
+      "nonMatchingQuery": "bienn",
+      "expectedNormalizedText": "kiem tra bien hieu",
+      "expectedTokens": [
+        "bien",
+        "hieu",
+        "kiem",
+        "tra"
+      ],
+      "policy": "V1 derived Latin case/diacritic folding; canonical evidence and stable identifiers are never folded or merged.",
+      "expectedCJKRunCount": 0,
+      "expectedCJKChunkCount": 0,
+      "stableIDs": [
+        "asset-vi-001",
+        "asset-vi-002"
+      ],
+      "nativeMeasurement": null
+    },
+    "layout": {
+      "paragraph": "Mép biển hiệu bị hỏng. Đã ghi nhận ảnh và ghi chú; vẫn cần kiểm tra lại.",
+      "decomposedParagraph": "Mép biển hiệu bị hỏng. Đã ghi nhận ảnh và ghi chú; vẫn cần kiểm tra lại.",
+      "repeatCount": 120,
+      "toneMarks": "ă â ê ô ơ ư đ Á À Ả Ã Ạ ắ ằ ẳ ẵ ặ ấ ầ ẩ ẫ ậ ế ề ể ễ ệ ố ồ ổ ỗ ộ ớ ờ ở ỡ ợ ứ ừ ử ữ ự",
+      "papers": [
+        "US_LETTER",
+        "A4"
+      ],
+      "minimumNativePageCount": 2
+    },
+    "pendingManualChecks": [
+      {
+        "id": "telex-marked-text-and-tone-selection",
+        "status": "NOT_EXECUTED",
+        "evidence": null
+      },
+      {
+        "id": "vni-composition-cancel-and-commit",
+        "status": "NOT_EXECUTED",
+        "evidence": null
+      },
+      {
+        "id": "paste-nfc-nfd-and-graphemes",
+        "status": "NOT_EXECUTED",
+        "evidence": null
+      },
+      {
+        "id": "tone-mark-coverage-and-line-height",
+        "status": "NOT_EXECUTED",
+        "evidence": null
+      },
+      {
+        "id": "compact-and-accessibility-dynamic-type",
+        "status": "NOT_EXECUTED",
+        "evidence": null
+      },
+      {
+        "id": "voiceover-pronunciation-and-focus",
+        "status": "NOT_EXECUTED",
+        "evidence": null
+      },
+      {
+        "id": "letter-a4-physical-print",
+        "status": "NOT_EXECUTED",
+        "evidence": null
+      },
+      {
+        "id": "independent-vietnamese-field-terminology-review",
+        "status": "NOT_EXECUTED",
+        "evidence": null
+      }
+    ],
+    "reportBoundary": "Synthetic authored Vietnamese body exercises existing Unicode renderer with English chrome; this does not activate Vietnamese report chrome or claim native qualification."
+  }
+}
