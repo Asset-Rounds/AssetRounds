@@ -466,12 +466,14 @@ final class S6_5ReplacementUnionTests: XCTestCase {
         )
         let package = try exportPackage(incoming, root: root, name: "incoming")
         let validated = try importPackage(package, into: current.session, stageID: uuid(590))
-        let supportBefore = try fileTree(current.support)
         let service = try BackupRestoreService(
             applicationSupportURL: current.support,
             now: { self.replacementAt },
             makeUUID: sequence([uuid(591), uuid(592)])
         )
+        // Construction owns a generation-lease guard. Compare the complete
+        // restore-call boundary while that same owner is still alive.
+        let supportBefore = try fileTree(current.support)
 
         await XCTAssertThrowsErrorAsync {
             _ = try await service.restore(
@@ -484,11 +486,13 @@ final class S6_5ReplacementUnionTests: XCTestCase {
         } verify: { error in
             XCTAssertEqual(error as? BackupRestoreServiceError, .invalidRestoreAuthority)
         }
-        XCTAssertEqual(try fileTree(current.support), supportBefore)
-        XCTAssertEqual(try current.factory.currentGenerationID(), current.session.generationID)
-        XCTAssertFalse(fileManager.fileExists(atPath: current.support.appendingPathComponent(
-            "FieldEvidenceRestore/restore.json"
-        ).path))
+        withExtendedLifetime(service) {
+            XCTAssertEqual(try fileTree(current.support), supportBefore)
+            XCTAssertEqual(try current.factory.currentGenerationID(), current.session.generationID)
+            XCTAssertFalse(fileManager.fileExists(atPath: current.support.appendingPathComponent(
+                "FieldEvidenceRestore/restore.json"
+            ).path))
+        }
         try BackupImportService(
             generationRootURL: current.session.generationRootURL,
             scopedAccess: .alreadyAuthorized

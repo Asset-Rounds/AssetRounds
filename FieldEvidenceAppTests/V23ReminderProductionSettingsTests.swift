@@ -28,6 +28,7 @@ private actor ReminderJourneyAuthentication: LocalAuthenticationClient {
     var adds: [NotificationSystemRequestV1] = []
     var removals: [[String]] = []
     var failObservations = false
+    private(set) var failedObservationAttempts = 0
     var duringRequest: (@MainActor () async throws -> Void)?
     func authorization() async throws -> LocalReminderAuthorizationV1 { status }
     func requestAuthorization() async throws -> LocalReminderAuthorizationV1 {
@@ -39,7 +40,10 @@ private actor ReminderJourneyAuthentication: LocalAuthenticationClient {
         return status
     }
     func observations() async throws -> [NotificationSystemObservationV1] {
-        if failObservations { throw Failure.unavailable }
+        if failObservations {
+            failedObservationAttempts += 1
+            throw Failure.unavailable
+        }
         return []
     }
     func add(_ request: NotificationSystemRequestV1) async throws { adds.append(request) }
@@ -149,7 +153,10 @@ extension V23ReminderProductionSettingsTests {
         do {
             try await access.update(expected: initial.policy, isEnabled: true, detail: .generic)
             XCTFail("Unavailable notification readback reported success")
-        } catch { XCTAssertTrue(error is ReminderJourneySystem.Failure) }
+        } catch {
+            XCTAssertTrue(error is ReminderJourneySystem.Failure,
+                "ReminderJourney.reconciliation errorType=\(String(reflecting: type(of: error))) error=\(String(describing: error)) injectedObservationAttempts=\(fixture.system.failedObservationAttempts)")
+        }
         let persisted = try XCTUnwrap(fixture.owners().preferences.readStoredReminderPolicy())
         XCTAssertTrue(persisted.isEnabled)
         XCTAssertEqual(persisted.revision, initial.policy.revision + 1)
