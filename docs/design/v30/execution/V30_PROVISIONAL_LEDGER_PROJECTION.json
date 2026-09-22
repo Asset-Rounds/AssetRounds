@@ -3,15 +3,15 @@
   "canonicalLedgerExternal": true,
   "creditedCards": [],
   "kind": "PRODUCT_BRANCH_READ_ONLY_PROJECTION",
-  "payloadDigest": "6c9c32e719caf0ee595ba7fbcda5370541f0cad0ad861ee1cebbc0def8eaea11",
+  "payloadDigest": "aafdce7fd1b989acfdecff1320d0be68c5f3c8bbc1c3afcab5aea1dacbf8255b",
   "preS10FinalCredit": false,
   "schemaVersion": "V30ProvisionalLedgerProjectionV1",
-  "selectedCard": "V30-P03-C06",
+  "selectedCard": "V30-P03-C07",
   "source": {
-    "head": "4ad2526542d23bb14414234cb9986506da09a99d",
-    "ledgerDigest": "b3ea3c3dd84112bb7b50404a237c11b0e54952d1cbd37530a6f48b4ab5278502",
-    "sequence": 57
+    "head": "54f3040508967df146edae33debcba0e6da70a37",
+    "ledgerDigest": "bb3c8933e28c4df32c25492f526554f3ca8452c7958c083d47f0e0751fbe853b",
+    "sequence": 58
   },
-  "state": "PROVISIONAL_CHECKPOINTED",
+  "state": "PROVISIONAL_IMPLEMENTING",
   "writeDisposition": "READ_ONLY_PROJECTION; isolated provisional coordination ledger remains sole writer"
 }

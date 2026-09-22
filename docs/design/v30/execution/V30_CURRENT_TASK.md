@@ -1,14 +1,14 @@
 # V30 Current Task
 
-Card 27 of 55 - Share, email, print, and label surfaces
+Card 28 of 55 - OCR, dictation, speech, and assisted-input capability truth
 
-Only the exact pre-issued fence below is writable. Embedded context is the active hydration. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation. Three exact shared UI paths are S10_SHARED_RECONCILIATION_REQUIRED under the recorded tuples.
+Only the exact pre-issued fence below is writable. Embedded context is the active hydration. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation. No S10 shared paths are authorized for this card.
 
 ```json
 {
   "acceptance": {
     "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
-    "required": "Localize app-owned chrome, subject/body templates, print controls, labels, and share summaries while preserving authored content and explicit document language.",
+    "required": "Freeze per-locale capability and online/offline truth. A translated label never implies recognition, dictation, speech, or grammar support unavailable to the exact OS/device/build.",
     "staticEvidence": "Current-card fenced proof and receipt; exact committed paths/hashes"
   },
   "attempt": 1,
@@ -19,10 +19,10 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
   "base": {
-    "head": "3f902a774e978c8c5c5c953f1e59298c7f9da29b",
-    "tree": "068d703866f816bd065962c79991f960ac1091e1"
+    "head": "4fa30b15d50e5bdd6a090c426ec9fd2d5628f864",
+    "tree": "cc1def7d18773709375388ba7bfea281361370c2"
   },
-  "cardID": "V30-P03-C06",
+  "cardID": "V30-P03-C07",
   "class": "IMPLEMENTATION",
   "credit": {
     "canonicalAcceptance": false,
@@ -33,8 +33,8 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "releaseCredit": false
   },
   "directPrerequisites": [
-    "V30-P02-C04",
-    "V30-P03-C04"
+    "V30-P01-C06",
+    "V30-P03-C01"
   ],
   "executionEpoch": "PRE_S10_PROVISIONAL",
   "fence": {
@@ -75,193 +75,193 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Features/Globalization/GlobalizedSharePrintLabelSurfacesV1.swift",
-        "purpose": "Share/email/print/label chrome and explicit document-language surfaces.",
+        "path": "FieldEvidenceApp/Domain/Globalization/AssistedInputCapabilityContractsV1.swift",
+        "purpose": "Per-locale OS/device/build capability truth contracts.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Application/Reporting/GlobalizedShareDeliveryCoordinatorV1.swift",
-        "purpose": "Localized subject/body/summary delivery coordinator.",
+        "path": "FieldEvidenceApp/Application/Globalization/AssistedInputCapabilityCoordinatorV1.swift",
+        "purpose": "Truthful OCR/dictation/speech capability resolver.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/V30_P03_C06SharePrintLabelTests.swift",
-        "purpose": "Share, email, print, label, and authored-content preservation tests.",
+        "path": "FieldEvidenceAppTests/V30_P03_C07AssistedInputCapabilityTests.swift",
+        "purpose": "Unavailable capability and translated-label truth tests.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/Fixtures/V30/Share/globalized-share-print-label-cases-v1.json",
-        "purpose": "Share/print/label fixtures.",
+        "path": "FieldEvidenceAppTests/Fixtures/V30/AssistedInput/assisted-input-capability-cases-v1.json",
+        "purpose": "Per-locale capability matrix fixtures.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "445b88c91a7d901f2c978440a11c2278a44ebccf",
-        "expectedBSHA256": "87e230a01acd36b88a6f138826f1052ab1d0327ce90bd3c01d66f95f4ad9670c",
-        "path": "FieldEvidenceApp/Application/Reporting/ShopReportProfileCoordinatorV1.swift",
-        "purpose": "Select localized share/email/print chrome without changing report content identity.",
+        "expectedBBlobOID": "e9bd0a023512ea2a7757506c3f257741eba4115d",
+        "expectedBSHA256": "6ca1daa0afe5f1e717e9ba6595882c97ca38174e5bb1c549776e6949dc42f1db",
+        "path": "FieldEvidenceApp/Application/Assistance/OCRProposalCoordinatorV1.swift",
+        "purpose": "Expose per-locale OCR truth through the existing assistance capability seam.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "28e7f335a3337fb6e353a94181e67daab40b0a50",
-        "expectedBSHA256": "b4b2627fe05210957e51e54a48841b0cd3b385bf1ba6a384e94e3f6b9a75ecf7",
-        "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
-        "purpose": "Deliver explicit document language and localized subject/body templates through existing delivery code.",
+        "expectedBBlobOID": "723d18181853e872e86e63ce39836b8951422cdc",
+        "expectedBSHA256": "650bdd12dfb843a978fbde360faae2a8905b9801869d887efe1efc9546bbe7f4",
+        "path": "FieldEvidenceApp/Domain/VoiceStructuring/VoiceStructuringContractsV1.swift",
+        "purpose": "Represent exact OS/device/build speech/dictation capability without implying support.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "c0ba876826f7041174b64ac8436980f149a85bf2",
+        "expectedBSHA256": "372f7e93a319db04be167f890ed8347261549cb061642b7a63e37dc23d83da18",
+        "path": "FieldEvidenceApp/Features/VoiceCapture/VoicePushToTalkCaptureView.swift",
+        "purpose": "Render truthful assisted-input capability state in the existing voice surface.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "2b96a63848c5b77eef63055baf58ed12ba60cca4",
-        "expectedBSHA256": "243ffe889a67d5ddb032325d35854f3bd4a1fb84ebb23fa3c7069836e53da2ac",
-        "path": "FieldEvidenceApp/Features/Reporting/ShopProfileOpenEvidenceHandoffView.swift",
-        "purpose": "Localize existing open-evidence handoff/share presentation.",
+        "expectedBBlobOID": "cd491b6b9af2f7ca7adbfdf41346312f44bcc3d5",
+        "expectedBSHA256": "11bf44c2d34d8051bd4c79ad9643b8cc24abad209a24131412185b0cc9bce6e1",
+        "path": "FieldEvidenceApp/Domain/Assistance/OCRProposalContractsV1.swift",
+        "purpose": "Expose locale capability truth through the existing OCR proposal contract.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "86c9dffb92cdee4a97fe346770053dc4cba12dbb",
-        "expectedBSHA256": "5eb0d7928d4a757e65a0355657fb8b1f0f8d0eefe5c294bb575fb6a02289d1a2",
-        "path": "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift",
-        "purpose": "Localize app-owned mail chrome while preserving authored content.",
+        "expectedBBlobOID": "3b93d1b3e7c7dfd09e81ebd99431739562bd1346",
+        "expectedBSHA256": "070fc442bbf4d53d18500e6b430b6d0c738d08ec00b81231ee26a8be0b360b3f",
+        "path": "FieldEvidenceApp/Infrastructure/Assistance/OCRProposalLifecycleAdapterV1.swift",
+        "purpose": "Route truthful OCR capability through the existing lifecycle adapter.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "a753e7ef045c44daa414c24f823074a9c8af8a91",
+        "expectedBSHA256": "3cc0904a9bb6f9e28f0b5910754ed442a1bf59f50381b52096584d2d21f02926",
+        "path": "FieldEvidenceApp/Domain/Assistance/DictationLocationProposalContractsV1.swift",
+        "purpose": "Expose locale capability truth through existing dictation proposal contracts.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "5b45d80ad7e06019f3ad5d88c04e16c9dee49eaa",
+        "expectedBSHA256": "622c0bbee789f3743a85a4f800c3a3838e16a145d6fbca4613b35edbcc36b8d7",
+        "path": "FieldEvidenceApp/Application/Assistance/DictationLocationProposalCoordinatorV1.swift",
+        "purpose": "Coordinate truthful dictation capability through the existing coordinator.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "7fa83bf0402c6ff94f14277b8f54243ffc12af0f",
+        "expectedBSHA256": "9bd140c90407820ff6fc186985a7481ffddedaca3e2fbec5beb8fa4ade4fc647",
+        "path": "FieldEvidenceApp/Infrastructure/Assistance/DictationLocationProposalLifecycleAdapterV1.swift",
+        "purpose": "Route truthful dictation lifecycle state without implying unsupported recognition.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "9b07602815af05100569c84cfeee6da50430e736",
+        "expectedBSHA256": "46e9d97e0d6540cca1cfb4bb9783193ab5144246b1247c58cfc5803494e5c148",
+        "path": "FieldEvidenceApp/Domain/VoiceCapture/StructuredVoiceCaptureContractsV1.swift",
+        "purpose": "Represent exact structured voice capture capability truth.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "2761180c681e70851b5c1d92a27dd9d9af0cba12",
+        "expectedBSHA256": "775d44f62d257b8748136a7eacd6b95a2a382c784c2275052fbdd1bd212dbafa",
+        "path": "FieldEvidenceApp/Application/VoiceCapture/VoicePushToTalkCoordinatorV1.swift",
+        "purpose": "Coordinate exact voice capability truth through the existing capture flow.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "9b609e5b08e00e34375af481bd1800f7de1f6cf3",
+        "expectedBSHA256": "03d56670fa477ce24e561bb32c59c67ca162bfcad5f0195aabc2f647c3f3b638",
+        "path": "FieldEvidenceApp/Infrastructure/VoiceCapture/OnDevicePushToTalkVoiceCaptureAdapterV1.swift",
+        "purpose": "Read OS/device capability truth from the existing on-device adapter.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "1c962c0c9eeb9821031652933c8d0213eebe8eb1",
+        "expectedBSHA256": "35cd045a4e992749380e583bb16578309debc268837b8341b0a118f5cc24344a",
+        "path": "FieldEvidenceApp/Application/VoiceStructuring/VoiceStructuringServiceV1.swift",
+        "purpose": "Preserve truthful voice structuring capability semantics.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "fc49c2c1db4a85b5d4c489823dd04b3c69ad5ea2",
+        "expectedBSHA256": "d29505d9df235de5e6eabf0b56e4780182d32c2cc445c8570c43ff434ca88f4b",
+        "path": "FieldEvidenceApp/Infrastructure/System/SystemCapabilityAdaptersV1.swift",
+        "purpose": "Bind exact OS/device/build capability evidence through the existing system adapter.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXISTING_BLOB",
+        "expectedBBlobOID": "c77b5a7f8f07bd6a4501ac1aafa8a16027c05f49",
+        "expectedBSHA256": "9f5a02ea8b3886a9cce19513357071a8349999da388a0e9bbf50f39951ac8834",
+        "path": "FieldEvidenceApp/Domain/Capability/CapabilityAvailabilityContractsV1.swift",
+        "purpose": "Represent unavailable locale capability without translated-label overclaim.",
         "serializedSharedPath": true
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "82bd8b590e238f8f5c5f119dd91b20dbd57893ea",
-        "expectedBSHA256": "64e594839fbc4d3dfb2974539449c4644fe07cda52a1c30a06078ac8f427398a",
-        "path": "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
-        "purpose": "Localize feedback/share action chrome without changing Phase10 settings styling.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "b68419345153053c5e63dfb8edd585f38cbcd6d8",
-        "expectedBSHA256": "ed062fa1c2ab895c483799ad66fbc7e5f7ff7b2e0420092af7ea68cc0c5e32f9",
-        "path": "FieldEvidenceApp/Domain/Labels/AssetLabelContractsV1.swift",
-        "purpose": "Add explicit document-language/chrome semantics through the existing asset-label contract.",
+        "expectedBBlobOID": "c13bf071b08bd2ea99f2d5f81ab28f738aea0470",
+        "expectedBSHA256": "e05082ff9ea78e1540e1c40e3d15045cb4ec95e9a5d8947540532c3d4acaeb77",
+        "path": "FieldEvidenceAppTests/V9_86OCRProposalTests.swift",
+        "purpose": "Regression-test OCR capability truth.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "50b87e2a2fdbcc4b1c35b339751d6e3a645bfa6a",
-        "expectedBSHA256": "f9964963a642838adf677240c70dd272b1730d70238572aade876d5fa5e55d24",
-        "path": "FieldEvidenceApp/Application/Labels/AssetLabelCoordinatorV1.swift",
-        "purpose": "Route localized label generation through the existing label coordinator.",
+        "expectedBBlobOID": "5f8298038ce95e7b33a3126470f4b9faa5212fb5",
+        "expectedBSHA256": "6051d524b8b6e93b509b4f4445206575ea778b76dc67f075c1aaa4488734aeaa",
+        "path": "FieldEvidenceAppTests/V9_87DictationLocationProposalTests.swift",
+        "purpose": "Regression-test dictation capability truth.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "43612cd6cbe36ba197220e03d1b0a00721b5f1e1",
-        "expectedBSHA256": "354f10a16f9173e583d361f27bd2341a5ab26e2c6ab4247109859fe837025818",
-        "path": "FieldEvidenceApp/Infrastructure/Reporting/AssetLabelLifecycleAdapterV1.swift",
-        "purpose": "Preserve label lifecycle/provenance with localized app-owned chrome.",
+        "expectedBBlobOID": "a15df49b07e60a6a880757d15d989cc2611d15bb",
+        "expectedBSHA256": "d217fbe0f59eaf7c9ddf56db38fa5a86370f6378c00123a8c800a9722f284e73",
+        "path": "FieldEvidenceAppTests/V9_108StructuredVoiceCaptureTests.swift",
+        "purpose": "Regression-test voice capture capability truth.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "2f35aa6105f83fa7e390622a6dc89c12087aec6e",
-        "expectedBSHA256": "aafee8825fc36969967009bf10a2dce241474b4e525f40352ed6bcf9fb549aa9",
-        "path": "FieldEvidenceApp/App/Composition/ProductionCompositionRoot.swift",
-        "purpose": "Compose existing delivery/mail/label localization seams without a parallel sending flow.",
-        "serializedSharedPath": false
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "c02680e9870fa348f1b8237f03f66496ff393418",
-        "expectedBSHA256": "22387f27d46acfbf2e021b89e3f2bc2caf63fcdc95f8dc5cb6d2259d73ff3716",
-        "path": "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
-        "purpose": "Localize only existing report share/print chrome in the detail surface; preserve Phase10 styling.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "295917ff019fa349871946b8dcdeaa4727eb807d",
-        "expectedBSHA256": "73161df4862a170d8232b61e922d7cb60d577e95d7e6727406ff754d83a80350",
-        "path": "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
-        "purpose": "Localize only existing report share/print chrome in the root surface; preserve Phase10 styling.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "86a55cf4145939361ebdf82af7b16f052ecdb1c4",
-        "expectedBSHA256": "74e2ac75ce267ccc455d15c1780f7e0dfb6c8ff8c19433179719a29b2dd2c00e",
-        "path": "FieldEvidenceAppTests/S4_3ReportDeliveryTests.swift",
-        "purpose": "Regression-test report delivery with explicit document language.",
-        "serializedSharedPath": true
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "100b60c05ee9858cbd1ec3d231d25364349d6828",
-        "expectedBSHA256": "973fd0ace49699d6fa8dfadbe0a94804b023c08c298b09ed20abe57602b937b3",
-        "path": "FieldEvidenceAppTests/V9_93AssetLabelOutputTests.swift",
-        "purpose": "Regression-test localized label output and provenance.",
-        "serializedSharedPath": false
-      },
-      {
-        "classification": "EXISTING_BLOB",
-        "expectedBBlobOID": "6b12a81b0a65e56baa9fab53bcaa614e9b8ac012",
-        "expectedBSHA256": "314fe6f1387c418a90387f24a9576b2fa1482a8da80e6c19dbd4aa8c01e1a70f",
-        "path": "FieldEvidenceAppTests/V9_52AssetLabelTests.swift",
-        "purpose": "Regression-test asset-label lifecycle semantics.",
+        "expectedBBlobOID": "c164c01fc99331fa785836302b1e168f4cf01276",
+        "expectedBSHA256": "f9ec728e6e744df08790995eb7dd24e10997414c95f38369a476da2ae6e73084",
+        "path": "FieldEvidenceAppTests/V9_64StructuredVoiceProposalTests.swift",
+        "purpose": "Regression-test structured voice proposal truth.",
         "serializedSharedPath": false
       }
     ],
-    "cardID": "V30-P03-C06",
+    "cardID": "V30-P03-C07",
     "class": "IMPLEMENTATION",
     "directPrerequisites": [
-      "V30-P02-C04",
-      "V30-P03-C04"
+      "V30-P01-C06",
+      "V30-P03-C01"
     ],
-    "ordinal": 27,
-    "preAuthorizedOverlapTuples": [
-      {
-        "boundedPurpose": "localize only feedback/share action chrome in FeedbackView; preserve Phase10 settings styling and user-authored content",
-        "cardID": "V30-P03-C06",
-        "expectedBBlobOID": "82bd8b590e238f8f5c5f119dd91b20dbd57893ea",
-        "expectedBSHA256": "64e594839fbc4d3dfb2974539449c4644fe07cda52a1c30a06078ac8f427398a",
-        "path": "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
-        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
-        "writerLane": "V30-P03-C06-SHARE-SURFACE-INTEGRATOR"
-      },
-      {
-        "boundedPurpose": "localize only existing report share/print chrome in FieldEvidenceApp/Features/Reports/ReportDetailView.swift; preserve Phase10 styling and report content identity",
-        "cardID": "V30-P03-C06",
-        "expectedBBlobOID": "c02680e9870fa348f1b8237f03f66496ff393418",
-        "expectedBSHA256": "22387f27d46acfbf2e021b89e3f2bc2caf63fcdc95f8dc5cb6d2259d73ff3716",
-        "path": "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
-        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
-        "writerLane": "V30-P03-C06-SHARE-SURFACE-INTEGRATOR"
-      },
-      {
-        "boundedPurpose": "localize only existing report share/print chrome in FieldEvidenceApp/Features/Reports/ReportsRootView.swift; preserve Phase10 styling and report content identity",
-        "cardID": "V30-P03-C06",
-        "expectedBBlobOID": "295917ff019fa349871946b8dcdeaa4727eb807d",
-        "expectedBSHA256": "73161df4862a170d8232b61e922d7cb60d577e95d7e6727406ff754d83a80350",
-        "path": "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
-        "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
-        "writerLane": "V30-P03-C06-SHARE-SURFACE-INTEGRATOR"
-      }
-    ],
-    "s10SharedPaths": [
-      "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
-      "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
-      "FieldEvidenceApp/Features/Reports/ReportsRootView.swift"
-    ],
+    "ordinal": 28,
+    "preAuthorizedOverlapTuples": [],
+    "s10SharedPaths": [],
     "status": "PRE_S10_PROVISIONAL_ELIGIBLE",
-    "title": "Share, email, print, and label surfaces"
+    "title": "OCR, dictation, speech, and assisted-input capability truth"
   },
   "fenceSource": {
-    "cardID": "V30-P03-C06",
+    "cardID": "V30-P03-C07",
     "path": "docs/design/v30/authority/V30PreS10PathFencesV1.json",
     "sha256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a"
   },
@@ -272,79 +272,78 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
     "Scripts/ci-selection.json"
   ],
-  "next": "V30-P03-C07",
+  "next": "V30-P03-C08",
   "observedCoordination": {
-    "head": "7ea49a6feb8cdf5d75950cf0b0c8d5619fd43df3",
-    "ledgerDigest": "0e2f3ed322b46b17ab34c5ce35e12d40439f045ac47fef00b21de7f51f2d3b34",
-    "sequence": 55
+    "head": "4ad2526542d23bb14414234cb9986506da09a99d",
+    "ledgerDigest": "b3ea3c3dd84112bb7b50404a237c11b0e54952d1cbd37530a6f48b4ab5278502",
+    "sequence": 57
   },
-  "ordinal": 27,
-  "outcome": "Localize app-owned chrome, subject/body templates, print controls, labels, and share summaries while preserving authored content and explicit document language.",
-  "payloadDigest": "59290b451a58fd67aaaf3100915b58f3bbeaea13cc8cfa714c55018084b72ef7",
+  "ordinal": 28,
+  "outcome": "Freeze per-locale capability and online/offline truth. A translated label never implies recognition, dictation, speech, or grammar support unavailable to the exact OS/device/build.",
+  "payloadDigest": "3b420df6e90f3ce33e70d1e9267048c9fba050c998215edbc62f8d89b5767e60",
   "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
   "preS10FinalCredit": false,
   "predecessorEvidence": {
-    "V30-P02-C04": {
+    "V30-P01-C06": {
       "candidate": {
-        "base": "0a7a4d9d82683a4b2aab06508623fc0a1f910586",
-        "baseTree": "551a18514c114181227dcaf8010c0f1f55f1217a",
+        "base": "66ef581ea88ce2ee1d6cb35586574d5df5c94bf7",
+        "baseTree": "4c5b3b3e0f72e9f4e947ceb75d1ac30e5db542f7",
         "changedPaths": [
-          "FieldEvidenceApp/DesignSystem/GlobalizationAdaptiveLayoutPolicyV1.swift",
-          "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
-          "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
-          "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
-          "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
-          "FieldEvidenceApp/Features/Recovery/RecoveryCenterView.swift",
-          "FieldEvidenceApp/Features/Rounds/RoundSessionView.swift",
+          "FieldEvidenceApp/Application/Ports/SettingsCapabilityPortsV1.swift",
+          "FieldEvidenceApp/Application/Settings/GlobalizationSettingsCoordinatorV1.swift",
+          "FieldEvidenceApp/Domain/Globalization/EffectiveLanguageContractsV1.swift",
           "FieldEvidenceApp/Features/Shell/AppShellView.swift",
-          "FieldEvidenceAppTests/Fixtures/V30/Accessibility/expansion-and-type-cases-v1.json",
-          "FieldEvidenceAppTests/V30_P02_C04AdaptiveAccessibilityTests.swift",
+          "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+          "FieldEvidenceApp/Infrastructure/Localization/SystemLanguageResolverV1.swift",
+          "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift",
+          "FieldEvidenceAppTests/Fixtures/V30/LanguageResolution/system-language-cases-v1.json",
+          "FieldEvidenceAppTests/V30_P01_C06SystemLanguageResolutionTests.swift",
+          "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
           "docs/design/v30/execution/V30_CI_SELECTION.json",
           "docs/design/v30/execution/V30_CURRENT_TASK.md",
           "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
           "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
         ],
-        "head": "d804f60308bcfdcaadf01780d429132e4bcbd77d",
-        "tree": "0cde23d9cf27616f10d4465ef4ee5a9ac387791e"
+        "head": "3a28f593e755ac952071777b7e8440457950a010",
+        "tree": "7f67173942a087f86770b10ed8bf99041425ee4f"
       },
-      "sequence": 39
+      "sequence": 26
     },
-    "V30-P03-C04": {
+    "V30-P03-C01": {
       "candidate": {
-        "base": "45eb5bb4dca6b32f3434d57ccada1059bf8fb0e6",
-        "baseTree": "2bd1a2364e17c9185812e43439c95870eb21e29e",
+        "base": "60815291c28d232c021274fddd352fbe293296ef",
+        "baseTree": "765ec10f2e1034f25b7fe91646d0bb34482ed886",
         "changedPaths": [
-          "FieldEvidenceApp/Application/Reporting/AccessibleDocumentCoordinatorV1.swift",
+          "FieldEvidenceApp/Application/Globalization/AuthoredContentLanguageCoordinatorV1.swift",
+          "FieldEvidenceApp/Domain/Content/ContentProvenanceContractsV1.swift",
+          "FieldEvidenceApp/Domain/Globalization/AuthoredContentLanguageContractsV1.swift",
+          "FieldEvidenceApp/Domain/Packs/SurveyDefinitionContractsV1.swift",
           "FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift",
-          "FieldEvidenceApp/Domain/Reporting/GlobalizedAccessibleDocumentContractsV1.swift",
-          "FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift",
-          "FieldEvidenceApp/Infrastructure/Reporting/AccessibleDocumentLifecycleAdapterV1.swift",
-          "FieldEvidenceApp/Infrastructure/Reporting/DeterministicPDFRendererV1.swift",
-          "FieldEvidenceApp/Infrastructure/Reporting/GlobalizedAccessibleDocumentRendererV1.swift",
-          "FieldEvidenceApp/Infrastructure/Reporting/ReportHistoryCoordinator.swift",
-          "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift",
-          "FieldEvidenceApp/Infrastructure/Reporting/WorklightPDFRendererV1.swift",
-          "FieldEvidenceAppTests/Fixtures/V30/Reports/globalized-accessible-document-cases-v1.json",
-          "FieldEvidenceAppTests/S4_1DeterministicRendererTests.swift",
-          "FieldEvidenceAppTests/S4_2PDFRecoveryTests.swift",
-          "FieldEvidenceAppTests/V30_P03_C04GlobalizedAccessibleDocumentTests.swift",
-          "FieldEvidenceAppTests/V9_38AccessibleDocumentTests.swift",
+          "FieldEvidenceApp/Domain/Workflow/ReportSnapshotV1.swift",
+          "FieldEvidenceApp/Infrastructure/Content/ContentContractRegistryV1.swift",
+          "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
+          "FieldEvidenceApp/Infrastructure/Reporting/ReportProjectionRegistryV1.swift",
+          "FieldEvidenceAppTests/Fixtures/V30/AuthoredContent/authored-content-language-cases-v1.json",
+          "FieldEvidenceAppTests/V30_P03_C01AuthoredContentLanguageTests.swift",
+          "FieldEvidenceAppTests/V9_15ContentReferenceProvenanceTests.swift",
+          "FieldEvidenceAppTests/V9_16SnapshotProjectionTests.swift",
+          "FieldEvidenceAppTests/V9_39SurveyDefinitionTests.swift",
           "docs/design/v30/execution/V30_CI_SELECTION.json",
           "docs/design/v30/execution/V30_CURRENT_TASK.md",
           "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
           "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
         ],
-        "head": "77b1538aad3ff7229b7f3edcca4045dda7b3e711",
-        "tree": "5d967a47111b63f0d3db3f91793abde0bc08b486"
+        "head": "c004b4bdd19bc037e3373e7f3a8f508343e5dca0",
+        "tree": "7d63520aabb3424f3a2fea35b0bd268400a7517d"
       },
-      "sequence": 53
+      "sequence": 47
     }
   },
   "revision": 1,
   "selector": null,
   "selectorReason": "Windows-static provisional card; no native dispatch is selected.",
-  "sourceEndLine": 1011,
-  "sourceStartLine": 1011,
-  "title": "Share, email, print, and label surfaces"
+  "sourceEndLine": 1012,
+  "sourceStartLine": 1012,
+  "title": "OCR, dictation, speech, and assisted-input capability truth"
 }
 ```
