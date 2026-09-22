@@ -1,0 +1,268 @@
+{
+  "kind": "V30KoreanLocaleFixtureV1",
+  "schemaVersion": 1,
+  "locale": "ko",
+  "profiles": [
+    "ko-US",
+    "ko-KR"
+  ],
+  "resourceIdentifier": "ko",
+  "executionEpoch": "PRE_S10_PROVISIONAL",
+  "status": "DRAFT_NONSHIPPING",
+  "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+  "linguisticAcceptance": false,
+  "sourceRevision": "8206f03439789132fb2144400c5a91ed7d2fafcb",
+  "sourceTree": "a438c5fe05392bb6040e2d133b9abf3900f1aa2d",
+  "sourceCount": 3212,
+  "laneCounts": {
+    "app": 2717,
+    "report": 113,
+    "accessibility": 382
+  },
+  "sourceBindings": [
+    {
+      "path": "FieldEvidenceApp/Features/Globalization/CriticalSurfaceLocalizationRegistryV1.swift",
+      "sha256": "e487841a0789d8e521d82da07918f02aafe22d2bc8c1b80ebb184c2278f703f7"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Globalization/GlobalizedSharePrintLabelSurfacesV1.swift",
+      "sha256": "0f60e221e006b4ecf11130be38d67796533848e44d175b4fd4b746d06fbc9c15"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/VoiceCapture/VoicePushToTalkCaptureView.swift",
+      "sha256": "f8e4b0cfcd38a185814d658ac46e88200763ffb840a39e703b42c306eed361e8"
+    },
+    {
+      "path": "FieldEvidenceApp/InfoPlist.xcstrings",
+      "sha256": "39a62e938b8c83b53aef6bf05a5c1394d870baf28ef0489a3b01c0aab73745e1"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+      "sha256": "eaca1dffcda6ca7aa78519741b274e610470032a2c06b61b4e3b27cc87ce2314"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Localizable.xcstrings",
+      "sha256": "cef2d893c18f35e82299127ab3d95112035df7fc57dd65fb3f142f4c1d71e075"
+    }
+  ],
+  "invariants": {
+    "confirmationToken": "ERASE",
+    "storefront": "US",
+    "projectJurisdiction": "US",
+    "calendar": "GREGORIAN",
+    "timeZone": "America/New_York",
+    "languageDoesNotChangeJurisdiction": true,
+    "canonicalRecordsUnchanged": true
+  },
+  "formattingCases": {
+    "decimal": "12345.625",
+    "gregorianDate": "2026-09-22",
+    "wallTime": "14:05:09",
+    "currency": "USD",
+    "phone": "+1 212 555 0100",
+    "addressLines": [
+      "123 Example St",
+      "Synthetic City, NY 10001"
+    ]
+  },
+  "metadataDraft": {
+    "appStoreLanguage": "Korean",
+    "storefront": "US",
+    "status": "DRAFT_REQUIRES_NATIVE_KEYWORD_RESEARCH_AND_OWNER_REVIEW",
+    "name": "AssetRounds",
+    "subtitle": "간판 점검 기록",
+    "promotionalText": "간판 관찰 내용, 사진, 수행한 작업을 기록하세요. 이력을 기기에 보관하고 공유할 PDF 보고서를 준비하세요.",
+    "description": "AssetRounds는 간판 점검 내용을 기록하는 데 도움이 됩니다. 눈으로 확인한 상태, 메모, 사진과 작업 내용을 저장하고 이력을 검토하며 재점검과 PDF 보고서를 준비하세요.\n\n기록은 이 기기에 보관됩니다. 보고서 공유는 시스템 옵션을 열 뿐 전달을 확인하지 않습니다. 관찰 기록은 인증, 진단 또는 규정 준수 판정이 아닙니다.\n\n이 문구는 검토용 초안입니다. 게시 전에 최종 버전의 제공 기능과 언어를 확인해야 합니다.",
+    "keywords": "간판,점검,사진,증거,보고서,작업",
+    "publicationAuthorized": false,
+    "currentAppStoreRulesValidated": false,
+    "nativeKeywordEvidence": null
+  },
+  "reviewRequirements": [
+    "Professional Korean translator and independent native review",
+    "Bilingual U.S. sign-workflow terminology and honorific/compact-label consistency",
+    "Hangul keyboard marked-text composition, batchim editing, cancel/commit and exact NFC/NFD persistence",
+    "Hangul line breaking, compact/wrapped labels, Dynamic Type and VoiceOver",
+    "Font licensing/coverage, Korean PDF shaping/extraction on Letter/A4 and physical print",
+    "Reconcile after S; shared integration only through P04-C07"
+  ],
+  "sourceDefects": [
+    {
+      "key": "v30.manual-work-resource.units",
+      "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+      "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+      "intendedEnglish": "units",
+      "baselineEvidence": {
+        "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+        "path": "FieldEvidenceApp/Features/WorkResources/ManualWorkResourceWorkflowView.swift",
+        "sha256": "7763f72a2b820861915cb6d814132cf7c3da9de0980997a44abefd6f1b8dd28b"
+      },
+      "currentSourcePaths": [
+        "FieldEvidenceApp/Resources/Localizable.xcstrings",
+        "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+      ],
+      "disposition": "Korean draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+      "finalAcceptanceBlocked": true,
+      "koreanDraft": "단위"
+    },
+    {
+      "key": "v30.my-day.no-duration-estimate-lowercase",
+      "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+      "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+      "intendedEnglish": "no duration estimate",
+      "baselineEvidence": {
+        "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+        "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+        "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+      },
+      "currentSourcePaths": [
+        "FieldEvidenceApp/Resources/Localizable.xcstrings",
+        "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+      ],
+      "disposition": "Korean draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+      "finalAcceptanceBlocked": true,
+      "koreanDraft": "예상 소요 시간 없음"
+    },
+    {
+      "key": "v30.my-day.no-total-estimate",
+      "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+      "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+      "intendedEnglish": "No total estimate",
+      "baselineEvidence": {
+        "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+        "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+        "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+      },
+      "currentSourcePaths": [
+        "FieldEvidenceApp/Resources/Localizable.xcstrings",
+        "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+      ],
+      "disposition": "Korean draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+      "finalAcceptanceBlocked": true,
+      "koreanDraft": "예상 총 소요 시간 없음"
+    },
+    {
+      "key": "v30.my-day.start",
+      "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+      "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+      "intendedEnglish": "Start",
+      "baselineEvidence": {
+        "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+        "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+        "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+      },
+      "currentSourcePaths": [
+        "FieldEvidenceApp/Resources/Localizable.xcstrings",
+        "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+      ],
+      "disposition": "Korean draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+      "finalAcceptanceBlocked": true,
+      "koreanDraft": "시작"
+    }
+  ],
+  "unicodeQualification": {
+    "status": "AUTHORED_NOT_EXECUTED",
+    "inputCases": [
+      {
+        "id": "nfc-sign-note",
+        "text": "간판 점검"
+      },
+      {
+        "id": "nfd-sign-note",
+        "text": "간판 점검"
+      },
+      {
+        "id": "mixed-identifier",
+        "text": "간판 AR-42; 수량 12; 날짜 2026-09-22."
+      },
+      {
+        "id": "grapheme-note",
+        "text": "기술자 👩🏽‍🔧 메모: 전구 교체."
+      },
+      {
+        "id": "compatibility-jamo",
+        "text": "ㄱㅏㄴㅍㅏㄴ"
+      }
+    ],
+    "compositionCases": {
+      "composedSyllable": "각",
+      "decomposedJamo": "각",
+      "compatibilityJamo": "ㄱㅏㄱ",
+      "initialOnly": "ㄱㅍ",
+      "policy": "Canonical text retains exact original UTF-8. NFC equivalence in derived search does not represent keyboard marked-text acceptance or initial-consonant search support."
+    },
+    "search": {
+      "source": "간판 점검",
+      "query": "간판",
+      "expectedQuery": "간판",
+      "nonMatchingQuery": "표지",
+      "expectedNormalizedText": "간판 점검",
+      "expectedTokens": [
+        "간판",
+        "점검"
+      ],
+      "policy": "V1 keeps Hangul syllables and normalizes canonical decomposition to NFC in derived material only; whitespace tokens, no Hangul morphology or initial-consonant search. Hangul is not a V1 contiguous CJK fallback scalar.",
+      "expectedCJKRunCount": 0,
+      "expectedCJKChunkCount": 0,
+      "stableIDs": [
+        "asset-ko-001",
+        "asset-ko-002"
+      ],
+      "nativeMeasurement": null
+    },
+    "layout": {
+      "paragraph": "간판 가장자리가 손상되었습니다. 사진과 메모를 기록했으며 재점검이 필요합니다.",
+      "decomposedParagraph": "간판 가장자리가 손상되었습니다. 사진과 메모를 기록했으며 재점검이 필요합니다.",
+      "repeatCount": 120,
+      "syllableCoverage": "가 각 간 갇 갈 감 갑 값 강 갗 같 갚 갛 괜 꿩 뷁 힣",
+      "papers": [
+        "US_LETTER",
+        "A4"
+      ],
+      "minimumNativePageCount": 2
+    },
+    "pendingManualChecks": [
+      {
+        "id": "two-set-keyboard-marked-text-and-batchim-edit",
+        "status": "NOT_EXECUTED",
+        "evidence": null
+      },
+      {
+        "id": "composition-cancel-and-commit",
+        "status": "NOT_EXECUTED",
+        "evidence": null
+      },
+      {
+        "id": "paste-nfc-nfd-compatibility-jamo-and-graphemes",
+        "status": "NOT_EXECUTED",
+        "evidence": null
+      },
+      {
+        "id": "hangul-line-breaking-and-glyph-coverage",
+        "status": "NOT_EXECUTED",
+        "evidence": null
+      },
+      {
+        "id": "compact-and-accessibility-dynamic-type",
+        "status": "NOT_EXECUTED",
+        "evidence": null
+      },
+      {
+        "id": "voiceover-pronunciation-and-focus",
+        "status": "NOT_EXECUTED",
+        "evidence": null
+      },
+      {
+        "id": "letter-a4-physical-print",
+        "status": "NOT_EXECUTED",
+        "evidence": null
+      },
+      {
+        "id": "independent-korean-field-terminology-review",
+        "status": "NOT_EXECUTED",
+        "evidence": null
+      }
+    ],
+    "reportBoundary": "Synthetic authored Korean body exercises existing Unicode renderer with English chrome; this does not activate Korean report chrome or claim native qualification."
+  }
+}
