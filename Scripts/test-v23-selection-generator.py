@@ -11,6 +11,8 @@ SNAPSHOT_FAMILY_SELECTORS = ['FieldEvidenceAppTests/V9_11ObservationTemporalSema
 
 REPLACEMENT_HISTORY_ADDITIONS = ['FieldEvidenceAppTests/S6_5ReplacementUnionTests/testPureRuleCreatesOnlyCurrentOnlyTombstonesAndRejectsCollisions', 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testCancelRemovesOnlyOwnedStageAndDirtyCurrentFailsClosed', 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testPacketCollisionFailsBeforeGenerationOrJournalMutation', 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testRecoveryPreservesReplacementUnionAcrossEveryJournalPhase', 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testRestoreIntentTimestampUsesOneCanonicalMillisecondDomain', 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testV23P03C18RegistryPointerBindsPromotionReceiptIdentity', 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testV23P03C05Records42ReplacementUnionsPredecessorClosedMetadata', 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testV23P03C36ReplacementRecordRetainsCanonicalOperationalIdentity', 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testC21ClientCapabilityLifecycleAnchor', 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testV23P03C34PackageRouteUsesOneShellAndNoWriter', 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testFinalizedReportBytesAndReceiptsSurviveRepeatedForkAndColdReadback']
 
+ACTIVITY_CODEC_SELECTORS = ['FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testLegacyEnvelopeArchiveSnapshotBytesRemainExact', 'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testLegacyMutationCommandRequestBytesRemainExact', 'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testLegacyEnvelopeRowsRejectCorruptMirrorsAndBytes', 'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testSchema3RoundTripBindsSeparateTypedAndFileDigests', 'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testClosedFileReferenceRejectsUnknownFieldsVersionsAndNoncanonicalIdentity', 'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testEnvelopeRejectsUnknownSchemasReservedLegacyFieldAndIncompleteSchema3', 'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testOnlyUnfinishedSchema2CanFinalizeIntoSchema3', 'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testSchema3SupersessionRetainsWholeReferenceAndRejectsDowngrade', 'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testLegacyMutationAndGenericCommandRejectSchema3EvenWithRecomputedMutationHash', 'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testLegacyAndSchema3ForkRepeatForkPreserveSourceAndFileIdentity', 'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testLegacyUnknownKindRemainsReadableButNotWritable']
+
 import copy
 import hashlib
 import importlib.util
@@ -135,6 +137,7 @@ class GeneratorTests(unittest.TestCase):
         for class_name in classes:
             relative = "FieldEvidenceAppTests/" + class_name + ".swift"
             overlays = {
+                'V23ActivityEnvelopeCodecEvolutionTests': REPO / 'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests.swift',
                 'S6_5ReplacementUnionTests': REPO / 'FieldEvidenceAppTests/S6_5ReplacementUnionTests.swift',
                 'V9_11ObservationTemporalSemanticsTests': REPO / 'FieldEvidenceAppTests/V9_11ObservationTemporalSemanticsTests.swift',
                 'V9_54ActivityContractFamiliesTests': REPO / 'FieldEvidenceAppTests/V9_54ActivityContractFamiliesTests.swift',
@@ -525,8 +528,8 @@ class GeneratorTests(unittest.TestCase):
                          'testGoldenReplacementKeepsIncomingLiveAndUnionsCurrentRoot'] + extra)
         self.assertEqual({k:v for k,v in current.items() if k != 'unitTestSelectors'},
                          {k:v for k,v in prior.items() if k != 'unitTestSelectors'})
-        self.assertEqual(generator.canonical(current), (HERE / 'ci-selection.json').read_bytes())
-        self.assertEqual(generator.canonical(mapping), (HERE / 'ci-selection-map.json').read_bytes())
+        self.assertEqual(report['selectionSHA256'], 'CAC57003CD7FFFA77BB4213C7132C62F2B74F16BBF12F4F6017D65372E293C06')
+        self.assertEqual(report['selectionMapSHA256'], 'ED7B55ACCE7622188EFC8DCE634F8ADC621EA384BD791E2397D3A568E74340D7')
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
             selection, mapping_path = root / 'selection.json', root / 'map.json'
@@ -537,6 +540,30 @@ class GeneratorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(selection.read_bytes(), generator.canonical(current))
             self.assertEqual(mapping_path.read_bytes(), generator.canonical(mapping))
+        self.assertFalse(report['nativeReady'])
+        self.assertFalse(report['acceptance'])
+
+    def test_activity_codec_profile_preserves_historical_bytes_and_exact_ordered_eleven(self):
+        prior, prior_map, _ = self.generate('replacement-history-coverage-v1')
+        current, mapping, report = self.generate('activity-codec-evolution-v1')
+        self.assertEqual((report['selectorCount'], report['groupCount']), (906, 57))
+        self.assertEqual(current['unitTestSelectors'], prior['unitTestSelectors'] + ACTIVITY_CODEC_SELECTORS)
+        self.assertEqual(mapping['groups'], prior_map['groups'] + [{
+            'id': 'activity-codec-evolution', 'classes': ['V23ActivityEnvelopeCodecEvolutionTests'], 'methodCount': 11}])
+        self.assertEqual({k:v for k,v in current.items() if k != 'unitTestSelectors'},
+                         {k:v for k,v in prior.items() if k != 'unitTestSelectors'})
+        self.assertEqual(generator.canonical(current), (HERE / 'ci-selection.json').read_bytes())
+        self.assertEqual(generator.canonical(mapping), (HERE / 'ci-selection-map.json').read_bytes())
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            selected, mapped = root/'selection.json', root/'map.json'
+            result = subprocess.run([sys.executable, str(GENERATOR), 'generate',
+                '--manifest', str(MANIFEST), '--checkout-root', str(self.checkout),
+                '--profile', 'activity-codec-evolution-v1', '--selection-output', str(selected),
+                '--map-output', str(mapped)], capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(selected.read_bytes(), generator.canonical(current))
+            self.assertEqual(mapped.read_bytes(), generator.canonical(mapping))
         self.assertFalse(report['nativeReady'])
         self.assertFalse(report['acceptance'])
 

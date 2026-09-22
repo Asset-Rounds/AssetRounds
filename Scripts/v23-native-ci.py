@@ -46,8 +46,8 @@ NO_INDEX_PARENT = '5c1e9831153e9e5feddda08e1152de06ecbaaed2'
 NO_INDEX_TREES = {'FieldEvidenceApp': 'cf661d0cb9a754135dfdea02fc7fa81967163331', 'FieldEvidenceAppTests': '6ae80744a230727892ceb04617421d91fd17e53a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 NO_INDEX_RECEIPT = "no-index-build-command.json"
 RESTORE_BUILD_WATCHDOG_SELECTION_ID = "c36-restore-review-no-index-build30m"
-RESTORE_BUILD_WATCHDOG_PARENT = '42ffe85c758af804e3ad5b248a6a2e432d8abc17'
-RESTORE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '31489a6f32a212246036c2761e34e3e0d80722bf', 'FieldEvidenceAppTests': 'd16e76bda3edbe02f221e5fd5537875df4134e7d', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+RESTORE_BUILD_WATCHDOG_PARENT = 'beaa8f487f0a3cf3267e7465a6195a7d844e8d6c'
+RESTORE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '590eaf1db6312f48a2d298eac22e9df1110183bd', 'FieldEvidenceAppTests': '3cf5283ec04ab194a9d097f3c34b1d3897b543b1', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 RESTORE_BUILD_WATCHDOG_SELECTORS = tuple(
     "FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/" + method for method in (
         "testPhysicalForkCreatesReviewReceiptAndSecondHopSurvivesOriginalPackageRemoval",
@@ -59,8 +59,8 @@ RESTORE_BUILD_WATCHDOG_SELECTORS = tuple(
     )
 )
 REMINDER_BUILD_WATCHDOG_SELECTION_ID = "reminder-production-no-index-build30m"
-REMINDER_BUILD_WATCHDOG_PARENT = '42ffe85c758af804e3ad5b248a6a2e432d8abc17'
-REMINDER_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '31489a6f32a212246036c2761e34e3e0d80722bf', 'FieldEvidenceAppTests': 'd16e76bda3edbe02f221e5fd5537875df4134e7d', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+REMINDER_BUILD_WATCHDOG_PARENT = 'beaa8f487f0a3cf3267e7465a6195a7d844e8d6c'
+REMINDER_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '590eaf1db6312f48a2d298eac22e9df1110183bd', 'FieldEvidenceAppTests': '3cf5283ec04ab194a9d097f3c34b1d3897b543b1', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 REMINDER_BUILD_WATCHDOG_GROUPS = ('reminder-policy-edit', 'reminder-production-settings', 'reminder-detailed-delivery', 'reminder-control-continuation')
 REMINDER_BUILD_WATCHDOG_SELECTORS = (
     'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testUnboundAndRetiredOwnersCannotMintOrRebind',
@@ -98,14 +98,14 @@ REMINDER_BUILD_WATCHDOG_SELECTORS = (
     'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testNilContinuationPreservesLegacyCanonicalControlAndSubjectBytes',
 )
 RESTORE_HISTORY_SELECTION_ID = "restore-history-no-index-build30m"
-RESTORE_HISTORY_PARENT = '42ffe85c758af804e3ad5b248a6a2e432d8abc17'
-RESTORE_HISTORY_TREES = {'FieldEvidenceApp': '31489a6f32a212246036c2761e34e3e0d80722bf', 'FieldEvidenceAppTests': 'd16e76bda3edbe02f221e5fd5537875df4134e7d', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+RESTORE_HISTORY_PARENT = 'beaa8f487f0a3cf3267e7465a6195a7d844e8d6c'
+RESTORE_HISTORY_TREES = {'FieldEvidenceApp': '590eaf1db6312f48a2d298eac22e9df1110183bd', 'FieldEvidenceAppTests': '3cf5283ec04ab194a9d097f3c34b1d3897b543b1', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 RESTORE_HISTORY_GROUPS = ("c36-restore-review", "replacement-packet-union")
 RESTORE_HISTORY_PACKET_SELECTOR = 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testGoldenReplacementKeepsIncomingLiveAndUnionsCurrentRoot'
 RESTORE_HISTORY_SELECTORS = RESTORE_BUILD_WATCHDOG_SELECTORS + (RESTORE_HISTORY_PACKET_SELECTOR,)
 REPLACEMENT_UNION_SELECTION_ID = "replacement-union-no-index-build30m"
-REPLACEMENT_UNION_PARENT = '42ffe85c758af804e3ad5b248a6a2e432d8abc17'
-REPLACEMENT_UNION_TREES = {'FieldEvidenceApp': '31489a6f32a212246036c2761e34e3e0d80722bf', 'FieldEvidenceAppTests': 'd16e76bda3edbe02f221e5fd5537875df4134e7d', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+REPLACEMENT_UNION_PARENT = 'beaa8f487f0a3cf3267e7465a6195a7d844e8d6c'
+REPLACEMENT_UNION_TREES = {'FieldEvidenceApp': '590eaf1db6312f48a2d298eac22e9df1110183bd', 'FieldEvidenceAppTests': '3cf5283ec04ab194a9d097f3c34b1d3897b543b1', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 REPLACEMENT_UNION_SELECTORS = (
     'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testGoldenReplacementKeepsIncomingLiveAndUnionsCurrentRoot',
     'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testPureRuleCreatesOnlyCurrentOnlyTombstonesAndRejectsCollisions',
@@ -137,7 +137,29 @@ ACTIVITY_BUILD30_SELECTION_ID = "activity-contracts-no-index-build30m"
 ACTIVITY_CONTRACT_SELECTORS = (
     'FieldEvidenceAppTests/V9_54ActivityContractFamiliesTests/testV23P03C47H01CrossFamilyClaimsInvalidTransitionsAndStaleInputsFailClosed',
 )
+ACTIVITY_CODEC_PUNCH_SELECTION_ID = "activity-codec-punch-no-index-build30m"
+ACTIVITY_CODEC_SELECTORS = (
+    'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testLegacyEnvelopeArchiveSnapshotBytesRemainExact',
+    'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testLegacyMutationCommandRequestBytesRemainExact',
+    'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testLegacyEnvelopeRowsRejectCorruptMirrorsAndBytes',
+    'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testSchema3RoundTripBindsSeparateTypedAndFileDigests',
+    'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testClosedFileReferenceRejectsUnknownFieldsVersionsAndNoncanonicalIdentity',
+    'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testEnvelopeRejectsUnknownSchemasReservedLegacyFieldAndIncompleteSchema3',
+    'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testOnlyUnfinishedSchema2CanFinalizeIntoSchema3',
+    'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testSchema3SupersessionRetainsWholeReferenceAndRejectsDowngrade',
+    'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testLegacyMutationAndGenericCommandRejectSchema3EvenWithRecomputedMutationHash',
+    'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testLegacyAndSchema3ForkRepeatForkPreserveSourceAndFileIdentity',
+    'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testLegacyUnknownKindRemainsReadableButNotWritable',
+)
+PUNCH_CONTEXT_SELECTORS = (
+    'FieldEvidenceAppTests/V9_97PunchReviewWorkflowTests/testV23P04C34G01StandalonePreparationDecisionCorrectionRecheckCloseoutAndReport',
+    'FieldEvidenceAppTests/V9_97PunchReviewWorkflowTests/testV23P04C34H01StaleWrongAssetConflictingRecheckAndUnresolvedCountFailWithoutEffect',
+    'FieldEvidenceAppTests/V9_97PunchReviewWorkflowTests/testV23P04C34I01EffectBeforeReceiptInterruptionRecoversExactlyOnce',
+    'FieldEvidenceAppTests/V9_97PunchReviewWorkflowTests/testV23P04C34R01ReopenRetryImmutableHistoryAndDeterministicReportReconstruction',
+)
+ACTIVITY_CODEC_PUNCH_SELECTORS = ACTIVITY_CODEC_SELECTORS + PUNCH_CONTEXT_SELECTORS + ACTIVITY_CONTRACT_SELECTORS
 NO_INDEX_ROUTES = {
+    ACTIVITY_CODEC_PUNCH_SELECTION_ID: (REPLACEMENT_UNION_PARENT, "D30"),
     ACTIVITY_BUILD30_SELECTION_ID: (REPLACEMENT_UNION_PARENT, "D30"),
     REPLACEMENT_UNION_SELECTION_ID: (REPLACEMENT_UNION_PARENT, "D30"),
     **{key: (REPLACEMENT_UNION_PARENT, "D30") for key, _ in REPLACEMENT_DIAGNOSTIC_PARTITIONS},
@@ -153,7 +175,7 @@ NO_INDEX_ROUTES = {
 
 def no_index_source_trees(selection_id):
     require(selection_id in NO_INDEX_ROUTES, "no-index closed source binding")
-    if selection_id in (ACTIVITY_BUILD30_SELECTION_ID, REPLACEMENT_UNION_SELECTION_ID, *(key for key, _ in REPLACEMENT_DIAGNOSTIC_PARTITIONS)):
+    if selection_id in (ACTIVITY_CODEC_PUNCH_SELECTION_ID, ACTIVITY_BUILD30_SELECTION_ID, REPLACEMENT_UNION_SELECTION_ID, *(key for key, _ in REPLACEMENT_DIAGNOSTIC_PARTITIONS)):
         return REPLACEMENT_UNION_TREES
     if selection_id in (ERASE_DRAIN_SELECTION_ID, ERASE_REMAINDER_SELECTION_ID):
         return ERASE_PARTITION_TREES
@@ -219,9 +241,9 @@ ERASE_DIAGNOSTIC_PARTITIONS = (
     (ERASE_DRAIN_SELECTION_ID, ERASE_RECOVERY_SELECTORS[:1]),
     (ERASE_REMAINDER_SELECTION_ID, ERASE_RECOVERY_SELECTORS[1:]),
 )
-GENERATED_SELECTION_PROFILE = 'replacement-history-coverage-v1'
-GENERATED_SELECTION_POOL_SHA256 = 'CAC57003CD7FFFA77BB4213C7132C62F2B74F16BBF12F4F6017D65372E293C06'
-GENERATED_SELECTION_MAP_SHA256 = 'ED7B55ACCE7622188EFC8DCE634F8ADC621EA384BD791E2397D3A568E74340D7'
+GENERATED_SELECTION_PROFILE = 'activity-codec-evolution-v1'
+GENERATED_SELECTION_POOL_SHA256 = '148CA7FF50E4100B0AD0272CB40A64DA34D38842499A317EE4EB2128A408E857'
+GENERATED_SELECTION_MAP_SHA256 = 'EC7CF71ED309E4CCC55C439DAAB2E9B22F5D4A1A2F4AB3137A20071E3C766040'
 CONFIGURATION_CLONE_SELECTION_ID = "c36-photo-configuration-clone"
 CONFIGURATION_CLONE_SELECTORS = (
     'FieldEvidenceAppTests/S6_2BackupExportTests/testConfigurationCloneAcceptsEveryAuthenticPhotoPhaseAndOmitsOperationalFamily',
@@ -976,7 +998,7 @@ def validate_selection(selection):
     if selection["tier"] == "D30":
         require(tuple(selection["unitTestSelectors"]) in (
             PARENT_FINALIZATION_METHOD_PARTITIONS[0][1], RESTORE_BUILD_WATCHDOG_SELECTORS,
-            REMINDER_BUILD_WATCHDOG_SELECTORS, RESTORE_HISTORY_SELECTORS, REPLACEMENT_UNION_SELECTORS, ERASE_RECOVERY_SELECTORS, ACTIVITY_CONTRACT_SELECTORS,
+            REMINDER_BUILD_WATCHDOG_SELECTORS, RESTORE_HISTORY_SELECTORS, REPLACEMENT_UNION_SELECTORS, ERASE_RECOVERY_SELECTORS, ACTIVITY_CONTRACT_SELECTORS, ACTIVITY_CODEC_PUNCH_SELECTORS,
             *(members for _, members in ERASE_DIAGNOSTIC_PARTITIONS),
             *(members for _, members in REPLACEMENT_DIAGNOSTIC_PARTITIONS)),
             "build watchdog exact approved methods")
@@ -1028,7 +1050,7 @@ def resolve_selection(default, selection_map, selection_id):
                  and g.get("classes") == ['S3_6CameraRecoveryTests', 'S4_5CorrectionTests', 'S6_2BackupExportTests', 'V9_18PackLifecycleIntegrationTests']]) == 1
     )
     generated_profile_shape = (
-        isinstance(groups, list) and len(groups) == 56
+        isinstance(groups, list) and len(groups) == 57
         and sha256(canonical(default)) == GENERATED_SELECTION_POOL_SHA256
         and sha256(canonical(selection_map)) == GENERATED_SELECTION_MAP_SHA256
     )
@@ -1235,7 +1257,7 @@ def resolve_selection(default, selection_map, selection_id):
         resolved[RESTORE_HISTORY_SELECTION_ID] = diagnostic
         # This closed diagnostic adds no method or profile. Older manifests retain
         # their original available routes and cannot claim the current family.
-        if len(default["unitTestSelectors"]) == 895 and len(selection_map["groups"]) == 56:
+        if generated_profile_shape:
             require(tuple(resolved["replacement-packet-union"]["unitTestSelectors"])
                     == REPLACEMENT_UNION_SELECTORS
                     and len(set(REPLACEMENT_UNION_SELECTORS)) == 12,
@@ -1257,6 +1279,16 @@ def resolve_selection(default, selection_map, selection_id):
             activity = dict(replacement, unitTestSelectors=list(ACTIVITY_CONTRACT_SELECTORS))
             validate_selection(activity)
             resolved[ACTIVITY_BUILD30_SELECTION_ID] = activity
+            require(tuple(resolved["activity-codec-evolution"]["unitTestSelectors"]) == ACTIVITY_CODEC_SELECTORS
+                    and tuple(item for item in default["unitTestSelectors"] if item in PUNCH_CONTEXT_SELECTORS)
+                    == PUNCH_CONTEXT_SELECTORS
+                    and len(ACTIVITY_CODEC_PUNCH_SELECTORS) == len(set(ACTIVITY_CODEC_PUNCH_SELECTORS)) == 16
+                    and set(ACTIVITY_CODEC_PUNCH_SELECTORS) <= defaults,
+                    "activity codec Punch exact ordered enrolled union")
+            require(ACTIVITY_CODEC_PUNCH_SELECTION_ID not in resolved, "activity codec Punch distinct selection")
+            combined = dict(activity, unitTestSelectors=list(ACTIVITY_CODEC_PUNCH_SELECTORS))
+            validate_selection(combined)
+            resolved[ACTIVITY_CODEC_PUNCH_SELECTION_ID] = combined
     if "erase-lease-lifecycle" in resolved:
         require(tuple(resolved["erase-lease-lifecycle"]["unitTestSelectors"]) == ERASE_LEASE_SELECTORS,
                 "erase exact enrolled lifecycle methods")
@@ -1395,6 +1427,7 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
     require(all(re.fullmatch(r"[1-9][0-9]*", e.get(key, ""))
                 for key in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT")), "original run identity")
     watchdog_routes = {
+        ACTIVITY_CODEC_PUNCH_SELECTION_ID: (REPLACEMENT_UNION_PARENT, ACTIVITY_CODEC_PUNCH_SELECTORS),
         ACTIVITY_BUILD30_SELECTION_ID: (REPLACEMENT_UNION_PARENT, ACTIVITY_CONTRACT_SELECTORS),
         REPLACEMENT_UNION_SELECTION_ID: (REPLACEMENT_UNION_PARENT, REPLACEMENT_UNION_SELECTORS),
         **{key: (REPLACEMENT_UNION_PARENT, members)

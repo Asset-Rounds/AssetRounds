@@ -124,12 +124,20 @@ struct PunchReviewWorkflowContextV1: Equatable, Sendable {
                 throw PunchReviewWorkflowFailureV1.staleOrWrongAsset
             }
             let corrective=link.supportingRecords.first{$0.kind == .correctiveAction}
+            var correctiveEvent: CorrectiveActionEventV1?
             if let corrective {
-                guard let event=actionHeads[corrective.recordID],event.revision==corrective.revision,
-                      event.eventSHA256==corrective.recordSHA256 else {
+                let matchingHeads = actionHeads.values.filter { $0.eventID == corrective.recordID }
+                guard matchingHeads.count == 1, let event = matchingHeads.first,
+                      event.revision == corrective.revision,
+                      event.eventSHA256 == corrective.recordSHA256,
+                      event.source.kind == .finding,
+                      UUID(uuidString: event.source.itemID) == link.findingID,
+                      event.source.itemRevision == UInt64(link.findingRevision),
+                      event.source.itemSHA256 == link.findingSHA256 else {
                     throw PunchReviewWorkflowFailureV1.staleOrWrongAsset
                 }
-                linkedActionIDs.insert(corrective.recordID)
+                correctiveEvent = event
+                linkedActionIDs.insert(event.actionID)
             }
             let recheck=link.supportingRecords.first{$0.kind == .operationalRecheck}
             if let recheck {
@@ -138,9 +146,9 @@ struct PunchReviewWorkflowContextV1: Equatable, Sendable {
                       UInt64(head.resultingRecheckRevision)==recheck.revision,
                       (try WorkspaceMutationCanonicalV1.sha256(head))==recheck.recordSHA256,
                       head.findingRevision==link.findingRevision,
-                      let corrective,UUID(uuidString:head.correctiveWorkID)==corrective.recordID,
+                      let correctiveEvent,UUID(uuidString:head.correctiveWorkID)==correctiveEvent.actionID,
                       head.correctiveWorkRevision>0,
-                      UInt64(head.correctiveWorkRevision)==corrective.revision else {
+                      UInt64(head.correctiveWorkRevision)==correctiveEvent.revision else {
                     throw PunchReviewWorkflowFailureV1.conflictingRecheck
                 }
                 linkedRecheckFindingIDs.insert(link.findingID)

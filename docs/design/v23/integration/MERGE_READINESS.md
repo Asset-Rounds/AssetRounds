@@ -1,12 +1,12 @@
 # Expansion into the existing AssetRounds app
 
-Current native execution and audited outcomes: [ACTIVE_BRIEF](ACTIVE_BRIEF.md#native-evidence-and-next-questions). Reuse its head/run/evidence references; this navigation record grants no acceptance and does not replace the controlling requirements or the coverage ledger.
+Current native execution and audited outcomes: [ACTIVE_BRIEF](ACTIVE_BRIEF.md#current-native-question-and-retained-evidence). Reuse its head/run/evidence references; this navigation record grants no acceptance and does not replace the controlling requirements or the coverage ledger.
 
-Follow [ACTIVE_BRIEF](ACTIVE_BRIEF.md#native-evidence-and-next-questions) for the current dependency-ready batch and exact native question. Retain all recorded startup, Erase publication, restore history and golden file-policy diagnostic obligations, their closed method membership and hosted acceptance gates.
+Follow [ACTIVE_BRIEF](ACTIVE_BRIEF.md#current-native-question-and-retained-evidence) for the current dependency-ready batch and exact native question. Retain all recorded startup, Erase publication, restore history and golden file-policy diagnostic obligations, their closed method membership and hosted acceptance gates.
 
 Source/index/route reviews do not establish hosted functional acceptance. Complete coverage, provider, visual, human and final-main gates remain open.
 
-Current navigation checkpoint, 2026-09-20. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls scope and acceptance; [VERIFICATION_DUE](VERIFICATION_DUE.md) retains detailed obligations. Historical S10 is the accepted base, not a new workstream.
+Current navigation checkpoint, 2026-09-22. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls scope and acceptance; [VERIFICATION_DUE](VERIFICATION_DUE.md) retains detailed obligations. Historical S10 is the accepted base, not a new workstream.
 
 ## Destination and present state
 
@@ -20,7 +20,7 @@ Current navigation checkpoint, 2026-09-20. [CURRENT_INTEGRATION](CURRENT_INTEGRA
 
 | Workstream | What remains | Completion evidence |
 | --- | --- | --- |
-| Current native blocker | Follow ACTIVE_BRIEF for the active failure family, exact head/original, correction and next evidence. Preserve earlier diagnoses instead of copying stale outcomes into this checklist. | Sole collection and root audit of each original; required source/index/commit gates before a causal successor. |
+| Current native question | Follow ACTIVE_BRIEF for the active failure family, exact head/original, correction and next evidence. Preserve earlier diagnoses instead of copying stale outcomes into this checklist. | Sole collection and root audit of each original; required source/index/commit gates before a causal successor. |
 | Production adoption | Finish C36 destination/restore correspondence, Release-authorized staging review writes, cross-workspace photo-child remapping and authenticated retained review/photo closure; child/finalizer recovery; Work/Round field, scene, focus and resume flows; lifecycle/codec/backup registration. Resolution and confirmed discard already have production-service/AppAccess implementation, but complete user journeys remain due. | Real entry through the existing writer/service to durable effect and visible result, including populated stores, cold recovery and denied/no-effect cases. |
 | Replacement and fork history | Reconcile the remaining C55 replacement and C57 fork/mixed-history work and its owned drafts. | Original-history preservation plus paired functional, backup and restore results. |
 | Complete functional coverage | Reconcile frozen requirements and later regressions using VERIFICATION_DUE. The committed selector pool is not the final coverage ceiling; enrollment, execution, artifact integrity and acceptance are separate. | Complete retained functional/compatibility evidence on the final candidate; no credit for unselected tests or older heads. |
@@ -30,8 +30,8 @@ Current navigation checkpoint, 2026-09-20. [CURRENT_INTEGRATION](CURRENT_INTEGRA
 
 ## Execution order
 
-1. Follow ACTIVE_BRIEF for the current runtime failures and dependency-ready repair batch. Reuse the retained startup/Erase/restore diagnosis; qualify the closed development route before one new diagnostic original.
-2. Continue the parent-finalization performance diagnosis from its retained phase timings; batch only source-proven fixes and keep one collector per original.
+1. C47 H01 now passes on beaa8f4. Complete the dependent codec and source-proven Punch correction, enroll their exact coverage and qualify the resulting closed route before native execution. Reuse all retained earlier diagnoses.
+2. Continue production integration from the frozen capture/lifecycle contracts; use retained phase timings when an evidenced performance question blocks that work. Keep one collector per original.
 3. Complete the remaining production journeys and enroll their missing regressions. Parallelize only disjoint, dependency-ready work on existing qualified capacity.
 4. Freeze one complete candidate; collect final coverage and affected-state reviews, then advance and verify main.
 

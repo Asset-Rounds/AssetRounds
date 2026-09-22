@@ -12,6 +12,14 @@ final class V9_97PunchReviewWorkflowTests: XCTestCase {
         XCTAssertEqual(p.planDisposition, .manualFallback); XCTAssertFalse(p.reportReady)
         try await h.accept(.start(try h.lifecycle(to: .inProgress, slot: 501)))
         let facts = try h.resolvedFacts(slot: 510)
+        let correctiveEvent = try XCTUnwrap(facts.actions.first)
+        let correctiveReference = try XCTUnwrap(facts.decisions.flatMap(\.findingLinks)
+            .flatMap(\.supportingRecords).first { $0.kind == .correctiveAction })
+        XCTAssertNotEqual(correctiveEvent.eventID, correctiveEvent.actionID)
+        XCTAssertEqual(correctiveReference.recordID, correctiveEvent.eventID)
+        XCTAssertEqual(correctiveReference.recordSHA256, correctiveEvent.eventSHA256)
+        XCTAssertEqual(facts.rechecks.first?.correctiveWorkID,
+                       correctiveEvent.actionID.uuidString.lowercased())
         try await h.accept(.recordBasisVariation(facts.mutation), facts: facts)
         p = try h.projection()
         XCTAssertEqual(p.report.unresolvedFindingCount, 0)
@@ -113,6 +121,68 @@ final class V9_97PunchReviewWorkflowTests: XCTestCase {
 
         let resolvedDecision = try XCTUnwrap(h.context.scopeDecisions.first(where: { !$0.findingLinks.isEmpty }))
         let resolvedLink = try XCTUnwrap(resolvedDecision.findingLinks.first)
+        let event = try XCTUnwrap(h.context.correctiveActionEvents.first)
+        XCTAssertNotEqual(event.eventID, event.actionID)
+        let effectsBeforeSupportChecks = h.memory.effectCounts
+        func decisionsWithCorrectiveSupport(
+            _ reference: ActivitySupportingRecordReferenceV2
+        ) throws -> [PunchItemProjectionV1] {
+            let link = try PunchFindingLinkV1(
+                findingID: resolvedLink.findingID, findingRevision: resolvedLink.findingRevision,
+                findingSHA256: resolvedLink.findingSHA256, sourceContext: resolvedLink.sourceContext,
+                supportingRecords: resolvedLink.supportingRecords.filter { $0.kind != .correctiveAction }
+                    + [reference]
+            )
+            let decision = try PunchItemProjectionV1(
+                scopeItemID: resolvedDecision.scopeItemID, disposition: .reviewedWithItems,
+                findingLinks: [link]
+            )
+            return [decision] + h.context.scopeDecisions.filter { $0.scopeItemID != decision.scopeItemID }
+        }
+        let wrongSupports: [ActivitySupportingRecordReferenceV2] = try [
+            .init(kind: .correctiveAction, recordID: event.actionID,
+                  revision: event.revision, recordSHA256: event.eventSHA256),
+            .init(kind: .correctiveAction, recordID: event.eventID,
+                  revision: event.revision + 1, recordSHA256: event.eventSHA256),
+            .init(kind: .correctiveAction, recordID: event.eventID,
+                  revision: event.revision, recordSHA256: String(repeating: "0", count: 64))
+        ]
+        for support in wrongSupports {
+            XCTAssertThrowsError(try h.contextWith(scopeDecisions: decisionsWithCorrectiveSupport(support))) {
+                XCTAssertEqual($0 as? PunchReviewWorkflowFailureV1, .staleOrWrongAsset)
+            }
+        }
+        let successor = try CorrectiveActionEventV1(
+            eventID: C34Support.id(740), actionID: event.actionID, workspaceID: event.workspaceID,
+            source: event.source, policy: event.policy, priority: event.priority, state: .inProgress,
+            recorder: event.recorder, due: event.due, reason: "Recorded corrective work started.",
+            occurredAt: event.occurredAt, recordedAt: event.recordedAt,
+            predecessorEventID: event.eventID, revision: event.revision + 1,
+            mutationID: C34Support.mutation(741)
+        )
+        XCTAssertThrowsError(try h.contextWith(correctiveActionEvents: [event, successor])) {
+            XCTAssertEqual($0 as? PunchReviewWorkflowFailureV1, .staleOrWrongAsset)
+        }
+        let unrelatedEvent = try CorrectiveActionEventV1(
+            eventID: C34Support.id(742), actionID: event.actionID, workspaceID: event.workspaceID,
+            source: .init(kind: .finding, itemID: C34Support.id(743).uuidString.lowercased(),
+                          itemRevision: event.source.itemRevision, itemSHA256: event.source.itemSHA256),
+            policy: event.policy, priority: event.priority, state: .open,
+            recorder: event.recorder, due: event.due, reason: "A different recorded finding.",
+            occurredAt: event.occurredAt, recordedAt: event.recordedAt,
+            revision: 1, mutationID: C34Support.mutation(744)
+        )
+        let unrelatedReference = try ActivitySupportingRecordReferenceV2(
+            kind: .correctiveAction, recordID: unrelatedEvent.eventID,
+            revision: unrelatedEvent.revision, recordSHA256: unrelatedEvent.eventSHA256
+        )
+        XCTAssertThrowsError(try h.contextWith(
+            scopeDecisions: decisionsWithCorrectiveSupport(unrelatedReference),
+            correctiveActionEvents: [unrelatedEvent]
+        )) {
+            XCTAssertEqual($0 as? PunchReviewWorkflowFailureV1, .staleOrWrongAsset)
+        }
+        XCTAssertEqual(h.memory.effectCounts, effectsBeforeSupportChecks)
         let missingLink = try C34Support.rebound(
             resolvedLink, operationalRecheck: nil
         )
@@ -468,7 +538,7 @@ private final class C34Harness {
                 activityKind: .punchReview, activityRevision: predecessor.revision,
                 activitySHA256: predecessor.envelopeSHA256, taskOrScopeID: release.scope[0].scopeItemID),
             supportingRecords: [
-                try .init(kind: .correctiveAction, recordID: action.actionID,
+                try .init(kind: .correctiveAction, recordID: action.eventID,
                           revision: action.revision, recordSHA256: action.eventSHA256),
                 try .init(kind: .operationalRecheck, recordID: recheckID,
                           revision: UInt64(recheck.resultingRecheckRevision),

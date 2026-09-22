@@ -125,6 +125,8 @@ on:
           - restore-history-no-index-build30m
           - activity-contracts
           - activity-contracts-no-index-build30m
+          - activity-codec-evolution
+          - activity-codec-punch-no-index-build30m
           - c36-destination-legacy-bytes
       s10_4_minimum_core_smoke_id:
         description: Explicit minimum functional smoke; none preserves full legacy behavior

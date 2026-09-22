@@ -1,0 +1,18 @@
+{
+  "profile": "previous",
+  "savedAtUTC": "2026-09-22T12:04:02.165985+00:00",
+  "head": "beaa8f487f0a3cf3267e7465a6195a7d844e8d6c",
+  "files": {
+    "AGENTS.md": {
+      "snapshot": "docs/execution/agent-workflows/20260922-before-performance/AGENTS.saved.md",
+      "sha256": "BAE5F01745F23412E95A503743F9DBCAD4B7FA2FEAADF03AFAA3049816E6CA45",
+      "bytes": 24491
+    },
+    ".codex/config.toml": {
+      "snapshot": "docs/execution/agent-workflows/20260922-before-performance/config.saved.toml",
+      "sha256": "01A53307D6B65A50BF7C64F41D0CB55AEF4E96A961236A82286C0BEBA1D6F2DE",
+      "bytes": 756
+    }
+  },
+  "note": "Exact pre-performance working files, including preexisting local max_threads=5. Immutable snapshots; restore routing without overwriting later unrelated safety changes."
+}

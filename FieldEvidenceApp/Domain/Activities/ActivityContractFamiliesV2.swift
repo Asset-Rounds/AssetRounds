@@ -542,8 +542,73 @@ struct FindingSourceContextV1: Codable, Equatable, Hashable, Sendable {
     }
 }
 
+/// Metadata for one immutable completed-file owner. Validation proves the closed
+/// reference shape only; authentic bytes and existence require file readback.
+struct ActivityCompletedFileReferenceV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    static let fileFormat = "ACTIVITY_COMPLETED_FILE_V1"
+    static let fileVersion = 1
+    let schemaVersion: Int
+    let outputID: UUID
+    let fileFormat: String
+    let fileVersion: Int
+    let relativePath: String
+    let fileSHA256: String
+
+    init(outputID: UUID, fileSHA256: String) throws {
+        schemaVersion = Self.schemaVersion
+        self.outputID = outputID
+        fileFormat = Self.fileFormat
+        fileVersion = Self.fileVersion
+        relativePath = "snapshots/\(outputID.uuidString.lowercased()).json"
+        self.fileSHA256 = fileSHA256
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion, outputID != ActivityContractValidationV2.zeroUUID,
+              fileFormat == Self.fileFormat, fileVersion == Self.fileVersion,
+              relativePath == "snapshots/\(outputID.uuidString.lowercased()).json",
+              ActivityContractValidationV2.digest(fileSHA256) else {
+            throw ActivityContractFailureV2.invalidValue
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion, outputID, fileFormat, fileVersion, relativePath, fileSHA256
+    }
+
+    init(from decoder: Decoder) throws {
+        let all = try decoder.container(keyedBy: ActivityDynamicCodingKeyV2.self)
+        guard Set(all.allKeys.map(\.stringValue)) == Set(CodingKeys.allCases.map(\.rawValue)) else {
+            throw ActivityContractFailureV2.invalidValue
+        }
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try values.decode(Int.self, forKey: .schemaVersion)
+        outputID = try values.decode(UUID.self, forKey: .outputID)
+        fileFormat = try values.decode(String.self, forKey: .fileFormat)
+        fileVersion = try values.decode(Int.self, forKey: .fileVersion)
+        relativePath = try values.decode(String.self, forKey: .relativePath)
+        fileSHA256 = try values.decode(String.self, forKey: .fileSHA256)
+        try validate()
+    }
+
+    func encode(to encoder: Encoder) throws {
+        try validate()
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(schemaVersion, forKey: .schemaVersion)
+        try values.encode(outputID, forKey: .outputID)
+        try values.encode(fileFormat, forKey: .fileFormat)
+        try values.encode(fileVersion, forKey: .fileVersion)
+        try values.encode(relativePath, forKey: .relativePath)
+        try values.encode(fileSHA256, forKey: .fileSHA256)
+    }
+}
+
 struct ActivitySessionEnvelopeV2: Codable, Equatable, Sendable {
+    // Keep legacy construction and the established API name source-compatible.
     static let schemaVersion = 2
+    static let completedFileSchemaVersion = 3
     let schemaVersion: Int
     let activityID: UUID
     let workspaceID: WorkspaceID
@@ -560,6 +625,7 @@ struct ActivitySessionEnvelopeV2: Codable, Equatable, Sendable {
     let installationCloseout: InstallationCloseoutV1?
     let punchReviewCloseout: PunchReviewCloseoutV1?
     let completedSnapshotReference: CompletedActivitySnapshotV2CompatibilityReferenceV1?
+    let completedFileReference: ActivityCompletedFileReferenceV1?
     let startedAt: Date?
     let finalizedAt: Date?
     let revision: UInt64
@@ -578,10 +644,12 @@ struct ActivitySessionEnvelopeV2: Codable, Equatable, Sendable {
          punchReviewCloseout: PunchReviewCloseoutV1? = nil,
          completedSnapshotReference: CompletedActivitySnapshotV2CompatibilityReferenceV1? = nil,
          startedAt: Date? = nil, finalizedAt: Date? = nil, revision: UInt64,
-         mutationID: MutationIDV1, predecessorEnvelopeSHA256: String? = nil) throws {
+         mutationID: MutationIDV1, predecessorEnvelopeSHA256: String? = nil,
+         schemaVersion: Int = ActivitySessionEnvelopeV2.schemaVersion,
+         completedFileReference: ActivityCompletedFileReferenceV1? = nil) throws {
         let ordered = readiness.sorted()
         let orderedVariations = variations.sorted { $0.revision < $1.revision }
-        let basis = Basis(schemaVersion: Self.schemaVersion, activityID: activityID, workspaceID: workspaceID,
+        let basis = Basis(schemaVersion: schemaVersion, activityID: activityID, workspaceID: workspaceID,
                           kind: kind, state: state, reviewState: reviewState, subjectID: subjectID,
                           title: title, readiness: ordered, readinessPolicy: readinessPolicy,
                           variations: orderedVariations,
@@ -591,17 +659,18 @@ struct ActivitySessionEnvelopeV2: Codable, Equatable, Sendable {
                           startedAt: startedAt,
                           finalizedAt: finalizedAt, revision: revision, mutationID: mutationID,
                           predecessorEnvelopeSHA256: predecessorEnvelopeSHA256)
-        schemaVersion = Self.schemaVersion; self.activityID = activityID; self.workspaceID = workspaceID
+        self.schemaVersion = schemaVersion; self.activityID = activityID; self.workspaceID = workspaceID
         self.kind = kind; self.state = state; self.reviewState = reviewState; self.subjectID = subjectID
         self.title = title; self.readiness = ordered; self.readinessPolicy = readinessPolicy
         self.variations = orderedVariations
         self.amendment = amendment;self.currentBasisReference=currentBasisReference
         self.installationCloseout=installationCloseout;self.punchReviewCloseout=punchReviewCloseout
+        self.completedFileReference = completedFileReference
         self.completedSnapshotReference = completedSnapshotReference
         self.startedAt = startedAt
         self.finalizedAt = finalizedAt; self.revision = revision; self.mutationID = mutationID
         self.predecessorEnvelopeSHA256 = predecessorEnvelopeSHA256
-        envelopeSHA256 = try WorkspaceMutationCanonicalV1.sha256(basis)
+        envelopeSHA256 = try Self.digest(basis: basis, completedFileReference: completedFileReference)
         try validateForMutation()
     }
 
@@ -613,7 +682,8 @@ struct ActivitySessionEnvelopeV2: Codable, Equatable, Sendable {
         try currentBasisReference?.validate();try installationCloseout?.validate();try punchReviewCloseout?.validate()
         try validateFamilyPayload()
         try completedSnapshotReference?.validate()
-        guard schemaVersion == Self.schemaVersion, activityID != ActivityContractValidationV2.zeroUUID,
+        try validateCompletedFileReference()
+        guard (schemaVersion == Self.schemaVersion || schemaVersion == Self.completedFileSchemaVersion), activityID != ActivityContractValidationV2.zeroUUID,
               subjectID != ActivityContractValidationV2.zeroUUID, revision > 0,
               ActivityContractValidationV2.text(title), readiness.count <= ActivityContractValidationV2.maximumFacets,
               ActivityContractValidationV2.sortedUnique(readiness.map(\.facetID)),
@@ -631,7 +701,7 @@ struct ActivitySessionEnvelopeV2: Codable, Equatable, Sendable {
               state.permits(startedAt: startedAt), state.permits(finalizedAt: finalizedAt),
               startedAt.map({ start in finalizedAt.map { $0 >= start } ?? true }) ?? true,
               Self.reviewStateIsValid(reviewState, for: state),
-              envelopeSHA256 == (try WorkspaceMutationCanonicalV1.sha256(basis)) else {
+              envelopeSHA256 == (try Self.digest(basis: basis, completedFileReference: completedFileReference)) else {
             throw ActivityContractFailureV2.invalidValue
         }
     }
@@ -640,6 +710,19 @@ struct ActivitySessionEnvelopeV2: Codable, Equatable, Sendable {
 
     func validateSuccessor(of predecessor: Self) throws {
         try predecessor.validateForRead(); try validateForMutation()
+        switch (predecessor.schemaVersion, schemaVersion) {
+        case (2, 2): break
+        case (2, 3):
+            // Enrollment is genuine completion, never a retrofit of historical completion.
+            guard predecessor.finalizedAt == nil, predecessor.completedSnapshotReference == nil,
+                  predecessor.state != .finalized, predecessor.state != .superseded,
+                  state == .finalized else { throw ActivityContractFailureV2.invalidTransition }
+        case (3, 3):
+            guard completedFileReference == predecessor.completedFileReference else {
+                throw ActivityContractFailureV2.invalidTransition
+            }
+        default: throw ActivityContractFailureV2.invalidTransition
+        }
         let (expectedRevision, overflow) = predecessor.revision.addingReportingOverflow(1)
         guard workspaceID == predecessor.workspaceID, activityID == predecessor.activityID,
               predecessorEnvelopeSHA256 == predecessor.envelopeSHA256,
@@ -727,7 +810,8 @@ struct ActivitySessionEnvelopeV2: Codable, Equatable, Sendable {
                         completedSnapshotReference: mappedCompletedSnapshotReference,
                         startedAt: startedAt,
                         finalizedAt: finalizedAt, revision: revision, mutationID: mutationID,
-                        predecessorEnvelopeSHA256: mappedPredecessorEnvelopeSHA256)
+                        predecessorEnvelopeSHA256: mappedPredecessorEnvelopeSHA256,
+                        schemaVersion: schemaVersion, completedFileReference: completedFileReference)
     }
 
     /// Source-compatible root rebind. It is intentionally limited to the
@@ -825,6 +909,128 @@ struct ActivitySessionEnvelopeV2: Codable, Equatable, Sendable {
         }
     }
 
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case schemaVersion
+        case activityID
+        case workspaceID
+        case kind
+        case state
+        case reviewState
+        case subjectID
+        case title
+        case readiness
+        case readinessPolicy
+        case variations
+        case amendment
+        case currentBasisReference
+        case installationCloseout
+        case punchReviewCloseout
+        case completedSnapshotReference
+        case completedFileReference
+        case startedAt
+        case finalizedAt
+        case revision
+        case mutationID
+        case predecessorEnvelopeSHA256
+        case envelopeSHA256
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let version = try values.decode(Int.self, forKey: .schemaVersion)
+        guard version == Self.schemaVersion || version == Self.completedFileSchemaVersion else {
+            throw ActivityContractFailureV2.invalidValue
+        }
+        if version == Self.schemaVersion {
+            // Explicit null is also a reserved schema-3 field, not legacy data.
+            guard !values.contains(.completedFileReference) else { throw ActivityContractFailureV2.invalidValue }
+        } else {
+            let keys = try decoder.container(keyedBy: ActivityDynamicCodingKeyV2.self)
+            guard Set(keys.allKeys.map(\.stringValue)).isSubset(of: Set(CodingKeys.allCases.map(\.rawValue))) else {
+                throw ActivityContractFailureV2.invalidValue
+            }
+        }
+        schemaVersion = version
+        activityID = try values.decode(UUID.self, forKey: .activityID)
+        workspaceID = try values.decode(WorkspaceID.self, forKey: .workspaceID)
+        kind = try values.decode(ActivityKindV2.self, forKey: .kind)
+        state = try values.decode(ActivityStateV2.self, forKey: .state)
+        reviewState = try values.decode(ActivityReviewStateV2.self, forKey: .reviewState)
+        subjectID = try values.decode(UUID.self, forKey: .subjectID)
+        title = try values.decode(String.self, forKey: .title)
+        readiness = try values.decode([ActivityReadinessFacetV1].self, forKey: .readiness)
+        readinessPolicy = try values.decodeIfPresent(ActivityReadinessPolicyBindingV2.self, forKey: .readinessPolicy)
+        variations = try values.decode([ActivityVariationV1].self, forKey: .variations)
+        amendment = try values.decodeIfPresent(ActivityAmendmentLinkV1.self, forKey: .amendment)
+        currentBasisReference = try values.decodeIfPresent(ActivityBasisHeadReferenceV2.self, forKey: .currentBasisReference)
+        installationCloseout = try values.decodeIfPresent(InstallationCloseoutV1.self, forKey: .installationCloseout)
+        punchReviewCloseout = try values.decodeIfPresent(PunchReviewCloseoutV1.self, forKey: .punchReviewCloseout)
+        completedSnapshotReference = try values.decodeIfPresent(CompletedActivitySnapshotV2CompatibilityReferenceV1.self, forKey: .completedSnapshotReference)
+        completedFileReference = try values.decodeIfPresent(ActivityCompletedFileReferenceV1.self, forKey: .completedFileReference)
+        startedAt = try values.decodeIfPresent(Date.self, forKey: .startedAt)
+        finalizedAt = try values.decodeIfPresent(Date.self, forKey: .finalizedAt)
+        revision = try values.decode(UInt64.self, forKey: .revision)
+        mutationID = try values.decode(MutationIDV1.self, forKey: .mutationID)
+        predecessorEnvelopeSHA256 = try values.decodeIfPresent(String.self, forKey: .predecessorEnvelopeSHA256)
+        envelopeSHA256 = try values.decode(String.self, forKey: .envelopeSHA256)
+        try validateForRead()
+    }
+
+    func encode(to encoder: Encoder) throws {
+        try validateForRead()
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(schemaVersion, forKey: .schemaVersion)
+        try values.encode(activityID, forKey: .activityID)
+        try values.encode(workspaceID, forKey: .workspaceID)
+        try values.encode(kind, forKey: .kind)
+        try values.encode(state, forKey: .state)
+        try values.encode(reviewState, forKey: .reviewState)
+        try values.encode(subjectID, forKey: .subjectID)
+        try values.encode(title, forKey: .title)
+        try values.encode(readiness, forKey: .readiness)
+        try values.encodeIfPresent(readinessPolicy, forKey: .readinessPolicy)
+        try values.encode(variations, forKey: .variations)
+        try values.encodeIfPresent(amendment, forKey: .amendment)
+        try values.encodeIfPresent(currentBasisReference, forKey: .currentBasisReference)
+        try values.encodeIfPresent(installationCloseout, forKey: .installationCloseout)
+        try values.encodeIfPresent(punchReviewCloseout, forKey: .punchReviewCloseout)
+        try values.encodeIfPresent(completedSnapshotReference, forKey: .completedSnapshotReference)
+        if schemaVersion == Self.completedFileSchemaVersion {
+            try values.encodeIfPresent(completedFileReference, forKey: .completedFileReference)
+        }
+        try values.encodeIfPresent(startedAt, forKey: .startedAt)
+        try values.encodeIfPresent(finalizedAt, forKey: .finalizedAt)
+        try values.encode(revision, forKey: .revision)
+        try values.encode(mutationID, forKey: .mutationID)
+        try values.encodeIfPresent(predecessorEnvelopeSHA256, forKey: .predecessorEnvelopeSHA256)
+        try values.encode(envelopeSHA256, forKey: .envelopeSHA256)
+    }
+
+    private func validateCompletedFileReference() throws {
+        if schemaVersion == Self.schemaVersion {
+            guard completedFileReference == nil else { throw ActivityContractFailureV2.invalidValue }
+            return
+        }
+        // Schema 3 drafts are not enrolled by this codec evolution.
+        guard schemaVersion == Self.completedFileSchemaVersion,
+              state == .finalized || state == .superseded,
+              finalizedAt != nil, completedSnapshotReference != nil,
+              let completedFileReference else { throw ActivityContractFailureV2.invalidValue }
+        try completedFileReference.validate()
+    }
+
+    private static func digest(basis: Basis, completedFileReference: ActivityCompletedFileReferenceV1?) throws -> String {
+        switch basis.schemaVersion {
+        case 2:
+            guard completedFileReference == nil else { throw ActivityContractFailureV2.invalidValue }
+            return try WorkspaceMutationCanonicalV1.sha256(basis)
+        case 3:
+            guard let completedFileReference else { throw ActivityContractFailureV2.invalidValue }
+            return try WorkspaceMutationCanonicalV1.sha256(BasisV3(basis, completedFileReference: completedFileReference))
+        default: throw ActivityContractFailureV2.invalidValue
+        }
+    }
+
     private var basis: Basis {
         .init(schemaVersion: schemaVersion, activityID: activityID, workspaceID: workspaceID, kind: kind,
               state: state, reviewState: reviewState, subjectID: subjectID, title: title, readiness: readiness,
@@ -846,6 +1052,56 @@ struct ActivitySessionEnvelopeV2: Codable, Equatable, Sendable {
         let completedSnapshotReference: CompletedActivitySnapshotV2CompatibilityReferenceV1?
         let startedAt: Date?; let finalizedAt: Date?; let revision: UInt64; let mutationID: MutationIDV1
         let predecessorEnvelopeSHA256: String?
+    }
+
+    private struct BasisV3: Encodable {
+        let schemaVersion: Int
+        let activityID: UUID
+        let workspaceID: WorkspaceID
+        let kind: ActivityKindV2
+        let state: ActivityStateV2
+        let reviewState: ActivityReviewStateV2
+        let subjectID: UUID
+        let title: String
+        let readiness: [ActivityReadinessFacetV1]
+        let readinessPolicy: ActivityReadinessPolicyBindingV2?
+        let variations: [ActivityVariationV1]
+        let amendment: ActivityAmendmentLinkV1?
+        let currentBasisReference: ActivityBasisHeadReferenceV2?
+        let installationCloseout: InstallationCloseoutV1?
+        let punchReviewCloseout: PunchReviewCloseoutV1?
+        let completedSnapshotReference: CompletedActivitySnapshotV2CompatibilityReferenceV1?
+        let completedFileReference: ActivityCompletedFileReferenceV1
+        let startedAt: Date?
+        let finalizedAt: Date?
+        let revision: UInt64
+        let mutationID: MutationIDV1
+        let predecessorEnvelopeSHA256: String?
+
+        init(_ basis: Basis, completedFileReference: ActivityCompletedFileReferenceV1) {
+            self.schemaVersion = basis.schemaVersion
+            self.activityID = basis.activityID
+            self.workspaceID = basis.workspaceID
+            self.kind = basis.kind
+            self.state = basis.state
+            self.reviewState = basis.reviewState
+            self.subjectID = basis.subjectID
+            self.title = basis.title
+            self.readiness = basis.readiness
+            self.readinessPolicy = basis.readinessPolicy
+            self.variations = basis.variations
+            self.amendment = basis.amendment
+            self.currentBasisReference = basis.currentBasisReference
+            self.installationCloseout = basis.installationCloseout
+            self.punchReviewCloseout = basis.punchReviewCloseout
+            self.completedSnapshotReference = basis.completedSnapshotReference
+            self.completedFileReference = completedFileReference
+            self.startedAt = basis.startedAt
+            self.finalizedAt = basis.finalizedAt
+            self.revision = basis.revision
+            self.mutationID = basis.mutationID
+            self.predecessorEnvelopeSHA256 = basis.predecessorEnvelopeSHA256
+        }
     }
 }
 
@@ -2331,7 +2587,10 @@ struct ActivityContractMutationV2: Codable, Equatable, Sendable {
         try installationTaskResults.forEach { try $0.validate() }
         try installationAsBuiltSnapshot?.validate(); try punchReviewBasisSnapshot?.validate()
         let activityID = successorEnvelope.activityID
-        guard schemaVersion == Self.schemaVersion, expectedRevision.workspaceID == workspaceID,
+        guard schemaVersion == Self.schemaVersion,
+              successorEnvelope.schemaVersion == ActivitySessionEnvelopeV2.schemaVersion,
+              predecessorEnvelope.map({ $0.schemaVersion == ActivitySessionEnvelopeV2.schemaVersion }) ?? true,
+              expectedRevision.workspaceID == workspaceID,
               successorEnvelope.workspaceID == workspaceID, successorEnvelope.mutationID == mutationID,
               predecessorEnvelope.map { $0.workspaceID == workspaceID && $0.activityID == activityID } ?? true,
               transition.map { $0.workspaceID == workspaceID && $0.activityID == activityID

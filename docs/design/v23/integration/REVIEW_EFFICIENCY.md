@@ -1,12 +1,12 @@
 # Review efficiency — current record
 
-Root stays hands-on on Astra xhigh. One Astra high reviewer owns each consequential affected contract until the owner changes it back through related source/index/commit gates; low handles narrow mechanical checks. Deterministic checks precede semantic review. AGENTS.md controls routing and gates; this file records outcomes, not additional policy.
+Root stays hands-on on Astra xhigh. One Astra Extra High (xhigh) reviewer owns each consequential affected contract through related source/index/commit gates until the owner changes the default; low handles narrow mechanical checks. Deterministic checks precede semantic review. AGENTS.md controls routing and gates; this file records outcomes, not additional policy.
 
 ## Current batch
 
-42ffe85 reason/capture batch: root Astra xhigh; one Astra high reviewer retained through one combined semantic/actual-index review and short exactcommit endorsement;187 source/protocol checks PASS. Original35718912828/1E80EA7F compiled0errors/0newwarnings/transportPASS, then H01 failed3.538s invalidValue in restore/rejection. It passed the prior missing-reason phase and reached both audience checks/24capture frames; no full-H01 or corpus acceptance. Build1096s/job1395s/elapsed1423s; no causal speedup claim. The new source-proven nonhex g fixture predates this batch; no new production or capture-induced defect is established. One original supplied a new diagnostic, with no duplicate.
+beaa8f4 hexadecimal fixture correction: root Astra xhigh; one Astra high reviewer retained through combined semantic/actual-index review and exact-commit endorsement.187 source/protocol checks PASS before review. Original35723712558/6A1CC8B2 compiled and passed exactH01,0newwarning signatures,transportPASS; build1019s/job1295s/method8.546s. No defect discovered after approval within selected coverage; broader integration is unverified. One required causal original,0native originals attributable to a correction defect, no duplicate. The earlier nonhex fixture failure and its source census remain in runtime-42ffe85; no retrospective passing claim for that original.
 
-Root corrects only the invalid literal after census of28 direct and2 indirect literal helper callers. Preserve every assertion/predicate and reuse187 checks/combined high/index/commit gates. Isolated mutation extractor20CLI tests and one fresh high complete-boundary review CD429472 passed during native execution;0 native cycles consumed by parser defects. Three isolated future codec regressions await genuine32-record corpus and enrollment, avoiding a separate test-only build. Detailed records: runtime-42ffe85/{native-outcome.json,h01-hex-correction,mutation-extraction,legacy-corpus-tests}. Post-approval defects for the current correction remain pending; token savings unproven.
+Performance mode started during that native original: exact prior routing saved, up to4 useful disjoint helpers allowed, normally2. One high policy reviewer and a separate high native-admission reviewer passed their complete scoped boundaries. The author corrected one local test expectation that incorrectly treated peer H01 as supported; the dispatcher continued rejecting it.0native cycles consumed by this local test correction. Codec implementation and root Punch correction are isolated and pending combined source/index review. Authentic32-record extraction/corpus materialization reused the passing original; it consumed no separate native run. Retain actual helper purposes, required gates and avoidable rework in runtime-beaa8f4 records. Tokens and net savings remain UNKNOWN; this is not a measured performance claim.
 
 ## Prior development batch
 
@@ -30,7 +30,7 @@ These are the original five trial rows. Count a causal batch once across related
 
 ## Assessment and subsequent evidence
 
-The trial found useful issues before dispatch, including stale authority and missing commit identity. It did not establish fewer errors or token savings: comparable totals and a matched baseline are unavailable, and some runtime attribution remains unresolved. Keep medium review of complete affected contracts and deterministic-first ordering; increasing effort alone is not an outcome.
+The trial found useful issues before dispatch, including stale authority and missing commit identity. It did not establish fewer errors or token savings: comparable totals and a matched baseline are unavailable, and some runtime attribution remains unresolved. Retain complete affected-contract review and deterministic-first ordering at the owner-selected effort; increasing effort alone is not an outcome.
 
 Later confirmed misses must remain visible. These selected cases supplement the original trial; they are not an exhaustive total or evidence that all failed runs were avoidable.
 
