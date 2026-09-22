@@ -1,0 +1,673 @@
+{
+  "type": "object",
+  "required": [
+    "kind",
+    "schemaVersion",
+    "packetID",
+    "revision",
+    "supersedes",
+    "locale",
+    "status",
+    "machineAssisted",
+    "sourceRevision",
+    "sourceTree",
+    "sourcePayloadDigest",
+    "termbaseDigest",
+    "workflowDigest",
+    "entries",
+    "artifacts",
+    "candidateTuple",
+    "receipt",
+    "correctionOf",
+    "supplyChain"
+  ],
+  "properties": {
+    "kind": {
+      "const": "V30TranslationReviewPacketV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "packetID": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "supersedes": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "locale": {
+      "enum": [
+        "en",
+        "es",
+        "zh-Hans",
+        "zh-Hant",
+        "vi",
+        "ko"
+      ]
+    },
+    "status": {
+      "enum": [
+        "DRAFT_NONSHIPPING",
+        "READY_FOR_REVIEW",
+        "REVIEWED"
+      ]
+    },
+    "machineAssisted": {
+      "type": "boolean"
+    },
+    "sourceRevision": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sourceTree": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sourcePayloadDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "termbaseDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "workflowDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "key",
+          "conceptIDs",
+          "comment",
+          "sourceForms",
+          "targetForms",
+          "doNotTranslateIDs"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "conceptIDs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "comment": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sourceForms": {
+            "type": "object",
+            "minProperties": 1,
+            "propertyNames": {
+              "pattern": "^(default|(?:device\\.(?:iphone|ipad|mac|applewatch|appletv|applevision)(?:/plural\\.(?:zero|one|two|few|many|other))?|plural\\.(?:zero|one|two|few|many|other)))$"
+            },
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "targetForms": {
+            "type": "object",
+            "minProperties": 1,
+            "propertyNames": {
+              "pattern": "^(default|(?:device\\.(?:iphone|ipad|mac|applewatch|appletv|applevision)(?:/plural\\.(?:zero|one|two|few|many|other))?|plural\\.(?:zero|one|two|few|many|other)))$"
+            },
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "doNotTranslateIDs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            },
+            "minItems": 0,
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "path",
+          "sha256",
+          "kind",
+          "synthetic",
+          "context"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
+          },
+          "sha256": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "kind": {
+            "enum": [
+              "screenshot",
+              "report"
+            ]
+          },
+          "synthetic": {
+            "const": true
+          },
+          "context": {
+            "type": "object",
+            "required": [
+              "workflow",
+              "state",
+              "language",
+              "device",
+              "os",
+              "dynamicType",
+              "appearance",
+              "contrast",
+              "keyboard"
+            ],
+            "properties": {
+              "workflow": {
+                "type": "string",
+                "minLength": 1
+              },
+              "state": {
+                "type": "string",
+                "minLength": 1
+              },
+              "language": {
+                "enum": [
+                  "en",
+                  "es",
+                  "zh-Hans",
+                  "zh-Hant",
+                  "vi",
+                  "ko"
+                ]
+              },
+              "device": {
+                "type": "string",
+                "minLength": 1
+              },
+              "os": {
+                "type": "string",
+                "minLength": 1
+              },
+              "dynamicType": {
+                "type": "string",
+                "minLength": 1
+              },
+              "appearance": {
+                "enum": [
+                  "light",
+                  "dark"
+                ]
+              },
+              "contrast": {
+                "enum": [
+                  "normal",
+                  "increased"
+                ]
+              },
+              "keyboard": {
+                "enum": [
+                  "visible",
+                  "hidden",
+                  "notApplicable"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 0,
+      "uniqueItems": true
+    },
+    "candidateTuple": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "candidateHead",
+            "candidateTree",
+            "bundledCatalogDigest",
+            "perLocaleCatalogReleaseDigests",
+            "requiredKeySetDigest",
+            "termbaseDigest",
+            "renderedReviewArtifactDigests"
+          ],
+          "properties": {
+            "candidateHead": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "candidateTree": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "bundledCatalogDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "perLocaleCatalogReleaseDigests": {
+              "type": "object",
+              "required": [
+                "en",
+                "es",
+                "zh-Hans",
+                "zh-Hant",
+                "vi",
+                "ko"
+              ],
+              "properties": {
+                "en": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "es": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "zh-Hans": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "zh-Hant": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "vi": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "ko": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "additionalProperties": false
+            },
+            "requiredKeySetDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "termbaseDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "renderedReviewArtifactDigests": {
+              "type": "object",
+              "minProperties": 1,
+              "propertyNames": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "receipt": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "id",
+            "outcome",
+            "candidateTupleDigest",
+            "artifactDigests",
+            "roleReceipts",
+            "affectedKeys",
+            "notes"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            },
+            "outcome": {
+              "enum": [
+                "ACCEPTED_NO_CORRECTION",
+                "CORRECTION_REQUIRED"
+              ]
+            },
+            "candidateTupleDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "artifactDigests": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "roleReceipts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "role",
+                  "participantID",
+                  "qualification",
+                  "receiptID"
+                ],
+                "properties": {
+                  "role": {
+                    "enum": [
+                      "translator",
+                      "independentReviewer",
+                      "bilingualPractitioner",
+                      "reportRecipient"
+                    ]
+                  },
+                  "participantID": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                  },
+                  "qualification": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "receiptID": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "affectedKeys": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+              },
+              "minItems": 0,
+              "uniqueItems": true
+            },
+            "notes": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "correctionOf": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "packetDigest",
+            "receiptID",
+            "candidateTupleDigest"
+          ],
+          "properties": {
+            "packetDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "receiptID": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            },
+            "candidateTupleDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "supplyChain": {
+      "type": "object",
+      "required": [
+        "syntheticOnly",
+        "customerDataIncluded",
+        "custodianID",
+        "attestation",
+        "licenseUsageTerms",
+        "deliverableDigest",
+        "translatorReference",
+        "reviewerReference"
+      ],
+      "properties": {
+        "syntheticOnly": {
+          "const": true
+        },
+        "customerDataIncluded": {
+          "const": false
+        },
+        "custodianID": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "attestation": {
+          "const": "INSPECTED_TEXT_AND_IMAGES_SYNTHETIC_ONLY"
+        },
+        "licenseUsageTerms": {
+          "type": "string",
+          "minLength": 1
+        },
+        "deliverableDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "translatorReference": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reviewerReference": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:assetrounds:v30:translation-review-packet:1",
+  "title": "V30 translation review packet; structural validation grants no acceptance",
+  "x-sourceManifest": {
+    "type": "object",
+    "required": [
+      "kind",
+      "schemaVersion",
+      "sourceRevision",
+      "sourceTree",
+      "entries"
+    ],
+    "properties": {
+      "kind": {
+        "const": "V30TranslationSourceManifestV1"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "sourceRevision": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[0-9a-f]{40}$"
+      },
+      "sourceTree": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[0-9a-f]{40}$"
+      },
+      "entries": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "key",
+            "conceptIDs",
+            "comment",
+            "sourceForms",
+            "doNotTranslateIDs"
+          ],
+          "properties": {
+            "key": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            },
+            "conceptIDs": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "comment": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sourceForms": {
+              "type": "object",
+              "minProperties": 1,
+              "propertyNames": {
+                "pattern": "^(default|(?:device\\.(?:iphone|ipad|mac|applewatch|appletv|applevision)(?:/plural\\.(?:zero|one|two|few|many|other))?|plural\\.(?:zero|one|two|few|many|other)))$"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "doNotTranslateIDs": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+              },
+              "minItems": 0,
+              "uniqueItems": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "minItems": 1,
+        "uniqueItems": true
+      }
+    },
+    "additionalProperties": false
+  },
+  "x-digestRule": "SHA-256 of UTF-8 canonical JSON: ensure_ascii=false, sorted object keys, compact separators, no trailing newline. Raw artifact/termbase/workflow digests hash exact file bytes. Deliverable digest hashes entries only. Source payload digest hashes source manifest. Tuple digest hashes candidateTuple.",
+  "x-draftBoundary": "Drafts have null tuple and receipt. Machine-assisted packets remain drafts. REVIEWED requires an exact tuple receipt; validator checks bindings, never authenticity or acceptance.",
+  "x-correctionBinding": "Revision 1 requires null supersedes/correctionOf. Each later revision requires an actual supplied predecessor with CORRECTION_REQUIRED; supersedes and correctionOf bind its packet digest, receipt and exact candidate tuple."
+}

@@ -1,0 +1,693 @@
+{
+  "kind": "V30TermbaseV1",
+  "schemaVersion": 1,
+  "revision": 1,
+  "supersedes": null,
+  "cardID": "V30-P04-C01",
+  "sourceLanguage": "en",
+  "targetLocales": [
+    "en",
+    "es",
+    "zh-Hans",
+    "zh-Hant",
+    "vi",
+    "ko"
+  ],
+  "shippingTranslationApproval": false,
+  "conceptIdentityRule": "Concept IDs are immutable and never recycled. Corrections create a new revision, retain prior bytes and record supersedes. A changed concept receives a new ID.",
+  "entries": [
+    {
+      "conceptID": "product.assetrounds",
+      "namespace": "product",
+      "sourceLocale": "en",
+      "preferredTerm": "AssetRounds",
+      "partOfSpeech": "properNoun",
+      "context": "Product name; preserve exact spelling.",
+      "forbiddenAlternatives": [
+        "generic inspect-anything platform"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "sign.sign",
+      "namespace": "sign",
+      "sourceLocale": "en",
+      "preferredTerm": "sign",
+      "partOfSpeech": "noun",
+      "context": "Current vertical: a sign or illuminated sign.",
+      "forbiddenAlternatives": [
+        "all facility assets"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "core.site",
+      "namespace": "core",
+      "sourceLocale": "en",
+      "preferredTerm": "site",
+      "partOfSpeech": "noun",
+      "context": "Named location grouping recorded assets; authored names stay verbatim.",
+      "forbiddenAlternatives": [
+        "verified GPS location"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "core.asset",
+      "namespace": "core",
+      "sourceLocale": "en",
+      "preferredTerm": "asset",
+      "partOfSpeech": "noun",
+      "context": "Identified subject of recorded sign work.",
+      "forbiddenAlternatives": [
+        "certified asset"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "sign.inspection",
+      "namespace": "sign",
+      "sourceLocale": "en",
+      "preferredTerm": "sign inspection",
+      "partOfSpeech": "noun",
+      "context": "Recorded observation of visible sign condition.",
+      "forbiddenAlternatives": [
+        "compliance audit"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "sign.check",
+      "namespace": "sign",
+      "sourceLocale": "en",
+      "preferredTerm": "check",
+      "partOfSpeech": "verb",
+      "context": "Record a visible condition in the current workflow.",
+      "forbiddenAlternatives": [
+        "certify"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "core.round",
+      "namespace": "core",
+      "sourceLocale": "en",
+      "preferredTerm": "round",
+      "partOfSpeech": "noun",
+      "context": "An organized sequence of checks.",
+      "forbiddenAlternatives": [
+        "certification cycle"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "core.issue",
+      "namespace": "core",
+      "sourceLocale": "en",
+      "preferredTerm": "issue",
+      "partOfSpeech": "noun",
+      "context": "Recorded concern or observed condition.",
+      "forbiddenAlternatives": [
+        "diagnosed defect"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "core.work",
+      "namespace": "core",
+      "sourceLocale": "en",
+      "preferredTerm": "recorded work",
+      "partOfSpeech": "noun",
+      "context": "An account of work recorded by a person.",
+      "forbiddenAlternatives": [
+        "repair complete"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "core.record_work",
+      "namespace": "core",
+      "sourceLocale": "en",
+      "preferredTerm": "Record work",
+      "partOfSpeech": "verb",
+      "context": "Action that records work information.",
+      "forbiddenAlternatives": [
+        "prove service"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "core.recheck",
+      "namespace": "core",
+      "sourceLocale": "en",
+      "preferredTerm": "recheck",
+      "partOfSpeech": "noun",
+      "context": "A later check with new observations.",
+      "forbiddenAlternatives": [
+        "repair verification"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "core.recheck_action",
+      "namespace": "core",
+      "sourceLocale": "en",
+      "preferredTerm": "Recheck",
+      "partOfSpeech": "verb",
+      "context": "Start a new check; do not imply earlier work succeeded.",
+      "forbiddenAlternatives": [
+        "certify repair"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "core.evidence",
+      "namespace": "core",
+      "sourceLocale": "en",
+      "preferredTerm": "photo evidence",
+      "partOfSpeech": "noun",
+      "context": "Captured or imported supporting material with its recorded provenance.",
+      "forbiddenAlternatives": [
+        "legal proof"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "core.report",
+      "namespace": "core",
+      "sourceLocale": "en",
+      "preferredTerm": "PDF report",
+      "partOfSpeech": "noun",
+      "context": "Generated presentation of recorded observations.",
+      "forbiddenAlternatives": [
+        "certified report"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "core.history",
+      "namespace": "core",
+      "sourceLocale": "en",
+      "preferredTerm": "history",
+      "partOfSpeech": "noun",
+      "context": "Recorded events; language must not rewrite canonical history.",
+      "forbiddenAlternatives": [
+        "tamper-proof legal record"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "core.backup",
+      "namespace": "core",
+      "sourceLocale": "en",
+      "preferredTerm": "backup",
+      "partOfSpeech": "noun",
+      "context": "Exported local data package.",
+      "forbiddenAlternatives": [
+        "cloud synchronization"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "core.back_up",
+      "namespace": "core",
+      "sourceLocale": "en",
+      "preferredTerm": "Back up",
+      "partOfSpeech": "verb",
+      "context": "Create a backup using the existing operation.",
+      "forbiddenAlternatives": [
+        "upload to cloud"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "core.restore",
+      "namespace": "core",
+      "sourceLocale": "en",
+      "preferredTerm": "restore",
+      "partOfSpeech": "verb",
+      "context": "Restore eligible local data through the existing validation flow.",
+      "forbiddenAlternatives": [
+        "repair all data"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "core.subscription",
+      "namespace": "core",
+      "sourceLocale": "en",
+      "preferredTerm": "subscription",
+      "partOfSpeech": "noun",
+      "context": "Existing Apple-managed access purchase; erasing local data does not cancel it.",
+      "forbiddenAlternatives": [
+        "lifetime access"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "core.status",
+      "namespace": "core",
+      "sourceLocale": "en",
+      "preferredTerm": "status",
+      "partOfSpeech": "noun",
+      "context": "Recorded state, distinct from presentation language.",
+      "forbiddenAlternatives": [
+        "certification status"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "core.severity",
+      "namespace": "core",
+      "sourceLocale": "en",
+      "preferredTerm": "severity",
+      "partOfSpeech": "noun",
+      "context": "Recorded impact category; preserve category meaning and ordering.",
+      "forbiddenAlternatives": [
+        "safety diagnosis"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "core.confidence",
+      "namespace": "core",
+      "sourceLocale": "en",
+      "preferredTerm": "confidence",
+      "partOfSpeech": "noun",
+      "context": "Recorded confidence or uncertainty, never a guarantee.",
+      "forbiddenAlternatives": [
+        "guaranteed accuracy"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "sign.visible_condition",
+      "namespace": "sign",
+      "sourceLocale": "en",
+      "preferredTerm": "visible condition",
+      "partOfSpeech": "noun",
+      "context": "What could be observed from the recorded view.",
+      "forbiddenAlternatives": [
+        "electrical safety verified"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "sign.after_dark",
+      "namespace": "sign",
+      "sourceLocale": "en",
+      "preferredTerm": "after dark",
+      "partOfSpeech": "adverb",
+      "context": "Lighting context for a sign observation.",
+      "forbiddenAlternatives": [
+        "photometric measurement"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "state.pending",
+      "namespace": "state",
+      "sourceLocale": "en",
+      "preferredTerm": "pending",
+      "partOfSpeech": "adjective",
+      "context": "Not completed; preserve pending work and recovery semantics.",
+      "forbiddenAlternatives": [
+        "completed"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "state.saved",
+      "namespace": "state",
+      "sourceLocale": "en",
+      "preferredTerm": "saved on this device",
+      "partOfSpeech": "adjective",
+      "context": "Durable local save only; no recipient or server claim.",
+      "forbiddenAlternatives": [
+        "delivered"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "state.failed",
+      "namespace": "state",
+      "sourceLocale": "en",
+      "preferredTerm": "failed",
+      "partOfSpeech": "adjective",
+      "context": "Operation did not complete; preserve contextual recovery.",
+      "forbiddenAlternatives": [
+        "succeeded"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "state.cancelled",
+      "namespace": "state",
+      "sourceLocale": "en",
+      "preferredTerm": "cancelled",
+      "partOfSpeech": "adjective",
+      "context": "Operation was cancelled, not a successful completion.",
+      "forbiddenAlternatives": [
+        "completed"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "state.conflict",
+      "namespace": "state",
+      "sourceLocale": "en",
+      "preferredTerm": "conflict",
+      "partOfSpeech": "noun",
+      "context": "Incompatible recorded inputs requiring the existing resolution.",
+      "forbiddenAlternatives": [
+        "automatically fixed"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "state.remote_unavailable",
+      "namespace": "state",
+      "sourceLocale": "en",
+      "preferredTerm": "Remote sync is unavailable",
+      "partOfSpeech": "sentence",
+      "context": "Current device-local behavior does not prove any server sync.",
+      "forbiddenAlternatives": [
+        "synchronized"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "action.share",
+      "namespace": "action",
+      "sourceLocale": "en",
+      "preferredTerm": "Share",
+      "partOfSpeech": "verb",
+      "context": "Open the existing share interaction; outcome is not delivery.",
+      "forbiddenAlternatives": [
+        "Delivered"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "action.erase",
+      "namespace": "action",
+      "sourceLocale": "en",
+      "preferredTerm": "Erase all local data",
+      "partOfSpeech": "verb",
+      "context": "Existing destructive action; the exact confirmation token remains ERASE.",
+      "forbiddenAlternatives": [
+        "Cancel subscription"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "action.open_settings",
+      "namespace": "action",
+      "sourceLocale": "en",
+      "preferredTerm": "Open Settings",
+      "partOfSpeech": "verb",
+      "context": "Open existing settings for permission recovery; this grants no permission.",
+      "forbiddenAlternatives": [
+        "Permission enabled"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    },
+    {
+      "conceptID": "core.observation",
+      "namespace": "core",
+      "sourceLocale": "en",
+      "preferredTerm": "observation",
+      "partOfSpeech": "noun",
+      "context": "Person-recorded visible condition and uncertainty.",
+      "forbiddenAlternatives": [
+        "diagnosis"
+      ],
+      "regionalAlternatives": [],
+      "reviewerNotes": "Source semantic seed only. Locale terms require professional and independent in-context review.",
+      "localeTerms": {},
+      "reviewStatus": "SOURCE_SEMANTICS_FROZEN_NOT_LINGUISTIC_ACCEPTANCE"
+    }
+  ],
+  "doNotTranslate": [
+    {
+      "id": "dnt.brand",
+      "value": "AssetRounds",
+      "rule": "exactToken",
+      "scope": "Brand mention only; surrounding copy localizes."
+    },
+    {
+      "id": "dnt.erase",
+      "value": "ERASE",
+      "rule": "exactToken",
+      "scope": "Exact destructive confirmation; instructions localize."
+    },
+    {
+      "id": "dnt.pdf",
+      "value": "PDF",
+      "rule": "exactToken",
+      "scope": "Technical abbreviation where present; expansion or surrounding explanation may localize."
+    },
+    {
+      "id": "dnt.qr",
+      "value": "QR",
+      "rule": "exactToken",
+      "scope": "Technical abbreviation where present; expansion or surrounding explanation may localize."
+    },
+    {
+      "id": "dnt.uuid",
+      "value": "UUID",
+      "rule": "exactToken",
+      "scope": "Technical abbreviation where present; expansion or surrounding explanation may localize."
+    },
+    {
+      "id": "dnt.utc",
+      "value": "UTC",
+      "rule": "exactToken",
+      "scope": "Technical abbreviation where present; expansion or surrounding explanation may localize."
+    },
+    {
+      "id": "dnt.json",
+      "value": "JSON",
+      "rule": "exactToken",
+      "scope": "Technical abbreviation where present; expansion or surrounding explanation may localize."
+    },
+    {
+      "id": "dnt.csv",
+      "value": "CSV",
+      "rule": "exactToken",
+      "scope": "Technical abbreviation where present; expansion or surrounding explanation may localize."
+    }
+  ],
+  "verbatimClasses": [
+    "machine identifiers and enum raw values",
+    "catalog keys and concept IDs",
+    "user-authored notes, names, addresses and evidence",
+    "administrator-authored prompts without an explicitly selected translation",
+    "imported/licensed content without translation rights",
+    "hashes, record IDs, archive members and canonical timestamps"
+  ],
+  "claimBoundaries": {
+    "preferred": [
+      "inspection",
+      "check",
+      "visible condition",
+      "photo evidence",
+      "PDF report",
+      "recorded work",
+      "recheck",
+      "after dark"
+    ],
+    "forbiddenImplications": [
+      "audit",
+      "certification",
+      "compliance",
+      "guarantee",
+      "diagnosis",
+      "automatic pass/fail",
+      "repair complete",
+      "delivered",
+      "accepted",
+      "legal proof",
+      "photometric measurement",
+      "work-order system",
+      "generic inspect-anything capability"
+    ],
+    "rule": "Do not strengthen a source claim in any language. Contextual negative statements may mention a forbidden claim without asserting it; automated word filters are not linguistic acceptance.",
+    "languageDoesNotSelectJurisdiction": true
+  },
+  "localeStyle": {
+    "en": "Clear U.S. field English, distinguish nouns/actions and visible observation from claims.",
+    "es": "U.S./Latin-American field Spanish; record regional alternatives and test comprehension across Hispanic backgrounds.",
+    "zh-Hans": "Simplified Chinese terminology and script; independently review field meaning.",
+    "zh-Hant": "Traditional Chinese terminology and script; independently review field meaning, not automatic script conversion.",
+    "vi": "Preserve Vietnamese diacritics; review natural field instructions and destructive states.",
+    "ko": "Consistent Korean field terminology and action/register choices; review natural controls and reports."
+  },
+  "futureNamespaces": [
+    {
+      "namespace": "future.exterior_parking_lighting",
+      "researchLabel": "Exterior & Parking Lighting",
+      "status": "RESERVED_RESEARCH_ONLY",
+      "productActivation": false,
+      "terms": []
+    },
+    {
+      "namespace": "future.playground_park_safety",
+      "researchLabel": "Playground & Park Safety",
+      "status": "RESERVED_RESEARCH_ONLY",
+      "productActivation": false,
+      "terms": []
+    },
+    {
+      "namespace": "future.warehouse_rack_safety",
+      "researchLabel": "Warehouse Rack Safety",
+      "status": "RESERVED_RESEARCH_ONLY",
+      "productActivation": false,
+      "terms": []
+    },
+    {
+      "namespace": "future.commercial_irrigation",
+      "researchLabel": "Commercial Irrigation",
+      "status": "RESERVED_RESEARCH_ONLY",
+      "productActivation": false,
+      "terms": []
+    },
+    {
+      "namespace": "future.facility_rounds",
+      "researchLabel": "Facility Rounds",
+      "status": "RESERVED_RESEARCH_ONLY",
+      "productActivation": false,
+      "terms": []
+    }
+  ],
+  "sourceBindings": [
+    {
+      "path": "docs/design/v30/EXPANSION_V30_ARCHITECTURE_BLUEPRINT.md",
+      "revision": "0d1761199d58166909da02378f70f369dbade822",
+      "sha256": "28facff3aca8bc4582031e3f0d609b9ab4eb26cd91d6c4b35144596a346b154e"
+    },
+    {
+      "path": "docs/design/v30/research/V30KeywordEvidenceBindingV1.json",
+      "revision": "0d1761199d58166909da02378f70f369dbade822",
+      "sha256": "59349de5f636cc4f86b1de14719fd1bf624cd86753bcfa069faf0565e8123e5f"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Globalization/LocalizedSyncStateContractsV1.swift",
+      "revision": "0d1761199d58166909da02378f70f369dbade822",
+      "sha256": "6d6459bc5651ba10a437da98a23f3801ee10b060f798d3cab336f8acfd4c7b86"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Globalization/CriticalSurfaceLocalizationRegistryV1.swift",
+      "revision": "0d1761199d58166909da02378f70f369dbade822",
+      "sha256": "e487841a0789d8e521d82da07918f02aafe22d2bc8c1b80ebb184c2278f703f7"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+      "revision": "0d1761199d58166909da02378f70f369dbade822",
+      "sha256": "ca21a909ebf83fc8fe3b37488a3c4579c74aee6166028294e59491b559100eeb"
+    }
+  ],
+  "limitations": [
+    "No professional, independent, native or bilingual review receipt is fabricated.",
+    "No locale terms, localized catalog release or future vertical is activated by this foundation."
+  ]
+}
