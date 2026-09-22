@@ -1,6 +1,6 @@
 # V30 Current Task
 
-Card 31 of 55 - Termbase, do-not-translate list, and secure review workflow
+Card 32 of 55 - U.S. Spanish
 
 Only the exact pre-issued fence below is writable. Embedded context is the active hydration. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation. Shared paths are authorized only by the exact listed V30 overlap tuples; preserve Phase10 styling and behavior.
 
@@ -8,7 +8,7 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
 {
   "acceptance": {
     "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
-    "required": "Freeze concept IDs, field terminology, claim boundaries, screenshots, placeholders, translation-vendor minimization, roles, import/export, correction/supersession, and future vertical namespaces.",
+    "required": "Complete the provisional es app/report/help/accessibility/permission/error/recovery/destructive/notification catalogs and metadata draft using U.S./Latin-American field terminology; validate es-US, es-MX, and es-419 behavior. No App Store mutation.",
     "staticEvidence": "Current-card fenced proof and receipt; exact committed paths/hashes"
   },
   "attempt": 1,
@@ -19,11 +19,11 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
   "base": {
-    "head": "c91f1a1cf9b82c133a6b66be18a856d9dd4cd328",
-    "tree": "0661cdcb8e1c63ae4cd34bdffd2f5b3a630f996f"
+    "head": "78fa91c4e08e1061672b0720bacb830abc31011d",
+    "tree": "17d4d4e3168290030821571659b7297857f98d33"
   },
-  "cardID": "V30-P04-C01",
-  "class": "FOUNDATION",
+  "cardID": "V30-P04-C02",
+  "class": "IMPLEMENTATION",
   "credit": {
     "canonicalAcceptance": false,
     "finalCredit": false,
@@ -33,12 +33,7 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "releaseCredit": false
   },
   "directPrerequisites": [
-    "V30-P02-C06",
-    "V30-P03-C03",
-    "V30-P03-C04",
-    "V30-P03-C05",
-    "V30-P03-C06",
-    "V30-P03-C09"
+    "V30-P04-C01"
   ],
   "executionEpoch": "PRE_S10_PROVISIONAL",
   "fence": {
@@ -79,61 +74,64 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "docs/design/v30/translation/V30TermbaseV1.json",
-        "purpose": "Concept IDs, U.S. field terminology, and do-not-translate list.",
+        "path": "FieldEvidenceApp/Resources/Globalization/es.app.json",
+        "purpose": "Locale-exclusive es app-owned catalog.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "docs/design/v30/translation/V30SecureLinguisticReviewWorkflowV1.json",
-        "purpose": "Minimal-access reviewer workflow, roles, corrections, and supersession.",
+        "path": "FieldEvidenceApp/Resources/Globalization/es.report.json",
+        "purpose": "Locale-exclusive es report chrome catalog.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "docs/design/v30/translation/V30TranslationReviewPacketSchemaV1.json",
-        "purpose": "Versioned review packet schema.",
+        "path": "FieldEvidenceApp/Resources/Globalization/es.accessibility.json",
+        "purpose": "Locale-exclusive es accessibility/permission/error catalog.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "Scripts/v30/validate_v30_translation_review_packet.py",
-        "purpose": "Termbase and review-packet validator.",
+        "path": "FieldEvidenceAppTests/Fixtures/V30/Locales/es.json",
+        "purpose": "Locale-exclusive es fixture corpus.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/V30_P04_C01TranslationWorkflowTests.swift",
-        "purpose": "Termbase/review workflow contract tests.",
+        "path": "FieldEvidenceAppTests/V30_P04_C02SpanishLocalizationTests.swift",
+        "purpose": "es locale implementation tests.",
+        "serializedSharedPath": false
+      },
+      {
+        "classification": "EXPECTED_ABSENT_NEW_PATH",
+        "expectedBBlobOID": null,
+        "expectedBSHA256": null,
+        "path": "docs/design/v30/locales/es/V30P04C02ReviewPacketV1.json",
+        "purpose": "es provisional review packet.",
         "serializedSharedPath": false
       }
     ],
-    "cardID": "V30-P04-C01",
-    "class": "FOUNDATION",
+    "cardID": "V30-P04-C02",
+    "class": "IMPLEMENTATION",
     "directPrerequisites": [
-      "V30-P02-C06",
-      "V30-P03-C03",
-      "V30-P03-C04",
-      "V30-P03-C05",
-      "V30-P03-C06",
-      "V30-P03-C09"
+      "V30-P04-C01"
     ],
-    "ordinal": 31,
+    "ordinal": 32,
     "preAuthorizedOverlapTuples": [],
     "s10SharedPaths": [],
     "status": "PRE_S10_PROVISIONAL_ELIGIBLE",
-    "title": "Termbase, do-not-translate list, and secure review workflow"
+    "title": "U.S. Spanish"
   },
   "fenceSource": {
-    "cardID": "V30-P04-C01",
+    "cardID": "V30-P04-C02",
     "path": "docs/design/v30/authority/V30PreS10PathFencesV1.json",
     "sha256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a"
   },
@@ -144,181 +142,44 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
     "Scripts/ci-selection.json"
   ],
-  "next": "V30-P04-C02",
+  "next": "V30-P04-C03",
   "observedCoordination": {
-    "head": "a5c944ca22e9fa69be2e76464a11aa2c01b58129",
-    "ledgerDigest": "27d0e22d936cc8c26c2cb5ebbb6223aaeed1bdd3849a6c0eed5b5a0956577368",
-    "sequence": 63
+    "head": "ef94bc2ca23eefc495bfde631cd0e3d7d4812025",
+    "ledgerDigest": "5a3d2f656102d8e259d51c6cd09eed3e88835bc5842525a52f8843cb8c3da4bd",
+    "sequence": 65
   },
-  "ordinal": 31,
-  "outcome": "Freeze concept IDs, field terminology, claim boundaries, screenshots, placeholders, translation-vendor minimization, roles, import/export, correction/supersession, and future vertical namespaces.",
-  "payloadDigest": "0e4401ace0e654a01a841c0e6322f9665086b163988f3742e788917a94b1e96a",
+  "ordinal": 32,
+  "outcome": "Complete the provisional es app/report/help/accessibility/permission/error/recovery/destructive/notification catalogs and metadata draft using U.S./Latin-American field terminology; validate es-US, es-MX, and es-419 behavior. No App Store mutation.",
+  "payloadDigest": "9819dbae74f2b91fe963f389503bb807e1644973e01bfa1a1d746fec19386e08",
   "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
   "preS10FinalCredit": false,
   "predecessorEvidence": {
-    "V30-P02-C06": {
+    "V30-P04-C01": {
       "candidate": {
-        "base": "9f9fab6beb17d5149128c87b255facd7a3e720b1",
-        "baseTree": "0a4ae5c9d354277cdc4f84291f5378fb543c532f",
+        "base": "c91f1a1cf9b82c133a6b66be18a856d9dd4cd328",
+        "baseTree": "0661cdcb8e1c63ae4cd34bdffd2f5b3a630f996f",
         "changedPaths": [
-          "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
-          "FieldEvidenceApp/Features/Shell/AppShellView.swift",
-          "FieldEvidenceAppTests/TestSupport/V30PseudoLocalizationHarnessV1.swift",
-          "FieldEvidenceAppTests/V30_P02_C06PseudoLocalizationHarnessTests.swift",
-          "FieldEvidenceAppUITests/Fixtures/V30/PseudoLocalization/pseudo-locale-screenshot-matrix-v1.json",
-          "FieldEvidenceAppUITests/V30_P02_C06PseudoLocalizationUITests.swift",
+          "FieldEvidenceAppTests/V30_P04_C01TranslationWorkflowTests.swift",
+          "Scripts/v30/validate_v30_translation_review_packet.py",
           "docs/design/v30/execution/V30_CI_SELECTION.json",
           "docs/design/v30/execution/V30_CURRENT_TASK.md",
           "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
           "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json",
-          "docs/design/v30/verification/V30P02C06ProvisionalScreenshotHarnessContractV1.json"
+          "docs/design/v30/translation/V30SecureLinguisticReviewWorkflowV1.json",
+          "docs/design/v30/translation/V30TermbaseV1.json",
+          "docs/design/v30/translation/V30TranslationReviewPacketSchemaV1.json"
         ],
-        "head": "ccf39e0e3eaa74bbc5ad4ee64372f10101f38b4a",
-        "tree": "69048994543c2634af1d61287b12b18d4c80054c"
+        "head": "78fa91c4e08e1061672b0720bacb830abc31011d",
+        "tree": "17d4d4e3168290030821571659b7297857f98d33"
       },
-      "sequence": 43
-    },
-    "V30-P03-C03": {
-      "candidate": {
-        "base": "de11273e4944974d644b6f5533f6137be7af9374",
-        "baseTree": "13e88b512a214a551648f8a3576dbf0597bfd790",
-        "changedPaths": [
-          "FieldEvidenceApp/Application/Globalization/LocalizedFormSemanticsCoordinatorV1.swift",
-          "FieldEvidenceApp/Domain/Globalization/LocalizedFormSemanticsContractsV1.swift",
-          "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
-          "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
-          "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
-          "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
-          "FieldEvidenceAppTests/Fixtures/V30/Forms/localized-form-semantics-cases-v1.json",
-          "FieldEvidenceAppTests/V30_P03_C03LocalizedFormSemanticsTests.swift",
-          "FieldEvidenceAppTests/V9_13TypedResponseTests.swift",
-          "FieldEvidenceAppTests/V9_39SurveyDefinitionTests.swift",
-          "FieldEvidenceAppTests/V9_83GuidedSurveyFlowTests.swift",
-          "docs/design/v30/execution/V30_CI_SELECTION.json",
-          "docs/design/v30/execution/V30_CURRENT_TASK.md",
-          "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
-          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
-        ],
-        "head": "45eb5bb4dca6b32f3434d57ccada1059bf8fb0e6",
-        "tree": "2bd1a2364e17c9185812e43439c95870eb21e29e"
-      },
-      "sequence": 51
-    },
-    "V30-P03-C04": {
-      "candidate": {
-        "base": "45eb5bb4dca6b32f3434d57ccada1059bf8fb0e6",
-        "baseTree": "2bd1a2364e17c9185812e43439c95870eb21e29e",
-        "changedPaths": [
-          "FieldEvidenceApp/Application/Reporting/AccessibleDocumentCoordinatorV1.swift",
-          "FieldEvidenceApp/Domain/Reporting/AccessibleDocumentContractsV1.swift",
-          "FieldEvidenceApp/Domain/Reporting/GlobalizedAccessibleDocumentContractsV1.swift",
-          "FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift",
-          "FieldEvidenceApp/Infrastructure/Reporting/AccessibleDocumentLifecycleAdapterV1.swift",
-          "FieldEvidenceApp/Infrastructure/Reporting/DeterministicPDFRendererV1.swift",
-          "FieldEvidenceApp/Infrastructure/Reporting/GlobalizedAccessibleDocumentRendererV1.swift",
-          "FieldEvidenceApp/Infrastructure/Reporting/ReportHistoryCoordinator.swift",
-          "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift",
-          "FieldEvidenceApp/Infrastructure/Reporting/WorklightPDFRendererV1.swift",
-          "FieldEvidenceAppTests/Fixtures/V30/Reports/globalized-accessible-document-cases-v1.json",
-          "FieldEvidenceAppTests/S4_1DeterministicRendererTests.swift",
-          "FieldEvidenceAppTests/S4_2PDFRecoveryTests.swift",
-          "FieldEvidenceAppTests/V30_P03_C04GlobalizedAccessibleDocumentTests.swift",
-          "FieldEvidenceAppTests/V9_38AccessibleDocumentTests.swift",
-          "docs/design/v30/execution/V30_CI_SELECTION.json",
-          "docs/design/v30/execution/V30_CURRENT_TASK.md",
-          "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
-          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
-        ],
-        "head": "77b1538aad3ff7229b7f3edcca4045dda7b3e711",
-        "tree": "5d967a47111b63f0d3db3f91793abde0bc08b486"
-      },
-      "sequence": 53
-    },
-    "V30-P03-C05": {
-      "candidate": {
-        "base": "77b1538aad3ff7229b7f3edcca4045dda7b3e711",
-        "baseTree": "5d967a47111b63f0d3db3f91793abde0bc08b486",
-        "changedPaths": [
-          "FieldEvidenceApp/Application/ImportExport/ImportBulkCoordinatorV1.swift",
-          "FieldEvidenceApp/Domain/ImportExport/GlobalizedMachineExportContractsV1.swift",
-          "FieldEvidenceApp/Domain/ImportExport/ImportBulkContractsV1.swift",
-          "FieldEvidenceApp/Infrastructure/ImportExport/GlobalizedMachineExportAdapterV1.swift",
-          "FieldEvidenceApp/Infrastructure/ImportExport/ImportBulkLifecycleAdapterV1.swift",
-          "FieldEvidenceAppTests/Fixtures/V30/ImportExport/globalized-machine-export-cases-v1.json",
-          "FieldEvidenceAppTests/S6_2BackupExportTests.swift",
-          "FieldEvidenceAppTests/V30_P03_C05GlobalizedMachineExportTests.swift",
-          "FieldEvidenceAppTests/V9_72ImportBulkEngineTests.swift",
-          "docs/design/v30/execution/V30_CI_SELECTION.json",
-          "docs/design/v30/execution/V30_CURRENT_TASK.md",
-          "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
-          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
-        ],
-        "head": "3f902a774e978c8c5c5c953f1e59298c7f9da29b",
-        "tree": "068d703866f816bd065962c79991f960ac1091e1"
-      },
-      "sequence": 55
-    },
-    "V30-P03-C06": {
-      "candidate": {
-        "base": "3f902a774e978c8c5c5c953f1e59298c7f9da29b",
-        "baseTree": "068d703866f816bd065962c79991f960ac1091e1",
-        "changedPaths": [
-          "FieldEvidenceApp/Application/Labels/AssetLabelCoordinatorV1.swift",
-          "FieldEvidenceApp/Application/Reporting/GlobalizedShareDeliveryCoordinatorV1.swift",
-          "FieldEvidenceApp/Domain/Labels/AssetLabelContractsV1.swift",
-          "FieldEvidenceApp/Features/Globalization/GlobalizedSharePrintLabelSurfacesV1.swift",
-          "FieldEvidenceApp/Features/Reporting/ShopProfileOpenEvidenceHandoffView.swift",
-          "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
-          "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift",
-          "FieldEvidenceApp/Infrastructure/Reporting/AssetLabelLifecycleAdapterV1.swift",
-          "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
-          "FieldEvidenceAppTests/Fixtures/V30/Share/globalized-share-print-label-cases-v1.json",
-          "FieldEvidenceAppTests/S4_3ReportDeliveryTests.swift",
-          "FieldEvidenceAppTests/V30_P03_C06SharePrintLabelTests.swift",
-          "FieldEvidenceAppTests/V9_52AssetLabelTests.swift",
-          "FieldEvidenceAppTests/V9_93AssetLabelOutputTests.swift",
-          "docs/design/v30/execution/V30_CI_SELECTION.json",
-          "docs/design/v30/execution/V30_CURRENT_TASK.md",
-          "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
-          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
-        ],
-        "head": "4fa30b15d50e5bdd6a090c426ec9fd2d5628f864",
-        "tree": "cc1def7d18773709375388ba7bfea281361370c2"
-      },
-      "sequence": 57
-    },
-    "V30-P03-C09": {
-      "candidate": {
-        "base": "f1769d43bbba6a4518daa786bf9fc7944ad99dac",
-        "baseTree": "d87d9f891420bd6542755291350c9a34c9d4896d",
-        "changedPaths": [
-          "FieldEvidenceApp/Application/Globalization/CriticalSurfaceRecoveryCoordinatorV1.swift",
-          "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
-          "FieldEvidenceApp/Features/Globalization/CriticalSurfaceLocalizationRegistryV1.swift",
-          "FieldEvidenceApp/Features/Recovery/RecoveryCenterView.swift",
-          "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
-          "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
-          "FieldEvidenceApp/InfoPlist.xcstrings",
-          "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
-          "FieldEvidenceAppTests/Fixtures/V30/CriticalSurfaces/critical-surface-cases-v1.json",
-          "FieldEvidenceAppTests/V30_P03_C09CriticalSurfaceLocalizationTests.swift",
-          "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
-          "docs/design/v30/execution/V30_CI_SELECTION.json",
-          "docs/design/v30/execution/V30_CURRENT_TASK.md",
-          "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
-          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
-        ],
-        "head": "c91f1a1cf9b82c133a6b66be18a856d9dd4cd328",
-        "tree": "0661cdcb8e1c63ae4cd34bdffd2f5b3a630f996f"
-      },
-      "sequence": 63
+      "sequence": 65
     }
   },
   "revision": 1,
   "selector": null,
   "selectorReason": "Windows-static provisional card; no native dispatch is selected.",
-  "sourceEndLine": 1022,
-  "sourceStartLine": 1022,
-  "title": "Termbase, do-not-translate list, and secure review workflow"
+  "sourceEndLine": 1023,
+  "sourceStartLine": 1023,
+  "title": "U.S. Spanish"
 }
 ```
