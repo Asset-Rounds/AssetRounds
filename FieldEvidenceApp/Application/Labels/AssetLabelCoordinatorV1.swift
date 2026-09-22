@@ -55,8 +55,12 @@ extension AssetLabelCoordinatorV1 {
         self.query = query
     }
 
-    func projectValidatedPlan(_ plan: AssetLabelGenerationPlanV1) async throws -> LabelProjectionResultV1 {
+    func projectValidatedPlan(
+        _ plan: AssetLabelGenerationPlanV1,
+        documentLanguage: AppLanguageTagV1 = .english
+    ) async throws -> LabelProjectionResultV1 {
         try plan.validate()
+        try plan.validateRequestedDocumentLanguage(documentLanguage)
         try await authority.validateCurrent(plan)
         let result = try await renderer.project(plan)
         try result.validate(plan: plan)

@@ -21,6 +21,13 @@ struct AssetLabelPreparedExportV1: Equatable, Sendable {
     let artifacts: [LabelProjectedArtifactV1]
     let reprintEligibility: LabelReprintEligibilityV1
     let requiresDoNotDeployWarning: Bool
+    let documentLanguage: ReportLanguageSelectionV1?
+
+    func sharePresentation(
+        surfaces: GlobalizedSharePrintLabelSurfacesV1 = .init()
+    ) -> GlobalizedLabelSharePresentationV1 {
+        GlobalizedShareDeliveryCoordinatorV1.labels(self, surfaces: surfaces)
+    }
 
     static let claimsShareCompletion = false
     static let claimsPrintOrDelivery = false
@@ -41,6 +48,9 @@ struct AssetLabelPreparedExportV1: Equatable, Sendable {
         artifacts = projection.artifacts
         self.reprintEligibility = reprintEligibility
         requiresDoNotDeployWarning = reprintEligibility != .activeExactReprint
+        // Missing historical release provenance must not block exact-byte
+        // archival export or relabel it using the current device's preferences.
+        documentLanguage = try? snapshot.plan.validatedDocumentLanguage()
     }
 }
 
@@ -403,9 +413,10 @@ private final class AssetLabelArtifactScratchStoreV1: @unchecked Sendable {
     func enqueueValidatedPlan(
         _ plan: AssetLabelGenerationPlanV1,
         generationEpoch: GenerationEpochV1,
-        createdAt: Date
+        createdAt: Date,
+        documentLanguage: AppLanguageTagV1 = .english
     ) async throws -> ResumableLocalJobV1 {
-        let projection = try await coordinator.projectValidatedPlan(plan)
+        let projection = try await coordinator.projectValidatedPlan(plan, documentLanguage: documentLanguage)
         let job = try ResumableLocalJobV1.assetLabelRender(
             plan: plan,
             generationEpoch: generationEpoch,

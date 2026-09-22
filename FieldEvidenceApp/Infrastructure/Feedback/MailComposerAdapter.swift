@@ -24,7 +24,8 @@ enum FeedbackMailDraftBuilderV1 {
     static func make(
         configuration: FeedbackConfigurationV1,
         diagnostic: PreparedDiagnosticExportV1,
-        attachmentChoice: FeedbackAttachmentChoiceV1
+        attachmentChoice: FeedbackAttachmentChoiceV1,
+        surfaces: GlobalizedSharePrintLabelSurfacesV1 = .init()
     ) throws -> FeedbackMailDraftV1 {
         guard let address = configuration.validatedSupportAddress,
               diagnostic.value.isValid,
@@ -36,10 +37,9 @@ enum FeedbackMailDraftBuilderV1 {
         }
 
         let value = diagnostic.value
-        let body = String(
-            format: BundledLocalizationCatalogV1.localized(.feedbackBodyTemplate),
-            locale: Locale(identifier: BundledLocalizationCatalogV1.runtimeLanguage),
-            value.app.version, value.app.build, value.device.model, value.device.osVersion
+        let body = surfaces.feedbackBody(
+            version: value.app.version, build: value.app.build,
+            device: value.device.model, os: value.device.osVersion
         )
         let attachments: [FeedbackMailAttachmentV1]
         switch attachmentChoice {
@@ -56,7 +56,7 @@ enum FeedbackMailDraftBuilderV1 {
         }
         return FeedbackMailDraftV1(
             recipients: [address],
-            subject: BundledLocalizationCatalogV1.localized(.feedbackSubject),
+            subject: surfaces.feedbackSubject,
             body: body,
             attachments: attachments
         )

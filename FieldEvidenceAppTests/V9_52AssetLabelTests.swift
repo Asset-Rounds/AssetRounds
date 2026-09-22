@@ -11,6 +11,25 @@ private enum C52ServiceRequestBoundary_V9_52AssetLabelTests {
 
 @MainActor
 final class V9_52AssetLabelTests: XCTestCase {
+    func testV30C06LabelLanguageIsExplicitAndUnsupportedRequestCannotRenderOrWrite() async throws {
+        let fixture = try C45AssetLabelTestSupport.fixture(itemCount: 1)
+        let bytes = try AssetLabelCanonicalCodecV1.encode(fixture.plan)
+        XCTAssertEqual(try fixture.plan.validatedDocumentLanguage().effectiveLanguage, .english)
+        let renderer = C45ProjectionRenderer()
+        let writer = C45FailClosedWriter()
+        let coordinator = AssetLabelCoordinatorV1(authority: C45PlanAuthority(), renderer: renderer,
+                                                  writer: writer, query: C45AcceptedSnapshotQuery())
+        do {
+            _ = try await coordinator.projectValidatedPlan(fixture.plan, documentLanguage: .init("es"))
+            XCTFail("Unsupported document language must fail before rendering")
+        } catch {
+            XCTAssertEqual(error as? ReportLanguageControlFailureV1, .unavailableReportLanguage)
+        }
+        XCTAssertTrue(renderer.completed.isEmpty)
+        XCTAssertEqual(writer.commitCount, 0)
+        XCTAssertEqual(try AssetLabelCanonicalCodecV1.encode(fixture.plan), bytes)
+    }
+
     func testV23P03C45G01AcceptedPlanGeneratesByteIdenticalPDFCSVTextAndIndependentQRDecode() throws {
         let fixture = try C45AssetLabelTestSupport.fixture(itemCount: 1, disclosure: .assetAndShortCode)
         let first = try DeterministicPDFRendererV1.renderAssetLabels(fixture.plan)

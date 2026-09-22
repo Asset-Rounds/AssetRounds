@@ -555,6 +555,29 @@ struct AssetLabelGenerationPlanV1:Codable,Equatable,Sendable{
 }
 
 enum LabelArtifactKindV1:String,Codable,CaseIterable,Hashable,Sendable{case pdf="PDF";case formulaSafeCSV="FORMULA_SAFE_CSV";case structuredText="STRUCTURED_TEXT"}
+
+extension AssetLabelGenerationPlanV1 {
+    /// Document chrome is fixed by this exact renderer release. The frozen
+    /// formatting locale is not evidence of a translated label document.
+    /// Computed provenance leaves the canonical plan schema and digest intact.
+    func validatedDocumentLanguage() throws -> ReportLanguageSelectionV1 {
+        try validate()
+        guard template.rendererRelease == (try AssetLabelRendererReleaseReferenceV1.current) else {
+            throw AssetLabelContractFailureV1.missingRelease
+        }
+        return try .init(requestedLanguage: .english, effectiveLanguage: .english, fallback: .exact)
+    }
+
+    func validateRequestedDocumentLanguage(_ language: AppLanguageTagV1) throws {
+        let recorded = try validatedDocumentLanguage()
+        guard language == recorded.effectiveLanguage else {
+            // Changing app language never silently changes label language or
+            // implies consent to an English document.
+            throw ReportLanguageControlFailureV1.unavailableReportLanguage
+        }
+    }
+}
+
 enum LabelProjectionDispositionV1:String,Equatable,Hashable,Sendable{case scratchPreviewRequiresExplicitStart="SCRATCH_PREVIEW_REQUIRES_EXPLICIT_START"}
 struct LabelArtifactManifestEntryV1:Codable,Equatable,Hashable,Sendable{let kind:LabelArtifactKindV1;let safeFilename:String;let mediaType:String;let byteCount:Int64;let sha256:String;let itemCount:Int;init(kind:LabelArtifactKindV1,safeFilename:String,mediaType:String,byteCount:Int64,sha256:String,itemCount:Int)throws{self.kind=kind;self.safeFilename=safeFilename;self.mediaType=mediaType;self.byteCount=byteCount;self.sha256=sha256;self.itemCount=itemCount;try AssetLabelValidationV1.token(safeFilename,maximumBytes:200);try AssetLabelValidationV1.mediaType(mediaType);try AssetLabelValidationV1.digest(sha256);guard byteCount>0,byteCount<=AssetLabelLimitsV1.maximumBytes(for:kind),itemCount>0,itemCount<=AssetLabelGenerationPlanV1.maximumItemCount,!safeFilename.contains("/")&&!safeFilename.contains("\\")else{throw AssetLabelContractFailureV1.invalidValue}}}
 struct LabelArtifactManifestV1:Codable,Equatable,Sendable{let planSHA256:String;let entries:[LabelArtifactManifestEntryV1];let manifestSHA256:String;init(planSHA256:String,entries:[LabelArtifactManifestEntryV1])throws{let ordered=entries.sorted{$0.kind.rawValue<$1.kind.rawValue};self.planSHA256=planSHA256;self.entries=ordered;manifestSHA256=try AssetLabelCanonicalCodecV1.sha256(Basis(planSHA256:planSHA256,entries:ordered));try validate()};func validate()throws{try AssetLabelValidationV1.digest(planSHA256);var total:Int64=0;for entry in entries{total=try AssetLabelValidationV1.checkedAdd(total,entry.byteCount)};guard total<=AssetLabelLimitsV1.maximumArtifactBytes,entries.count==LabelArtifactKindV1.allCases.count,Set(entries.map(\.kind))==Set(LabelArtifactKindV1.allCases),Set(entries.map(\.safeFilename)).count==entries.count,entries==entries.sorted(by:{$0.kind.rawValue<$1.kind.rawValue}),manifestSHA256==(try AssetLabelCanonicalCodecV1.sha256(Basis(planSHA256:planSHA256,entries:entries)))else{throw AssetLabelContractFailureV1.invalidValue}};private struct Basis:Codable{let planSHA256:String;let entries:[LabelArtifactManifestEntryV1]}}

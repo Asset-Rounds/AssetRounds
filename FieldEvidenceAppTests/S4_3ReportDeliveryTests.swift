@@ -2,6 +2,7 @@ import CryptoKit
 import CoreGraphics
 import Foundation
 import ImageIO
+import PDFKit
 import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
@@ -42,6 +43,34 @@ private final class C30EvidenceContextAnchorS4_3ReportDelivery: XCTestCase {
 }
 
 final class S4_3ReportDeliveryTests: XCTestCase {
+    @MainActor
+    func testV30C06RecordedShareLanguageIsSourceBoundAndSurvivesReloadWithoutByteChanges() async throws {
+        let harness = try await makeHarness("v30-c06-share-language")
+        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+        let coordinator = try ReportDeliveryCoordinator(modelContext: harness.context, generationRootURL: harness.session.generationRootURL)
+        let before = try immutableAuthority(in: harness)
+        let ready = try coordinator.validatedReadyReport(id: Fixture.reportID)
+        let metadata = try GlobalizedAccessibleDocumentRendererV1.readEmbeddedMetadata(from: ready.delivery.pdfData)
+        XCTAssertEqual(ready.delivery.documentLanguage, metadata.language)
+        XCTAssertNil(ready.delivery.languageRequest)
+        let reloaded = try coordinator.loadReadyReport(id: Fixture.reportID, formattingLocale: Locale(identifier: "ko-KR"))
+        XCTAssertEqual(reloaded.documentLanguage, ready.delivery.documentLanguage)
+        XCTAssertEqual(reloaded.pdfData, ready.delivery.pdfData)
+        XCTAssertEqual(try immutableAuthority(in: harness), before)
+
+        // A syntactically valid language receipt for a different source is not
+        // accepted merely because it is embedded in a readable PDF.
+        let document = try XCTUnwrap(PDFDocument(data: ready.delivery.pdfData))
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(metadata)) as? [String: Any])
+        object["sourceSHA256"] = String(repeating: "0", count: 64)
+        let keyword = GlobalizedDocumentPDFMetadataV1.prefix + (try JSONSerialization.data(withJSONObject: object)).base64EncodedString()
+        var attributes = document.documentAttributes ?? [:]
+        attributes[.keywordsAttribute] = keyword
+        document.documentAttributes = attributes
+        let unrelated = try XCTUnwrap(document.dataRepresentation())
+        XCTAssertThrowsError(try GlobalizedShareDeliveryCoordinatorV1.recordedDocumentLanguage(pdf: unrelated, snapshot: ready.snapshot))
+    }
+
     func testV30C07SummaryKeepsUnknownHistoricalTextAndCanonicalIdentity() {
         func value(locale: Locale, sourceDate: String = "Unknown") -> ReportDeliveryValue {
             ReportDeliveryValue(

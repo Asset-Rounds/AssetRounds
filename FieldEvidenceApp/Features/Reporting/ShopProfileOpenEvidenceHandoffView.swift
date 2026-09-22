@@ -291,13 +291,12 @@ struct ShopProfileOpenEvidenceHandoffView: View {
     }
 
     private func audienceLabel(_ audience: ReportAudienceV1) -> String {
-        switch audience {
-        case .internalUse: return "Internal use"
-        case .customerSafe: return "Customer-safe"
-        }
+        GlobalizedSharePrintLabelSurfacesV1().audience(audience)
     }
 
     private func localized(_ key: ShopReportProfileLocalizationKeyV1) -> String {
-        BundledLocalizationCatalogV1.shopReportProfileLocalized(key)
+        BundledLocalizationCatalogV1.shopReportProfileLocalized(
+            key, locale: GlobalizedSharePrintLabelSurfacesV1().languageLocale
+        )
     }
 }

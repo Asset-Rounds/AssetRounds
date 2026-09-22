@@ -147,12 +147,12 @@ struct ReportDetailView: View {
                 revisionActions
 
                 HStack(spacing: DesignTokens.Spacing.small) {
-                    Button(BundledLocalizationCatalogV1.v30Text(.reportDetailReportAction)) {
+                    Button(GlobalizedSharePrintLabelSurfacesV1().shareOrPrint) {
                         showsShareSheet = true
                     }
                     .buttonStyle(WorklightSecondaryButtonStyle())
                     .frame(maxWidth: .infinity)
-                    .accessibilityHint(BundledLocalizationCatalogV1.v30Text(.reportDetailReportAccessibility2))
+                    .accessibilityHint(GlobalizedShareDeliveryCoordinatorV1.report(delivery).documentLanguage)
                     .accessibilityIdentifier(Self.shareAccessibilityIdentifier)
 
                     Button(BundledLocalizationCatalogV1.v30Text(.reportDetailReportAction2)) {
@@ -376,9 +376,7 @@ struct ReportShareSheet: UIViewControllerRepresentable {
     func makeController() -> ObservedActivityViewController {
         let payload = ReportSharePayload(delivery: delivery)
         let controller = ObservedActivityViewController(
-            activityItemsConfiguration: UIActivityItemsConfiguration(
-                itemProviders: [payload.itemProvider]
-            )
+            activityItemsConfiguration: payload.activityConfiguration()
         )
         controller.presentationGate = ReportSharePresentationGate {
             Task { await coordinator.shareSheetDidPresent() }
@@ -404,8 +402,10 @@ struct ReportShareSheet: UIViewControllerRepresentable {
 
 struct ReportSharePayload {
     let itemProvider: NSItemProvider
+    let presentation: GlobalizedReportSharePresentationV1
 
-    init(delivery: ReportDeliveryValue) {
+    init(delivery: ReportDeliveryValue, surfaces: GlobalizedSharePrintLabelSurfacesV1 = .init()) {
+        presentation = GlobalizedShareDeliveryCoordinatorV1.report(delivery, surfaces: surfaces)
         let provider = NSItemProvider()
         provider.suggestedName = delivery.filename
         provider.registerDataRepresentation(
@@ -416,6 +416,22 @@ struct ReportSharePayload {
             return nil
         }
         itemProvider = provider
+    }
+
+    @MainActor
+    func activityConfiguration() -> UIActivityItemsConfiguration {
+        let configuration = UIActivityItemsConfiguration(itemProviders: [itemProvider])
+        let presentation = presentation
+        // Public UIKit metadata is advisory. The receiving activity owns its
+        // controls and may ignore it; the sole attachment remains the same PDF.
+        configuration.metadataProvider = { key in
+            switch key {
+            case .title: return presentation.subject
+            case .messageBody: return presentation.body
+            default: return nil
+            }
+        }
+        return configuration
     }
 }
 

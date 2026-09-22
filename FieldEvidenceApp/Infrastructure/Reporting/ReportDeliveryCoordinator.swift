@@ -44,12 +44,16 @@ struct ReportDeliveryValue: Equatable, Sendable {
     /// Present only for the delivery created by this explicit request. Loading
     /// a historical PDF never infers a request from current device preferences.
     let languageRequest: ReportLanguageRenderRequestV1?
+    /// Recorded document chrome language, independent of current app language
+    /// and transient generation intent. Nil means historical provenance absent.
+    let documentLanguage: ReportLanguageSelectionV1?
 
     init(
         reportID: UUID, pdfSHA256: String, pdfData: Data, filename: String,
         title: String, subtitle: String, detailLines: [String],
         formattingLocale: Locale = .current,
-        languageRequest: ReportLanguageRenderRequestV1? = nil
+        languageRequest: ReportLanguageRenderRequestV1? = nil,
+        documentLanguage: ReportLanguageSelectionV1? = nil
     ) {
         self.reportID = reportID
         self.pdfSHA256 = pdfSHA256
@@ -60,6 +64,7 @@ struct ReportDeliveryValue: Equatable, Sendable {
         self.canonicalDetailLines = detailLines
         self.formattingLocale = formattingLocale
         self.languageRequest = languageRequest
+        self.documentLanguage = documentLanguage
     }
 
     fileprivate func carryingLanguageRequest(_ request: ReportLanguageRenderRequestV1?) -> Self {
@@ -67,7 +72,7 @@ struct ReportDeliveryValue: Equatable, Sendable {
             reportID: reportID, pdfSHA256: pdfSHA256, pdfData: pdfData,
             filename: filename, title: title, subtitle: subtitle,
             detailLines: canonicalDetailLines, formattingLocale: formattingLocale,
-            languageRequest: request
+            languageRequest: request, documentLanguage: documentLanguage
         )
     }
 
@@ -92,6 +97,7 @@ struct ReportDeliveryValue: Equatable, Sendable {
             && lhs.pdfData == rhs.pdfData && lhs.filename == rhs.filename
             && lhs.title == rhs.title && lhs.subtitle == rhs.subtitle
             && lhs.canonicalDetailLines == rhs.canonicalDetailLines
+            && lhs.documentLanguage == rhs.documentLanguage
     }
 }
 
@@ -440,7 +446,10 @@ final class ReportDeliveryCoordinator {
                 snapshot.timeContext.localDate,
                 snapshot.timeContext.localTime,
             ],
-            formattingLocale: formattingLocale
+            formattingLocale: formattingLocale,
+            documentLanguage: try GlobalizedShareDeliveryCoordinatorV1.recordedDocumentLanguage(
+                pdf: pdfData, snapshot: snapshot
+            )
         )
         return ValidatedReadyReportValue(
             delivery: delivery,

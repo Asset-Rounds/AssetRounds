@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "cardID": "V30-P03-C06",
+  "languages": [
+    "en",
+    "es",
+    "zh-Hans",
+    "zh-Hant",
+    "vi",
+    "ko"
+  ],
+  "authored": [
+    {
+      "text": "Montréal / é / %@ / %1$@",
+      "utf8ByteCount": 27
+    },
+    {
+      "text": "上海工厂 / 台灣現場",
+      "utf8ByteCount": 27
+    },
+    {
+      "text": "Điện chiếu sáng / 한국어",
+      "utf8ByteCount": 33
+    },
+    {
+      "text": "مصنع AR-42 / 😀👩🏽‍🔧",
+      "utf8ByteCount": 36
+    },
+    {
+      "text": "=SUM(1,1) / comma, quote\" / line\nnext",
+      "utf8ByteCount": 37
+    }
+  ],
+  "boundaries": {
+    "sourceBytes": "VERBATIM",
+    "documentLanguage": "RECORDED_OR_UNRECORDED_NEVER_INFERRED_FROM_UI",
+    "labelDocumentLanguage": "FROZEN_RENDERER_ENGLISH_ONLY",
+    "systemHandoffIsDeliveryOrPrintProof": false,
+    "nativeEvidence": "UNEXECUTED",
+    "linguisticAcceptance": false
+  }
+}
