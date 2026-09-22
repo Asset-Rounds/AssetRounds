@@ -8001,3 +8001,433 @@ This entry does not self-record its future bookkeeping commit.
   "revision": 1
 }
 ```
+
+## Card 35 of 55 - V30-P04-C05
+
+Vietnamese — PROVISIONAL_CHECKPOINTED (machine-assisted nonshipping draft; no native or linguistic acceptance).
+
+- M `f76f9d2eb8c791532c421ecf13e6f41337a4dfd6`, observed A `eaffe95cb75e9185826b095ecf07c0e5a0c2c817`, E `b7eb425b1dca56e7751641c24d816bb5bd8f7a5e` (tree `57490a48f7a82c421dc1f00c48ec0386d3b81126`); coordination checkpoint `48c73b9b8f034228fe4c618ece237677674fa250`, sequence 73, ledger digest `fb4581b71fb6015b1d3b77e5267e20030a403a04c6cc85166952aada7203590d`. M..A contains only four V30 execution documents.
+- Six new files inside ten-path locale fence, zero S10 shared paths. Vietnamese draft: 3212 keys/3228 target units across 2717 app, 113 report, 382 accessibility/permission/error keys. English source/comments/IDs/tokens preserved; plural targets other-only, substitution types exact.
+- Static source/key/placeholder/nonempty/Unicode and C31 review-packet checks PASS; packet 3228 entries, zero rendered artifacts. V30 CI contract PASS WINDOWS_STATIC; git diff --check PASS. Eight native tests authored, NOT EXECUTED. Independent review: Independent read-only static review PASS: exactly six new owned paths and zero shared paths; 3212 keys/3228 units; C31 structural/typed-argument and plural checks pass. Critical permission/ERASE copy preserves purpose and alternatives; checkpoint wording preserves no-saved-before-confirmation; drawing/import Plan and stock Count contexts are distinct. Eight authored XCTest methods match existing API declarations/patterns and preserve NFC/NFD byte identities, six tone identities versus derived search folding, stable ties, formatting, and PDF qualification boundaries. No actionable new defect found. Native execution and professional independent bilingual review remain outstanding; four baseline-proven inherited English extraction defects remain final-acceptance blockers with shared English unchanged. English catalog integration and registry repair retain their separately recorded ownership requirements.
+- Qualification outstanding: vi-US/vi-VN profile separation, Telex/VNI composition and cancellation, diacritics/wrapping/compact labels/Dynamic Type, VoiceOver, font permissions, PDF extraction/Letter/A4 and physical printing. Tests distinguish exact NFC/NFD and six-tone source identities from derived search folding and stable ties. Synthetic Vietnamese document body uses English chrome pending authorized integration.
+- Thirteen checkpoint/commit/stock message corrections and two domain-specific key corrections passed the same structural checks. Targets remain needs_review; no professional/native/bilingual acceptance or fabricated review receipt. Vietnamese U.S. metadata remains unpublished with keyword/current-rule validation outstanding.
+- Four inherited English Swift-fragment defects remain final-acceptance blockers: manual-work-resource.units, my-day.no-duration-estimate-lowercase, my-day.no-total-estimate and my-day.start. Exact B source proves intended labels; shared English bytes remain unchanged and causal-owner correction requirements are recorded below. KNOWN_BUGS read; no bug exception added.
+- Null selector/tier; no workflow/runner/Xcode/Simulator identity. No canonical/final/main/release/post-S10 successor credit. Next unstarted: Card36 V30-P04-C06 Korean, requiring ordered selection and fresh G0.
+
+This entry does not self-record its future bookkeeping commit.
+
+```json
+{
+  "actualSharedPaths": [],
+  "attempt": 1,
+  "authority": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
+    "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+  },
+  "authorityOnlyDiffResult": "M..A EXACTLY FOUR V30 EXECUTION DOCUMENTS",
+  "candidate": {
+    "base": "f76f9d2eb8c791532c421ecf13e6f41337a4dfd6",
+    "baseTree": "683579978282a1808ccf92ec31fee88e3488d871",
+    "changedPaths": [
+      "FieldEvidenceApp/Resources/Globalization/vi.accessibility.json",
+      "FieldEvidenceApp/Resources/Globalization/vi.app.json",
+      "FieldEvidenceApp/Resources/Globalization/vi.report.json",
+      "FieldEvidenceAppTests/Fixtures/V30/Locales/vi.json",
+      "FieldEvidenceAppTests/V30_P04_C05VietnameseLocalizationTests.swift",
+      "docs/design/v30/execution/V30_CI_SELECTION.json",
+      "docs/design/v30/execution/V30_CURRENT_TASK.md",
+      "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+      "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json",
+      "docs/design/v30/locales/vi/V30P04C05ReviewPacketV1.json"
+    ],
+    "head": "b7eb425b1dca56e7751641c24d816bb5bd8f7a5e",
+    "tree": "57490a48f7a82c421dc1f00c48ec0386d3b81126"
+  },
+  "cardID": "V30-P04-C05",
+  "credit": {
+    "canonicalAcceptance": false,
+    "finalCredit": false,
+    "mainIntegrationCredit": false,
+    "postS10SuccessorStart": false,
+    "provisionalDependencySatisfied": true,
+    "releaseCredit": false
+  },
+  "evidence": {
+    "acceptanceMap": {
+      "catalogs": "Complete machine-assisted nonshipping vi draft: 3212 keys/3228 target units across 2717 app, 113 report, 382 accessibility/permission/error keys. Every target leaf is nonempty needs_review; English source/comments/keys remain exact. Vietnamese plurals use other only; named substitutions preserve argument indices/types and tokens.",
+      "metadata": "Vietnamese U.S. metadata draft local only. No keyword evidence, current-rule validation, App Store mutation or publication credit.",
+      "profiles": "vi-US and hostile vi-VN fixtures separate base resource identity, U.S. jurisdiction/storefront and canonical values. Eight authored native tests cover structure, base resource/fallback, formatting, permissions/ERASE, draft boundaries, exact input/search/ties, Vietnamese PDF extraction/pagination/font bits on Letter/A4, and all six tones plus NFC/NFD identity.",
+      "review": "C31 closed draft packet structurally validates 3228 entries including 16 named substitution fragments. Native %arg stays intact; positional normalization exists only in the review projection. No candidate tuple, renderer artifacts, translator/reviewer identities or acceptance receipts fabricated.",
+      "source": "3090 inherited shared-catalog keys plus 119 later typed defaults and 3 declared permission prompts. Shared catalog/project/product source unchanged. Four inherited English extraction defects retain baseline-proven intended target labels, explicit provenance and final-acceptance blocked status.",
+      "unicode": "Vietnamese diacritics, mixed identifiers, emoji and composed/decomposed samples preserve exact UTF-8 evidence. Search folding is derived-only; tone variants remain distinct canonical identities. Telex/VNI marked text, mark coverage/line height, compact/Dynamic Type, VoiceOver, physical print and independent field terminology review remain NOT_EXECUTED. Synthetic Vietnamese report body uses English chrome pending shared integration."
+    },
+    "defects": [
+      {
+        "baselineEvidence": {
+          "path": "FieldEvidenceApp/Features/WorkResources/ManualWorkResourceWorkflowView.swift",
+          "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+          "sha256": "7763f72a2b820861915cb6d814132cf7c3da9de0980997a44abefd6f1b8dd28b"
+        },
+        "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+        "currentSourcePaths": [
+          "FieldEvidenceApp/Resources/Localizable.xcstrings",
+          "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+        ],
+        "disposition": "Vietnamese draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+        "finalAcceptanceBlocked": true,
+        "intendedEnglish": "units",
+        "key": "v30.manual-work-resource.units",
+        "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+        "vietnameseDraft": "đơn vị"
+      },
+      {
+        "baselineEvidence": {
+          "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+          "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+          "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+        },
+        "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+        "currentSourcePaths": [
+          "FieldEvidenceApp/Resources/Localizable.xcstrings",
+          "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+        ],
+        "disposition": "Vietnamese draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+        "finalAcceptanceBlocked": true,
+        "intendedEnglish": "no duration estimate",
+        "key": "v30.my-day.no-duration-estimate-lowercase",
+        "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+        "vietnameseDraft": "không có thời lượng ước tính"
+      },
+      {
+        "baselineEvidence": {
+          "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+          "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+          "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+        },
+        "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+        "currentSourcePaths": [
+          "FieldEvidenceApp/Resources/Localizable.xcstrings",
+          "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+        ],
+        "disposition": "Vietnamese draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+        "finalAcceptanceBlocked": true,
+        "intendedEnglish": "No total estimate",
+        "key": "v30.my-day.no-total-estimate",
+        "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+        "vietnameseDraft": "Không có tổng thời lượng ước tính"
+      },
+      {
+        "baselineEvidence": {
+          "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+          "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+          "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+        },
+        "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+        "currentSourcePaths": [
+          "FieldEvidenceApp/Resources/Localizable.xcstrings",
+          "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+        ],
+        "disposition": "Vietnamese draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+        "finalAcceptanceBlocked": true,
+        "intendedEnglish": "Start",
+        "key": "v30.my-day.start",
+        "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+        "vietnameseDraft": "Bắt đầu"
+      }
+    ],
+    "limitations": "Windows-static draft only. Native build/XCTest/Simulator and language/layout/input/VoiceOver/font/render/extraction/printing qualification unexecuted. Professional independent bilingual review outstanding. Four inherited English extraction defects block final acceptance.",
+    "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "outcome": "Complete provisional vi catalogs and fixtures; qualify diacritics, wrapping, search, input, fonts, PDF extraction, and field terminology.",
+    "static": {
+      "G0": {
+        "A": "eaffe95cb75e9185826b095ecf07c0e5a0c2c817",
+        "M": "f76f9d2eb8c791532c421ecf13e6f41337a4dfd6",
+        "allowedPathCount": 10,
+        "baseTree": "683579978282a1808ccf92ec31fee88e3488d871",
+        "cardID": "V30-P04-C05",
+        "coordinationHead": "67273abecfb2864e5d032f406f80b924bad00f99",
+        "ledgerDigest": "84bc026ef544c6124953cf6b110486704201f8e0bb817fc64cc3fa703e6f9627",
+        "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+        "result": "PASS_G0",
+        "sequence": 72,
+        "sharedPaths": [],
+        "taskDigest": "f0f955c6490f8b2e26da043c44bbf6bab6c602ea5f6337b5b7ff2a4a1895a63c"
+      },
+      "actualSharedPaths": [],
+      "allowedPathCount": 10,
+      "auditOutputSHA256": "72a2d143b70224a6066c413d422966aa8a0350df59f3a270833832d1c549c303",
+      "auditScriptSHA256": "cea52a522eca0ded28aa5123b78c653c0ba2248a639eac68151f2f6b00b44dff",
+      "cardID": "V30-P04-C05",
+      "catalogKeyCount": 3212,
+      "implementationPathCount": 6,
+      "independentReview": "Independent read-only static review PASS: exactly six new owned paths and zero shared paths; 3212 keys/3228 units; C31 structural/typed-argument and plural checks pass. Critical permission/ERASE copy preserves purpose and alternatives; checkpoint wording preserves no-saved-before-confirmation; drawing/import Plan and stock Count contexts are distinct. Eight authored XCTest methods match existing API declarations/patterns and preserve NFC/NFD byte identities, six tone identities versus derived search folding, stable ties, formatting, and PDF qualification boundaries. No actionable new defect found. Native execution and professional independent bilingual review remain outstanding; four baseline-proven inherited English extraction defects remain final-acceptance blockers with shared English unchanged. English catalog integration and registry repair retain their separately recorded ownership requirements.",
+      "laneCounts": {
+        "accessibility": 382,
+        "app": 2717,
+        "report": 113
+      },
+      "linguisticAcceptance": false,
+      "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+      "newNativeTestMethods": [
+        "testAllVietnameseLanesPreserveEnglishKeysAndTypedResourceStructure",
+        "testVietnameseRegionalPreferencesResolveToTheSameBaseResource",
+        "testVietnameseProfilesRoundTripFormattingWithoutChangingCanonicalValues",
+        "testVietnameseCriticalCopyKeepsConfirmationTokenAndPermissionPurpose",
+        "testVietnameseReviewBundleKeepsDraftAndStorefrontBoundaries",
+        "testVietnameseAuthoredInputAndDerivedSearchPreserveSourceAndStableIdentity",
+        "testVietnameseBodyShapesPaginatesAndExtractsWithEnglishChromeBoundary",
+        "testVietnameseToneAndNormalizationDifferencesRemainDistinctInCanonicalEvidence"
+      ],
+      "packetValidation": {
+        "artifacts": 0,
+        "finalCredit": false,
+        "keys": 3228,
+        "linguisticAcceptance": false,
+        "nativeCredit": false,
+        "result": "PASS_STRUCTURAL_INTEGRITY_ONLY"
+      },
+      "result": "PASS_WINDOWS_STATIC_DRAFT_ONLY",
+      "sourceArtifacts": [
+        {
+          "bytes": 284807,
+          "path": "FieldEvidenceApp/Resources/Globalization/vi.accessibility.json",
+          "sha256": "6207abc37bb90830db46a64858f74ec3f9f96b56be67e29a173d8cd5fe2cd3c2"
+        },
+        {
+          "bytes": 2038730,
+          "path": "FieldEvidenceApp/Resources/Globalization/vi.app.json",
+          "sha256": "4d166db9aeca37fe7b6e2cc528a74e8d87c75e604eb5de2b393b354fc2685e4d"
+        },
+        {
+          "bytes": 85931,
+          "path": "FieldEvidenceApp/Resources/Globalization/vi.report.json",
+          "sha256": "66bed707bace452c2d96044dc421d4b36707158a2487060130153f6113ad9879"
+        },
+        {
+          "bytes": 11824,
+          "path": "FieldEvidenceAppTests/Fixtures/V30/Locales/vi.json",
+          "sha256": "f009744ccc0be8926919c043392f59225f912a32e5fdc6f7d6e973e69e14546c"
+        },
+        {
+          "bytes": 16777,
+          "path": "FieldEvidenceAppTests/V30_P04_C05VietnameseLocalizationTests.swift",
+          "sha256": "49093a100875a713bb05d12f757439cf48172d29cbd967bbb8991247a9d178b3"
+        },
+        {
+          "bytes": 1061,
+          "path": "docs/design/v30/execution/V30_CI_SELECTION.json",
+          "sha256": "e6404ffea8c35f0fd06bdd5dcfe5989147b10e3a3a3af9b57e7aeacaf6358821"
+        },
+        {
+          "bytes": 7369,
+          "path": "docs/design/v30/execution/V30_CURRENT_TASK.md",
+          "sha256": "7748d01659a260be979d8c98a37cda6c322d03f6653f66942e993b3f73b9225a"
+        },
+        {
+          "bytes": 487390,
+          "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+          "sha256": "91db7ff55c36b2cfa749bdd205620b68acf3e2964365192ba6aa14c90353d1b3"
+        },
+        {
+          "bytes": 700,
+          "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json",
+          "sha256": "27b98fee67e12043f7dba0f8e6c351224ac02a0a920df73ee023ac732a2dcda3"
+        },
+        {
+          "bytes": 4377887,
+          "path": "docs/design/v30/locales/vi/V30P04C05ReviewPacketV1.json",
+          "sha256": "4a22617b3aae196fcad9f6b8b1dac2ec92f8a12f8db090b086c53661b04eead6"
+        }
+      ],
+      "sourceDefects": [
+        {
+          "baselineEvidence": {
+            "path": "FieldEvidenceApp/Features/WorkResources/ManualWorkResourceWorkflowView.swift",
+            "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+            "sha256": "7763f72a2b820861915cb6d814132cf7c3da9de0980997a44abefd6f1b8dd28b"
+          },
+          "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+          "currentSourcePaths": [
+            "FieldEvidenceApp/Resources/Localizable.xcstrings",
+            "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+          ],
+          "disposition": "Vietnamese draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+          "finalAcceptanceBlocked": true,
+          "intendedEnglish": "units",
+          "key": "v30.manual-work-resource.units",
+          "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+          "vietnameseDraft": "đơn vị"
+        },
+        {
+          "baselineEvidence": {
+            "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+            "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+            "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+          },
+          "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+          "currentSourcePaths": [
+            "FieldEvidenceApp/Resources/Localizable.xcstrings",
+            "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+          ],
+          "disposition": "Vietnamese draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+          "finalAcceptanceBlocked": true,
+          "intendedEnglish": "no duration estimate",
+          "key": "v30.my-day.no-duration-estimate-lowercase",
+          "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+          "vietnameseDraft": "không có thời lượng ước tính"
+        },
+        {
+          "baselineEvidence": {
+            "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+            "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+            "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+          },
+          "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+          "currentSourcePaths": [
+            "FieldEvidenceApp/Resources/Localizable.xcstrings",
+            "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+          ],
+          "disposition": "Vietnamese draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+          "finalAcceptanceBlocked": true,
+          "intendedEnglish": "No total estimate",
+          "key": "v30.my-day.no-total-estimate",
+          "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+          "vietnameseDraft": "Không có tổng thời lượng ước tính"
+        },
+        {
+          "baselineEvidence": {
+            "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+            "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+            "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+          },
+          "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+          "currentSourcePaths": [
+            "FieldEvidenceApp/Resources/Localizable.xcstrings",
+            "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+          ],
+          "disposition": "Vietnamese draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+          "finalAcceptanceBlocked": true,
+          "intendedEnglish": "Start",
+          "key": "v30.my-day.start",
+          "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+          "vietnameseDraft": "Bắt đầu"
+        }
+      ],
+      "vietnameseStringUnits": 3228,
+      "workingSourceArtifacts": [
+        {
+          "bytes": 284807,
+          "path": "FieldEvidenceApp/Resources/Globalization/vi.accessibility.json",
+          "sha256": "6207abc37bb90830db46a64858f74ec3f9f96b56be67e29a173d8cd5fe2cd3c2"
+        },
+        {
+          "bytes": 2038730,
+          "path": "FieldEvidenceApp/Resources/Globalization/vi.app.json",
+          "sha256": "4d166db9aeca37fe7b6e2cc528a74e8d87c75e604eb5de2b393b354fc2685e4d"
+        },
+        {
+          "bytes": 85931,
+          "path": "FieldEvidenceApp/Resources/Globalization/vi.report.json",
+          "sha256": "66bed707bace452c2d96044dc421d4b36707158a2487060130153f6113ad9879"
+        },
+        {
+          "bytes": 11824,
+          "path": "FieldEvidenceAppTests/Fixtures/V30/Locales/vi.json",
+          "sha256": "f009744ccc0be8926919c043392f59225f912a32e5fdc6f7d6e973e69e14546c"
+        },
+        {
+          "bytes": 16777,
+          "path": "FieldEvidenceAppTests/V30_P04_C05VietnameseLocalizationTests.swift",
+          "sha256": "49093a100875a713bb05d12f757439cf48172d29cbd967bbb8991247a9d178b3"
+        },
+        {
+          "bytes": 4377887,
+          "path": "docs/design/v30/locales/vi/V30P04C05ReviewPacketV1.json",
+          "sha256": "4a22617b3aae196fcad9f6b8b1dac2ec92f8a12f8db090b086c53661b04eead6"
+        }
+      ]
+    },
+    "workflow": {
+      "branchRef": "refs/heads/phase/v30-globalization",
+      "expectedHead": "b7eb425b1dca56e7751641c24d816bb5bd8f7a5e",
+      "runID": null,
+      "selectorInput": null,
+      "selectorTier": null,
+      "url": null
+    }
+  },
+  "expectedLedgerDigest": "84bc026ef544c6124953cf6b110486704201f8e0bb817fc64cc3fa703e6f9627",
+  "expectedOldRef": "67273abecfb2864e5d032f406f80b924bad00f99",
+  "expectedSequence": 72,
+  "next": "V30-P04-C06",
+  "observedAuthorityHead": "eaffe95cb75e9185826b095ecf07c0e5a0c2c817",
+  "operationalProvenance": [
+    "Card35 selected through immediate ordered CAS after Card34 checkpoint; direct prerequisite Card31 remains exact. Six locale-exclusive new paths, ten-path fence, zero S10 shared paths.",
+    "Vietnamese targets authored directly from English in bounded model-assisted batches, checked for exact source/token identity and C31 typed argument signatures. Root corrected 13 checkpoint/commit/stock terminology messages and two domain-specific keys (drawing Plan and stock Count). No machine output is professional linguistic acceptance.",
+    "Four inherited source-catalog Swift-fragment defects retain B-derived intended labels while shared English bytes remain untouched.",
+    "All eight native tests are authored only; committed and raw working hashes separately retained. No native workflow selected or dispatched."
+  ],
+  "pathFenceDigest": "aee1c56123b462e27d87b6f661b2c1f895b716bb1d686d9bc1551934981f9a7d",
+  "preAuthorizedOverlapTuples": [],
+  "reconciliation": "Replay/reimplement after accepted S in graph order. Shared integration solely P04-C07; inherited English default repair needs applicable causal-owner authority. Regenerate exact-candidate packets and pass native Vietnamese diacritics/input/search/layout/accessibility/report/print gates and professional independent bilingual review before final credit.",
+  "reconciliationManifest": {
+    "B": {
+      "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+      "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225"
+    },
+    "acceptedS": null,
+    "candidateHistory": [
+      {
+        "changedPaths": [
+          "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+        ],
+        "head": "d3aebe5c5ad64d216a9bfeb4ffd4527fec44c2a4",
+        "parent": "f76f9d2eb8c791532c421ecf13e6f41337a4dfd6",
+        "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+        "subject": "Record provisional Traditional Chinese locale draft evidence",
+        "tree": "453bdab9d0dd7cc43efa53d80438c0e4b7049c9e"
+      },
+      {
+        "changedPaths": [
+          "docs/design/v30/execution/V30_CI_SELECTION.json",
+          "docs/design/v30/execution/V30_CURRENT_TASK.md",
+          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+        ],
+        "head": "eaffe95cb75e9185826b095ecf07c0e5a0c2c817",
+        "parent": "d3aebe5c5ad64d216a9bfeb4ffd4527fec44c2a4",
+        "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+        "subject": "Hydrate P04 C05 provisional Vietnamese locale",
+        "tree": "aa86f326731f3a35187e103b7de5699c12fc8b38"
+      },
+      {
+        "changedPaths": [
+          "FieldEvidenceApp/Resources/Globalization/vi.accessibility.json",
+          "FieldEvidenceApp/Resources/Globalization/vi.app.json",
+          "FieldEvidenceApp/Resources/Globalization/vi.report.json",
+          "FieldEvidenceAppTests/Fixtures/V30/Locales/vi.json",
+          "FieldEvidenceAppTests/V30_P04_C05VietnameseLocalizationTests.swift",
+          "docs/design/v30/locales/vi/V30P04C05ReviewPacketV1.json"
+        ],
+        "head": "b7eb425b1dca56e7751641c24d816bb5bd8f7a5e",
+        "parent": "eaffe95cb75e9185826b095ecf07c0e5a0c2c817",
+        "state": "PROVISIONAL_CHECKPOINTED",
+        "subject": "Draft complete Vietnamese locale catalogs and review evidence",
+        "tree": "57490a48f7a82c421dc1f00c48ec0386d3b81126"
+      }
+    ],
+    "invalidatedEvidence": [],
+    "kind": "V30_PER_CARD_PROVISIONAL_CANDIDATE",
+    "originalCandidate": {
+      "head": "b7eb425b1dca56e7751641c24d816bb5bd8f7a5e",
+      "tree": "57490a48f7a82c421dc1f00c48ec0386d3b81126"
+    },
+    "replayedCandidate": null,
+    "terminalP": null
+  },
+  "requestID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P04-C05/CHECKPOINT/1",
+  "revision": 1
+}
+```
