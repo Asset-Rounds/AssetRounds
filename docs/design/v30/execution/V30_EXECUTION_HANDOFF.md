@@ -5992,3 +5992,466 @@ This evidence does not record its own future bookkeeping commit.
   "revision": 1
 }
 ```
+
+## Card 30 of 55 - V30-P03-C09
+
+Onboarding, help, errors, permissions, notifications, support, and destructive actions — PROVISIONAL_CHECKPOINTED (Windows-static only).
+
+- M `f1769d43bbba6a4518daa786bf9fc7944ad99dac`, observed A `3db4222d10c6643d99ce1ae2058a8b5152ece09d`, E `c91f1a1cf9b82c133a6b66be18a856d9dd4cd328` (tree `0661cdcb8e1c63ae4cd34bdffd2f5b3a630f996f`); coordination checkpoint `a5c944ca22e9fa69be2e76464a11aa2c01b58129`, sequence 63, ledger digest `27d0e22d936cc8c26c2cb5ebbb6223aaeed1bdd3849a6c0eed5b5a0956577368`. M..A contains only four V30 execution documents.
+- Eleven product/test paths within 31-path fence. Actual shared UI: BackupRestoreProgressView, EraseAllView and StartupMaintenanceView. Their styling, IDs, guard behavior and effect handlers remain unchanged; only authorized copy and accessibility presentation changed. Exact overlap tuples are recorded below and require reconciliation after S.
+- Recovery now exposes contextual localized copy for all 25 operational failure/cancellation codes, preserving typed actions/help/owners. App-language resolution and positional status/detail templates replace ambient-locale or concatenated presentation. The 28-key critical registry is additive.
+- Permission catalog matches all three existing camera/microphone/speech declarations; no permission declaration or capability added. Exact ERASE authority token stays verbatim inside localized instructions. Startup and destructive copy resolve on access.
+- Verification: git diff --check PASS; V30 CI contract PASS WINDOWS_STATIC; source audit PASS (11 paths, 3 shared, 13 critical surfaces, 400 existing key bindings, 28 new critical keys, all existing tests retained). Seven new native tests are authored, NOT EXECUTED. Independent review: Independent Terra static review found no actionable defect in permission parity, recovery mappings, registry APIs, exact erase token, shared styling/IDs/callbacks or test bindings. Root additionally retained nonisolated access to pure startup copy and isolated the erase-service test to MainActor. Native compiler/XCTest and device accessibility remain unexecuted.
+- No native compile/XCTest/Simulator, real permission sheet, VoiceOver/layout, notification/deep-link interaction or linguistic qualification. Null selector/tier, no workflow run or runner/Xcode/Simulator identity. Synthetic six-language resources do not claim shipping translations. Existing semantic routes and notification truth remain authoritative.
+- KNOWN_BUGS read; no outstanding actionable defect accepted. No canonical/final/main/release or post-S10 successor credit. Reconciliation and native qualification remain required.
+- Next unstarted card: Card 31 V30-P04-C01; ordered selection and fresh G0 required.
+
+This evidence does not record its own future bookkeeping commit.
+
+```json
+{
+  "actualSharedPaths": [
+    "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+    "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+    "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift"
+  ],
+  "attempt": 1,
+  "authority": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
+    "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+  },
+  "authorityOnlyDiffResult": "M..A EXACTLY FOUR V30 EXECUTION DOCUMENTS",
+  "candidate": {
+    "base": "f1769d43bbba6a4518daa786bf9fc7944ad99dac",
+    "baseTree": "d87d9f891420bd6542755291350c9a34c9d4896d",
+    "changedPaths": [
+      "FieldEvidenceApp/Application/Globalization/CriticalSurfaceRecoveryCoordinatorV1.swift",
+      "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+      "FieldEvidenceApp/Features/Globalization/CriticalSurfaceLocalizationRegistryV1.swift",
+      "FieldEvidenceApp/Features/Recovery/RecoveryCenterView.swift",
+      "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+      "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+      "FieldEvidenceApp/InfoPlist.xcstrings",
+      "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+      "FieldEvidenceAppTests/Fixtures/V30/CriticalSurfaces/critical-surface-cases-v1.json",
+      "FieldEvidenceAppTests/V30_P03_C09CriticalSurfaceLocalizationTests.swift",
+      "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
+      "docs/design/v30/execution/V30_CI_SELECTION.json",
+      "docs/design/v30/execution/V30_CURRENT_TASK.md",
+      "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+      "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    ],
+    "head": "c91f1a1cf9b82c133a6b66be18a856d9dd4cd328",
+    "tree": "0661cdcb8e1c63ae4cd34bdffd2f5b3a630f996f"
+  },
+  "cardID": "V30-P03-C09",
+  "credit": {
+    "canonicalAcceptance": false,
+    "finalCredit": false,
+    "mainIntegrationCredit": false,
+    "postS10SuccessorStart": false,
+    "provisionalDependencySatisfied": true,
+    "releaseCredit": false
+  },
+  "evidence": {
+    "acceptanceMap": {
+      "coverage": "Thirteen in-fence critical screens retain four hundred existing source catalog key bindings. Literal dispositions distinguish exact ERASE token, machine identifiers and authored content. Seven new native tests use six synthetic resource locales and verify copy/semantic separation, exact prompts, template reordering, failure distinctions and token retention. All prior test methods retained; unexecuted.",
+      "critical": "Twenty-five existing operational failure/cancellation codes now have distinct localized contextual text through the recovery screen. Exact owner, action, fallback and help mappings are unchanged. The additive critical registry includes twenty-eight stable keys with comments and positional templates.",
+      "destructive": "The exact EraseAllService confirmation token is displayed verbatim and inserted into localized visible/accessible instructions. Original equality checks, destructive callback and styling remain unchanged. Startup/destructive text is recomputed on access instead of cached as static localized text.",
+      "permissions": "InfoPlist.xcstrings now covers all three unchanged Info.plist declarations: camera, microphone and speech. Microphone wording matches the incumbent foreground audio and temporary voice-detail behavior. The stale camera-only regression assertion now checks the complete declared set and exact values. No permissions or capabilities were added.",
+      "recovery": "Recovery-center keys resolve using effective app language; status labels and restore detail composition use reorderable positional templates. Existing typed semantic action/help identifiers remain route authority independently of copy; no notification scheduling, new deep link, capability grant, or sync claim is introduced."
+    },
+    "defects": [],
+    "limitations": "Windows-static source and API evidence only. No native compiler, XCTest, Simulator, actual permission sheet, VoiceOver, Dynamic Type, live deep-link/notification interaction or translation qualification. English defaults and synthetic routing resources do not claim shipping translations. Shared UI changes must be reconciled with accepted S before native/final acceptance.",
+    "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "outcome": "Close commonly missed surfaces with stable keys, contextual recovery, accessibility, notification/deep-link consistency, and no hidden English in critical states.",
+    "static": {
+      "G0": {
+        "A": "3db4222d10c6643d99ce1ae2058a8b5152ece09d",
+        "M": "f1769d43bbba6a4518daa786bf9fc7944ad99dac",
+        "allowedPathCount": 31,
+        "baseTree": "d87d9f891420bd6542755291350c9a34c9d4896d",
+        "cardID": "V30-P03-C09",
+        "coordinationHead": "aece8c31963a14af58a88e2f7b1a40494b8ab629",
+        "ledgerDigest": "217832ebdf3fc86e65db0b022e67c48294450ed57a4b149ab4b3b05c77c5875f",
+        "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+        "result": "PASS_G0",
+        "sequence": 62,
+        "sharedPaths": [
+          "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+          "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift",
+          "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+          "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+          "FieldEvidenceApp/Features/Reports/ReportFailureView.swift",
+          "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+          "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+          "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift",
+          "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+          "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+          "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift"
+        ],
+        "taskDigest": "1f7ccbd10ec05facc48c3575c00683547efefd850242e7166a745649a12be98e"
+      },
+      "actualSharedPaths": [
+        "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+        "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+        "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift"
+      ],
+      "allowedPathCount": 31,
+      "auditOutputSHA256": "d7243848e169f91735f1d542f2b9f395d4121c174189cc97ecff19cccd5c6b96",
+      "auditScriptSHA256": "59a71548008f006e3c43ce8ce9bdf2cfc3eb1715a75ff43cae3ff709a186c2d6",
+      "cardID": "V30-P03-C09",
+      "criticalSurfaceCount": 13,
+      "declaredPermissionsUnchanged": true,
+      "existingCatalogBindings": 400,
+      "implementationPathCount": 11,
+      "independentReview": "Independent Terra static review found no actionable defect in permission parity, recovery mappings, registry APIs, exact erase token, shared styling/IDs/callbacks or test bindings. Root additionally retained nonisolated access to pure startup copy and isolated the erase-service test to MainActor. Native compiler/XCTest and device accessibility remain unexecuted.",
+      "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+      "newCriticalKeys": 28,
+      "newNativeTestMethods": [
+        "testCriticalSurfaceExistingKeysResolveToBundledCatalogEntries",
+        "testEraseInstructionsKeepTheExactAuthorityTokenInEveryLanguage",
+        "testEveryFailureHasDistinctRegisteredCopyWithoutChangingItsAction",
+        "testLocalizedTemplatesCanReorderStatusAndDetailWithoutLosingContext",
+        "testNotificationAndSettingsCopyDoesNotGrantCapabilityOrChangeRecoveryState",
+        "testPermissionCatalogExactlyCoversDeclaredPromptsAndExistingCapabilities",
+        "testSyntheticLanguageResourcesChangeCopyButPreserveRecoveryIdentityAndActions"
+      ],
+      "operationalActionAndHelpMappingsUnchanged": true,
+      "permissionCatalogParity": true,
+      "result": "PASS_WINDOWS_STATIC",
+      "sharedStylesAndCallbacksPreserved": true,
+      "sourceArtifacts": [
+        {
+          "bytes": 2224,
+          "path": "FieldEvidenceApp/Application/Globalization/CriticalSurfaceRecoveryCoordinatorV1.swift",
+          "sha256": "ddd2f17f964aad2a8523865e639092ef7ee212172f21831cc04080b1b55f4560"
+        },
+        {
+          "bytes": 18594,
+          "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+          "sha256": "56e4c854c909460adf356be77c233212aa0599385c8dc5d6a7e20ea0acefb480"
+        },
+        {
+          "bytes": 17455,
+          "path": "FieldEvidenceApp/Features/Globalization/CriticalSurfaceLocalizationRegistryV1.swift",
+          "sha256": "e487841a0789d8e521d82da07918f02aafe22d2bc8c1b80ebb184c2278f703f7"
+        },
+        {
+          "bytes": 26957,
+          "path": "FieldEvidenceApp/Features/Recovery/RecoveryCenterView.swift",
+          "sha256": "084fa8a46f088c53e536b5c991341cd9d254378f0ba7873bb81608b499bea205"
+        },
+        {
+          "bytes": 9365,
+          "path": "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+          "sha256": "9db9a439643b724944de22ad26f3fcf992b30a0ef8023bc237263442d6de1abe"
+        },
+        {
+          "bytes": 4848,
+          "path": "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+          "sha256": "a2a347cd4c494045772ef169449a4fd5e7ffe9295361119aaf837a2e85e4a2b3"
+        },
+        {
+          "bytes": 1999,
+          "path": "FieldEvidenceApp/InfoPlist.xcstrings",
+          "sha256": "39a62e938b8c83b53aef6bf05a5c1394d870baf28ef0489a3b01c0aab73745e1"
+        },
+        {
+          "bytes": 377540,
+          "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+          "sha256": "eaca1dffcda6ca7aa78519741b274e610470032a2c06b61b4e3b27cc87ce2314"
+        },
+        {
+          "bytes": 22974,
+          "path": "FieldEvidenceAppTests/Fixtures/V30/CriticalSurfaces/critical-surface-cases-v1.json",
+          "sha256": "bf7590f4adf4236c49fdc8e3d818d65e34f10d0d02ab0d4d451e4794e1ff65c2"
+        },
+        {
+          "bytes": 9568,
+          "path": "FieldEvidenceAppTests/V30_P03_C09CriticalSurfaceLocalizationTests.swift",
+          "sha256": "21b8b1b9ffe56601f1f378f072ed771750e28543160689fafc2d09d49ad1d481"
+        },
+        {
+          "bytes": 116135,
+          "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
+          "sha256": "1946822ae47d804a7dc7625939b6314a82a439d23d88cb75610d3542388de91f"
+        },
+        {
+          "bytes": 1137,
+          "path": "docs/design/v30/execution/V30_CI_SELECTION.json",
+          "sha256": "e70e3167c951c1b7f6a2caabe03d2790f16e6a4f2c12b57292425290002e3c6e"
+        },
+        {
+          "bytes": 29398,
+          "path": "docs/design/v30/execution/V30_CURRENT_TASK.md",
+          "sha256": "a5a4e79f05f4d7044f20b75c0fcd6138271c262c0fe200f38971d3afa9f2c1a8"
+        },
+        {
+          "bytes": 359853,
+          "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+          "sha256": "5d1c72e8375fad143a09778bb36083da4aa6ed5d4d677c026930f9e6784e3bfd"
+        },
+        {
+          "bytes": 700,
+          "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json",
+          "sha256": "ad7efab1f5250f1d982378fa1e4fd171c140b78170d4af7aa92b4bfb252472b0"
+        }
+      ],
+      "testCounts": {
+        "FieldEvidenceAppTests/V30_P03_C09CriticalSurfaceLocalizationTests.swift": {
+          "after": 7,
+          "before": 0
+        },
+        "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift": {
+          "after": 46,
+          "before": 46
+        }
+      },
+      "workingSourceArtifacts": [
+        {
+          "bytes": 2224,
+          "path": "FieldEvidenceApp/Application/Globalization/CriticalSurfaceRecoveryCoordinatorV1.swift",
+          "sha256": "ddd2f17f964aad2a8523865e639092ef7ee212172f21831cc04080b1b55f4560"
+        },
+        {
+          "bytes": 18594,
+          "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+          "sha256": "56e4c854c909460adf356be77c233212aa0599385c8dc5d6a7e20ea0acefb480"
+        },
+        {
+          "bytes": 17455,
+          "path": "FieldEvidenceApp/Features/Globalization/CriticalSurfaceLocalizationRegistryV1.swift",
+          "sha256": "e487841a0789d8e521d82da07918f02aafe22d2bc8c1b80ebb184c2278f703f7"
+        },
+        {
+          "bytes": 26957,
+          "path": "FieldEvidenceApp/Features/Recovery/RecoveryCenterView.swift",
+          "sha256": "084fa8a46f088c53e536b5c991341cd9d254378f0ba7873bb81608b499bea205"
+        },
+        {
+          "bytes": 9365,
+          "path": "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+          "sha256": "9db9a439643b724944de22ad26f3fcf992b30a0ef8023bc237263442d6de1abe"
+        },
+        {
+          "bytes": 4848,
+          "path": "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+          "sha256": "a2a347cd4c494045772ef169449a4fd5e7ffe9295361119aaf837a2e85e4a2b3"
+        },
+        {
+          "bytes": 1999,
+          "path": "FieldEvidenceApp/InfoPlist.xcstrings",
+          "sha256": "39a62e938b8c83b53aef6bf05a5c1394d870baf28ef0489a3b01c0aab73745e1"
+        },
+        {
+          "bytes": 377540,
+          "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+          "sha256": "eaca1dffcda6ca7aa78519741b274e610470032a2c06b61b4e3b27cc87ce2314"
+        },
+        {
+          "bytes": 22974,
+          "path": "FieldEvidenceAppTests/Fixtures/V30/CriticalSurfaces/critical-surface-cases-v1.json",
+          "sha256": "bf7590f4adf4236c49fdc8e3d818d65e34f10d0d02ab0d4d451e4794e1ff65c2"
+        },
+        {
+          "bytes": 9568,
+          "path": "FieldEvidenceAppTests/V30_P03_C09CriticalSurfaceLocalizationTests.swift",
+          "sha256": "21b8b1b9ffe56601f1f378f072ed771750e28543160689fafc2d09d49ad1d481"
+        },
+        {
+          "bytes": 116135,
+          "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
+          "sha256": "1946822ae47d804a7dc7625939b6314a82a439d23d88cb75610d3542388de91f"
+        }
+      ]
+    },
+    "workflow": {
+      "branchRef": "refs/heads/phase/v30-globalization",
+      "expectedHead": "c91f1a1cf9b82c133a6b66be18a856d9dd4cd328",
+      "runID": null,
+      "selectorInput": null,
+      "selectorTier": null,
+      "url": null
+    }
+  },
+  "expectedLedgerDigest": "217832ebdf3fc86e65db0b022e67c48294450ed57a4b149ab4b3b05c77c5875f",
+  "expectedOldRef": "aece8c31963a14af58a88e2f7b1a40494b8ab629",
+  "expectedSequence": 62,
+  "next": "V30-P04-C01",
+  "observedAuthorityHead": "3db4222d10c6643d99ce1ae2058a8b5152ece09d",
+  "operationalProvenance": [
+    "Owner resumed after pause before Card30. Immediate selection CAS and fresh G0 passed with predecessor Card29 E and immutable package/fence pins.",
+    "Eleven product/test paths changed within the thirty-one-path fence. Three of eleven pre-authorized shared paths changed: restore progress, erase and startup maintenance. Source audit proves existing shared styling, accessibility identifiers, disabled guards, callbacks and destructive implementation retained.",
+    "Existing recovery action/help switch mappings moved unchanged into the presentation coordinator; the failure owner still supplies typed semantic actions. Existing notification truth policies remain untouched.",
+    "Static contract and source audit passed. Seven new native tests authored but not run; no final/canonical/main/release or post-S10 successor credit."
+  ],
+  "pathFenceDigest": "95164c0de9749a1a8bc5f38ae88156eed5ae90d9651f8e9877b2160351d4aa01",
+  "preAuthorizedOverlapTuples": [
+    {
+      "boundedPurpose": "localize only critical recovery/destructive/support copy and accessible actions in FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift; preserve Phase10 visual styling and workflow behavior",
+      "cardID": "V30-P03-C09",
+      "expectedBBlobOID": "0fcac3c65ac2581c5912936215cd5c2a3b7ff1ed",
+      "expectedBSHA256": "700ad042adb3f6cf69eb18e41e078ad0a59e049680bd42e71cd62ca14c7432a0",
+      "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P03-C09-CRITICAL-SURFACE-INTEGRATOR"
+    },
+    {
+      "boundedPurpose": "localize only critical recovery/destructive/support copy and accessible actions in FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift; preserve Phase10 visual styling and workflow behavior",
+      "cardID": "V30-P03-C09",
+      "expectedBBlobOID": "535a86a3312f537f13c10b5db3f7bed3ac0f3945",
+      "expectedBSHA256": "fefb968c6900e8cf9abd054e09e424cac7510c56e82642657efda45fa81ff559",
+      "path": "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P03-C09-CRITICAL-SURFACE-INTEGRATOR"
+    },
+    {
+      "boundedPurpose": "localize only critical recovery/destructive/support copy and accessible actions in FieldEvidenceApp/Features/Reports/ReportFailureView.swift; preserve Phase10 visual styling and workflow behavior",
+      "cardID": "V30-P03-C09",
+      "expectedBBlobOID": "5378ee6c73d8d86cce2c7a316fa23509d4d3250e",
+      "expectedBSHA256": "e869176ccc9a768f1c351442c3e22d4a560bd7b39ab2ea209d85774c1079d26a",
+      "path": "FieldEvidenceApp/Features/Reports/ReportFailureView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P03-C09-CRITICAL-SURFACE-INTEGRATOR"
+    },
+    {
+      "boundedPurpose": "localize only critical recovery/destructive/support copy and accessible actions in FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift; preserve Phase10 visual styling and workflow behavior",
+      "cardID": "V30-P03-C09",
+      "expectedBBlobOID": "424f869477fe107d1595763c951abef7193c9c6b",
+      "expectedBSHA256": "64f745df1643d2271317756930f2cb003a9bc34bfba23a8cd70477a9a047aa7f",
+      "path": "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P03-C09-CRITICAL-SURFACE-INTEGRATOR"
+    },
+    {
+      "boundedPurpose": "localize only critical recovery/destructive/support copy and accessible actions in FieldEvidenceApp/Features/Settings/EraseAllView.swift; preserve Phase10 visual styling and workflow behavior",
+      "cardID": "V30-P03-C09",
+      "expectedBBlobOID": "f6b551d503a0af293cff966a1cb5d725a20f773d",
+      "expectedBSHA256": "955f13980acd330d98aaa0ee13735bb6f6f2b3c45772fbe8e7ebf8b5c2269c1f",
+      "path": "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P03-C09-CRITICAL-SURFACE-INTEGRATOR"
+    },
+    {
+      "boundedPurpose": "localize only critical recovery/destructive/support/permission copy and accessibility actions in FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift; preserve Phase10 visual styling and workflow behavior",
+      "cardID": "V30-P03-C09",
+      "expectedBBlobOID": "f7a500dd414a35824117caa9dcd93c83909d1530",
+      "expectedBSHA256": "f2290620946afbb1b60577db62203a5c99e3012b74943b5cbbe7c576c83a71e8",
+      "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P03-C09-CRITICAL-SURFACE-INTEGRATOR"
+    },
+    {
+      "boundedPurpose": "localize only critical recovery/destructive/support/permission copy and accessibility actions in FieldEvidenceApp/Features/Settings/BackupExportView.swift; preserve Phase10 visual styling and workflow behavior",
+      "cardID": "V30-P03-C09",
+      "expectedBBlobOID": "0b4f6740f4a5ecbb801ce2dd5bdd7c77f30afe92",
+      "expectedBSHA256": "82f4862beabd981422629fad66065086571fc66d1f79d982df3deec683ade1a0",
+      "path": "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P03-C09-CRITICAL-SURFACE-INTEGRATOR"
+    },
+    {
+      "boundedPurpose": "localize only critical recovery/destructive/support/permission copy and accessibility actions in FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift; preserve Phase10 visual styling and workflow behavior",
+      "cardID": "V30-P03-C09",
+      "expectedBBlobOID": "2f9e5a5b606e1170030b91d867374b55b6144d86",
+      "expectedBSHA256": "007303e9c3ac6125a0833ecd045b5d4338ccc7c49832cd03a9692dcdac7ccc34",
+      "path": "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P03-C09-CRITICAL-SURFACE-INTEGRATOR"
+    },
+    {
+      "boundedPurpose": "localize only critical recovery/destructive/support/permission copy and accessibility actions in FieldEvidenceApp/Features/Settings/FeedbackView.swift; preserve Phase10 visual styling and workflow behavior",
+      "cardID": "V30-P03-C09",
+      "expectedBBlobOID": "82bd8b590e238f8f5c5f119dd91b20dbd57893ea",
+      "expectedBSHA256": "64e594839fbc4d3dfb2974539449c4644fe07cda52a1c30a06078ac8f427398a",
+      "path": "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P03-C09-CRITICAL-SURFACE-INTEGRATOR"
+    },
+    {
+      "boundedPurpose": "localize only critical recovery/destructive/support/permission copy and accessibility actions in FieldEvidenceApp/Features/Reports/ReportDetailView.swift; preserve Phase10 visual styling and workflow behavior",
+      "cardID": "V30-P03-C09",
+      "expectedBBlobOID": "c02680e9870fa348f1b8237f03f66496ff393418",
+      "expectedBSHA256": "22387f27d46acfbf2e021b89e3f2bc2caf63fcdc95f8dc5cb6d2259d73ff3716",
+      "path": "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P03-C09-CRITICAL-SURFACE-INTEGRATOR"
+    },
+    {
+      "boundedPurpose": "localize only critical recovery/destructive/support/permission copy and accessibility actions in FieldEvidenceApp/Features/Reports/ReportsRootView.swift; preserve Phase10 visual styling and workflow behavior",
+      "cardID": "V30-P03-C09",
+      "expectedBBlobOID": "295917ff019fa349871946b8dcdeaa4727eb807d",
+      "expectedBSHA256": "73161df4862a170d8232b61e922d7cb60d577e95d7e6727406ff754d83a80350",
+      "path": "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P03-C09-CRITICAL-SURFACE-INTEGRATOR"
+    }
+  ],
+  "reconciliation": "Replay or reimplement in graph order after accepted S. Reconcile all actual shared UI tuples, run native accessibility/permission/recovery/destructive tests and qualify resources. No wholesale merge or final credit.",
+  "reconciliationManifest": {
+    "B": {
+      "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+      "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225"
+    },
+    "acceptedS": null,
+    "candidateHistory": [
+      {
+        "changedPaths": [
+          "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+        ],
+        "head": "fd0539a6747c4d5cb5b9cd93855ab3f720b084aa",
+        "parent": "f1769d43bbba6a4518daa786bf9fc7944ad99dac",
+        "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+        "subject": "Record provisional historical backup replay evidence",
+        "tree": "2c0fb640d9afddbbea5365abad1f96358e3cee00"
+      },
+      {
+        "changedPaths": [
+          "docs/design/v30/execution/V30_CI_SELECTION.json",
+          "docs/design/v30/execution/V30_CURRENT_TASK.md",
+          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+        ],
+        "head": "3db4222d10c6643d99ce1ae2058a8b5152ece09d",
+        "parent": "fd0539a6747c4d5cb5b9cd93855ab3f720b084aa",
+        "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+        "subject": "Hydrate P03 C09 critical surfaces localization",
+        "tree": "6297e4f0c7b81d2f0bf9ba5b1bd1fa3448f0182e"
+      },
+      {
+        "changedPaths": [
+          "FieldEvidenceApp/Application/Globalization/CriticalSurfaceRecoveryCoordinatorV1.swift",
+          "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+          "FieldEvidenceApp/Features/Globalization/CriticalSurfaceLocalizationRegistryV1.swift",
+          "FieldEvidenceApp/Features/Recovery/RecoveryCenterView.swift",
+          "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+          "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+          "FieldEvidenceApp/InfoPlist.xcstrings",
+          "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+          "FieldEvidenceAppTests/Fixtures/V30/CriticalSurfaces/critical-surface-cases-v1.json",
+          "FieldEvidenceAppTests/V30_P03_C09CriticalSurfaceLocalizationTests.swift",
+          "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift"
+        ],
+        "head": "c91f1a1cf9b82c133a6b66be18a856d9dd4cd328",
+        "parent": "3db4222d10c6643d99ce1ae2058a8b5152ece09d",
+        "state": "PROVISIONAL_CHECKPOINTED",
+        "subject": "Localize critical recovery and permission surfaces without changing authority",
+        "tree": "0661cdcb8e1c63ae4cd34bdffd2f5b3a630f996f"
+      }
+    ],
+    "invalidatedEvidence": [],
+    "kind": "V30_PER_CARD_PROVISIONAL_CANDIDATE",
+    "originalCandidate": {
+      "head": "c91f1a1cf9b82c133a6b66be18a856d9dd4cd328",
+      "tree": "0661cdcb8e1c63ae4cd34bdffd2f5b3a630f996f"
+    },
+    "replayedCandidate": null,
+    "terminalP": null
+  },
+  "requestID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P03-C09/CHECKPOINT/1",
+  "revision": 1
+}
+```
