@@ -1,8 +1,8 @@
 {
   "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
   "branchRef": "refs/heads/phase/v30-globalization",
-  "cardID": "V30-P03-C07",
-  "cardTitle": "OCR, dictation, speech, and assisted-input capability truth",
+  "cardID": "V30-P03-C08",
+  "cardTitle": "Backup, restore, and historical catalog replay",
   "developmentRouteSHA256": "34f9a85de308eae84864d1f6524f87d2740ab1c32f1e0df48c7e8358e40c6690",
   "hostedDispatchAllowed": false,
   "hostedDispatchUnlockCard": "V30-P00-C05",
@@ -14,7 +14,7 @@
     "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
-  "payloadDigest": "b22c969e2bb5fd96d8c6f0c6fa083d9430290694942a1b3e4b5dc3a091bc26f8",
+  "payloadDigest": "af7c7e278ecc2b17b206976ded5a209791b4ce9cac5a873955c9097cc37d86f2",
   "preS10FinalCredit": false,
   "reason": "Windows-static provisional card; no native dispatch is selected.",
   "schemaVersion": "V30BootstrapPayloadV1",
