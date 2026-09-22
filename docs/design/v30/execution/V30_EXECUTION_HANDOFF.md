@@ -8861,3 +8861,735 @@ This entry does not self-record its future bookkeeping commit.
   "revision": 1
 }
 ```
+
+## Card 37 of 55 - V30-P04-C07
+
+Six-locale shared integration — PROVISIONAL_CHECKPOINTED. Final acceptance and release remain blocked.
+
+- M `02c7b78884865e3392c164b0165f703499da9f61`, observed A `2e45ef7722b80c4cd3f88225c62a4ea0a99487d7`; product E `80512f31315a0c7e91a56c8db726a4b4b6dec4fc`, tree `c0ce5222da96af804c1bea4b4ab0b6fe023dd5bf`; binding R `79f118d6942d64718bf2433ac7dad00ec2b99a60`, tree `ba30db8fb597e3117f2ccfdc020625e05da33367`. E is product content; R changes only three binding artifacts. Coordination checkpoint `e2acd2fe873138b1b2d3737d54733104233ae81f`, sequence 77, ledger digest `ee714979cc3712059b6bc0d204cab63e1bcd2ad9567e914336c2b3e7052a7cdf`. M..A is exactly four V30 execution documents.
+- Six locale cohorts across 3209 app and 3 permission keys; 119 pre-existing typed defaults incorporated; 15 immutable locale lane catalogs. Project delta: five knownRegions only, existing synchronized resource membership retained. 58 static English shortcut branches now resolve localized resources with English fallback. Closed source validator preserves English archives and accepts only the exact six-locale cohort.
+- Static catalog/key/source/typed-argument/plural/state/lane/project checks PASS; ten rejecting static mutations PASS; binding hashes and independent source/artifact reviews PASS; V30 CI contract WINDOWS_STATIC and diff check PASS. Eight native tests AUTHORED ONLY. No Xcode/Simulator/workflow/runner/run/artifacts selected or executed; no native credit.
+- Known final blockers: four inherited malformed English producer defaults preserved to avoid a catalog-only publication regression; 132 inherited entries lack translator comments; machine-assisted targets need professional independent bilingual and native in-context review; all rendering/accessibility/input/font/report/print gates remain unexecuted. Historical P02-C01 whole-catalog equality assertions need causal-owner updates after reconciliation. KNOWN_BUGS read; no exception added.
+- Complete provisional content binding includes exact E/tree, key/source/catalog/translation/termbase/capability identities, six locale release entries, preserved draft packets, pending human roles, fallback and supersession rules. English shipping manifest, accepted C08 descriptor and report chrome policies remain historical; no store/release/publication credit.
+- Terminal protocol: this HANDOFF/projection-only commit will be observed as P after commit. An external coordination-only FREEZE CAS will record P/tree, complete B..P commit/diff map, all card evidence dispositions, shared paths and semantic dependencies. Product projection intentionally remains at checkpoint77 to avoid self-reference; final ledger78 readback is recorded externally. No product mutation follows freeze.
+- STOP before Card38 V30-P05-C01. Cards38–55 are locked; await owner Phase10.6 completion trigger AND valid separate V30PostS10ReconciliationAuthorityV1. Do not poll Phase10 or main. No canonical/final/main/release/post-S10 successor credit.
+
+This entry does not self-record its future H/P identity.
+
+```json
+{
+  "actualSharedPaths": [
+    "FieldEvidenceApp.xcodeproj/project.pbxproj"
+  ],
+  "attempt": 1,
+  "authority": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
+    "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+  },
+  "authorityOnlyDiffResult": "M..A EXACTLY FOUR V30 EXECUTION DOCUMENTS",
+  "candidate": {
+    "base": "02c7b78884865e3392c164b0165f703499da9f61",
+    "baseTree": "5f6ab889ba0434565ffc993de010da34d2cc89b2",
+    "changedPaths": [
+      "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+      "FieldEvidenceApp/InfoPlist.xcstrings",
+      "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+      "FieldEvidenceApp/Resources/Localizable.xcstrings",
+      "FieldEvidenceAppTests/V30_P04_C07LocaleReleaseIntegrationTests.swift",
+      "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
+      "docs/design/v30/execution/V30_CI_SELECTION.json",
+      "docs/design/v30/execution/V30_CURRENT_TASK.md",
+      "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+      "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json",
+      "docs/design/v30/execution/receipts/V30-P04-C07-provisional-integration-receipt.json",
+      "docs/design/v30/translation/V30ProvisionalLocalizationCatalogReleaseV1.json",
+      "docs/design/v30/verification/V30P04C07LocaleIntegrationMatrixV1.json"
+    ],
+    "head": "79f118d6942d64718bf2433ac7dad00ec2b99a60",
+    "role": "BINDING_HEAD",
+    "tree": "ba30db8fb597e3117f2ccfdc020625e05da33367"
+  },
+  "cardID": "V30-P04-C07",
+  "credit": {
+    "canonicalAcceptance": false,
+    "finalCredit": false,
+    "mainIntegrationCredit": false,
+    "postS10SuccessorStart": false,
+    "provisionalDependencySatisfied": true,
+    "releaseCredit": false
+  },
+  "evidence": {
+    "acceptance": "PROVISIONAL_STRUCTURAL_INTEGRATION_ONLY",
+    "bindingAudit": {
+      "E": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+      "artifactHashes": {
+        "docs/design/v30/execution/receipts/V30-P04-C07-provisional-integration-receipt.json": "f06e22f9b602fbb5aeba35e6921df821565acf2c02f54d6c530b57fdf0562768",
+        "docs/design/v30/translation/V30ProvisionalLocalizationCatalogReleaseV1.json": "c580bf92c3dc0fdd180a786db5393e79a89b445f4f3ebdc997418c8cb6f24236",
+        "docs/design/v30/verification/V30P04C07LocaleIntegrationMatrixV1.json": "58e40c73d1eb125fde579c292d7fbbcf7c0656eb597ab655ebc067175afb5971"
+      },
+      "bindingPaths": [
+        "docs/design/v30/translation/V30ProvisionalLocalizationCatalogReleaseV1.json",
+        "docs/design/v30/execution/receipts/V30-P04-C07-provisional-integration-receipt.json",
+        "docs/design/v30/verification/V30P04C07LocaleIntegrationMatrixV1.json"
+      ],
+      "inheritedMissingComments": 132,
+      "matrixDigest": "efb68150de3aa4f8d76651d72437776086ed7590d6cae55c50bcbbc3c8ddcdac",
+      "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+      "receiptDigest": "a91e2f25ce9d40b43ca0e359fbae71f6f9c48223a08d08dea11753586aec4f70",
+      "releaseDigest": "153eb4311af6e600893b40eefd1587bbc210dc85ce43acb9e3734b8802eb220b",
+      "result": "PASS_EXACT_E_BINDING_STATIC",
+      "tree": "c0ce5222da96af804c1bea4b4ab0b6fe023dd5bf"
+    },
+    "bindingReview": {
+      "evidence": "Independent read-only review verified all three canonical payload digests, exact E/tree binding, all seven committed source artifact hashes, receipt-to-release/matrix links, six capabilities, four source defects, 132 missing inherited comments, eight unexecuted native tests, pending human roles, false qualification credits and locked successor. No self-recorded R.",
+      "result": "PASS",
+      "reviewer": "c37_code_review"
+    },
+    "defects": [
+      {
+        "baselineEvidence": {
+          "path": "FieldEvidenceApp/Features/WorkResources/ManualWorkResourceWorkflowView.swift",
+          "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+          "sha256": "7763f72a2b820861915cb6d814132cf7c3da9de0980997a44abefd6f1b8dd28b"
+        },
+        "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+        "currentSourcePaths": [
+          "FieldEvidenceApp/Resources/Localizable.xcstrings",
+          "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+        ],
+        "disposition": "Preserved inherited producer/catalog defect. Correct both atomically under causal-owner/reconciliation authority; catalog-only repair would break strict publication. Final acceptance remains blocked.",
+        "finalAcceptanceBlocked": true,
+        "intendedEnglish": "units",
+        "key": "v30.manual-work-resource.units",
+        "rawEnglish": "\\(exactDecimal(line.quantity.mantissa, scale: line.quantity.scale)) \\(line.unit ?? ",
+        "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+        "targetDrafts": {
+          "es": "unidades",
+          "ko": "단위",
+          "vi": "đơn vị",
+          "zh-Hans": "单位",
+          "zh-Hant": "單位"
+        }
+      },
+      {
+        "baselineEvidence": {
+          "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+          "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+          "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+        },
+        "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+        "currentSourcePaths": [
+          "FieldEvidenceApp/Resources/Localizable.xcstrings",
+          "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+        ],
+        "disposition": "Preserved inherited producer/catalog defect. Correct both atomically under causal-owner/reconciliation authority; catalog-only repair would break strict publication. Final acceptance remains blocked.",
+        "finalAcceptanceBlocked": true,
+        "intendedEnglish": "no duration estimate",
+        "key": "v30.my-day.no-duration-estimate-lowercase",
+        "rawEnglish": "\\(referenceLabel(item.item.reference)): \\(dueCueText(item.dueCue)); \\(readinessText(item.readiness)); \\(item.estimate.map(estimateText) ?? ",
+        "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+        "targetDrafts": {
+          "es": "sin duración estimada",
+          "ko": "예상 소요 시간 없음",
+          "vi": "không có thời lượng ước tính",
+          "zh-Hans": "无时长估计",
+          "zh-Hant": "無時長估計"
+        }
+      },
+      {
+        "baselineEvidence": {
+          "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+          "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+          "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+        },
+        "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+        "currentSourcePaths": [
+          "FieldEvidenceApp/Resources/Localizable.xcstrings",
+          "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+        ],
+        "disposition": "Preserved inherited producer/catalog defect. Correct both atomically under causal-owner/reconciliation authority; catalog-only repair would break strict publication. Final acceptance remains blocked.",
+        "finalAcceptanceBlocked": true,
+        "intendedEnglish": "No total estimate",
+        "key": "v30.my-day.no-total-estimate",
+        "rawEnglish": "\\($0) minutes",
+        "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+        "targetDrafts": {
+          "es": "Sin estimación total",
+          "ko": "예상 총 소요 시간 없음",
+          "vi": "Không có tổng thời lượng ước tính",
+          "zh-Hans": "无总时长估计",
+          "zh-Hant": "無總時長估計"
+        }
+      },
+      {
+        "baselineEvidence": {
+          "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+          "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+          "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+        },
+        "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+        "currentSourcePaths": [
+          "FieldEvidenceApp/Resources/Localizable.xcstrings",
+          "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+        ],
+        "disposition": "Preserved inherited producer/catalog defect. Correct both atomically under causal-owner/reconciliation authority; catalog-only repair would break strict publication. Final acceptance remains blocked.",
+        "finalAcceptanceBlocked": true,
+        "intendedEnglish": "Start",
+        "key": "v30.my-day.start",
+        "rawEnglish": "\\(intent.action == .start ? ",
+        "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+        "targetDrafts": {
+          "es": "Iniciar",
+          "ko": "시작",
+          "vi": "Bắt đầu",
+          "zh-Hans": "开始",
+          "zh-Hant": "開始"
+        }
+      }
+    ],
+    "limitations": "Final acceptance blocked: four inherited malformed English defaults; professional native in-context translation review, all native/CI/render/font/keyboard/report/print qualification unexecuted; 132 inherited missing translator comments; historical C01 whole-catalog assertions require causal-owner reconciliation. English shipping manifest, C08 accepted descriptor and report chrome remain unchanged.",
+    "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "outcome": "Integrate all six localizations once on the provisional branch, update known regions/shared metadata, create the complete provisional catalog-release set, bind candidate head/tree/capability matrix, regenerate deterministic fixtures, prove lane isolation, and freeze the branch for P05.",
+    "static": {
+      "G0": {
+        "A": "2e45ef7722b80c4cd3f88225c62a4ea0a99487d7",
+        "M": "02c7b78884865e3392c164b0165f703499da9f61",
+        "allowedPathCount": 14,
+        "baseTree": "5f6ab889ba0434565ffc993de010da34d2cc89b2",
+        "cardID": "V30-P04-C07",
+        "coordinationHead": "b9e5a45bc9f69486639280572e3ab11f13a85934",
+        "ledgerDigest": "c829d6285cf0fb9de10c722c90596e186fc6a4b859edb4768ea25ff9304871af",
+        "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+        "result": "PASS_G0",
+        "sequence": 76,
+        "sharedPaths": [
+          "FieldEvidenceApp.xcodeproj/project.pbxproj"
+        ],
+        "taskDigest": "17a63b49c754063f72aaaaa4449e2138c11f71ed996189a96ed62326d48586fe"
+      },
+      "actualSharedPaths": [
+        "FieldEvidenceApp.xcodeproj/project.pbxproj"
+      ],
+      "addedExistingTypedDefaults": 119,
+      "allowedPathCount": 14,
+      "appKeyCount": 3209,
+      "auditOutputSHA256": "251e890ce8bc2bafcf6bf9a69da0c5a1fbf3fd61f673baefc114822fded67f99",
+      "auditScriptSHA256": "3328ef69018da8cb08a6e8efab3ca0a3675535ad5c2cbceda48f24e4b4a2b672",
+      "cardID": "V30-P04-C07",
+      "catalogKeyCount": 3212,
+      "englishSourceSHA256": "95eae457b3e4108a9c900fa03b7e150258ca6ec92c0665361b10e8871d923d2b",
+      "implementationPathCount": 7,
+      "independentReview": "PASS read-only independent Terra medium source review: no remaining actionable issue after inherited comment compatibility correction; exact six-locale membership, plural/argument/state validation, 58 static lookup branches, scoped project delta and authored tests reviewed. Native execution not performed.",
+      "keySetSHA256": "29839192452e8ae666cf74498fb9809962a1afa19a50076d7c332c3cdecbf6b1",
+      "laneBindings": [
+        {
+          "bytes": 2023792,
+          "keyCount": 2717,
+          "path": "FieldEvidenceApp/Resources/Globalization/es.app.json",
+          "sha256": "82e4ff862580cb48de6b8eb641c8ce3299d7111f507d0eacf879e239cd42e0a6",
+          "sourceRevision": "b418cd68cf5242ecbab046f16c47b389e64f9dbd",
+          "sourceTree": "f458674264c10872bb12cd0adcc3964dc38c0be2"
+        },
+        {
+          "bytes": 86421,
+          "keyCount": 113,
+          "path": "FieldEvidenceApp/Resources/Globalization/es.report.json",
+          "sha256": "e9119550ee12c654b4bc6f201f87089e9317b9356b71a29423da4608bcf0659f",
+          "sourceRevision": "b418cd68cf5242ecbab046f16c47b389e64f9dbd",
+          "sourceTree": "f458674264c10872bb12cd0adcc3964dc38c0be2"
+        },
+        {
+          "bytes": 282897,
+          "keyCount": 382,
+          "path": "FieldEvidenceApp/Resources/Globalization/es.accessibility.json",
+          "sha256": "74145ce3072ed18e57de5433785cf8068854997028582bd0ce8b021109e44ca1",
+          "sourceRevision": "b418cd68cf5242ecbab046f16c47b389e64f9dbd",
+          "sourceTree": "f458674264c10872bb12cd0adcc3964dc38c0be2"
+        },
+        {
+          "bytes": 1990403,
+          "keyCount": 2717,
+          "path": "FieldEvidenceApp/Resources/Globalization/zh-Hans.app.json",
+          "sha256": "adbf7e6e2f86fb1844ab018643369d9b033484a4b598979f14046a85d4e99359",
+          "sourceRevision": "4f9e9bdcbadac95d738a089952a9519c6c65f37c",
+          "sourceTree": "d35e62c2a38ce7303acc42d63ffdec9052d6d11b"
+        },
+        {
+          "bytes": 84946,
+          "keyCount": 113,
+          "path": "FieldEvidenceApp/Resources/Globalization/zh-Hans.report.json",
+          "sha256": "1e0a73c8b98fff1199a710e7828c7e3bf12520114ef27f220616ab2da8654980",
+          "sourceRevision": "4f9e9bdcbadac95d738a089952a9519c6c65f37c",
+          "sourceTree": "d35e62c2a38ce7303acc42d63ffdec9052d6d11b"
+        },
+        {
+          "bytes": 278681,
+          "keyCount": 382,
+          "path": "FieldEvidenceApp/Resources/Globalization/zh-Hans.accessibility.json",
+          "sha256": "ccb505877efe8d048677c9d66bbcd44639cefc73e35ab961a644b34d2d974474",
+          "sourceRevision": "4f9e9bdcbadac95d738a089952a9519c6c65f37c",
+          "sourceTree": "d35e62c2a38ce7303acc42d63ffdec9052d6d11b"
+        },
+        {
+          "bytes": 1991112,
+          "keyCount": 2717,
+          "path": "FieldEvidenceApp/Resources/Globalization/zh-Hant.app.json",
+          "sha256": "1738fd5b5e1eb2e4afc2871ad4a6295cf23aa381aa7bb0e285762b14473f6aef",
+          "sourceRevision": "d0548045660c82a9c00e90b58cdcb5fd9be7a37c",
+          "sourceTree": "40e4b6eaf825387357afcbe6134e2418c1481640"
+        },
+        {
+          "bytes": 84898,
+          "keyCount": 113,
+          "path": "FieldEvidenceApp/Resources/Globalization/zh-Hant.report.json",
+          "sha256": "e8a19a17515301acc033fefe6f1dfba8f6c0e147ff515d8904eedbd339123cbe",
+          "sourceRevision": "d0548045660c82a9c00e90b58cdcb5fd9be7a37c",
+          "sourceTree": "40e4b6eaf825387357afcbe6134e2418c1481640"
+        },
+        {
+          "bytes": 278914,
+          "keyCount": 382,
+          "path": "FieldEvidenceApp/Resources/Globalization/zh-Hant.accessibility.json",
+          "sha256": "7868ee4d68baa478666d7e05c79ad347da45c5dcda8fe59c1a5bb8a1540916a4",
+          "sourceRevision": "d0548045660c82a9c00e90b58cdcb5fd9be7a37c",
+          "sourceTree": "40e4b6eaf825387357afcbe6134e2418c1481640"
+        },
+        {
+          "bytes": 2038730,
+          "keyCount": 2717,
+          "path": "FieldEvidenceApp/Resources/Globalization/vi.app.json",
+          "sha256": "4d166db9aeca37fe7b6e2cc528a74e8d87c75e604eb5de2b393b354fc2685e4d",
+          "sourceRevision": "eaffe95cb75e9185826b095ecf07c0e5a0c2c817",
+          "sourceTree": "aa86f326731f3a35187e103b7de5699c12fc8b38"
+        },
+        {
+          "bytes": 85931,
+          "keyCount": 113,
+          "path": "FieldEvidenceApp/Resources/Globalization/vi.report.json",
+          "sha256": "66bed707bace452c2d96044dc421d4b36707158a2487060130153f6113ad9879",
+          "sourceRevision": "eaffe95cb75e9185826b095ecf07c0e5a0c2c817",
+          "sourceTree": "aa86f326731f3a35187e103b7de5699c12fc8b38"
+        },
+        {
+          "bytes": 284807,
+          "keyCount": 382,
+          "path": "FieldEvidenceApp/Resources/Globalization/vi.accessibility.json",
+          "sha256": "6207abc37bb90830db46a64858f74ec3f9f96b56be67e29a173d8cd5fe2cd3c2",
+          "sourceRevision": "eaffe95cb75e9185826b095ecf07c0e5a0c2c817",
+          "sourceTree": "aa86f326731f3a35187e103b7de5699c12fc8b38"
+        },
+        {
+          "bytes": 2015625,
+          "keyCount": 2717,
+          "path": "FieldEvidenceApp/Resources/Globalization/ko.app.json",
+          "sha256": "1212339322fe5f5eca316c121d470675fd90bc3709ecb7f8b0d6d2ce1df901a0",
+          "sourceRevision": "8206f03439789132fb2144400c5a91ed7d2fafcb",
+          "sourceTree": "a438c5fe05392bb6040e2d133b9abf3900f1aa2d"
+        },
+        {
+          "bytes": 85346,
+          "keyCount": 113,
+          "path": "FieldEvidenceApp/Resources/Globalization/ko.report.json",
+          "sha256": "a6ec97d690be39f4f74dbbc0d7ade2e69d935d51d01c163dfc557d448746af9b",
+          "sourceRevision": "8206f03439789132fb2144400c5a91ed7d2fafcb",
+          "sourceTree": "a438c5fe05392bb6040e2d133b9abf3900f1aa2d"
+        },
+        {
+          "bytes": 283841,
+          "keyCount": 382,
+          "path": "FieldEvidenceApp/Resources/Globalization/ko.accessibility.json",
+          "sha256": "6fd217eb9c254fe59afd5a3c457b33ff726729f816fef3489d9d87a9556c1ca8",
+          "sourceRevision": "8206f03439789132fb2144400c5a91ed7d2fafcb",
+          "sourceTree": "a438c5fe05392bb6040e2d133b9abf3900f1aa2d"
+        }
+      ],
+      "laneCounts": {
+        "accessibility": 382,
+        "app": 2717,
+        "report": 113
+      },
+      "languages": [
+        "en",
+        "es",
+        "zh-Hans",
+        "zh-Hant",
+        "vi",
+        "ko"
+      ],
+      "linguisticAcceptance": false,
+      "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+      "negativeStaticCases": [
+        {
+          "case": "missing_locale",
+          "result": "REJECTED_BY_STATIC_ORACLE"
+        },
+        {
+          "case": "extra_locale",
+          "result": "REJECTED_BY_STATIC_ORACLE"
+        },
+        {
+          "case": "unreviewed_promotion",
+          "result": "REJECTED_BY_STATIC_ORACLE"
+        },
+        {
+          "case": "placeholder_0",
+          "result": "REJECTED_BY_STATIC_ORACLE"
+        },
+        {
+          "case": "placeholder_1",
+          "result": "REJECTED_BY_STATIC_ORACLE"
+        },
+        {
+          "case": "placeholder_2",
+          "result": "REJECTED_BY_STATIC_ORACLE"
+        },
+        {
+          "case": "placeholder_3",
+          "result": "REJECTED_BY_STATIC_ORACLE"
+        },
+        {
+          "case": "placeholder_4",
+          "result": "REJECTED_BY_STATIC_ORACLE"
+        },
+        {
+          "case": "placeholder_5",
+          "result": "REJECTED_BY_STATIC_ORACLE"
+        },
+        {
+          "case": "placeholder_6",
+          "result": "REJECTED_BY_STATIC_ORACLE"
+        }
+      ],
+      "newNativeTestMethods": 8,
+      "permissionKeyCount": 3,
+      "permissionKeySetSHA256": "1e59467c1998b0785f743a44dcb986d0de69b59b70f8bd087440bf14babb2b0a",
+      "result": "PASS_WINDOWS_STATIC_STRUCTURAL_INTEGRATION",
+      "sourceArtifacts": [
+        {
+          "bytes": 17385,
+          "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+          "path": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+          "sha256": "d65221088b16288ad98c98e2e5f891eb4ecd6ce56fc7e49afc5e4e842a93de34"
+        },
+        {
+          "bytes": 396057,
+          "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+          "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+          "sha256": "24a7a43c8b81fb5eaffe33232365a5bc0bd990f4cf15cd40f4c5206f4e2e65e0"
+        },
+        {
+          "bytes": 7315,
+          "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+          "path": "FieldEvidenceApp/InfoPlist.xcstrings",
+          "sha256": "4f9b12b2746ff556612c2a34b2a34f01ac3414258837c746b5046f9ba8b7512c"
+        },
+        {
+          "bytes": 383672,
+          "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+          "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+          "sha256": "422633893171421b673bd9cb61bef268c8511d2dd004415ad00b1cc52bce4b57"
+        },
+        {
+          "bytes": 4386165,
+          "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+          "path": "FieldEvidenceApp/Resources/Localizable.xcstrings",
+          "sha256": "68a1faedaad001af0630897bcc0578fe8e9de4b9ed5b9e2db3eed4a2627ea5b2"
+        },
+        {
+          "bytes": 9853,
+          "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+          "path": "FieldEvidenceAppTests/V30_P04_C07LocaleReleaseIntegrationTests.swift",
+          "sha256": "f1bafea4c2a1cf89562d1896de8cfb585b391d48352d7e00b6f57ece5a3a87df"
+        },
+        {
+          "bytes": 117247,
+          "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+          "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
+          "sha256": "1b8728340c84f68d271fa83941d00796c2e0caa4e5e4964f6e1a17e4dcafb59c"
+        }
+      ],
+      "sourceDefects": [
+        {
+          "baselineEvidence": {
+            "path": "FieldEvidenceApp/Features/WorkResources/ManualWorkResourceWorkflowView.swift",
+            "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+            "sha256": "7763f72a2b820861915cb6d814132cf7c3da9de0980997a44abefd6f1b8dd28b"
+          },
+          "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+          "currentSourcePaths": [
+            "FieldEvidenceApp/Resources/Localizable.xcstrings",
+            "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+          ],
+          "disposition": "Preserved inherited producer/catalog defect. Correct both atomically under causal-owner/reconciliation authority; catalog-only repair would break strict publication. Final acceptance remains blocked.",
+          "finalAcceptanceBlocked": true,
+          "intendedEnglish": "units",
+          "key": "v30.manual-work-resource.units",
+          "rawEnglish": "\\(exactDecimal(line.quantity.mantissa, scale: line.quantity.scale)) \\(line.unit ?? ",
+          "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+          "targetDrafts": {
+            "es": "unidades",
+            "ko": "단위",
+            "vi": "đơn vị",
+            "zh-Hans": "单位",
+            "zh-Hant": "單位"
+          }
+        },
+        {
+          "baselineEvidence": {
+            "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+            "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+            "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+          },
+          "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+          "currentSourcePaths": [
+            "FieldEvidenceApp/Resources/Localizable.xcstrings",
+            "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+          ],
+          "disposition": "Preserved inherited producer/catalog defect. Correct both atomically under causal-owner/reconciliation authority; catalog-only repair would break strict publication. Final acceptance remains blocked.",
+          "finalAcceptanceBlocked": true,
+          "intendedEnglish": "no duration estimate",
+          "key": "v30.my-day.no-duration-estimate-lowercase",
+          "rawEnglish": "\\(referenceLabel(item.item.reference)): \\(dueCueText(item.dueCue)); \\(readinessText(item.readiness)); \\(item.estimate.map(estimateText) ?? ",
+          "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+          "targetDrafts": {
+            "es": "sin duración estimada",
+            "ko": "예상 소요 시간 없음",
+            "vi": "không có thời lượng ước tính",
+            "zh-Hans": "无时长估计",
+            "zh-Hant": "無時長估計"
+          }
+        },
+        {
+          "baselineEvidence": {
+            "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+            "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+            "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+          },
+          "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+          "currentSourcePaths": [
+            "FieldEvidenceApp/Resources/Localizable.xcstrings",
+            "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+          ],
+          "disposition": "Preserved inherited producer/catalog defect. Correct both atomically under causal-owner/reconciliation authority; catalog-only repair would break strict publication. Final acceptance remains blocked.",
+          "finalAcceptanceBlocked": true,
+          "intendedEnglish": "No total estimate",
+          "key": "v30.my-day.no-total-estimate",
+          "rawEnglish": "\\($0) minutes",
+          "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+          "targetDrafts": {
+            "es": "Sin estimación total",
+            "ko": "예상 총 소요 시간 없음",
+            "vi": "Không có tổng thời lượng ước tính",
+            "zh-Hans": "无总时长估计",
+            "zh-Hant": "無總時長估計"
+          }
+        },
+        {
+          "baselineEvidence": {
+            "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+            "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+            "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+          },
+          "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+          "currentSourcePaths": [
+            "FieldEvidenceApp/Resources/Localizable.xcstrings",
+            "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+          ],
+          "disposition": "Preserved inherited producer/catalog defect. Correct both atomically under causal-owner/reconciliation authority; catalog-only repair would break strict publication. Final acceptance remains blocked.",
+          "finalAcceptanceBlocked": true,
+          "intendedEnglish": "Start",
+          "key": "v30.my-day.start",
+          "rawEnglish": "\\(intent.action == .start ? ",
+          "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+          "targetDrafts": {
+            "es": "Iniciar",
+            "ko": "시작",
+            "vi": "Bắt đầu",
+            "zh-Hans": "开始",
+            "zh-Hant": "開始"
+          }
+        }
+      ],
+      "staticLookupBranches": 58,
+      "targetStringUnits": {
+        "es": 3280,
+        "ko": 3228,
+        "vi": 3228,
+        "zh-Hans": 3228,
+        "zh-Hant": 3228
+      },
+      "translationSHA256": "4dba4bca396f19b9a4949c84f1561dd239025eab492f6c5fd5aba991a08f569d",
+      "workingSourceArtifacts": [
+        {
+          "bytes": 17385,
+          "path": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+          "sha256": "d65221088b16288ad98c98e2e5f891eb4ecd6ce56fc7e49afc5e4e842a93de34"
+        },
+        {
+          "bytes": 396057,
+          "path": "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+          "sha256": "24a7a43c8b81fb5eaffe33232365a5bc0bd990f4cf15cd40f4c5206f4e2e65e0"
+        },
+        {
+          "bytes": 7315,
+          "path": "FieldEvidenceApp/InfoPlist.xcstrings",
+          "sha256": "4f9b12b2746ff556612c2a34b2a34f01ac3414258837c746b5046f9ba8b7512c"
+        },
+        {
+          "bytes": 383672,
+          "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+          "sha256": "422633893171421b673bd9cb61bef268c8511d2dd004415ad00b1cc52bce4b57"
+        },
+        {
+          "bytes": 4386165,
+          "path": "FieldEvidenceApp/Resources/Localizable.xcstrings",
+          "sha256": "68a1faedaad001af0630897bcc0578fe8e9de4b9ed5b9e2db3eed4a2627ea5b2"
+        },
+        {
+          "bytes": 9853,
+          "path": "FieldEvidenceAppTests/V30_P04_C07LocaleReleaseIntegrationTests.swift",
+          "sha256": "f1bafea4c2a1cf89562d1896de8cfb585b391d48352d7e00b6f57ece5a3a87df"
+        },
+        {
+          "bytes": 117247,
+          "path": "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift",
+          "sha256": "1b8728340c84f68d271fa83941d00796c2e0caa4e5e4964f6e1a17e4dcafb59c"
+        }
+      ]
+    },
+    "workflow": {
+      "branchRef": "refs/heads/phase/v30-globalization",
+      "expectedProductHead": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+      "runID": null,
+      "selectorInput": null,
+      "selectorTier": null,
+      "url": null
+    }
+  },
+  "expectedLedgerDigest": "c829d6285cf0fb9de10c722c90596e186fc6a4b859edb4768ea25ff9304871af",
+  "expectedOldRef": "b9e5a45bc9f69486639280572e3ab11f13a85934",
+  "expectedSequence": 76,
+  "next": {
+    "cardID": "V30-P05-C01",
+    "ordinal": 38,
+    "startAuthorized": false,
+    "status": "LOCKED_POST_S10_AUTHORITY_REQUIRED"
+  },
+  "observedAuthorityHead": "2e45ef7722b80c4cd3f88225c62a4ea0a99487d7",
+  "operationalProvenance": [
+    "All five locale lanes checkpointed before serialized C37 integration. Fifteen lane resource files and locale fixtures/review packets preserved exactly.",
+    "App catalog3209 plus permission3 keys;119 already-existing typed defaults included. Six exact locale memberships with source/default metadata preserved; five knownRegions additions only.58 English static shortcut branches now use resolved locale resource lookup.",
+    "E product changes, direct-child R binding-only three files, future H bookkeeping only. Native tests reference binding artifacts in R; no test executed or claimed at E.",
+    "E..R observed exact three binding paths and product bytes equal E. All catalog/content/source/termbase/capability digests bind observed E/tree.",
+    "Prior static audit missing-comment rejection diagnosed and corrected before E to preserve inherited metadata; no native failure run exists.",
+    "Eight native tests authored only; static positive and ten rejecting mutations pass; independent source and binding review pass. No main/Phase10 access, no CI dispatch, no release."
+  ],
+  "pathFenceDigest": "b46a54f5bbfe7b5d9940226e378fe971c012003b5410966c332613d41fb8bb18",
+  "preAuthorizedOverlapTuples": [
+    {
+      "boundedPurpose": "add only V30 localization known-region/resource membership required for six locales; preserve Phase10-owned settings",
+      "cardID": "V30-P04-C07",
+      "expectedBBlobOID": "86a4ce64b389bfadb72eb80de63255bd59eb63e9",
+      "expectedBSHA256": "5646bddac1b7dd34c5148dfcb40c5209c66ae13c588f7c6f371a26263779337f",
+      "path": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "reconciliationObligation": "REPLAY_OR_REIMPLEMENT_AFTER_S_NO_PRE_S10_CREDIT",
+      "writerLane": "V30-P04-C07-SERIALIZED-INTEGRATOR"
+    }
+  ],
+  "productCandidate": {
+    "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+    "tree": "c0ce5222da96af804c1bea4b4ab0b6fe023dd5bf"
+  },
+  "reconciliationManifest": {
+    "B": {
+      "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+      "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225"
+    },
+    "acceptedS": null,
+    "bindingOnlyDelta": {
+      "paths": [
+        "docs/design/v30/translation/V30ProvisionalLocalizationCatalogReleaseV1.json",
+        "docs/design/v30/execution/receipts/V30-P04-C07-provisional-integration-receipt.json",
+        "docs/design/v30/verification/V30P04C07LocaleIntegrationMatrixV1.json"
+      ],
+      "productBytesUnchanged": true
+    },
+    "candidateHistory": [
+      {
+        "changedPaths": [
+          "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+        ],
+        "head": "cd9d3667fe3a1507346902c29015da5ff339f7cb",
+        "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+        "parent": "02c7b78884865e3392c164b0165f703499da9f61",
+        "role": "PROVISIONAL_BINDING_OR_BOOKKEEPING",
+        "subject": "Record provisional Korean locale draft evidence",
+        "tree": "d916e06429fa991b0960dc318f9f06f8eddf4fb4"
+      },
+      {
+        "changedPaths": [
+          "docs/design/v30/execution/V30_CI_SELECTION.json",
+          "docs/design/v30/execution/V30_CURRENT_TASK.md",
+          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+        ],
+        "head": "2e45ef7722b80c4cd3f88225c62a4ea0a99487d7",
+        "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+        "parent": "cd9d3667fe3a1507346902c29015da5ff339f7cb",
+        "role": "PROVISIONAL_BINDING_OR_BOOKKEEPING",
+        "subject": "Hydrate P04 C07 provisional shared localization integration",
+        "tree": "a6c51f78f1592ccb58156a8dd9cd00229c0c2f4d"
+      },
+      {
+        "changedPaths": [
+          "FieldEvidenceApp.xcodeproj/project.pbxproj",
+          "FieldEvidenceApp/Domain/Localization/LocalizationContractsV1.swift",
+          "FieldEvidenceApp/InfoPlist.xcstrings",
+          "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+          "FieldEvidenceApp/Resources/Localizable.xcstrings",
+          "FieldEvidenceAppTests/V30_P04_C07LocaleReleaseIntegrationTests.swift",
+          "FieldEvidenceAppTests/V9_22LocalizationAccessibilityTests.swift"
+        ],
+        "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+        "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+        "parent": "2e45ef7722b80c4cd3f88225c62a4ea0a99487d7",
+        "role": "PRODUCT_CANDIDATE",
+        "subject": "Integrate provisional six-locale catalogs and runtime validation",
+        "tree": "c0ce5222da96af804c1bea4b4ab0b6fe023dd5bf"
+      },
+      {
+        "changedPaths": [
+          "docs/design/v30/execution/receipts/V30-P04-C07-provisional-integration-receipt.json",
+          "docs/design/v30/translation/V30ProvisionalLocalizationCatalogReleaseV1.json",
+          "docs/design/v30/verification/V30P04C07LocaleIntegrationMatrixV1.json"
+        ],
+        "head": "79f118d6942d64718bf2433ac7dad00ec2b99a60",
+        "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+        "parent": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+        "role": "PROVISIONAL_BINDING_OR_BOOKKEEPING",
+        "subject": "Bind provisional locale release evidence to exact product candidate",
+        "tree": "ba30db8fb597e3117f2ccfdc020625e05da33367"
+      }
+    ],
+    "invalidatedEvidence": [
+      "All exact-candidate native/human/render/CI qualification pending; changed head/tree requires requalification after accepted S"
+    ],
+    "kind": "V30_PER_CARD_PROVISIONAL_CANDIDATE",
+    "originalCandidate": {
+      "head": "79f118d6942d64718bf2433ac7dad00ec2b99a60",
+      "tree": "ba30db8fb597e3117f2ccfdc020625e05da33367"
+    },
+    "productCandidate": {
+      "head": "80512f31315a0c7e91a56c8db726a4b4b6dec4fc",
+      "tree": "c0ce5222da96af804c1bea4b4ab0b6fe023dd5bf"
+    },
+    "replayedCandidate": null,
+    "terminalP": null
+  },
+  "requestID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P04-C07/CHECKPOINT/1",
+  "revision": 1
+}
+```
