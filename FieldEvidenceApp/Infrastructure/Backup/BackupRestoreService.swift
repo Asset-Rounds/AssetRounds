@@ -480,6 +480,7 @@ final class BackupRestoreService {
     private let makeUUID: () -> UUID
     private let failureInjection: BackupRestoreFailureInjection?
     private let searchIndexLifecycle: any SearchIndexLifecyclePortV1
+    private(set) var globalizationReplay: GlobalizedRestoreReplayObservationV1?
     private let accessibleDocumentTreeResolver:(any AccessibleDocumentSemanticTreeResolvingV1)?
     private var preparedAccessibleDocumentTrees:[UUID:AccessibleDocumentSemanticTreeV1]=[:]
 
@@ -769,6 +770,7 @@ final class BackupRestoreService {
         currentGenerationRootURL: URL,
         mode: BackupRestoreMode = .emptyInstall
     ) async throws -> StoreGenerationSession {
+        globalizationReplay = nil
         try C34SceneNavigationBackupRestoreBoundaryV1.validate()
         try Task.checkCancellation()
         guard !currentModelContext.hasChanges else {
@@ -1301,6 +1303,7 @@ final class BackupRestoreService {
                 session,
                 expected: expectedRecords
             )
+            let replay = try observeGlobalizationReplay(session)
             try Task.checkCancellation()
             try applyPortableExchangeRestoreSidecar(
                 matching: switched,
@@ -1329,6 +1332,7 @@ final class BackupRestoreService {
             try intentStore.remove(expected: validated)
             try removeDraftPublicationBinding(validated)
             try cleanupEmptyRestoreDirectories()
+            globalizationReplay = replay
             return session
         } catch let failure as ProtectedFilePolicyError
             where failure == .protectedDataUnavailable {
@@ -1403,12 +1407,39 @@ final class BackupRestoreService {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
         }
+        let replay = try observeGlobalizationReplay(session)
         try await searchIndexLifecycle.dropProjection(workspaceID: session.workspaceID.rawValue)
         try await dropPrivateSystemDiscoveryAfterRestore(restoreID: intent.restoreID, session: session)
         try intentStore.remove(expected: intent)
         try removeDraftPublicationBinding(intent)
         try cleanupEmptyRestoreDirectories()
+        globalizationReplay = replay
         return session
+    }
+
+    /// Reconstructed from the installed generation after validation, including
+    /// startup recovery. Missing rendering resources do not rewrite source or
+    /// invalidate preserved PDF bytes, and never report a rebuilt search index.
+    private func observeGlobalizationReplay(_ session: StoreGenerationSession) throws -> GlobalizedRestoreReplayObservationV1 {
+        let restored = try records(in: session.modelContext)
+        let encoded = try BackupCanonicalEncoderV1().encodeRecords(restored)
+        let root = session.generationRootURL
+        let identity = try ReportPDFAnchoredFile.rootIdentity(at: root)
+        let inventory = try GlobalizedCatalogReplayAdapterV1.inventory(
+            records: restored, recordsSHA256: encoded.sha256,
+            readMember: { path in
+                try ReportPDFAnchoredFile.readRegularFile(at: root.appendingPathComponent(path),
+                    within: root, rootIdentity: identity)
+            })
+        // Older generations can lack journal authority. Keep the canonical
+        // restore usable and search pending without inventing revision zero.
+        let source = try restored.mutationHistory.map { journal in
+            try SearchSourceRevisionV1(workspaceID: session.workspaceID.rawValue,
+                generationID: session.generationID, commitRevision: journal.workspaceRevision)
+        }
+        return .init(inventory: inventory,
+            searchSource: source,
+            searchRebuildRequired: true)
     }
 
     /// Runs before ordinary pointer maintenance. A returned session is the

@@ -133,6 +133,10 @@ final class S6_3BackupValidationTests: XCTestCase {
         )
 
         let validated = try importer.stageAndValidate(selectedPackageURL: package)
+        let replay = try validated.globalizationReplay()
+        XCTAssertEqual(replay.recordsSHA256, validated.manifest.entries.first(where: { $0.path == "records.json" })?.sha256)
+        XCTAssertEqual(replay.artifacts.count, validated.records.reports.filter { $0.pdfState == ReportPDFState.ready.rawValue }.count)
+        XCTAssertTrue(replay.artifacts.allSatisfy { !$0.regenerationVerified })
         XCTAssertEqual(starts, [package.standardizedFileURL])
         XCTAssertEqual(stops, [package.standardizedFileURL])
         XCTAssertEqual(validated.summary.incomingSignCount, fixture.expected.incomingSignCount)

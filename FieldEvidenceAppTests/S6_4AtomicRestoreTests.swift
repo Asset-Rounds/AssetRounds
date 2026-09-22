@@ -108,6 +108,12 @@ final class S6_4AtomicRestoreTests: XCTestCase {
         ))
         XCTAssertEqual(try tree(package), sourceBytes)
 
+        let replay = try XCTUnwrap(service.globalizationReplay)
+        XCTAssertEqual(replay.searchSource?.generationID, restored.generationID)
+        XCTAssertEqual(replay.searchSource?.workspaceID, restored.workspaceID.rawValue)
+        XCTAssertTrue(replay.searchRebuildRequired)
+        XCTAssertTrue(replay.inventory.artifacts.isEmpty)
+
         let reopened = try harness.factory.openOrBootstrapCurrent()
         XCTAssertEqual(reopened.generationID, restored.generationID)
         XCTAssertEqual(try reopened.modelContext.fetchCount(FetchDescriptor<Asset>()), 1)

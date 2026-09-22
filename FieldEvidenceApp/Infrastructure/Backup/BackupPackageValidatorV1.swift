@@ -717,7 +717,7 @@ private extension BackupPackageValidatorV1 {
 
         let liveSlots = records.packets.filter { $0.currentRecordID != nil }.count
         let tombstones = records.packets.filter { $0.currentRecordID == nil }.count
-        return ValidatedV4BackupPackageV1(
+        let validated = ValidatedV4BackupPackageV1(
             stagedPackageURL: root,
             manifest: manifest,
             records: records,
@@ -734,6 +734,11 @@ private extension BackupPackageValidatorV1 {
                 tombstonedSlotCount: tombstones
             )
         )
+        // Missing historical dependencies/source bindings are explicit replay
+        // limitations. Bad member hashes or malformed metadata remain invalid.
+        do { _ = try validated.globalizationReplay() }
+        catch { throw BackupPackageValidationErrorV1.invalidPackage }
+        return validated
     }
 
     struct Enumeration {

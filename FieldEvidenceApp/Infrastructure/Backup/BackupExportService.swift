@@ -1092,6 +1092,15 @@ private extension BackupExportService {
             throw BackupExportServiceError.invalidGeneration
         }
 
+        _ = try GlobalizedCatalogReplayAdapterV1.inventory(
+            records: records, recordsSHA256: CanonicalJSONV1.sha256(recordsData),
+            readMember: { path in
+                guard let source = sources.first(where: { $0.path == path }) else {
+                    throw BackupExportServiceError.invalidAuthority
+                }
+                return try boundedStreamingRead(path, expectedByteCount: Int64(source.byteCount),
+                    expectedSHA256: source.sha256, rootIdentity: rootIdentity)
+            })
         sources.sort { utf8Less($0.path, $1.path) }
         guard sources.count + 1 <= archiveLimits.maximumEntryCount else {
             throw BackupExportServiceError.invalidAuthority
@@ -1397,6 +1406,9 @@ private extension BackupExportService {
             throw BackupExportServiceError.invalidGeneration
         }
 
+        _ = try GlobalizedCatalogReplayAdapterV1.inventory(
+            records: records, recordsSHA256: CanonicalJSONV1.sha256(recordsData),
+            readMember: { path in members.first(where: { $0.path == path })?.data })
         members.sort { $0.path < $1.path }
         var entries: [V4BackupEntryV1] = []
         var declaredPayloadByteCount = 0

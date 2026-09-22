@@ -1703,6 +1703,13 @@ struct SearchIndexRebuildResultV1: Equatable, Sendable {
     let source: SearchSourceRevisionV1
     let indexedRecordCount: Int
     let resumedFromCheckpoint: Bool
+
+    func completingGlobalizedRestore(_ restored: GlobalizedRestoreReplayObservationV1) throws -> GlobalizedRestoreReplayObservationV1 {
+        guard let expected = restored.searchSource, source == expected else {
+            throw GlobalizedCatalogReplayFailureV1.searchSourceMismatch
+        }
+        return .init(inventory: restored.inventory, searchSource: source, searchRebuildRequired: false)
+    }
 }
 
 /// Rebuilds into durable staging pages and publishes only after the source

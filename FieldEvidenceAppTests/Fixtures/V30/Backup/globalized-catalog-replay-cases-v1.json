@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "cardID": "V30-P03-C08",
+  "nativeExecution": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+  "shippingCatalogClaims": false,
+  "cases": [
+    {"language": "en", "text": "Customer source: pump AR-29 remains off."},
+    {"language": "es", "text": "Texto del cliente: la bomba AR-29 sigue apagada."},
+    {"language": "zh-Hans", "text": "客户原文：水泵 AR-29 仍处于关闭状态。"},
+    {"language": "zh-Hant", "text": "客戶原文：水泵 AR-29 仍處於關閉狀態。"},
+    {"language": "vi", "text": "Nội dung gốc: máy bơm AR-29 vẫn tắt."},
+    {"language": "ko", "text": "고객 원문: 펌프 AR-29가 꺼져 있습니다."}
+  ]
+}
