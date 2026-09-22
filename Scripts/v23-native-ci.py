@@ -159,8 +159,8 @@ PUNCH_CONTEXT_SELECTORS = (
 )
 ACTIVITY_CODEC_PUNCH_SELECTORS = ACTIVITY_CODEC_SELECTORS + PUNCH_CONTEXT_SELECTORS + ACTIVITY_CONTRACT_SELECTORS
 ACTIVITY_COMPLETED_SOURCE_SELECTION_ID = 'activity-completed-source-no-index-build30m'
-ACTIVITY_COMPLETED_SOURCE_PARENT = '90304b1802296dca7a56f85ce96787f341bd8f03'
-ACTIVITY_COMPLETED_SOURCE_TREES = {'FieldEvidenceApp': 'b0e15d6aff470235bac00758b26f367c7863354d', 'FieldEvidenceAppTests': 'd4e8acc55538bc714f3e6ce3f1c7cf266a5bb8d3', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+ACTIVITY_COMPLETED_SOURCE_PARENT = '42eeb75d69031b75397e4039f72115636d3a3310'
+ACTIVITY_COMPLETED_SOURCE_TREES = {'FieldEvidenceApp': 'b0e15d6aff470235bac00758b26f367c7863354d', 'FieldEvidenceAppTests': 'd5cf8fffc2457ecdd538aefa6a9f6d54b9e94096', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 ACTIVITY_COMPLETED_SOURCE_GROUPS = (
     ('activity-completed-manifest', (
         'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testPublishedV1ManifestRoundTripPreservesCanonicalBytesAndOmitsExtensions',

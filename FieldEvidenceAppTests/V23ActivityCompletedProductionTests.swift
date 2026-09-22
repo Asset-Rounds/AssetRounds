@@ -544,7 +544,7 @@ private final class CompletedSourceHarness {
                 note: "Unreceipted replacement", revision: old.revision, mutationID: old.mutationID)
             let rows = try context.fetch(FetchDescriptor<InstallationTaskResultRow>())
             let row = try XCTUnwrap(rows.first { $0.resultID == old.resultID })
-            row.canonicalData = try ActivityContractPersistenceCodecV2.encode(changed)
+            row.canonicalData = try InstallationTaskResultRow(changed).canonicalData
             row.resultSHA256 = changed.resultSHA256
             XCTAssertEqual(try row.value(), changed)
         case .insertedTask:
