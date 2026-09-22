@@ -374,9 +374,13 @@ final class V9_69ShopProfileOpenHandoffTests: XCTestCase {
         let actor = try ActorSnapshotV1(snapshotID: id(3), workspaceID: workspaceID, actor: actorReference, responsibility: .recordedBy, displayNameAtTime: actorReference.displayName, capturedAt: Self.fixedDate)
         let formats: [ReportProjectionFormatV1] = [.formulaSafeCSV, .openJSON, .pdf, .structuredText]
         let sections = try [
-            ReportSectionDefinitionV1(sectionID: "summary", version: 1, required: true, supportedFormats: formats, privacyClass: .mandatoryPublicTruth, requiresHeading: true, requiresTextAlternative: true, order: 0),
-            ReportSectionDefinitionV1(sectionID: "evidence", version: 1, required: true, supportedFormats: formats, privacyClass: .audienceSafe, requiresHeading: true, requiresTextAlternative: true, order: 1),
-            ReportSectionDefinitionV1(sectionID: "limitations", version: 1, required: true, supportedFormats: formats, privacyClass: .mandatoryPublicTruth, requiresHeading: true, requiresTextAlternative: true, order: 2)
+            ReportSectionDefinitionV1(sectionID: "identity", version: 1, required: true, supportedFormats: formats, privacyClass: .mandatoryPublicTruth, requiresHeading: true, requiresTextAlternative: true, order: 0),
+            ReportSectionDefinitionV1(sectionID: "summary", version: 1, required: true, supportedFormats: formats, privacyClass: .mandatoryPublicTruth, requiresHeading: true, requiresTextAlternative: true, order: 1),
+            ReportSectionDefinitionV1(sectionID: "evidence", version: 1, required: true, supportedFormats: formats, privacyClass: .audienceSafe, requiresHeading: true, requiresTextAlternative: true, order: 2),
+            ReportSectionDefinitionV1(sectionID: "limitations", version: 1, required: true, supportedFormats: formats, privacyClass: .mandatoryPublicTruth, requiresHeading: true, requiresTextAlternative: true, order: 3),
+            ReportSectionDefinitionV1(sectionID: "provenance", version: 1, required: true, supportedFormats: formats, privacyClass: .mandatoryPublicTruth, requiresHeading: true, requiresTextAlternative: true, order: 4),
+            ReportSectionDefinitionV1(sectionID: "supersession", version: 1, required: true, supportedFormats: formats, privacyClass: .mandatoryPublicTruth, requiresHeading: true, requiresTextAlternative: true, order: 5),
+            ReportSectionDefinitionV1(sectionID: "manifest", version: 1, required: true, supportedFormats: formats, privacyClass: .mandatoryPublicTruth, requiresHeading: true, requiresTextAlternative: true, order: 6)
         ]
         let registry = try ReportSectionRegistryV1(registryID: "c04-registry", registryVersion: 1, sections: sections)
         let profile = try makeProfile(workspaceID: workspaceID, actor: actor, registry: registry, profileID: id(4), predecessor: nil, revision: 1, mutationID: id(5), activation: activation, packaging: packaging, audience: .customerSafe, recordedAt: Self.fixedDate)
@@ -389,7 +393,7 @@ final class V9_69ShopProfileOpenHandoffTests: XCTestCase {
     }
 
     private func makeProfile(workspaceID: WorkspaceID, actor: ActorSnapshotV1, registry: ReportSectionRegistryV1, profileID: UUID, predecessor: ShopReportProfileV1?, revision: UInt64, mutationID: UUID, activation: ShopReportProfileActivationV1, packaging: ShopOpenEvidencePackagingV1, audience: ReportAudienceV1, recordedAt: Date) throws -> ShopReportProfileV1 {
-        let layout = try ReportLayoutProfileV1(profileID: "c04-customer", profileRelease: 1, audience: audience, detail: .complete, sectionIDs: ["summary", "evidence", "limitations"], mediaLayout: .standardGrid, orientation: .portrait, localeIdentifier: "en_US", unitsProfileID: "units-si-v1", displayProfileID: "display-v1", registry: registry)
+        let layout = try ReportLayoutProfileV1(profileID: "c04-customer", profileRelease: 1, audience: audience, detail: .complete, sectionIDs: registry.sections.map(\.sectionID), mediaLayout: .standardGrid, orientation: .portrait, localeIdentifier: "en_US", unitsProfileID: "units-si-v1", displayProfileID: "display-v1", registry: registry)
         let exportPackaging: ReportPackagingV1 = packaging == .combinedArchive ? .combined : .separatePerWorkItem
         let export = try ExportProfileV1(exportProfileID: "c04-export", exportProfileRelease: 1, formats: [.formulaSafeCSV, .openJSON, .pdf, .structuredText], packaging: exportPackaging, privacyTransformID: "customer-safe-v1", maximumMediaItems: 16, maximumArchiveBytes: 1_024_000)
         let policy = try AudiencePrivacyPolicyV1(policyID: "c04-policy", policyVersion: 1, audience: audience, prohibitedCanaries: ["BRAND-INTERNAL-CANARY", "C:\\private\\customer", "CAPABILITY-CANARY", "CONTACT-CANARY", "COST-CANARY", "CUSTOMER-CANARY", "DIAGNOSTIC-CANARY", "INTERNAL-CANARY", "RAW-OCR-CANARY", "VERIFICATION-CANARY", "https://internal.invalid/customer"])

@@ -555,7 +555,7 @@ private final class CompletedSourceHarness {
         let profileID = suppliedProfileID ?? Self.id(500)
         let formats: [ReportProjectionFormatV1] = [.formulaSafeCSV, .openJSON, .pdf, .structuredText]
         var sections: [ReportSectionDefinitionV1] = []
-        for (index, sectionID) in ["summary", "evidence", "limitations"].enumerated() {
+        for (index, sectionID) in ["identity", "summary", "evidence", "limitations", "provenance", "supersession", "manifest"].enumerated() {
             sections.append(try ReportSectionDefinitionV1(sectionID: sectionID, version: 1, required: true,
                 supportedFormats: formats, privacyClass: .mandatoryPublicTruth, requiresHeading: true,
                 requiresTextAlternative: true, order: index))
@@ -575,7 +575,7 @@ private final class CompletedSourceHarness {
             privacyTransformVersion: 1, markupProfileID: "completed-source-markup", markupProfileVersion: 1,
             localeIdentifier: "en_US", displayProfileID: "display-v1", rendererVersion: ReportSemanticProjectorV1.rendererVersion,
             audiencePrivacyPolicy: policy, includedFieldIDs: ["service_request", "service_status"],
-            limitationsText: "Recorded facts do not verify capture time, location, or person.")
+            limitationsText: "Recorded evidence does not verify capture time, location, or person.")
         let revision = (predecessor?.revision ?? 0) + 1
         let mutationSlot = profileID == Self.id(500) ? 510 + Int(revision) : 520 + Int(revision)
         return try ShopReportProfileV1(workspaceID: workspaceID, profileID: profileID, predecessor: predecessor,
