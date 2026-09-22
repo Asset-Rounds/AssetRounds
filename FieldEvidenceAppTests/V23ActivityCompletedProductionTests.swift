@@ -8,7 +8,7 @@ import XCTest
 @MainActor
 final class V23ActivityCompletedProductionTests: XCTestCase {
     func testRealWriterReadsPopulatedInstallationAndEntireSelectedProfileWithoutEffects() async throws {
-        let h = try CompletedSourceHarness()
+        let h = try CompletedSourceHarness(diagnoseFailures: true)
         defer { h.removeFiles() }
         try await h.populate()
         let before = try h.snapshot()
@@ -43,7 +43,7 @@ final class V23ActivityCompletedProductionTests: XCTestCase {
     }
 
     func testCaptureFreezesExactPromotedPackageAndSourceWorkflow() async throws {
-        let h = try CompletedSourceHarness()
+        let h = try CompletedSourceHarness(diagnoseFailures: true)
         defer { h.removeFiles() }
         try await h.populate()
         let before = try h.snapshot()
@@ -68,7 +68,7 @@ final class V23ActivityCompletedProductionTests: XCTestCase {
     }
 
     func testHistoricalCompletionRetainsRecordedPackageWithoutCurrentStartPointer() async throws {
-        let h = try CompletedSourceHarness()
+        let h = try CompletedSourceHarness(diagnoseFailures: true)
         defer { h.removeFiles() }
         try await h.populate()
         let frame = try h.read()
@@ -88,7 +88,7 @@ final class V23ActivityCompletedProductionTests: XCTestCase {
     }
 
     func testMissingRecordedPackageRejectsCaptureAndOldFrameWithoutEffects() async throws {
-        let h = try CompletedSourceHarness()
+        let h = try CompletedSourceHarness(diagnoseFailures: true)
         defer { h.removeFiles() }
         try await h.populate()
         let frame = try h.read()
@@ -104,7 +104,7 @@ final class V23ActivityCompletedProductionTests: XCTestCase {
     }
 
     func testCaptureUsesActualActivityRevisionTransitionsIncludingTaskAndAsBuiltGaps() async throws {
-        let h = try CompletedSourceHarness()
+        let h = try CompletedSourceHarness(diagnoseFailures: true)
         defer { h.removeFiles() }
         try await h.populate()
         let frame = try h.read()
@@ -134,7 +134,7 @@ final class V23ActivityCompletedProductionTests: XCTestCase {
     }
 
     func testWrongWorkspaceMissingActivityAndUnavailableSelectedProfileRejectWithoutEffects() async throws {
-        let h = try CompletedSourceHarness()
+        let h = try CompletedSourceHarness(diagnoseFailures: true)
         defer { h.removeFiles() }
         try await h.populate()
         let before = try h.snapshot()
@@ -160,7 +160,7 @@ final class V23ActivityCompletedProductionTests: XCTestCase {
     }
 
     func testCommittedProfileChangeRejectsOldSelectionAndFrameWithoutAdoptingNewProfile() async throws {
-        let h = try CompletedSourceHarness()
+        let h = try CompletedSourceHarness(diagnoseFailures: true)
         defer { h.removeFiles() }
         try await h.populate()
         let oldFrame = try h.read()
@@ -181,7 +181,7 @@ final class V23ActivityCompletedProductionTests: XCTestCase {
 
     func testWriterInvalidationAndGenerationChangeRejectPreviouslyReadFrameWithoutEffects() async throws {
         for changeGeneration in [false, true] {
-            let h = try CompletedSourceHarness()
+            let h = try CompletedSourceHarness(diagnoseFailures: true)
             defer { h.removeFiles() }
             try await h.populate()
             let frame = try h.read()
@@ -202,7 +202,7 @@ final class V23ActivityCompletedProductionTests: XCTestCase {
 
     func testSameFrontierTaskReplacementAndFamilyInsertionOrRemovalRejectWithoutEffects() async throws {
         for attack in CompletedSourceRowAttack.allCases {
-            let h = try CompletedSourceHarness()
+            let h = try CompletedSourceHarness(diagnoseFailures: true)
             defer { h.removeFiles() }
             try await h.populate()
             let frame = try h.read()
@@ -219,7 +219,7 @@ final class V23ActivityCompletedProductionTests: XCTestCase {
     }
 
     func testSameFrontierAcceptedReceiptTamperRejectsWithoutEffects() async throws {
-        let h = try CompletedSourceHarness()
+        let h = try CompletedSourceHarness(diagnoseFailures: true)
         defer { h.removeFiles() }
         try await h.populate()
         let frame = try h.read()
@@ -238,7 +238,7 @@ final class V23ActivityCompletedProductionTests: XCTestCase {
     }
 
     func testSameRevisionRehashedProfileCannotReplaceAcceptedBytesEvenWhenSelectedByNewReference() async throws {
-        let h = try CompletedSourceHarness()
+        let h = try CompletedSourceHarness(diagnoseFailures: true)
         defer { h.removeFiles() }
         try await h.populate()
         let frame = try h.read()
@@ -265,7 +265,7 @@ final class V23ActivityCompletedProductionTests: XCTestCase {
 
     func testQuarantinedActivityOrProfileReceiptCannotAuthorizeSourceRead() async throws {
         for quarantineProfile in [false, true] {
-            let h = try CompletedSourceHarness()
+            let h = try CompletedSourceHarness(diagnoseFailures: true)
             defer { h.removeFiles() }
             try await h.populate()
             let frame = try h.read()
@@ -312,6 +312,7 @@ private final class CompletedSourceHarness {
     let registry: GenerationLeaseRegistryV1
     let lease: GenerationLeaseTokenV1
     let epoch: CompletedSourceEpoch
+    let diagnostics: CompletedSourceDiagnostics
     let journal: MutationJournalStoreV1
     let writer: WorkspaceWriterV1
     var activity: ActivitySessionEnvelopeV2?
@@ -323,36 +324,53 @@ private final class CompletedSourceHarness {
     var inactiveProfile: ShopReportProfileV1?
     var committedMutationIDs: [MutationIDV1] = []
 
-    init() throws {
-        root = FileManager.default.temporaryDirectory.appendingPathComponent("completed-source-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
-        let configuration = ModelConfiguration("CompletedSource", schema: schema,
-            isStoredInMemoryOnly: true, allowsSave: true, cloudKitDatabase: .none)
-        container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [configuration])
-        context = container.mainContext
-        context.autosaveEnabled = false
-        workspaceID = WorkspaceID(rawValue: Self.id(1))
-        let localActor = try LocalActorReferenceV1(actorReferenceID: Self.id(2), workspaceID: workspaceID, displayName: "Field recorder")
-        actor = try ActorSnapshotV1(snapshotID: Self.id(3), workspaceID: workspaceID,
-            actor: localActor, responsibility: .recordedBy, displayNameAtTime: "Field recorder", capturedAt: Self.date)
-        let identity = try WorkspaceReplicaIdentityV1(workspaceID: workspaceID, replicaID: ReplicaID(rawValue: Self.id(4)))
-        let generationID = UUID()
-        let initialEpoch = try GenerationEpochV1(generationID: generationID, generationManifestSHA256: String(repeating: "a", count: 64))
-        let epochBox = CompletedSourceEpoch(initialEpoch)
-        epoch = epochBox
-        registry = try GenerationLeaseRegistryV1(applicationSupportURL: root)
-        lease = try registry.acquire(epoch: initialEpoch, role: .writer)
-        let fence = try StaleWriterFenceV1(expectedGenerationEpoch: initialEpoch,
-            writerLeaseToken: lease, registry: registry, currentGenerationEpoch: { epochBox.value })
-        try Self.seedPublishedPackage(in: context, workspaceID: workspaceID)
-        journal = try MutationJournalStoreV1(modelContext: context, identity: identity,
-            generationID: generationID, staleWriterFence: fence)
-        let writerID = Self.id(5)
-        writer = try WorkspaceWriterV1(identity: identity, generationID: generationID,
-            initialRevision: journal.currentRevision(writerInstanceID: writerID), clock: CompletedSourceClock(),
-            idSource: CompletedSourceIDs(value: writerID), fileAuthority: CompletedSourceFiles(),
-            adapter: WorkspaceWriterAdapterV1(modelContext: context), journalStore: journal)
+    init(diagnoseFailures: Bool = false) throws {
+        let trace = CompletedSourceDiagnostics(enabled: diagnoseFailures)
+        diagnostics = trace
+        do {
+            trace.phase = "init.root"
+            root = FileManager.default.temporaryDirectory.appendingPathComponent("completed-source-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            trace.phase = "init.schema"
+            let schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
+            let configuration = ModelConfiguration("CompletedSource", schema: schema,
+                isStoredInMemoryOnly: true, allowsSave: true, cloudKitDatabase: .none)
+            trace.phase = "init.container"
+            container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [configuration])
+            context = container.mainContext
+            context.autosaveEnabled = false
+            trace.phase = "init.identity"
+            workspaceID = WorkspaceID(rawValue: Self.id(1))
+            let localActor = try LocalActorReferenceV1(actorReferenceID: Self.id(2), workspaceID: workspaceID, displayName: "Field recorder")
+            actor = try ActorSnapshotV1(snapshotID: Self.id(3), workspaceID: workspaceID,
+                actor: localActor, responsibility: .recordedBy, displayNameAtTime: "Field recorder", capturedAt: Self.date)
+            let identity = try WorkspaceReplicaIdentityV1(workspaceID: workspaceID, replicaID: ReplicaID(rawValue: Self.id(4)))
+            let generationID = UUID()
+            let initialEpoch = try GenerationEpochV1(generationID: generationID, generationManifestSHA256: String(repeating: "a", count: 64))
+            let epochBox = CompletedSourceEpoch(initialEpoch)
+            epoch = epochBox
+            trace.phase = "init.leaseRegistry"
+            registry = try GenerationLeaseRegistryV1(applicationSupportURL: root)
+            trace.phase = "init.acquireLease"
+            lease = try registry.acquire(epoch: initialEpoch, role: .writer)
+            trace.phase = "init.fence"
+            let fence = try StaleWriterFenceV1(expectedGenerationEpoch: initialEpoch,
+                writerLeaseToken: lease, registry: registry, currentGenerationEpoch: { epochBox.value })
+            trace.phase = "init.seedPublishedPackage"
+            try Self.seedPublishedPackage(in: context, workspaceID: workspaceID)
+            trace.phase = "init.journal"
+            journal = try MutationJournalStoreV1(modelContext: context, identity: identity,
+                generationID: generationID, staleWriterFence: fence)
+            trace.phase = "init.writer"
+            let writerID = Self.id(5)
+            writer = try WorkspaceWriterV1(identity: identity, generationID: generationID,
+                initialRevision: journal.currentRevision(writerInstanceID: writerID), clock: CompletedSourceClock(),
+                idSource: CompletedSourceIDs(value: writerID), fileAuthority: CompletedSourceFiles(),
+                adapter: WorkspaceWriterAdapterV1(modelContext: context), journalStore: journal)
+        } catch {
+            trace.record(error)
+            throw error
+        }
     }
 
     private static func seedPublishedPackage(in context: ModelContext, workspaceID: WorkspaceID) throws {
@@ -374,73 +392,102 @@ private final class CompletedSourceHarness {
     }
 
     func populate() async throws {
-        let package = try ShippingIlluminatedSignAdapterV1.inspectionPackage()
-        let packages = try InspectionPackageRegistryV2(packages: [package])
-        let selection = try packages.bundledActivityWorkflowRelease(kind: .installation,
-            packageID: package.packageID, workspaceID: workspaceID)
-        guard case let .installation(release) = selection.release else {
-            throw InspectionPackageFailureV2.incompatiblePackage
-        }
-        let seedID = try Self.mutation(100)
-        let fallback = try NoPlanFallbackV1(limitation: "Manual subject selection was recorded.")
-        let initialBasis = try InstallationBasisSnapshotV1(basisID: Self.id(30), workspaceID: workspaceID,
-            activityID: activityID, subjectID: Self.id(11),
-            workflowReleaseReference: .init(installation: release, package: package), source: .noPlan(fallback),
-            capturedAt: Self.date, revision: 1, mutationID: seedID)
-        basis = initialBasis
-        var readiness: [ActivityReadinessFacetV1] = []
-        for facet in release.readinessPolicy.requiredFacets {
-            readiness.append(try .init(facetID: "ready-\(facet.rawValue.lowercased())", kind: facet, disposition: .ready))
-        }
-        let seed = try ActivitySessionEnvelopeV2(activityID: activityID, workspaceID: workspaceID,
-            kind: .installation, state: .draft, reviewState: .notRequested, subjectID: Self.id(11),
-            title: "Recorded installation", readiness: readiness, readinessPolicy: .installation(release.readinessPolicy),
-            currentBasisReference: .installation(try InstallationBasisReferenceV1(initialBasis)), revision: 1, mutationID: seedID)
-        try await accept(successor: seed, basis: initialBasis)
-        try await move(to: .preflightRequired, slot: 101)
-        try await move(to: .ready, slot: 102)
-        try await move(to: .inProgress, slot: 103)
-        let taskID = try Self.mutation(104)
-        for (index, task) in release.tasks.sorted().enumerated() {
-            tasks.append(try InstallationTaskResultV1(resultID: Self.id(200 + index), workspaceID: workspaceID,
-                activityID: activityID, taskID: task.taskID, outcome: .completed,
-                note: "Recorded task \(task.taskID)", revision: 1, mutationID: taskID))
-        }
-        try await accept(successor: successor(state: .inProgress, mutationID: taskID), taskResults: tasks)
-        let asBuiltID = try Self.mutation(105)
-        let snapshot = try InstallationAsBuiltSnapshotV1(snapshotID: Self.id(300), workspaceID: workspaceID,
-            activityID: activityID, basisReference: InstallationBasisReferenceV1(initialBasis),
-            taskResultSHA256s: tasks.map(\.resultSHA256), completion: .completedAsRecorded,
-            revision: 1, mutationID: asBuiltID)
-        asBuilt = snapshot
-        try await accept(successor: successor(state: .inProgress, mutationID: asBuiltID), asBuilt: snapshot)
-        try await move(to: .fieldComplete, slot: 106)
-        try await move(to: .readyForReview, slot: 107)
+        do {
+            diagnostics.phase = "populate.package"
+            let package = try ShippingIlluminatedSignAdapterV1.inspectionPackage()
+            let packages = try InspectionPackageRegistryV2(packages: [package])
+            let selection = try packages.bundledActivityWorkflowRelease(kind: .installation,
+                packageID: package.packageID, workspaceID: workspaceID)
+            guard case let .installation(release) = selection.release else {
+                throw InspectionPackageFailureV2.incompatiblePackage
+            }
+            diagnostics.phase = "populate.initialBasisAndActivity"
+            let seedID = try Self.mutation(100)
+            let fallback = try NoPlanFallbackV1(limitation: "Manual subject selection was recorded.")
+            let initialBasis = try InstallationBasisSnapshotV1(basisID: Self.id(30), workspaceID: workspaceID,
+                activityID: activityID, subjectID: Self.id(11),
+                workflowReleaseReference: .init(installation: release, package: package), source: .noPlan(fallback),
+                capturedAt: Self.date, revision: 1, mutationID: seedID)
+            basis = initialBasis
+            var readiness: [ActivityReadinessFacetV1] = []
+            for facet in release.readinessPolicy.requiredFacets {
+                readiness.append(try .init(facetID: "ready-\(facet.rawValue.lowercased())", kind: facet, disposition: .ready))
+            }
+            let seed = try ActivitySessionEnvelopeV2(activityID: activityID, workspaceID: workspaceID,
+                kind: .installation, state: .draft, reviewState: .notRequested, subjectID: Self.id(11),
+                title: "Recorded installation", readiness: readiness, readinessPolicy: .installation(release.readinessPolicy),
+                currentBasisReference: .installation(try InstallationBasisReferenceV1(initialBasis)), revision: 1, mutationID: seedID)
+            diagnostics.phase = "populate.acceptInitialActivity"
+            try await accept(successor: seed, basis: initialBasis)
+            diagnostics.phase = "populate.preflightRequired"
+            try await move(to: .preflightRequired, slot: 101)
+            diagnostics.phase = "populate.ready"
+            try await move(to: .ready, slot: 102)
+            diagnostics.phase = "populate.inProgress"
+            try await move(to: .inProgress, slot: 103)
+            diagnostics.phase = "populate.taskValues"
+            let taskID = try Self.mutation(104)
+            for (index, task) in release.tasks.sorted().enumerated() {
+                tasks.append(try InstallationTaskResultV1(resultID: Self.id(200 + index), workspaceID: workspaceID,
+                    activityID: activityID, taskID: task.taskID, outcome: .completed,
+                    note: "Recorded task \(task.taskID)", revision: 1, mutationID: taskID))
+            }
+            diagnostics.phase = "populate.acceptTasks"
+            try await accept(successor: successor(state: .inProgress, mutationID: taskID), taskResults: tasks)
+            diagnostics.phase = "populate.asBuiltValue"
+            let asBuiltID = try Self.mutation(105)
+            let snapshot = try InstallationAsBuiltSnapshotV1(snapshotID: Self.id(300), workspaceID: workspaceID,
+                activityID: activityID, basisReference: InstallationBasisReferenceV1(initialBasis),
+                taskResultSHA256s: tasks.map(\.resultSHA256), completion: .completedAsRecorded,
+                revision: 1, mutationID: asBuiltID)
+            asBuilt = snapshot
+            diagnostics.phase = "populate.acceptAsBuilt"
+            try await accept(successor: successor(state: .inProgress, mutationID: asBuiltID), asBuilt: snapshot)
+            diagnostics.phase = "populate.fieldComplete"
+            try await move(to: .fieldComplete, slot: 106)
+            diagnostics.phase = "populate.readyForReview"
+            try await move(to: .readyForReview, slot: 107)
 
-        // A real unrelated draft and a different inactive profile prove that
-        // capture selects the requested activity/profile, not every stored row.
-        let other = try ActivitySessionEnvelopeV2(activityID: Self.id(400), workspaceID: workspaceID,
-            kind: .installation, state: .draft, reviewState: .notRequested, subjectID: Self.id(401),
-            title: "Unrelated draft", readiness: [], revision: 1, mutationID: Self.mutation(402))
-        let otherMutation = try ActivityContractMutationV2(workspaceID: workspaceID,
-            expectedRevision: expected(adding: [.init(kind: .activitySessionEnvelope, id: other.activityID)]),
-            mutationID: other.mutationID, successorEnvelope: other)
-        _ = try await writer.commitActivityContract(otherMutation)
-        committedMutationIDs.append(other.mutationID)
-        let selectedProfile = try makeProfile()
-        try saveProfile(selectedProfile)
-        profile = selectedProfile
-        let inactive = try makeProfile(profileID: Self.id(501), activation: .off)
-        try saveProfile(inactive)
-        inactiveProfile = inactive
+            // A real unrelated draft and a different inactive profile prove that
+            // capture selects the requested activity/profile, not every stored row.
+            diagnostics.phase = "populate.unrelatedDraftValue"
+            let other = try ActivitySessionEnvelopeV2(activityID: Self.id(400), workspaceID: workspaceID,
+                kind: .installation, state: .draft, reviewState: .notRequested, subjectID: Self.id(401),
+                title: "Unrelated draft", readiness: [], revision: 1, mutationID: Self.mutation(402))
+            let otherMutation = try ActivityContractMutationV2(workspaceID: workspaceID,
+                expectedRevision: expected(adding: [.init(kind: .activitySessionEnvelope, id: other.activityID)]),
+                mutationID: other.mutationID, successorEnvelope: other)
+            diagnostics.phase = "populate.acceptUnrelatedDraft"
+            _ = try await writer.commitActivityContract(otherMutation)
+            committedMutationIDs.append(other.mutationID)
+            diagnostics.phase = "populate.selectedProfileValue"
+            let selectedProfile = try makeProfile()
+            diagnostics.phase = "populate.acceptSelectedProfile"
+            try saveProfile(selectedProfile)
+            profile = selectedProfile
+            diagnostics.phase = "populate.inactiveProfileValue"
+            let inactive = try makeProfile(profileID: Self.id(501), activation: .off)
+            diagnostics.phase = "populate.acceptInactiveProfile"
+            try saveProfile(inactive)
+            inactiveProfile = inactive
+        } catch {
+            diagnostics.record(error)
+            throw error
+        }
     }
 
     func read(profile selection: ShopReportProfileReferenceV1? = nil) throws -> ActivityCompletionSourceFrameV1 {
-        let selected: ShopReportProfileReferenceV1
-        if let selection { selected = selection }
-        else { selected = try XCTUnwrap(profile).reference }
-        return try ActivityCompletedFileCaptureV1.readSource(writer: writer, workspaceID: workspaceID,
-            activityID: activityID, profile: selected)
+        diagnostics.phase = "capture.selectedProfileAndSource"
+        do {
+            let selected: ShopReportProfileReferenceV1
+            if let selection { selected = selection }
+            else { selected = try XCTUnwrap(profile).reference }
+            return try ActivityCompletedFileCaptureV1.readSource(writer: writer, workspaceID: workspaceID,
+                activityID: activityID, profile: selected)
+        } catch {
+            diagnostics.record(error)
+            throw error
+        }
     }
 
     func saveProfile(_ value: ShopReportProfileV1) throws {
@@ -619,5 +666,31 @@ private struct CompletedSourceIDs: ApplicationIDSource {
 private struct CompletedSourceFiles: ApplicationFileAuthorityV1 {
     func temporaryRelativePath(mutationID: MutationIDV1, component: String) throws -> String {
         "completed-source/\(mutationID.rawValue.uuidString.lowercased())/\(component)"
+    }
+}
+
+/// Test-only provenance. Disabled unless the affected native case opts in.
+/// Recording neither changes the error nor supplies file-protection authority.
+@MainActor
+private final class CompletedSourceDiagnostics {
+    let enabled: Bool
+    var phase: String = "notStarted"
+
+    init(enabled: Bool) { self.enabled = enabled }
+
+    func record(_ error: Error) {
+        guard enabled else { return }
+        let failure = error as NSError
+        let errorType: String = String(reflecting: type(of: error))
+        let facts: String = "CompletedSourceDiagnostic phase=\(phase)"
+            + " type=\(errorType) domain=\(failure.domain) code=\(failure.code)"
+            + " error=\(String(describing: error))"
+        FileHandle.standardError.write(Data((facts + "\n").utf8))
+        XCTContext.runActivity(named: "Completed source failure provenance") { activity in
+            let attachment = XCTAttachment(string: facts)
+            attachment.name = "completed-source-failure-provenance"
+            attachment.lifetime = .keepAlways
+            activity.add(attachment)
+        }
     }
 }

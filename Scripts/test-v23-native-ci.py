@@ -2555,8 +2555,8 @@ class ActivityCompletedSourceDiagnosticTests(ReplacementPartitionDiagnosticTests
         self.assertEqual(len(options), len(set(options)))
         for identifier in expected:
             self.assertEqual(options.count(identifier), 1)
-        self.assertEqual(CI.ACTIVITY_COMPLETED_SOURCE_PARENT, '42eeb75d69031b75397e4039f72115636d3a3310')
-        self.assertEqual(self.source_trees, {'FieldEvidenceApp': 'b0e15d6aff470235bac00758b26f367c7863354d', 'FieldEvidenceAppTests': 'd5cf8fffc2457ecdd538aefa6a9f6d54b9e94096', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'})
+        self.assertEqual(CI.ACTIVITY_COMPLETED_SOURCE_PARENT, 'e680a48e3ece85528861495573b020a23717405b')
+        self.assertEqual(self.source_trees, {'FieldEvidenceApp': 'b0e15d6aff470235bac00758b26f367c7863354d', 'FieldEvidenceAppTests': 'b9826729a3b7cc137ac0f1c5765fb80a002ddcbd', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'})
 
     def test_exact_disjoint_ordered_union_and_historical_routes(self):
         prior, prior_map = precompleted_values(self.default, self.mapping)
