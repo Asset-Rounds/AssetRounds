@@ -457,7 +457,7 @@ def frozen_begin_suite_source():
         'V23CheckRunnerFrozenBeginPreparationTests','V23CheckRunnerFrozenBeginWriterTests','V23CheckRunnerDurableInitialBeginTests'))
 
 def prepartition_workflow(workflow):
-    for group_id in ('erase-lease-lifecycle', CI.ERASE_RECOVERY_SELECTION_ID, CI.ERASE_BUILD_WATCHDOG_SELECTION_ID, CI.ERASE_DRAIN_SELECTION_ID, CI.ERASE_REMAINDER_SELECTION_ID, 'replacement-packet-union', CI.RESTORE_HISTORY_SELECTION_ID, CI.REPLACEMENT_UNION_SELECTION_ID):
+    for group_id in ('erase-lease-lifecycle', CI.ERASE_RECOVERY_SELECTION_ID, CI.ERASE_BUILD_WATCHDOG_SELECTION_ID, CI.ERASE_DRAIN_SELECTION_ID, CI.ERASE_REMAINDER_SELECTION_ID, 'replacement-packet-union', CI.RESTORE_HISTORY_SELECTION_ID, CI.REPLACEMENT_UNION_SELECTION_ID, CI.REPLACEMENT_REMAINDER_SELECTION_ID, CI.REPLACEMENT_REPORT_SELECTION_ID):
         choice = '          - ' + group_id + '\n'
         if workflow.count(choice) != 1: raise AssertionError('missing exact restore history choice')
         workflow = workflow.replace(choice, '')
@@ -562,7 +562,7 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
         path = self.root / 'Scripts/v23-selection-manifest.json'
         original = path.read_bytes()
         try:
-            for identifier, members in CI.ERASE_DIAGNOSTIC_PARTITIONS:
+            for identifier, members in (*CI.ERASE_DIAGNOSTIC_PARTITIONS, *CI.REPLACEMENT_DIAGNOSTIC_PARTITIONS):
                 e = dict(environment(), NATIVE_SELECTION_ID=identifier)
                 selected, record = CI.selected_input(self.root, e)
                 self.assertEqual(selected['unitTestSelectors'], list(members))
@@ -989,6 +989,8 @@ class ReportPartitionTests(unittest.TestCase):
         expected.insert(expected.index('reminder-control-continuation') + 1, CI.REMINDER_BUILD_WATCHDOG_SELECTION_ID)
         expected.insert(expected.index('replacement-packet-union') + 1, CI.RESTORE_HISTORY_SELECTION_ID)
         expected.insert(expected.index('replacement-packet-union') + 1, CI.REPLACEMENT_UNION_SELECTION_ID)
+        offset = expected.index(CI.REPLACEMENT_UNION_SELECTION_ID) + 1
+        expected[offset:offset] = [CI.REPLACEMENT_REMAINDER_SELECTION_ID, CI.REPLACEMENT_REPORT_SELECTION_ID]
         expected.remove('erase-lease-lifecycle')
         offset=expected.index('replacement-packet-union')
         expected[offset:offset]=['erase-lease-lifecycle', CI.ERASE_RECOVERY_SELECTION_ID, CI.ERASE_BUILD_WATCHDOG_SELECTION_ID, CI.ERASE_DRAIN_SELECTION_ID, CI.ERASE_REMAINDER_SELECTION_ID]
@@ -1550,7 +1552,7 @@ class RestoreBuildWatchdogDiagnosticTests(unittest.TestCase):
 
     def test_development_binding_rejects_consumed_build30_source(self):
         self.assertEqual(CI.NO_INDEX_PARENT, '5c1e9831153e9e5feddda08e1152de06ecbaaed2')
-        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_PARENT, '1d91e84425c3ca2b71c39e0ce7e252faaeb0bb15')
+        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_PARENT, '328e6bc7ccf31aded543b75ad75dc0b55c6e4c15')
         self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_TREES['FieldEvidenceAppTests'], '004206e3e6ffd818a4d48ab87d57766d5b4b655d')
         self.assertEqual(CI.NO_INDEX_TREES['FieldEvidenceAppTests'], '6ae80744a230727892ceb04617421d91fd17e53a')
         for stage in ('dispatch', 'worker'):
@@ -2132,6 +2134,142 @@ class ErasePartitionDiagnosticTests(unittest.TestCase):
             if os.name != 'nt': return str(path)
             return subprocess.check_output([str(bash), '-c', 'cygpath -u "$1"', '_', str(path)], text=True).strip()
         for identifier, members in CI.ERASE_DIAGNOSTIC_PARTITIONS:
+            self.select(identifier)
+            for test_exit in (0, 83):
+                with tempfile.TemporaryDirectory() as directory:
+                    base = Path(directory); binary = base/'bin'; binary.mkdir()
+                    artifact = base/'artifact'; artifact.mkdir()
+                    selected = artifact/'ci-selection.selected.json'
+                    selected.write_bytes(CI.canonical(self.selected))
+                    executable = binary/'xcodebuild'
+                    executable.write_text('#!/bin/bash\nprintf "%s\\n" "$@" > "$MOCK_TEST_ARGS"\nmkdir -p "$CI_ARTIFACT_DIR/UnitTests.xcresult"\ntouch "$CI_ARTIFACT_DIR/UnitTests.xcresult/result"\nexit "$MOCK_TEST_EXIT"\n', newline='\n')
+                    executable.chmod(0o755)
+                    e = dict(os.environ, PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp',
+                             CONFIGURATION='Debug', CODE_SIGNING_ALLOWED='NO', CI_SIMULATOR_UDID=UDID,
+                             CI_DESTINATION='platform=iOS Simulator,id='+UDID, CI_ARTIFACT_DIR=shell_path(artifact),
+                             CI_SELECTION_PATH=shell_path(selected), RUNNER_TEMP=shell_path(base/'runner'),
+                             CI_S10_4_SHARED_BUILD_MODE='none', CI_NATIVE_ACCEPTANCE_CONTRACT='none',
+                             MOCK_TEST_ARGS=shell_path(base/'args'), MOCK_TEST_EXIT=str(test_exit))
+                    # Actual jq and shell consume the real closed selected JSON. Only Xcode is stubbed on Windows.
+                    result = subprocess.run([str(bash), '-c', 'export PATH="$1:$PATH"; exec bash "$2"', '_',
+                                             shell_path(binary), shell_path(ROOT/'Scripts/test-smoke.sh')],
+                                            env=e, capture_output=True, text=True)
+                    self.assertEqual(result.returncode, test_exit, result.stderr)
+                    args = (base/'args').read_text().splitlines()
+                    self.assertEqual([arg for arg in args if arg.startswith('-only-testing:')],
+                                     ['-only-testing:'+member for member in members])
+                    self.assertEqual(args[-2:], ['CODE_SIGNING_ALLOWED=NO', 'test-without-building'])
+
+class ReplacementPartitionDiagnosticTests(unittest.TestCase):
+    bound_environment = NoIndexBuildDiagnosticTests.bound_environment
+    git_facts = NoIndexBuildDiagnosticTests.git_facts
+    build_fixture = NoIndexBuildDiagnosticTests.build_fixture
+    run_mock_build = NoIndexBuildDiagnosticTests.run_mock_build
+
+    def setUp(self):
+        self.default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        self.mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.select(CI.REPLACEMENT_REMAINDER_SELECTION_ID)
+
+    def select(self, identifier):
+        self.selected = CI.resolve_selection(self.default, self.mapping, identifier)
+        self.record = {'selectionID': identifier,
+                       'selectionSHA256': CI.sha256(CI.canonical(self.selected)),
+                       'selectionMapSHA256': CI.sha256(CI.canonical(self.mapping)),
+                       'head': HEAD, 'runID': '123', 'runAttempt': '1'}
+        self.header = ('tree ' + 'a'*40 + '\nparent ' + CI.REPLACEMENT_UNION_PARENT + '\n\nmessage\n').encode()
+
+    def test_public_choices_and_report_boundary_are_exact(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        self.assertIsNotNone(block)
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        for identifier, _ in CI.REPLACEMENT_DIAGNOSTIC_PARTITIONS:
+            self.assertEqual(options.count(identifier), 1)
+        self.assertEqual(len(options), len(set(options)))
+        self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.REPLACEMENT_REPORT_SELECTION_ID)['unitTestSelectors'],
+                         ['FieldEvidenceAppTests/S6_5ReplacementUnionTests/testFinalizedReportBytesAndReceiptsSurviveRepeatedForkAndColdReadback'])
+
+    def test_exact_disjoint_ordered_union_and_historical_routes(self):
+        observed = []
+        for (identifier, members), count in zip(CI.REPLACEMENT_DIAGNOSTIC_PARTITIONS, (11, 1)):
+            self.select(identifier)
+            self.assertEqual(self.selected['unitTestSelectors'], list(members))
+            self.assertEqual(len(members), count)
+            self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
+            self.assertFalse(self.selected['runUISmoke'])
+            observed.extend(members)
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, identifier + '-retry')
+        self.assertEqual(observed, list(CI.REPLACEMENT_UNION_SELECTORS))
+        self.assertEqual(len(set(observed)), 12)
+        for identifier, tier in (('replacement-packet-union', 'N8'), (CI.REPLACEMENT_UNION_SELECTION_ID, 'D30')):
+            historical = CI.resolve_selection(self.default, self.mapping, identifier)
+            self.assertEqual(historical['unitTestSelectors'], observed)
+            self.assertEqual(historical['tier'], tier)
+
+    def test_both_admissions_reject_wrong_parent_provider_tree_selector_and_budget(self):
+        for identifier, members in CI.REPLACEMENT_DIAGNOSTIC_PARTITIONS:
+            self.select(identifier)
+            for stage in ('dispatch', 'worker'):
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts):
+                    admitted = CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+                self.assertTrue(admitted['diagnosticOnly'])
+                self.assertFalse(admitted['acceptance'])
+                self.assertFalse(admitted['providerQualification'])
+                for e in (self.bound_environment('bitrise'), dict(self.bound_environment(), GITHUB_RUN_ATTEMPT='2')):
+                    with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                        CI.admission(self.selected, e, HEAD, stage, self.record)
+                for header in (self.header.replace(CI.REPLACEMENT_UNION_PARENT.encode(), b'f'*40),
+                               self.header.replace(b'\n\n', b'\nparent '+b'f'*40+b'\n\n')):
+                    with mock.patch.object(CI.subprocess, 'check_output', return_value=header), self.assertRaises(ValueError):
+                        CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+                for path in CI.REPLACEMENT_UNION_TREES:
+                    def wrong_tree(command, **kwargs):
+                        return 'f'*40+'\n' if command[-1] == HEAD+':'+path else self.git_facts(command, **kwargs)
+                    with mock.patch.object(CI.subprocess, 'check_output', side_effect=wrong_tree), self.assertRaises(ValueError):
+                        CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+                changes = [{'unitTestSelectors': list(CI.REPLACEMENT_UNION_SELECTORS)}, {'tier': 'N8'}, {'runUISmoke': True}]
+                changes.extend({key: self.selected[key]+1} for key in CI.BUDGET_KEYS)
+                for fields in changes:
+                    with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                        CI.admission(dict(self.selected, **fields), self.bound_environment(), HEAD, stage, self.record)
+                for other in (CI.REPLACEMENT_UNION_SELECTION_ID, 'unknown') + tuple(k for k, _ in CI.REPLACEMENT_DIAGNOSTIC_PARTITIONS if k != identifier):
+                    with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                        CI.admission(self.selected, self.bound_environment(), HEAD, stage, dict(self.record, selectionID=other))
+
+    def test_real_build_shell_uses_no_index_recipe_and_preserves_failures(self):
+        for identifier, _ in CI.REPLACEMENT_DIAGNOSTIC_PARTITIONS:
+            for receipt_exit, build_exit in ((0, 0), (79, 0), (0, 83)):
+                with tempfile.TemporaryDirectory() as directory:
+                    result, e, events, args = self.run_mock_build(directory, identifier, receipt_exit, build_exit)
+                    self.assertEqual(result.returncode, receipt_exit or build_exit, result.stderr)
+                    self.assertEqual(events, ['receipt'] if receipt_exit else ['receipt', 'build'])
+                    if not receipt_exit:
+                        self.assertEqual(args, ['-project', 'FieldEvidenceApp.xcodeproj', '-scheme', 'FieldEvidenceApp',
+                            '-configuration', 'Debug', '-destination', 'platform=iOS Simulator,id='+UDID,
+                            '-derivedDataPath', e['RUNNER_TEMP']+'/FieldEvidenceDerivedData',
+                            '-resultBundlePath', e['CI_ARTIFACT_DIR']+'/Build.xcresult',
+                            'CODE_SIGNING_ALLOWED=NO', 'COMPILER_INDEX_STORE_ENABLE=NO', 'build-for-testing'])
+
+    def test_real_receipt_cli_and_execution_binding_for_both_partitions(self):
+        for identifier, _ in CI.REPLACEMENT_DIAGNOSTIC_PARTITIONS:
+            self.select(identifier)
+            NoIndexBuildDiagnosticTests.test_receipt_cli_uses_actual_build_step_dispatch_inputs_and_fails_without_them(self)
+            NoIndexBuildDiagnosticTests.test_receipt_binds_admitted_configuration_and_executed_command(self)
+            NoIndexBuildDiagnosticTests.test_tampered_receipt_or_incomplete_indexed_or_changed_execution_is_denied(self)
+
+    def test_actual_worker_jq_accepts_only_exact_partition_budgets_and_members(self):
+        for identifier, _ in CI.REPLACEMENT_DIAGNOSTIC_PARTITIONS:
+            self.select(identifier)
+            BuildWatchdogDiagnosticTests.test_actual_worker_budget_filter_accepts_only_exact_diagnostic_and_retains_ordinary_tiers(self)
+
+    def test_real_test_shell_passes_exact_ordered_methods_and_propagates_failure(self):
+        bash = (Path(shutil.which('git')).resolve().parents[1]/'bin/bash.exe') if os.name == 'nt' else Path(shutil.which('bash'))
+        def shell_path(path):
+            if os.name != 'nt': return str(path)
+            return subprocess.check_output([str(bash), '-c', 'cygpath -u "$1"', '_', str(path)], text=True).strip()
+        for identifier, members in CI.REPLACEMENT_DIAGNOSTIC_PARTITIONS:
             self.select(identifier)
             for test_exit in (0, 83):
                 with tempfile.TemporaryDirectory() as directory:

@@ -50,6 +50,8 @@ The owner permits the 30-minute proposal to be permanent or temporary. Reuse the
 | `reminder-production-no-index-build30m` | Ordered33-method union of the four reminder groups |
 | `restore-history-no-index-build30m` | Six restore-review methods followed by the golden replacement-union method |
 | `replacement-union-no-index-build30m` | Exact complete ordered12 methods from existing `replacement-packet-union`; qualify before use |
+| `replacement-remainder-no-index-build30m` | Exact first11 methods of the same ordered12; qualify the disjoint partition before use |
+| `replacement-report-fork-no-index-build30m` | Exact final report-Fork method of the same ordered12; qualify the disjoint partition before use |
 | `erase-recovery-no-index-build30m` | Exact ordered13 methods from ordinary `erase-recovery` |
 | `erase-drain-timing-no-index-build30m` | First Erase13 method: deferred old-context drain, with bounded phase timings |
 | `erase-remainder-no-index-build30m` | Remaining ordered12 Erase13 methods |

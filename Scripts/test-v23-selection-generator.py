@@ -750,6 +750,14 @@ class DiagnosticPartitionTests(unittest.TestCase):
         self.assertEqual([part["id"] for part in family["partitions"]],
                          ["erase-drain-timing-no-index-build30m", "erase-remainder-no-index-build30m"])
         self.assertEqual([len(part["selectors"]) for part in family["partitions"]], [1, 12])
+        replacement = self.manifest["diagnosticPartitions"]["families"][1]
+        self.assertEqual(replacement["parentID"], "replacement-packet-union")
+        self.assertEqual([part["id"] for part in replacement["partitions"]],
+                         ["replacement-remainder-no-index-build30m", "replacement-report-fork-no-index-build30m"])
+        self.assertEqual([len(part["selectors"]) for part in replacement["partitions"]], [11, 1])
+        self.assertEqual(replacement["partitions"][1]["selectors"],
+                         ["FieldEvidenceAppTests/S6_5ReplacementUnionTests/testFinalizedReportBytesAndReceiptsSurviveRepeatedForkAndColdReadback"])
+
 
     def test_real_cli_rejects_hostile_metadata_before_writing_outputs(self):
         original = self.manifest["diagnosticPartitions"]
@@ -779,6 +787,11 @@ class DiagnosticPartitionTests(unittest.TestCase):
         change("reordered partitions", lambda v: v["families"][0]["partitions"].reverse())
         change("overlap", lambda v: v["families"][0]["partitions"][1]["selectors"].append(v["families"][0]["parentSelectors"][0]))
         change("foreign method", lambda v: v["families"][0]["partitions"][1]["selectors"].append("FieldEvidenceAppTests/ForeignTests/testForeign"))
+        change("replacement missing method", lambda v: v["families"][1]["partitions"][0]["selectors"].pop())
+        change("replacement overlap", lambda v: v["families"][1]["partitions"][0]["selectors"].append(v["families"][1]["partitions"][1]["selectors"][0]))
+        change("replacement reordered", lambda v: v["families"][1]["partitions"].reverse())
+        change("replacement unknown method", lambda v: v["families"][1]["partitions"][1]["selectors"].append("FieldEvidenceAppTests/ForeignTests/testForeign"))
+        change("cross-family ID collision", lambda v: v["families"][1]["partitions"][1].update(id=v["families"][0]["partitions"][0]["id"]))
         for label, metadata in [("valid", original)] + cases:
             with self.subTest(case=label), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory).resolve()
