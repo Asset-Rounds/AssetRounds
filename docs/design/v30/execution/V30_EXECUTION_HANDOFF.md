@@ -8431,3 +8431,433 @@ This entry does not self-record its future bookkeeping commit.
   "revision": 1
 }
 ```
+
+## Card 36 of 55 - V30-P04-C06
+
+Korean — PROVISIONAL_CHECKPOINTED (machine-assisted nonshipping draft; no native or linguistic acceptance).
+
+- M `b7eb425b1dca56e7751641c24d816bb5bd8f7a5e`, observed A `8206f03439789132fb2144400c5a91ed7d2fafcb`, E `02c7b78884865e3392c164b0165f703499da9f61` (tree `5f6ab889ba0434565ffc993de010da34d2cc89b2`); coordination checkpoint `cc1be3f67f6997bc0bd8a4991cc734a27006e5cb`, sequence 75, ledger digest `6268084f1ebe12dbb50b04246d0b478475e2e03aa46f549c59f69cd48ea57e44`. M..A contains only four V30 execution documents.
+- Six new files inside ten-path locale fence, zero S10 shared paths. Korean draft: 3212 keys/3228 target units across 2717 app, 113 report, 382 accessibility/permission/error keys. English source/comments/IDs/tokens preserved; plural targets other-only; substitution types exact.
+- Static source/key/placeholder/nonempty/Unicode and C31 review-packet checks PASS; 3228 review entries, zero rendered artifacts. V30 CI contract PASS WINDOWS_STATIC; git diff --check PASS. Eight native tests authored, NOT EXECUTED. Independent review: Independent read-only Windows static review PASS: 3212 keys/3228 Korean units, lanes 2717/113/382, typed argument parity, other-only plurals, eight authored XCTest methods. Reviewed critical ERASE, permission purposes/denial/failures, checkpoint request-versus-confirmed-state boundaries, stock Count and no-partial-effect claims, drawing Plan, NFC/NFD exact bytes, compatibility jamo and no-initial-consonant-search policy. Referenced APIs exist; PDF test retains English chrome and pending external qualification. No actionable new product/test defect found. Four inherited English extraction defects remain baseline-proven final-acceptance blockers with shared English unchanged. No native execution, professional bilingual review, publication authority or final credit.
+- Qualification outstanding: ko-US/ko-KR profile separation, two-set keyboard composition/batchim/cancel/commit, Hangul line breaking/compact labels/Dynamic Type, VoiceOver, font permissions, PDF extraction/Letter/A4 and physical printing. Tests preserve composed/decomposed exact bytes while derived search normalizes NFC. Compatibility jamo and initial-consonant queries do not gain unsupported matching. Synthetic Korean document body uses English chrome pending shared integration.
+- Six checkpoint/field-progress message corrections and two domain-key corrections pass the same checks. Targets remain needs_review; no professional/native/bilingual acceptance or fabricated review receipt. Korean U.S. metadata remains unpublished with keyword/current-rule validation outstanding.
+- Four inherited English Swift-fragment defects remain final-acceptance blockers: manual-work-resource.units, my-day.no-duration-estimate-lowercase, my-day.no-total-estimate and my-day.start. Exact B source proves intended labels; shared English bytes unchanged and causal-owner correction requirements recorded below. KNOWN_BUGS read; no bug exception added.
+- Null selector/tier; no workflow/runner/Xcode/Simulator identity. No canonical/final/main/release/post-S10 successor credit. Next unstarted: Card37 V30-P04-C07 shared catalog integration, requiring ordered selection and fresh G0.
+
+This entry does not self-record its future bookkeeping commit.
+
+```json
+{
+  "actualSharedPaths": [],
+  "attempt": 1,
+  "authority": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
+    "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+  },
+  "authorityOnlyDiffResult": "M..A EXACTLY FOUR V30 EXECUTION DOCUMENTS",
+  "candidate": {
+    "base": "b7eb425b1dca56e7751641c24d816bb5bd8f7a5e",
+    "baseTree": "57490a48f7a82c421dc1f00c48ec0386d3b81126",
+    "changedPaths": [
+      "FieldEvidenceApp/Resources/Globalization/ko.accessibility.json",
+      "FieldEvidenceApp/Resources/Globalization/ko.app.json",
+      "FieldEvidenceApp/Resources/Globalization/ko.report.json",
+      "FieldEvidenceAppTests/Fixtures/V30/Locales/ko.json",
+      "FieldEvidenceAppTests/V30_P04_C06KoreanLocalizationTests.swift",
+      "docs/design/v30/execution/V30_CI_SELECTION.json",
+      "docs/design/v30/execution/V30_CURRENT_TASK.md",
+      "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+      "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json",
+      "docs/design/v30/locales/ko/V30P04C06ReviewPacketV1.json"
+    ],
+    "head": "02c7b78884865e3392c164b0165f703499da9f61",
+    "tree": "5f6ab889ba0434565ffc993de010da34d2cc89b2"
+  },
+  "cardID": "V30-P04-C06",
+  "credit": {
+    "canonicalAcceptance": false,
+    "finalCredit": false,
+    "mainIntegrationCredit": false,
+    "postS10SuccessorStart": false,
+    "provisionalDependencySatisfied": true,
+    "releaseCredit": false
+  },
+  "evidence": {
+    "acceptanceMap": {
+      "catalogs": "Complete machine-assisted nonshipping ko draft: 3212 keys/3228 target units across 2717 app, 113 report, 382 accessibility/permission/error keys. Target leaves nonempty needs_review; English source/comments/keys exact. Korean plural targets other-only; substitution argument indices/types and format tokens preserved.",
+      "metadata": "Korean U.S. metadata draft local only. No keyword evidence, current-rule validation, App Store mutation or publication credit.",
+      "profiles": "ko-US and hostile ko-KR fixtures separate base resource identity, U.S. jurisdiction/storefront and canonical values. Eight authored native tests cover structure, base resource/fallback, formatting, permissions/ERASE, draft boundaries, exact input/search/ties, Korean PDF extraction/pagination/font bits on Letter/A4, and composed/decomposed Hangul versus compatibility jamo.",
+      "review": "C31 closed draft packet validates 3228 entries including 16 named substitution fragments. Native %arg retained; positional normalization only in review projection. No candidate tuple, renderer artifacts, translator/reviewer identities or acceptance receipts fabricated.",
+      "source": "3090 inherited shared-catalog keys plus 119 later typed defaults and 3 declared permission prompts. Shared catalog/project/product source unchanged. Four inherited English extraction defects retain baseline-proven intended target labels, exact provenance and final-acceptance blocked status.",
+      "unicode": "Hangul source keeps exact UTF-8 for NFC/NFD/jamo/mixed identifiers/emoji. Search normalization is derived-only. V1 normalizes canonical Hangul decomposition to NFC and uses whitespace tokens; it does not support morphology or initial-consonant search, and Hangul is outside V1 contiguous CJK substring fallback. Real keyboard composition/batchim/cancel/commit, line breaking/compact/Dynamic Type/VoiceOver/font coverage/physical print and professional field terminology review remain NOT_EXECUTED. Synthetic Korean report body uses English chrome pending shared integration."
+    },
+    "defects": [
+      {
+        "baselineEvidence": {
+          "path": "FieldEvidenceApp/Features/WorkResources/ManualWorkResourceWorkflowView.swift",
+          "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+          "sha256": "7763f72a2b820861915cb6d814132cf7c3da9de0980997a44abefd6f1b8dd28b"
+        },
+        "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+        "currentSourcePaths": [
+          "FieldEvidenceApp/Resources/Localizable.xcstrings",
+          "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+        ],
+        "disposition": "Korean draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+        "finalAcceptanceBlocked": true,
+        "intendedEnglish": "units",
+        "key": "v30.manual-work-resource.units",
+        "koreanDraft": "단위",
+        "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label."
+      },
+      {
+        "baselineEvidence": {
+          "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+          "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+          "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+        },
+        "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+        "currentSourcePaths": [
+          "FieldEvidenceApp/Resources/Localizable.xcstrings",
+          "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+        ],
+        "disposition": "Korean draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+        "finalAcceptanceBlocked": true,
+        "intendedEnglish": "no duration estimate",
+        "key": "v30.my-day.no-duration-estimate-lowercase",
+        "koreanDraft": "예상 소요 시간 없음",
+        "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label."
+      },
+      {
+        "baselineEvidence": {
+          "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+          "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+          "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+        },
+        "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+        "currentSourcePaths": [
+          "FieldEvidenceApp/Resources/Localizable.xcstrings",
+          "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+        ],
+        "disposition": "Korean draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+        "finalAcceptanceBlocked": true,
+        "intendedEnglish": "No total estimate",
+        "key": "v30.my-day.no-total-estimate",
+        "koreanDraft": "예상 총 소요 시간 없음",
+        "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label."
+      },
+      {
+        "baselineEvidence": {
+          "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+          "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+          "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+        },
+        "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+        "currentSourcePaths": [
+          "FieldEvidenceApp/Resources/Localizable.xcstrings",
+          "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+        ],
+        "disposition": "Korean draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+        "finalAcceptanceBlocked": true,
+        "intendedEnglish": "Start",
+        "key": "v30.my-day.start",
+        "koreanDraft": "시작",
+        "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label."
+      }
+    ],
+    "limitations": "Windows-static draft only. Native build/XCTest/Simulator and language/layout/input/VoiceOver/font/render/extraction/printing qualification unexecuted. Professional independent bilingual review outstanding. Four inherited English extraction defects block final acceptance.",
+    "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "outcome": "Complete provisional ko catalogs and fixtures; qualify Hangul composition, search, line breaking, compact UI, fonts, reports, accessibility, and terminology.",
+    "static": {
+      "G0": {
+        "A": "8206f03439789132fb2144400c5a91ed7d2fafcb",
+        "M": "b7eb425b1dca56e7751641c24d816bb5bd8f7a5e",
+        "allowedPathCount": 10,
+        "baseTree": "57490a48f7a82c421dc1f00c48ec0386d3b81126",
+        "cardID": "V30-P04-C06",
+        "coordinationHead": "03d9c1a6453e92ac72945c827b3b783a9c8cc9d3",
+        "ledgerDigest": "d941a7f553babd2b0ebfc67aecdcf6d87388a003c5681e544399dfb414ff6e8e",
+        "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+        "result": "PASS_G0",
+        "sequence": 74,
+        "sharedPaths": [],
+        "taskDigest": "1f37fba258608e7c08587ccdfe88aa9dbe55f87915f66ac158fb3d7a4dd35661"
+      },
+      "actualSharedPaths": [],
+      "allowedPathCount": 10,
+      "auditOutputSHA256": "cb0890ad922c870b3b7b76eaa7bbe5ff852edc5d661c0be6cdd39eb3ccbabfd6",
+      "auditScriptSHA256": "cd9c02f8d337ec7cd11d8020c1fd3e13ef83a26e6bdeaa800ffb97da0ec8c065",
+      "cardID": "V30-P04-C06",
+      "catalogKeyCount": 3212,
+      "implementationPathCount": 6,
+      "independentReview": "Independent read-only Windows static review PASS: 3212 keys/3228 Korean units, lanes 2717/113/382, typed argument parity, other-only plurals, eight authored XCTest methods. Reviewed critical ERASE, permission purposes/denial/failures, checkpoint request-versus-confirmed-state boundaries, stock Count and no-partial-effect claims, drawing Plan, NFC/NFD exact bytes, compatibility jamo and no-initial-consonant-search policy. Referenced APIs exist; PDF test retains English chrome and pending external qualification. No actionable new product/test defect found. Four inherited English extraction defects remain baseline-proven final-acceptance blockers with shared English unchanged. No native execution, professional bilingual review, publication authority or final credit.",
+      "koreanStringUnits": 3228,
+      "laneCounts": {
+        "accessibility": 382,
+        "app": 2717,
+        "report": 113
+      },
+      "linguisticAcceptance": false,
+      "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+      "newNativeTestMethods": [
+        "testAllKoreanLanesPreserveEnglishKeysAndTypedResourceStructure",
+        "testKoreanRegionalPreferencesResolveToTheSameBaseResource",
+        "testKoreanProfilesRoundTripFormattingWithoutChangingCanonicalValues",
+        "testKoreanCriticalCopyKeepsConfirmationTokenAndPermissionPurpose",
+        "testKoreanReviewBundleKeepsDraftAndStorefrontBoundaries",
+        "testKoreanAuthoredInputAndDerivedSearchPreserveSourceAndStableIdentity",
+        "testKoreanBodyShapesPaginatesAndExtractsWithEnglishChromeBoundary",
+        "testKoreanCompositionPreservesExactEvidenceAndDoesNotInventInitialSearch"
+      ],
+      "packetValidation": {
+        "artifacts": 0,
+        "finalCredit": false,
+        "keys": 3228,
+        "linguisticAcceptance": false,
+        "nativeCredit": false,
+        "result": "PASS_STRUCTURAL_INTEGRITY_ONLY"
+      },
+      "result": "PASS_WINDOWS_STATIC_DRAFT_ONLY",
+      "sourceArtifacts": [
+        {
+          "bytes": 283841,
+          "path": "FieldEvidenceApp/Resources/Globalization/ko.accessibility.json",
+          "sha256": "6fd217eb9c254fe59afd5a3c457b33ff726729f816fef3489d9d87a9556c1ca8"
+        },
+        {
+          "bytes": 2015625,
+          "path": "FieldEvidenceApp/Resources/Globalization/ko.app.json",
+          "sha256": "1212339322fe5f5eca316c121d470675fd90bc3709ecb7f8b0d6d2ce1df901a0"
+        },
+        {
+          "bytes": 85346,
+          "path": "FieldEvidenceApp/Resources/Globalization/ko.report.json",
+          "sha256": "a6ec97d690be39f4f74dbbc0d7ade2e69d935d51d01c163dfc557d448746af9b"
+        },
+        {
+          "bytes": 12168,
+          "path": "FieldEvidenceAppTests/Fixtures/V30/Locales/ko.json",
+          "sha256": "141414dcc607cf2da4ec4320fe1db3290826e96262e5d811e06af9adbd0de0f1"
+        },
+        {
+          "bytes": 17708,
+          "path": "FieldEvidenceAppTests/V30_P04_C06KoreanLocalizationTests.swift",
+          "sha256": "b02c66d75c8a074f8b1663e60ea4f66287e5f3d6c790e385bb463697115166e9"
+        },
+        {
+          "bytes": 1057,
+          "path": "docs/design/v30/execution/V30_CI_SELECTION.json",
+          "sha256": "c110236be6853671709d97fc38eabe905e2878d51f34caf29de3494f19a96aa5"
+        },
+        {
+          "bytes": 7393,
+          "path": "docs/design/v30/execution/V30_CURRENT_TASK.md",
+          "sha256": "1bbe563c2c6383895ccddf93b1bd47e1fd8083ac82a9eefe613c87937af90a80"
+        },
+        {
+          "bytes": 515984,
+          "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+          "sha256": "40639927c199368412497b4edd9c511a9eee3a5162cd0427889453a1e3906580"
+        },
+        {
+          "bytes": 700,
+          "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json",
+          "sha256": "377099f1979e68381ec151584c285f8e98b243ede741d08835e199efc1a3461a"
+        },
+        {
+          "bytes": 4353088,
+          "path": "docs/design/v30/locales/ko/V30P04C06ReviewPacketV1.json",
+          "sha256": "1d840d0da6037bed87bc736963f21662bba3f3994819af9e92e12f7cb34962ce"
+        }
+      ],
+      "sourceDefects": [
+        {
+          "baselineEvidence": {
+            "path": "FieldEvidenceApp/Features/WorkResources/ManualWorkResourceWorkflowView.swift",
+            "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+            "sha256": "7763f72a2b820861915cb6d814132cf7c3da9de0980997a44abefd6f1b8dd28b"
+          },
+          "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+          "currentSourcePaths": [
+            "FieldEvidenceApp/Resources/Localizable.xcstrings",
+            "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+          ],
+          "disposition": "Korean draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+          "finalAcceptanceBlocked": true,
+          "intendedEnglish": "units",
+          "key": "v30.manual-work-resource.units",
+          "koreanDraft": "단위",
+          "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label."
+        },
+        {
+          "baselineEvidence": {
+            "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+            "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+            "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+          },
+          "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+          "currentSourcePaths": [
+            "FieldEvidenceApp/Resources/Localizable.xcstrings",
+            "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+          ],
+          "disposition": "Korean draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+          "finalAcceptanceBlocked": true,
+          "intendedEnglish": "no duration estimate",
+          "key": "v30.my-day.no-duration-estimate-lowercase",
+          "koreanDraft": "예상 소요 시간 없음",
+          "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label."
+        },
+        {
+          "baselineEvidence": {
+            "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+            "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+            "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+          },
+          "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+          "currentSourcePaths": [
+            "FieldEvidenceApp/Resources/Localizable.xcstrings",
+            "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+          ],
+          "disposition": "Korean draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+          "finalAcceptanceBlocked": true,
+          "intendedEnglish": "No total estimate",
+          "key": "v30.my-day.no-total-estimate",
+          "koreanDraft": "예상 총 소요 시간 없음",
+          "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label."
+        },
+        {
+          "baselineEvidence": {
+            "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+            "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+            "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+          },
+          "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+          "currentSourcePaths": [
+            "FieldEvidenceApp/Resources/Localizable.xcstrings",
+            "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+          ],
+          "disposition": "Korean draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+          "finalAcceptanceBlocked": true,
+          "intendedEnglish": "Start",
+          "key": "v30.my-day.start",
+          "koreanDraft": "시작",
+          "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label."
+        }
+      ],
+      "workingSourceArtifacts": [
+        {
+          "bytes": 283841,
+          "path": "FieldEvidenceApp/Resources/Globalization/ko.accessibility.json",
+          "sha256": "6fd217eb9c254fe59afd5a3c457b33ff726729f816fef3489d9d87a9556c1ca8"
+        },
+        {
+          "bytes": 2015625,
+          "path": "FieldEvidenceApp/Resources/Globalization/ko.app.json",
+          "sha256": "1212339322fe5f5eca316c121d470675fd90bc3709ecb7f8b0d6d2ce1df901a0"
+        },
+        {
+          "bytes": 85346,
+          "path": "FieldEvidenceApp/Resources/Globalization/ko.report.json",
+          "sha256": "a6ec97d690be39f4f74dbbc0d7ade2e69d935d51d01c163dfc557d448746af9b"
+        },
+        {
+          "bytes": 12168,
+          "path": "FieldEvidenceAppTests/Fixtures/V30/Locales/ko.json",
+          "sha256": "141414dcc607cf2da4ec4320fe1db3290826e96262e5d811e06af9adbd0de0f1"
+        },
+        {
+          "bytes": 17708,
+          "path": "FieldEvidenceAppTests/V30_P04_C06KoreanLocalizationTests.swift",
+          "sha256": "b02c66d75c8a074f8b1663e60ea4f66287e5f3d6c790e385bb463697115166e9"
+        },
+        {
+          "bytes": 4353088,
+          "path": "docs/design/v30/locales/ko/V30P04C06ReviewPacketV1.json",
+          "sha256": "1d840d0da6037bed87bc736963f21662bba3f3994819af9e92e12f7cb34962ce"
+        }
+      ]
+    },
+    "workflow": {
+      "branchRef": "refs/heads/phase/v30-globalization",
+      "expectedHead": "02c7b78884865e3392c164b0165f703499da9f61",
+      "runID": null,
+      "selectorInput": null,
+      "selectorTier": null,
+      "url": null
+    }
+  },
+  "expectedLedgerDigest": "d941a7f553babd2b0ebfc67aecdcf6d87388a003c5681e544399dfb414ff6e8e",
+  "expectedOldRef": "03d9c1a6453e92ac72945c827b3b783a9c8cc9d3",
+  "expectedSequence": 74,
+  "next": "V30-P04-C07",
+  "observedAuthorityHead": "8206f03439789132fb2144400c5a91ed7d2fafcb",
+  "operationalProvenance": [
+    "Card36 selected through immediate ordered CAS after Card35 checkpoint; direct prerequisite Card31 remains exact. Six locale-exclusive new paths, ten-path fence, zero S10 shared paths.",
+    "Korean targets authored directly from English in bounded model-assisted batches; exact source/token identity and C31 typed argument signatures pass. Root corrected six checkpoint/field-progress messages and two domain keys (drawing Plan and stock Count). Worker repaired a missing draft-array value before final source-order/count validation. No machine output is professional acceptance.",
+    "Four inherited English source Swift-fragment defects retain B-derived intended labels; shared English bytes unchanged.",
+    "All eight native tests are authored only; committed and raw working hashes retained separately. No native workflow selected or dispatched."
+  ],
+  "pathFenceDigest": "2a3cbd20b0928420aa7f6f24246f02eabb5eaf8291dd67b0bc87a30c170cce93",
+  "preAuthorizedOverlapTuples": [],
+  "reconciliation": "Replay/reimplement after accepted S in graph order. Shared integration solely P04-C07; inherited English default repair needs applicable causal-owner authority. Regenerate exact-candidate packets and pass native Korean composition/search/layout/accessibility/report/print gates plus professional independent bilingual review before final credit.",
+  "reconciliationManifest": {
+    "B": {
+      "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+      "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225"
+    },
+    "acceptedS": null,
+    "candidateHistory": [
+      {
+        "changedPaths": [
+          "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+        ],
+        "head": "667930e0fcfba3af4aec8e26f05f45a9e9925d69",
+        "parent": "b7eb425b1dca56e7751641c24d816bb5bd8f7a5e",
+        "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+        "subject": "Record provisional Vietnamese locale draft evidence",
+        "tree": "611e6127befcc2faf5d1f3484399acb59615c147"
+      },
+      {
+        "changedPaths": [
+          "docs/design/v30/execution/V30_CI_SELECTION.json",
+          "docs/design/v30/execution/V30_CURRENT_TASK.md",
+          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+        ],
+        "head": "8206f03439789132fb2144400c5a91ed7d2fafcb",
+        "parent": "667930e0fcfba3af4aec8e26f05f45a9e9925d69",
+        "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+        "subject": "Hydrate P04 C06 provisional Korean locale",
+        "tree": "a438c5fe05392bb6040e2d133b9abf3900f1aa2d"
+      },
+      {
+        "changedPaths": [
+          "FieldEvidenceApp/Resources/Globalization/ko.accessibility.json",
+          "FieldEvidenceApp/Resources/Globalization/ko.app.json",
+          "FieldEvidenceApp/Resources/Globalization/ko.report.json",
+          "FieldEvidenceAppTests/Fixtures/V30/Locales/ko.json",
+          "FieldEvidenceAppTests/V30_P04_C06KoreanLocalizationTests.swift",
+          "docs/design/v30/locales/ko/V30P04C06ReviewPacketV1.json"
+        ],
+        "head": "02c7b78884865e3392c164b0165f703499da9f61",
+        "parent": "8206f03439789132fb2144400c5a91ed7d2fafcb",
+        "state": "PROVISIONAL_CHECKPOINTED",
+        "subject": "Draft complete Korean locale catalogs and review evidence",
+        "tree": "5f6ab889ba0434565ffc993de010da34d2cc89b2"
+      }
+    ],
+    "invalidatedEvidence": [],
+    "kind": "V30_PER_CARD_PROVISIONAL_CANDIDATE",
+    "originalCandidate": {
+      "head": "02c7b78884865e3392c164b0165f703499da9f61",
+      "tree": "5f6ab889ba0434565ffc993de010da34d2cc89b2"
+    },
+    "replayedCandidate": null,
+    "terminalP": null
+  },
+  "requestID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P04-C06/CHECKPOINT/1",
+  "revision": 1
+}
+```
