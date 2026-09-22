@@ -1,6 +1,6 @@
 # V30 Current Task
 
-Card 33 of 55 - Simplified Chinese
+Card 34 of 55 - Traditional Chinese
 
 Only the exact pre-issued fence below is writable. Embedded context is the active hydration. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation. Shared paths are authorized only by the exact listed V30 overlap tuples; preserve Phase10 styling and behavior.
 
@@ -8,7 +8,7 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
 {
   "acceptance": {
     "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
-    "required": "Complete provisional zh-Hans catalogs and fixtures; qualify CJK typography, input, segmentation, line breaking, report shaping/extraction, accessibility, and terminology.",
+    "required": "Complete provisional zh-Hant catalogs and fixtures through independent script-appropriate translation/review; never mechanically convert zh-Hans and call it accepted.",
     "staticEvidence": "Current-card fenced proof and receipt; exact committed paths/hashes"
   },
   "attempt": 1,
@@ -19,10 +19,10 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
   "base": {
-    "head": "8380c834bc97a888cdf75900ba6d644309beef04",
-    "tree": "a9f53b003ba443b36e1611ef7e40677c9f02e518"
+    "head": "d38215ce2b242b29b6627bc91c2cc916d0f8cd1b",
+    "tree": "207d459ee034ef8602198f9adfb86e02ba0b64af"
   },
-  "cardID": "V30-P04-C03",
+  "cardID": "V30-P04-C04",
   "class": "IMPLEMENTATION",
   "credit": {
     "canonicalAcceptance": false,
@@ -74,64 +74,64 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Resources/Globalization/zh-Hans.app.json",
-        "purpose": "Locale-exclusive zh-Hans app-owned catalog.",
+        "path": "FieldEvidenceApp/Resources/Globalization/zh-Hant.app.json",
+        "purpose": "Locale-exclusive zh-Hant app-owned catalog.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Resources/Globalization/zh-Hans.report.json",
-        "purpose": "Locale-exclusive zh-Hans report chrome catalog.",
+        "path": "FieldEvidenceApp/Resources/Globalization/zh-Hant.report.json",
+        "purpose": "Locale-exclusive zh-Hant report chrome catalog.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Resources/Globalization/zh-Hans.accessibility.json",
-        "purpose": "Locale-exclusive zh-Hans accessibility/permission/error catalog.",
+        "path": "FieldEvidenceApp/Resources/Globalization/zh-Hant.accessibility.json",
+        "purpose": "Locale-exclusive zh-Hant accessibility/permission/error catalog.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/Fixtures/V30/Locales/zh-Hans.json",
-        "purpose": "Locale-exclusive zh-Hans fixture corpus.",
+        "path": "FieldEvidenceAppTests/Fixtures/V30/Locales/zh-Hant.json",
+        "purpose": "Locale-exclusive zh-Hant fixture corpus.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/V30_P04_C03SimplifiedChineseLocalizationTests.swift",
-        "purpose": "zh-Hans locale implementation tests.",
+        "path": "FieldEvidenceAppTests/V30_P04_C04TraditionalChineseLocalizationTests.swift",
+        "purpose": "zh-Hant locale implementation tests.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "docs/design/v30/locales/zh-Hans/V30P04C03ReviewPacketV1.json",
-        "purpose": "zh-Hans provisional review packet.",
+        "path": "docs/design/v30/locales/zh-Hant/V30P04C04ReviewPacketV1.json",
+        "purpose": "zh-Hant provisional review packet.",
         "serializedSharedPath": false
       }
     ],
-    "cardID": "V30-P04-C03",
+    "cardID": "V30-P04-C04",
     "class": "IMPLEMENTATION",
     "directPrerequisites": [
       "V30-P04-C01"
     ],
-    "ordinal": 33,
+    "ordinal": 34,
     "preAuthorizedOverlapTuples": [],
     "s10SharedPaths": [],
     "status": "PRE_S10_PROVISIONAL_ELIGIBLE",
-    "title": "Simplified Chinese"
+    "title": "Traditional Chinese"
   },
   "fenceSource": {
-    "cardID": "V30-P04-C03",
+    "cardID": "V30-P04-C04",
     "path": "docs/design/v30/authority/V30PreS10PathFencesV1.json",
     "sha256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a"
   },
@@ -142,15 +142,15 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
     "Scripts/ci-selection.json"
   ],
-  "next": "V30-P04-C04",
+  "next": "V30-P04-C05",
   "observedCoordination": {
-    "head": "f53026d6fc8b31544bdc64674d8d6063a1c0a7bf",
-    "ledgerDigest": "bc4d1af2b48e0764ecaf58054cd93a0be297acf2d422f190da6398c92169cee2",
-    "sequence": 67
+    "head": "6f7d699014d17c73bf8887d48ced7504208710c4",
+    "ledgerDigest": "02d99a0de54f8cca2dad2f5b5c4584de04214ce54a34787236772288868b6bfd",
+    "sequence": 69
   },
-  "ordinal": 33,
-  "outcome": "Complete provisional zh-Hans catalogs and fixtures; qualify CJK typography, input, segmentation, line breaking, report shaping/extraction, accessibility, and terminology.",
-  "payloadDigest": "1a06d29c3770d700e1089113cbbfe3622d84dc4aee300b8b9928f358670709ea",
+  "ordinal": 34,
+  "outcome": "Complete provisional zh-Hant catalogs and fixtures through independent script-appropriate translation/review; never mechanically convert zh-Hans and call it accepted.",
+  "payloadDigest": "9d311f58044dd7a186188a38ebaac3f3c583403bb31cec05ae5b6253c9bef5c5",
   "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
   "preS10FinalCredit": false,
   "predecessorEvidence": {
@@ -178,8 +178,8 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
   "revision": 1,
   "selector": null,
   "selectorReason": "Windows-static provisional card; no native dispatch is selected.",
-  "sourceEndLine": 1024,
-  "sourceStartLine": 1024,
-  "title": "Simplified Chinese"
+  "sourceEndLine": 1025,
+  "sourceStartLine": 1025,
+  "title": "Traditional Chinese"
 }
 ```
