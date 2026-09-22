@@ -1,6 +1,6 @@
 # V30 Current Task
 
-Card 35 of 55 - Vietnamese
+Card 36 of 55 - Korean
 
 Only the exact pre-issued fence below is writable. Embedded context is the active hydration. V4 authority/selector remain frozen. No Phase 10 access/polling or main mutation. Shared paths are authorized only by the exact listed V30 overlap tuples; preserve Phase10 styling and behavior.
 
@@ -8,7 +8,7 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
 {
   "acceptance": {
     "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
-    "required": "Complete provisional vi catalogs and fixtures; qualify diacritics, wrapping, search, input, fonts, PDF extraction, and field terminology.",
+    "required": "Complete provisional ko catalogs and fixtures; qualify Hangul composition, search, line breaking, compact UI, fonts, reports, accessibility, and terminology.",
     "staticEvidence": "Current-card fenced proof and receipt; exact committed paths/hashes"
   },
   "attempt": 1,
@@ -19,10 +19,10 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
   },
   "base": {
-    "head": "f76f9d2eb8c791532c421ecf13e6f41337a4dfd6",
-    "tree": "683579978282a1808ccf92ec31fee88e3488d871"
+    "head": "b7eb425b1dca56e7751641c24d816bb5bd8f7a5e",
+    "tree": "57490a48f7a82c421dc1f00c48ec0386d3b81126"
   },
-  "cardID": "V30-P04-C05",
+  "cardID": "V30-P04-C06",
   "class": "IMPLEMENTATION",
   "credit": {
     "canonicalAcceptance": false,
@@ -74,64 +74,64 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Resources/Globalization/vi.app.json",
-        "purpose": "Locale-exclusive vi app-owned catalog.",
+        "path": "FieldEvidenceApp/Resources/Globalization/ko.app.json",
+        "purpose": "Locale-exclusive ko app-owned catalog.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Resources/Globalization/vi.report.json",
-        "purpose": "Locale-exclusive vi report chrome catalog.",
+        "path": "FieldEvidenceApp/Resources/Globalization/ko.report.json",
+        "purpose": "Locale-exclusive ko report chrome catalog.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceApp/Resources/Globalization/vi.accessibility.json",
-        "purpose": "Locale-exclusive vi accessibility/permission/error catalog.",
+        "path": "FieldEvidenceApp/Resources/Globalization/ko.accessibility.json",
+        "purpose": "Locale-exclusive ko accessibility/permission/error catalog.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/Fixtures/V30/Locales/vi.json",
-        "purpose": "Locale-exclusive vi fixture corpus.",
+        "path": "FieldEvidenceAppTests/Fixtures/V30/Locales/ko.json",
+        "purpose": "Locale-exclusive ko fixture corpus.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "FieldEvidenceAppTests/V30_P04_C05VietnameseLocalizationTests.swift",
-        "purpose": "vi locale implementation tests.",
+        "path": "FieldEvidenceAppTests/V30_P04_C06KoreanLocalizationTests.swift",
+        "purpose": "ko locale implementation tests.",
         "serializedSharedPath": false
       },
       {
         "classification": "EXPECTED_ABSENT_NEW_PATH",
         "expectedBBlobOID": null,
         "expectedBSHA256": null,
-        "path": "docs/design/v30/locales/vi/V30P04C05ReviewPacketV1.json",
-        "purpose": "vi provisional review packet.",
+        "path": "docs/design/v30/locales/ko/V30P04C06ReviewPacketV1.json",
+        "purpose": "ko provisional review packet.",
         "serializedSharedPath": false
       }
     ],
-    "cardID": "V30-P04-C05",
+    "cardID": "V30-P04-C06",
     "class": "IMPLEMENTATION",
     "directPrerequisites": [
       "V30-P04-C01"
     ],
-    "ordinal": 35,
+    "ordinal": 36,
     "preAuthorizedOverlapTuples": [],
     "s10SharedPaths": [],
     "status": "PRE_S10_PROVISIONAL_ELIGIBLE",
-    "title": "Vietnamese"
+    "title": "Korean"
   },
   "fenceSource": {
-    "cardID": "V30-P04-C05",
+    "cardID": "V30-P04-C06",
     "path": "docs/design/v30/authority/V30PreS10PathFencesV1.json",
     "sha256": "3f83225f60b283d8cbe2d18a9ea6401577546595315764ca1d1b156a220bcb1a"
   },
@@ -142,15 +142,15 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
     "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
     "Scripts/ci-selection.json"
   ],
-  "next": "V30-P04-C06",
+  "next": "V30-P04-C07",
   "observedCoordination": {
-    "head": "0a661008fb8b72670dfcb958623321ad56cfa2a2",
-    "ledgerDigest": "eb4f8852ec22b99368ae3f1b750599e9798da5c65a2087444f8c572686432eb9",
-    "sequence": 71
+    "head": "48c73b9b8f034228fe4c618ece237677674fa250",
+    "ledgerDigest": "fb4581b71fb6015b1d3b77e5267e20030a403a04c6cc85166952aada7203590d",
+    "sequence": 73
   },
-  "ordinal": 35,
-  "outcome": "Complete provisional vi catalogs and fixtures; qualify diacritics, wrapping, search, input, fonts, PDF extraction, and field terminology.",
-  "payloadDigest": "f0f955c6490f8b2e26da043c44bbf6bab6c602ea5f6337b5b7ff2a4a1895a63c",
+  "ordinal": 36,
+  "outcome": "Complete provisional ko catalogs and fixtures; qualify Hangul composition, search, line breaking, compact UI, fonts, reports, accessibility, and terminology.",
+  "payloadDigest": "1f37fba258608e7c08587ccdfe88aa9dbe55f87915f66ac158fb3d7a4dd35661",
   "planningStatus": "PRE_S10_PROVISIONAL_ELIGIBLE",
   "preS10FinalCredit": false,
   "predecessorEvidence": {
@@ -178,8 +178,8 @@ Only the exact pre-issued fence below is writable. Embedded context is the activ
   "revision": 1,
   "selector": null,
   "selectorReason": "Windows-static provisional card; no native dispatch is selected.",
-  "sourceEndLine": 1026,
-  "sourceStartLine": 1026,
-  "title": "Vietnamese"
+  "sourceEndLine": 1027,
+  "sourceStartLine": 1027,
+  "title": "Korean"
 }
 ```
