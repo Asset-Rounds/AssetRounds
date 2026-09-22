@@ -356,8 +356,6 @@ private final class CompletedSourceHarness {
             trace.phase = "init.fence"
             let fence = try StaleWriterFenceV1(expectedGenerationEpoch: initialEpoch,
                 writerLeaseToken: lease, registry: registry, currentGenerationEpoch: { epochBox.value })
-            trace.phase = "init.seedPublishedPackage"
-            try Self.seedPublishedPackage(in: context, workspaceID: workspaceID)
             trace.phase = "init.journal"
             journal = try MutationJournalStoreV1(modelContext: context, identity: identity,
                 generationID: generationID, staleWriterFence: fence)
@@ -373,26 +371,80 @@ private final class CompletedSourceHarness {
         }
     }
 
-    private static func seedPublishedPackage(in context: ModelContext, workspaceID: WorkspaceID) throws {
+    private func promotePublishedPackage() async throws {
+        diagnostics.phase = "populate.acceptActorSnapshot"
+        let actorMutationID = try Self.mutation(25)
+        _ = try writer.execute(.applyPartyAccountability(.appendActorSnapshot(actor)),
+            mutationID: actorMutationID)
+        committedMutationIDs.append(actorMutationID)
+        let actorReceipt = try XCTUnwrap(journal.receipt(mutationID: actorMutationID))
+        XCTAssertEqual(actorReceipt.mutationID, actorMutationID)
+        let actorRows = try context.fetch(FetchDescriptor<ActorSnapshotRow>())
+        XCTAssertEqual(actorRows.count, 1)
+        XCTAssertEqual(try XCTUnwrap(actorRows.first).value(), actor)
+        diagnostics.phase = "populate.publishPackage"
         let package = try ShippingIlluminatedSignAdapterV1.inspectionPackage()
-        // Pre-existing package authority is fixture setup. Use the actual
-        // shipping workflow and publisher; no test-only approval receipt.
+        // Populate through the production publisher, sandbox and sole writer.
+        // The empty journal must initialize before any revisioned package rows.
         let workflow = try ShippingIlluminatedSignAdapterV1.finalizationWorkflow(from: .illuminatedSignV1, stage: .check)
         let draft = try InspectionPackageReleaseV1.makeDraft(package: package, workflow: workflow)
         let published = try InspectionPackageReleasePublisherV1.publish(InspectionPackageReleasePublisherV1.test(draft)).release
+        let mutationID = try Self.mutation(21)
+        let diff = try PackageSemanticDifferV1.diff(source: published, target: published)
+        let adapter = PackageEvolutionLifecycleAdapterV1(writer: writer, journal: journal, modelContext: context)
+        let observer = CompletedSourcePackageObserver(adapter: adapter)
+        let runner = PackageSandboxRunnerV1(activationObserver: observer)
+        let fixtures = try Self.packageSandboxFixtures()
+        diagnostics.phase = "populate.sandboxPackage"
+        let sandbox = try await runner.run(runID: Self.id(24), workspaceID: workspaceID,
+            release: published, semanticDiff: diff,
+            exactHead: "f09909cc0f929b55d0079190294f32f623eae718",
+            fixtures: fixtures, mutationID: mutationID)
+        XCTAssertEqual(sandbox.disposition, .completePass)
         let promoted = try PromotedPackageReleaseV1(releaseRecordID: Self.id(20), workspaceID: workspaceID,
-            packageRelease: published, mutationID: Self.mutation(21), promotedAt: Self.date)
+            packageRelease: published, mutationID: mutationID, promotedAt: Self.date)
         let pointer = try ActivePackageRegistryPointerV1(pointerID: Self.id(22), workspaceID: workspaceID,
             packageID: published.packageID, activeReleaseRecordID: promoted.releaseRecordID,
             promotionReceiptID: Self.id(23), activePackageReleaseID: published.packageReleaseID,
-            activeReleaseRecordSHA256: promoted.releaseRecordSHA256, revision: 1, mutationID: Self.mutation(21))
-        context.insert(try PromotedPackageReleaseRow(promoted))
-        context.insert(try ActivePackageRegistryPointerRow(pointer))
-        try context.save()
+            activeReleaseRecordSHA256: promoted.releaseRecordSHA256, revision: 1, mutationID: mutationID)
+        let receipt = try PackagePromotionReceiptV1(receiptID: Self.id(23), workspaceID: workspaceID,
+            promotedRelease: promoted, sandboxRun: sandbox, diff: diff, predecessorPointer: nil,
+            resultingPointer: pointer, actor: actor, exactHead: sandbox.exactHead,
+            operation: .initialActivation, rollbackCompatibility: .activatedForwardFixRequired,
+            mutationID: mutationID, recordedAt: Self.date)
+        let bundle = PackagePromotionAtomicBundleV1(promotedRelease: promoted, sandboxRun: sandbox,
+            semanticDiff: diff, predecessorPointer: nil, resultingPointer: pointer, actor: actor, receipt: receipt)
+        diagnostics.phase = "populate.acceptPackagePromotion"
+        XCTAssertEqual(try adapter.applyPromotion(bundle), receipt)
+        committedMutationIDs.append(mutationID)
+        let accepted = try XCTUnwrap(journal.receipt(mutationID: mutationID))
+        XCTAssertEqual(accepted.mutationID, mutationID)
+        let closure = try XCTUnwrap(adapter.acceptedLifecycleClosure(mutationID: mutationID))
+        try closure.validate()
+        XCTAssertEqual(closure.promotedReleases, [promoted])
+        XCTAssertEqual(closure.sandboxRuns, [sandbox])
+        XCTAssertEqual(closure.promotionReceipts, [receipt])
+        XCTAssertEqual(closure.activePointers, [pointer])
+        XCTAssertFalse(context.hasChanges)
+    }
+
+    private static func packageSandboxFixtures() throws -> PackageSandboxFixtureMatrixV1 {
+        func fixtures(for shape: PackageSandboxFixtureShapeV1) throws -> [PackageSandboxCheckKindV1: PackageSandboxFixtureV1] {
+            var values: [PackageSandboxCheckKindV1: PackageSandboxFixtureV1] = [:]
+            for kind in PackageSandboxCheckKindV1.allCases {
+                let fixtureID = "completed.source.\(shape.rawValue.lowercased()).\(kind.rawValue.lowercased())"
+                values[kind] = try PackageSandboxFixtureV1(fixtureID: fixtureID,
+                    fixtureSHA256: KernelCanonicalHashV1.sha256(Data(fixtureID.utf8)))
+            }
+            return values
+        }
+        return try PackageSandboxFixtureMatrixV1(minimal: fixtures(for: .minimal),
+            representative: fixtures(for: .representative))
     }
 
     func populate() async throws {
         do {
+            try await promotePublishedPackage()
             diagnostics.phase = "populate.package"
             let package = try ShippingIlluminatedSignAdapterV1.inspectionPackage()
             let packages = try InspectionPackageRegistryV2(packages: [package])
@@ -626,6 +678,9 @@ private final class CompletedSourceHarness {
         groups.append(try context.fetch(FetchDescriptor<ShopReportProfileRowV1>()).map { $0.rowID + "|" + $0.profileSHA256 + "|" + $0.canonicalData.base64EncodedString() })
         groups.append(try context.fetch(FetchDescriptor<PromotedPackageReleaseRow>()).map { $0.canonicalSHA256 + "|" + $0.canonicalData.base64EncodedString() })
         groups.append(try context.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>()).map { $0.canonicalSHA256 + "|" + $0.canonicalData.base64EncodedString() })
+        groups.append(try context.fetch(FetchDescriptor<PackageSandboxRunRow>()).map { $0.canonicalSHA256 + "|" + $0.canonicalData.base64EncodedString() })
+        groups.append(try context.fetch(FetchDescriptor<PackagePromotionReceiptRow>()).map { $0.canonicalSHA256 + "|" + $0.canonicalData.base64EncodedString() })
+        groups.append(try context.fetch(FetchDescriptor<ActorSnapshotRow>()).map { $0.snapshotSHA256 + "|" + $0.canonicalData.base64EncodedString() })
         let receipts = try context.fetch(FetchDescriptor<MutationReceiptRow>())
         var receiptRows: [String] = []
         for row in receipts {
@@ -666,6 +721,20 @@ private struct CompletedSourceIDs: ApplicationIDSource {
 private struct CompletedSourceFiles: ApplicationFileAuthorityV1 {
     func temporaryRelativePath(mutationID: MutationIDV1, component: String) throws -> String {
         "completed-source/\(mutationID.rawValue.uuidString.lowercased())/\(component)"
+    }
+}
+
+@MainActor
+private final class CompletedSourcePackageObserver: PackageSandboxActivationObservingV1 {
+    let adapter: PackageEvolutionLifecycleAdapterV1
+
+    init(adapter: PackageEvolutionLifecycleAdapterV1) { self.adapter = adapter }
+
+    func activePointerStateSHA256(workspaceID: WorkspaceID, packageID: String) async throws -> String {
+        if let pointer = try adapter.activePointer(workspaceID: workspaceID, packageID: packageID) {
+            return pointer.pointerSHA256
+        }
+        return KernelCanonicalHashV1.sha256(Data("C18_NO_ACTIVE_POINTER".utf8))
     }
 }
 
