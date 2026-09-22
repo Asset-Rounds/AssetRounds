@@ -49,6 +49,7 @@ The owner permits the 30-minute proposal to be permanent or temporary. Reuse the
 | `c36-restore-review-no-index-build30m` | Six restore-review journeys |
 | `reminder-production-no-index-build30m` | Ordered33-method union of the four reminder groups |
 | `restore-history-no-index-build30m` | Six restore-review methods followed by the golden replacement-union method |
+| `replacement-union-no-index-build30m` | Exact complete ordered12 methods from existing `replacement-packet-union`; qualify before use |
 | `erase-recovery-no-index-build30m` | Exact ordered13 methods from ordinary `erase-recovery` |
 | `erase-drain-timing-no-index-build30m` | First Erase13 method: deferred old-context drain, with bounded phase timings |
 | `erase-remainder-no-index-build30m` | Remaining ordered12 Erase13 methods |

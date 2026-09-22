@@ -119,6 +119,7 @@ on:
           - erase-drain-timing-no-index-build30m
           - erase-remainder-no-index-build30m
           - replacement-packet-union
+          - replacement-union-no-index-build30m
           - restore-history-no-index-build30m
           - activity-contracts
           - c36-destination-legacy-bytes

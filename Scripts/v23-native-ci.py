@@ -46,7 +46,7 @@ NO_INDEX_PARENT = '5c1e9831153e9e5feddda08e1152de06ecbaaed2'
 NO_INDEX_TREES = {'FieldEvidenceApp': 'cf661d0cb9a754135dfdea02fc7fa81967163331', 'FieldEvidenceAppTests': '6ae80744a230727892ceb04617421d91fd17e53a', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 NO_INDEX_RECEIPT = "no-index-build-command.json"
 RESTORE_BUILD_WATCHDOG_SELECTION_ID = "c36-restore-review-no-index-build30m"
-RESTORE_BUILD_WATCHDOG_PARENT = 'f8048a1f901ecf4f02526ec7796367c654e1d107'
+RESTORE_BUILD_WATCHDOG_PARENT = 'e3a60f5631edd67b1fac9a74baba5a2011f95ec5'
 RESTORE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '3aa48164f61afb614549ee785cbe184118460ae2', 'FieldEvidenceAppTests': '9beb1476664acad52a4892a6f4d4d74ac39cabdc', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 RESTORE_BUILD_WATCHDOG_SELECTORS = tuple(
     "FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/" + method for method in (
@@ -59,7 +59,7 @@ RESTORE_BUILD_WATCHDOG_SELECTORS = tuple(
     )
 )
 REMINDER_BUILD_WATCHDOG_SELECTION_ID = "reminder-production-no-index-build30m"
-REMINDER_BUILD_WATCHDOG_PARENT = 'f8048a1f901ecf4f02526ec7796367c654e1d107'
+REMINDER_BUILD_WATCHDOG_PARENT = 'e3a60f5631edd67b1fac9a74baba5a2011f95ec5'
 REMINDER_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '3aa48164f61afb614549ee785cbe184118460ae2', 'FieldEvidenceAppTests': '9beb1476664acad52a4892a6f4d4d74ac39cabdc', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 REMINDER_BUILD_WATCHDOG_GROUPS = ('reminder-policy-edit', 'reminder-production-settings', 'reminder-detailed-delivery', 'reminder-control-continuation')
 REMINDER_BUILD_WATCHDOG_SELECTORS = (
@@ -98,11 +98,28 @@ REMINDER_BUILD_WATCHDOG_SELECTORS = (
     'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testNilContinuationPreservesLegacyCanonicalControlAndSubjectBytes',
 )
 RESTORE_HISTORY_SELECTION_ID = "restore-history-no-index-build30m"
-RESTORE_HISTORY_PARENT = 'f8048a1f901ecf4f02526ec7796367c654e1d107'
+RESTORE_HISTORY_PARENT = 'e3a60f5631edd67b1fac9a74baba5a2011f95ec5'
 RESTORE_HISTORY_TREES = {'FieldEvidenceApp': '3aa48164f61afb614549ee785cbe184118460ae2', 'FieldEvidenceAppTests': '9beb1476664acad52a4892a6f4d4d74ac39cabdc', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 RESTORE_HISTORY_GROUPS = ("c36-restore-review", "replacement-packet-union")
 RESTORE_HISTORY_PACKET_SELECTOR = 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testGoldenReplacementKeepsIncomingLiveAndUnionsCurrentRoot'
 RESTORE_HISTORY_SELECTORS = RESTORE_BUILD_WATCHDOG_SELECTORS + (RESTORE_HISTORY_PACKET_SELECTOR,)
+REPLACEMENT_UNION_SELECTION_ID = "replacement-union-no-index-build30m"
+REPLACEMENT_UNION_PARENT = 'e3a60f5631edd67b1fac9a74baba5a2011f95ec5'
+REPLACEMENT_UNION_TREES = {'FieldEvidenceApp': '3aa48164f61afb614549ee785cbe184118460ae2', 'FieldEvidenceAppTests': '9beb1476664acad52a4892a6f4d4d74ac39cabdc', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+REPLACEMENT_UNION_SELECTORS = (
+    'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testGoldenReplacementKeepsIncomingLiveAndUnionsCurrentRoot',
+    'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testPureRuleCreatesOnlyCurrentOnlyTombstonesAndRejectsCollisions',
+    'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testCancelRemovesOnlyOwnedStageAndDirtyCurrentFailsClosed',
+    'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testPacketCollisionFailsBeforeGenerationOrJournalMutation',
+    'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testRecoveryPreservesReplacementUnionAcrossEveryJournalPhase',
+    'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testRestoreIntentTimestampUsesOneCanonicalMillisecondDomain',
+    'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testV23P03C18RegistryPointerBindsPromotionReceiptIdentity',
+    'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testV23P03C05Records42ReplacementUnionsPredecessorClosedMetadata',
+    'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testV23P03C36ReplacementRecordRetainsCanonicalOperationalIdentity',
+    'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testC21ClientCapabilityLifecycleAnchor',
+    'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testV23P03C34PackageRouteUsesOneShellAndNoWriter',
+    'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testFinalizedReportBytesAndReceiptsSurviveRepeatedForkAndColdReadback',
+)
 ERASE_BUILD_WATCHDOG_SELECTION_ID = "erase-recovery-no-index-build30m"
 ERASE_BUILD_WATCHDOG_PARENT = '462a71141f0189598ff041b3a0dc9f2798e4b23e'
 ERASE_BUILD_WATCHDOG_TREES = {'FieldEvidenceApp': '1d2dcbd90fd171e13f2934d8b866fccbabaffbe4', 'FieldEvidenceAppTests': '750961983ffc827c3ed7ca964eca9b53f68c2d2c', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
@@ -111,6 +128,7 @@ ERASE_REMAINDER_SELECTION_ID = "erase-remainder-no-index-build30m"
 ERASE_PARTITION_PARENT = '16e82a8baded44cea8ed4a2c97a685df7d0b4154'
 ERASE_PARTITION_TREES = {'FieldEvidenceApp': '4026fabeab434086e3acbf9dcb03113da5d31128', 'FieldEvidenceAppTests': '9060b1c7c444a17d187f5001a61278fba507359b', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 NO_INDEX_ROUTES = {
+    REPLACEMENT_UNION_SELECTION_ID: (REPLACEMENT_UNION_PARENT, "D30"),
     ERASE_DRAIN_SELECTION_ID: (ERASE_PARTITION_PARENT, "D30"),
     ERASE_REMAINDER_SELECTION_ID: (ERASE_PARTITION_PARENT, "D30"),
     ERASE_BUILD_WATCHDOG_SELECTION_ID: (ERASE_BUILD_WATCHDOG_PARENT, "D30"),
@@ -123,6 +141,8 @@ NO_INDEX_ROUTES = {
 
 def no_index_source_trees(selection_id):
     require(selection_id in NO_INDEX_ROUTES, "no-index closed source binding")
+    if selection_id == REPLACEMENT_UNION_SELECTION_ID:
+        return REPLACEMENT_UNION_TREES
     if selection_id in (ERASE_DRAIN_SELECTION_ID, ERASE_REMAINDER_SELECTION_ID):
         return ERASE_PARTITION_TREES
     if selection_id == ERASE_BUILD_WATCHDOG_SELECTION_ID:
@@ -944,7 +964,7 @@ def validate_selection(selection):
     if selection["tier"] == "D30":
         require(tuple(selection["unitTestSelectors"]) in (
             PARENT_FINALIZATION_METHOD_PARTITIONS[0][1], RESTORE_BUILD_WATCHDOG_SELECTORS,
-            REMINDER_BUILD_WATCHDOG_SELECTORS, RESTORE_HISTORY_SELECTORS, ERASE_RECOVERY_SELECTORS,
+            REMINDER_BUILD_WATCHDOG_SELECTORS, RESTORE_HISTORY_SELECTORS, REPLACEMENT_UNION_SELECTORS, ERASE_RECOVERY_SELECTORS,
             *(members for _, members in ERASE_DIAGNOSTIC_PARTITIONS)),
             "build watchdog exact approved methods")
 
@@ -1200,6 +1220,19 @@ def resolve_selection(default, selection_map, selection_id):
         diagnostic.update(tier="D30", **dict(zip(BUDGET_KEYS, TIERS["D30"])))
         validate_selection(diagnostic)
         resolved[RESTORE_HISTORY_SELECTION_ID] = diagnostic
+        # This closed diagnostic adds no method or profile. Older manifests retain
+        # their original available routes and cannot claim the current family.
+        if len(default["unitTestSelectors"]) == 895 and len(selection_map["groups"]) == 56:
+            require(tuple(resolved["replacement-packet-union"]["unitTestSelectors"])
+                    == REPLACEMENT_UNION_SELECTORS
+                    and len(set(REPLACEMENT_UNION_SELECTORS)) == 12,
+                    "replacement union exact ordered complete family")
+            require(REPLACEMENT_UNION_SELECTION_ID not in resolved,
+                    "replacement union distinct selection")
+            replacement = dict(default, unitTestSelectors=list(REPLACEMENT_UNION_SELECTORS))
+            replacement.update(tier="D30", **dict(zip(BUDGET_KEYS, TIERS["D30"])))
+            validate_selection(replacement)
+            resolved[REPLACEMENT_UNION_SELECTION_ID] = replacement
     if "erase-lease-lifecycle" in resolved:
         require(tuple(resolved["erase-lease-lifecycle"]["unitTestSelectors"]) == ERASE_LEASE_SELECTORS,
                 "erase exact enrolled lifecycle methods")
@@ -1332,6 +1365,7 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
     require(all(re.fullmatch(r"[1-9][0-9]*", e.get(key, ""))
                 for key in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT")), "original run identity")
     watchdog_routes = {
+        REPLACEMENT_UNION_SELECTION_ID: (REPLACEMENT_UNION_PARENT, REPLACEMENT_UNION_SELECTORS),
         BUILD_WATCHDOG_SELECTION_ID: (BUILD_WATCHDOG_PARENT, PARENT_FINALIZATION_METHOD_PARTITIONS[0][1]),
         RESTORE_BUILD_WATCHDOG_SELECTION_ID: (RESTORE_BUILD_WATCHDOG_PARENT, RESTORE_BUILD_WATCHDOG_SELECTORS),
         REMINDER_BUILD_WATCHDOG_SELECTION_ID: (REMINDER_BUILD_WATCHDOG_PARENT, REMINDER_BUILD_WATCHDOG_SELECTORS),
