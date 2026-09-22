@@ -5662,3 +5662,333 @@ This evidence does not record its own future bookkeeping commit.
   "revision": 1
 }
 ```
+
+## Card 29 — V30-P03-C08 — Backup, restore, and historical catalog replay
+
+- Pre-S10 provisional implementation only. M `3c0dfd33cac5b4d12a98c0b44c699639150cc560`, observed A `e453465fc767b3c1b57210f9b94e5fa8ce5c3c73`, E `f1769d43bbba6a4518daa786bf9fc7944ad99dac` (tree `d87d9f891420bd6542755291350c9a34c9d4896d`); coordination checkpoint `3f8b5f240b4d5c9b68242800b1347daf31935cde`, sequence 61, ledger digest `6042a94c7b9a5c39e778f038397413a08b454353a3ee8a3f0a2d706be98b7551`. M..A changes only four V30 execution documents.
+- Ten implementation/test paths within the 28-path fence; no S10 shared paths. Existing canonical record/manifest/archive/identity bytes and ownership remain unchanged. Export, import validation, installed restore, and interrupted-restore recovery derive exact catalog and artifact replay observations.
+- Stored survey and package-promotion catalog digests resolve only to exact validated historical resources and compatible readers. PDF metadata retains source, font, renderer, OS, language and formatting references. Missing resources, absent document catalog IDs and legacy provenance are explicit limitations; no regenerated artifact or current-language substitution is claimed.
+- Existing clone/fork source rebinding can leave a saved PDF bound to older source bytes. Both identities remain explicit and sourceBindingVerified is false; bytes remain unchanged. Native binding/clone/fork execution is still pending. Missing legacy journal revision now keeps search status pending without failing restore or inventing revision zero.
+- Verification: git diff --check PASS; V30 provisional CI contract PASS WINDOWS_STATIC; fenced audit PASS with ten paths, seven new XCTest methods, all existing test methods retained, six Unicode fixture sources and both restore/recovery hooks. Independent Terra review completed and actionable legacy revision handling corrected.
+- Native compilation, XCTest, PDFKit/font behavior, actual backup/restore/interruption and search rebuild: NOT EXECUTED. Null selector/tier; no workflow run, runner/Xcode/Simulator identity or native artifacts. Catalog/font availability defaults to unavailable until explicitly supplied.
+- KNOWN_BUGS read; no outstanding actionable defect accepted. Reconciliation after accepted S and native qualification remain required. No canonical/final, main, release or post-S10 successor credit.
+- Next unstarted card: Card 30 V30-P03-C09; separate ordered selection and fresh G0 required.
+
+This evidence does not record its own future bookkeeping commit.
+
+```json
+{
+  "actualSharedPaths": [],
+  "attempt": 1,
+  "authority": {
+    "authorityContentDigest": "ab585279a32cb8e53b5656af6efb264a85ced24116ace3b1de9f56a14f19cec6",
+    "authorityID": "ASSETROUNDS-V30-PRE-S10-20260902-R2",
+    "manifestSHA256": "78d893786105d4645d145b548e939c1e9ce3b54bb1f937dcfc5eaae23ca82e64",
+    "packageDigest": "0ab3257b4825025f75f576bc0a61f3122a818f949fd664441eea3adc43b60325"
+  },
+  "authorityOnlyDiffResult": "M..A EXACTLY FOUR V30 EXECUTION DOCUMENTS",
+  "candidate": {
+    "base": "3c0dfd33cac5b4d12a98c0b44c699639150cc560",
+    "baseTree": "5be4c1a16a938fb1e0c8305437f41e8290eda2ea",
+    "changedPaths": [
+      "FieldEvidenceApp/Domain/Backup/GlobalizedCatalogReplayContractsV1.swift",
+      "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+      "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+      "FieldEvidenceApp/Infrastructure/Backup/GlobalizedCatalogReplayAdapterV1.swift",
+      "FieldEvidenceApp/Infrastructure/Search/SearchIndexRebuildCoordinatorV1.swift",
+      "FieldEvidenceAppTests/Fixtures/V30/Backup/globalized-catalog-replay-cases-v1.json",
+      "FieldEvidenceAppTests/S6_3BackupValidationTests.swift",
+      "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift",
+      "FieldEvidenceAppTests/V30_P03_C08GlobalizedCatalogReplayTests.swift",
+      "docs/design/v30/execution/V30_CI_SELECTION.json",
+      "docs/design/v30/execution/V30_CURRENT_TASK.md",
+      "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+      "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+    ],
+    "head": "f1769d43bbba6a4518daa786bf9fc7944ad99dac",
+    "tree": "d87d9f891420bd6542755291350c9a34c9d4896d"
+  },
+  "cardID": "V30-P03-C08",
+  "credit": {
+    "canonicalAcceptance": false,
+    "finalCredit": false,
+    "mainIntegrationCredit": false,
+    "postS10SuccessorStart": false,
+    "provisionalDependencySatisfied": true,
+    "releaseCredit": false
+  },
+  "evidence": {
+    "acceptanceMap": {
+      "artifacts": "Hash-verified snapshots and PDF bytes expose embedded language, formatting, paper, semantic/source/font/renderer/OS provenance. Legacy provenance absence and unrecorded document catalog IDs are explicit. Authorized clone/fork source rebindings retain actual source and historical metadata hashes with sourceBindingVerified false; malformed current metadata and bad actual member hashes remain invalid. Resource presence never claims deterministic regeneration.",
+      "canonical": "Existing canonical records, archive members/manifest, identity, source and PDF bytes are unchanged. Export and package validation derive read-only replay observations from their existing owners.",
+      "catalogs": "Survey-definition and package-promotion source/target references retain exact legacy catalog digests. Explicit supplied archives are validated and resolved through exact historical release lookup with reader compatibility, never active language fallback. Missing archives and incompatible readers are explicit limitations.",
+      "restore": "Installed-generation and interrupted-restore recovery both reconstruct replay observations before retiring cleanup intent. Existing index drops remain; search completion requires exact restored source revision. Missing legacy journal authority stays explicitly pending without a fabricated revision.",
+      "tests": "Seven authored native tests cover six Unicode fixture sources, resource absence and exact presence, altered source/time/output, malformed current metadata, legacy PDF provenance, exact catalog digest/reader matching, and search revision/generation mismatch or absence. Existing import and atomic-restore tests now assert replay observation plumbing. All prior tests retained; none executed."
+    },
+    "defects": [],
+    "limitations": "Windows-static only. Native compilation, PDFKit parsing, Unicode font qualification, actual backup/clone/fork/interruption execution and search rebuild are unexecuted. No added catalog/font binaries or renderer download; current C04 PDFs lack catalog release IDs and this is reported rather than inferred. Resource availability is explicit caller evidence, default unavailable. No final/canonical/main/release/native credit.",
+    "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+    "outcome": "Restore canonical/source content, catalog/font/renderer references, derived artifacts, search rebuild state, and explicit missing-resource limitations independent of current app language.",
+    "static": {
+      "G0": {
+        "A": "e453465fc767b3c1b57210f9b94e5fa8ce5c3c73",
+        "M": "3c0dfd33cac5b4d12a98c0b44c699639150cc560",
+        "allowedPathCount": 28,
+        "baseTree": "5be4c1a16a938fb1e0c8305437f41e8290eda2ea",
+        "cardID": "V30-P03-C08",
+        "coordinationHead": "aae48f61efe91c7e0d2de68fba1e78bb8d8e211a",
+        "ledgerDigest": "9e8928ab8a244058df9503809abaeb8607cff10c02181f24e2455c7a5613889b",
+        "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+        "result": "PASS_G0",
+        "sequence": 60,
+        "sharedPaths": [],
+        "taskDigest": "f94c107ae21dee2b6f47fa6b2eb520896a9637fde0704ebb4eeb2d4b7345b5c7"
+      },
+      "actualSharedPaths": [],
+      "allowedPathCount": 28,
+      "ambientLanguageAbsent": true,
+      "auditOutputSHA256": "40482e09ed5a0136e3532346aea34fd315d3069151a56bace8c5e36e7c29f04b",
+      "auditScriptSHA256": "fd7fe1f94ae29cd6d2b9a3719b796b80b61d0c527502e1f53967baa473fdc539",
+      "canonicalTransportAndIdentityUnchanged": true,
+      "cardID": "V30-P03-C08",
+      "fixtureCases": 6,
+      "implementationPathCount": 10,
+      "independentReview": "Terra medium independent read-only API/source review completed. Root checked timestamp identity against existing validator and bound directly to decoded snapshot time. Missing legacy search revision is now optional and remains pending; no invented revision or new restore failure. Native behavior remains unverified.",
+      "native": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+      "newNativeTestMethods": [
+        "testExactFontAndRendererObservationsStillDoNotClaimRegeneration",
+        "testHistoricalCatalogUsesExactDigestAndExplicitReaderCompatibility",
+        "testLegacyPDFRetainsBytesAndExplicitlyUnknownReplayProvenance",
+        "testMalformedCurrentMetadataIsNotDowngradedToLegacy",
+        "testReboundSourceOrCapturedTimeCannotBorrowHistoricalBinding",
+        "testSearchCompletionRequiresRestoredGenerationAndCanonicalRevision",
+        "testStoredUnicodeSourceAndPDFStayByteExactWithUnavailableResources"
+      ],
+      "restoreAndRecoveryWired": true,
+      "result": "PASS_WINDOWS_STATIC",
+      "sourceArtifacts": [
+        {
+          "bytes": 3656,
+          "path": "FieldEvidenceApp/Domain/Backup/GlobalizedCatalogReplayContractsV1.swift",
+          "sha256": "0433d24242887ef7f56f5ec515a1a199a54f5dcb77f68a997fc758a3ee9e9dad"
+        },
+        {
+          "bytes": 220946,
+          "path": "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+          "sha256": "360ed7f7816094a59288f324546138611045c6a3ec0b52fa96a6fc6a25a6580c"
+        },
+        {
+          "bytes": 289023,
+          "path": "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+          "sha256": "bb837089e7d01e5e90b46e806080487b3e464f33b63eedf3e73183945499cafd"
+        },
+        {
+          "bytes": 770022,
+          "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+          "sha256": "a014150112c3b369ee13a23ed40cc856adf703930da086cb693c8b2ec5f83afe"
+        },
+        {
+          "bytes": 8436,
+          "path": "FieldEvidenceApp/Infrastructure/Backup/GlobalizedCatalogReplayAdapterV1.swift",
+          "sha256": "ab73deb14bb4b1ac8d5aa83a3bb115be2b60edbcc4d638bafa1b646a95c623ad"
+        },
+        {
+          "bytes": 164756,
+          "path": "FieldEvidenceApp/Infrastructure/Search/SearchIndexRebuildCoordinatorV1.swift",
+          "sha256": "4568926a4fd7a1c4737242f9ced32561b65e4c6572205cf32d17ffca97242de9"
+        },
+        {
+          "bytes": 672,
+          "path": "FieldEvidenceAppTests/Fixtures/V30/Backup/globalized-catalog-replay-cases-v1.json",
+          "sha256": "ce0581fa57fc61fa2c1f521a00e99cb456b5cd771309e6b387380a7ccaaeabe2"
+        },
+        {
+          "bytes": 119314,
+          "path": "FieldEvidenceAppTests/S6_3BackupValidationTests.swift",
+          "sha256": "91c2e74e764c09b5496fdf5f85a885f69e528b746ab04b6c132f62996afba02d"
+        },
+        {
+          "bytes": 97211,
+          "path": "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift",
+          "sha256": "ebdcf87b4d3bcf8be439d53b42a88970fb6250933ab19cc198ce0e2c0ce248a0"
+        },
+        {
+          "bytes": 10289,
+          "path": "FieldEvidenceAppTests/V30_P03_C08GlobalizedCatalogReplayTests.swift",
+          "sha256": "e8e69621c1784dfe163aeaf2d326986d8694fd806e7e177300cf666e71a11b65"
+        },
+        {
+          "bytes": 1097,
+          "path": "docs/design/v30/execution/V30_CI_SELECTION.json",
+          "sha256": "5f3aafcd02c1d51abb52daa65d342ec8f0b2f3b8459104baee380b8deaee8cd2"
+        },
+        {
+          "bytes": 19440,
+          "path": "docs/design/v30/execution/V30_CURRENT_TASK.md",
+          "sha256": "4ec8be72e9f95c2cbd771deec27b1e1f1cd1f3846df30a273fa3c5b9d4bbde27"
+        },
+        {
+          "bytes": 340195,
+          "path": "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+          "sha256": "490254c5e6461b4df3e0aedb88d0c27d5a3a9e2dd0452b6f583dc79efa0aff7b"
+        },
+        {
+          "bytes": 700,
+          "path": "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json",
+          "sha256": "c4eb4f5a7feafc983cf706ec330dc41157345abf50113dcb86e44a788603b96c"
+        }
+      ],
+      "testCounts": {
+        "FieldEvidenceAppTests/S6_3BackupValidationTests.swift": {
+          "after": 38,
+          "before": 38
+        },
+        "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift": {
+          "after": 49,
+          "before": 49
+        },
+        "FieldEvidenceAppTests/V30_P03_C08GlobalizedCatalogReplayTests.swift": {
+          "after": 7,
+          "before": 0
+        }
+      },
+      "workingSourceArtifacts": [
+        {
+          "bytes": 3656,
+          "path": "FieldEvidenceApp/Domain/Backup/GlobalizedCatalogReplayContractsV1.swift",
+          "sha256": "0433d24242887ef7f56f5ec515a1a199a54f5dcb77f68a997fc758a3ee9e9dad"
+        },
+        {
+          "bytes": 220946,
+          "path": "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+          "sha256": "360ed7f7816094a59288f324546138611045c6a3ec0b52fa96a6fc6a25a6580c"
+        },
+        {
+          "bytes": 289023,
+          "path": "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+          "sha256": "bb837089e7d01e5e90b46e806080487b3e464f33b63eedf3e73183945499cafd"
+        },
+        {
+          "bytes": 770022,
+          "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+          "sha256": "a014150112c3b369ee13a23ed40cc856adf703930da086cb693c8b2ec5f83afe"
+        },
+        {
+          "bytes": 8436,
+          "path": "FieldEvidenceApp/Infrastructure/Backup/GlobalizedCatalogReplayAdapterV1.swift",
+          "sha256": "ab73deb14bb4b1ac8d5aa83a3bb115be2b60edbcc4d638bafa1b646a95c623ad"
+        },
+        {
+          "bytes": 164756,
+          "path": "FieldEvidenceApp/Infrastructure/Search/SearchIndexRebuildCoordinatorV1.swift",
+          "sha256": "4568926a4fd7a1c4737242f9ced32561b65e4c6572205cf32d17ffca97242de9"
+        },
+        {
+          "bytes": 672,
+          "path": "FieldEvidenceAppTests/Fixtures/V30/Backup/globalized-catalog-replay-cases-v1.json",
+          "sha256": "ce0581fa57fc61fa2c1f521a00e99cb456b5cd771309e6b387380a7ccaaeabe2"
+        },
+        {
+          "bytes": 119314,
+          "path": "FieldEvidenceAppTests/S6_3BackupValidationTests.swift",
+          "sha256": "91c2e74e764c09b5496fdf5f85a885f69e528b746ab04b6c132f62996afba02d"
+        },
+        {
+          "bytes": 97212,
+          "path": "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift",
+          "sha256": "556ed5a6449d44e997887433b6181376635ebfdaf4c1443fb44c3026df185119"
+        },
+        {
+          "bytes": 10289,
+          "path": "FieldEvidenceAppTests/V30_P03_C08GlobalizedCatalogReplayTests.swift",
+          "sha256": "e8e69621c1784dfe163aeaf2d326986d8694fd806e7e177300cf666e71a11b65"
+        }
+      ]
+    },
+    "workflow": {
+      "branchRef": "refs/heads/phase/v30-globalization",
+      "expectedHead": "f1769d43bbba6a4518daa786bf9fc7944ad99dac",
+      "runID": null,
+      "selectorInput": null,
+      "selectorTier": null,
+      "url": null
+    }
+  },
+  "expectedLedgerDigest": "9e8928ab8a244058df9503809abaeb8607cff10c02181f24e2455c7a5613889b",
+  "expectedOldRef": "aae48f61efe91c7e0d2de68fba1e78bb8d8e211a",
+  "expectedSequence": 60,
+  "next": "V30-P03-C09",
+  "observedAuthorityHead": "e453465fc767b3c1b57210f9b94e5fa8ce5c3c73",
+  "operationalProvenance": [
+    "Immediate Card29 selected after Card28 provisional checkpoint; fresh G0 passed. Ten implementation/test paths within the twenty-eight-path fence, no S10 shared paths.",
+    "Root inventory preserved archive transport and identity rather than adding a new sidecar/store/schema. Root verified existing clone/fork assurance and temporal source rebindings preserve PDF bytes, so historical binding absence is a limitation rather than an invented replay proof.",
+    "Independent review prompted explicit optional search revision for legacy generations; source timestamp binds decoded snapshots. Root corrected API signatures and archive revalidation against existing definitions before E.",
+    "Static checks passed; all seven new native methods remain unexecuted. No outstanding actionable source defect accepted."
+  ],
+  "pathFenceDigest": "66624a7864e2123bb15d58b8ae81932cb892f4bcf7c4f6d129f5eed7938530a4",
+  "preAuthorizedOverlapTuples": [],
+  "reconciliation": "Replay or reimplement in graph order after accepted S; execute exact native backup/import/restore/clone/fork/interruption, PDF metadata and search recovery checks. No wholesale merge, native or final credit.",
+  "reconciliationManifest": {
+    "B": {
+      "head": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+      "tree": "47e17fae6b73dccd5029ccf4ac7cca659196f225"
+    },
+    "acceptedS": null,
+    "candidateHistory": [
+      {
+        "changedPaths": [
+          "docs/design/v30/execution/V30_EXECUTION_HANDOFF.md",
+          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+        ],
+        "head": "f742f5a36fa8ab171a3686c019929dc10e9fcc46",
+        "parent": "3c0dfd33cac5b4d12a98c0b44c699639150cc560",
+        "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+        "subject": "Record provisional assisted input capability evidence",
+        "tree": "9930fdee4d703281210cd69d2b1821e5dd5ab2db"
+      },
+      {
+        "changedPaths": [
+          "docs/design/v30/execution/V30_CI_SELECTION.json",
+          "docs/design/v30/execution/V30_CURRENT_TASK.md",
+          "docs/design/v30/execution/V30_PROVISIONAL_LEDGER_PROJECTION.json"
+        ],
+        "head": "e453465fc767b3c1b57210f9b94e5fa8ce5c3c73",
+        "parent": "f742f5a36fa8ab171a3686c019929dc10e9fcc46",
+        "state": "PRESERVED_PREDECESSOR_NOT_ACCEPTED_FINAL",
+        "subject": "Hydrate P03 C08 backup restore and historical catalog replay",
+        "tree": "a07390671d10128f9e6573a5c295994d180c2678"
+      },
+      {
+        "changedPaths": [
+          "FieldEvidenceApp/Domain/Backup/GlobalizedCatalogReplayContractsV1.swift",
+          "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+          "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+          "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+          "FieldEvidenceApp/Infrastructure/Backup/GlobalizedCatalogReplayAdapterV1.swift",
+          "FieldEvidenceApp/Infrastructure/Search/SearchIndexRebuildCoordinatorV1.swift",
+          "FieldEvidenceAppTests/Fixtures/V30/Backup/globalized-catalog-replay-cases-v1.json",
+          "FieldEvidenceAppTests/S6_3BackupValidationTests.swift",
+          "FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift",
+          "FieldEvidenceAppTests/V30_P03_C08GlobalizedCatalogReplayTests.swift"
+        ],
+        "head": "f1769d43bbba6a4518daa786bf9fc7944ad99dac",
+        "parent": "e453465fc767b3c1b57210f9b94e5fa8ce5c3c73",
+        "state": "PROVISIONAL_CHECKPOINTED",
+        "subject": "Preserve historical backup replay references and explicit resource limitations",
+        "tree": "d87d9f891420bd6542755291350c9a34c9d4896d"
+      }
+    ],
+    "invalidatedEvidence": [],
+    "kind": "V30_PER_CARD_PROVISIONAL_CANDIDATE",
+    "originalCandidate": {
+      "head": "f1769d43bbba6a4518daa786bf9fc7944ad99dac",
+      "tree": "d87d9f891420bd6542755291350c9a34c9d4896d"
+    },
+    "replayedCandidate": null,
+    "terminalP": null
+  },
+  "requestID": "ASSETROUNDS-V30-PRE-S10-20260902-R2/V30-P03-C08/CHECKPOINT/1",
+  "revision": 1
+}
+```
