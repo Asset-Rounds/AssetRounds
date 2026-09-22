@@ -370,7 +370,7 @@ final class S6_5ReplacementUnionTests: XCTestCase {
             // Open a fresh factory and use the production lifecycle-bound report
             // readers. A retained source model or PDF alone is not readback proof.
             diagnosticPhase = "first.factory"
-            let firstFactory = StoreGenerationFactory(applicationSupportURL: current.support)
+            var firstFactory = StoreGenerationFactory(applicationSupportURL: current.support)
             #if DEBUG
             firstFactory.coldOpenDiagnosticForTesting = true
             #endif
@@ -412,7 +412,7 @@ final class S6_5ReplacementUnionTests: XCTestCase {
             XCTAssertFalse(fileManager.fileExists(atPath: secondValidated.stagedPackageURL.path))
             XCTAssertFalse(fileManager.fileExists(atPath: package.path))
             diagnosticPhase = "second.factory"
-            let secondFactory = StoreGenerationFactory(applicationSupportURL: current.support)
+            var secondFactory = StoreGenerationFactory(applicationSupportURL: current.support)
             #if DEBUG
             secondFactory.coldOpenDiagnosticForTesting = true
             #endif
@@ -1548,7 +1548,7 @@ private extension S6_5ReplacementUnionTests {
         let support = root.appendingPathComponent("\(name)-support", isDirectory: true)
         try fileManager.createDirectory(at: support, withIntermediateDirectories: true)
         diagnostic?("bootstrap")
-        let factory = StoreGenerationFactory(applicationSupportURL: support)
+        var factory = StoreGenerationFactory(applicationSupportURL: support)
         #if DEBUG
         factory.coldOpenDiagnosticForTesting = coldOpenDiagnostic
         #endif
