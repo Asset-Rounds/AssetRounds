@@ -486,7 +486,7 @@ final class S6_5ReplacementUnionTests: XCTestCase {
         } verify: { error in
             XCTAssertEqual(error as? BackupRestoreServiceError, .invalidRestoreAuthority)
         }
-        withExtendedLifetime(service) {
+        try withExtendedLifetime(service) {
             XCTAssertEqual(try fileTree(current.support), supportBefore)
             XCTAssertEqual(try current.factory.currentGenerationID(), current.session.generationID)
             XCTAssertFalse(fileManager.fileExists(atPath: current.support.appendingPathComponent(

@@ -4,6 +4,10 @@ Root stays hands-on on Astra xhigh. One Astra medium reviewer owns each conseque
 
 ## Current batch
 
+6a0051b collision lifetime correction plus Reminder attribution: root Astra xhigh, one fresh medium diagnosis and one medium complete-contract reviewer retained through source/correction/index/commit/peer gates. Final173 source/protocol checks and real entry/index/route gates passed; review caught two stale checkpoints. Post-approval defect: new throwing withExtendedLifetime call omitted try. Both35682211232/74015A35 and35682369525/C0C4E68E failed compilation at that call;12+33NotStarted,0new compiler warnings. This is a concrete source/review escape consuming2 native originals, not runtime evidence against the earlier fixture diagnosis. Root prepares the single-token correction and reuses the same reviewer for the changed call/correction only, retaining required index/commit/native gates. Local rework and four173-suite executions/1247.599s are retained in runtime-cb1bb62/reminder-error-attribution/efficiency-outcome.json; extra draft checks were avoidable rework, not additional acceptance gates. Current source preparation waits for both audited outcomes and freezes all checkpoints before one full proof. Tokens and net savings remain UNKNOWN.
+
+## Prior development batch
+
 cb1bb62 full Replacement12 admission and disjoint Reminder33: root Astra xhigh, one Astra medium reviewer across the complete CI contract and related source/index/commit/cohort gates; no monitoring helper. Deterministic173/targeted12/helper6 PASS before semantic approval. Review findings0. Reminder35677309494 compiles32/33 with0new compiler warnings; its unexpected error-type failure remains causally unattributed, not proven newly introduced or a review escape. Replacement35677199498 compiles11/12; source diagnosis proves the old fixture compares before service-construction lease ownership, not the restore-call boundary. No production mutation or new cb1 CI-contract escape is established. One fresh medium diagnostic helper scoped this disjoint cause while root prepared Reminder attribution. Required native originals35677199498/35677309494 ask distinct unexecuted/runtime questions;0 originals currently attributable to defects. Local pre-review corrections are retained in runtime-e3a60f5/replacement-union-admission/local-rework.json. Real base commands and actual peer preflight passed; no extra identical peer dry-run. Local packet preparation measured84.1s/89.2s; native timing remains in sealed originals and net token savings UNKNOWN. Read-only derive profiling measured48.325s wall/43.605s Git subprocess time (273show/92rev-parse calls); no optimization applied. Required gates remain separate from avoidable rework.
 
 ## Latest completed batch
@@ -35,6 +39,7 @@ Later confirmed misses must remain visible. These selected cases supplement the 
 | Actor isolation,e4ffcaba | Local directory verifier accessed MainActor state/logger. | 35613367185:1 native original,7 tests NotStarted. |
 | Owned-create adapter,5610366 | Nonescaping parameter forwarding failed compilation. | 35644280896 and35644462933:2 disjoint originals exposed the same common compile defect. |
 | DEBUG bridge in private extension,5610366 | Enclosing fileprivate access blocked four test callers after the adapter correction. | 35648128938:1 additional original,7 tests NotStarted. |
+| Throw propagation,6a0051b | New withExtendedLifetime call omitted try for its throwing closure. | 35682211232 and35682369525:2 native originals,45 tests NotStarted. |
 
 The e3a60f5 medium review caught two omitted history-copy fields before CI; its populated regression passed inside Golden. This is evidence of a useful catch, not a controlled measure of overall savings.
 
