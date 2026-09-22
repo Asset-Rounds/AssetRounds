@@ -1,0 +1,251 @@
+{
+  "kind": "V30SimplifiedChineseLocaleFixtureV1",
+  "schemaVersion": 1,
+  "locale": "zh-Hans",
+  "profiles": [
+    "zh-Hans-US",
+    "zh-Hans-CN"
+  ],
+  "resourceIdentifier": "zh-Hans",
+  "executionEpoch": "PRE_S10_PROVISIONAL",
+  "status": "DRAFT_NONSHIPPING",
+  "nativeEvidence": "NOT_EXECUTED_NO_NATIVE_CREDIT",
+  "linguisticAcceptance": false,
+  "sourceRevision": "4f9e9bdcbadac95d738a089952a9519c6c65f37c",
+  "sourceTree": "d35e62c2a38ce7303acc42d63ffdec9052d6d11b",
+  "sourceCount": 3212,
+  "laneCounts": {
+    "app": 2717,
+    "report": 113,
+    "accessibility": 382
+  },
+  "sourceBindings": [
+    {
+      "path": "FieldEvidenceApp/Features/Globalization/CriticalSurfaceLocalizationRegistryV1.swift",
+      "sha256": "e487841a0789d8e521d82da07918f02aafe22d2bc8c1b80ebb184c2278f703f7"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Globalization/GlobalizedSharePrintLabelSurfacesV1.swift",
+      "sha256": "0f60e221e006b4ecf11130be38d67796533848e44d175b4fd4b746d06fbc9c15"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/VoiceCapture/VoicePushToTalkCaptureView.swift",
+      "sha256": "f8e4b0cfcd38a185814d658ac46e88200763ffb840a39e703b42c306eed361e8"
+    },
+    {
+      "path": "FieldEvidenceApp/InfoPlist.xcstrings",
+      "sha256": "39a62e938b8c83b53aef6bf05a5c1394d870baf28ef0489a3b01c0aab73745e1"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Localization/BundledLocalizationCatalogV1.swift",
+      "sha256": "eaca1dffcda6ca7aa78519741b274e610470032a2c06b61b4e3b27cc87ce2314"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Localizable.xcstrings",
+      "sha256": "cef2d893c18f35e82299127ab3d95112035df7fc57dd65fb3f142f4c1d71e075"
+    }
+  ],
+  "invariants": {
+    "confirmationToken": "ERASE",
+    "storefront": "US",
+    "projectJurisdiction": "US",
+    "calendar": "GREGORIAN",
+    "timeZone": "America/New_York",
+    "languageDoesNotChangeJurisdiction": true,
+    "canonicalRecordsUnchanged": true
+  },
+  "formattingCases": {
+    "decimal": "12345.625",
+    "gregorianDate": "2026-09-22",
+    "wallTime": "14:05:09",
+    "currency": "USD",
+    "phone": "+1 212 555 0100",
+    "addressLines": [
+      "123 Example St",
+      "Synthetic City, NY 10001"
+    ]
+  },
+  "metadataDraft": {
+    "appStoreLanguage": "Chinese (Simplified)",
+    "storefront": "US",
+    "status": "DRAFT_REQUIRES_NATIVE_KEYWORD_RESEARCH_AND_OWNER_REVIEW",
+    "name": "AssetRounds",
+    "subtitle": "标牌检查与现场记录",
+    "promotionalText": "记录标牌观察、照片和已执行工作。保留本地历史记录，准备可共享的 PDF 报告。",
+    "description": "AssetRounds 帮助记录标牌检查。保存可见状况的观察、备注、照片和工作记录。查看历史、进行复查，并准备 PDF 报告。\n\n记录保留在此设备上。共享报告会打开系统选项，不代表已经交付。观察记录不构成认证、诊断或合规判定。\n\n此内容为待审核草稿。发布前须根据最终版本确认可用功能和语言。",
+    "keywords": "标牌,检查,照片,证据,报告,巡检,工作",
+    "publicationAuthorized": false,
+    "currentAppStoreRulesValidated": false,
+    "nativeKeywordEvidence": null
+  },
+  "reviewRequirements": [
+    "Professional translator and independent Simplified Chinese native review",
+    "Bilingual U.S. sign-workflow terminology review; no cross-script conversion acceptance",
+    "CJK keyboard marked-text composition, no forced spaces, compact labels and largest Dynamic Type",
+    "VoiceOver pronunciation, focus order, permission/error/recovery/destructive states",
+    "Font license/coverage, line breaking, Letter/A4 PDF extraction, semantic order and printing",
+    "Reconcile after S and integrate only through P04-C07"
+  ],
+  "sourceDefects": [
+    {
+      "key": "v30.manual-work-resource.units",
+      "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+      "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+      "intendedEnglish": "units",
+      "baselineEvidence": {
+        "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+        "path": "FieldEvidenceApp/Features/WorkResources/ManualWorkResourceWorkflowView.swift",
+        "sha256": "7763f72a2b820861915cb6d814132cf7c3da9de0980997a44abefd6f1b8dd28b"
+      },
+      "currentSourcePaths": [
+        "FieldEvidenceApp/Resources/Localizable.xcstrings",
+        "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+      ],
+      "disposition": "Simplified Chinese draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+      "finalAcceptanceBlocked": true,
+      "simplifiedChineseDraft": "单位"
+    },
+    {
+      "key": "v30.my-day.no-duration-estimate-lowercase",
+      "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+      "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+      "intendedEnglish": "no duration estimate",
+      "baselineEvidence": {
+        "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+        "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+        "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+      },
+      "currentSourcePaths": [
+        "FieldEvidenceApp/Resources/Localizable.xcstrings",
+        "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+      ],
+      "disposition": "Simplified Chinese draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+      "finalAcceptanceBlocked": true,
+      "simplifiedChineseDraft": "无时长估计"
+    },
+    {
+      "key": "v30.my-day.no-total-estimate",
+      "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+      "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+      "intendedEnglish": "No total estimate",
+      "baselineEvidence": {
+        "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+        "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+        "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+      },
+      "currentSourcePaths": [
+        "FieldEvidenceApp/Resources/Localizable.xcstrings",
+        "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+      ],
+      "disposition": "Simplified Chinese draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+      "finalAcceptanceBlocked": true,
+      "simplifiedChineseDraft": "无总时长估计"
+    },
+    {
+      "key": "v30.my-day.start",
+      "classification": "INHERITED_ENGLISH_SOURCE_EXTRACTION_DEFECT",
+      "sourceIssue": "Existing English catalog and English registry default contain a literal truncated Swift fragment instead of the original fallback/action label.",
+      "intendedEnglish": "Start",
+      "baselineEvidence": {
+        "revision": "acbfb68355f903fe98638b6ef22e4814e7b48328",
+        "path": "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+        "sha256": "080eff792318818d28b50d4f812907ebcfd7c5f39f7772a4c5c1e1398b2b272c"
+      },
+      "currentSourcePaths": [
+        "FieldEvidenceApp/Resources/Localizable.xcstrings",
+        "FieldEvidenceApp/Infrastructure/Localization/V30EnglishCatalogRegistryV1.swift"
+      ],
+      "disposition": "Simplified Chinese draft uses baseline-proven label; inherited English bytes unchanged. Shared English catalog repair belongs to P04-C07; English default registry outside that fence requires the applicable causal-owner correction/reconciliation authority. No final acceptance until resolved.",
+      "finalAcceptanceBlocked": true,
+      "simplifiedChineseDraft": "开始"
+    }
+  ],
+  "cjkQualification": {
+    "status": "AUTHORED_NOT_EXECUTED",
+    "inputCases": [
+      {
+        "id": "unspaced-sign-note",
+        "text": "标牌检查记录：入口灯箱边缘破损，请复查。"
+      },
+      {
+        "id": "mixed-identifier",
+        "text": "标牌 AR-42；数量 12；记录 2026-09-22。"
+      },
+      {
+        "id": "grapheme-note",
+        "text": "维修人员👩🏽‍🔧备注：更换灯管。"
+      },
+      {
+        "id": "combining-authored-name",
+        "text": "客户 Café / Café 的标牌"
+      }
+    ],
+    "search": {
+      "source": "入口标牌需要复查",
+      "query": "标牌",
+      "nonMatchingQuery": "牌标",
+      "policy": "V1 deterministic contiguous CJK character-substring fallback; no dictionary word segmentation claim. Raw source bytes and stable IDs remain unchanged.",
+      "expectedCJKRunCount": 1,
+      "expectedCJKChunkCount": 1,
+      "stableIDs": [
+        "asset-zh-hans-001",
+        "asset-zh-hans-002"
+      ],
+      "nativeMeasurement": null
+    },
+    "layout": {
+      "paragraph": "入口标牌边缘破损。已记录照片与备注，仍需人工复查。",
+      "repeatCount": 120,
+      "punctuation": "（标牌）《记录》“复查”，。！？：；",
+      "forcedSpaces": false,
+      "papers": [
+        "US_LETTER",
+        "A4"
+      ],
+      "minimumNativePageCount": 2
+    },
+    "pendingManualChecks": [
+      {
+        "id": "pinyin-marked-text-not-committed",
+        "status": "NOT_EXECUTED",
+        "evidence": null
+      },
+      {
+        "id": "pinyin-candidate-selection",
+        "status": "NOT_EXECUTED",
+        "evidence": null
+      },
+      {
+        "id": "paste-grapheme-and-combining-marks",
+        "status": "NOT_EXECUTED",
+        "evidence": null
+      },
+      {
+        "id": "line-start-end-punctuation",
+        "status": "NOT_EXECUTED",
+        "evidence": null
+      },
+      {
+        "id": "compact-and-accessibility-dynamic-type",
+        "status": "NOT_EXECUTED",
+        "evidence": null
+      },
+      {
+        "id": "voiceover-pronunciation-and-focus",
+        "status": "NOT_EXECUTED",
+        "evidence": null
+      },
+      {
+        "id": "letter-a4-physical-print",
+        "status": "NOT_EXECUTED",
+        "evidence": null
+      },
+      {
+        "id": "independent-native-terminology-review",
+        "status": "NOT_EXECUTED",
+        "evidence": null
+      }
+    ],
+    "reportBoundary": "Synthetic authored Chinese body can exercise existing Unicode renderer with effective English chrome; this does not activate Chinese report chrome or prove full Chinese runtime acceptance."
+  }
+}
