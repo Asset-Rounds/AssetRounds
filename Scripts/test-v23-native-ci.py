@@ -457,7 +457,7 @@ def frozen_begin_suite_source():
         'V23CheckRunnerFrozenBeginPreparationTests','V23CheckRunnerFrozenBeginWriterTests','V23CheckRunnerDurableInitialBeginTests'))
 
 def prepartition_workflow(workflow):
-    for group_id in ('erase-lease-lifecycle', CI.ERASE_RECOVERY_SELECTION_ID, CI.ERASE_BUILD_WATCHDOG_SELECTION_ID, CI.ERASE_DRAIN_SELECTION_ID, CI.ERASE_REMAINDER_SELECTION_ID, 'replacement-packet-union', CI.RESTORE_HISTORY_SELECTION_ID, CI.REPLACEMENT_UNION_SELECTION_ID, CI.REPLACEMENT_REMAINDER_SELECTION_ID, CI.REPLACEMENT_REPORT_SELECTION_ID):
+    for group_id in ('erase-lease-lifecycle', CI.ERASE_RECOVERY_SELECTION_ID, CI.ERASE_BUILD_WATCHDOG_SELECTION_ID, CI.ERASE_DRAIN_SELECTION_ID, CI.ERASE_REMAINDER_SELECTION_ID, 'replacement-packet-union', CI.RESTORE_HISTORY_SELECTION_ID, CI.REPLACEMENT_UNION_SELECTION_ID, CI.REPLACEMENT_REMAINDER_SELECTION_ID, CI.REPLACEMENT_REPORT_SELECTION_ID, CI.ACTIVITY_BUILD30_SELECTION_ID):
         choice = '          - ' + group_id + '\n'
         if workflow.count(choice) != 1: raise AssertionError('missing exact restore history choice')
         workflow = workflow.replace(choice, '')
@@ -562,7 +562,7 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
         path = self.root / 'Scripts/v23-selection-manifest.json'
         original = path.read_bytes()
         try:
-            for identifier, members in (*CI.ERASE_DIAGNOSTIC_PARTITIONS, *CI.REPLACEMENT_DIAGNOSTIC_PARTITIONS):
+            for identifier, members in (*CI.ERASE_DIAGNOSTIC_PARTITIONS, *CI.REPLACEMENT_DIAGNOSTIC_PARTITIONS, (CI.ACTIVITY_BUILD30_SELECTION_ID, CI.ACTIVITY_CONTRACT_SELECTORS)):
                 e = dict(environment(), NATIVE_SELECTION_ID=identifier)
                 selected, record = CI.selected_input(self.root, e)
                 self.assertEqual(selected['unitTestSelectors'], list(members))
@@ -987,6 +987,7 @@ class ReportPartitionTests(unittest.TestCase):
         expected.insert(expected.index('c36-restore-review') + 1, CI.NO_INDEX_SELECTION_ID)
         expected.insert(expected.index(CI.NO_INDEX_SELECTION_ID) + 1, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID)
         expected.insert(expected.index('reminder-control-continuation') + 1, CI.REMINDER_BUILD_WATCHDOG_SELECTION_ID)
+        expected.insert(expected.index('activity-contracts') + 1, CI.ACTIVITY_BUILD30_SELECTION_ID)
         expected.insert(expected.index('replacement-packet-union') + 1, CI.RESTORE_HISTORY_SELECTION_ID)
         expected.insert(expected.index('replacement-packet-union') + 1, CI.REPLACEMENT_UNION_SELECTION_ID)
         offset = expected.index(CI.REPLACEMENT_UNION_SELECTION_ID) + 1
@@ -1552,7 +1553,7 @@ class RestoreBuildWatchdogDiagnosticTests(unittest.TestCase):
 
     def test_development_binding_rejects_consumed_build30_source(self):
         self.assertEqual(CI.NO_INDEX_PARENT, '5c1e9831153e9e5feddda08e1152de06ecbaaed2')
-        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_PARENT, '328e6bc7ccf31aded543b75ad75dc0b55c6e4c15')
+        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_PARENT, 'fa2da0edf1b509ff10f4badd33e99dc7f08822e8')
         self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_TREES['FieldEvidenceAppTests'], '004206e3e6ffd818a4d48ab87d57766d5b4b655d')
         self.assertEqual(CI.NO_INDEX_TREES['FieldEvidenceAppTests'], '6ae80744a230727892ceb04617421d91fd17e53a')
         for stage in ('dispatch', 'worker'):
@@ -2161,6 +2162,7 @@ class ErasePartitionDiagnosticTests(unittest.TestCase):
                     self.assertEqual(args[-2:], ['CODE_SIGNING_ALLOWED=NO', 'test-without-building'])
 
 class ReplacementPartitionDiagnosticTests(unittest.TestCase):
+    diagnostic_routes = CI.REPLACEMENT_DIAGNOSTIC_PARTITIONS
     bound_environment = NoIndexBuildDiagnosticTests.bound_environment
     git_facts = NoIndexBuildDiagnosticTests.git_facts
     build_fixture = NoIndexBuildDiagnosticTests.build_fixture
@@ -2169,7 +2171,7 @@ class ReplacementPartitionDiagnosticTests(unittest.TestCase):
     def setUp(self):
         self.default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
         self.mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
-        self.select(CI.REPLACEMENT_REMAINDER_SELECTION_ID)
+        self.select(self.diagnostic_routes[0][0])
 
     def select(self, identifier):
         self.selected = CI.resolve_selection(self.default, self.mapping, identifier)
@@ -2184,7 +2186,7 @@ class ReplacementPartitionDiagnosticTests(unittest.TestCase):
         block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
         self.assertIsNotNone(block)
         options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
-        for identifier, _ in CI.REPLACEMENT_DIAGNOSTIC_PARTITIONS:
+        for identifier, _ in self.diagnostic_routes:
             self.assertEqual(options.count(identifier), 1)
         self.assertEqual(len(options), len(set(options)))
         self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.REPLACEMENT_REPORT_SELECTION_ID)['unitTestSelectors'],
@@ -2192,7 +2194,7 @@ class ReplacementPartitionDiagnosticTests(unittest.TestCase):
 
     def test_exact_disjoint_ordered_union_and_historical_routes(self):
         observed = []
-        for (identifier, members), count in zip(CI.REPLACEMENT_DIAGNOSTIC_PARTITIONS, (11, 1)):
+        for (identifier, members), count in zip(self.diagnostic_routes, (11, 1)):
             self.select(identifier)
             self.assertEqual(self.selected['unitTestSelectors'], list(members))
             self.assertEqual(len(members), count)
@@ -2209,7 +2211,7 @@ class ReplacementPartitionDiagnosticTests(unittest.TestCase):
             self.assertEqual(historical['tier'], tier)
 
     def test_both_admissions_reject_wrong_parent_provider_tree_selector_and_budget(self):
-        for identifier, members in CI.REPLACEMENT_DIAGNOSTIC_PARTITIONS:
+        for identifier, members in self.diagnostic_routes:
             self.select(identifier)
             for stage in ('dispatch', 'worker'):
                 with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts):
@@ -2234,12 +2236,12 @@ class ReplacementPartitionDiagnosticTests(unittest.TestCase):
                 for fields in changes:
                     with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
                         CI.admission(dict(self.selected, **fields), self.bound_environment(), HEAD, stage, self.record)
-                for other in (CI.REPLACEMENT_UNION_SELECTION_ID, 'unknown') + tuple(k for k, _ in CI.REPLACEMENT_DIAGNOSTIC_PARTITIONS if k != identifier):
+                for other in (CI.REPLACEMENT_UNION_SELECTION_ID, 'unknown') + tuple(k for k, _ in self.diagnostic_routes if k != identifier):
                     with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
                         CI.admission(self.selected, self.bound_environment(), HEAD, stage, dict(self.record, selectionID=other))
 
     def test_real_build_shell_uses_no_index_recipe_and_preserves_failures(self):
-        for identifier, _ in CI.REPLACEMENT_DIAGNOSTIC_PARTITIONS:
+        for identifier, _ in self.diagnostic_routes:
             for receipt_exit, build_exit in ((0, 0), (79, 0), (0, 83)):
                 with tempfile.TemporaryDirectory() as directory:
                     result, e, events, args = self.run_mock_build(directory, identifier, receipt_exit, build_exit)
@@ -2253,14 +2255,14 @@ class ReplacementPartitionDiagnosticTests(unittest.TestCase):
                             'CODE_SIGNING_ALLOWED=NO', 'COMPILER_INDEX_STORE_ENABLE=NO', 'build-for-testing'])
 
     def test_real_receipt_cli_and_execution_binding_for_both_partitions(self):
-        for identifier, _ in CI.REPLACEMENT_DIAGNOSTIC_PARTITIONS:
+        for identifier, _ in self.diagnostic_routes:
             self.select(identifier)
             NoIndexBuildDiagnosticTests.test_receipt_cli_uses_actual_build_step_dispatch_inputs_and_fails_without_them(self)
             NoIndexBuildDiagnosticTests.test_receipt_binds_admitted_configuration_and_executed_command(self)
             NoIndexBuildDiagnosticTests.test_tampered_receipt_or_incomplete_indexed_or_changed_execution_is_denied(self)
 
     def test_actual_worker_jq_accepts_only_exact_partition_budgets_and_members(self):
-        for identifier, _ in CI.REPLACEMENT_DIAGNOSTIC_PARTITIONS:
+        for identifier, _ in self.diagnostic_routes:
             self.select(identifier)
             BuildWatchdogDiagnosticTests.test_actual_worker_budget_filter_accepts_only_exact_diagnostic_and_retains_ordinary_tiers(self)
 
@@ -2269,7 +2271,7 @@ class ReplacementPartitionDiagnosticTests(unittest.TestCase):
         def shell_path(path):
             if os.name != 'nt': return str(path)
             return subprocess.check_output([str(bash), '-c', 'cygpath -u "$1"', '_', str(path)], text=True).strip()
-        for identifier, members in CI.REPLACEMENT_DIAGNOSTIC_PARTITIONS:
+        for identifier, members in self.diagnostic_routes:
             self.select(identifier)
             for test_exit in (0, 83):
                 with tempfile.TemporaryDirectory() as directory:
@@ -2295,6 +2297,36 @@ class ReplacementPartitionDiagnosticTests(unittest.TestCase):
                     self.assertEqual([arg for arg in args if arg.startswith('-only-testing:')],
                                      ['-only-testing:'+member for member in members])
                     self.assertEqual(args[-2:], ['CODE_SIGNING_ALLOWED=NO', 'test-without-building'])
+
+
+class ActivityBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
+    # Exercise the same real build/receipt/test commands, actual worker filter and
+    # admission boundary with the one existing H01 selector. No assertion bypass.
+    diagnostic_routes = ((CI.ACTIVITY_BUILD30_SELECTION_ID, CI.ACTIVITY_CONTRACT_SELECTORS),)
+
+    def test_public_choices_and_report_boundary_are_exact(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        self.assertIsNotNone(block)
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        self.assertEqual(options.count(CI.ACTIVITY_BUILD30_SELECTION_ID), 1)
+        self.assertEqual(options.count('activity-contracts'), 1)
+        self.assertEqual(len(options), len(set(options)))
+        self.assertEqual(CI.ACTIVITY_CONTRACT_SELECTORS,
+                         ('FieldEvidenceAppTests/V9_54ActivityContractFamiliesTests/testV23P03C47H01CrossFamilyClaimsInvalidTransitionsAndStaleInputsFailClosed',))
+
+    def test_exact_disjoint_ordered_union_and_historical_routes(self):
+        ordinary = CI.resolve_selection(self.default, self.mapping, 'activity-contracts')
+        self.assertEqual(self.selected, dict(ordinary, tier='D30', **dict(zip(CI.BUDGET_KEYS, CI.TIERS['D30']))))
+        self.assertEqual(self.selected['unitTestSelectors'], list(CI.ACTIVITY_CONTRACT_SELECTORS))
+        self.assertEqual(ordinary['tier'], 'N8')
+        self.assertEqual(tuple(ordinary[k] for k in CI.BUDGET_KEYS), CI.TIERS['N8'])
+        self.assertNotIn('activity-contracts', CI.NO_INDEX_ROUTES)
+        self.assertFalse(self.selected['runUISmoke'])
+        for suffix in ('-retry', '-parallel', '-45m'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.ACTIVITY_BUILD30_SELECTION_ID + suffix)
+
 
 class BuildOrderDiagnosticTests(unittest.TestCase):
     def setUp(self):

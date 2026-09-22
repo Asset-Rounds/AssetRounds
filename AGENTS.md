@@ -49,6 +49,7 @@ The owner permits the 30-minute proposal to be permanent or temporary. Reuse the
 | `c36-restore-review-no-index-build30m` | Six restore-review journeys |
 | `reminder-production-no-index-build30m` | Ordered33-method union of the four reminder groups |
 | `restore-history-no-index-build30m` | Six restore-review methods followed by the golden replacement-union method |
+| `activity-contracts-no-index-build30m` | Exact existing C47 H01 method from ordinary `activity-contracts`; no product/test changes |
 | `replacement-union-no-index-build30m` | Exact complete ordered12 methods from existing `replacement-packet-union`; qualify before use |
 | `replacement-remainder-no-index-build30m` | Exact first11 methods of the same ordered12; qualify the disjoint partition before use |
 | `replacement-report-fork-no-index-build30m` | Exact final report-Fork method of the same ordered12; qualify the disjoint partition before use |
