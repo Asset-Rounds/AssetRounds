@@ -1190,7 +1190,6 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                         XCTAssertEqual(try regularFileIdentity(sidecarURL), handoff.identity, "\(point)")
                         XCTAssertEqual(try Data(contentsOf: pointerURL), handoff.pointer, "\(point)")
                     }
-                    XCTAssertEqual(try harness.factory.currentGenerationID(), newID)
                     XCTAssertEqual(try harness.factory.retiredGenerationIDs(), [])
                     XCTAssertEqual(
                         try counts(session.modelContext),
@@ -1217,6 +1216,9 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                         XCTAssertEqual(try Data(contentsOf: pointerURL), handoff.pointer, "\(point)")
                         XCTAssertFalse(fileManager.fileExists(atPath: sidecarURL.path), "\(point)")
                     }
+                    // This read restores the manifest handoff; perform the
+                    // cold-owner/no-effect witnesses above before it.
+                    XCTAssertEqual(try harness.factory.currentGenerationID(), newID)
                     if let beforeRecovery = cooldownBeforeRecovery {
                         let relaunchedDefaults = try XCTUnwrap(
                             UserDefaults(suiteName: harness.defaultsSuiteName)

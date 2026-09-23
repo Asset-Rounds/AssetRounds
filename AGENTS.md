@@ -53,6 +53,7 @@ The owner permits the 30-minute proposal to be permanent or temporary. Reuse the
 | `c36-restore-review-no-index-build30m` | Six restore-review journeys |
 | `reminder-production-no-index-build30m` | Ordered33-method union of the four reminder groups |
 | `notification-schedule-erase-no-index-build30m` | Exact existing ordered28 notification-schedule-erase methods, including the eight populated reminder cases; qualify before use |
+| `notification-interruption-no-index-build30m` | Existing retained-live-context method then EveryInterruption method in original notification28 order; exact2 development-only subset after original35869740275 measured893/900seconds; preserve full28 coverage due, all assertions and existing budgets; qualify before use |
 | `finding-profile-fixtures-no-index-build30m` | Exact ordered Finding70 components, corrected V9_69 profile11, then all five corrected C38 recurrence fixtures; qualify complete86 and1054/68 before use; development only, full production-owner gates retained |
 | `restore-history-no-index-build30m` | Six restore-review methods followed by the golden replacement-union method |
 | `activity-contracts-no-index-build30m` | Exact existing C47 H01 method from ordinary `activity-contracts`; no product/test changes |

@@ -665,6 +665,9 @@ def frozen_begin_suite_source():
         'V23CheckRunnerFrozenBeginPreparationTests','V23CheckRunnerFrozenBeginWriterTests','V23CheckRunnerDurableInitialBeginTests'))
 
 def prepartition_workflow(workflow):
+    choice = '          - ' + CI.NOTIFICATION_INTERRUPTION_SELECTION_ID + '\n'
+    if workflow.count(choice) != 1: raise AssertionError('missing exact notification interruption choice')
+    workflow = workflow.replace(choice, '')
     for group_id in [group['id'] for group in FINDING_PROFILE_FIXTURES_GROUPS] + [CI.FINDING_PROFILE_FIXTURES_SELECTION_ID]:
         choice = '          - ' + group_id + '\n'
         if workflow.count(choice) != 1: raise AssertionError('missing exact finding component choice')
@@ -1336,6 +1339,7 @@ class ReportPartitionTests(unittest.TestCase):
         expected.insert(expected.index('c36-restore-review') + 1, CI.NO_INDEX_SELECTION_ID)
         expected.insert(expected.index(CI.NO_INDEX_SELECTION_ID) + 1, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID)
         expected.insert(expected.index('notification-schedule-erase') + 1, CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID)
+        expected.insert(expected.index(CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID) + 1, CI.NOTIFICATION_INTERRUPTION_SELECTION_ID)
         expected.insert(expected.index('reminder-control-continuation') + 1, CI.REMINDER_BUILD_WATCHDOG_SELECTION_ID)
         expected.insert(expected.index('activity-codec-evolution') + 1, CI.ACTIVITY_CODEC_PUNCH_SELECTION_ID)
         expected.insert(expected.index('activity-completed-release') + 1, CI.ACTIVITY_COMPLETED_SOURCE_SELECTION_ID)
@@ -2865,7 +2869,7 @@ class NotificationScheduleEraseBuild30DiagnosticTests(ReplacementPartitionDiagno
                     continue  # The full pool grows; named prior questions stay exact.
                 self.assertEqual(CI.canonical(CI.resolve_selection(self.default, self.mapping, identifier)),
                                  old.canonical(old.resolve_selection(prior, prior_map, identifier)), identifier)
-            self.assertEqual(set(CI.NO_INDEX_ROUTES) - set(old.NO_INDEX_ROUTES), {self.record['selectionID'], CI.FINDING_PROFILE_FIXTURES_SELECTION_ID})
+            self.assertEqual(set(CI.NO_INDEX_ROUTES) - set(old.NO_INDEX_ROUTES), {self.record['selectionID'], CI.FINDING_PROFILE_FIXTURES_SELECTION_ID, CI.NOTIFICATION_INTERRUPTION_SELECTION_ID})
             for identifier, binding in old.NO_INDEX_ROUTES.items():
                 self.assertEqual(CI.NO_INDEX_ROUTES[identifier], binding)
                 self.assertEqual(CI.no_index_source_trees(identifier), old.no_index_source_trees(identifier))
@@ -2873,7 +2877,7 @@ class NotificationScheduleEraseBuild30DiagnosticTests(ReplacementPartitionDiagno
         current_workflow = (ROOT / '.github/workflows/ios-ci.yml').read_bytes()
         self.assertEqual(current_workflow.count(choice), 1)
         current_workflow = current_workflow.replace(choice, b'')
-        for identifier in [g['id'] for g in FINDING_PROFILE_FIXTURES_GROUPS] + [CI.FINDING_PROFILE_FIXTURES_SELECTION_ID]:
+        for identifier in [g['id'] for g in FINDING_PROFILE_FIXTURES_GROUPS] + [CI.FINDING_PROFILE_FIXTURES_SELECTION_ID, CI.NOTIFICATION_INTERRUPTION_SELECTION_ID]:
             addition = ('          - ' + identifier + '\n').encode()
             self.assertEqual(current_workflow.count(addition), 1)
             current_workflow = current_workflow.replace(addition, b'')
@@ -2916,6 +2920,157 @@ class NotificationScheduleEraseBuild30DiagnosticTests(ReplacementPartitionDiagno
             else: leaves[-1]['result'] = 'Skipped'
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                 CI.executed_methods(changed, expected, 'FieldEvidenceAppTests', 'Unit test bundle')
+
+
+class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTests):
+    # Inherit real build/test shells, receipt CLI, worker jq and admission checks.
+    diagnostic_routes = ((CI.NOTIFICATION_INTERRUPTION_SELECTION_ID, CI.NOTIFICATION_INTERRUPTION_SELECTORS),)
+    source_parent = CI.NOTIFICATION_INTERRUPTION_PARENT
+    source_trees = CI.NOTIFICATION_INTERRUPTION_TREES
+
+    def test_public_choices_and_report_boundary_are_exact(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        self.assertIsNotNone(block)
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        self.assertEqual(options.count(CI.NOTIFICATION_INTERRUPTION_SELECTION_ID), 1)
+        self.assertEqual(options[options.index(CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID) + 1],
+                         CI.NOTIFICATION_INTERRUPTION_SELECTION_ID)
+        self.assertEqual(len(options), len(set(options)))
+        self.assertEqual(self.source_parent, '1ea75748b17006490bab5aa0e11d4a9267af8aaa')
+        self.assertEqual(self.source_trees, {'FieldEvidenceApp': '7731c5593306ce9bc2fa8ef49e928e50ad4f1ba3', 'FieldEvidenceAppTests': '6c326564ba3538891a086515168d7d3e2a541f28', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'})
+
+    def test_exact_disjoint_ordered_union_and_historical_routes(self):
+        expected = [
+            'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testRetainedLiveContextDefersCleanupUntilColdRecovery',
+            'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testEveryInterruptionRecoversOldOrFullyErasedNew',
+        ]
+        ordinary = CI.resolve_selection(self.default, self.mapping, 'notification-schedule-erase')
+        parent = CI.resolve_selection(self.default, self.mapping, CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID)
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1054, 68))
+        self.assertEqual([method for method in ordinary['unitTestSelectors'] if method in expected], expected)
+        self.assertEqual(self.selected['unitTestSelectors'], expected)
+        self.assertEqual(tuple(CI.NOTIFICATION_INTERRUPTION_SELECTORS), tuple(expected))
+        self.assertEqual(self.selected, dict(parent, unitTestSelectors=expected))
+        self.assertEqual(len(parent['unitTestSelectors']), 28)
+        self.assertEqual(parent['unitTestSelectors'], ordinary['unitTestSelectors'])
+        self.assertEqual(tuple(self.selected[key] for key in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
+        self.assertEqual(tuple(ordinary[key] for key in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
+        self.assertEqual((self.selected['runUISmoke'], self.selected['uiTestSelectors']), (False, []))
+        for suffix in ('-retry', '-parallel', '-45m'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, self.record['selectionID'] + suffix)
+        for changed in (expected[:1], expected[::-1], [expected[0], expected[0]], expected + [UNIT],
+                        [expected[0], UNIT], parent['unitTestSelectors']):
+            with self.subTest(members=changed):
+                # A different approved D30 group is still denied for this alias.
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(dict(self.selected, unitTestSelectors=changed), self.bound_environment(), HEAD, 'worker', self.record)
+                if changed != parent['unitTestSelectors']:
+                    with self.assertRaises(ValueError): CI.validate_selection(dict(self.selected, unitTestSelectors=changed))
+                    result = subprocess.run(['jq', '-e', '-f', str(ROOT / 'Scripts/ci-worker-selection.jq')],
+                                            input=CI.canonical(dict(self.selected, unitTestSelectors=changed)), capture_output=True)
+                    self.assertNotEqual(result.returncode, 0, result.stdout)
+                    with mock.patch.object(CI, 'NOTIFICATION_INTERRUPTION_SELECTORS', tuple(changed)), self.assertRaises(ValueError):
+                        CI.resolve_selection(self.default, self.mapping, self.record['selectionID'])
+        for mutate in ('duplicate', 'overlap', 'unknown'):
+            mapping = copy.deepcopy(self.mapping)
+            if mutate == 'duplicate': mapping['groups'].append(copy.deepcopy(mapping['groups'][0]))
+            elif mutate == 'overlap': mapping['groups'][-1]['classes'].append(mapping['groups'][0]['classes'][0])
+            else: mapping['groups'][-1]['classes'].append('UnknownInterruptionTests')
+            with self.subTest(mapping=mutate), self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, mapping, self.record['selectionID'])
+
+    def test_every_parent_public_route_source_binding_and_manifest_remains_byte_exact(self):
+        pin = '1ea75748b17006490bab5aa0e11d4a9267af8aaa'
+        def frozen(path):
+            return subprocess.check_output(['git', 'show', pin + ':' + path], cwd=ROOT)
+        for path in ('Scripts/ci-selection.json', CI.SELECTION_MAP_PATH, 'Scripts/v23-selection-manifest.json',
+                     'Scripts/v23-selection-generator.py', '.github/workflows/ios-ci-worker.yml', 'Scripts/test-smoke.sh'):
+            self.assertEqual((ROOT / path).read_bytes(), frozen(path), path)
+        prior = json.loads(frozen('Scripts/ci-selection.json'))
+        prior_map = json.loads(frozen(CI.SELECTION_MAP_PATH))
+        workflow = frozen('.github/workflows/ios-ci.yml')
+        choice = ('          - ' + self.record['selectionID'] + '\n').encode()
+        current = (ROOT / '.github/workflows/ios-ci.yml').read_bytes()
+        self.assertEqual(current.count(choice), 1)
+        self.assertEqual(current.replace(choice, b''), workflow)
+        block = re.search(rb'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        options = re.findall(rb'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / 'prior_native.py'
+            source.write_bytes(frozen('Scripts/v23-native-ci.py'))
+            spec = importlib.util.spec_from_file_location('prior_interruption_native_ci', source)
+            old = importlib.util.module_from_spec(spec); spec.loader.exec_module(old)
+            for option in options:
+                identifier = option.decode()
+                self.assertEqual(CI.canonical(CI.resolve_selection(self.default, self.mapping, identifier)),
+                                 old.canonical(old.resolve_selection(prior, prior_map, identifier)), identifier)
+            self.assertEqual(set(CI.NO_INDEX_ROUTES) - set(old.NO_INDEX_ROUTES), {self.record['selectionID']})
+            for identifier, binding in old.NO_INDEX_ROUTES.items():
+                self.assertEqual(CI.NO_INDEX_ROUTES[identifier], binding, identifier)
+                self.assertEqual(CI.no_index_source_trees(identifier), old.no_index_source_trees(identifier), identifier)
+
+    def test_foreign_checkout_original_identity_and_worker_dispatch_inputs_fail(self):
+        NotificationScheduleEraseBuild30DiagnosticTests.test_foreign_checkout_original_identity_and_worker_dispatch_inputs_fail(self)
+
+    def test_collection_requires_exact_two_methods_once_and_passed(self):
+        NotificationScheduleEraseBuild30DiagnosticTests.test_collection_requires_all_28_methods_once_and_passed(self)
+
+    def test_selected_input_binds_real_manifest_and_worker_choice(self):
+        selected, record = CI.selected_input(ROOT, dict(environment(), NATIVE_SELECTION_ID=self.record['selectionID']))
+        self.assertEqual(selected, self.selected)
+        self.assertEqual(record['selectionID'], self.record['selectionID'])
+        self.assertEqual(record['selectionSHA256'], self.record['selectionSHA256'])
+        self.assertEqual(record['selectionMapSHA256'], self.record['selectionMapSHA256'])
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory)
+            paths = ['Scripts/v23-selection-manifest.json', 'Scripts/v23-selection-generator.py',
+                     'Scripts/ci-selection.json', CI.SELECTION_MAP_PATH]
+            paths += ['FieldEvidenceAppTests/' + name + '.swift' for name in sorted({
+                CI.selection_class(selector) for selector in self.default['unitTestSelectors']})]
+            for relative in paths:
+                target = fixture / relative; target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes((ROOT / relative).read_bytes())
+            output = fixture / 'selected.json'
+            e = dict(os.environ, **self.bound_environment(), NATIVE_SELECTION_ID=self.record['selectionID'],
+                     GITHUB_WORKSPACE=str(fixture))
+            def run():
+                return subprocess.run([sys.executable, str(Path(CI.__file__)), 'select', '--output', str(output)],
+                                      env=e, capture_output=True)
+            result = run()
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(output.read_bytes(), CI.canonical(selected))
+            output.unlink()
+            # select emits the closed source selection; admission/receipt entry
+            # checks above separately reject foreign dispatch hashes and inputs.
+            for key, value in [('NATIVE_SELECTION_ID', self.record['selectionID'] + '-retry')]:
+                original = e[key]
+                try:
+                    e[key] = value
+                    self.assertNotEqual(run().returncode, 0)
+                    self.assertFalse(output.exists())
+                finally: e[key] = original
+            changes = []
+            for key, changed in [('unitTestSelectors', self.default['unitTestSelectors'][::-1]),
+                                 ('unitTestSelectors', self.default['unitTestSelectors'] + self.default['unitTestSelectors'][:1])]:
+                changes.append(('Scripts/ci-selection.json', CI.canonical(dict(self.default, **{key: changed}))))
+            mapping = copy.deepcopy(self.mapping)
+            mapping['groups'][-1]['classes'].append(mapping['groups'][0]['classes'][0])
+            changes.append((CI.SELECTION_MAP_PATH, CI.canonical(mapping)))
+            relative = 'FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift'
+            source = (fixture / relative).read_bytes()
+            for member in CI.NOTIFICATION_INTERRUPTION_SELECTORS:
+                method = member.rsplit('/', 1)[1]
+                changes.append((relative, source.replace(('func ' + method + '(').encode(), b'func missingInterruptionMethod(')))
+            for relative, changed in changes:
+                path = fixture / relative; original = path.read_bytes()
+                try:
+                    path.write_bytes(changed)
+                    result = run()
+                    self.assertNotEqual(result.returncode, 0, result.stdout)
+                    self.assertFalse(output.exists())
+                finally: path.write_bytes(original)
 
 
 class FindingProfileFixturesDiagnosticTests(ReplacementPartitionDiagnosticTests):

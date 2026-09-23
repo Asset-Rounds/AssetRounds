@@ -238,6 +238,13 @@ ACTIVITY_COMPLETED_SOURCE_GROUPS = (
 ACTIVITY_COMPLETED_SOURCE_SELECTORS = tuple(
     member for _, members in ACTIVITY_COMPLETED_SOURCE_GROUPS for member in members
 ) + ACTIVITY_CONTRACT_SELECTORS
+NOTIFICATION_INTERRUPTION_SELECTION_ID = 'notification-interruption-no-index-build30m'
+NOTIFICATION_INTERRUPTION_PARENT = '1ea75748b17006490bab5aa0e11d4a9267af8aaa'
+NOTIFICATION_INTERRUPTION_TREES = {'FieldEvidenceApp': '7731c5593306ce9bc2fa8ef49e928e50ad4f1ba3', 'FieldEvidenceAppTests': '6c326564ba3538891a086515168d7d3e2a541f28', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+NOTIFICATION_INTERRUPTION_SELECTORS = (
+    'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testRetainedLiveContextDefersCleanupUntilColdRecovery',
+    'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testEveryInterruptionRecoversOldOrFullyErasedNew',
+)
 NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID = 'notification-schedule-erase-no-index-build30m'
 NOTIFICATION_SCHEDULE_ERASE_BUILD30_PARENT = 'ea0f890edf7abc3e2b08c04c97ca87ef657d463c'
 NOTIFICATION_SCHEDULE_ERASE_BUILD30_TREES = {'FieldEvidenceApp': '7731c5593306ce9bc2fa8ef49e928e50ad4f1ba3', 'FieldEvidenceAppTests': '12653533bdfdf89dcf322a0c69266bc623b74999', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
@@ -378,6 +385,7 @@ FINDING_PROFILE_FIXTURES_SELECTORS = tuple(
     member for _, members in FINDING_PROFILE_FIXTURES_GROUPS for member in members
 )
 NO_INDEX_ROUTES = {
+    NOTIFICATION_INTERRUPTION_SELECTION_ID: (NOTIFICATION_INTERRUPTION_PARENT, "D30"),
     FINDING_PROFILE_FIXTURES_SELECTION_ID: (FINDING_PROFILE_FIXTURES_PARENT, "D30"),
     NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID: (NOTIFICATION_SCHEDULE_ERASE_BUILD30_PARENT, "D30"),
     ACTIVITY_COMPLETED_SOURCE_SELECTION_ID: (ACTIVITY_COMPLETED_SOURCE_PARENT, "D30"),
@@ -397,6 +405,8 @@ NO_INDEX_ROUTES = {
 
 def no_index_source_trees(selection_id):
     require(selection_id in NO_INDEX_ROUTES, "no-index closed source binding")
+    if selection_id == NOTIFICATION_INTERRUPTION_SELECTION_ID:
+        return NOTIFICATION_INTERRUPTION_TREES
     if selection_id == FINDING_PROFILE_FIXTURES_SELECTION_ID:
         return FINDING_PROFILE_FIXTURES_TREES
     if selection_id == NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID:
@@ -1227,7 +1237,7 @@ def validate_selection(selection):
         require(tuple(selection["unitTestSelectors"]) in (
             PARENT_FINALIZATION_METHOD_PARTITIONS[0][1], RESTORE_BUILD_WATCHDOG_SELECTORS,
             REMINDER_BUILD_WATCHDOG_SELECTORS, RESTORE_HISTORY_SELECTORS, REPLACEMENT_UNION_SELECTORS, ERASE_RECOVERY_SELECTORS, ACTIVITY_CONTRACT_SELECTORS, ACTIVITY_CODEC_PUNCH_SELECTORS, ACTIVITY_COMPLETED_SOURCE_SELECTORS,
-            NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS, FINDING_PROFILE_FIXTURES_SELECTORS,
+            NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS, NOTIFICATION_INTERRUPTION_SELECTORS, FINDING_PROFILE_FIXTURES_SELECTORS,
             *(members for _, members in ERASE_DIAGNOSTIC_PARTITIONS),
             *(members for _, members in REPLACEMENT_DIAGNOSTIC_PARTITIONS)),
             "build watchdog exact approved methods")
@@ -1461,6 +1471,16 @@ def resolve_selection(default, selection_map, selection_id):
         diagnostic.update(tier="D30", **dict(zip(BUDGET_KEYS, TIERS["D30"])))
         validate_selection(diagnostic)
         resolved[NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID] = diagnostic
+        interruption_members = tuple(member for member in members
+                                     if member in NOTIFICATION_INTERRUPTION_SELECTORS)
+        require(interruption_members == NOTIFICATION_INTERRUPTION_SELECTORS
+                and len(interruption_members) == len(set(interruption_members)) == 2,
+                "notification interruption exact ordered existing subset")
+        require(NOTIFICATION_INTERRUPTION_SELECTION_ID not in resolved,
+                "notification interruption distinct selection")
+        interruption = dict(diagnostic, unitTestSelectors=list(interruption_members))
+        validate_selection(interruption)
+        resolved[NOTIFICATION_INTERRUPTION_SELECTION_ID] = interruption
     if any(group in resolved for group in REMINDER_BUILD_WATCHDOG_GROUPS):
         require(all(group in resolved for group in REMINDER_BUILD_WATCHDOG_GROUPS),
                 "reminder build watchdog complete source groups")
@@ -1689,6 +1709,7 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
     require(all(re.fullmatch(r"[1-9][0-9]*", e.get(key, ""))
                 for key in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT")), "original run identity")
     watchdog_routes = {
+        NOTIFICATION_INTERRUPTION_SELECTION_ID: (NOTIFICATION_INTERRUPTION_PARENT, NOTIFICATION_INTERRUPTION_SELECTORS),
         FINDING_PROFILE_FIXTURES_SELECTION_ID: (FINDING_PROFILE_FIXTURES_PARENT, FINDING_PROFILE_FIXTURES_SELECTORS),
         NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID: (NOTIFICATION_SCHEDULE_ERASE_BUILD30_PARENT, NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS),
         ACTIVITY_COMPLETED_SOURCE_SELECTION_ID: (ACTIVITY_COMPLETED_SOURCE_PARENT, ACTIVITY_COMPLETED_SOURCE_SELECTORS),

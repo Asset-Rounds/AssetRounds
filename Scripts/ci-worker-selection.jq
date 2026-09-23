@@ -42,6 +42,9 @@
                      .testTimeoutSeconds, .uiTimeoutSeconds, .totalBudgetSeconds]
                     == [300, 1800, 900, 0, 3000]
                 and (.unitTestSelectors == [
+                    "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testRetainedLiveContextDefersCleanupUntilColdRecovery",
+                    "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testEveryInterruptionRecoversOldOrFullyErasedNew"
+                ] or .unitTestSelectors == [
                     "FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testNineValuesRoundTripAndExposeExactClosedFields",
                     "FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testLegalNonUUIDStringsStayExactAndIncumbentIDGrammarIsNotBroadened",
                     "FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testOptionalFieldsMustBeAbsentRatherThanExplicitNull",
