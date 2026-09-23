@@ -271,7 +271,114 @@ NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS = (
     'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testEraseManifestHandoffPreservesExactInodeAndSupportsRepeatedConstructorRecovery',
     'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testEraseManifestHandoffRejectsHostileSidecarsTargetsAndChangedPointerWithoutConsumption',
 )
+FINDING_PROFILE_FIXTURES_SELECTION_ID = 'finding-profile-fixtures-no-index-build30m'
+FINDING_PROFILE_FIXTURES_PARENT = 'e3fdee2d74e978d1c4fada6fb7e07e4e641bd341'
+FINDING_PROFILE_FIXTURES_TREES = {'FieldEvidenceApp': '49f7df1ea61e9a36748650335da9bdfa47096fc7', 'FieldEvidenceAppTests': 'd367ee1686826992e85efbda001528c4a5ba38f2', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+FINDING_PROFILE_FIXTURES_GROUPS = (
+    ('finding-owner-selection', (
+        'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testNineValuesRoundTripAndExposeExactClosedFields',
+        'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testLegalNonUUIDStringsStayExactAndIncumbentIDGrammarIsNotBroadened',
+        'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testOptionalFieldsMustBeAbsentRatherThanExplicitNull',
+        'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testWrongVersionKindWorkspaceAndNilIdentitiesAreRejected',
+        'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testEmptySelectionMatchesIndependentLiteralBytesAndHash',
+        'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testNestedLegacyValueGroupsAreClosedOnlyAtTheNewBoundary',
+        'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testRevisionBoundariesPreserveUInt64AndIntWithoutNarrowingOrOverflow',
+        'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testDuplicateAndConflictingFindingOwnerAndRelationshipIdentitiesReject',
+        'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testCanonicalOrderingIsUTF8AndRelationshipOwnerTupleOrder',
+        'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testDigestsRejectMalformedValuesAndSelectionTampering',
+        'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testExactRecheckOwnerKindRevisionAndDigestAreRequired',
+        'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testTypedFindingC14AndRecheckBindingsRejectIndependentlyValidWrongFacts',
+        'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testOriginalAndSelectedProvenanceRemainDistinctWithoutAuthenticityClaims',
+        'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testConflictingAcceptanceAndSourceIdentitiesCannotBeMerged',
+        'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testCanonicalCodecRejectsDuplicateWireKeysNoncanonicalBytesAndOversizeInput',
+        'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testCompleteSelectionByteLimitAppliesBeforePublication',
+        'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testNilAndCrossWorkspaceSourceC14AndFrontierIdentitiesReject',
+        'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testMappedSourceAndC14PairsKeepExactFieldsAndSeparateAcceptances',
+    )),
+    ('finding-owner-record', (
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testBothOwnerKindsRoundTripWithIndependentGoldenDigests',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testSemanticReferencesStayDistinctFromTransportHashesAndBindConsumers',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testHumanAndImportedSourcesNeedNoFabricatedActivityBinding',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testOwnerRevisionAdvancesWithoutChangingFindingRevision',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testHistoricalValueClassificationDoesNotGrantRetryAcceptance',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testSuccessorCannotRewriteDropOrReplaceOldFacts',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testLifecycleTransitionPreservesOriginalFieldsAndRevisionLaw',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testWorkspaceOwnerAndKernelIdentityCensusRejectsConflicts',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testC14SupportRequiresOriginalGenuineActionAndRetainsUnlinkedHistory',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testDirectFindingEndpointsAllowRevisionZeroWithoutCorrection',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testRealC14NonFindingSourceAndMixedEndpointsAreSupported',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testRelationshipHistoryPreservesConfirmationAndExplicitRemoval',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testRelationshipBasisRolesKindsAndSingleOwnershipAreClosed',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testAffectedClosureRejectsCrossStreamReversePairsCyclesAndDomainAmbiguity',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testEndpointOwnerTokensAndAcceptanceIdentitiesCannotConflict',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testPredecessorOriginActorAndTimeAreExact',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testHistoryRejectsReusedMutationAndSkippedOwnerRevision',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testUInt64AndIntEdgesRejectWithoutInvokingUnsafeLegacyArithmetic',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testRecordAndEndpointUnionKeysNullsAndDigestsAreClosed',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testCanonicalTransportRejectsUnknownNestedFieldsDuplicateKeysAndOversize',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testCompleteRecordByteBoundIncludesRetainedSupportReferences',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testAppendOnlyRetentionUsesExactBytesAndGroupedEventIdentity',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testR2OwnerRevisionFactsAcrossRelationshipsIncludeBothReferenceSides',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testR2ActualRecordAndPredecessorReferencesJoinFactCensus',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testR2RetainedC14ActionRevisionRejectsChangedEventAndDigestOnBothSides',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testR2RetainedC14EventIdentityRejectsRevisionReuseAndAllowsDifferentEvents',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testR2C14EndpointEventActionConflictsReachRelationshipAndCombinedHeads',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testR2ActivityRevisionFactsRejectKindAndDigestConflictsOnBothSides',
+        'FieldEvidenceAppTests/V23FindingOwnerContractTests/testR2ActivityScopesReceiptsRevisionsAndWorkspacesStayIndependent',
+    )),
+    ('finding-owner-persistence', (
+        'FieldEvidenceAppTests/V23FindingOwnerPersistenceTests/testBothKindsBindCanonicalBytesAndDistinctRowIdentity',
+        'FieldEvidenceAppTests/V23FindingOwnerPersistenceTests/testEveryDuplicatedColumnRejectsMismatchForBothKinds',
+        'FieldEvidenceAppTests/V23FindingOwnerPersistenceTests/testPredecessorDigestCannotBeDroppedOrReplaced',
+        'FieldEvidenceAppTests/V23FindingOwnerPersistenceTests/testMalformedAndValidDivergentCanonicalPayloadsAreRejected',
+        'FieldEvidenceAppTests/V23FindingOwnerPersistenceTests/testFileBackedSwiftDataReopenRetainsBothKindsAndRevisions',
+    )),
+    ('finding-owner-mutation', (
+        'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testFreshHumanCreationDerivesOnlyItsOriginalFacts',
+        'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testCanonicalCreationMatchesIndependentCommandAndRecordExpectations',
+        'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testLegalKernelStringsAndUnicodeTextBytesRemainExact',
+        'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testCreationOptionalClassificationAndActivityNeverBecomeUniversalIDGates',
+        'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testCreationRejectsSubstitutedScaleSubjectWorkspaceAndAttribution',
+        'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testTransitionDerivesOneRevisionWithoutReplacingAnyOtherFact',
+        'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testCorrectiveLinkAndRemovalPreserveFindingRevisionAndOriginalSupport',
+        'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testCorrectiveOperationsRejectWrongRolesRevisionsMissingReadsAndStaleBasis',
+        'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testExactPredecessorAndMutationMetadataCannotBeSubstituted',
+        'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testVerifiedResolutionRequiresTheExactRetainedPassedRecheck',
+        'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testCanonicalCommandBindsDependenciesAndAttributionWithoutClaimingAuthenticity',
+        'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testClosedCommandAndOperationWireRejectReplacementSourceAndProofFields',
+        'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testNestedUnknownFieldsAndNoncanonicalBytesRejectThroughActualCodec',
+        'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testRevisionBoundsRejectBeforeLegacyIncrementAndPreserveAssetZero',
+        'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testFrontierDuplicateConflictsUnknownIdentitiesAndMissingDependencyFailClosed',
+        'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testWholeWorkspaceFrontierExceedsRegistryCountAndRetainsCanonicalByteLimit',
+        'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testCommandAcceptanceCensusRejectsEveryPredecessorAndSupportOverlap',
+        'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testCommandAcceptanceCensusAllowsExactOverlapAndDistinctKeysThroughDerivation',
+    )),
+    ('shop-profile-open-handoff', (
+        'FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testOpenEvidenceManifestCanonicalRoundTripNormalizesArtifactsAndRejectsTampering',
+        'FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testHandoffPresentationRequiresExactSavedProfileAndRemainsDefaultOff',
+        'FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testV23P04C04G01DeterministicProfilePresetAndConfirmationBytes',
+        'FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testV23P04C04A01CustomerSafePackagingAndAccessibleOutputs',
+        'FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testV23P04C04H01RejectsCorruptStaleUnsafeAndSecondRendererInputs',
+        'FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testV23P04C04I01InterruptionLeavesZeroOrRecoverableCanonicalEffect',
+        'FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testV23P04C04R01RestoreCloneForkAndHistoricExportImmutability',
+        'FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testShopProfileSaveExactRetryReturnsOriginalReceipt',
+        'FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testShopProfileSaveHistoricExactRetryAfterSuccessorReturnsOriginalReceipt',
+        'FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testShopProfileSaveDivergentMutationReuseRejectsWithoutChanges',
+        'FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testShopProfileSaveNewStaleMutationRejectsWithoutChanges',
+    )),
+    ('advanced-recurrence-workflow', (
+        'FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests/testV23P04C38G01PatternsOverridesAndHistoryProjectDeterministically',
+        'FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests/testV23P04C38A01LeapMonthEndLastWeekdayAndScopesPreview',
+        'FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests/testV23P04C38H01InvalidRulesStalePreviewAndIdentityDriftHaveNoEffects',
+        'FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests/testV23P04C38I01DSTClockReminderAndEffectBeforeReceiptRetryExactlyOnce',
+        'FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests/testV23P04C38R01CompletionScheduleChangeReplayAndRestoreRemainStable',
+    )),
+)
+FINDING_PROFILE_FIXTURES_SELECTORS = tuple(
+    member for _, members in FINDING_PROFILE_FIXTURES_GROUPS for member in members
+)
 NO_INDEX_ROUTES = {
+    FINDING_PROFILE_FIXTURES_SELECTION_ID: (FINDING_PROFILE_FIXTURES_PARENT, "D30"),
     NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID: (NOTIFICATION_SCHEDULE_ERASE_BUILD30_PARENT, "D30"),
     ACTIVITY_COMPLETED_SOURCE_SELECTION_ID: (ACTIVITY_COMPLETED_SOURCE_PARENT, "D30"),
     ACTIVITY_CODEC_PUNCH_SELECTION_ID: (REPLACEMENT_UNION_PARENT, "D30"),
@@ -290,6 +397,8 @@ NO_INDEX_ROUTES = {
 
 def no_index_source_trees(selection_id):
     require(selection_id in NO_INDEX_ROUTES, "no-index closed source binding")
+    if selection_id == FINDING_PROFILE_FIXTURES_SELECTION_ID:
+        return FINDING_PROFILE_FIXTURES_TREES
     if selection_id == NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID:
         return NOTIFICATION_SCHEDULE_ERASE_BUILD30_TREES
     if selection_id == ACTIVITY_COMPLETED_SOURCE_SELECTION_ID:
@@ -360,9 +469,9 @@ ERASE_DIAGNOSTIC_PARTITIONS = (
     (ERASE_DRAIN_SELECTION_ID, ERASE_RECOVERY_SELECTORS[:1]),
     (ERASE_REMAINDER_SELECTION_ID, ERASE_RECOVERY_SELECTORS[1:]),
 )
-GENERATED_SELECTION_PROFILE = 'activity-completed-source-v1'
-GENERATED_SELECTION_POOL_SHA256 = '40858D4EF21C001627E6F94FF4A35E3EE17F257E792B210A6B5A854CD296C6B9'
-GENERATED_SELECTION_MAP_SHA256 = '5B858FD1BD73930B155AF7CA823553A62F7AD040B9BDA75839EA5222BD873ADB'
+GENERATED_SELECTION_PROFILE = 'finding-profile-fixtures-v1'
+GENERATED_SELECTION_POOL_SHA256 = 'CDD7411107440470C44C2AA29AC2C8139B44BBF1D7DD7F9A55D06221FE9D517E'
+GENERATED_SELECTION_MAP_SHA256 = '316967E3CF0BF31ED1F1DFE05A118D041A61C7E3FA756C35637E226506008D5B'
 CONFIGURATION_CLONE_SELECTION_ID = "c36-photo-configuration-clone"
 CONFIGURATION_CLONE_SELECTORS = (
     'FieldEvidenceAppTests/S6_2BackupExportTests/testConfigurationCloneAcceptsEveryAuthenticPhotoPhaseAndOmitsOperationalFamily',
@@ -1118,7 +1227,7 @@ def validate_selection(selection):
         require(tuple(selection["unitTestSelectors"]) in (
             PARENT_FINALIZATION_METHOD_PARTITIONS[0][1], RESTORE_BUILD_WATCHDOG_SELECTORS,
             REMINDER_BUILD_WATCHDOG_SELECTORS, RESTORE_HISTORY_SELECTORS, REPLACEMENT_UNION_SELECTORS, ERASE_RECOVERY_SELECTORS, ACTIVITY_CONTRACT_SELECTORS, ACTIVITY_CODEC_PUNCH_SELECTORS, ACTIVITY_COMPLETED_SOURCE_SELECTORS,
-            NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS,
+            NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS, FINDING_PROFILE_FIXTURES_SELECTORS,
             *(members for _, members in ERASE_DIAGNOSTIC_PARTITIONS),
             *(members for _, members in REPLACEMENT_DIAGNOSTIC_PARTITIONS)),
             "build watchdog exact approved methods")
@@ -1170,7 +1279,7 @@ def resolve_selection(default, selection_map, selection_id):
                  and g.get("classes") == ['S3_6CameraRecoveryTests', 'S4_5CorrectionTests', 'S6_2BackupExportTests', 'V9_18PackLifecycleIntegrationTests']]) == 1
     )
     generated_profile_shape = (
-        isinstance(groups, list) and len(groups) == 62
+        isinstance(groups, list) and len(groups) == 68
         and sha256(canonical(default)) == GENERATED_SELECTION_POOL_SHA256
         and sha256(canonical(selection_map)) == GENERATED_SELECTION_MAP_SHA256
     )
@@ -1430,6 +1539,18 @@ def resolve_selection(default, selection_map, selection_id):
             completed = dict(activity, unitTestSelectors=list(ACTIVITY_COMPLETED_SOURCE_SELECTORS))
             validate_selection(completed)
             resolved[ACTIVITY_COMPLETED_SOURCE_SELECTION_ID] = completed
+    if generated_profile_shape:
+        require(all(tuple(resolved[group]["unitTestSelectors"]) == members
+                    for group, members in FINDING_PROFILE_FIXTURES_GROUPS)
+                and len(FINDING_PROFILE_FIXTURES_SELECTORS) == len(set(FINDING_PROFILE_FIXTURES_SELECTORS)) == 86
+                and tuple(default["unitTestSelectors"][-86:]) == FINDING_PROFILE_FIXTURES_SELECTORS,
+                "finding/profile fixtures exact ordered enrolled union")
+        require(FINDING_PROFILE_FIXTURES_SELECTION_ID not in resolved,
+                "finding/profile fixtures distinct selection")
+        finding = dict(default, unitTestSelectors=list(FINDING_PROFILE_FIXTURES_SELECTORS))
+        finding.update(tier="D30", **dict(zip(BUDGET_KEYS, TIERS["D30"])))
+        validate_selection(finding)
+        resolved[FINDING_PROFILE_FIXTURES_SELECTION_ID] = finding
     if "erase-lease-lifecycle" in resolved:
         require(tuple(resolved["erase-lease-lifecycle"]["unitTestSelectors"]) == ERASE_LEASE_SELECTORS,
                 "erase exact enrolled lifecycle methods")
@@ -1568,6 +1689,7 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
     require(all(re.fullmatch(r"[1-9][0-9]*", e.get(key, ""))
                 for key in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT")), "original run identity")
     watchdog_routes = {
+        FINDING_PROFILE_FIXTURES_SELECTION_ID: (FINDING_PROFILE_FIXTURES_PARENT, FINDING_PROFILE_FIXTURES_SELECTORS),
         NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID: (NOTIFICATION_SCHEDULE_ERASE_BUILD30_PARENT, NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS),
         ACTIVITY_COMPLETED_SOURCE_SELECTION_ID: (ACTIVITY_COMPLETED_SOURCE_PARENT, ACTIVITY_COMPLETED_SOURCE_SELECTORS),
         ACTIVITY_CODEC_PUNCH_SELECTION_ID: (REPLACEMENT_UNION_PARENT, ACTIVITY_CODEC_PUNCH_SELECTORS),

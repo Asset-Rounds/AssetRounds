@@ -134,6 +134,13 @@ on:
           - activity-evidence-projection
           - activity-completed-release
           - activity-completed-source-no-index-build30m
+          - finding-owner-selection
+          - finding-owner-record
+          - finding-owner-persistence
+          - finding-owner-mutation
+          - shop-profile-open-handoff
+          - advanced-recurrence-workflow
+          - finding-profile-fixtures-no-index-build30m
           - c36-destination-legacy-bytes
       s10_4_minimum_core_smoke_id:
         description: Explicit minimum functional smoke; none preserves full legacy behavior
