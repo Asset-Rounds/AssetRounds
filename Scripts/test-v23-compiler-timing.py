@@ -691,6 +691,13 @@ touch "$CI_ARTIFACT_DIR/Build.xcresult/result" "$RUNNER_TEMP/FieldEvidenceDerive
 
 
 class InterruptionPassiveTimingTests(unittest.TestCase):
+    def test_previous_passive_profile_retains_exact_admission_and_command(self):
+        self.config = dict(TIMING.INTERRUPTION_PROFILE)
+        self.command = TIMING.expected_command(self.env, self.config)
+        self.assertEqual(TIMING.validate_configuration(self.config), TIMING.INTERRUPTION_PROFILE)
+        self.assertEqual(self.admit(), self.env["GITHUB_SHA"])
+        self.assertEqual(self.command[-2:], ["COMPILER_INDEX_STORE_ENABLE=NO", "build-for-testing"])
+
     admit = CompilerTimingTests.admit
     git = CurrentSourceTimingTests.git
     testAdmissionBindsExactHostedSourceSelectorAndUnchangedBudgets = CompilerTimingTests.testAdmissionBindsExactHostedSourceSelectorAndUnchangedBudgets
@@ -698,7 +705,7 @@ class InterruptionPassiveTimingTests(unittest.TestCase):
     def setUp(self):
         CompilerTimingTests.setUp(self)
         self.config = TIMING.read_configuration(ROOT / "Scripts/v23-compiler-timing.json")
-        self.assertEqual(self.config, TIMING.INTERRUPTION_PROFILE)
+        self.assertEqual(self.config, TIMING.INTERRUPTION_BUILD_ORDER_PROFILE)
         for relative in ("Scripts/ci-selection.json", "Scripts/ci-selection-map.json"):
             data = subprocess.check_output(["git", "show", self.config["sourceHead"] + ":" + relative], cwd=ROOT)
             (self.root / relative).write_bytes(data)
@@ -729,7 +736,7 @@ class InterruptionPassiveTimingTests(unittest.TestCase):
             del changed[key]
             with self.subTest(missing=key), self.assertRaises(ValueError):
                 TIMING.validate_configuration(changed)
-        for key, value in (("extra", True), ("schemaVersion", True), ("schemaVersion", 6),
+        for key, value in (("extra", True), ("schemaVersion", True), ("schemaVersion", 5), ("schemaVersion", 7),
                            ("parentHead", "a" * 40), ("sourceHead", "a" * 40),
                            ("sampleIntervalSeconds", 1), ("sampleIntervalSeconds", True), ("sampleIntervalSeconds", 5.0),
                            ("mode", "timing-command-source-v4"), ("selectionSHA256", "A" * 64),

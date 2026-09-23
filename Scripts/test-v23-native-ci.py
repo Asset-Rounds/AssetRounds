@@ -30,6 +30,21 @@ UNIT = "FieldEvidenceAppTests/NativeFixtureTests/testActualMethod"
 UI = "FieldEvidenceAppUITests/NativeJourneyTests/testContinuousJourney"
 
 
+def worker_before_interruption_build_order(test_case, raw):
+    # Reverse only the two qualified ordering predicates; every other
+    # worker byte must still match the historical enrollment boundary.
+    replacements = (
+        (b"&& (inputs.native_selection_id == 'c36-destination-discard-build-before-boot' || inputs.native_selection_id == 'notification-interruption-no-index-build30m') }}",
+         b"&& inputs.native_selection_id == 'c36-destination-discard-build-before-boot' }}"),
+        (b"&& inputs.native_selection_id != 'c36-destination-discard-build-before-boot' && inputs.native_selection_id != 'notification-interruption-no-index-build30m' }}",
+         b"&& inputs.native_selection_id != 'c36-destination-discard-build-before-boot' }}"),
+    )
+    for changed, original in replacements:
+        test_case.assertEqual(raw.count(changed), 1)
+        raw = raw.replace(changed, original)
+    return raw
+
+
 def selection(tier="N8"):
     return {"schemaVersion": 1, "taskID": CI.TASK, "tier": tier, "runUISmoke": tier != "N8",
             **dict(zip(CI.BUDGET_KEYS, CI.TIERS[tier])), "unitTestSelectors": [UNIT],
@@ -2884,7 +2899,10 @@ class NotificationScheduleEraseBuild30DiagnosticTests(ReplacementPartitionDiagno
             current_workflow = current_workflow.replace(addition, b'')
         self.assertEqual(current_workflow, workflow.encode())
         for path in ('Scripts/v23-selection-generator.py', '.github/workflows/ios-ci-worker.yml'):
-            self.assertEqual((ROOT / path).read_bytes(), frozen(path), path)
+            current_bytes = (ROOT / path).read_bytes()
+            if path == '.github/workflows/ios-ci-worker.yml':
+                current_bytes = worker_before_interruption_build_order(self, current_bytes)
+            self.assertEqual(current_bytes, frozen(path), path)
 
     def test_foreign_checkout_original_identity_and_worker_dispatch_inputs_fail(self):
         for stage in ('dispatch', 'worker'):
@@ -2984,7 +3002,7 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
         self.assertEqual(options[options.index(CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID) + 1],
                          CI.NOTIFICATION_INTERRUPTION_SELECTION_ID)
         self.assertEqual(len(options), len(set(options)))
-        self.assertEqual(self.source_parent, '1cf1d8618a2a2a410c36a328933cd22339293876')
+        self.assertEqual(self.source_parent, 'cf357a4e75dce1a9bff56f4b72af60989d3df643')
         self.assertEqual(self.source_trees, {'FieldEvidenceApp': '7731c5593306ce9bc2fa8ef49e928e50ad4f1ba3', 'FieldEvidenceAppTests': '6c326564ba3538891a086515168d7d3e2a541f28', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'})
 
     def test_exact_disjoint_ordered_union_and_historical_routes(self):
@@ -3034,7 +3052,10 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
             return subprocess.check_output(['git', 'show', pin + ':' + path], cwd=ROOT)
         for path in ('Scripts/ci-selection.json', CI.SELECTION_MAP_PATH, 'Scripts/v23-selection-manifest.json',
                      'Scripts/v23-selection-generator.py', '.github/workflows/ios-ci-worker.yml', 'Scripts/test-smoke.sh'):
-            self.assertEqual((ROOT / path).read_bytes(), frozen(path), path)
+            current_bytes = (ROOT / path).read_bytes()
+            if path == '.github/workflows/ios-ci-worker.yml':
+                current_bytes = worker_before_interruption_build_order(self, current_bytes)
+            self.assertEqual(current_bytes, frozen(path), path)
         prior = json.loads(frozen('Scripts/ci-selection.json'))
         prior_map = json.loads(frozen(CI.SELECTION_MAP_PATH))
         workflow = frozen('.github/workflows/ios-ci.yml')
@@ -3434,7 +3455,7 @@ class BuildOrderDiagnosticTests(unittest.TestCase):
         positions = [worker.index('      - name: '+name+'\n') for name in names]
         self.assertEqual(positions, sorted(positions))
         early = worker[positions[0]:positions[1]]
-        self.assertIn("inputs.native_acceptance_contract == 'v23.integration.current-native.v1' && inputs.native_selection_id == '"+CI.BUILD_ORDER_SELECTION_ID+"'", early)
+        self.assertIn("inputs.native_acceptance_contract == 'v23.integration.current-native.v1' && (inputs.native_selection_id == '"+CI.BUILD_ORDER_SELECTION_ID+"' || inputs.native_selection_id == '"+CI.NOTIFICATION_INTERRUPTION_SELECTION_ID+"')", early)
         self.assertIn('bash Scripts/run-with-timeout.sh "$CI_BUILD_TIMEOUT_SECONDS"', early)
         self.assertIn('python3 Scripts/v23-native-ci.py observe-build-before-boot', early)
         self.assertNotIn('continue-on-error', early)
@@ -3447,6 +3468,145 @@ class BuildOrderDiagnosticTests(unittest.TestCase):
         self.assertIn("inputs.s10_4_execution_role != 'payload-consumer' && inputs.native_selection_id != '"+CI.BUILD_ORDER_SELECTION_ID+"'", normal)
         self.assertIn('bash Scripts/build-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/build-smoke.log"', normal)
         self.assertNotIn('continue-on-error', normal)
+
+
+class InterruptionBuildOrderTests(unittest.TestCase):
+    devices = BuildOrderDiagnosticTests.devices
+
+    def setUp(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.selected = CI.resolve_selection(default, mapping, CI.NOTIFICATION_INTERRUPTION_SELECTION_ID)
+        self.record = {'selectionID': CI.NOTIFICATION_INTERRUPTION_SELECTION_ID,
+                       'selectionSHA256': CI.sha256(CI.canonical(self.selected)),
+                       'selectionMapSHA256': CI.sha256(CI.canonical(mapping))}
+
+    def environment(self):
+        return {'CI_BUILD_TIMEOUT_SECONDS': '1800', 'CI_SIMULATOR_UDID': UDID,
+                'CI_NATIVE_CREATED_SIMULATOR_UDID': UDID, 'CI_SIMULATOR_INITIAL_STATE': 'Shutdown'}
+
+    def observe(self, artifact, code=0, middle='Shutdown', unavailable=False, waits=1):
+        (artifact/'native-admission.json').write_bytes(CI.canonical(self.record))
+        child = mock.Mock(pid=4321)
+        child.wait.side_effect = [subprocess.TimeoutExpired('build', 60)] * waits + [code]
+        middle_sample = subprocess.TimeoutExpired('simctl', 5) if unavailable else mock.Mock(stdout=self.devices(middle))
+        observations = [mock.Mock(stdout=self.devices())] + [middle_sample] * min(waits, 34) + [mock.Mock(stdout=self.devices())]
+        with mock.patch.object(CI.subprocess, 'run', side_effect=observations) as sampler, \
+             mock.patch.object(CI.subprocess, 'Popen', return_value=child) as launch:
+            result = CI.observe_build_before_boot(ROOT, artifact, self.record, self.environment())
+        launch.assert_called_once_with(['bash', 'Scripts/build-smoke.sh'], cwd=ROOT)
+        self.assertEqual(child.wait.call_args_list, [mock.call(timeout=60)] * (waits+1))
+        for call in sampler.call_args_list:
+            self.assertEqual(call, mock.call(['xcrun', 'simctl', 'list', 'devices', 'available', '-j'],
+                                            cwd=ROOT, capture_output=True, timeout=5, check=True))
+        return result
+
+    def test_exact_current_two_methods_and_both_closed_budgets(self):
+        self.assertEqual(self.selected['unitTestSelectors'], list(CI.NOTIFICATION_INTERRUPTION_SELECTORS))
+        self.assertEqual(len(self.selected['unitTestSelectors']), 2)
+        self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), CI.TIERS['D30'])
+        self.assertEqual(CI.build_order_limits(CI.BUILD_ORDER_SELECTION_ID), (1200, 24))
+        self.assertEqual(CI.build_order_limits(CI.NOTIFICATION_INTERRUPTION_SELECTION_ID), (1800, 34))
+        for unknown in ('default', '', 'notification-schedule-erase-no-index-build30m'):
+            with self.assertRaises(ValueError): CI.build_order_limits(unknown)
+
+    def test_current_observer_preserves_build_failures_signals_and_bounded_sampling(self):
+        for code, expected in ((0, 0), (65, 65), (-15, 143), (-9, 137)):
+            with self.subTest(code=code), tempfile.TemporaryDirectory() as directory:
+                artifact = Path(directory)
+                self.assertEqual(self.observe(artifact, code=code, waits=35), expected)
+                rows = [json.loads(line) for line in (artifact/CI.BUILD_ORDER_OBSERVATIONS).read_bytes().splitlines()]
+                self.assertEqual(len(rows), 39)
+                self.assertEqual(rows[0]['watchdogSeconds'], 1800)
+                if code == 0:
+                    result = CI.build_order_observations(artifact, self.record, UDID)
+                    self.assertTrue(result['selectedSimulatorObservedShutdownThroughout'])
+                    self.assertFalse(result['performanceImprovementProven'])
+                else:
+                    with self.assertRaises(ValueError): CI.build_order_observations(artifact, self.record, UDID)
+
+    def test_current_admission_budget_device_and_owned_prefix_fail_before_launch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact=Path(directory)
+            (artifact/'native-admission.json').write_bytes(CI.canonical(self.record))
+            for delta in ({'CI_BUILD_TIMEOUT_SECONDS':'1200'}, {'CI_BUILD_TIMEOUT_SECONDS':'2400'},
+                          {'CI_SIMULATOR_UDID':'foreign'}, {'CI_NATIVE_CREATED_SIMULATOR_UDID':'foreign'},
+                          {'CI_SIMULATOR_INITIAL_STATE':'Booted'}):
+                with mock.patch.object(CI.subprocess,'Popen') as launch, self.assertRaises(ValueError):
+                    CI.observe_build_before_boot(ROOT,artifact,self.record,dict(self.environment(),**delta))
+                launch.assert_not_called()
+            wrong=dict(self.record,selectionSHA256='0'*64)
+            with mock.patch.object(CI.subprocess,'Popen') as launch, self.assertRaises(ValueError):
+                CI.observe_build_before_boot(ROOT,artifact,wrong,self.environment())
+            launch.assert_not_called()
+            for observed in (mock.Mock(stdout=self.devices('Booted')), subprocess.TimeoutExpired('simctl',5)):
+                with mock.patch.object(CI.subprocess,'run',side_effect=[observed]), \
+                     mock.patch.object(CI.subprocess,'Popen') as launch, self.assertRaises(ValueError):
+                    CI.observe_build_before_boot(ROOT,artifact,self.record,self.environment())
+                launch.assert_not_called()
+                (artifact/CI.BUILD_ORDER_OBSERVATIONS).unlink()
+            path=artifact/CI.BUILD_ORDER_OBSERVATIONS;path.write_bytes(b'owned prefix\n')
+            with mock.patch.object(CI.subprocess,'Popen') as launch, self.assertRaises(ValueError):
+                CI.observe_build_before_boot(ROOT,artifact,self.record,self.environment())
+            launch.assert_not_called();self.assertEqual(path.read_bytes(),b'owned prefix\n')
+
+    def test_current_evidence_enforces_1800_and_source_bound_header(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact=Path(directory);self.observe(artifact)
+            path=artifact/CI.BUILD_ORDER_OBSERVATIONS
+            events=[json.loads(line) for line in path.read_bytes().splitlines()]
+            events[-1]['elapsedSeconds']=1800
+            path.write_bytes(b''.join(CI.canonical(x) for x in events))
+            self.assertEqual(CI.build_order_observations(artifact,self.record,UDID)['elapsedSeconds'],1800)
+            for index,updates in ((-1,{'elapsedSeconds':1801}), (0,{'watchdogSeconds':1200}),
+                                  (0,{'admissionSHA256':'0'*64}), (-1,{'returnCode':False})):
+                altered=copy.deepcopy(events);altered[index].update(updates)
+                path.write_bytes(b''.join(CI.canonical(x) for x in altered))
+                with self.assertRaises(ValueError):CI.build_order_observations(artifact,self.record,UDID)
+            path.write_bytes(b''.join(CI.canonical(x) for x in events[:-1]))
+            with self.assertRaises(ValueError):CI.build_order_observations(artifact,self.record,UDID)
+
+    def test_current_implicit_boot_and_missing_observation_never_claim_shutdown(self):
+        for state,unavailable in (('Booted',False),('Shutdown',True)):
+            with self.subTest(state=state),tempfile.TemporaryDirectory() as directory:
+                artifact=Path(directory);self.observe(artifact,middle=state,unavailable=unavailable)
+                result=CI.build_order_observations(artifact,self.record,UDID)
+                self.assertFalse(result['selectedSimulatorObservedShutdownThroughout'])
+                self.assertFalse(result['continuousStateProof']);self.assertFalse(result['acceptance'])
+                self.assertEqual(result['observationStatus'],'INCONCLUSIVE' if unavailable else 'COMPLETE')
+
+    def test_actual_worker_predicates_environment_and_success_only_order(self):
+        import ast
+        worker=(ROOT/'.github/workflows/ios-ci-worker.yml').read_text(encoding='utf-8')
+        names=['Build unsigned simulator app before boot (diagnostic)','Boot selected Simulator',
+               'Await selected Simulator boot','Build unsigned simulator app','Prepare S10.4 shared build payload']
+        positions=[worker.index('      - name: '+name+'\n') for name in names]
+        self.assertEqual(positions,sorted(positions))
+        early,boot,wait,normal=[worker[positions[i]:positions[i+1]] for i in range(4)]
+        def predicate(block,contract,selection,role=''):
+            expression=re.search(r'if: \$\{\{ (.*?) \}\}',block).group(1)
+            for name,value in {'native_acceptance_contract':contract,'native_selection_id':selection,'s10_4_execution_role':role}.items():
+                expression=expression.replace('inputs.'+name,json.dumps(value))
+            expression=expression.replace('&&','and').replace('||','or')
+            parsed=ast.parse(expression,mode='eval')
+            allowed=(ast.Expression,ast.BoolOp,ast.Compare,ast.Constant,ast.And,ast.Or,ast.Eq,ast.NotEq)
+            self.assertTrue(all(isinstance(n,allowed) for n in ast.walk(parsed)))
+            return eval(compile(parsed,'actual-worker-predicate','eval'),{'__builtins__':{}})
+        for selection in (CI.BUILD_ORDER_SELECTION_ID,CI.NOTIFICATION_INTERRUPTION_SELECTION_ID):
+            self.assertTrue(predicate(early,CI.CONTRACT,selection))
+            self.assertFalse(predicate(normal,CI.CONTRACT,selection))
+        self.assertFalse(predicate(early,CI.CONTRACT,'notification-schedule-erase-no-index-build30m'))
+        self.assertTrue(predicate(normal,CI.CONTRACT,'notification-schedule-erase-no-index-build30m'))
+        self.assertFalse(predicate(early,'','ordinary'))
+        self.assertFalse(predicate(normal,'','ordinary','payload-consumer'))
+        pattern=r'^\s+(DISPATCH_\w+): \$\{\{ inputs\.(\w+) \}\}$'
+        self.assertEqual(dict(re.findall(pattern,early,re.M)),dict(re.findall(pattern,normal,re.M)))
+        self.assertEqual(len(re.findall(pattern,early,re.M)),9)
+        self.assertIn('set -euo pipefail',early)
+        self.assertIn('python3 Scripts/v23-native-ci.py observe-build-before-boot',early)
+        self.assertIn('bash Scripts/run-with-timeout.sh "$CI_BUILD_TIMEOUT_SECONDS"',early)
+        self.assertNotIn('if:',boot);self.assertNotIn('if:',wait)
+        for block in (early,boot,wait,normal):self.assertNotIn('continue-on-error',block)
 
 
 class BuildWatchdogDiagnosticTests(unittest.TestCase):

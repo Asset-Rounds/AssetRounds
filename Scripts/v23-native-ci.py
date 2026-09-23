@@ -239,7 +239,7 @@ ACTIVITY_COMPLETED_SOURCE_SELECTORS = tuple(
     member for _, members in ACTIVITY_COMPLETED_SOURCE_GROUPS for member in members
 ) + ACTIVITY_CONTRACT_SELECTORS
 NOTIFICATION_INTERRUPTION_SELECTION_ID = 'notification-interruption-no-index-build30m'
-NOTIFICATION_INTERRUPTION_PARENT = '1cf1d8618a2a2a410c36a328933cd22339293876'
+NOTIFICATION_INTERRUPTION_PARENT = 'cf357a4e75dce1a9bff56f4b72af60989d3df643'
 NOTIFICATION_INTERRUPTION_TREES = {'FieldEvidenceApp': '7731c5593306ce9bc2fa8ef49e928e50ad4f1ba3', 'FieldEvidenceAppTests': '6c326564ba3538891a086515168d7d3e2a541f28', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 NOTIFICATION_INTERRUPTION_SELECTORS = (
     'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testRetainedLiveContextDefersCleanupUntilColdRecovery',
@@ -1862,6 +1862,15 @@ def build_order_device_state(raw, selected_udid):
             "devices": sorted(devices, key=lambda item: (item["runtime"], item["udid"]))}
 
 
+def build_order_limits(selection_id):
+    """Closed historical and current diagnostic limits; no runtime override."""
+    if selection_id == BUILD_ORDER_SELECTION_ID:
+        return 1200, 24
+    require(selection_id == NOTIFICATION_INTERRUPTION_SELECTION_ID,
+            "build order command admission")
+    return 1800, 34
+
+
 def observe_build_before_boot(root, artifact, record, environment):
     """Run the unchanged build under the incumbent outer watchdog; never boot.
 
@@ -1869,9 +1878,9 @@ def observe_build_before_boot(root, artifact, record, environment):
     retains the append-only prefix, which cannot pass completed-evidence checks.
     No signal handler or new session can detach build descendants from the owner.
     """
-    require(record["selectionID"] == BUILD_ORDER_SELECTION_ID, "build order command admission")
+    watchdog, sample_cap = build_order_limits(record["selectionID"])
     require(read_json(artifact / "native-admission.json") == record, "build order admission changed")
-    require(environment.get("CI_BUILD_TIMEOUT_SECONDS") == "1200", "build order unchanged watchdog")
+    require(environment.get("CI_BUILD_TIMEOUT_SECONDS") == str(watchdog), "build order unchanged watchdog")
     udid = environment.get("CI_SIMULATOR_UDID", "")
     require(re.fullmatch(r"[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}", udid)
             and udid == environment.get("CI_NATIVE_CREATED_SIMULATOR_UDID")
@@ -1900,7 +1909,7 @@ def observe_build_before_boot(root, artifact, record, environment):
             return value
 
         append({"kind": "header", "schemaVersion": 1, "admissionSHA256": sha256(canonical(record)),
-                "selectedUDID": udid, "command": list(BUILD_ORDER_COMMAND), "watchdogSeconds": 1200})
+                "selectedUDID": udid, "command": list(BUILD_ORDER_COMMAND), "watchdogSeconds": watchdog})
         before = sample("before")
         require(before.get("selectedState") == "Shutdown", "build order requires observed shutdown before build")
         child = subprocess.Popen(list(BUILD_ORDER_COMMAND), cwd=root)
@@ -1911,9 +1920,9 @@ def observe_build_before_boot(root, artifact, record, environment):
                 code = child.wait(timeout=60)
                 break
             except subprocess.TimeoutExpired:
-                # The existing 1200s watchdog bounds the process. This additional
+                # The selected source-defined watchdog bounds the process. This additional
                 # cap bounds observer work even if its caller is misconfigured.
-                if samples < 24:
+                if samples < sample_cap:
                     sample("during")
                     samples += 1
         sample("after")
@@ -1922,21 +1931,22 @@ def observe_build_before_boot(root, artifact, record, environment):
 
 
 def build_order_observations(artifact, record, selected_udid):
+    watchdog, sample_cap = build_order_limits(record["selectionID"])
     path = artifact / BUILD_ORDER_OBSERVATIONS
     require(path.is_file() and not path.is_symlink() and path.stat().st_size <= 4 * 1024 * 1024,
             "bounded build order evidence")
     raw = path.read_bytes()
     require(raw.endswith(b"\n"), "complete build order observation line")
     events = [json.loads(line, object_pairs_hook=unique_pairs) for line in raw.splitlines()]
-    require(5 <= len(events) <= 29 and all(isinstance(event, dict) for event in events),
+    require(5 <= len(events) <= sample_cap + 5 and all(isinstance(event, dict) for event in events),
             "build order event count")
     times = [event.get("elapsedSeconds") for event in events]
     require(all(type(value) in (int, float) and math.isfinite(value) and value >= 0 for value in times)
-            and times == sorted(times) and times[-1] <= 1200, "build order event timing")
+            and times == sorted(times) and times[-1] <= watchdog, "build order event timing")
     header = dict(events[0]); header.pop("elapsedSeconds")
     require(header == {"kind": "header", "schemaVersion": 1,
                        "admissionSHA256": sha256(canonical(record)), "selectedUDID": selected_udid,
-                       "command": list(BUILD_ORDER_COMMAND), "watchdogSeconds": 1200},
+                       "command": list(BUILD_ORDER_COMMAND), "watchdogSeconds": watchdog},
             "build order source/command binding")
     require(events[2].get("kind") == "started" and type(events[2].get("processID")) is int
             and events[2]["processID"] > 0, "build order child start")
@@ -2058,7 +2068,7 @@ def verify_checkpoint(root, artifact, record, selection, environment):
     build_order = {}
     if record["selectionID"] in NO_INDEX_ROUTES:
         build_order["noIndexBuildDiagnostic"] = verify_no_index_build(root, artifact, record, environment)
-    if record["selectionID"] == BUILD_ORDER_SELECTION_ID:
+    if record["selectionID"] in (BUILD_ORDER_SELECTION_ID, NOTIFICATION_INTERRUPTION_SELECTION_ID):
         build_order["buildOrderDiagnostic"] = build_order_observations(artifact, record, simulator["udid"])
     units = executed_methods(read_json(artifact / "unit-test-results.json"),
                              selection["unitTestSelectors"], "FieldEvidenceAppTests", "Unit test bundle")

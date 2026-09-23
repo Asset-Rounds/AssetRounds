@@ -1652,7 +1652,7 @@ jobs:
 
       - name: Build unsigned simulator app before boot (diagnostic)
         id: build_before_simulator_boot
-        if: ${{ inputs.native_acceptance_contract == 'v23.integration.current-native.v1' && inputs.native_selection_id == 'c36-destination-discard-build-before-boot' }}
+        if: ${{ inputs.native_acceptance_contract == 'v23.integration.current-native.v1' && (inputs.native_selection_id == 'c36-destination-discard-build-before-boot' || inputs.native_selection_id == 'notification-interruption-no-index-build30m') }}
         shell: bash
         env:
           DISPATCH_RUN_UI_SMOKE: ${{ inputs.run_ui_smoke }}
@@ -1756,7 +1756,7 @@ jobs:
 
       - name: Build unsigned simulator app
         id: build_unsigned_simulator_app
-        if: ${{ inputs.s10_4_execution_role != 'payload-consumer' && inputs.native_selection_id != 'c36-destination-discard-build-before-boot' }}
+        if: ${{ inputs.s10_4_execution_role != 'payload-consumer' && inputs.native_selection_id != 'c36-destination-discard-build-before-boot' && inputs.native_selection_id != 'notification-interruption-no-index-build30m' }}
         shell: bash
         env:
           DISPATCH_RUN_UI_SMOKE: ${{ inputs.run_ui_smoke }}

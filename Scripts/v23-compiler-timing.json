@@ -1,1 +1,16 @@
-{"mode":"timing-interruption-no-index-source-v5","parentHead":"1cf1d8618a2a2a410c36a328933cd22339293876","resolvedSelectionSHA256":"7E4D6D273ED3002156A31A7C1B8F533721F1F62ADC4C60CD3F8CCC7EFD03CCBB","sampleIntervalSeconds":5,"schemaVersion":5,"selectionMapSHA256":"316967E3CF0BF31ED1F1DFE05A118D041A61C7E3FA756C35637E226506008D5B","selectionSHA256":"CDD7411107440470C44C2AA29AC2C8139B44BBF1D7DD7F9A55D06221FE9D517E","sourceHead":"1cf1d8618a2a2a410c36a328933cd22339293876","sourceTrees":{"FieldEvidenceApp":"7731c5593306ce9bc2fa8ef49e928e50ad4f1ba3","FieldEvidenceApp.xcodeproj":"4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0","FieldEvidenceAppTests":"6c326564ba3538891a086515168d7d3e2a541f28","FieldEvidenceAppUITests":"978eced2587c6ed6cb280aa6cea7d4e3fa6e4190"}}
+{
+  "mode": "timing-interruption-before-boot-no-index-source-v6",
+  "parentHead": "cf357a4e75dce1a9bff56f4b72af60989d3df643",
+  "resolvedSelectionSHA256": "7E4D6D273ED3002156A31A7C1B8F533721F1F62ADC4C60CD3F8CCC7EFD03CCBB",
+  "sampleIntervalSeconds": 5,
+  "schemaVersion": 6,
+  "selectionMapSHA256": "316967E3CF0BF31ED1F1DFE05A118D041A61C7E3FA756C35637E226506008D5B",
+  "selectionSHA256": "CDD7411107440470C44C2AA29AC2C8139B44BBF1D7DD7F9A55D06221FE9D517E",
+  "sourceHead": "cf357a4e75dce1a9bff56f4b72af60989d3df643",
+  "sourceTrees": {
+    "FieldEvidenceApp": "7731c5593306ce9bc2fa8ef49e928e50ad4f1ba3",
+    "FieldEvidenceApp.xcodeproj": "4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0",
+    "FieldEvidenceAppTests": "6c326564ba3538891a086515168d7d3e2a541f28",
+    "FieldEvidenceAppUITests": "978eced2587c6ed6cb280aa6cea7d4e3fa6e4190"
+  }
+}
