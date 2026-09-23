@@ -191,7 +191,7 @@ private enum C38 {
             definition: definition, binding: try .init(definition), calendar: calendar,
             overrideEvents: [], previewOccurrences: previewOccurrences, definitions: [definition],
             history: history, completionHistory: history.filter { $0.action == .complete },
-            releaseHistory: [definition], evaluatedRange: try range(),
+            releaseHistory: [], evaluatedRange: try range(),
             activeUpcomingWorkspaceCount: 0, priorEvaluationAt: prior,
             reminderLocalizationKey: reminderLocalizationKey
         )
@@ -425,9 +425,15 @@ final class V9_101AdvancedRecurrenceWorkflowTests: XCTestCase {
         let conflictingOverride = try C38.override(
             definition: definition, occurrenceID: occurrenceID, kind: .skip, slot: 230
         )
-        XCTAssertThrowsError(try ScheduleOverridePrecedenceV1.validateClosure(
-            [firstOverride, conflictingOverride], for: try .init(definition)
-        ))
+        XCTAssertThrowsError(try ScheduleOverridePrecedenceV1.resolve(
+            occurrenceID: occurrenceID, nominalDate: C38.date("2025-02-28"),
+            nominalWindow: C38.anchor(), scheduleRelease: try .init(definition),
+            calendar: context.calendar,
+            adjustmentPolicy: context.binding.businessDayAdjustmentPolicy,
+            events: [firstOverride, conflictingOverride]
+        )) { error in
+            XCTAssertEqual(error as? ScheduleFailureV1, .divergentReplay)
+        }
         XCTAssertThrowsError(try ScheduleExceptionProjectionEngineV1.validateCommit(
             preview: projected.exceptionPreview,
             currentFrontier: ScheduleChangeFrontierV1(

@@ -4,17 +4,15 @@
 
 ## Fixed boundaries
 
-Only C:\AssetRounds-v23-s10-integration, codex/v23-s10-integration-20260910, task V23-INTEGRATION-20260910. Accepted main stays b1d04ae5. Preserve one app/project/scheme/writer/design system, S10 branding, five receipts,54 protected inputs, frozen authority and V30. Card135 owner-only/skipped; minimum-runtime/physical DEFERRED; releaseReady=false. No release actions.
+Only C:\AssetRounds-v23-s10-integration, codex/v23-s10-integration-20260910, task V23-INTEGRATION-20260910. Accepted main stays b1d04ae5. Preserve one app/project/scheme/writer/design system, S10 branding, five receipts,55 protected inputs (including owner-modified .codex/config.toml), frozen authority and V30. Card135 owner-only/skipped; minimum-runtime/physical DEFERRED; releaseReady=false. No release actions.
 
 ## Current critical path
 
-Original35802767660/e3fdee2 is terminal/sole-collected/root-audited5DD07604: compilationPASS,23/28PASS,5Failed,0new warning signatures,transportPASS;1331files/25sourcepins verified. C22G01 and the corrected AppLock toggle pass on this exact head. Three Erase failures now report invalidGeneration; the interruption test reports recoveryRequired then dataPointerInvalid. The separate generic-policy reminder case reports resourceValueMismatch. Retain original evidence and diagnose these exact failures; no unchanged retry or acceptance credit. Its exact source,215 protocol checks and complete-boundary/index/commit review passed. Parent915 original35794922122/audit1067A886 compiled22/28 with6Failed. Corrected C22/C38 physical-successor receipts and AppLock unlock sequencing preserve all assertions and production behavior. Use the newly retained typed Erase evidence for causal correction.
+Original35808291825/803a3d4 is terminal/sole-collected/root-audited D6CDF9BF: compilationPASS,83/86PASS,Finding70PASS,shop10/11,recurrence3/5,0newwarning signatures,transportPASS. CSV TAB admission and two recurrence fixture/API mistakes are source-proven; their correction is prepared, nativeNOT_RUN. Retain1352files/32sourcepins and exact-head results; no acceptance credit.
 
-The next isolated coverage batch is exact Finding70 (18/29/5/18), corrected shop11, then all five corrected C38 methods:86 on1054/68. C38 has no source colocation conflict; combined900-second runtime fit is UNKNOWN. Supersede the unadopted81 proposal, retain its source226PASS and all older drafts as provenance, and preserve every committed historical choice. Final current-source/protocol/helper/index/commit qualification remains due; all86 nativeNOT_RUN.
+Next: verify and independently review the three-file causal correction, retain exact86/1054/68/D30 and dispatch once after source/index/exact-commit gates. All70Finding passed on803; production owner/writer/schema/UI activation and full journeys remain due. Native result does not transfer.
 
-Eight reviewed Finding Swift files stay exact. No production owner/writer/schema/UI activation; committedV53/records52 versus protectedMyDayV54/records53 stays explicit. Qualification harness v2 removes stale source reads; bounded42 checks preserve all14 tests and old evidence, but final authentic prepared-entry qualification and independent review remain due.
-
-Completed-source63 passed on6b/auditB4A67E2B; do not reopen cleared profile/actor/journal diagnoses. Shop11 and C38five were absent from committed968 and must be enrolled and executed. Reminder populated/OS/UI/accessibility/human evidence remains incomplete. No head-specific pass transfers to the new candidate.
+The separate six-file recovery correction has independent source approval and isolated notification1054 support checks47PASS. Its product/source bindings and complete CI/index/commit/native gates remain due after this batch. Generic-policy resourceValueMismatch remains unlocated; reviewed default-off phase diagnostics preserve the original error.
 
 ## Retained evidence and remaining gates
 

@@ -272,8 +272,8 @@ NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS = (
     'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testEraseManifestHandoffRejectsHostileSidecarsTargetsAndChangedPointerWithoutConsumption',
 )
 FINDING_PROFILE_FIXTURES_SELECTION_ID = 'finding-profile-fixtures-no-index-build30m'
-FINDING_PROFILE_FIXTURES_PARENT = 'e3fdee2d74e978d1c4fada6fb7e07e4e641bd341'
-FINDING_PROFILE_FIXTURES_TREES = {'FieldEvidenceApp': '49f7df1ea61e9a36748650335da9bdfa47096fc7', 'FieldEvidenceAppTests': 'd367ee1686826992e85efbda001528c4a5ba38f2', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+FINDING_PROFILE_FIXTURES_PARENT = '803a3d495191333da7c5753064220a901417e910'
+FINDING_PROFILE_FIXTURES_TREES = {'FieldEvidenceApp': '19bf6a35bfcc725bf1358c1e01f57afa2bb6702c', 'FieldEvidenceAppTests': 'ab493b1146c525be2f39425a3b7fab0fc87e9a62', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 FINDING_PROFILE_FIXTURES_GROUPS = (
     ('finding-owner-selection', (
         'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testNineValuesRoundTripAndExposeExactClosedFields',

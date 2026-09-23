@@ -141,7 +141,13 @@ final class V9_69ShopProfileOpenHandoffTests: XCTestCase {
         for formula in ["\t=TAB", "\u{00A0}=NBSP", "\u{FEFF}=BOM", "\u{2003}=UNICODE"] {
             let guarded = try ShopReportProfileLifecycleAdapterV1.formulaSafeCSV(rows: [[formula]])
             XCTAssertEqual(String(decoding: guarded, as: UTF8.self), "\"'\(formula)\"\r\n")
+            let reopened = try ShopOpenEvidenceArtifactV1(format: .formulaSafeCSV, bytes: guarded)
+            XCTAssertEqual(reopened.bytes, guarded)
+            XCTAssertEqual(reopened.sha256, KernelCanonicalHashV1.sha256(guarded))
         }
+        let tabbed = try ShopReportProfileLifecycleAdapterV1.formulaSafeCSV(rows: [["left\tright", "\t@TAB"]])
+        XCTAssertEqual(String(decoding: tabbed, as: UTF8.self), "\"left\tright\",\"'\t@TAB\"\r\n")
+        XCTAssertEqual(try ShopOpenEvidenceArtifactV1(format: .formulaSafeCSV, bytes: tabbed).bytes, tabbed)
     }
 
     func testV23P04C04H01RejectsCorruptStaleUnsafeAndSecondRendererInputs() throws {
@@ -166,6 +172,14 @@ final class V9_69ShopProfileOpenHandoffTests: XCTestCase {
         XCTAssertThrowsError(try ShopReportProfileLifecycleAdapterV1.formulaSafeCSV(rows: [[""]]))
         XCTAssertThrowsError(try ShopReportProfileLifecycleAdapterV1.formulaSafeCSV(rows: Array(repeating: ["shape", "overflow"], count: ShopReportProfileLifecycleAdapterV1.maximumCSVRows + 1)))
         XCTAssertThrowsError(try ShopReportProfileLifecycleAdapterV1.formulaSafeCSV(rows: [["one"], ["two", "three"]]))
+        for forbidden in ["\u{0000}", "\n", "\r", "\u{000B}", "\u{000C}", "\u{007F}", "\u{0085}", "\u{202E}", "\u{2066}", "\u{FFFF}"] {
+            XCTAssertThrowsError(try ShopReportProfileLifecycleAdapterV1.formulaSafeCSV(rows: [["\t" + forbidden + "unsafe"]])) { error in
+                XCTAssertEqual(error as? ShopReportProfileFailureV1, .invalidValue)
+            }
+        }
+        XCTAssertThrowsError(try ShopReportProfileLifecycleAdapterV1.formulaSafeCSV(rows: [[String(repeating: "\t", count: ShopReportProfileLimitsV1.maximumTextBytes + 1)]]))
+        XCTAssertFalse(SnapshotProjectionValidationV1.validText("\t=TAB"))
+        XCTAssertThrowsError(try ShopOpenEvidenceArtifactV1(format: .formulaSafeCSV, bytes: Data("\"\t=TAB\"\r\n".utf8)))
         XCTAssertThrowsError(try DeterministicPDFRendererV1.reopen(Data("%PDF-1.4\n/JavaScript /Launch /EmbeddedFile /OpenAction /RichMedia /XFA https://remote.invalid\n%%EOF".utf8)))
         XCTAssertThrowsError(try DeterministicOpenJSONRendererV1.reopen(Data("{\"activeContent\":true}".utf8)))
         XCTAssertThrowsError(try DeterministicOpenJSONRendererV1.reopen(Data([0xFF, 0xFE, 0x00])))

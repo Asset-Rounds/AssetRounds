@@ -2939,6 +2939,7 @@ class FindingProfileFixturesDiagnosticTests(ReplacementPartitionDiagnosticTests)
             owned += ['FieldEvidenceApp/Domain/'+p for p in (
                 'InspectionKernel/FindingOwnerSelectionContractsV1.swift', 'InspectionKernel/FindingOwnerContractsV1.swift',
                 'Models/FindingOwnerPersistenceModelsV1.swift', 'InspectionKernel/FindingOwnerMutationContractsV1.swift')]
+            owned.append('FieldEvidenceApp/Infrastructure/Reporting/ShopReportProfileLifecycleAdapterV1.swift')
             for relative in owned:
                 target = checkout/relative; target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(ROOT/relative, target)
@@ -3039,8 +3040,8 @@ class FindingProfileFixturesDiagnosticTests(ReplacementPartitionDiagnosticTests)
         start = options.index(expected[0])
         self.assertEqual(options[start:start+7], expected)
         self.assertEqual(len(options), len(set(options)))
-        self.assertEqual(self.source_parent, 'e3fdee2d74e978d1c4fada6fb7e07e4e641bd341')
-        self.assertEqual(self.source_trees, {'FieldEvidenceApp': '49f7df1ea61e9a36748650335da9bdfa47096fc7', 'FieldEvidenceAppTests': 'd367ee1686826992e85efbda001528c4a5ba38f2', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'})
+        self.assertEqual(self.source_parent, '803a3d495191333da7c5753064220a901417e910')
+        self.assertEqual(self.source_trees, {'FieldEvidenceApp': '19bf6a35bfcc725bf1358c1e01f57afa2bb6702c', 'FieldEvidenceAppTests': 'ab493b1146c525be2f39425a3b7fab0fc87e9a62', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'})
 
     def test_exact_disjoint_ordered_union_and_historical_routes(self):
         prior, mapping = prefinding_values(self.default, self.mapping)

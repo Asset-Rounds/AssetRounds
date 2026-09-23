@@ -228,7 +228,9 @@ enum ShopReportProfileLifecycleAdapterV1 {
               rows.allSatisfy({ $0.count <= maximumCSVColumns }),
               rows.allSatisfy({ $0.count == rows[0].count }),
               rows.flatMap({ $0 }).allSatisfy({
-                  SnapshotProjectionValidationV1.validText($0)
+                  // CSV admits horizontal tabs; validate all other text rules
+                  // without changing the bytes sent to formula protection.
+                  SnapshotProjectionValidationV1.validText($0.replacingOccurrences(of: "\t", with: " "))
                       && $0.utf8.count <= ShopReportProfileLimitsV1.maximumTextBytes
               }) else {
             throw ShopReportProfileFailureV1.invalidValue

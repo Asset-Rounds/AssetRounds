@@ -1,6 +1,4 @@
-# Expansion into the existing AssetRounds app
-
-Current priority: diagnose audited e3 Reminder28 remaining five failures from retained typed evidence while qualifying the independent Finding70/shop11/C38five batch (86 methods). Original35802767660/e3fdee2 is terminal/sole-collected/root-audited5DD07604: compilationPASS,23/28PASS,5Failed,0new warning signatures,transportPASS;1331files/25sourcepins verified. C22G01 and the corrected AppLock toggle pass on this exact head. Three Erase failures now report invalidGeneration; the interruption test reports recoveryRequired then dataPointerInvalid. The separate generic-policy reminder case reports resourceValueMismatch. Retain original evidence and diagnose these exact failures; no unchanged retry or acceptance credit.
+Original35808291825/803a3d4 is terminal/sole-collected/root-audited D6CDF9BF: compilationPASS,83/86PASS,Finding70PASS,shop10/11,recurrence3/5,0newwarning signatures,transportPASS. CSV TAB admission and two recurrence fixture/API mistakes are source-proven; their correction is prepared, nativeNOT_RUN. Retain1352files/32sourcepins and exact-head results; no acceptance credit.
 
 Current native execution and audited outcomes: [ACTIVE_BRIEF](ACTIVE_BRIEF.md#current-critical-path). Reuse its head/run/evidence references; this navigation record grants no acceptance and does not replace the controlling requirements or the coverage ledger.
 
@@ -16,7 +14,7 @@ Current navigation checkpoint, 2026-09-22. [CURRENT_INTEGRATION](CURRENT_INTEGRA
 - Committed implementation, current native outcomes and the next causal question are recorded in ACTIVE_BRIEF; historical diagnostics stay in CURRENT_INTEGRATION and their sealed original audits.
 - The branch has one `FieldEvidenceApp.xcodeproj`, one shared `FieldEvidenceApp` scheme and the existing app architecture. The remaining problem is completing and verifying its production integration, not combining two app projects.
 - Parent-finalization performance and its unexecuted coverage remain explicit obligations in VERIFICATION_DUE. Reuse its retained phase timings and diagnosed work; do not infer a new cause from old log volume.
-- 54 protected local inputs remain preserved; their presence does not mean they are reconciled, committed or accepted.
+- 55 protected local inputs remain preserved; their presence does not mean they are reconciled, committed or accepted.
 
 ## Work required before main advances
 
