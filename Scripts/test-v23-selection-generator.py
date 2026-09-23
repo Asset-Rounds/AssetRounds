@@ -290,6 +290,9 @@ FINDING_PROFILE_FIXTURES_SELECTORS = [
 
 FINDING_HISTORICAL_PINS = [{'profile': 'incumbent-v1', 'selectionSHA256': '91E6F41D81E982D116611FF4A96219FE3631020B5CB264F76A8BDA1E4E27408E', 'mapSHA256': 'CD41DF01E106199B7CAE86CEDEB4BAA93F812C76D7B510BA6DC941DFCDDF7129'}, {'profile': 'prospective-v1', 'selectionSHA256': '203335CCCC8FACDC8560C1F23BA28A762854664264884CBFAFB8A0F0EDF42F6E', 'mapSHA256': '6D74CFA1BA6EBC0B46ED0656F285F8BD59DA61D62CB60E02C2B37B2978973EBD'}, {'profile': 'raw-photo-v1', 'selectionSHA256': '62673E1257EE72462439FA8770F3D3CFB50ED2FB06F0674C7C9E8D5FE2FDBEBB', 'mapSHA256': '77E605D5BE168687CC9EB81C4F695806C6A6E2FCD619411C64AA7E251676CEAC'}, {'profile': 'pair-startup-v1', 'selectionSHA256': '62F78130A529F9BDAE378F9A9A152E32E178CC5F132BEC1FDEF37D2CAAAAE722', 'mapSHA256': '70D3F3C4C034D82397564BA554425A2FFB93E51A345B1075CBD72F82610FF110'}, {'profile': 'photo-backup-v1', 'selectionSHA256': '930A9B3C186EDD0D09F9F630A9214A0FDD95362465B8FEFFBC735D78CF83AA5D', 'mapSHA256': '5BB4E7E1FA935EE74B962F4572F9384FBF5DC4E0BFA83178547D89E0A4287248'}, {'profile': 'configuration-clone-v1', 'selectionSHA256': 'C5BFBCF739DCD2BCAF77801385CD1A16C116D6AFE07F1AD02162F0AEF9030AA0', 'mapSHA256': '955D579A27A62C179660C0F8A4A38FF4D91FB9241244BA3B0334A9AF1B0C7A6E'}, {'profile': 'clone-retirement-v1', 'selectionSHA256': '42337B38E49081DA1D0F9265235B3787DE105C6E695123A6F2CEB560779E2878', 'mapSHA256': '1891580B81536B16989FDB4976A4288FB548A18DA0280C5D7345A22AD2DD5E85'}, {'profile': 'parent-finalization-v1', 'selectionSHA256': '1F2C99A95F04D378A6FB6FB0656FC0A9A6DC6A42D711E3FDD55996F86D25D572', 'mapSHA256': 'E1128081C187ABE0B9E2B69CA3998EA79EA71B4124A8BBD14942418F066F3A4E'}, {'profile': 'destination-review-v1', 'selectionSHA256': '575C83D0CAC78A35C9BB240193B5AC345425175762A73C7604A2EE5AABB04A1F', 'mapSHA256': '86AC237B0F2A650CCB3B083DD8C8DA50F7176D76C0B9F15816EBD27FD79E5411'}, {'profile': 'production-destination-v1', 'selectionSHA256': 'C82EBC63F02BA3B0A6957A09859C41B4686340402C6D8113A6A45040FFFBEDB5', 'mapSHA256': '732FBF8DC385F248761064F8073AD44C9F057A00CEE02140E0285874896C5F76'}, {'profile': 'restore-review-v1', 'selectionSHA256': '658B54FBAA5E5907778892FD8F6B07BA5DEE82E5542580AC20723DC711E33584', 'mapSHA256': '143C205A5011FDBF1688CDF885B047070F192471AEDC5BF5B06FBFC20517DB98'}, {'profile': 'reminder-production-v1', 'selectionSHA256': '5484325202957B1DFF6BCD00918273A7792D6D2E5280D32BFEE1368D67CBAE70', 'mapSHA256': '38554B50BAE48ED14098ED2B243B1D19497EB98EBA480A274741BDF6B6416B04'}, {'profile': 'reminder-compatibility-v1', 'selectionSHA256': '63394DBA6A8D5EF9C18C556473C5B3B28BE8178D3C9BEAC5032B611CA797A72A', 'mapSHA256': '73A11321226C73B195635CB75DD3046F0B49AE5BA8671D3B5A8255DA4D58A0D1'}, {'profile': 'restore-history-v1', 'selectionSHA256': 'C46A725BF7F425DACBB8DEFEBC31F2543354E6366958C385198DB48C22E9A978', 'mapSHA256': 'AC74ED40BF913D6CAC95195935FC142C261478DD4413188891026218231EB556'}, {'profile': 'erase-recovery-v1', 'selectionSHA256': '74C22D3BC39737E08CE20331DD429724EF4DDBC5574B2346C4754FBDEAB94D27', 'mapSHA256': '714083DCC599E6D6A3F58B1B0D91C1E990B66327A60E3F500F1E68CDC5368840'}, {'profile': 'erase-handoff-v1', 'selectionSHA256': 'C3E8641F51A9EEFF34D0E4E65198C35E9AD18DA030B8FED4CB57026BD6D86930', 'mapSHA256': '33C107349D7CA40E9F47B8391CE11A7C16DD800A3C5DD7754A96807248472DA7'}, {'profile': 'snapshot-family-v1', 'selectionSHA256': 'C4A8E689048D865A789F6B3A05CFB8373DD98736048F5596E9057A95AA1E2BCA', 'mapSHA256': '78A280FF3A2EF1302BF2E800F77C3C2411C3F9475717D90A3D4008E65E586D08'}, {'profile': 'replacement-history-coverage-v1', 'selectionSHA256': 'CAC57003CD7FFFA77BB4213C7132C62F2B74F16BBF12F4F6017D65372E293C06', 'mapSHA256': 'ED7B55ACCE7622188EFC8DCE634F8ADC621EA384BD791E2397D3A568E74340D7'}, {'profile': 'activity-codec-evolution-v1', 'selectionSHA256': '148CA7FF50E4100B0AD0272CB40A64DA34D38842499A317EE4EB2128A408E857', 'mapSHA256': 'EC7CF71ED309E4CCC55C439DAAB2E9B22F5D4A1A2F4AB3137A20071E3C766040'}, {'profile': 'activity-completed-source-v1', 'selectionSHA256': '40858D4EF21C001627E6F94FF4A35E3EE17F257E792B210A6B5A854CD296C6B9', 'mapSHA256': '5B858FD1BD73930B155AF7CA823553A62F7AD040B9BDA75839EA5222BD873ADB'}]
 
+SAVED_REVIEW_SELECTORS = ['FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceAuthenticatesCurrentPendingAndTerminalOriginalsWithoutReadEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceRejectsEverySubstitutedFieldAndNonDraftWithoutEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceReturnsUnsupportedOnlyAfterAuthenticCurrentReceipt', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceRejectsDirtyCorruptQuarantinedAndRetiredHistoryWithoutEffects', 'FieldEvidenceAppTests/V23ProductionFourRootShellTests/testPhysicalRestoredReviewDiscardUsesProductionAccessAndColdOriginalReadback']
+SAVED_REVIEW_BASE_COMMIT = '8a4672e15ddf340a63f2edc3c5245de4b22cc6ce'
+
 class GeneratorTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -333,7 +336,9 @@ class GeneratorTests(unittest.TestCase):
                 'V23ReminderControlContinuationTests': REPO / 'FieldEvidenceAppTests/V23ReminderControlContinuationTests.swift',
                 'V23RepetitiveCaptureRestoreReviewTests': REPO / 'FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests.swift',
                 'V23RestoreReviewAuthorityTests': REPO / 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests.swift',
+                'V23CheckRunnerItemFieldEditingTests': REPO / 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests.swift',
                 'V23ProductionDestinationReviewTests': REPO / 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests.swift',
+                'V23ProductionFourRootShellTests': REPO / 'FieldEvidenceAppTests/V23ProductionFourRootShellTests.swift',
                 'V23RepetitiveCaptureDestinationReviewTests': REPO / 'FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests.swift',
                 'V23RepetitiveCaptureDestinationResolutionTests': REPO / 'FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests.swift',
                 'V23RepetitiveCaptureDestinationDiscardTests': REPO / 'FieldEvidenceAppTests/V23RepetitiveCaptureDestinationDiscardTests.swift',
@@ -358,6 +363,107 @@ class GeneratorTests(unittest.TestCase):
     def generate(self, profile="prospective-v1", manifest=None, checkout=None):
         return generator.generate(manifest or copy.deepcopy(self.manifest), profile,
                                   checkout or self.checkout)
+
+    def test_saved_review_fields_profile_and_all_prior_outputs_are_exact(self):
+        fields = ['FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditsPersistIncompleteValuesAndColdReopenWithoutEffects', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditCASPreservesBeginAndPhotoSlotsAndRejectsFrozenOrForeignState', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditAcknowledgementLossRecoversOriginalBeforeNewerEdits', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldAutosaveUsesTrailingMaximumAndRetainsFailedAttempt', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldFlushDrainsEditsArrivingDuringAwaitAndAuthenticatesReadback']
+        prior, prior_map, _ = self.generate('saved-review-discard-v1')
+        current, mapping, report = self.generate('saved-review-fields-v1')
+        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1064, 69, 1064))
+        self.assertEqual(current, dict(prior, unitTestSelectors=prior['unitTestSelectors'] + fields))
+        self.assertEqual(mapping, dict(prior_map, groups=prior_map['groups'] + [
+            {'id': 'c36-field-edit', 'classes': ['V23CheckRunnerItemFieldEditingTests'], 'methodCount': 5}]))
+        self.assertEqual(generator.sha256(generator.canonical(prior)), 'A45F6BA826036252B8FFAE2C1B94FB599CA59FCAAA75CF5ACA09F1A5277A9DE1')
+        self.assertEqual(generator.sha256(generator.canonical(prior_map)), 'C4CC0CE51ECE1A2920E9B809ECA1210A4507D341579255FE8A7C998024DEF43F')
+        historical = copy.deepcopy(self.manifest)
+        historical['selectorPool'] = historical['selectorPool'][:-5]
+        historical['groups'] = historical['groups'][:-1]
+        historical['profiles'] = historical['profiles'][:-1]
+        for profile in historical['profiles']:
+            profile['excludedGroupIDs'].remove('c36-field-edit')
+        for profile in historical['profiles']:
+            old = generator.generate(historical, profile['id'], self.checkout)
+            new = self.generate(profile['id'])
+            self.assertEqual(tuple(generator.canonical(value) for value in new[:2]),
+                             tuple(generator.canonical(value) for value in old[:2]), profile['id'])
+
+    def test_saved_review_fields_real_generator_and_hostile_source(self):
+        command = [sys.executable, str(GENERATOR), 'verify', '--manifest', str(MANIFEST),
+                   '--checkout-root', str(self.checkout), '--profile', 'saved-review-fields-v1']
+        result = subprocess.run(command, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)['selectorCount'], 1064)
+        source = self.checkout / 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests.swift'
+        original = source.read_bytes()
+        try:
+            for selector in ['FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditsPersistIncompleteValuesAndColdReopenWithoutEffects', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditCASPreservesBeginAndPhotoSlotsAndRejectsFrozenOrForeignState', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditAcknowledgementLossRecoversOriginalBeforeNewerEdits', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldAutosaveUsesTrailingMaximumAndRetainsFailedAttempt', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldFlushDrainsEditsArrivingDuringAwaitAndAuthenticatesReadback']:
+                token = ('func ' + selector.rsplit('/', 1)[1] + '(').encode()
+                self.assertEqual(original.count(token), 1)
+                source.write_bytes(original.replace(token, b'func missingFieldMethod('))
+                result = subprocess.run(command, capture_output=True)
+                self.assertEqual(result.returncode, 65, result.stdout)
+                self.assertIn(b'missing or duplicate source method', result.stderr)
+        finally:
+            source.write_bytes(original)
+
+    def test_active_saved_review_fields_files_match_generated_output(self):
+        current, mapping, _ = self.generate('saved-review-fields-v1')
+        self.assertEqual(generator.canonical(current), (HERE/'ci-selection.json').read_bytes())
+        self.assertEqual(generator.canonical(mapping), (HERE/'ci-selection-map.json').read_bytes())
+
+    def test_saved_review_profile_adds_exact_five_without_changing_order_or_budgets(self):
+        prior, prior_map, _ = self.generate('finding-profile-fixtures-v1')
+        current, mapping, report = self.generate('saved-review-discard-v1')
+        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1059, 68, 1064))
+        self.assertEqual(current['unitTestSelectors'], prior['unitTestSelectors'] + SAVED_REVIEW_SELECTORS)
+        self.assertEqual({k: v for k, v in current.items() if k != 'unitTestSelectors'},
+                         {k: v for k, v in prior.items() if k != 'unitTestSelectors'})
+        expected = copy.deepcopy(prior_map)
+        for group in expected['groups']:
+            if group['id'] == 'c36-production-destination': group['methodCount'] += 4
+            if group['id'] == 'app-myday-production': group['methodCount'] += 1
+        self.assertEqual(mapping, expected)
+        self.assertEqual(generator.sha256(generator.canonical(current)), 'A45F6BA826036252B8FFAE2C1B94FB599CA59FCAAA75CF5ACA09F1A5277A9DE1')
+        self.assertEqual(generator.sha256(generator.canonical(mapping)), 'C4CC0CE51ECE1A2920E9B809ECA1210A4507D341579255FE8A7C998024DEF43F')
+        self.assertFalse(report['nativeReady'])
+        self.assertFalse(report['acceptance'])
+
+    def test_saved_review_profile_replays_all_twenty_one_historical_outputs(self):
+        old = json.loads(git_bytes('Scripts/v23-selection-manifest.json', SAVED_REVIEW_BASE_COMMIT))
+        self.assertEqual(len(old['profiles']), 21)
+        for profile in old['profiles']:
+            with self.subTest(profile=profile['id']):
+                expected, expected_map, _ = self.generate(profile['id'], manifest=copy.deepcopy(old))
+                actual, actual_map, _ = self.generate(profile['id'])
+                self.assertEqual(generator.canonical(actual), generator.canonical(expected))
+                self.assertEqual(generator.canonical(actual_map), generator.canonical(expected_map))
+
+    def test_saved_review_profile_rejects_duplicate_unknown_overlap_and_missing_real_method(self):
+        malformed = copy.deepcopy(self.manifest)
+        malformed['selectorPool'].append(SAVED_REVIEW_SELECTORS[0])
+        with self.assertRaises(generator.ManifestError):
+            self.generate('saved-review-discard-v1', manifest=malformed)
+        malformed = copy.deepcopy(self.manifest)
+        malformed['selectorPool'][-1] += 'Unknown'
+        with self.assertRaises(generator.ManifestError):
+            self.generate('saved-review-discard-v1', manifest=malformed)
+        malformed = copy.deepcopy(self.manifest)
+        malformed['groups'][0]['classes'].append('V23ProductionDestinationReviewTests')
+        with self.assertRaises(generator.ManifestError):
+            self.generate('saved-review-discard-v1', manifest=malformed)
+        with self.assertRaises(generator.ManifestError):
+            self.generate('saved-review-discard-unknown')
+        for selector in SAVED_REVIEW_SELECTORS:
+            name, method = selector.split('/')[1:]
+            source = self.checkout / 'FieldEvidenceAppTests' / (name + '.swift')
+            original = source.read_bytes()
+            token = ('func ' + method + '(').encode()
+            self.assertEqual(original.count(token), 1)
+            try:
+                source.write_bytes(original.replace(token, b'func unavailableSavedReviewMethod('))
+                with self.subTest(selector=selector), self.assertRaises(generator.ManifestError):
+                    self.generate('saved-review-discard-v1')
+            finally:
+                source.write_bytes(original)
 
     def test_exact_incumbent_reconstruction_and_prospective_delta(self):
         selection, selection_map, report = self.generate("incumbent-v1")
@@ -778,7 +884,7 @@ class GeneratorTests(unittest.TestCase):
     def test_finding_profile_appends_exact_86_and_real_command_rejects_hostile_sources(self):
         prior, prior_map, _ = self.generate('activity-completed-source-v1')
         current, mapping, report = self.generate('finding-profile-fixtures-v1')
-        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1054, 68, 1054))
+        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1054, 68, 1064))
         self.assertNotIn('finding-owner-components-v1', [p['id'] for p in self.manifest['profiles']])
         with self.assertRaises(generator.ManifestError):
             self.generate('finding-owner-components-v1')
@@ -791,8 +897,8 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(FINDING_PROFILE_FIXTURES_SELECTORS[81:], ['FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests/testV23P04C38G01PatternsOverridesAndHistoryProjectDeterministically', 'FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests/testV23P04C38A01LeapMonthEndLastWeekdayAndScopesPreview', 'FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests/testV23P04C38H01InvalidRulesStalePreviewAndIdentityDriftHaveNoEffects', 'FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests/testV23P04C38I01DSTClockReminderAndEffectBeforeReceiptRetryExactlyOnce', 'FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests/testV23P04C38R01CompletionScheduleChangeReplayAndRestoreRemainStable'])
         self.assertEqual({k:v for k,v in current.items() if k != 'unitTestSelectors'},
                          {k:v for k,v in prior.items() if k != 'unitTestSelectors'})
-        self.assertEqual(generator.canonical(current), (HERE/'ci-selection.json').read_bytes())
-        self.assertEqual(generator.canonical(mapping), (HERE/'ci-selection-map.json').read_bytes())
+        self.assertEqual(generator.canonical(current), git_bytes('Scripts/ci-selection.json', SAVED_REVIEW_BASE_COMMIT))
+        self.assertEqual(generator.canonical(mapping), git_bytes('Scripts/ci-selection-map.json', SAVED_REVIEW_BASE_COMMIT))
         self.assertEqual(hashlib.sha256(json.dumps(FINDING_PROFILE_FIXTURES_SELECTORS, sort_keys=True, separators=(',', ':')).encode()).hexdigest(),
                          'c3c89792dd9357e096fe42abf0f8e6dcde85d1711bf4ad6d895675a2a6f5810e')
         command = [sys.executable, str(GENERATOR), 'verify', '--manifest', str(MANIFEST),
@@ -825,7 +931,7 @@ class GeneratorTests(unittest.TestCase):
                 selected, mapping, report = self.generate(pin['profile'])
                 self.assertEqual(generator.sha256(generator.canonical(selected)), pin['selectionSHA256'])
                 self.assertEqual(generator.sha256(generator.canonical(mapping)), pin['mapSHA256'])
-                self.assertEqual(report['manifestSourceDeclarationCount'], 1054)
+                self.assertEqual(report['manifestSourceDeclarationCount'], 1064)
                 self.assertFalse(set(FINDING_PROFILE_FIXTURES_SELECTORS) & set(selected['unitTestSelectors']))
 
     def test_manifest_shape_membership_environment_and_path_hostiles(self):

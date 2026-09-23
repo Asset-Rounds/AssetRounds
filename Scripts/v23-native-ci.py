@@ -384,8 +384,14 @@ FINDING_PROFILE_FIXTURES_GROUPS = (
 FINDING_PROFILE_FIXTURES_SELECTORS = tuple(
     member for _, members in FINDING_PROFILE_FIXTURES_GROUPS for member in members
 )
+SAVED_REVIEW_FIELDS_SELECTION_ID = 'c36-saved-review-fields-no-index-build30m'
+SAVED_REVIEW_FIELDS_PARENT = 'c1c1b3ab63232751d17b56292b70a691e5bc7963'
+SAVED_REVIEW_FIELDS_TREES = {'FieldEvidenceApp': '68362a08411adc936d89b59ea30e69596618eafe', 'FieldEvidenceAppTests': '69d457160c7045ffad0e0a3dbefb7c71ab19cc2e', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+FIELD_EDIT_SELECTORS = ('FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditsPersistIncompleteValuesAndColdReopenWithoutEffects', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditCASPreservesBeginAndPhotoSlotsAndRejectsFrozenOrForeignState', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditAcknowledgementLossRecoversOriginalBeforeNewerEdits', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldAutosaveUsesTrailingMaximumAndRetainsFailedAttempt', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldFlushDrainsEditsArrivingDuringAwaitAndAuthenticatesReadback')
+SAVED_REVIEW_FIELDS_SELECTORS = ('FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionResolutionFreezesOneChoiceAndRecoversOriginalWithoutNewIDs', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionResolutionRejectsStaleTargetAndRetiredOwnerWithoutEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionDiscardRequiresConfirmationThenReplaysOriginalWithoutConfirmationOrEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionDiscardCanCompleteReviewWithoutOperationalRoundAndRejectsRetirement', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceAuthenticatesCurrentPendingAndTerminalOriginalsWithoutReadEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceRejectsEverySubstitutedFieldAndNonDraftWithoutEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceReturnsUnsupportedOnlyAfterAuthenticCurrentReceipt', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceRejectsDirtyCorruptQuarantinedAndRetiredHistoryWithoutEffects', 'FieldEvidenceAppTests/V23ProductionFourRootShellTests/testPhysicalRestoredReviewDiscardUsesProductionAccessAndColdOriginalReadback', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditsPersistIncompleteValuesAndColdReopenWithoutEffects', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditCASPreservesBeginAndPhotoSlotsAndRejectsFrozenOrForeignState', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditAcknowledgementLossRecoversOriginalBeforeNewerEdits', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldAutosaveUsesTrailingMaximumAndRetainsFailedAttempt', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldFlushDrainsEditsArrivingDuringAwaitAndAuthenticatesReadback')
 NO_INDEX_ROUTES = {
     NOTIFICATION_INTERRUPTION_SELECTION_ID: (NOTIFICATION_INTERRUPTION_PARENT, "D30"),
+    SAVED_REVIEW_FIELDS_SELECTION_ID: (SAVED_REVIEW_FIELDS_PARENT, "D30"),
     FINDING_PROFILE_FIXTURES_SELECTION_ID: (FINDING_PROFILE_FIXTURES_PARENT, "D30"),
     NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID: (NOTIFICATION_SCHEDULE_ERASE_BUILD30_PARENT, "D30"),
     ACTIVITY_COMPLETED_SOURCE_SELECTION_ID: (ACTIVITY_COMPLETED_SOURCE_PARENT, "D30"),
@@ -407,6 +413,8 @@ def no_index_source_trees(selection_id):
     require(selection_id in NO_INDEX_ROUTES, "no-index closed source binding")
     if selection_id == NOTIFICATION_INTERRUPTION_SELECTION_ID:
         return NOTIFICATION_INTERRUPTION_TREES
+    if selection_id == SAVED_REVIEW_FIELDS_SELECTION_ID:
+        return SAVED_REVIEW_FIELDS_TREES
     if selection_id == FINDING_PROFILE_FIXTURES_SELECTION_ID:
         return FINDING_PROFILE_FIXTURES_TREES
     if selection_id == NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID:
@@ -479,9 +487,35 @@ ERASE_DIAGNOSTIC_PARTITIONS = (
     (ERASE_DRAIN_SELECTION_ID, ERASE_RECOVERY_SELECTORS[:1]),
     (ERASE_REMAINDER_SELECTION_ID, ERASE_RECOVERY_SELECTORS[1:]),
 )
-GENERATED_SELECTION_PROFILE = 'finding-profile-fixtures-v1'
-GENERATED_SELECTION_POOL_SHA256 = 'CDD7411107440470C44C2AA29AC2C8139B44BBF1D7DD7F9A55D06221FE9D517E'
-GENERATED_SELECTION_MAP_SHA256 = '316967E3CF0BF31ED1F1DFE05A118D041A61C7E3FA756C35637E226506008D5B'
+PRE_SAVED_REVIEW_PROFILE = 'finding-profile-fixtures-v1'
+PRE_SAVED_REVIEW_POOL_SHA256 = 'CDD7411107440470C44C2AA29AC2C8139B44BBF1D7DD7F9A55D06221FE9D517E'
+PRE_SAVED_REVIEW_MAP_SHA256 = '316967E3CF0BF31ED1F1DFE05A118D041A61C7E3FA756C35637E226506008D5B'
+SAVED_REVIEW_PROFILE = 'saved-review-discard-v1'
+GENERATED_SELECTION_PROFILE = 'saved-review-fields-v1'
+SAVED_REVIEW_POOL_SHA256 = 'A45F6BA826036252B8FFAE2C1B94FB599CA59FCAAA75CF5ACA09F1A5277A9DE1'
+GENERATED_SELECTION_POOL_SHA256 = '157EAC0BDF9CC6CA18CDA479CC504B2577BF9E59A6FFEECA53A05A55DF8A3A5B'
+SAVED_REVIEW_MAP_SHA256 = 'C4CC0CE51ECE1A2920E9B809ECA1210A4507D341579255FE8A7C998024DEF43F'
+GENERATED_SELECTION_MAP_SHA256 = 'FB051F042006598DF8C07FA8F7125AA7BA4916626C1B7DAF10824ED1FC691758'
+SAVED_REVIEW_SELECTION_ID = 'c36-saved-review-discard'
+SAVED_REVIEW_NEW_SELECTORS = (
+    'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceAuthenticatesCurrentPendingAndTerminalOriginalsWithoutReadEffects',
+    'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceRejectsEverySubstitutedFieldAndNonDraftWithoutEffects',
+    'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceReturnsUnsupportedOnlyAfterAuthenticCurrentReceipt',
+    'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceRejectsDirtyCorruptQuarantinedAndRetiredHistoryWithoutEffects',
+    'FieldEvidenceAppTests/V23ProductionFourRootShellTests/testPhysicalRestoredReviewDiscardUsesProductionAccessAndColdOriginalReadback',
+)
+SAVED_REVIEW_REGRESSION_SELECTORS = (
+    'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionResolutionFreezesOneChoiceAndRecoversOriginalWithoutNewIDs',
+    'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionResolutionRejectsStaleTargetAndRetiredOwnerWithoutEffects',
+    'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionDiscardRequiresConfirmationThenReplaysOriginalWithoutConfirmationOrEffects',
+    'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionDiscardCanCompleteReviewWithoutOperationalRoundAndRejectsRetirement',
+)
+SAVED_REVIEW_SELECTORS = SAVED_REVIEW_REGRESSION_SELECTORS + SAVED_REVIEW_NEW_SELECTORS
+GENERATED_PROFILE_PINS = {
+    SAVED_REVIEW_POOL_SHA256: (SAVED_REVIEW_PROFILE, SAVED_REVIEW_MAP_SHA256),
+    GENERATED_SELECTION_POOL_SHA256: (GENERATED_SELECTION_PROFILE, GENERATED_SELECTION_MAP_SHA256),
+    PRE_SAVED_REVIEW_POOL_SHA256: (PRE_SAVED_REVIEW_PROFILE, PRE_SAVED_REVIEW_MAP_SHA256),
+}
 CONFIGURATION_CLONE_SELECTION_ID = "c36-photo-configuration-clone"
 CONFIGURATION_CLONE_SELECTORS = (
     'FieldEvidenceAppTests/S6_2BackupExportTests/testConfigurationCloneAcceptsEveryAuthenticPhotoPhaseAndOmitsOperationalFamily',
@@ -1237,7 +1271,7 @@ def validate_selection(selection):
         require(tuple(selection["unitTestSelectors"]) in (
             PARENT_FINALIZATION_METHOD_PARTITIONS[0][1], RESTORE_BUILD_WATCHDOG_SELECTORS,
             REMINDER_BUILD_WATCHDOG_SELECTORS, RESTORE_HISTORY_SELECTORS, REPLACEMENT_UNION_SELECTORS, ERASE_RECOVERY_SELECTORS, ACTIVITY_CONTRACT_SELECTORS, ACTIVITY_CODEC_PUNCH_SELECTORS, ACTIVITY_COMPLETED_SOURCE_SELECTORS,
-            NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS, NOTIFICATION_INTERRUPTION_SELECTORS, FINDING_PROFILE_FIXTURES_SELECTORS,
+            NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS, NOTIFICATION_INTERRUPTION_SELECTORS, FINDING_PROFILE_FIXTURES_SELECTORS, SAVED_REVIEW_FIELDS_SELECTORS,
             *(members for _, members in ERASE_DIAGNOSTIC_PARTITIONS),
             *(members for _, members in REPLACEMENT_DIAGNOSTIC_PARTITIONS)),
             "build watchdog exact approved methods")
@@ -1289,9 +1323,11 @@ def resolve_selection(default, selection_map, selection_id):
                  and g.get("classes") == ['S3_6CameraRecoveryTests', 'S4_5CorrectionTests', 'S6_2BackupExportTests', 'V9_18PackLifecycleIntegrationTests']]) == 1
     )
     generated_profile_shape = (
-        isinstance(groups, list) and len(groups) == 68
-        and sha256(canonical(default)) == GENERATED_SELECTION_POOL_SHA256
-        and sha256(canonical(selection_map)) == GENERATED_SELECTION_MAP_SHA256
+        isinstance(groups, list) and len(groups) in (68, 69)
+        and (sha256(canonical(default)), sha256(canonical(selection_map))) in (
+            (SAVED_REVIEW_POOL_SHA256, SAVED_REVIEW_MAP_SHA256),
+            (GENERATED_SELECTION_POOL_SHA256, GENERATED_SELECTION_MAP_SHA256),
+            (PRE_SAVED_REVIEW_POOL_SHA256, PRE_SAVED_REVIEW_MAP_SHA256))
     )
     require(isinstance(groups, list) and
             (len(groups) == 30 or (len(groups) == 31 and groups[-1] == c36_group)
@@ -1329,7 +1365,9 @@ def resolve_selection(default, selection_map, selection_id):
         # generated class map has passed every identity, overlap and coverage gate.
         require((sha256(canonical(default)), sha256(canonical(selection_map))) in (
                     (DURABLE_BEGIN_BASE_POOL_SHA256, DURABLE_BEGIN_BASE_MAP_SHA256),
-                    (GENERATED_SELECTION_POOL_SHA256, GENERATED_SELECTION_MAP_SHA256)),
+                    (GENERATED_SELECTION_POOL_SHA256, GENERATED_SELECTION_MAP_SHA256),
+                    (PRE_SAVED_REVIEW_POOL_SHA256, PRE_SAVED_REVIEW_MAP_SHA256),
+                    (SAVED_REVIEW_POOL_SHA256, SAVED_REVIEW_MAP_SHA256)),
                 "durable begin exact base pool/map")
         parent_members = tuple(resolved[DURABLE_BEGIN_PARENT_ID]["unitTestSelectors"])
         require(parent_members == DURABLE_BEGIN_PARENT_SELECTORS,
@@ -1563,7 +1601,7 @@ def resolve_selection(default, selection_map, selection_id):
         require(all(tuple(resolved[group]["unitTestSelectors"]) == members
                     for group, members in FINDING_PROFILE_FIXTURES_GROUPS)
                 and len(FINDING_PROFILE_FIXTURES_SELECTORS) == len(set(FINDING_PROFILE_FIXTURES_SELECTORS)) == 86
-                and tuple(default["unitTestSelectors"][-86:]) == FINDING_PROFILE_FIXTURES_SELECTORS,
+                and tuple(default["unitTestSelectors"][968:1054]) == FINDING_PROFILE_FIXTURES_SELECTORS,
                 "finding/profile fixtures exact ordered enrolled union")
         require(FINDING_PROFILE_FIXTURES_SELECTION_ID not in resolved,
                 "finding/profile fixtures distinct selection")
@@ -1571,6 +1609,29 @@ def resolve_selection(default, selection_map, selection_id):
         finding.update(tier="D30", **dict(zip(BUDGET_KEYS, TIERS["D30"])))
         validate_selection(finding)
         resolved[FINDING_PROFILE_FIXTURES_SELECTION_ID] = finding
+    if generated_profile_shape and sha256(canonical(default)) in (SAVED_REVIEW_POOL_SHA256, GENERATED_SELECTION_POOL_SHA256):
+        require(tuple(default["unitTestSelectors"][1054:1059]) == SAVED_REVIEW_NEW_SELECTORS
+                and tuple(default["unitTestSelectors"][773:777]) == SAVED_REVIEW_REGRESSION_SELECTORS
+                and tuple(resolved["c36-production-destination"]["unitTestSelectors"])
+                    == SAVED_REVIEW_REGRESSION_SELECTORS + SAVED_REVIEW_NEW_SELECTORS[:4]
+                and SAVED_REVIEW_NEW_SELECTORS[4] in resolved["app-myday-production"]["unitTestSelectors"]
+                and len(SAVED_REVIEW_SELECTORS) == len(set(SAVED_REVIEW_SELECTORS)) == 9,
+                "saved review exact ordered enrolled union")
+        require(SAVED_REVIEW_SELECTION_ID not in resolved, "saved review distinct selection")
+        saved_review = dict(default, unitTestSelectors=list(SAVED_REVIEW_SELECTORS))
+        validate_selection(saved_review)
+        resolved[SAVED_REVIEW_SELECTION_ID] = saved_review
+    if generated_profile_shape and sha256(canonical(default)) == GENERATED_SELECTION_POOL_SHA256:
+        require(tuple(default["unitTestSelectors"][1059:]) == FIELD_EDIT_SELECTORS
+                and tuple(resolved["c36-field-edit"]["unitTestSelectors"]) == FIELD_EDIT_SELECTORS
+                and SAVED_REVIEW_FIELDS_SELECTORS == SAVED_REVIEW_SELECTORS + FIELD_EDIT_SELECTORS
+                and len(SAVED_REVIEW_FIELDS_SELECTORS) == len(set(SAVED_REVIEW_FIELDS_SELECTORS)) == 14,
+                "saved review fields exact ordered disjoint enrolled union")
+        require(SAVED_REVIEW_FIELDS_SELECTION_ID not in resolved, "saved review fields distinct selection")
+        combined = dict(default, unitTestSelectors=list(SAVED_REVIEW_FIELDS_SELECTORS), tier="D30",
+                        **dict(zip(BUDGET_KEYS, TIERS["D30"])))
+        validate_selection(combined)
+        resolved[SAVED_REVIEW_FIELDS_SELECTION_ID] = combined
     if "erase-lease-lifecycle" in resolved:
         require(tuple(resolved["erase-lease-lifecycle"]["unitTestSelectors"]) == ERASE_LEASE_SELECTORS,
                 "erase exact enrolled lifecycle methods")
@@ -1605,7 +1666,10 @@ def verify_generated_selection(root, default, selection_map):
     generator = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(generator)
     manifest = generator.load_json(root / "Scripts/v23-selection-manifest.json")
-    expected, expected_map, report = generator.generate(manifest, GENERATED_SELECTION_PROFILE, root)
+    pool_digest = sha256(canonical(default))
+    require(pool_digest in GENERATED_PROFILE_PINS, "generated selection known profile digest")
+    profile, map_digest = GENERATED_PROFILE_PINS[pool_digest]
+    expected, expected_map, report = generator.generate(manifest, profile, root)
     expected_partitions = {"schemaVersion": 1, "families": [{
         "parentID": ERASE_RECOVERY_SELECTION_ID,
         "parentSelectors": list(ERASE_RECOVERY_SELECTORS),
@@ -1622,8 +1686,8 @@ def verify_generated_selection(root, default, selection_map):
             "diagnostic manifest exact closed partition binding")
     require(canonical(default) == canonical(expected) and canonical(selection_map) == canonical(expected_map),
             "generated selection differs from manifest/source")
-    require(report["selectionSHA256"] == GENERATED_SELECTION_POOL_SHA256
-            and report["selectionMapSHA256"] == GENERATED_SELECTION_MAP_SHA256,
+    require(report["selectionSHA256"] == pool_digest
+            and report["selectionMapSHA256"] == map_digest,
             "generated selection profile digest")
     return report
 
@@ -1640,7 +1704,7 @@ def selected_input(root, environment):
                          "selectionSHA256": sha256(canonical(default)), "selectionMapSHA256": ""}
     selection_map = read_json(root / SELECTION_MAP_PATH)
     selected = resolve_selection(default, selection_map, selection_id)
-    if sha256(canonical(default)) == GENERATED_SELECTION_POOL_SHA256:
+    if sha256(canonical(default)) in GENERATED_PROFILE_PINS:
         verify_generated_selection(root, default, selection_map)
     return selected, {"selectionID": selection_id, "selectionSHA256": sha256(canonical(selected)),
                       "selectionMapSHA256": sha256((root / SELECTION_MAP_PATH).read_bytes())}
@@ -1710,6 +1774,7 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
                 for key in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT")), "original run identity")
     watchdog_routes = {
         NOTIFICATION_INTERRUPTION_SELECTION_ID: (NOTIFICATION_INTERRUPTION_PARENT, NOTIFICATION_INTERRUPTION_SELECTORS),
+        SAVED_REVIEW_FIELDS_SELECTION_ID: (SAVED_REVIEW_FIELDS_PARENT, SAVED_REVIEW_FIELDS_SELECTORS),
         FINDING_PROFILE_FIXTURES_SELECTION_ID: (FINDING_PROFILE_FIXTURES_PARENT, FINDING_PROFILE_FIXTURES_SELECTORS),
         NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID: (NOTIFICATION_SCHEDULE_ERASE_BUILD30_PARENT, NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS),
         ACTIVITY_COMPLETED_SOURCE_SELECTION_ID: (ACTIVITY_COMPLETED_SOURCE_PARENT, ACTIVITY_COMPLETED_SOURCE_SELECTORS),

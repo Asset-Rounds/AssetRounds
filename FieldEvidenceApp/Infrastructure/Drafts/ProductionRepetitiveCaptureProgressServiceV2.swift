@@ -114,6 +114,44 @@ final class ProductionRepetitiveCaptureProgressServiceV2 {
         try transitions.validateRepetitiveCaptureOwner(session)
     }
 
+    /// A saved-row reference is a hint until the current checkpoint and its
+    /// original receipt agree. Unsupported authenticated drafts stay separate
+    /// from stale or corrupt inputs, which must never become an empty route.
+    func destinationReview(reference: MyDayEligibleReferenceV1) throws -> RepetitiveCaptureReviewLineageV1? {
+        let current = try currentSession()
+        try reference.validate()
+        guard case let .resumableDraft(workspace, draftID, revision, digest, anchor) = reference,
+              workspace == workspaceID,
+              let checkpoint = try adapter(current).currentCheckpoint(workspaceID: workspaceID, draftID: draftID),
+              checkpoint.draftRevision == revision, checkpoint.checkpointSHA256 == digest,
+              checkpoint.resumeAnchor == anchor else { throw ScanToWorkFailureV1.stale }
+        let release = try RepetitiveCaptureDestinationReviewCodecV1.release()
+        if checkpoint.codec.codecID == release.codecID {
+            guard checkpoint.purpose == .repetitiveCapture, checkpoint.codec == release else {
+                throw ScanToWorkFailureV1.authorityMismatch
+            }
+            let lineage = try current.workspaceWriter.repetitiveCaptureDestinationReviewLineage(
+                workspaceID: workspaceID, mutationID: checkpoint.mutationID)
+            guard lineage.selectedReview.checkpoint == checkpoint else { throw ScanToWorkFailureV1.authorityMismatch }
+            return lineage
+        }
+        guard let evidence = try current.workspaceWriter.fieldDraftEvidence(mutationID: checkpoint.mutationID),
+              evidence.mutation.workspaceID == checkpoint.workspaceID else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+        let original: FieldDraftCheckpointV1
+        switch evidence.mutation.postImage {
+        case let .createCheckpoint(value), let .reviseCheckpoint(value): original = value
+        case let .resolveConflict(value): original = value.successorCheckpoint
+        case let .publishReadyStage(value): original = value.successorCheckpoint
+        case let .applyCommitTerminal(value, _): original = value.committedCheckpoint
+        case let .applyDiscardTerminal(value): original = value.discardedCheckpoint
+        default: throw ScanToWorkFailureV1.authorityMismatch
+        }
+        guard original == checkpoint else { throw ScanToWorkFailureV1.authorityMismatch }
+        return nil
+    }
+
     func destinationReview(reviewDraftID: UUID) throws -> RepetitiveCaptureReviewLineageV1 {
         let current = try currentSession()
         guard let checkpoint = try adapter(current).currentCheckpoint(workspaceID: workspaceID, draftID: reviewDraftID)

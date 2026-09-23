@@ -7,6 +7,8 @@ struct ProductionWorkRootViewV1: View {
     static let screenAccessibilityIdentifier = "v23.shell.work.screen"
     @ObservedObject var source: ProductionMyDaySourceStateV1
     var openRound: ((MyDayEligibleReferenceV1) -> Void)? = nil
+    var reviewAccess: AppAccessPresentationV1.RoundAccess? = nil
+    var openSavedReview: ((MyDayEligibleReferenceV1) -> Void)? = nil
 
     var body: some View {
         List {
@@ -25,6 +27,10 @@ struct ProductionWorkRootViewV1: View {
                             }
                             .buttonStyle(.plain)
                             .accessibilityIdentifier("v23.work.round." + sessionID.uuidString.lowercased())
+                        } else if case .resumableDraft = item.reference,
+                                  let reviewAccess, let openSavedReview {
+                            ProductionSavedReviewRowV1(source: item, readiness: readiness,
+                                access: reviewAccess, open: openSavedReview)
                         } else {
                             sourceRow(item, readiness: readiness)
                         }

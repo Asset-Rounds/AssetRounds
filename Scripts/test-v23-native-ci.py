@@ -419,10 +419,46 @@ FINDING_PROFILE_FIXTURES_SELECTORS = [
     'FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests/testV23P04C38R01CompletionScheduleChangeReplayAndRestoreRemainStable',
 ]
 
+def prefield_edit_values(default, mapping):
+    if len(default.get('unitTestSelectors', [])) != 1064:
+        raise AssertionError('changed field edit pool count')
+    if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.GENERATED_SELECTION_POOL_SHA256, CI.GENERATED_SELECTION_MAP_SHA256):
+        raise AssertionError('changed field edit generated inputs')
+    if tuple(default['unitTestSelectors'][-5:]) != CI.FIELD_EDIT_SELECTORS or mapping['groups'][-1] != {
+            'id': 'c36-field-edit', 'classes': ['V23CheckRunnerItemFieldEditingTests'], 'methodCount': 5}:
+        raise AssertionError('changed field edit append')
+    default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+    default['unitTestSelectors'] = default['unitTestSelectors'][:-5]
+    mapping['groups'] = mapping['groups'][:-1]
+    if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.SAVED_REVIEW_POOL_SHA256, CI.SAVED_REVIEW_MAP_SHA256):
+        raise AssertionError('changed historical saved review profile')
+    return default, mapping
+
+
+def presaved_review_values(default, mapping):
+    if len(default.get('unitTestSelectors', [])) == 1064:
+        default, mapping = prefield_edit_values(default, mapping)
+    if len(default.get('unitTestSelectors', [])) != 1059:
+        raise AssertionError('changed saved review pool count')
+    if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.SAVED_REVIEW_POOL_SHA256, CI.SAVED_REVIEW_MAP_SHA256):
+        raise AssertionError('changed saved review generated inputs')
+    if tuple(default['unitTestSelectors'][-5:]) != CI.SAVED_REVIEW_NEW_SELECTORS:
+        raise AssertionError('changed exact saved review append')
+    default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+    default['unitTestSelectors'] = default['unitTestSelectors'][:-5]
+    for group in mapping['groups']:
+        group['methodCount'] -= {'c36-production-destination': 4, 'app-myday-production': 1}.get(group['id'], 0)
+    if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.PRE_SAVED_REVIEW_POOL_SHA256, CI.PRE_SAVED_REVIEW_MAP_SHA256):
+        raise AssertionError('changed historical finding profile')
+    return default, mapping
+
+
 def prefinding_values(default, mapping):
+    if len(default.get('unitTestSelectors', [])) in (1059, 1064):
+        default, mapping = presaved_review_values(default, mapping)
     if len(default.get('unitTestSelectors', [])) != 1054:
         raise AssertionError('changed finding pool count')
-    if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.GENERATED_SELECTION_POOL_SHA256, CI.GENERATED_SELECTION_MAP_SHA256):
+    if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.PRE_SAVED_REVIEW_POOL_SHA256, CI.PRE_SAVED_REVIEW_MAP_SHA256):
         raise AssertionError('changed finding generated inputs')
     if default['unitTestSelectors'][-86:] != FINDING_PROFILE_FIXTURES_SELECTORS or mapping['groups'][-6:] != FINDING_PROFILE_FIXTURES_GROUPS:
         raise AssertionError('changed exact finding append')
@@ -435,7 +471,7 @@ def prefinding_values(default, mapping):
 
 
 def precompleted_values(default, mapping):
-    if len(default.get('unitTestSelectors', [])) == 1054:
+    if len(default.get('unitTestSelectors', [])) in (1054, 1059, 1064):
         default, mapping = prefinding_values(default, mapping)
     if len(default.get('unitTestSelectors', [])) != 968:
         raise AssertionError('changed completed-source pool count')
@@ -450,7 +486,7 @@ def precompleted_values(default, mapping):
 
 
 def prepartition_values(default, mapping):
-    if len(default.get('unitTestSelectors', [])) == 1054:
+    if len(default.get('unitTestSelectors', [])) in (1054, 1059, 1064):
         default, mapping = prefinding_values(default, mapping)
     if len(default.get('unitTestSelectors', [])) == 968:
         default, mapping = precompleted_values(default, mapping)
@@ -684,6 +720,10 @@ def prepartition_workflow(workflow):
     choice = '          - ' + CI.NOTIFICATION_INTERRUPTION_SELECTION_ID + '\n'
     if workflow.count(choice) != 1: raise AssertionError('missing exact notification interruption choice')
     workflow = workflow.replace(choice, '')
+    for group_id in (CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
+        choice = '          - ' + group_id + '\n'
+        if workflow.count(choice) != 1: raise AssertionError('missing exact field edit choice')
+        workflow = workflow.replace(choice, '')
     for group_id in [group['id'] for group in FINDING_PROFILE_FIXTURES_GROUPS] + [CI.FINDING_PROFILE_FIXTURES_SELECTION_ID]:
         choice = '          - ' + group_id + '\n'
         if workflow.count(choice) != 1: raise AssertionError('missing exact finding component choice')
@@ -724,6 +764,9 @@ def prepartition_workflow(workflow):
     workflow = workflow.replace("all 790 methods across 48 bounded groups", "all 777 methods across 46 bounded groups")
     choice = '          - ' + CI.BUILD_ORDER_SELECTION_ID + '\n'
     if workflow.count(choice) != 1: raise AssertionError('missing exact build order choice')
+    workflow = workflow.replace(choice, '')
+    choice = '          - c36-saved-review-discard\n'
+    if workflow.count(choice) != 1: raise AssertionError('missing exact saved review choice')
     workflow = workflow.replace(choice, '')
     choice = '          - c36-production-destination\n'
     if workflow.count(choice) != 1: raise AssertionError('missing exact production destination choice')
@@ -802,6 +845,115 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
         cls.default = CI.read_json(cls.root / 'Scripts/ci-selection.json')
         cls.mapping = CI.read_json(cls.root / CI.SELECTION_MAP_PATH)
 
+    def test_saved_review_exact_nine_actual_select_public_worker_and_original_method_evidence(self):
+        expected = PRODUCTION_DESTINATION_SELECTORS + list(CI.SAVED_REVIEW_NEW_SELECTORS)
+        e = dict(environment(), NATIVE_SELECTION_ID='c36-saved-review-discard')
+        selected, record = CI.selected_input(self.root, e)
+        self.assertEqual(selected['unitTestSelectors'], expected)
+        self.assertEqual((len(expected), len(set(expected))), (9, 9))
+        self.assertEqual(tuple(selected[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
+        self.assertEqual((selected['tier'], selected['runUISmoke'], selected['uiTestSelectors']), ('N8', False, []))
+        self.assertNotIn(record['selectionID'], CI.NO_INDEX_ROUTES)
+        self.assertEqual(record['selectionSHA256'], CI.sha256(CI.canonical(selected)))
+        self.assertEqual(record['selectionMapSHA256'], CI.sha256((self.root / CI.SELECTION_MAP_PATH).read_bytes()))
+        e.update(DISPATCH_NATIVE_SELECTION_ID=record['selectionID'],
+                 DISPATCH_NATIVE_SELECTION_SHA256=record['selectionSHA256'],
+                 DISPATCH_NATIVE_SELECTION_MAP_SHA256=record['selectionMapSHA256'])
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'selected.json'
+            result = subprocess.run([sys.executable, str(Path(CI.__file__)), 'select', '--output', str(output)],
+                env=dict(os.environ, **e, GITHUB_WORKSPACE=str(self.root)), capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(output.read_bytes(), CI.canonical(selected))
+        result = subprocess.run(['jq', '-e', '-f', str(ROOT / 'Scripts/ci-worker-selection.jq')],
+                                input=CI.canonical(selected), capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for stage in ('dispatch', 'worker'):
+            admitted = CI.admission(selected, e, HEAD, stage, record, ROOT)
+            self.assertEqual(admitted['selectionID'], 'c36-saved-review-discard')
+            self.assertEqual(admitted['selectionSHA256'], record['selectionSHA256'])
+            self.assertFalse(admitted['acceptance'])
+        for key in ('DISPATCH_NATIVE_SELECTION_ID', 'DISPATCH_NATIVE_SELECTION_SHA256', 'DISPATCH_NATIVE_SELECTION_MAP_SHA256'):
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                CI.admission(selected, dict(e, **{key: 'changed'}), HEAD, 'worker', record, ROOT)
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text()
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        choices = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        self.assertEqual(choices.count(record['selectionID']), 1)
+        self.assertEqual(choices[choices.index('c36-production-destination') + 1], record['selectionID'])
+        self.assertIn('NATIVE_SELECTION_ID: ${{ inputs.native_selection_id }}', workflow)
+        self.assertIn('native_selection_id: ${{ needs.shared-selection.outputs.native_selection_id || inputs.native_selection_id }}', workflow)
+        worker = (ROOT / '.github/workflows/ios-ci-worker.yml').read_text()
+        for key in ('NATIVE_SELECTION_ID', 'DISPATCH_NATIVE_SELECTION_ID', 'DISPATCH_NATIVE_SELECTION_SHA256', 'DISPATCH_NATIVE_SELECTION_MAP_SHA256'):
+            self.assertIn(key + ':', worker)
+        tree = native_tree(expected[0])
+        cases = tree['testNodes'][0]['children'][0]['children'][0]['children']
+        cases[:] = [copy.deepcopy(leaf(native_tree(method))) for method in expected]
+        self.assertEqual(CI.executed_methods(tree, expected, 'FieldEvidenceAppTests', 'Unit test bundle'), sorted(expected))
+        for changed in (cases[:-1], cases + [cases[0]]):
+            hostile = copy.deepcopy(tree)
+            hostile['testNodes'][0]['children'][0]['children'][0]['children'] = changed
+            with self.assertRaises(ValueError):
+                CI.executed_methods(hostile, expected, 'FieldEvidenceAppTests', 'Unit test bundle')
+
+    def test_saved_review_exact_nine_rejects_pool_map_profile_source_and_unknown_changes(self):
+        e = dict(environment(), NATIVE_SELECTION_ID=CI.SAVED_REVIEW_SELECTION_ID)
+        changes = []
+        for members in (self.default['unitTestSelectors'][:-1], self.default['unitTestSelectors'][::-1],
+                        self.default['unitTestSelectors'][:-1] + self.default['unitTestSelectors'][:1],
+                        self.default['unitTestSelectors'][:-1] + [UNIT]):
+            changes.append((self.root / 'Scripts/ci-selection.json', CI.canonical(dict(self.default, unitTestSelectors=members))))
+        changed = copy.deepcopy(self.mapping); changed['groups'][0]['classes'] += changed['groups'][1]['classes']
+        changes.append((self.root / CI.SELECTION_MAP_PATH, CI.canonical(changed)))
+        path = self.root / 'Scripts/v23-selection-manifest.json'; changed = CI.read_json(path)
+        next(p for p in changed['profiles'] if p['id'] == CI.GENERATED_SELECTION_PROFILE)['excludedSelectors'] = [CI.SAVED_REVIEW_NEW_SELECTORS[-1]]
+        changes.append((path, CI.canonical(changed)))
+        for selector in CI.SAVED_REVIEW_NEW_SELECTORS:
+            _, name, method = selector.split('/')
+            path = self.root / 'FieldEvidenceAppTests' / (name + '.swift')
+            token = ('func ' + method + '(').encode(); raw = path.read_bytes()
+            self.assertEqual(raw.count(token), 1)
+            changes.append((path, raw.replace(token, b'func missingSavedReviewMethod(')))
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'selected.json'
+            for path, changed in changes:
+                original = path.read_bytes()
+                try:
+                    path.write_bytes(changed)
+                    result = subprocess.run([sys.executable, str(Path(CI.__file__)), 'select', '--output', str(output)],
+                        env=dict(os.environ, **e, GITHUB_WORKSPACE=str(self.root)), capture_output=True)
+                    self.assertNotEqual(result.returncode, 0, result.stdout)
+                    self.assertFalse(output.exists())
+                finally:
+                    path.write_bytes(original)
+        for suffix in ('-unknown', '-no-index-build30m', '-ui'):
+            with self.assertRaisesRegex(ValueError, 'unknown selection ID'):
+                CI.resolve_selection(self.default, self.mapping, CI.SAVED_REVIEW_SELECTION_ID + suffix)
+        for key in CI.BUDGET_KEYS:
+            changed = dict(self.default); changed[key] += 1
+            with self.assertRaises(ValueError): CI.resolve_selection(changed, self.mapping, CI.SAVED_REVIEW_SELECTION_ID)
+
+    def test_saved_review_retains_historical_1054_and_every_unchanged_public_selection(self):
+        old_pool, old_map = presaved_review_values(self.default, self.mapping)
+        report = CI.verify_generated_selection(self.root, old_pool, old_map)
+        self.assertEqual((report['selectorCount'], report['groupCount']), (1054, 68))
+        with self.assertRaisesRegex(ValueError, 'unknown selection ID'):
+            CI.resolve_selection(old_pool, old_map, CI.SAVED_REVIEW_SELECTION_ID)
+        pin = '8a4672e15ddf340a63f2edc3c5245de4b22cc6ce'
+        source = subprocess.check_output(['git', 'show', pin + ':Scripts/v23-native-ci.py'], cwd=ROOT)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'prior.py'; path.write_bytes(source)
+            spec = importlib.util.spec_from_file_location('presaved_ci', path)
+            old = importlib.util.module_from_spec(spec); spec.loader.exec_module(old)
+            workflow = subprocess.check_output(['git', 'show', pin + ':.github/workflows/ios-ci.yml'], cwd=ROOT).decode()
+            block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+            for identifier in re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M):
+                previous = old.resolve_selection(old_pool, old_map, identifier)
+                self.assertEqual(CI.canonical(CI.resolve_selection(old_pool, old_map, identifier)), old.canonical(previous))
+                current = CI.resolve_selection(self.default, self.mapping, identifier)
+                additions = list(CI.SAVED_REVIEW_NEW_SELECTORS + CI.FIELD_EDIT_SELECTORS) if identifier == CI.DEFAULT_SELECTION_ID else list(CI.SAVED_REVIEW_NEW_SELECTORS[:4]) if identifier == 'c36-production-destination' else list(CI.SAVED_REVIEW_NEW_SELECTORS[4:]) if identifier == 'app-myday-production' else []
+                self.assertEqual(current, dict(previous, unitTestSelectors=previous['unitTestSelectors'] + additions))
+
     def test_partition_selected_input_binds_manifest_and_exact_public_worker_choice(self):
         path = self.root / 'Scripts/v23-selection-manifest.json'
         original = path.read_bytes()
@@ -825,12 +977,12 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
 
     def test_current_generated_profile_admits_exact_new_groups_and_binds_protocol_sources(self):
         report = CI.verify_generated_selection(self.root, self.default, self.mapping)
-        self.assertEqual((report['selectorCount'], report['groupCount']), (1054, 68))
+        self.assertEqual((report['selectorCount'], report['groupCount']), (1064, 69))
         for group_id, count in [('mutation-receipt-safety', 1), ('c36-raw-staging', 5),
                                 ('notification-owner', 93), ('c36-startup-recovery', 2),
                                 ('backup-capacity', 1), ('c36-photo-backup-transport', 12),
                                 ('c36-photo-backup-restore', 3), ('c36-photo-configuration-clone', 7),
-                                ('c36-production-destination', 4), ('c36-restore-review', 6), ('c36-restore-authority', 7),
+                                ('c36-production-destination', 8), ('app-myday-production', 28), (CI.SAVED_REVIEW_SELECTION_ID, 9), ('c36-restore-review', 6), ('c36-restore-authority', 7),
                                 ('notification-schedule-erase', 28), ('activity-contracts', 1), ('replacement-packet-union', 12), ('activity-codec-evolution', 11)] + [(g['id'], g['methodCount']) for g in ACTIVITY_COMPLETED_GROUPS + FINDING_PROFILE_FIXTURES_GROUPS]:
             e = environment()
             e['NATIVE_SELECTION_ID'] = group_id
@@ -868,7 +1020,7 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
                 value[key] = value[key][::-1]
                 changes.append((path, CI.canonical(value)))
             path = self.root/'Scripts/v23-selection-manifest.json'; value = CI.read_json(path)
-            next(p for p in value['profiles'] if p['id'] == 'finding-profile-fixtures-v1')['excludedGroupIDs'] = ['finding-owner-selection']
+            next(p for p in value['profiles'] if p['id'] == CI.GENERATED_SELECTION_PROFILE)['excludedGroupIDs'] = ['finding-owner-selection']
             changes.append((path, CI.canonical(value)))
             for group in FINDING_PROFILE_FIXTURES_GROUPS:
                 name = group['classes'][0]; path = self.root/'FieldEvidenceAppTests'/(name+'.swift')
@@ -1124,7 +1276,7 @@ class ReportPartitionTests(unittest.TestCase):
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
         selected_id = 'c36-production-destination'
         selected = CI.resolve_selection(default, mapping, selected_id)
-        self.assertEqual(selected['unitTestSelectors'], PRODUCTION_DESTINATION_SELECTORS)
+        self.assertEqual(selected['unitTestSelectors'], PRODUCTION_DESTINATION_SELECTORS + list(CI.SAVED_REVIEW_NEW_SELECTORS[:4]))
         self.assertEqual(default['unitTestSelectors'][773:777], PRODUCTION_DESTINATION_SELECTORS)
         self.assertEqual({k: v for k, v in selected.items() if k != 'unitTestSelectors'},
                          {k: v for k, v in default.items() if k != 'unitTestSelectors'})
@@ -1290,7 +1442,7 @@ class ReportPartitionTests(unittest.TestCase):
         default=CI.read_json(ROOT / 'Scripts/ci-selection.json')
         mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
         prior, prior_map=prepartition_values(default,mapping)
-        self.assertEqual(len(default['unitTestSelectors']),1054)
+        self.assertEqual(len(default['unitTestSelectors']),1064)
         self.assertEqual(default['unitTestSelectors'][:677],prior['unitTestSelectors'][:677])
         seen=[]
         for group in mapping['groups']:
@@ -1310,6 +1462,8 @@ class ReportPartitionTests(unittest.TestCase):
                 self.assertEqual(actual, dict(prior, unitTestSelectors=[s for s in FINDING_PROFILE_FIXTURES_SELECTORS if CI.selection_class(s) in group['classes']]))
             elif group['id'] in [g['id'] for g in ACTIVITY_COMPLETED_GROUPS]:
                 self.assertEqual(actual, dict(prior, unitTestSelectors=[s for s in ACTIVITY_COMPLETED_SELECTORS if CI.selection_class(s) in group['classes']]))
+            elif group['id'] == 'c36-field-edit':
+                self.assertEqual(actual, dict(prior, unitTestSelectors=list(CI.FIELD_EDIT_SELECTORS)))
             elif group['id'] == 'activity-codec-evolution':
                 self.assertEqual(actual, dict(prior, unitTestSelectors=ACTIVITY_CODEC_SELECTORS))
             elif group['id'] == 'activity-contracts':
@@ -1319,6 +1473,7 @@ class ReportPartitionTests(unittest.TestCase):
             elif group['id'] == 'app-myday-production':
                 expected = CI.resolve_selection(prior, prior_map, group['id'])
                 expected['unitTestSelectors'] += appended + list(CI.ERASE_RECOVERY_SELECTORS[9:11])
+                expected['unitTestSelectors'].append(CI.SAVED_REVIEW_NEW_SELECTORS[4])
                 self.assertEqual(actual, expected)
             elif group['id'] == 'notification-schedule-erase':
                 expected = CI.resolve_selection(prior, prior_map, group['id'])
@@ -1352,6 +1507,9 @@ class ReportPartitionTests(unittest.TestCase):
         expected.insert(expected.index('c36-parent-finalization-check-no-issue') + 1,
                         CI.BUILD_WATCHDOG_SELECTION_ID)
         expected.insert(expected.index('c36-destination-discard') + 1, CI.BUILD_ORDER_SELECTION_ID)
+        expected.insert(expected.index('c36-production-destination') + 1, CI.SAVED_REVIEW_SELECTION_ID)
+        expected.remove('c36-field-edit')
+        expected[expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1:expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1] = [CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit']
         expected.insert(expected.index('c36-restore-review') + 1, CI.NO_INDEX_SELECTION_ID)
         expected.insert(expected.index(CI.NO_INDEX_SELECTION_ID) + 1, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID)
         expected.insert(expected.index('notification-schedule-erase') + 1, CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID)
@@ -1698,7 +1856,7 @@ class NoIndexBuildDiagnosticTests(unittest.TestCase):
         self.assertEqual(self.selected, CI.resolve_selection(self.default, self.mapping, 'c36-restore-review'))
         self.assertEqual(len(self.selected['unitTestSelectors']), 6)
         self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1054, 68))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1064, 69))
         for suffix in ('-retry', '-parallel', '-30m'):
             with self.assertRaises(ValueError):
                 CI.resolve_selection(self.default, self.mapping, CI.NO_INDEX_SELECTION_ID + suffix)
@@ -1919,7 +2077,7 @@ class RestoreBuildWatchdogDiagnosticTests(unittest.TestCase):
         self.assertEqual(len(self.selected['unitTestSelectors']), 6)
         self.assertEqual(tuple(ordinary[k] for k in CI.BUDGET_KEYS), (300,1200,900,0,2400))
         self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.NO_INDEX_SELECTION_ID), ordinary)
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1054,68))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1064,69))
         for suffix in ('-retry', '-parallel', '-permanent'):
             with self.assertRaises(ValueError):
                 CI.resolve_selection(self.default, self.mapping, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID + suffix)
@@ -2037,7 +2195,7 @@ class ReminderBuildWatchdogDiagnosticTests(unittest.TestCase):
         self.assertEqual(self.selected['unitTestSelectors'], members)
         self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
         self.assertFalse(self.selected['runUISmoke'])
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1054, 68))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1064, 69))
         self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.DEFAULT_SELECTION_ID), self.default)
         for suffix in ('-retry', '-parallel', '-34'):
             with self.assertRaises(ValueError):
@@ -2143,7 +2301,7 @@ class RestoreHistoryBuildWatchdogDiagnosticTests(unittest.TestCase):
         self.assertEqual(self.selected['unitTestSelectors'], members)
         self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
         self.assertFalse(self.selected['runUISmoke'])
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1054, 68))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1064, 69))
         self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.DEFAULT_SELECTION_ID), self.default)
         for suffix in ('-retry', '-parallel', '-8'):
             with self.assertRaises(ValueError):
@@ -2240,7 +2398,7 @@ class ReplacementUnionBuildWatchdogDiagnosticTests(unittest.TestCase):
         self.assertEqual(tuple(self.selected['unitTestSelectors']), CI.REPLACEMENT_UNION_SELECTORS)
         self.assertEqual(tuple(ordinary[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
         self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1054, 68))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1064, 69))
         self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.DEFAULT_SELECTION_ID), self.default)
         self.assertEqual(len(CI.resolve_selection(self.default, self.mapping, CI.RESTORE_HISTORY_SELECTION_ID)['unitTestSelectors']), 7)
         self.assertTrue(set(self.selected['unitTestSelectors']).isdisjoint(CI.REMINDER_BUILD_WATCHDOG_SELECTORS))
@@ -2346,7 +2504,7 @@ class EraseBuildWatchdogDiagnosticTests(unittest.TestCase):
         self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
         self.assertFalse(self.selected['runUISmoke'])
         self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.DEFAULT_SELECTION_ID), self.default)
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1054, 68))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1064, 69))
         for suffix in ('-retry', '-parallel', '-14'):
             with self.assertRaises(ValueError):
                 CI.resolve_selection(self.default, self.mapping, CI.ERASE_BUILD_WATCHDOG_SELECTION_ID + suffix)
@@ -2674,6 +2832,75 @@ class ReplacementPartitionDiagnosticTests(unittest.TestCase):
                     self.assertEqual(args[-2:], ['CODE_SIGNING_ALLOWED=NO', 'test-without-building'])
 
 
+class SavedReviewFieldsBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
+    diagnostic_routes = ((CI.SAVED_REVIEW_FIELDS_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTORS),)
+    source_parent = CI.SAVED_REVIEW_FIELDS_PARENT
+    source_trees = CI.SAVED_REVIEW_FIELDS_TREES
+
+    def test_public_choices_and_report_boundary_are_exact(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text()
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        choices = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        self.assertEqual(choices.count(CI.SAVED_REVIEW_FIELDS_SELECTION_ID), 1)
+        self.assertEqual(choices.count('c36-field-edit'), 1)
+        self.assertEqual(len(choices), len(set(choices)))
+        self.assertIn('NATIVE_SELECTION_ID: ${{ inputs.native_selection_id }}', workflow)
+        self.assertIn('native_selection_id: ${{ needs.shared-selection.outputs.native_selection_id || inputs.native_selection_id }}', workflow)
+        worker = (ROOT / '.github/workflows/ios-ci-worker.yml').read_text()
+        for key in ('NATIVE_SELECTION_ID', 'DISPATCH_NATIVE_SELECTION_ID', 'DISPATCH_NATIVE_SELECTION_SHA256', 'DISPATCH_NATIVE_SELECTION_MAP_SHA256'):
+            self.assertIn(key + ':', worker)
+
+    def test_exact_disjoint_ordered_union_and_historical_routes(self):
+        expected = ['FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionResolutionFreezesOneChoiceAndRecoversOriginalWithoutNewIDs', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionResolutionRejectsStaleTargetAndRetiredOwnerWithoutEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionDiscardRequiresConfirmationThenReplaysOriginalWithoutConfirmationOrEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionDiscardCanCompleteReviewWithoutOperationalRoundAndRejectsRetirement', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceAuthenticatesCurrentPendingAndTerminalOriginalsWithoutReadEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceRejectsEverySubstitutedFieldAndNonDraftWithoutEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceReturnsUnsupportedOnlyAfterAuthenticCurrentReceipt', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceRejectsDirtyCorruptQuarantinedAndRetiredHistoryWithoutEffects', 'FieldEvidenceAppTests/V23ProductionFourRootShellTests/testPhysicalRestoredReviewDiscardUsesProductionAccessAndColdOriginalReadback', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditsPersistIncompleteValuesAndColdReopenWithoutEffects', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditCASPreservesBeginAndPhotoSlotsAndRejectsFrozenOrForeignState', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditAcknowledgementLossRecoversOriginalBeforeNewerEdits', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldAutosaveUsesTrailingMaximumAndRetainsFailedAttempt', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldFlushDrainsEditsArrivingDuringAwaitAndAuthenticatesReadback']
+        self.assertEqual(self.selected['unitTestSelectors'], expected)
+        self.assertEqual((len(expected), len(set(expected))), (14, 14))
+        self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
+        self.assertEqual((self.selected['runUISmoke'], self.selected['uiTestSelectors']), (False, []))
+        old_pool, old_map = prefield_edit_values(self.default, self.mapping)
+        ordinary = CI.resolve_selection(self.default, self.mapping, CI.SAVED_REVIEW_SELECTION_ID)
+        self.assertEqual(ordinary, CI.resolve_selection(old_pool, old_map, CI.SAVED_REVIEW_SELECTION_ID))
+        self.assertEqual(ordinary['unitTestSelectors'], expected[:9])
+        self.assertEqual(CI.resolve_selection(self.default, self.mapping, 'c36-field-edit')['unitTestSelectors'], expected[9:])
+        self.assertEqual(tuple(ordinary[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
+        self.assertNotIn(CI.SAVED_REVIEW_SELECTION_ID, CI.NO_INDEX_ROUTES)
+        for suffix in ('-retry', '-parallel', '-45m'):
+            with self.assertRaises(ValueError): CI.resolve_selection(self.default, self.mapping, self.record['selectionID'] + suffix)
+        for changed in (expected[:-1], expected[::-1], expected[:-1] + expected[:1], expected + [UNIT]):
+            with mock.patch.object(CI, 'SAVED_REVIEW_FIELDS_SELECTORS', tuple(changed)), self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, self.record['selectionID'])
+            value = dict(self.selected, unitTestSelectors=changed)
+            with self.assertRaises(ValueError): CI.validate_selection(value)
+            result = subprocess.run(['jq', '-e', '-f', str(ROOT / 'Scripts/ci-worker-selection.jq')], input=CI.canonical(value), capture_output=True)
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+        with self.assertRaises(ValueError): CI.resolve_selection(old_pool, old_map, self.record['selectionID'])
+
+    def test_every_prior_named_selection_remains_exact(self):
+        old_pool, old_map = prefield_edit_values(self.default, self.mapping)
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text()
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        choices = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        for identifier in choices:
+            if identifier in (CI.DEFAULT_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
+                continue
+            self.assertEqual(CI.canonical(CI.resolve_selection(self.default, self.mapping, identifier)),
+                             CI.canonical(CI.resolve_selection(old_pool, old_map, identifier)), identifier)
+
+    def test_collection_requires_all_fourteen_original_results(self):
+        methods = ['FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionResolutionFreezesOneChoiceAndRecoversOriginalWithoutNewIDs', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionResolutionRejectsStaleTargetAndRetiredOwnerWithoutEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionDiscardRequiresConfirmationThenReplaysOriginalWithoutConfirmationOrEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionDiscardCanCompleteReviewWithoutOperationalRoundAndRejectsRetirement', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceAuthenticatesCurrentPendingAndTerminalOriginalsWithoutReadEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceRejectsEverySubstitutedFieldAndNonDraftWithoutEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceReturnsUnsupportedOnlyAfterAuthenticCurrentReceipt', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceRejectsDirtyCorruptQuarantinedAndRetiredHistoryWithoutEffects', 'FieldEvidenceAppTests/V23ProductionFourRootShellTests/testPhysicalRestoredReviewDiscardUsesProductionAccessAndColdOriginalReadback', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditsPersistIncompleteValuesAndColdReopenWithoutEffects', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditCASPreservesBeginAndPhotoSlotsAndRejectsFrozenOrForeignState', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditAcknowledgementLossRecoversOriginalBeforeNewerEdits', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldAutosaveUsesTrailingMaximumAndRetainsFailedAttempt', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldFlushDrainsEditsArrivingDuringAwaitAndAuthenticatesReadback']
+        tree = native_tree(methods[0])
+        cases = tree['testNodes'][0]['children'][0]['children'][0]['children']
+        cases[:] = [copy.deepcopy(leaf(native_tree(method))) for method in methods]
+        self.assertEqual(CI.executed_methods(tree, methods, 'FieldEvidenceAppTests', 'Unit test bundle'), sorted(methods))
+        for bad in (cases[:-1], cases + [cases[0]], cases[:-1] + [copy.deepcopy(leaf(native_tree(UNIT)))]):
+            hostile = copy.deepcopy(tree)
+            hostile['testNodes'][0]['children'][0]['children'][0]['children'] = bad
+            with self.assertRaises(ValueError): CI.executed_methods(hostile, methods, 'FieldEvidenceAppTests', 'Unit test bundle')
+        for status in ('Failed', 'Skipped', 'NotStarted'):
+            hostile = copy.deepcopy(tree)
+            leaf(hostile)['result'] = status
+            with self.assertRaises(ValueError): CI.executed_methods(hostile, methods, 'FieldEvidenceAppTests', 'Unit test bundle')
+
+
 class ActivityBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
     # Exercise the same real build/receipt/test commands, actual worker filter and
     # admission boundary with the one existing H01 selector. No assertion bypass.
@@ -2781,7 +3008,8 @@ class ActivityCompletedSourceDiagnosticTests(ReplacementPartitionDiagnosticTests
 
     def test_every_historical_public_selection_retains_exact_members_and_budgets(self):
         pin = '90304b1802296dca7a56f85ce96787f341bd8f03'
-        prior, prior_map = precompleted_values(self.default, self.mapping)
+        presaved, presaved_map = presaved_review_values(self.default, self.mapping)
+        prior, prior_map = precompleted_values(presaved, presaved_map)
         raw = subprocess.check_output(['git', 'show', pin + ':Scripts/v23-native-ci.py'], cwd=ROOT)
         workflow = subprocess.check_output(['git', 'show', pin + ':.github/workflows/ios-ci.yml'], cwd=ROOT, text=True)
         block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
@@ -2793,7 +3021,7 @@ class ActivityCompletedSourceDiagnosticTests(ReplacementPartitionDiagnosticTests
             for identifier in options:
                 if identifier == CI.DEFAULT_SELECTION_ID:
                     continue  # The pool grows; every named historical question remains exact.
-                self.assertEqual(CI.resolve_selection(self.default, self.mapping, identifier),
+                self.assertEqual(CI.resolve_selection(presaved, presaved_map, identifier),
                                  old.resolve_selection(prior, prior_map, identifier), identifier)
             for identifier, value in old.NO_INDEX_ROUTES.items():
                 self.assertEqual(CI.NO_INDEX_ROUTES[identifier], value)
@@ -2840,7 +3068,7 @@ class NotificationScheduleEraseBuild30DiagnosticTests(ReplacementPartitionDiagno
     def test_exact_disjoint_ordered_union_and_historical_routes(self):
         ordinary = CI.resolve_selection(self.default, self.mapping, 'notification-schedule-erase')
         expected = ordinary['unitTestSelectors']
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1054, 68))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1064, 69))
         self.assertEqual(self.selected['unitTestSelectors'], expected)
         self.assertEqual(len(expected), 28)
         self.assertEqual(len(set(expected)), 28)
@@ -2871,7 +3099,8 @@ class NotificationScheduleEraseBuild30DiagnosticTests(ReplacementPartitionDiagno
             return subprocess.check_output(['git', 'show', pin + ':' + path], cwd=ROOT)
         prior = json.loads(frozen('Scripts/ci-selection.json'))
         prior_map = json.loads(frozen(CI.SELECTION_MAP_PATH))
-        self.assertEqual(prefinding_values(self.default, self.mapping), (prior, prior_map))
+        presaved, presaved_map = presaved_review_values(self.default, self.mapping)
+        self.assertEqual(prefinding_values(presaved, presaved_map), (prior, prior_map))
         workflow = frozen('.github/workflows/ios-ci.yml').decode('utf-8')
         block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
         options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
@@ -2883,9 +3112,9 @@ class NotificationScheduleEraseBuild30DiagnosticTests(ReplacementPartitionDiagno
             for identifier in options:
                 if identifier == CI.DEFAULT_SELECTION_ID:
                     continue  # The full pool grows; named prior questions stay exact.
-                self.assertEqual(CI.canonical(CI.resolve_selection(self.default, self.mapping, identifier)),
+                self.assertEqual(CI.canonical(CI.resolve_selection(presaved, presaved_map, identifier)),
                                  old.canonical(old.resolve_selection(prior, prior_map, identifier)), identifier)
-            self.assertEqual(set(CI.NO_INDEX_ROUTES) - set(old.NO_INDEX_ROUTES), {self.record['selectionID'], CI.FINDING_PROFILE_FIXTURES_SELECTION_ID, CI.NOTIFICATION_INTERRUPTION_SELECTION_ID})
+            self.assertEqual(set(CI.NO_INDEX_ROUTES) - set(old.NO_INDEX_ROUTES), {self.record['selectionID'], CI.FINDING_PROFILE_FIXTURES_SELECTION_ID, CI.NOTIFICATION_INTERRUPTION_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID})
             for identifier, binding in old.NO_INDEX_ROUTES.items():
                 self.assertEqual(CI.NO_INDEX_ROUTES[identifier], binding)
                 self.assertEqual(CI.no_index_source_trees(identifier), old.no_index_source_trees(identifier))
@@ -2897,6 +3126,13 @@ class NotificationScheduleEraseBuild30DiagnosticTests(ReplacementPartitionDiagno
             addition = ('          - ' + identifier + '\n').encode()
             self.assertEqual(current_workflow.count(addition), 1)
             current_workflow = current_workflow.replace(addition, b'')
+        saved_review_choice = ('          - ' + CI.SAVED_REVIEW_SELECTION_ID + '\n').encode()
+        self.assertEqual(current_workflow.count(saved_review_choice), 1)
+        current_workflow = current_workflow.replace(saved_review_choice, b'')
+        for identifier in (CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
+            choice = ('          - ' + identifier + '\n').encode()
+            self.assertEqual(current_workflow.count(choice), 1)
+            current_workflow = current_workflow.replace(choice, b'')
         self.assertEqual(current_workflow, workflow.encode())
         for path in ('Scripts/v23-selection-generator.py', '.github/workflows/ios-ci-worker.yml'):
             current_bytes = (ROOT / path).read_bytes()
@@ -2954,7 +3190,17 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
         spec = importlib.util.spec_from_file_location('interruption_observer_fixture', path)
         timing = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(timing)
-        return timing.run_passive_build_fixture(self, CI, directory, selector, receipt_exit, build_exit)
+        # The real observer fixture archives source_parent, whose generated map
+        # precedes C36 enrollment. Bind dispatch to those actual fixture bytes.
+        fixture_case = copy.copy(self)
+        fixture_case.default, fixture_case.mapping = [json.loads(subprocess.check_output(
+            ['git', 'show', self.source_parent + ':' + relative], cwd=ROOT))
+            for relative in ('Scripts/ci-selection.json', CI.SELECTION_MAP_PATH)]
+        self.assertEqual((fixture_case.default, fixture_case.mapping),
+                         presaved_review_values(self.default, self.mapping))
+        fixture_case.select(selector)
+        self.assertEqual(fixture_case.selected, self.selected)
+        return timing.run_passive_build_fixture(fixture_case, CI, directory, selector, receipt_exit, build_exit)
 
     def test_command_vector_is_nonempty_under_bash32_nounset(self):
         # Static compatibility guard: newer local Bash cannot reproduce the
@@ -3012,7 +3258,9 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
         ]
         ordinary = CI.resolve_selection(self.default, self.mapping, 'notification-schedule-erase')
         parent = CI.resolve_selection(self.default, self.mapping, CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID)
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1054, 68))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1064, 69))
+        historical_pool, historical_map = presaved_review_values(self.default, self.mapping)
+        self.assertEqual((len(historical_pool['unitTestSelectors']), len(historical_map['groups'])), (1054, 68))
         self.assertEqual([method for method in ordinary['unitTestSelectors'] if method in expected], expected)
         self.assertEqual(self.selected['unitTestSelectors'], expected)
         self.assertEqual(tuple(CI.NOTIFICATION_INTERRUPTION_SELECTORS), tuple(expected))
@@ -3055,6 +3303,28 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
             current_bytes = (ROOT / path).read_bytes()
             if path == '.github/workflows/ios-ci-worker.yml':
                 current_bytes = worker_before_interruption_build_order(self, current_bytes)
+            elif path in ('Scripts/ci-selection.json', CI.SELECTION_MAP_PATH):
+                projected = presaved_review_values(self.default, self.mapping)
+                current_bytes = CI.canonical(projected[0 if path == 'Scripts/ci-selection.json' else 1])
+            elif path == 'Scripts/v23-selection-manifest.json':
+                manifest = json.loads(current_bytes)
+                additions = list(CI.SAVED_REVIEW_NEW_SELECTORS) + list(CI.FIELD_EDIT_SELECTORS)
+                self.assertEqual(manifest['selectorPool'][-10:], additions)
+                manifest['selectorPool'] = manifest['selectorPool'][:-10]
+                self.assertEqual(manifest['groups'][-1], {'id': 'c36-field-edit', 'classes': ['V23CheckRunnerItemFieldEditingTests']})
+                manifest['groups'] = manifest['groups'][:-1]
+                self.assertEqual([p['id'] for p in manifest['profiles'][-2:]],
+                                 ['saved-review-discard-v1', 'saved-review-fields-v1'])
+                manifest['profiles'] = manifest['profiles'][:-2]
+                for profile in manifest['profiles']:
+                    self.assertEqual(profile['excludedGroupIDs'].count('c36-field-edit'), 1)
+                    profile['excludedGroupIDs'].remove('c36-field-edit')
+                    profile['excludedSelectors'] = [v for v in profile['excludedSelectors'] if v not in additions]
+                    original_profile = next(p for p in json.loads(frozen(path))['profiles'] if p['id'] == profile['id'])
+                    if 'excludedSelectors' not in original_profile:
+                        self.assertEqual(profile['excludedSelectors'], [])
+                        del profile['excludedSelectors']
+                current_bytes = CI.canonical(manifest)
             self.assertEqual(current_bytes, frozen(path), path)
         prior = json.loads(frozen('Scripts/ci-selection.json'))
         prior_map = json.loads(frozen(CI.SELECTION_MAP_PATH))
@@ -3062,6 +3332,10 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
         choice = ('          - ' + self.record['selectionID'] + '\n').encode()
         current = (ROOT / '.github/workflows/ios-ci.yml').read_bytes()
         self.assertEqual(current.count(choice), 1)
+        for added in (CI.SAVED_REVIEW_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
+            added_choice = ('          - ' + added + '\n').encode()
+            self.assertEqual(current.count(added_choice), 1)
+            current = current.replace(added_choice, b'')
         self.assertEqual(current.replace(choice, b''), workflow)
         block = re.search(rb'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
         options = re.findall(rb'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
@@ -3072,9 +3346,20 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
             old = importlib.util.module_from_spec(spec); spec.loader.exec_module(old)
             for option in options:
                 identifier = option.decode()
+                historical = old.resolve_selection(prior, prior_map, identifier)
+                self.assertEqual(CI.canonical(CI.resolve_selection(prior, prior_map, identifier)),
+                                 old.canonical(historical), identifier)
+                expected_current = copy.deepcopy(historical)
+                if identifier == CI.DEFAULT_SELECTION_ID:
+                    expected_current['unitTestSelectors'] += list(CI.SAVED_REVIEW_NEW_SELECTORS) + list(CI.FIELD_EDIT_SELECTORS)
+                elif identifier == 'c36-production-destination':
+                    expected_current['unitTestSelectors'] += list(CI.SAVED_REVIEW_NEW_SELECTORS[:4])
+                elif identifier == 'app-myday-production':
+                    expected_current['unitTestSelectors'] += list(CI.SAVED_REVIEW_NEW_SELECTORS[4:])
                 self.assertEqual(CI.canonical(CI.resolve_selection(self.default, self.mapping, identifier)),
-                                 old.canonical(old.resolve_selection(prior, prior_map, identifier)), identifier)
-            self.assertEqual(set(CI.NO_INDEX_ROUTES) - set(old.NO_INDEX_ROUTES), {self.record['selectionID']})
+                                 CI.canonical(expected_current), identifier)
+            self.assertEqual(set(CI.NO_INDEX_ROUTES) - set(old.NO_INDEX_ROUTES),
+                         {self.record['selectionID'], CI.SAVED_REVIEW_FIELDS_SELECTION_ID})
             for identifier, binding in old.NO_INDEX_ROUTES.items():
                 self.assertEqual(CI.NO_INDEX_ROUTES[identifier], binding, identifier)
                 self.assertEqual(CI.no_index_source_trees(identifier), old.no_index_source_trees(identifier), identifier)
@@ -3166,6 +3451,20 @@ class FindingProfileFixturesDiagnosticTests(ReplacementPartitionDiagnosticTests)
             for relative in owned:
                 target = checkout/relative; target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(ROOT/relative, target)
+            # Replay the authentic pre-C36 generated contract against the frozen
+            # Finding86 product trees. Current declarations belong to a later tree.
+            historical_pin = '8a4672e15ddf340a63f2edc3c5245de4b22cc6ce'
+            for relative in ('Scripts/v23-selection-manifest.json', 'Scripts/ci-selection.json', CI.SELECTION_MAP_PATH):
+                raw = subprocess.check_output(['git', 'show', historical_pin + ':' + relative], cwd=ROOT)
+                (checkout/relative).write_bytes(raw)
+            historical_default = CI.read_json(checkout/'Scripts/ci-selection.json')
+            historical_map = CI.read_json(checkout/CI.SELECTION_MAP_PATH)
+            self.assertEqual((historical_default, historical_map), presaved_review_values(self.default, self.mapping))
+            self.assertEqual(CI.sha256((checkout/'Scripts/v23-selection-manifest.json').read_bytes()),
+                             '17E1E8CB27769BE245CD90AC62D68ACCF13591EECC997B6E03870ABD3C3048C0')
+            report = CI.verify_generated_selection(checkout, historical_default, historical_map)
+            self.assertEqual((report['selectorCount'], report['groupCount']), (1054, 68))
+            self.assertEqual(CI.resolve_selection(historical_default, historical_map, self.record['selectionID']), self.selected)
             subprocess.run(['git', 'init', '-q', str(checkout)], check=True)
             common = subprocess.check_output(['git', 'rev-parse', '--path-format=absolute', '--git-common-dir'], cwd=ROOT, text=True).strip()
             (checkout/'.git/objects/info/alternates').write_text((Path(common)/'objects').as_posix()+'\n', encoding='utf-8', newline='\n')
@@ -3198,6 +3497,7 @@ class FindingProfileFixturesDiagnosticTests(ReplacementPartitionDiagnosticTests)
             selected = self.selected
             base_env = dict(os.environ, **self.bound_environment(), GITHUB_WORKSPACE=str(checkout))
             base_env.update(GITHUB_SHA=head, NATIVE_SELECTION_ID=self.record['selectionID'],
+                            DISPATCH_NATIVE_SELECTION_MAP_SHA256=CI.sha256(CI.canonical(historical_map)),
                             PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp', CONFIGURATION='Debug',
                             CODE_SIGNING_ALLOWED='NO', CI_SIMULATOR_UDID=UDID, CI_DESTINATION='platform=iOS Simulator,id='+UDID)
             cli = [sys.executable, str(checkout/'Scripts/v23-native-ci.py')]
@@ -3330,8 +3630,8 @@ class BuildOrderDiagnosticTests(unittest.TestCase):
         for suffix in ('-retry', '-parallel', '-30m'):
             with self.assertRaises(ValueError):
                 CI.resolve_selection(self.default, self.mapping, CI.BUILD_ORDER_SELECTION_ID + suffix)
-        self.assertEqual(len(self.default['unitTestSelectors']), 1054)
-        self.assertEqual(len(self.mapping['groups']), 68)
+        self.assertEqual(len(self.default['unitTestSelectors']), 1064)
+        self.assertEqual(len(self.mapping['groups']), 69)
 
     def test_both_admission_stages_require_original_github_parent_and_all_four_source_trees(self):
         for stage in ('dispatch', 'worker'):
@@ -5745,13 +6045,22 @@ class WorkflowWiringTests(unittest.TestCase):
         self.assertEqual(mapping["groups"][17:29],
                          [dict(id=i, classes=c, methodCount=n) for i, c, n in expected])
         added_classes = {CI.selection_class(s) for s in default["unitTestSelectors"][298:405]}
+        historical_pin = '8a4672e15ddf340a63f2edc3c5245de4b22cc6ce'
+        current_default = CI.read_json(ROOT / "Scripts/ci-selection.json")
         for klass in added_classes:
-            source = (ROOT / "FieldEvidenceAppTests" / (klass + ".swift")).read_text()
+            relative = "FieldEvidenceAppTests/" + klass + ".swift"
+            source = subprocess.check_output(['git', 'show', historical_pin + ':' + relative], cwd=ROOT).decode('utf-8')
             declarations = re.findall(r"^    func (test\w+)\(", source, re.M)
             selected = [s.rsplit("/", 1)[1] for s in default["unitTestSelectors"]
                         if CI.selection_class(s) == klass]
             self.assertEqual(len(declarations), len(set(declarations)), klass)
             self.assertEqual(set(declarations), set(selected), klass)
+            current_source = (ROOT / relative).read_text(encoding='utf-8')
+            current_declarations = re.findall(r"^    func (test\w+)\(", current_source, re.M)
+            current_selected = [s.rsplit("/", 1)[1] for s in current_default["unitTestSelectors"]
+                                if CI.selection_class(s) == klass]
+            self.assertEqual(len(current_declarations), len(set(current_declarations)), klass)
+            self.assertEqual(set(current_declarations), set(current_selected), klass)
         source = (ROOT / "FieldEvidenceAppTests/V23ProductionFourRootShellTests.swift").read_text()
         base = source.split("class V23ProductionFourRootShellTestSupport: XCTestCase {", 1)[1].split(
             "final class V23ProductionFourRootShellTests:", 1)[0]

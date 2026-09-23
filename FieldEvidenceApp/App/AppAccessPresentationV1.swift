@@ -521,6 +521,14 @@ final class AppAccessPresentationV1: ObservableObject {
         var supportsSessionTransitions: Bool { sessionTransitions != nil }
         var supportsRepetitiveCaptureProgress: Bool { repetitiveCapture != nil }
 
+        func readRepetitiveCaptureDestinationReview(reference: MyDayEligibleReferenceV1) throws
+            -> RepetitiveCaptureReviewLineageV1? {
+            try publicationAccess.withRead {
+                guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
+                return try repetitiveCapture.destinationReview(reference: reference)
+            }
+        }
+
         func readRepetitiveCaptureDestinationReview(reviewDraftID: UUID) throws -> RepetitiveCaptureReviewLineageV1 {
             try publicationAccess.withRead {
                 guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }

@@ -101,6 +101,34 @@ final class StoreSessionCoordinator: ObservableObject {
         fileAuthority: any ApplicationFileAuthorityV1 = SystemApplicationFileAuthorityV1(),
         lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1? = nil
     ) throws {
+        try self.init(validatingSession: session, clock: clock, idSource: idSource,
+                      fileAuthority: fileAuthority, lifecycleProfileRegistry: lifecycleProfileRegistry,
+                      mutationJournalFailureInjection: nil)
+    }
+
+    #if DEBUG
+    convenience init(
+        validatingSessionForTesting session: StoreGenerationSession,
+        clock: any ApplicationClock = SystemApplicationClock(),
+        idSource: any ApplicationIDSource = SystemApplicationIDSource(),
+        fileAuthority: any ApplicationFileAuthorityV1 = SystemApplicationFileAuthorityV1(),
+        lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1? = nil,
+        mutationJournalFailureInjection: MutationJournalFailureInjectionV1
+    ) throws {
+        try self.init(validatingSession: session, clock: clock, idSource: idSource,
+                      fileAuthority: fileAuthority, lifecycleProfileRegistry: lifecycleProfileRegistry,
+                      mutationJournalFailureInjection: mutationJournalFailureInjection)
+    }
+    #endif
+
+    private convenience init(
+        validatingSession session: StoreGenerationSession,
+        clock: any ApplicationClock,
+        idSource: any ApplicationIDSource,
+        fileAuthority: any ApplicationFileAuthorityV1,
+        lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1?,
+        mutationJournalFailureInjection: MutationJournalFailureInjectionV1?
+    ) throws {
         let resolvedFactory = StoreGenerationFactory(
             applicationSupportURL: Self.applicationSupportURL(for: session)
         )
@@ -115,7 +143,8 @@ final class StoreSessionCoordinator: ObservableObject {
             idSource: idSource,
             fileAuthority: fileAuthority,
             generationFactory: resolvedFactory,
-            lifecycleProfileRegistry: resolvedLifecycleProfileRegistry
+            lifecycleProfileRegistry: resolvedLifecycleProfileRegistry,
+            mutationJournalFailureInjection: mutationJournalFailureInjection
         )
         let searchServices: ProductionSearchServicesV1
         do {
@@ -500,7 +529,8 @@ final class StoreSessionCoordinator: ObservableObject {
         idSource: any ApplicationIDSource,
         fileAuthority: any ApplicationFileAuthorityV1,
         generationFactory: StoreGenerationFactory,
-        lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1
+        lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1,
+        mutationJournalFailureInjection: MutationJournalFailureInjectionV1? = nil
     ) throws -> WriterBinding {
         guard session.storeSchemaRelease == PersistentSchemaReleaseRegistryV1.activeRelease,
               let generationEpoch = session.generationEpoch else {
@@ -523,6 +553,7 @@ final class StoreSessionCoordinator: ObservableObject {
                 modelContext: session.modelContext,
                 identity: session.workspaceIdentity,
                 generationID: session.generationID,
+                failureInjection: mutationJournalFailureInjection,
                 allowStateBootstrap: false,
                 staleWriterFence: staleWriterFence
             )

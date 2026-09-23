@@ -1,6 +1,59 @@
 import Foundation
 import SwiftData
 
+/// Raw editor values only. Source, Begin and photo ownership never come from
+/// an editable snapshot, and incomplete input is not normalized on save.
+struct CheckRunnerEditableItemValuesV1: Equatable, Sendable {
+    let preflight: CheckRunnerEditablePreflightV1
+    let outcome: CheckRunnerEditableOutcomeV1
+    let semanticAnchor: CheckRunnerItemSemanticAnchorV1
+
+    init(preflight: CheckRunnerEditablePreflightV1, outcome: CheckRunnerEditableOutcomeV1,
+         semanticAnchor: CheckRunnerItemSemanticAnchorV1) {
+        self.preflight = preflight; self.outcome = outcome; self.semanticAnchor = semanticAnchor
+    }
+
+    fileprivate init(_ field: CheckRunnerItemFieldStateV1) {
+        self.init(preflight: field.preflight, outcome: field.outcome, semanticAnchor: field.semanticAnchor)
+    }
+}
+
+fileprivate final class CheckRunnerFieldReadOwnerV1 {}
+
+/// One immutable CAS attempt. Only its original service can persist it; a
+/// failed acknowledgement does not permit a caller to construct a successor.
+@MainActor
+final class CheckRunnerFieldEditAttemptV1 {
+    fileprivate let owner: CheckRunnerFieldReadOwnerV1
+    fileprivate let predecessor: FieldDraftCheckpointV1
+    fileprivate let successor: FieldDraftCheckpointV1
+    fileprivate let values: CheckRunnerEditableItemValuesV1
+
+    fileprivate init(owner: CheckRunnerFieldReadOwnerV1, predecessor: FieldDraftCheckpointV1,
+                     successor: FieldDraftCheckpointV1, values: CheckRunnerEditableItemValuesV1) {
+        self.owner = owner; self.predecessor = predecessor; self.successor = successor; self.values = values
+    }
+}
+
+/// Authentic parent-field readback, not media, action or navigation authority.
+/// The issuing service must revalidate this observation before publication.
+@MainActor
+final class CheckRunnerFieldReadbackV1 {
+    let checkpoint: FieldDraftCheckpointV1
+    let values: CheckRunnerEditableItemValuesV1
+    let receipt: MutationReceiptV1
+    fileprivate let owner: CheckRunnerFieldReadOwnerV1
+    fileprivate let evidence: FieldDraftCommittedEvidenceV1
+    fileprivate let observedRevision: WorkspaceRevisionV1
+
+    fileprivate init(checkpoint: FieldDraftCheckpointV1, values: CheckRunnerEditableItemValuesV1,
+        owner: CheckRunnerFieldReadOwnerV1, evidence: FieldDraftCommittedEvidenceV1,
+        observedRevision: WorkspaceRevisionV1) {
+        self.checkpoint = checkpoint; self.values = values; self.receipt = evidence.receipt
+        self.owner = owner; self.evidence = evidence; self.observedRevision = observedRevision
+    }
+}
+
 /// Read-only application projection for one authenticated parent/photo target.
 /// The private owner and revision binding must be rechecked before a later actor
 /// uses the value; the projection itself grants no media or mutation authority.
@@ -305,6 +358,8 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
     private let ids: any ApplicationIDSource
     private let attachmentStaging: DraftAttachmentStagingAdapterV1?
     private let currentPhotoReadOwner = CurrentPhotoTargetReadOwnerV1()
+    private let fieldReadOwner = CheckRunnerFieldReadOwnerV1()
+    private var pendingFieldEdits: [UUID: CheckRunnerFieldEditAttemptV1] = [:]
     private var photoOperations: Set<UUID> = []
     private var parentOperations: Set<UUID> = []
 #if DEBUG
@@ -312,6 +367,8 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
     var beforePhotoTargetAcknowledgementForTesting: (() throws -> Void)?
     var photoCommitObservationForTesting: ((String) -> Void)?
     var beforeParentTargetAcknowledgementForTesting: (() throws -> Void)?
+    /// After the real field CAS, before authentic readback and acknowledgement.
+    var beforeFieldEditAcknowledgementForTesting: (() throws -> Void)?
 #endif
 
     init(session: StoreSessionCoordinator, progress: ProductionRepetitiveCaptureProgressServiceV2,
@@ -361,6 +418,133 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
         let checkpoint = try row.value()
         _ = try Self.authenticateCurrent(checkpoint, writer: current.workspaceWriter, context: current.modelContext)
         return checkpoint
+    }
+
+    /// Opening an editor is observational. PREPARED Begin remains readable,
+    /// but the separate edit admission rejects it until original recovery.
+    func readEditableFields(draftID: UUID) throws -> CheckRunnerFieldReadbackV1 {
+        let current = try currentSession()
+        let revision = try current.workspaceWriter.currentRevision()
+        let checkpoint = try read(draftID: draftID)
+        let payload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint)
+        guard checkpoint.state == .active, payload.phase == .editing else {
+            throw FieldDraftFailureV1.invalidTransition
+        }
+        guard let evidence = try current.workspaceWriter.fieldDraftEvidence(mutationID: checkpoint.mutationID),
+              evidence.mutation == (try fieldEditMutation(checkpoint: checkpoint)),
+              try currentSession().workspaceWriter.currentRevision() == revision else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        return .init(checkpoint: checkpoint, values: .init(payload.field), owner: fieldReadOwner,
+                     evidence: evidence, observedRevision: revision)
+    }
+
+    /// Freezes exact bytes, time and MutationID once. Ordinary edits cannot
+    /// alter a frozen Begin, outcome-entry mode, source or child ownership.
+    func prepareFieldEdit(draftID: UUID, expectedCheckpointSHA256: String,
+        values: CheckRunnerEditableItemValuesV1,
+        validateIntent: @MainActor () throws -> Void) throws -> CheckRunnerFieldEditAttemptV1? {
+        try Task.checkCancellation(); try validateIntent()
+        _ = try currentSession()
+        guard !parentOperations.contains(draftID) else { throw FieldDraftFailureV1.staleDraftRevision }
+        if let pending = pendingFieldEdits[draftID] {
+            guard pending.predecessor.checkpointSHA256 == expectedCheckpointSHA256,
+                  pending.values == values else { throw FieldDraftFailureV1.staleDraftRevision }
+            return pending
+        }
+        let saved = try readEditableFields(draftID: draftID)
+        let checkpoint = saved.checkpoint
+        guard checkpoint.checkpointSHA256 == expectedCheckpointSHA256 else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        let payload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint)
+        try coordinator.validateFieldEditing(parentCheckpoint: checkpoint, progress: progress,
+                                              publishedRelease: publishedRelease)
+        let field = payload.field
+        guard values.outcome.startsWithCouldNotVerify == field.outcome.startsWithCouldNotVerify else {
+            throw FieldDraftFailureV1.invalidTransition
+        }
+        switch field.begin {
+        case .notBegun: break
+        case .prepared: throw FieldDraftFailureV1.invalidTransition
+        case .bound:
+            guard values.preflight == field.preflight else { throw FieldDraftFailureV1.invalidTransition }
+        }
+        try Task.checkCancellation(); try validateIntent(); try validateForPublication(saved)
+        guard saved.values != values else { return nil }
+        let next = try CheckRunnerItemDraftPayloadV1(editing: payload.source, field: .init(
+            preflight: values.preflight, begin: field.begin, outcome: values.outcome,
+            wideContext: field.wideContext, closeDetail: field.closeDetail,
+            semanticAnchor: values.semanticAnchor))
+        let successor = try makeCheckpoint(payload: next, predecessor: checkpoint)
+        try successor.validateSuccessor(of: checkpoint, expectedDraftRevision: checkpoint.draftRevision,
+                                        expectedBaseRevision: checkpoint.baseCanonicalRevision)
+        let attempt = CheckRunnerFieldEditAttemptV1(owner: fieldReadOwner, predecessor: checkpoint,
+                                                     successor: successor, values: values)
+        pendingFieldEdits[draftID] = attempt
+        return attempt
+    }
+
+    /// Receipt recovery precedes CAS and every later field revision. A
+    /// competing current tip is a conflict, never an implicit field merge.
+    func persistFieldEdit(_ attempt: CheckRunnerFieldEditAttemptV1,
+        validateIntent: @MainActor () throws -> Void) throws -> CheckRunnerFieldReadbackV1 {
+        try Task.checkCancellation(); try validateIntent()
+        guard attempt.owner === fieldReadOwner else { throw FieldDraftFailureV1.wrongWorkspace }
+        let draftID = attempt.predecessor.draftID
+        guard !parentOperations.contains(draftID) else { throw FieldDraftFailureV1.staleDraftRevision }
+        let current = try currentSession()
+        let mutation = try fieldEditMutation(checkpoint: attempt.successor)
+        if let original = try current.workspaceWriter.fieldDraftEvidence(mutationID: attempt.successor.mutationID) {
+            guard original.mutation == mutation else { throw FieldDraftFailureV1.digestMismatch }
+        } else {
+            guard pendingFieldEdits[draftID] === attempt,
+                  try read(draftID: draftID) == attempt.predecessor else {
+                throw FieldDraftFailureV1.staleDraftRevision
+            }
+            try coordinator.validateFieldEditing(parentCheckpoint: attempt.predecessor, progress: progress,
+                                                  publishedRelease: publishedRelease)
+            try Task.checkCancellation(); try validateIntent()
+            guard try read(draftID: draftID) == attempt.predecessor else {
+                throw FieldDraftFailureV1.staleDraftRevision
+            }
+            _ = try current.workspaceWriter.makeFieldDraftLifecycleAdapter(modelContext: current.modelContext)
+                .compareAndSwap(checkpoint: attempt.successor,
+                    expectedDraftRevision: attempt.predecessor.draftRevision,
+                    expectedBaseRevision: attempt.predecessor.baseCanonicalRevision)
+#if DEBUG
+            try beforeFieldEditAcknowledgementForTesting?()
+#endif
+        }
+        let saved = try readEditableFields(draftID: draftID)
+        guard saved.checkpoint == attempt.successor, saved.values == attempt.values,
+              saved.evidence.mutation == mutation else { throw FieldDraftFailureV1.staleDraftRevision }
+        try coordinator.validateFieldEditing(parentCheckpoint: saved.checkpoint, progress: progress,
+                                              publishedRelease: publishedRelease)
+        try Task.checkCancellation(); try validateIntent(); try validateForPublication(saved)
+        if pendingFieldEdits[draftID] === attempt { pendingFieldEdits[draftID] = nil }
+        return saved
+    }
+
+    func validateForPublication(_ read: CheckRunnerFieldReadbackV1) throws {
+        guard read.owner === fieldReadOwner else { throw FieldDraftFailureV1.wrongWorkspace }
+        let current = try currentSession()
+        guard try current.workspaceWriter.currentRevision() == read.observedRevision else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        let refreshed = try readEditableFields(draftID: read.checkpoint.draftID)
+        guard refreshed.checkpoint == read.checkpoint, refreshed.values == read.values,
+              refreshed.evidence == read.evidence,
+              refreshed.observedRevision == read.observedRevision else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+    }
+
+    private func fieldEditMutation(checkpoint: FieldDraftCheckpointV1) throws -> FieldDraftMutationV1 {
+        guard checkpoint.draftRevision > 0 else { throw FieldDraftFailureV1.invalidValue }
+        return try .init(workspaceID: checkpoint.workspaceID, expectedRevision: checkpoint.draftRevision - 1,
+            expectedBaseCanonicalRevision: checkpoint.baseCanonicalRevision, mutationID: checkpoint.mutationID,
+            postImage: checkpoint.draftRevision == 1 ? .createCheckpoint(checkpoint) : .reviseCheckpoint(checkpoint))
     }
 
     /// Joins the authenticated current parent to its original committed child,

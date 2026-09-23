@@ -1694,6 +1694,109 @@ final class CheckRunnerCoordinator {
         if let zone, let originalZone = saved.timeZone { try zone.validate(evidence: originalZone) }
     }
 
+    /// Field saving requires the current ENTRY and original draft access, but
+    /// incomplete outcome text is not a finalization request. Later photo
+    /// states reuse their authenticated history instead of initial-empty rules.
+    func validateFieldEditing(parentCheckpoint: FieldDraftCheckpointV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1) throws {
+        let dependencies = try frozenBeginDependencies(progress: progress)
+        let writer = dependencies.writer
+        let revision = try writer.currentRevision()
+        let parent = try ProductionCheckRunnerItemDraftServiceV1.authenticateCurrent(
+            parentCheckpoint, writer: writer, context: modelContext)
+        guard parentCheckpoint.state == .active, parent.phase == .editing else {
+            throw FieldDraftFailureV1.invalidTransition
+        }
+        let read = try progress.read(sourceDraftID: parent.source.sourceCheckpoint.draftID)
+        try progress.validateForPublication(read)
+        try parent.source.validate(read: read, publishedRelease: publishedRelease, signPack: signPack)
+        try validateFrozenBeginContext(parent.source, dependencies: dependencies)
+        switch parent.field.begin {
+        case .notBegun:
+            try validateFrozenBeginAdmission(parent.source, dependencies: dependencies)
+        case .prepared:
+            throw FieldDraftFailureV1.invalidTransition
+        case let .bound(attempt, workflowReference, zoneReference):
+            let slots = [parent.field.wideContext, parent.field.closeDetail].compactMap { $0 }
+            if slots.isEmpty {
+                try validateInitialBoundBegin(parentCheckpoint: parentCheckpoint, progress: progress,
+                                              publishedRelease: publishedRelease)
+            } else {
+                guard let workflow = try writer.checkRunnerBeginEvidence(workspaceID: dependencies.workspaceID,
+                    mutationID: attempt.recordMutationID) else { throw FieldDraftFailureV1.missingReceipt }
+                try requireOriginalBegin(workflow, command: .createCheckDraft(attempt.recordCommand),
+                    workspaceID: dependencies.workspaceID, mutationID: attempt.recordMutationID,
+                    revisions: attempt.recordExpectedEntityRevisions, committedAt: attempt.recordCommittedAt)
+                try workflowReference.validate(evidence: workflow)
+                if let zone = attempt.timeZone {
+                    guard let zoneReference,
+                          let original = try writer.checkRunnerBeginEvidence(workspaceID: dependencies.workspaceID,
+                            mutationID: zone.mutationID) else { throw FieldDraftFailureV1.missingReceipt }
+                    try requireOriginalBegin(original, command: .updateSiteTimeZone(zone.command),
+                        workspaceID: dependencies.workspaceID, mutationID: zone.mutationID,
+                        revisions: [.init(identity: try .init(kind: .site, id: zone.command.siteID),
+                                          revision: zone.expectedSiteRevision)], committedAt: zone.committedAt)
+                    try zoneReference.validate(evidence: original)
+                } else if zoneReference != nil { throw FieldDraftFailureV1.digestMismatch }
+                try validateInitialBeginAccess(attempt, workflow: workflow)
+                for slot in slots {
+                    switch slot {
+                    case .committed:
+                        guard let target = try writer.checkRunnerPhotoCurrentTargetEvidence(
+                            workspaceID: dependencies.workspaceID, parentDraftID: parentCheckpoint.draftID,
+                            childDraftID: slot.childDraftID),
+                              target.parent.checkpoint == parentCheckpoint, target.parent.slot == slot,
+                              target.finalization == nil else { throw FieldDraftFailureV1.missingReceipt }
+                    case .pending:
+                        let childID = slot.childDraftID
+                        var descriptor = FetchDescriptor<FieldDraftCheckpointRow>(predicate: #Predicate {
+                            $0.draftID == childID
+                        })
+                        descriptor.fetchLimit = 2
+                        let rows = try modelContext.fetch(descriptor)
+                        guard rows.count == 1, let row = rows.first else {
+                            throw FieldDraftFailureV1.missingReceipt
+                        }
+                        let checkpoint = try row.value()
+                        guard checkpoint.state == .active else { throw FieldDraftFailureV1.invalidTransition }
+                        let photo = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(checkpoint)
+                        try photo.validate(parent: parent, parentDraftID: parentCheckpoint.draftID)
+                        switch photo.phase {
+                        case .awaitingRawStage, .rawReady:
+                            guard let pending = try writer.checkRunnerPhotoRawStageEvidence(
+                                workspaceID: dependencies.workspaceID, parentDraftID: parentCheckpoint.draftID,
+                                childDraftID: childID), pending.parentCheckpoint == parentCheckpoint,
+                                  pending.currentCheckpoint == checkpoint else {
+                                throw FieldDraftFailureV1.missingReceipt
+                            }
+                            try validatePendingPhotoPublication(pending, progress: progress,
+                                                                publishedRelease: publishedRelease)
+                        case .pairReady:
+                            guard let continuation = try writer.checkRunnerPhotoContinuationEvidence(
+                                workspaceID: dependencies.workspaceID, parentDraftID: parentCheckpoint.draftID,
+                                childDraftID: childID), continuation.parentCheckpoint == parentCheckpoint,
+                                  continuation.checkpoint == checkpoint else {
+                                throw FieldDraftFailureV1.missingReceipt
+                            }
+                            try validatePhotoContinuation(continuation, progress: progress,
+                                                          publishedRelease: publishedRelease)
+                        case .preparedCommit:
+                            throw FieldDraftFailureV1.invalidTransition
+                        }
+                    }
+                }
+            }
+        }
+        try progress.validateForPublication(read)
+        let closing = try frozenBeginDependencies(progress: progress)
+        guard closing.writer === writer, try writer.currentRevision() == revision else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        _ = try ProductionCheckRunnerItemDraftServiceV1.authenticateCurrent(
+            parentCheckpoint, writer: writer, context: modelContext)
+    }
+
     private func initialBeginEvidence(_ checkpoint: FieldDraftCheckpointV1,
         progress: ProductionRepetitiveCaptureProgressServiceV2,
         publishedRelease: InspectionPackageReleaseV1) throws

@@ -333,6 +333,7 @@ struct AppShellView: View {
 
     @State private var productionComposition: ProductionShellComposition?
     @State private var productionCompositionErrorMessage: String?
+    @StateObject private var savedReview = ProductionSavedReviewSheetStateV1()
     @State private var isComposingProductionWorkflow = false
     @State private var reportsPresentation = ReportsNavigationPresentationV1()
 
@@ -473,7 +474,27 @@ struct AppShellView: View {
                 NavigationStack(path: workPath(scene)) {
                     ProductionWorkRootViewV1(source: sources, openRound: roundAccess.map { _ in
                         { reference in openRound(reference, in: scene) }
+                    }, reviewAccess: roundAccess, openSavedReview: roundAccess.map { _ in
+                        { reference in openSavedReview(reference, in: scene) }
                     })
+                        .sheet(item: Binding(get: { savedReview.route },
+                            set: { if $0 == nil { savedReview.dismiss() } })) { route in
+                            if let roundAccess {
+                                ProductionRepetitiveCaptureReviewDestinationV1(
+                                    reference: route.reference, access: roundAccess,
+                                    validateIntent: {
+                                        try savedReview.validateIntent(route, scene: scene,
+                                            sceneAccess: sceneNavigationAccess)
+                                    })
+                            }
+                        }
+                        .alert("Saved draft unavailable", isPresented: Binding(
+                            get: { savedReview.errorMessage != nil },
+                            set: { if !$0 { savedReview.dismissError() } })) {
+                            Button("OK", role: .cancel) { savedReview.dismissError() }
+                        } message: {
+                            Text(savedReview.errorMessage ?? "Refresh Work and try again.")
+                        }
                         #if DEBUG
                         .onAppear { print("WorkStartupDiagnostic root_appeared") }
                         #endif
@@ -664,6 +685,13 @@ struct AppShellView: View {
         } catch {
             productionCompositionErrorMessage = "Navigation could not be restored safely."
         }
+    }
+
+    private func openSavedReview(_ reference: MyDayEligibleReferenceV1,
+                                 in scene: AppShellSceneStateV1) {
+        guard let roundAccess else { return }
+        savedReview.open(reference, scene: scene, sceneAccess: sceneNavigationAccess,
+            access: roundAccess)
     }
 
     private func isWorkAssetPreflightTarget(

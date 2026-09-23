@@ -613,6 +613,146 @@ class V23ProductionFourRootShellTestSupport: XCTestCase {
 
 final class V23ProductionFourRootShellTests: V23ProductionFourRootShellTestSupport {
     @MainActor
+    func testPhysicalRestoredReviewDiscardUsesProductionAccessAndColdOriginalReadback() async throws {
+        let source = try RepetitiveCaptureSourcePackageFixture(sourceOnly: true)
+        defer { source.removePackages() }
+        let harness = try RestoreReviewHarness()
+        defer { harness.remove() }
+        let suite = "v23-restored-review-presentation-" + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var settled: (FieldDraftCheckpointV1, RepetitiveCaptureDestinationDiscardEvidenceV1,
+                      MutationHistorySnapshotV1)?
+        do {
+            let restored = try await harness.restore(try source.package(named: "work-review"), mode: .fork)
+            let initial = try harness.onlyReview(in: restored)
+            let initialHistory = try harness.history(in: restored)
+            let authority = try await reopenActualCaptureAuthority(
+                support: harness.support, defaults: defaults)
+            defer { try? authority.coordinator.invalidateAndReleaseWriter() }
+            let owner = authority
+            let access = try XCTUnwrap(owner.presentation.roundAccess)
+            let sceneAccess = try XCTUnwrap(owner.presentation.sceneNavigationAccess)
+            let scene = AppShellSceneStateV1(workspaceID: initial.workspaceID,
+                access: sceneAccess, registry: try RouteRegistryV1())
+            try scene.restore()
+            try scene.select(.work)
+            let expectedScene = try XCTUnwrap(scene.snapshot)
+            let reference = MyDayEligibleReferenceV1.resumableDraft(workspaceID: initial.workspaceID,
+                draftID: initial.draftID, revision: initial.draftRevision,
+                checkpointSHA256: initial.checkpointSHA256, anchor: initial.resumeAnchor)
+            let entry = ProductionSavedReviewSheetStateV1()
+            let stale = MyDayEligibleReferenceV1.resumableDraft(workspaceID: initial.workspaceID,
+                draftID: initial.draftID, revision: initial.draftRevision + 1,
+                checkpointSHA256: initial.checkpointSHA256, anchor: initial.resumeAnchor)
+            entry.open(stale, scene: scene, sceneAccess: sceneAccess, access: access)
+            XCTAssertNil(entry.route)
+            XCTAssertNotNil(entry.errorMessage)
+            XCTAssertEqual(try harness.history(in: restored), initialHistory)
+            entry.dismissError()
+            XCTAssertNil(entry.errorMessage)
+            entry.open(reference, scene: scene, sceneAccess: sceneAccess, access: access)
+            let route = try XCTUnwrap(entry.route)
+            XCTAssertEqual(route.sceneSnapshot, expectedScene)
+            XCTAssertNil(entry.errorMessage)
+            var interruptAfterResolution = false
+            let presentation = ProductionRepetitiveCaptureReviewPresentationV1(reference: reference,
+                access: access, validateIntent: {
+                    try entry.validateIntent(route, scene: scene, sceneAccess: sceneAccess)
+                    if interruptAfterResolution,
+                       try access.readRepetitiveCaptureDestinationReview(reviewDraftID: initial.draftID)
+                        .selectedReview.checkpoint.state == .discardPending {
+                        interruptAfterResolution = false
+                        throw SceneNavigationFailureV1.invalidSnapshot
+                    }
+                })
+            presentation.load()
+            XCTAssertFalse(presentation.couldNotLoad)
+            XCTAssertEqual(presentation.checkpoint, initial)
+            let provenance = try XCTUnwrap(presentation.provenance)
+            let sourceRound = try XCTUnwrap(source.rounds.last)
+            XCTAssertEqual(provenance.sourceWorkspaceID, source.workspaceID)
+            XCTAssertEqual(provenance.sourceDraftID, try XCTUnwrap(source.checkpoints.first).draftID)
+            XCTAssertEqual(provenance.sourceRoundID, sourceRound.sessionID)
+            XCTAssertEqual(provenance.recordedAt, sourceRound.recordedAt)
+            XCTAssertEqual(provenance.recordedBy, sourceRound.recordedBy.displayNameAtTime)
+            XCTAssertEqual(provenance.assetLabels, sourceRound.items.map { $0.selection.labelAtSelection })
+            XCTAssertEqual(provenance.restoreMode, .fork)
+            presentation.requestDiscard()
+            XCTAssertTrue(presentation.wantsConfirmation)
+            presentation.cancelConfirmation()
+            presentation.confirmDiscard(confirmed: false)
+            XCTAssertEqual(try harness.history(in: restored), initialHistory)
+            XCTAssertFalse(presentation.isDiscarded)
+            interruptAfterResolution = true
+            presentation.requestDiscard()
+            presentation.confirmDiscard(confirmed: true)
+            XCTAssertTrue(presentation.couldNotDiscard)
+            XCTAssertFalse(presentation.isDiscarded)
+            let pendingHistory = try harness.history(in: restored)
+            XCTAssertEqual(pendingHistory.receipts.count, initialHistory.receipts.count + 1)
+            presentation.checkSavedResult()
+            XCTAssertFalse(presentation.couldNotDiscard)
+            XCTAssertEqual(presentation.checkpoint?.state, .discardPending)
+            XCTAssertEqual(try harness.history(in: restored), pendingHistory)
+            presentation.requestDiscard()
+            presentation.confirmDiscard(confirmed: true)
+            XCTAssertFalse(presentation.couldNotDiscard)
+            XCTAssertTrue(presentation.isDiscarded)
+            let terminal = try XCTUnwrap(presentation.checkpoint)
+            XCTAssertEqual(terminal.state, .discarded)
+            let terminalRead = try XCTUnwrap(access.readRepetitiveCaptureDestinationDiscard(reviewDraftID: initial.draftID))
+            XCTAssertEqual(terminalRead.evidence.bundle.discardedCheckpoint, terminal)
+            let settledHistory = try harness.history(in: restored)
+            XCTAssertEqual(settledHistory.receipts.count, initialHistory.receipts.count + 2)
+            for original in initialHistory.receipts {
+                XCTAssertTrue(settledHistory.receipts.contains(original))
+            }
+            presentation.checkSavedResult()
+            XCTAssertEqual(try harness.history(in: restored), settledHistory)
+            entry.dismiss()
+            XCTAssertThrowsError(try entry.validateIntent(route, scene: scene, sceneAccess: sceneAccess))
+            presentation.invalidate()
+            XCTAssertNil(presentation.provenance)
+            presentation.requestDiscard()
+            presentation.confirmDiscard(confirmed: true)
+            XCTAssertEqual(try harness.history(in: restored), settledHistory)
+            settled = (terminal, terminalRead.evidence, settledHistory)
+        }
+        let (terminal, terminalEvidence, settledHistory) = try XCTUnwrap(settled)
+        let reopened = try await reopenActualCaptureAuthority(support: harness.support, defaults: defaults)
+        defer { try? reopened.coordinator.invalidateAndReleaseWriter() }
+        let reopenedAccess = try XCTUnwrap(reopened.presentation.roundAccess)
+        let reopenedReference = MyDayEligibleReferenceV1.resumableDraft(workspaceID: terminal.workspaceID,
+            draftID: terminal.draftID, revision: terminal.draftRevision,
+            checkpointSHA256: terminal.checkpointSHA256, anchor: terminal.resumeAnchor)
+        let reopenedSceneAccess = try XCTUnwrap(reopened.presentation.sceneNavigationAccess)
+        let reopenedScene = AppShellSceneStateV1(workspaceID: terminal.workspaceID,
+            access: reopenedSceneAccess, registry: try RouteRegistryV1())
+        try reopenedScene.restore()
+        try reopenedScene.select(.work)
+        let reopenedSnapshot = try XCTUnwrap(reopenedScene.snapshot)
+        let recovered = ProductionRepetitiveCaptureReviewPresentationV1(reference: reopenedReference,
+            access: reopenedAccess, validateIntent: {
+                guard reopenedScene.snapshot == reopenedSnapshot,
+                      case let .restored(saved) = try reopenedSceneAccess.load(), saved == reopenedSnapshot else {
+                    throw SceneNavigationFailureV1.invalidSnapshot
+                }
+            })
+        recovered.load()
+        XCTAssertFalse(recovered.couldNotLoad)
+        XCTAssertTrue(recovered.isDiscarded)
+        XCTAssertFalse(recovered.permitsDiscard)
+        XCTAssertEqual(recovered.checkpoint, terminal)
+        XCTAssertEqual(recovered.provenance?.sourceWorkspaceID, source.workspaceID)
+        XCTAssertEqual(recovered.provenance?.sourceDraftID, try XCTUnwrap(source.checkpoints.first).draftID)
+        let recoveredRead = try XCTUnwrap(reopenedAccess.readRepetitiveCaptureDestinationDiscard(reviewDraftID: terminal.draftID))
+        XCTAssertEqual(recoveredRead.evidence, terminalEvidence)
+        let coldSession = try harness.factory.openOrBootstrapCurrent()
+        XCTAssertEqual(try harness.history(in: coldSession), settledHistory)
+    }
+
+    @MainActor
     func testActualNativeShellRestoresEachPersistedRootAndPreservesAcceptedTabIdentities() async throws {
         #if DEBUG
         let fixture = try await makeFixture("native-tabs")
