@@ -412,10 +412,13 @@ private final class C22ScheduleWriterProbe: ScheduleCanonicalWritingV1 {
             command: .applySchedule(mutation)
         ), identity: identity)
         let images = try mutation.mutationPostImages
-        let resultingRows = try targets.map { target -> WorkspaceEntityRevisionV1 in
-            let revision = try images.first(where: { try $0.identity == target })?.revision
-                ?? mutation.expectedRevision(for: target)
-            return WorkspaceEntityRevisionV1(identity: target, revision: revision)
+        var resultingRows = expectedRows
+        for image in images {
+            let physicalIdentity = try image.identity
+            resultingRows.removeAll { $0.identity == physicalIdentity }
+            resultingRows.append(WorkspaceEntityRevisionV1(
+                identity: physicalIdentity, revision: image.revision
+            ))
         }
         let resulting = try WorkspaceExpectedRevisionV1(
             workspaceID: mutation.workspaceID, generationID: expected.generationID,
@@ -594,6 +597,10 @@ final class V9_85RecurringRoundExperienceTests: XCTestCase {
         _ = try await fixture.owner.reconcile(fixture.projection)
         XCTAssertNotNil(fixture.system.requests.first?.detail)
         for enabled in [true, false] {
+            if !enabled {
+                let unlockOutcome = await fixture.gate.authenticate(trigger: .unlock)
+                XCTAssertEqual(unlockOutcome, .authenticated)
+            }
             let outcome = await fixture.gate.authenticate(trigger: enabled ? .enableAppLock : .disableAppLock)
             XCTAssertEqual(outcome, .authenticated)
             let proof = try await fixture.gate.toggleAuthenticationToken(targetEnabled: enabled)
@@ -959,6 +966,15 @@ final class V9_85RecurringRoundExperienceTests: XCTestCase {
         let firstReceipt = try coordinator.start(
             request, readiness: readiness, currentRoundSession: sessions.active
         )
+        let startedIdentity = try XCTUnwrap(firstReceipt.scheduleReceipt.mutationReceipt.postImages.first).identity
+        XCTAssertEqual(firstReceipt.scheduleReceipt.mutationReceipt.resultingRevision.entityRevisions.first {
+            $0.identity == startedIdentity
+        }?.revision, 2)
+        for predecessor in firstReceipt.scheduleReceipt.mutationReceipt.expectedRevision.entityRevisions {
+            XCTAssertEqual(firstReceipt.scheduleReceipt.mutationReceipt.resultingRevision.entityRevisions.first {
+                $0.identity == predecessor.identity
+            }?.revision, predecessor.revision)
+        }
         let repeatedReceipt = try coordinator.start(
             request, readiness: readiness, currentRoundSession: sessions.active
         )

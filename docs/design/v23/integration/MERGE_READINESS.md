@@ -1,5 +1,7 @@
 # Expansion into the existing AssetRounds app
 
+Current priority: correct audited915 Reminder28 fixture defects and obtain typed stage/error evidence for four Erase failures. Preserve source and parent isolation of the prepared Finding/profile81 batch; rebind/qualify it after the reminder causal batch rather than treating older pins as current. No active hosted run; no unchanged retry.
+
 Current native execution and audited outcomes: [ACTIVE_BRIEF](ACTIVE_BRIEF.md#current-critical-path). Reuse its head/run/evidence references; this navigation record grants no acceptance and does not replace the controlling requirements or the coverage ledger.
 
 Follow [ACTIVE_BRIEF](ACTIVE_BRIEF.md#current-critical-path) for the current dependency-ready batch and exact native question. Retain all recorded startup, Erase publication, restore history and golden file-policy diagnostic obligations, their closed method membership and hosted acceptance gates.

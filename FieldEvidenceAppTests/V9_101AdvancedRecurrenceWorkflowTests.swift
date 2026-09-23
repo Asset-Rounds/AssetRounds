@@ -68,7 +68,7 @@ private enum C38 {
         nonexistent: NonexistentLocalTimePolicyV1 = .shiftForwardByGap
     ) throws -> FrozenScheduleTimeBasisV1 {
         try .init(ianaTimeZoneIdentifier: "America/New_York", timeZoneRuleSetVersion: "2026a",
-                  timeZoneRuleSetSHA256: digest("t"), ambiguousTimePolicy: ambiguous,
+                  timeZoneRuleSetSHA256: digest("7"), ambiguousTimePolicy: ambiguous,
                   nonexistentTimePolicy: nonexistent, calendarBasisID: id(30).uuidString.lowercased(),
                   calendarBasisRevision: 1, calendarBasisSHA256: digest("c"))
     }
@@ -100,7 +100,7 @@ private enum C38 {
             reportProjection: .init(projectionID: "report", projectionVersion: "1",
                                     headingLocalizationKey: "c38.report", emptyValueLocalizationKey: "c38.empty",
                                     sectionIDs: ["section"], includedFactIDs: ["fact"]),
-            localizationReleaseSHA256: digest("l"), revision: 1, mutationID: mutation(42),
+            localizationReleaseSHA256: digest("8"), revision: 1, mutationID: mutation(42),
             authoredBy: actor(43), authoredAt: now
         )
         let workflow = try WorkflowDefinitionV1(
@@ -120,7 +120,7 @@ private enum C38 {
         )
         let frozenTimeBasis = try FrozenScheduleTimeBasisV1(
             ianaTimeZoneIdentifier: calendar.ianaTimeZoneIdentifier,
-            timeZoneRuleSetVersion: "2026a", timeZoneRuleSetSHA256: digest("t"),
+            timeZoneRuleSetVersion: "2026a", timeZoneRuleSetSHA256: digest("7"),
             ambiguousTimePolicy: .earlierOffset, nonexistentTimePolicy: .shiftForwardByGap,
             calendarBasisID: calendar.calendarID.uuidString.lowercased(),
             calendarBasisRevision: calendar.revision, calendarBasisSHA256: calendar.releaseSHA256
@@ -250,13 +250,18 @@ private struct C38Clock: ApplicationClock { let value: Date; func now() -> Date 
             mutationID: mutation.mutationID, expectedRevision: expected, command: .applySchedule(mutation)
         ), identity: identity)
         let images = try mutation.mutationPostImages
+        var resultingRows = expected.entityRevisions
+        for image in images {
+            let physicalIdentity = try image.identity
+            resultingRows.removeAll { $0.identity == physicalIdentity }
+            resultingRows.append(WorkspaceEntityRevisionV1(
+                identity: physicalIdentity, revision: image.revision
+            ))
+        }
         let resulting = try WorkspaceExpectedRevisionV1(
             workspaceID: mutation.workspaceID, generationID: expected.generationID,
             writerInstanceID: expected.writerInstanceID, workspaceRevision: 1,
-            entityRevisions: try targets.map { target in
-                .init(identity: target, revision: try images.first(where: { try $0.identity == target })?.revision
-                      ?? mutation.expectedRevision(for: target))
-            })
+            entityRevisions: resultingRows)
         let raw = try MutationReceiptV1(
             identity: .init(workspaceID: mutation.workspaceID, replicaID: replica, localSequence: 1),
             envelope: envelope, resultingRevision: try .init(resulting), postImages: images,
@@ -516,7 +521,7 @@ final class V9_101AdvancedRecurrenceWorkflowTests: XCTestCase {
         let basis = try C38.basis("2025-02-28", definition: definition)
         let generated = try C38.event(definition: definition, basis: basis, mutationSlot: 400)
         let work = ScheduledWorkInstanceReferenceV1.roundSession(
-            sessionID: C38.id(401), revision: 1, sessionSHA256: C38.digest("w")
+            sessionID: C38.id(401), revision: 1, sessionSHA256: C38.digest("9")
         )
         let started = try OccurrenceHistoryEventV1(
             eventID: C38.id(402), workspaceID: C38.workspace, occurrenceID: generated.occurrenceID,
@@ -560,6 +565,29 @@ final class V9_101AdvancedRecurrenceWorkflowTests: XCTestCase {
         }
         XCTAssertEqual(receipt, replay)
         XCTAssertEqual(writer.committedEffectCount, 1)
+
+        let successorWriter = C38Writer()
+        let successorCoordinator = c38Coordinator(writer: successorWriter)
+        let successorContext = try C38.context(definition: definition, history: [generated, started])
+        let successorCommand = AdvancedRecurrenceWorkflowCommandV1.recordOccurrence(
+            event: completed, predecessor: started
+        )
+        guard case let .occurrenceRecorded(successorReceipt) = try await successorCoordinator.execute(
+            successorCommand, context: successorContext
+        ), case let .occurrenceRecorded(successorReplay) = try await successorCoordinator.recover(
+            successorCommand, context: successorContext
+        ) else { return XCTFail("Expected exact successor replay") }
+        XCTAssertEqual(successorReceipt, successorReplay)
+        XCTAssertEqual(successorWriter.committedEffectCount, 1)
+        let successorIdentity = try XCTUnwrap(successorReceipt.mutationReceipt.postImages.first).identity
+        XCTAssertEqual(successorReceipt.mutationReceipt.resultingRevision.entityRevisions.first {
+            $0.identity == successorIdentity
+        }?.revision, 3)
+        for predecessor in successorReceipt.mutationReceipt.expectedRevision.entityRevisions {
+            XCTAssertEqual(successorReceipt.mutationReceipt.resultingRevision.entityRevisions.first {
+                $0.identity == predecessor.identity
+            }?.revision, predecessor.revision)
+        }
 
         let generationWriter = C38Writer()
         let generationCoordinator = c38Coordinator(writer: generationWriter, now: definition.startsAtUTC)

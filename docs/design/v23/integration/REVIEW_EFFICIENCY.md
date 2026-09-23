@@ -1,5 +1,9 @@
 # Review efficiency — current record
 
+Root pre-review correction: the added C22 receipt assertion must follow RecurringRoundStartReceiptV1.scheduleReceipt before accessing mutationReceipt; corrected this source-proven member path before any native run. The original local protocol execution uses its retained immutable source; the changed product/test-tree bindings require a new checked preparation.0 native originals consumed; record as avoidable local assembly rework.
+
+915 Reminder28 original35794922122 compiled,22/28PASS,6Failed. Two bounded xhigh helpers supplied disjoint receipt-source diagnosis and retained runtime evidence; root implemented the understood test-fixture corrections and four-method typed diagnostics. One complete-boundary semantic/index/commit reviewer and required checks remain due. Distinguish newly executed coverage defects from review escapes in this source-preserving route batch; no production changes or native success claimed. Separate local rework: the Finding81 AST count224 omitted two inherited methods; all226 passed but the exact-count wrapper rejected it, then the same source passed the corrected226 gate (994146BE). One avoidable full protocol reexecution,0native runs consumed. Diagnostic assembly briefly displaced an existing MainActor annotation; root restored it before verification/review. Token/net savings UNKNOWN.
+
 Root stays hands-on on Astra xhigh. One Astra Extra High (xhigh) reviewer owns each consequential affected contract through related source/index/commit gates until the owner changes the default; low handles narrow mechanical checks. Deterministic checks precede semantic review. AGENTS.md controls routing and gates; this file records outcomes, not additional policy.
 
 ## Current batch
