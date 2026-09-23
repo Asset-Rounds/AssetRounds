@@ -881,7 +881,8 @@ final class S6_6EraseRecoveryTests: XCTestCase {
     func testRetainedLiveContextDefersCleanupUntilColdRecovery() async throws {
         var diagnosticPhase = "harness"
         do {
-            let harness = try await makeHarness("deferred-drain", observePhase: { diagnosticPhase = $0 })
+            let harness = try await makeHarness("deferred-drain", diagnoseInitialOpen: true,
+                observePhase: { diagnosticPhase = $0 })
             defer { cleanup(harness) }
             let coordinator = try XCTUnwrap(harness.coordinator)
             let oldID = coordinator.generationID
@@ -1789,6 +1790,7 @@ private extension S6_6EraseRecoveryTests {
     @MainActor
     func makeHarness(
         _ name: String,
+        diagnoseInitialOpen: Bool = false,
         observePhase: (@MainActor (String) -> Void)? = nil
     ) async throws -> Harness {
         let root = fileManager.temporaryDirectory.appendingPathComponent(
@@ -1806,9 +1808,11 @@ private extension S6_6EraseRecoveryTests {
         try fileManager.createDirectory(at: support, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: caches, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: temporary, withIntermediateDirectories: true)
-        let factory = StoreGenerationFactory(applicationSupportURL: support)
+        var factory = StoreGenerationFactory(applicationSupportURL: support)
+        factory.coldOpenDiagnosticForTesting = diagnoseInitialOpen
         observePhase?("harness.open-current")
         let session = try factory.openOrBootstrapCurrent()
+        factory.coldOpenDiagnosticForTesting = false
         let context = session.modelContext
         let created = Date(timeIntervalSince1970: 1_786_800_000)
         let siteID = uuid("66000000-0000-0000-0000-000000000001")

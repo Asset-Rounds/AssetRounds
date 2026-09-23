@@ -1444,8 +1444,8 @@ private extension StoreGenerationFactory {
             storeSchemaRelease: .v2,
             generationEpoch: epoch,
             readerLeaseHandle: readerLease,
-            afterSaveReproof: { [self] in
-                try self.protectGeneration(
+            afterSaveReproof: { [factory = self.withoutColdOpenDiagnostics()] in
+                try factory.protectGeneration(
                     at: generationRootURL,
                     staging: false,
                     requireModel: true
@@ -1649,8 +1649,8 @@ private extension StoreGenerationFactory {
             storeSchemaRelease: release,
             generationEpoch: epoch,
             readerLeaseHandle: readerLease,
-            afterSaveReproof: { [self] in
-                try self.protectGeneration(
+            afterSaveReproof: { [factory = self.withoutColdOpenDiagnostics()] in
+                try factory.protectGeneration(
                     at: generationRootURL,
                     staging: false,
                     requireModel: true
@@ -9324,6 +9324,16 @@ struct StoreGenerationFactory {
         preconditionFailure("Unable to create distinct workspace and replica identities")
     }
 
+    private func withoutColdOpenDiagnostics() -> StoreGenerationFactory {
+#if DEBUG
+        var copy = self
+        copy.coldOpenDiagnosticForTesting = false
+        return copy
+#else
+        return self
+#endif
+    }
+
 #if DEBUG
     private func coldOpenDiagnostic(_ phase: String) {
         guard coldOpenDiagnosticForTesting else { return }
@@ -9529,16 +9539,25 @@ struct StoreGenerationFactory {
     ) throws -> (pointer: RestorePointerIdentityV1, ledgerProof: DeletionLedgerProofV2) {
         _ = try requireCurrentPointer(expectedOldPointer, authority: authority)
         try createEmptyInstalledGeneration(id: id, authority: authority)
-        let session = try openGeneration(
-            id: id,
-            at: installedGenerationURL(id: id),
-            identity: identity
-        )
-        _ = try MutationJournalStoreV1(
-            modelContext: session.modelContext,
-            identity: identity,
-            generationID: id
-        )
+        // Finish the empty store's connection lifetime before sealing physical
+        // database/WAL/SHM bytes. Closing a live connection can change those bytes.
+        let proof: DeletionLedgerProofV2 = try autoreleasepool {
+            let session = try openGeneration(
+                id: id,
+                at: installedGenerationURL(id: id),
+                identity: identity
+            )
+            _ = try MutationJournalStoreV1(
+                modelContext: session.modelContext,
+                identity: identity,
+                generationID: id
+            )
+            let proof = try deletionLedgerProof(in: session.modelContext)
+            guard proof.entryCount == 0 else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+            return proof
+        }
         let prepared = try makeRestoreCurrentPointer(
             expectedOldID: expectedOldPointer.generationID,
             newID: id
@@ -9551,10 +9570,6 @@ struct StoreGenerationFactory {
             knownReplicaIDs: [identity.replicaID],
             storeSchemaVersion: PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major
         )
-        let proof = try deletionLedgerProof(in: session.modelContext)
-        guard proof.entryCount == 0 else {
-            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
-        }
         _ = try requireCurrentPointer(expectedOldPointer, authority: authority)
         return (try restorePointerIdentity(pointer), proof)
     }
@@ -9710,29 +9725,33 @@ struct StoreGenerationFactory {
             )
         }
 #endif
-        let session = try openGeneration(
-            id: targetGenerationID,
-            at: root,
-            identity: targetIdentity
-        )
-        diagnosticPhase?("discard.marker")
-        let marker = try session.modelContext.fetch(
-            FetchDescriptor<PersistentSchemaReleaseMarker>()
-        )
-        guard marker.count == 1,
-              marker.first?.schemaVersion == activeSchemaVersion,
-              marker.first?.releaseID
-                == activeRelease.compatibilityID,
-               marker.first?.migrationID == targetGenerationID else {
-            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
-        }
-        diagnosticPhase?("discard.empty-content")
-        guard BackupRestoreService.isEmptyCurrent(session.modelContext) else {
-            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
-        }
-        diagnosticPhase?("discard.empty-ledger")
-        guard try deletionLedgerProof(in: session.modelContext) == expectedEmptyLedger else {
-            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        // Do not keep this verification connection alive across the manifest's
+        // physical file check or the eventual target removal.
+        try autoreleasepool {
+            let session = try openGeneration(
+                id: targetGenerationID,
+                at: root,
+                identity: targetIdentity
+            )
+            diagnosticPhase?("discard.marker")
+            let marker = try session.modelContext.fetch(
+                FetchDescriptor<PersistentSchemaReleaseMarker>()
+            )
+            guard marker.count == 1,
+                  marker.first?.schemaVersion == activeSchemaVersion,
+                  marker.first?.releaseID
+                    == activeRelease.compatibilityID,
+                   marker.first?.migrationID == targetGenerationID else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+            diagnosticPhase?("discard.empty-content")
+            guard BackupRestoreService.isEmptyCurrent(session.modelContext) else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+            diagnosticPhase?("discard.empty-ledger")
+            guard try deletionLedgerProof(in: session.modelContext) == expectedEmptyLedger else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
         }
 
         diagnosticPhase?("discard.manifest-load")
@@ -12486,6 +12505,22 @@ struct StoreGenerationFactory {
             where error == .protectedDataUnavailable {
             throw error
         } catch {
+#if DEBUG
+            if coldOpenDiagnosticForTesting {
+                let originalError = error as NSError
+                let rootPath = applicationSupportURL.standardizedFileURL.path
+                let targetPath = url.standardizedFileURL.path
+                let ownedPrefix = rootPath == "/" ? "/" : rootPath + "/"
+                let diagnosticPath: String = targetPath.hasPrefix(ownedPrefix)
+                    ? String(targetPath.dropFirst(ownedPrefix.count))
+                    : "<outside-owned-root>"
+                coldOpenDiagnostic("protect-failed kind=" + kind.rawValue
+                    + " path=" + diagnosticPath
+                    + " type=" + String(reflecting: type(of: error))
+                    + " domain=" + originalError.domain
+                    + " code=" + String(originalError.code))
+            }
+#endif
             throw StoreGenerationFailure.dataPointerInvalid
         }
     }
@@ -13912,12 +13947,27 @@ struct StoreGenerationFactory {
     private func bootstrapDataRoot(at dataRootURL: URL) throws {
         // A missing data root is not proof of a new installation. Inspect
         // existing recovery owners before creating or cleaning any app bytes.
+#if DEBUG
+        coldOpenDiagnostic("bootstrap.recovery-authority-initial")
+#endif
         try requireNoBootstrapRecoveryAuthority()
+#if DEBUG
+        coldOpenDiagnostic("bootstrap.support-directory")
+#endif
         if try itemType(at: applicationSupportURL) == nil {
             try fileManager.createDirectory(at: applicationSupportURL, withIntermediateDirectories: true)
         }
+#if DEBUG
+        coldOpenDiagnostic("bootstrap.lease-registry")
+#endif
         let registry = try makeGenerationLeaseRegistry()
+#if DEBUG
+        coldOpenDiagnostic("bootstrap.migration-reservation")
+#endif
         try registry.withNoMigrationReservation {
+#if DEBUG
+            coldOpenDiagnostic("bootstrap.recovery-authority-reserved")
+#endif
             try requireNoBootstrapRecoveryAuthority()
             try bootstrapDataRootWithoutRecoveryAuthority(at: dataRootURL)
         }
@@ -13946,6 +13996,9 @@ struct StoreGenerationFactory {
 
     @MainActor
     private func bootstrapDataRootWithoutRecoveryAuthority(at dataRootURL: URL) throws {
+#if DEBUG
+        coldOpenDiagnostic("bootstrap.directory-preflight")
+#endif
         if let type = try itemType(at: applicationSupportURL),
            type != .typeDirectory {
             throw StoreGenerationFailure.dataPointerInvalid
@@ -13962,12 +14015,18 @@ struct StoreGenerationFactory {
             Self.bootstrapDirectoryName,
             isDirectory: true
         )
+#if DEBUG
+        coldOpenDiagnostic("bootstrap.support-authority")
+#endif
         let applicationSupportDescriptor = try openOwnedDirectory(at: applicationSupportURL)
         defer { _ = Darwin.close(applicationSupportDescriptor) }
         try verifyOwnedDirectory(
             at: applicationSupportURL,
             descriptor: applicationSupportDescriptor
         )
+#if DEBUG
+        coldOpenDiagnostic("bootstrap.stale-staging")
+#endif
         if try StoreRestoreGenerationAuthority.itemExists(
             parent: applicationSupportDescriptor,
             name: Self.bootstrapDirectoryName
@@ -13978,6 +14037,9 @@ struct StoreGenerationFactory {
             )
         }
 
+#if DEBUG
+        coldOpenDiagnostic("bootstrap.generation-directories")
+#endif
         let generationID = migrationIdentitySource?.makeGenerationID() ?? UUID()
         let generationName = canonicalString(for: generationID)
         let bootstrapDescriptor = try createOwnedDirectory(
@@ -14003,6 +14065,9 @@ struct StoreGenerationFactory {
             Self.generationsDirectoryName,
             isDirectory: true
         )
+#if DEBUG
+        coldOpenDiagnostic("bootstrap.staging-protection")
+#endif
         try protect(.stagingDirectory, at: bootstrapURL)
         try protect(.stagingDirectory, at: bootstrapGenerationsURL)
         try protect(.restoreStaging, at: generationRootURL)
@@ -14011,10 +14076,16 @@ struct StoreGenerationFactory {
             Self.modelStoreName,
             isDirectory: false
         )
+#if DEBUG
+        coldOpenDiagnostic("bootstrap.empty-container")
+#endif
         try createAndReleaseEmptyContainer(
             at: modelStoreURL,
             markerMigrationID: Self.bootstrapManifestMigrationID
         )
+#if DEBUG
+        coldOpenDiagnostic("bootstrap.journal-initialize")
+#endif
         try autoreleasepool {
             let container = try makeV53Container(at: modelStoreURL, migrate: false)
             _ = try MutationJournalStoreV1(
@@ -14024,36 +14095,65 @@ struct StoreGenerationFactory {
             )
         }
 
+#if DEBUG
+        coldOpenDiagnostic("bootstrap.model-presence")
+#endif
         guard try itemType(at: modelStoreURL) == .typeRegular else {
             throw StoreGenerationFailure.dataGenerationMissing
         }
+#if DEBUG
+        coldOpenDiagnostic("bootstrap.generation-protection")
+#endif
         try protectGeneration(at: generationRootURL, staging: false, requireModel: true)
 
+        let bootstrapPredecessorID: UUID = syntheticPredecessor(excluding: generationID)
+#if DEBUG
+        coldOpenDiagnostic("bootstrap.semantic-digest")
+#endif
+        let bootstrapSemanticSHA256: String = try framedSemanticDigest(
+            at: modelStoreURL,
+            release: PersistentSchemaReleaseRegistryV1.activeRelease
+        )
+#if DEBUG
+        coldOpenDiagnostic("bootstrap.frozen-identity")
+#endif
+        let bootstrapFrozenIdentityDigest: String = try frozenIdentityDigest(
+            for: generationRootURL
+        )
+#if DEBUG
+        coldOpenDiagnostic("bootstrap.physical-files")
+#endif
+        let bootstrapFiles: [StoreGenerationFileDigestV1] = try generationFileDigests(
+            at: generationRootURL,
+            durable: true
+        )
+#if DEBUG
+        coldOpenDiagnostic("bootstrap.manifest-value")
+#endif
         let manifest = try StoreGenerationManifestV1(
             schemaVersion: 2,
             generationID: generationID,
-            predecessorGenerationID: syntheticPredecessor(
-                excluding: generationID
-            ),
+            predecessorGenerationID: bootstrapPredecessorID,
             migrationID: Self.bootstrapManifestMigrationID,
             storeSchemaRelease: PersistentSchemaReleaseRegistryV1.activeRelease,
-            semanticSHA256: try framedSemanticDigest(
-                at: modelStoreURL,
-                release: PersistentSchemaReleaseRegistryV1.activeRelease
-            ),
+            semanticSHA256: bootstrapSemanticSHA256,
             semanticDigestAlgorithm: .framedLayersV1,
-            frozenIdentityDigest: try frozenIdentityDigest(
-                for: generationRootURL
-            ),
-            files: try generationFileDigests(
-                at: generationRootURL,
-                durable: true
-            )
+            frozenIdentityDigest: bootstrapFrozenIdentityDigest,
+            files: bootstrapFiles
         )
+#if DEBUG
+        coldOpenDiagnostic("bootstrap.manifest-store")
+#endif
         let migrationStore = try StoreMigrationJournalStoreV1(
             applicationSupportURL: applicationSupportURL
         )
+#if DEBUG
+        coldOpenDiagnostic("bootstrap.manifest-write")
+#endif
         let manifestDigest = try migrationStore.writeManifest(manifest)
+#if DEBUG
+        coldOpenDiagnostic("bootstrap.pointer-values")
+#endif
         let currentPointer = try CurrentGenerationPointerV3(
             generationID: generationID,
             generationManifestSHA256: manifestDigest,
@@ -14065,17 +14165,26 @@ struct StoreGenerationFactory {
             generationIDs: [],
             schemaVersion: StorePointerSchemaRegistry.retiredVersion
         )
+#if DEBUG
+        coldOpenDiagnostic("bootstrap.current-pointer-publication")
+#endif
         try publishPointer(
             name: Self.currentPointerName,
             value: currentPointer,
             in: bootstrapURL
         )
+#if DEBUG
+        coldOpenDiagnostic("bootstrap.retired-pointer-publication")
+#endif
         try publishPointer(
             name: Self.retiredPointerName,
             value: retiredPointer,
             in: bootstrapURL
         )
 
+#if DEBUG
+        coldOpenDiagnostic("bootstrap.prepublication-protection")
+#endif
         try protect(.durableDirectory, at: bootstrapURL)
         try protect(.durableDirectory, at: bootstrapGenerationsURL)
         try protectGeneration(at: generationRootURL, staging: false, requireModel: true)
@@ -14086,6 +14195,9 @@ struct StoreGenerationFactory {
             at: bootstrapURL.appendingPathComponent(Self.retiredPointerName, isDirectory: false)
         )
 
+#if DEBUG
+        coldOpenDiagnostic("bootstrap.root-publication")
+#endif
         // The staging root is a fixed sibling, so this move is a same-volume
         // atomic publication of an already complete generation and pointers.
         try verifyOwnedDirectory(
@@ -14106,6 +14218,9 @@ struct StoreGenerationFactory {
               Darwin.fsync(applicationSupportDescriptor) == 0 else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
+#if DEBUG
+        coldOpenDiagnostic("bootstrap.published-root-protection")
+#endif
         try protect(.durableDirectory, at: dataRootURL)
         let publishedGenerationsURL = dataRootURL.appendingPathComponent(
             Self.generationsDirectoryName,
@@ -14399,8 +14514,8 @@ struct StoreGenerationFactory {
             storeSchemaRelease: PersistentSchemaReleaseRegistryV1.activeRelease,
             generationEpoch: epoch,
             readerLeaseHandle: readerLease,
-            afterSaveReproof: { [self] in
-                try self.protectGeneration(
+            afterSaveReproof: { [factory = self.withoutColdOpenDiagnostics()] in
+                try factory.protectGeneration(
                     at: generationRootURL,
                     staging: staging,
                     requireModel: true
