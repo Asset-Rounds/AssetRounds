@@ -239,8 +239,8 @@ ACTIVITY_COMPLETED_SOURCE_SELECTORS = tuple(
     member for _, members in ACTIVITY_COMPLETED_SOURCE_GROUPS for member in members
 ) + ACTIVITY_CONTRACT_SELECTORS
 NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID = 'notification-schedule-erase-no-index-build30m'
-NOTIFICATION_SCHEDULE_ERASE_BUILD30_PARENT = 'd2a158b5cec957f56ce26b5c125418c2973363fb'
-NOTIFICATION_SCHEDULE_ERASE_BUILD30_TREES = {'FieldEvidenceApp': '7731c5593306ce9bc2fa8ef49e928e50ad4f1ba3', 'FieldEvidenceAppTests': '41ae582a7f701a4ec5d6e74adc6b34eefc232636', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+NOTIFICATION_SCHEDULE_ERASE_BUILD30_PARENT = 'a6d3718639da1b3760acd9b8b21b0e6dca4f6027'
+NOTIFICATION_SCHEDULE_ERASE_BUILD30_TREES = {'FieldEvidenceApp': '7731c5593306ce9bc2fa8ef49e928e50ad4f1ba3', 'FieldEvidenceAppTests': '43cdf3db79014c799dd11eb510c60d738cefa64b', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS = (
     'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testNotificationPreferenceEraseFencePreservesExactCooldownAndRejectsHeldSettingAuthority',
     'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testAbsentApplicationSupportHasNoEraseAuthority',

@@ -1196,7 +1196,15 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                     let clearedDiagnostics = await harness.diagnostics.snapshot()
                     XCTAssertEqual(clearedDiagnostics, .zero)
                     if let handoff = handoffBeforeRecovery {
-                        let reopened = try harness.factory.openOrBootstrapCurrent()
+                        // A cold relaunch uses a new owner; the pre-Erase registry
+                        // retains descriptors to physically erased control files.
+                        XCTAssertThrowsError(try harness.factory.openOrBootstrapCurrent()) { error in
+                            XCTAssertEqual(error as? GenerationLeaseRegistryFailureV1, .invalidIdentity)
+                        }
+                        XCTAssertEqual(try Data(contentsOf: sidecarURL), handoff.manifest, "\(point)")
+                        XCTAssertEqual(try regularFileIdentity(sidecarURL), handoff.identity, "\(point)")
+                        let reopenedFactory = StoreGenerationFactory(applicationSupportURL: harness.support)
+                        let reopened = try reopenedFactory.openOrBootstrapCurrent()
                         XCTAssertEqual(reopened.generationID, newID, "\(point)")
                         XCTAssertEqual(try counts(reopened.modelContext), [0, 0, 0, 0, 0, 0, 0], "\(point)")
                         let restoredURL = manifestURL(harness, generationID: newID)
