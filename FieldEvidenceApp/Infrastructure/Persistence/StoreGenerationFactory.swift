@@ -9455,7 +9455,9 @@ struct StoreGenerationFactory {
                 targetGenerationID,
             ] + expectedOldPointer.knownReplicaIDs
         )
-        guard old.storeSchemaVersion == 8,
+        let activeRelease = PersistentSchemaReleaseRegistryV1.activeRelease
+        let activeSchemaVersion = PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major
+        guard old.storeSchemaVersion == activeSchemaVersion,
               expectedEmptyLedger.entryCount == 0,
               targetGenerationID != expectedOldPointer.generationID,
               !oldIdentityValues.contains(targetGenerationID),
@@ -9512,9 +9514,9 @@ struct StoreGenerationFactory {
             FetchDescriptor<PersistentSchemaReleaseMarker>()
         )
         guard marker.count == 1,
-              marker.first?.schemaVersion == 17,
+              marker.first?.schemaVersion == activeSchemaVersion,
               marker.first?.releaseID
-                == PersistentSchemaReleaseRegistryV1.v17CompatibilityID,
+                == activeRelease.compatibilityID,
               marker.first?.migrationID == targetGenerationID,
               BackupRestoreService.isEmptyCurrent(session.modelContext),
               try deletionLedgerProof(in: session.modelContext)
@@ -9528,7 +9530,7 @@ struct StoreGenerationFactory {
             guard prepared.manifest.generationID == targetGenerationID,
                   prepared.manifest.predecessorGenerationID
                     == expectedOldPointer.generationID,
-                  prepared.manifest.storeSchemaRelease == .v11,
+                  prepared.manifest.storeSchemaRelease == activeRelease,
                   prepared.manifest.migrationID == targetGenerationID else {
                 throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
             }

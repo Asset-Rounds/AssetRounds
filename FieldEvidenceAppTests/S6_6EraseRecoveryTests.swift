@@ -917,6 +917,89 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             XCTAssertEqual(pending.phase, .sessionActivated)
             XCTAssertEqual(initialCompletionCount, 0)
 
+            diagnosticPhase = "authenticated-retained-summary"
+            do {
+                let oldContext = try XCTUnwrap(retainedContext)
+                let authority = try harness.factory.makeRestoreGenerationAuthority()
+                let validation = try EraseRetainedSourceValidationV1.acquire(
+                    intent: pending, generationFactory: harness.factory, authority: authority
+                )
+                XCTAssertEqual(validation.generationRootURL,
+                    harness.factory.installedGenerationURL(id: oldID))
+                _ = try BackupRestoreService.retainedEraseSummary(
+                    modelContext: oldContext, validation: validation
+                )
+                XCTAssertThrowsError(try BackupRestoreService.currentSummary(
+                    modelContext: oldContext,
+                    generationRootURL: validation.generationRootURL
+                )) { error in
+                    XCTAssertEqual(error as? BackupExportServiceError, .invalidGeneration)
+                }
+                XCTAssertThrowsError(try validation.revalidate(
+                    modelContext: outcome.session.modelContext
+                ))
+                XCTAssertThrowsError(try EraseRetainedSourceValidationV1.acquire(
+                    intent: pending.advancing(to: .cleanupComplete),
+                    generationFactory: harness.factory, authority: authority
+                ))
+
+                let ledgerRows = try oldContext.fetch(FetchDescriptor<DeletionLedgerRow>())
+                XCTAssertEqual(ledgerRows.count, 1)
+                let ledgerRow = try XCTUnwrap(ledgerRows.first)
+                let originalDeletionDate = ledgerRow.deletedAt
+                let originalLedger = try DeletionLedgerStore(context: oldContext)
+                    .snapshot().canonicalData()
+                do {
+                    defer {
+                        ledgerRow.deletedAt = originalDeletionDate
+                        try? oldContext.save()
+                    }
+                    ledgerRow.deletedAt = originalDeletionDate.addingTimeInterval(1)
+                    try oldContext.save()
+                    XCTAssertFalse(oldContext.hasChanges)
+                    XCTAssertThrowsError(try validation.revalidate(modelContext: oldContext)) {
+                        error in
+                        XCTAssertEqual(error as? BackupExportServiceError, .invalidGeneration)
+                    }
+                    XCTAssertEqual(ledgerRow.deletedAt,
+                        originalDeletionDate.addingTimeInterval(1))
+                }
+                XCTAssertFalse(oldContext.hasChanges)
+                XCTAssertEqual(try DeletionLedgerStore(context: oldContext)
+                    .snapshot().canonicalData(), originalLedger)
+
+                let sourceManifestURL = manifestURL(harness, generationID: oldID)
+                let currentPointerURL = harness.support
+                    .appendingPathComponent("FieldEvidenceData/current.json")
+                let manifestBefore = try Data(contentsOf: sourceManifestURL)
+                let pointerBefore = try Data(contentsOf: currentPointerURL)
+                for url in [sourceManifestURL, currentPointerURL] {
+                    let original = try Data(contentsOf: url)
+                    let hostile = Data("{invalid-retained-authority".utf8)
+                    do {
+                        defer { try? original.write(to: url) }
+                        try hostile.write(to: url)
+                        XCTAssertThrowsError(try EraseRetainedSourceValidationV1.acquire(
+                            intent: pending, generationFactory: harness.factory,
+                            authority: authority
+                        ))
+                        XCTAssertThrowsError(try BackupRestoreService.retainedEraseSummary(
+                            modelContext: oldContext, validation: validation
+                        ))
+                        XCTAssertEqual(try Data(contentsOf: url), hostile)
+                    }
+                    XCTAssertEqual(try Data(contentsOf: url), original)
+                }
+                XCTAssertEqual(try Data(contentsOf: sourceManifestURL), manifestBefore)
+                XCTAssertEqual(try Data(contentsOf: currentPointerURL), pointerBefore)
+                XCTAssertEqual(try EraseIntentStore(
+                    applicationSupportURL: harness.support
+                ).load(), pending)
+                XCTAssertFalse(oldContext.hasChanges)
+                XCTAssertFalse(outcome.session.modelContext.hasChanges)
+                try validation.revalidate(modelContext: oldContext)
+            }
+
             retainedContext = nil
             _ = retainedContext
             await Task.yield()

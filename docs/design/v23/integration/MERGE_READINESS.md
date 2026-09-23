@@ -1,4 +1,6 @@
-Original35808291825/803a3d4 is terminal/sole-collected/root-audited D6CDF9BF: compilationPASS,83/86PASS,Finding70PASS,shop10/11,recurrence3/5,0newwarning signatures,transportPASS. CSV TAB admission and two recurrence fixture/API mistakes are source-proven; their correction is prepared, nativeNOT_RUN. Retain1352files/32sourcepins and exact-head results; no acceptance credit.
+Original35814759983/8d19006 is terminal/sole-collected/root-audited 2FD37B62: compilationPASS,86/86PASS,Finding70/shop11/C38five allPASS,0new warning signatures. Retain exact-head development evidence; no result transfer or merge/release acceptance.
+
+Next causal batch: six independently reviewed Recovery source corrections/diagnostics on8d, exact existing notification28/1054/68/D30. Audited e3 original35802767660 had four recovery failures and unlocated generic-policy resourceValueMismatch; retained-source proof and dynamic registry discard correct established causes, default-off phase observation preserves the unresolved original error. NativeNOT_RUN pending complete source/protocol/helper/index/exact-commit gates.
 
 Current native execution and audited outcomes: [ACTIVE_BRIEF](ACTIVE_BRIEF.md#current-critical-path). Reuse its head/run/evidence references; this navigation record grants no acceptance and does not replace the controlling requirements or the coverage ledger.
 

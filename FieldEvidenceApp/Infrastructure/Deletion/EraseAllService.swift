@@ -1693,6 +1693,23 @@ private extension EraseAllService {
         }
         for id in intent.generationIDsToDelete
         where installed.contains(Self.canonical(id)) {
+            if intent.schemaVersion == 2,
+               id == intent.oldGenerationID,
+               currentID == intent.newGenerationID {
+                let validation = try EraseRetainedSourceValidationV1.acquire(
+                    intent: intent, generationFactory: generationFactory,
+                    authority: authority
+                )
+                let session = try generationFactory.openInstalledGeneration(
+                    id: id, identity: validation.workspaceIdentity, authority: authority
+                )
+                try validateFrozenGeneration(
+                    id: id, modelContext: session.modelContext,
+                    generationRootURL: session.generationRootURL,
+                    authority: authority, retainedEraseValidation: validation
+                )
+                continue
+            }
             let session = try generationFactory.openInstalledGeneration(
                 id: id,
                 authority: authority
@@ -2269,7 +2286,8 @@ private extension EraseAllService {
         id: UUID,
         modelContext: ModelContext,
         generationRootURL: URL,
-        authority: StoreRestoreGenerationAuthority
+        authority: StoreRestoreGenerationAuthority,
+        retainedEraseValidation: EraseRetainedSourceValidationV1? = nil
     ) throws {
         traceErasePhase("frozen.context-and-root")
         guard !modelContext.hasChanges,
@@ -2278,12 +2296,24 @@ private extension EraseAllService {
             traceErasePhase("authority.failure.line.\(#line)"); throw EraseAllServiceError.invalidAuthority
         }
         traceErasePhase("frozen.summary")
+        if let validation = retainedEraseValidation {
+            guard generationRootURL.standardizedFileURL == validation.generationRootURL else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try validation.revalidate(modelContext: modelContext)
+        }
         if !BackupRestoreService.isEmptyCurrent(modelContext) {
             do {
-                _ = try BackupRestoreService.currentSummary(
-                    modelContext: modelContext,
-                    generationRootURL: generationRootURL
-                )
+                if let validation = retainedEraseValidation {
+                    _ = try BackupRestoreService.retainedEraseSummary(
+                        modelContext: modelContext, validation: validation
+                    )
+                } else {
+                    _ = try BackupRestoreService.currentSummary(
+                        modelContext: modelContext,
+                        generationRootURL: generationRootURL
+                    )
+                }
             } catch {
                 traceErasePhase("frozen.summary.failure." + String(reflecting: type(of: error)))
                 throw error
@@ -2428,6 +2458,9 @@ private extension EraseAllService {
             }
 #endif
             traceErasePhase("authority.failure.line.\(#line)"); throw EraseAllServiceError.invalidAuthority
+        }
+        if let validation = retainedEraseValidation {
+            try validation.revalidate(modelContext: modelContext)
         }
     }
 

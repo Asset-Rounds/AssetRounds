@@ -8,11 +8,11 @@ Only C:\AssetRounds-v23-s10-integration, codex/v23-s10-integration-20260910, tas
 
 ## Current critical path
 
-Original35808291825/803a3d4 is terminal/sole-collected/root-audited D6CDF9BF: compilationPASS,83/86PASS,Finding70PASS,shop10/11,recurrence3/5,0newwarning signatures,transportPASS. CSV TAB admission and two recurrence fixture/API mistakes are source-proven; their correction is prepared, nativeNOT_RUN. Retain1352files/32sourcepins and exact-head results; no acceptance credit.
+Original35814759983/8d19006 is terminal/sole-collected/root-audited 2FD37B62: compilationPASS,86/86PASS,Finding70/shop11/C38five allPASS,0new warning signatures. Retain exact-head development evidence; no result transfer or merge/release acceptance.
 
-Next: verify and independently review the three-file causal correction, retain exact86/1054/68/D30 and dispatch once after source/index/exact-commit gates. All70Finding passed on803; production owner/writer/schema/UI activation and full journeys remain due. Native result does not transfer.
+Next causal batch: six independently reviewed Recovery source corrections/diagnostics on8d, exact existing notification28/1054/68/D30. Audited e3 original35802767660 had four recovery failures and unlocated generic-policy resourceValueMismatch; retained-source proof and dynamic registry discard correct established causes, default-off phase observation preserves the unresolved original error. NativeNOT_RUN pending complete source/protocol/helper/index/exact-commit gates.
 
-The separate six-file recovery correction has independent source approval and isolated notification1054 support checks47PASS. Its product/source bindings and complete CI/index/commit/native gates remain due after this batch. Generic-policy resourceValueMismatch remains unlocated; reviewed default-off phase diagnostics preserve the original error.
+MyDay shared-file mechanical reconciliation is isolated. The reviewed normalized-history amendment awaits an explicit owner choice; no V54 activation or Finding successor allocation until the controlling contract is settled.
 
 ## Retained evidence and remaining gates
 

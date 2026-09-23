@@ -61,22 +61,30 @@ private actor C22NotificationAuthentication: LocalAuthenticationClient {
     let owner: DeviceLocalNotificationOwnerV1
     let projection: ReminderProjectionV1
 
-    init(kind: ScheduledWorkKindV1 = .roundSession) async throws {
+    init(kind: ScheduledWorkKindV1 = .roundSession,
+         observePhase: (@MainActor (String) -> Void)? = nil) async throws {
         support = FileManager.default.temporaryDirectory.appendingPathComponent("C22-notification-" + UUID().uuidString)
         suite = "C22.notification." + UUID().uuidString
+        observePhase?("fixture.defaults")
         defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         let editPreferences = PreferencesAdapterV1(defaults: defaults)
         preferences = editPreferences
         let editGate = AppAccessGateV1(setting: .absentDisabled, authentication: C22NotificationAuthentication(),
             clock: C22NotificationClock(), identifiers: SystemApplicationIDSource())
         gate = editGate
+        observePhase?("fixture.bootstrap")
         coordinator = try StoreSessionCoordinator(validatingSession:
             StoreGenerationFactory(applicationSupportURL: support).openOrBootstrapCurrent())
+        observePhase?("fixture.notification-control")
         control = try AppLockNotificationControlStoreV1(applicationSupportURL: support, preferences: preferences)
+        observePhase?("fixture.bind-preferences")
         try editPreferences.bindReminderPolicyEdits(to: editGate, control: control)
+        observePhase?("fixture.read-preferences")
         let initial = try editPreferences.readReminderPolicy()
+        observePhase?("fixture.authorize-policy")
         let editCommand = try await editPreferences.authorizeReminderPolicyEdit(.init(expected: initial,
             isEnabled: true, detail: .generic, operationID: UUID()))
+        observePhase?("fixture.update-policy")
         _ = try editPreferences.updateReminderPolicy(editCommand)
         source = ProductionMyDaySourceProviderV1(session: coordinator, accessGate: gate)
         let concreteSource = source
@@ -88,6 +96,7 @@ private actor C22NotificationAuthentication: LocalAuthenticationClient {
             responsibility: .recordedBy, displayNameAtTime: actorReference.displayName, capturedAt: C22RecurringRoundTestSupport.now)
         let anchor = ScheduleLocalAnchorV1(year: nil, month: nil, day: nil, weekday: nil,
             weekdayOrdinal: nil, hour: 9, minute: 0, second: 0)
+        observePhase?("fixture.schedule-contracts")
         let original = try C22RecurringRoundTestSupport.release(
             recurrence: .fixedCalendar(.init(cadence: .daily, interval: 1, anchor: anchor)), slot: 6000)
         let definition = try C22RecurringRoundTestSupport.definition().rebound(to: workspace, actor: actor)
@@ -104,9 +113,12 @@ private actor C22NotificationAuthentication: LocalAuthenticationClient {
         let event = try OccurrenceHistoryEventV1(eventID: UUID(), workspaceID: workspace, occurrenceID: occurrence,
             scheduleRelease: .init(release), action: .generated, nominalBasis: basis, effectiveBasis: basis,
             predecessor: nil, revision: 1, mutationID: .init(rawValue: UUID()), recordedBy: actor, recordedAt: C22RecurringRoundTestSupport.now)
+        observePhase?("fixture.populate")
         coordinator.modelContext.insert(try ScheduleDefinitionReleaseRow(release))
         coordinator.modelContext.insert(try OccurrenceHistoryEventRow(event))
+        observePhase?("fixture.save")
         try coordinator.modelContext.save()
+        observePhase?("fixture.projection")
         projection = try .init(dueQueue: .init(workspaceID: workspace, evaluatedAt: C22RecurringRoundTestSupport.now,
             definitions: [release], history: [event]), localizationKey: ScheduleLocalizationKeyV1.reminder.rawValue)
     }
@@ -817,30 +829,43 @@ final class V9_85RecurringRoundExperienceTests: XCTestCase {
 
     @MainActor
     func testGenericPolicyRejectsDetailedDurableMappingWithoutSystemEffects() async throws {
-        let fixture = try await C22NotificationFixture()
-        defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }
-        try await fixture.owner.bindNotificationGateEffect(fixture.gate)
-        _ = try await fixture.owner.reconcile(fixture.projection)
-        let before = try XCTUnwrap(fixture.control.loadPrivateNotificationMapping())
-        XCTAssertEqual(before.policy.detail, .generic)
-        let entry = try XCTUnwrap(before.entries.first)
-        let detail = try ReminderSystemDetailV1.make(kind: .roundSession,
-            fireAtUTC: entry.request.fireAtUTC, timeZoneIdentifier: "America/New_York")
-        let request = NotificationSystemRequestV1(notification: entry.request.notification,
-            fireAtUTC: entry.request.fireAtUTC, detail: detail)
-        try request.validate()
-        var entries = before.entries
-        entries[0] = .init(reminder: entry.reminder, request: request,
-            admissionID: entry.admissionID, acknowledged: entry.acknowledged)
-        let hostile = NotificationPrivateMappingV1(schemaVersion: before.schemaVersion,
-            operationID: before.operationID, source: before.source, policy: before.policy,
-            setting: before.setting, controlSubjectSHA256: before.controlSubjectSHA256,
-            entries: entries, retiring: before.retiring)
-        let observed = fixture.system.requests, addCount = fixture.system.addCount
-        XCTAssertThrowsError(try fixture.control.replacePrivateNotificationMapping(hostile, expected: before))
-        XCTAssertEqual(try fixture.control.loadPrivateNotificationMapping(), before)
-        XCTAssertEqual(fixture.system.requests, observed)
-        XCTAssertEqual(fixture.system.addCount, addCount)
+        var diagnosticPhase = "fixture"
+        do {
+            let fixture = try await C22NotificationFixture(observePhase: { diagnosticPhase = $0 })
+            defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }
+            diagnosticPhase = "owner.bind"
+            try await fixture.owner.bindNotificationGateEffect(fixture.gate)
+            diagnosticPhase = "owner.reconcile"
+            _ = try await fixture.owner.reconcile(fixture.projection)
+            diagnosticPhase = "mapping.read"
+            let before = try XCTUnwrap(fixture.control.loadPrivateNotificationMapping())
+            XCTAssertEqual(before.policy.detail, .generic)
+            let entry = try XCTUnwrap(before.entries.first)
+            diagnosticPhase = "hostile.prepare"
+            let detail = try ReminderSystemDetailV1.make(kind: .roundSession,
+                fireAtUTC: entry.request.fireAtUTC, timeZoneIdentifier: "America/New_York")
+            let request = NotificationSystemRequestV1(notification: entry.request.notification,
+                fireAtUTC: entry.request.fireAtUTC, detail: detail)
+            try request.validate()
+            var entries = before.entries
+            entries[0] = .init(reminder: entry.reminder, request: request,
+                admissionID: entry.admissionID, acknowledged: entry.acknowledged)
+            let hostile = NotificationPrivateMappingV1(schemaVersion: before.schemaVersion,
+                operationID: before.operationID, source: before.source, policy: before.policy,
+                setting: before.setting, controlSubjectSHA256: before.controlSubjectSHA256,
+                entries: entries, retiring: before.retiring)
+            let observed = fixture.system.requests, addCount = fixture.system.addCount
+            diagnosticPhase = "hostile.reject"
+            XCTAssertThrowsError(try fixture.control.replacePrivateNotificationMapping(hostile, expected: before))
+            diagnosticPhase = "mapping.unchanged"
+            XCTAssertEqual(try fixture.control.loadPrivateNotificationMapping(), before)
+            XCTAssertEqual(fixture.system.requests, observed)
+            XCTAssertEqual(fixture.system.addCount, addCount)
+        } catch {
+            let typed = error as NSError
+            print("C22GenericPolicy failure phase=\(diagnosticPhase) type=\(String(reflecting: type(of: error))) domain=\(typed.domain) code=\(typed.code) error=\(String(describing: error))")
+            throw error
+        }
     }
 
     @MainActor

@@ -1664,6 +1664,32 @@ final class BackupRestoreService {
         )
     }
 
+    static func retainedEraseSummary(
+        modelContext: ModelContext,
+        validation: EraseRetainedSourceValidationV1
+    ) throws -> BackupRestoreCurrentSummaryV1 {
+        guard !modelContext.hasChanges else {
+            throw BackupRestoreServiceError.contextHasChanges
+        }
+        let preview = try BackupExportService.prepareRetainedEraseSummary(
+            modelContext: modelContext, validation: validation
+        )
+        let packets = try modelContext.fetch(FetchDescriptor<Packet>())
+        let roots = packets.filter(\.evaluationCounted).map(\.stableRootID)
+        guard Set(roots).count == roots.count,
+              !modelContext.hasChanges else {
+            throw BackupRestoreServiceError.currentGenerationInvalid
+        }
+        try validation.revalidate(modelContext: modelContext)
+        return BackupRestoreCurrentSummaryV1(
+            signCount: preview.signCount,
+            reportCount: preview.reportCount,
+            photoCount: preview.photoCount,
+            declaredPayloadByteCount: preview.declaredPayloadByteCount,
+            consumedRootCount: roots.count
+        )
+    }
+
     private var restoreDiagnosticCallback: (@MainActor (String) -> Void)? {
 #if DEBUG
         return restorePhaseDiagnosticForTesting
