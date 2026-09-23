@@ -2814,8 +2814,8 @@ class NotificationScheduleEraseBuild30DiagnosticTests(ReplacementPartitionDiagno
         self.assertEqual(options.count(identifier), 1)
         self.assertEqual(options[options.index('notification-schedule-erase') + 1], identifier)
         self.assertEqual(len(options), len(set(options)))
-        self.assertEqual(self.source_parent, 'a6d3718639da1b3760acd9b8b21b0e6dca4f6027')
-        self.assertEqual(self.source_trees, {'FieldEvidenceApp': '7731c5593306ce9bc2fa8ef49e928e50ad4f1ba3', 'FieldEvidenceAppTests': '43cdf3db79014c799dd11eb510c60d738cefa64b', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'})
+        self.assertEqual(self.source_parent, 'ea0f890edf7abc3e2b08c04c97ca87ef657d463c')
+        self.assertEqual(self.source_trees, {'FieldEvidenceApp': '7731c5593306ce9bc2fa8ef49e928e50ad4f1ba3', 'FieldEvidenceAppTests': '12653533bdfdf89dcf322a0c69266bc623b74999', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'})
 
     def test_exact_disjoint_ordered_union_and_historical_routes(self):
         ordinary = CI.resolve_selection(self.default, self.mapping, 'notification-schedule-erase')

@@ -19,5 +19,8 @@
     "high",
     "xhigh"
   ],
-  "extraHighRouting": "Owner-selected default: gpt-6-astra/xhigh for substantive coding, diagnosis and semantic review; compact bounded handoffs. High remains available for clearly bounded tasks when adequate."
+  "extraHighRouting": "Owner-selected default: gpt-6-astra/xhigh for substantive coding, diagnosis and semantic review; compact bounded handoffs. High remains available for clearly bounded tasks when adequate.",
+  "contextReuse": "Relevant worker/reviewer reuse; delta-only follow-ups; compact existing checkpoints; reset on substantial scope/routing change or costly stale history; no guaranteed cache/token savings.",
+  "capacityRule": "Minimum of policy ceiling, current owner-configured capacity and actual session capacity; preserve owner max_threads=3.",
+  "dependentQualification": "Retain immutable passed candidate while prerequisites are unsettled; rebind and qualify when adoption is ready; no stale evidence transfer."
 }

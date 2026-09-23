@@ -1054,7 +1054,11 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         var diagnosticPhase = "harness"
         do {
             for (offset, point) in EraseAllFailurePoint.allCases.enumerated() {
-                let harness = try await makeHarness("phase-\(offset)", observePhase: { diagnosticPhase = $0 })
+                let harness = try await makeHarness(
+                    "phase-\(offset)",
+                    diagnoseInitialOpen: true,
+                    observePhase: { diagnosticPhase = "interruption.\(offset).\(point).\($0)" }
+                )
                 defer { cleanup(harness) }
                 let oldID = try XCTUnwrap(harness.coordinator).generationID
                 let newID = UUID(uuid: (
