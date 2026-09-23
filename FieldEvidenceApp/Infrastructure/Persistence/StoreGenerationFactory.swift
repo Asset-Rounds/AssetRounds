@@ -9547,10 +9547,15 @@ struct StoreGenerationFactory {
                 at: installedGenerationURL(id: id),
                 identity: identity
             )
-            _ = try MutationJournalStoreV1(
+            // Finalize journal state before sealing the physical database files.
+            // Even a logically empty reset can write SQLite pages.
+            try MutationJournalStoreV1(
                 modelContext: session.modelContext,
                 identity: identity,
                 generationID: id
+            ).clearForErase(
+                expectedWorkspaceID: identity.workspaceID,
+                expectedGenerationID: id
             )
             let proof = try deletionLedgerProof(in: session.modelContext)
             guard proof.entryCount == 0 else {

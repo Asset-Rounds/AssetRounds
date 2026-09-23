@@ -942,28 +942,27 @@ final class EraseAllService {
             guard EraseIntentCodecV1.valid(intent) else {
                 traceErasePhase("authority.failure.line.\(#line)"); throw EraseAllServiceError.invalidAuthority
             }
+            // The factory clears journal state before sealing the target manifest.
+            // Do not repeat that journal save after sealing. Release each
+            // validation session before the physical-manifest verification.
             traceErasePhase("prepare.validate-empty")
-            let emptySession = try validatedEmptySession(
-                id: newGenerationID,
-                identity: targetIdentity,
-                expectedEmptyLedger: expectedEmptyLedger,
-                authority: generationAuthority
-            )
-            try MutationJournalStoreV1(
-                modelContext: emptySession.modelContext,
-                identity: targetIdentity,
-                generationID: newGenerationID
-            ).clearForErase(
-                expectedWorkspaceID: targetIdentity.workspaceID,
-                expectedGenerationID: newGenerationID
-            )
+            try autoreleasepool {
+                _ = try validatedEmptySession(
+                    id: newGenerationID,
+                    identity: targetIdentity,
+                    expectedEmptyLedger: expectedEmptyLedger,
+                    authority: generationAuthority
+                )
+            }
             traceErasePhase("prepare.revalidate-empty")
-            _ = try validatedEmptySession(
-                id: newGenerationID,
-                identity: targetIdentity,
-                expectedEmptyLedger: expectedEmptyLedger,
-                authority: generationAuthority
-            )
+            try autoreleasepool {
+                _ = try validatedEmptySession(
+                    id: newGenerationID,
+                    identity: targetIdentity,
+                    expectedEmptyLedger: expectedEmptyLedger,
+                    authority: generationAuthority
+                )
+            }
             try requirePreparedPresence(intent, authority: generationAuthority)
             try auxiliary.requireNoRestoreIntent()
 
