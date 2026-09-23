@@ -126,8 +126,13 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             let retained = try XCTUnwrap(EraseIntentStore(applicationSupportURL: harness.support).load())
             XCTAssertEqual(retained.phase, .sessionActivated)
             system.removalEnabled = true
+            let recovery = EraseAllService(applicationSupportURL: harness.support,
+                cachesDirectoryURL: harness.caches, temporaryDirectoryURL: harness.temporary,
+                userDefaults: harness.defaults, bundleIdentifier: bundleID,
+                defaultsDomainName: harness.defaultsSuiteName, notificationSystem: system)
+            recovery.erasePhaseDiagnosticForTesting = { diagnosticPhase = $0 }
             diagnosticPhase = "startup-reconcile-after-notification-removal"
-            let recovered = try await service.reconcileAtStartup(diagnosticsStore: harness.diagnostics)
+            let recovered = try await recovery.reconcileAtStartup(diagnosticsStore: harness.diagnostics)
             diagnosticPhase = "post-recovery-assertions"
             XCTAssertEqual(recovered?.generationID, retained.newGenerationID)
             XCTAssertTrue(system.requests.isEmpty)
@@ -1068,7 +1073,13 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                     makeUUID: sequence([newID, UUID()]),
                     failureInjection: EraseAllFailureInjection(failOnceAt: point)
                 )
-                service.erasePhaseDiagnosticForTesting = { diagnosticPhase = $0 }
+                service.erasePhaseDiagnosticForTesting = { phase in
+                    if phase.hasPrefix("ERASE_FILE_SNAPSHOT_V1 ") {
+                        FileHandle.standardError.write(Data((phase + "\n").utf8))
+                    } else {
+                        diagnosticPhase = phase
+                    }
+                }
                 diagnosticPhase = "erase.injection.\(point)"
                 await XCTAssertThrowsErrorAsync {
                     _ = try await service.erase(
@@ -1139,7 +1150,13 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                         ? harness.defaultsSuiteName
                         : nil
                 )
-                recovery.erasePhaseDiagnosticForTesting = { diagnosticPhase = $0 }
+                recovery.erasePhaseDiagnosticForTesting = { phase in
+                    if phase.hasPrefix("ERASE_FILE_SNAPSHOT_V1 ") {
+                        FileHandle.standardError.write(Data((phase + "\n").utf8))
+                    } else {
+                        diagnosticPhase = phase
+                    }
+                }
                 diagnosticPhase = "startup-reconcile.\(point)"
                 let recovered = try await recovery.reconcileAtStartup(
                     diagnosticsStore: harness.diagnostics

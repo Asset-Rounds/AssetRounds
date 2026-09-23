@@ -1,6 +1,6 @@
-Original35819073308/1ddb6e6 is terminal/sole-collected/root-audited30BC1781: compilationPASS,25/28PASS,3Failed,0new warning signatures,transportPASS. The generic-policy failure did not reproduce; no causal fix is claimed. Retain all evidence at its exact head; no merge/release acceptance.
+Original35824473524/8a4672e is terminal/sole-collected/root-audited3EA305C2: compilationPASS,26/28PASS,2Failed,0new warning signatures,transportPASS. The retained-container lifetime correction passes. Remaining failures are localized to recovery.admission and manifest.files; no merge/release acceptance or result transfer.
 
-Next causal batch: retain the old ModelContainer through the retained-source fixture reads, then release it before cold recovery. Crash90A5E764 pins SwiftData at BackupExportService.swift144/S6_6EraseRecoveryTests.swift929. Enable the existing phase callback on the three failing fixtures and add default-off discard/manifest/recovery phase attribution for the still-unlocated targetMismatch and invalidAuthority failures. Preserve all predicates, assertions, exact notification28/1054/68/D30 and55protected inputs. NativeNOT_RUN until combined source/protocol/index/commit review; no unchanged retry.
+Next causal batch: give the notification-drain recovery fixture a fresh startup EraseAllService, preserving its shared probe and every assertion. For the still-unlocated physical manifest mismatch, record bounded default-off file vectors before target open, before verifier opens and at its one required digest comparison. Preserve original errors, predicate order, equality, frozen identity, notification28/1054/68/D30 and55protected inputs. This diagnostic must distinguish acquisition failure from the first size/hash/membership divergence; no guessed repair, unchanged retry or native claim before required gates.
 
 Current native execution and audited outcomes: [ACTIVE_BRIEF](ACTIVE_BRIEF.md#current-critical-path). Reuse its head/run/evidence references; this navigation record grants no acceptance and does not replace the controlling requirements or the coverage ledger.
 
@@ -8,7 +8,7 @@ Follow [ACTIVE_BRIEF](ACTIVE_BRIEF.md#current-critical-path) for the current dep
 
 Source/index/route reviews do not establish hosted functional acceptance. Complete coverage, provider, visual, human and final-main gates remain open.
 
-Current navigation checkpoint, 2026-09-22. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls scope and acceptance; [VERIFICATION_DUE](VERIFICATION_DUE.md) retains detailed obligations. Historical S10 is the accepted base, not a new workstream.
+Current navigation checkpoint, 2026-09-23. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls scope and acceptance; [VERIFICATION_DUE](VERIFICATION_DUE.md) retains detailed obligations. Historical S10 is the accepted base, not a new workstream.
 
 ## Destination and present state
 
@@ -32,7 +32,7 @@ Current navigation checkpoint, 2026-09-22. [CURRENT_INTEGRATION](CURRENT_INTEGRA
 
 ## Execution order
 
-1. Completed-source63 passed on6b227c1 (original35788221262/auditB4A67E2B); codec/Punch16 passed on90304b1. Await and audit corrected Reminder28 original35802767660/e3fdee2 once. Prepare exact Finding70, corrected shop11 and all five corrected C38 methods as one86-method development batch on1054/68, preserving every method and committed historical profile. The source-compatible grouping may avoid a separate compilation; runtime900 fit remains UNKNOWN. Original81 and1038 drafts stay unexecuted provenance. Reuse retained findings; all current-source/helper/index/commit/native and final gates remain due.
+1. Corrected Finding70/shop11/C38five exact86 passed at8d19006 (original35814759983/audit2FD37B62). Latest Reminder28 compiled with26/28PASS at8a4672e (original35824473524/audit3EA305C2). Finish the scoped fresh-start fixture correction and physical-manifest diagnostic above, preserving all28 methods and1054/68/D30. C36 saved-review/discard source corrections passed independent source preparation review but remain isolated, unenrolled and nativeNOT_RUN. Reminder UI combined command/route qualification remains isolated; its UI budget requires explicit owner authority after a reviewable proposal. All final same-head and human/provider/main gates remain open.
 2. Continue production integration from the frozen capture/lifecycle contracts; use retained phase timings when an evidenced performance question blocks that work. Keep one collector per original.
 3. Complete the remaining production journeys and enroll their missing regressions. Parallelize only disjoint, dependency-ready work on existing qualified capacity.
 4. Freeze one complete candidate; collect final coverage and affected-state reviews, then advance and verify main.

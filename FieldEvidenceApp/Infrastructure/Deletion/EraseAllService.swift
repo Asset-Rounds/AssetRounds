@@ -605,6 +605,21 @@ final class EraseAllService {
 #endif
     }
 
+    private var eraseFactoryPhaseDiagnostic: (@MainActor (String) -> Void)? {
+#if DEBUG
+        guard let diagnostic = erasePhaseDiagnosticForTesting else { return nil }
+        return { [self] phase in
+            if phase.hasPrefix("ERASE_FILE_SNAPSHOT_V1 ") {
+                diagnostic(phase)
+            } else {
+                traceErasePhase(phase)
+            }
+        }
+#else
+        return nil
+#endif
+    }
+
     private func traceEraseOriginalFailure(_ error: Error) {
 #if DEBUG
         guard let diagnostic = erasePhaseDiagnosticForTesting else { return }
@@ -2631,7 +2646,7 @@ private extension EraseAllService {
             targetIdentity: identity,
             expectedEmptyLedger: try emptyLedgerProof(),
             authority: authority,
-            diagnosticPhase: { [self] phase in traceErasePhase(phase) }
+            diagnosticPhase: eraseFactoryPhaseDiagnostic
         )
     }
 

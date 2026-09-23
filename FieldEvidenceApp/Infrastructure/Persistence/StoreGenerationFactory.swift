@@ -13,6 +13,59 @@ enum StoreGenerationFailure: Error, Equatable {
     case dataGenerationMissing
 }
 
+#if DEBUG
+private enum EraseFileSnapshotStageV1: String, Codable {
+    case beforeTargetOpen
+    case beforeManifestOpen
+    case afterManifestSemantic
+}
+
+private enum EraseManifestObservationV1: String, Codable {
+    case notLoaded
+    case present
+    case missing
+    case loadFailed
+}
+
+private struct EraseFileSnapshotErrorV1: Codable {
+    let swiftType: String
+    let domain: String
+    let code: Int
+
+    init(_ error: Error) {
+        let value = error as NSError
+        swiftType = String(reflecting: type(of: error))
+        domain = value.domain
+        code = value.code
+    }
+}
+
+private struct EraseFileSnapshotVectorV1: Codable {
+    let totalCount: Int
+    let prefixFiles: [StoreGenerationFileDigestV1]
+    let truncated: Bool
+    let canonicalSHA256: String
+
+    init(_ files: [StoreGenerationFileDigestV1]) throws {
+        totalCount = files.count
+        prefixFiles = Array(files.prefix(32))
+        truncated = files.count > 32
+        canonicalSHA256 = try StoreMigrationCanonicalJSONV1.digest(files)
+    }
+}
+
+private struct EraseFileSnapshotRecordV1: Codable {
+    let generationID: UUID
+    let stage: EraseFileSnapshotStageV1
+    let manifestObservation: EraseManifestObservationV1
+    let expectedFiles: EraseFileSnapshotVectorV1?
+    let observedFiles: EraseFileSnapshotVectorV1?
+    let filesEqual: Bool?
+    let manifestLoadError: EraseFileSnapshotErrorV1?
+    let filesAcquisitionError: EraseFileSnapshotErrorV1?
+}
+#endif
+
 private enum StorePointerSchemaRegistry {
     static let legacyCurrentVersion = 1
     static let manifestCurrentVersion = 2
@@ -5202,6 +5255,88 @@ private extension StoreGenerationFactory {
         )
     }
 
+#if DEBUG
+    @MainActor
+    private func emitEraseFileSnapshot(
+        generationID: UUID,
+        stage: EraseFileSnapshotStageV1,
+        manifestObservation: EraseManifestObservationV1,
+        expectedFiles: [StoreGenerationFileDigestV1]?,
+        observedFiles: [StoreGenerationFileDigestV1]?,
+        manifestLoadError: EraseFileSnapshotErrorV1? = nil,
+        filesAcquisitionError: EraseFileSnapshotErrorV1? = nil,
+        diagnosticPhase: (@MainActor (String) -> Void)?
+    ) {
+        guard let diagnosticPhase else { return }
+        do {
+            let expectedVector: EraseFileSnapshotVectorV1?
+            if let expectedFiles {
+                expectedVector = try EraseFileSnapshotVectorV1(expectedFiles)
+            } else {
+                expectedVector = nil
+            }
+            let observedVector: EraseFileSnapshotVectorV1?
+            if let observedFiles {
+                observedVector = try EraseFileSnapshotVectorV1(observedFiles)
+            } else {
+                observedVector = nil
+            }
+            let filesEqual: Bool?
+            if let expectedFiles, let observedFiles {
+                filesEqual = expectedFiles == observedFiles
+            } else {
+                filesEqual = nil
+            }
+            let record = EraseFileSnapshotRecordV1(
+                generationID: generationID,
+                stage: stage,
+                manifestObservation: manifestObservation,
+                expectedFiles: expectedVector,
+                observedFiles: observedVector,
+                filesEqual: filesEqual,
+                manifestLoadError: manifestLoadError,
+                filesAcquisitionError: filesAcquisitionError
+            )
+            let encoded = try StoreMigrationCanonicalJSONV1.encode(record)
+            diagnosticPhase("ERASE_FILE_SNAPSHOT_V1 " + String(decoding: encoded, as: UTF8.self))
+        } catch {
+            diagnosticPhase("ERASE_FILE_SNAPSHOT_V1 {\"generationID\":\"\(generationID.uuidString)\",\"stage\":\"\(stage.rawValue)\",\"encodingFailed\":true}")
+        }
+    }
+
+    @MainActor
+    private func observeEraseFileSnapshot(
+        generationID: UUID,
+        at root: URL,
+        stage: EraseFileSnapshotStageV1,
+        manifestObservation: EraseManifestObservationV1,
+        expectedFiles: [StoreGenerationFileDigestV1]?,
+        manifestLoadError: EraseFileSnapshotErrorV1? = nil,
+        diagnosticPhase: (@MainActor (String) -> Void)?
+    ) {
+        guard diagnosticPhase != nil else { return }
+        let observedFiles: [StoreGenerationFileDigestV1]?
+        let acquisitionError: EraseFileSnapshotErrorV1?
+        do {
+            observedFiles = try generationFileDigests(at: root, durable: false)
+            acquisitionError = nil
+        } catch {
+            observedFiles = nil
+            acquisitionError = EraseFileSnapshotErrorV1(error)
+        }
+        emitEraseFileSnapshot(
+            generationID: generationID,
+            stage: stage,
+            manifestObservation: manifestObservation,
+            expectedFiles: expectedFiles,
+            observedFiles: observedFiles,
+            manifestLoadError: manifestLoadError,
+            filesAcquisitionError: acquisitionError,
+            diagnosticPhase: diagnosticPhase
+        )
+    }
+#endif
+
     @MainActor
     private func requireRestoreManifestSnapshot(
         _ manifest: StoreGenerationManifestV1,
@@ -5230,6 +5365,16 @@ private extension StoreGenerationFactory {
         } else if restoreProof != nil {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
+#if DEBUG
+        observeEraseFileSnapshot(
+            generationID: generationID,
+            at: root,
+            stage: .beforeManifestOpen,
+            manifestObservation: .present,
+            expectedFiles: manifest.files,
+            diagnosticPhase: diagnosticPhase
+        )
+#endif
         diagnosticPhase?("manifest.marker")
         let modelStoreURL = root.appendingPathComponent(Self.modelStoreName)
         let markerMigrationID = try autoreleasepool { () throws -> UUID in
@@ -5418,12 +5563,39 @@ private extension StoreGenerationFactory {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
         diagnosticPhase?("manifest.files")
-        guard manifest.files == (try generationFileDigests(
-                   at: root,
-                   durable: true,
-                   restoreProof: restoreProof,
-                   restoreFileSnapshot: restoreFileSnapshot
-               )) else {
+        let observedFiles: [StoreGenerationFileDigestV1]
+        do {
+            observedFiles = try generationFileDigests(
+                at: root,
+                durable: true,
+                restoreProof: restoreProof,
+                restoreFileSnapshot: restoreFileSnapshot
+            )
+        } catch {
+#if DEBUG
+            emitEraseFileSnapshot(
+                generationID: generationID,
+                stage: .afterManifestSemantic,
+                manifestObservation: .present,
+                expectedFiles: manifest.files,
+                observedFiles: nil,
+                filesAcquisitionError: EraseFileSnapshotErrorV1(error),
+                diagnosticPhase: diagnosticPhase
+            )
+#endif
+            throw error
+        }
+#if DEBUG
+        emitEraseFileSnapshot(
+            generationID: generationID,
+            stage: .afterManifestSemantic,
+            manifestObservation: .present,
+            expectedFiles: manifest.files,
+            observedFiles: observedFiles,
+            diagnosticPhase: diagnosticPhase
+        )
+#endif
+        guard manifest.files == observedFiles else {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
         diagnosticPhase?("manifest.frozen-identity")
@@ -9526,6 +9698,18 @@ struct StoreGenerationFactory {
 
         diagnosticPhase?("discard.open-target")
         let root = installedGenerationURL(id: targetGenerationID)
+#if DEBUG
+        if diagnosticPhase != nil {
+            observeEraseFileSnapshot(
+                generationID: targetGenerationID,
+                at: root,
+                stage: .beforeTargetOpen,
+                manifestObservation: .notLoaded,
+                expectedFiles: nil,
+                diagnosticPhase: diagnosticPhase
+            )
+        }
+#endif
         let session = try openGeneration(
             id: targetGenerationID,
             at: root,
