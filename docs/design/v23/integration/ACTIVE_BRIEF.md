@@ -8,9 +8,9 @@ Only C:\AssetRounds-v23-s10-integration, codex/v23-s10-integration-20260910, tas
 
 ## Current critical path
 
-Original35814759983/8d19006 is terminal/sole-collected/root-audited 2FD37B62: compilationPASS,86/86PASS,Finding70/shop11/C38five allPASS,0new warning signatures. Retain exact-head development evidence; no result transfer or merge/release acceptance.
+Original35819073308/1ddb6e6 is terminal/sole-collected/root-audited30BC1781: compilationPASS,25/28PASS,3Failed,0new warning signatures,transportPASS. The generic-policy failure did not reproduce; no causal fix is claimed. Retain all evidence at its exact head; no merge/release acceptance.
 
-Next causal batch: six independently reviewed Recovery source corrections/diagnostics on8d, exact existing notification28/1054/68/D30. Audited e3 original35802767660 had four recovery failures and unlocated generic-policy resourceValueMismatch; retained-source proof and dynamic registry discard correct established causes, default-off phase observation preserves the unresolved original error. NativeNOT_RUN pending complete source/protocol/helper/index/exact-commit gates.
+Next causal batch: retain the old ModelContainer through the retained-source fixture reads, then release it before cold recovery. Crash90A5E764 pins SwiftData at BackupExportService.swift144/S6_6EraseRecoveryTests.swift929. Enable the existing phase callback on the three failing fixtures and add default-off discard/manifest/recovery phase attribution for the still-unlocated targetMismatch and invalidAuthority failures. Preserve all predicates, assertions, exact notification28/1054/68/D30 and55protected inputs. NativeNOT_RUN until combined source/protocol/index/commit review; no unchanged retry.
 
 MyDay shared-file mechanical reconciliation is isolated. The reviewed normalized-history amendment awaits an explicit owner choice; no V54 activation or Finding successor allocation until the controlling contract is settled.
 

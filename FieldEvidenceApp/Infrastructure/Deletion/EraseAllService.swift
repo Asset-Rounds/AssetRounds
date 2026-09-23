@@ -1082,6 +1082,7 @@ final class EraseAllService {
     func reconcileAtStartup(
         diagnosticsStore: DiagnosticsStore
     ) async throws -> StoreGenerationSession? {
+        traceErasePhase("recovery.support")
         var supportStatus = stat()
         let supportResult = applicationSupportURL.path.withCString {
             lstat($0, &supportStatus)
@@ -1095,6 +1096,7 @@ final class EraseAllService {
         guard (supportStatus.st_mode & S_IFMT) == S_IFDIR else {
             throw EraseAllServiceError.invalidAuthority
         }
+        traceErasePhase("recovery.auxiliary")
         let auxiliary = try makeAuxiliaryAuthority()
         let intentStore = try EraseIntentStore(
             applicationSupportURL: applicationSupportURL,
@@ -1102,6 +1104,7 @@ final class EraseAllService {
             expectedApplicationSupportIdentity:
                 auxiliary.applicationSupportRootIdentity
         )
+        traceErasePhase("recovery.intent")
         let intent = try intentStore.load()
         let preparation = try intentStore.loadPreparation()
         guard let intent else {
@@ -1119,6 +1122,7 @@ final class EraseAllService {
             try auxiliary.removeEraseRootIfEmpty()
             return nil
         }
+        traceErasePhase("recovery.intent-contract")
         guard EraseIntentCodecV1.valid(intent) else {
             throw EraseAllServiceError.invalidAuthority
         }
@@ -1133,10 +1137,12 @@ final class EraseAllService {
         } else if preparation != nil {
             throw EraseAllServiceError.invalidAuthority
         }
+        traceErasePhase("recovery.authority")
         let authority = try generationFactory.makeRestoreGenerationAuthority(
             expectedApplicationSupportIdentity:
                 auxiliary.applicationSupportRootIdentity
         )
+        traceErasePhase("recovery.targets")
         try auxiliary.verifyTargets()
         try requireRecoveryPresence(intent, authority: authority)
         let subject = makeOperationSubject(
@@ -1144,7 +1150,9 @@ final class EraseAllService {
             newGenerationID: intent.newGenerationID,
             auxiliary: auxiliary
         )
+        traceErasePhase("recovery.admission")
         let reservation = try await admit(subject)
+        traceErasePhase("recovery.admission-revalidation")
         try revalidateRecoveryAdmission(
             subject: subject,
             intent: intent,
@@ -1170,12 +1178,14 @@ final class EraseAllService {
                 activate: { _ in }
             )
         case .sessionActivated:
+            traceErasePhase("recovery.activated-current")
             try requireActivatedCurrent(intent, authority: authority)
             session = try validatedEmptySession(
                 id: intent.newGenerationID,
                 authority: authority
             )
         case .cleanupComplete:
+            traceErasePhase("recovery.cleanup-presence")
             try requireCleanupPresence(intent, authority: authority)
             session = try validatedEmptySession(
                 id: intent.newGenerationID,
@@ -1646,6 +1656,7 @@ private extension EraseAllService {
         _ intent: EraseIntentV1,
         authority: StoreRestoreGenerationAuthority
     ) throws {
+        traceErasePhase("recovery.presence.inventory")
         let installed = Set(try authority.installedGenerationNames())
         let all = Set(
             (intent.generationIDsToDelete + [intent.newGenerationID])
@@ -1665,6 +1676,7 @@ private extension EraseAllService {
         case .sessionActivated, .cleanupComplete:
             break
         }
+        traceErasePhase("recovery.presence.current")
         let currentID = try generationFactory.currentGenerationID(
             authority: authority
         )
@@ -1678,6 +1690,7 @@ private extension EraseAllService {
                     authority: authority
                 )
             } else if currentID == intent.newGenerationID {
+                traceErasePhase("recovery.presence.published-empty")
                 _ = try requirePublishedEmptySession(
                     intent,
                     authority: authority
@@ -1696,6 +1709,7 @@ private extension EraseAllService {
             if intent.schemaVersion == 2,
                id == intent.oldGenerationID,
                currentID == intent.newGenerationID {
+                traceErasePhase("recovery.presence.retained-source")
                 let validation = try EraseRetainedSourceValidationV1.acquire(
                     intent: intent, generationFactory: generationFactory,
                     authority: authority
@@ -1866,6 +1880,7 @@ private extension EraseAllService {
         subject: EraseAllOperationSubjectV1,
         reservation: AppAccessGateV1.EraseAdoptionToken?
     ) async throws -> StoreGenerationSession {
+        traceErasePhase("cleanup.session-and-content")
         let activated: EraseIntentV1
         if value.phase == .cleanupComplete {
             activated = value.advancing(to: .sessionActivated)
@@ -1878,6 +1893,7 @@ private extension EraseAllService {
             throw EraseAllServiceError.invalidAuthority
         }
         if activated.schemaVersion == 2 {
+            traceErasePhase("cleanup.empty-ledger")
             let ledger = try DeletionLedgerStore(
                 context: session.modelContext
             ).snapshot()
@@ -1893,12 +1909,16 @@ private extension EraseAllService {
         // This source-free path uses the same physical owner as scheduling.
         // Revocation is persisted before the first suspension in erase(), and
         // no generation, mapping, or preference cleanup can pass its drain.
+        traceErasePhase("cleanup.notification-control")
         let notificationPreferences = PreferencesAdapterV1(defaults: userDefaults)
         let notificationControl = try AppLockNotificationControlStoreV1(
             applicationSupportURL: applicationSupportURL, preferences: notificationPreferences)
+        traceErasePhase("cleanup.notification-drain")
         try await DeviceLocalNotificationOwnerV1.erase(control: notificationControl,
             system: notificationSystem, operationID: activated.eraseID)
+        traceErasePhase("cleanup.generations")
         try cleanupGenerations(activated, authority: authority)
+        traceErasePhase("cleanup.presence")
         try requireCleanupPresence(
             activated.advancing(to: .cleanupComplete),
             authority: authority
@@ -2610,7 +2630,8 @@ private extension EraseAllService {
             targetGenerationID: preparation.targetGenerationID,
             targetIdentity: identity,
             expectedEmptyLedger: try emptyLedgerProof(),
-            authority: authority
+            authority: authority,
+            diagnosticPhase: { [self] phase in traceErasePhase(phase) }
         )
     }
 

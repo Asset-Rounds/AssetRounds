@@ -108,6 +108,7 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                 cachesDirectoryURL: harness.caches, temporaryDirectoryURL: harness.temporary,
                 userDefaults: harness.defaults, bundleIdentifier: bundleID,
                 defaultsDomainName: harness.defaultsSuiteName, notificationSystem: system)
+            service.erasePhaseDiagnosticForTesting = { diagnosticPhase = $0 }
             diagnosticPhase = "erase-with-unverified-notification-removal"
             do {
                 _ = try await service.erase(confirmation: "ERASE", coordinator: coordinator,
@@ -881,6 +882,9 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             let oldID = coordinator.generationID
             let newID = uuid("66000000-0000-0000-0000-000000000111")
             var retainedContext: ModelContext? = coordinator.modelContext
+            // ModelContext does not keep its ModelContainer alive. The added
+            // retained-source checks need both until their final read completes.
+            var retainedContainer: ModelContainer? = coordinator.modelContext.container
             var initialCompletionCount = 0
             let service = EraseAllService(
                 applicationSupportURL: harness.support,
@@ -894,6 +898,7 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                 ]),
                 didCompleteErase: { _ in initialCompletionCount += 1 }
             )
+            service.erasePhaseDiagnosticForTesting = { diagnosticPhase = $0 }
 
             diagnosticPhase = "erase-with-retained-context"
             let outcome = try await service.erase(
@@ -1000,19 +1005,25 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                 try validation.revalidate(modelContext: oldContext)
             }
 
+            withExtendedLifetime(retainedContainer) {}
             retainedContext = nil
+            retainedContainer = nil
             _ = retainedContext
             await Task.yield()
             var recoveryReceipts = [CompletedEraseReceiptV1]()
             diagnosticPhase = "startup-reconcile-after-context-release"
-            let recovered = try await EraseAllService(
+            let recovery = EraseAllService(
                 applicationSupportURL: harness.support,
                 cachesDirectoryURL: harness.caches,
                 temporaryDirectoryURL: harness.temporary,
                 userDefaults: harness.defaults,
                 bundleIdentifier: bundleID,
                 didCompleteErase: { recoveryReceipts.append($0) }
-            ).reconcileAtStartup(diagnosticsStore: harness.diagnostics)
+            )
+            recovery.erasePhaseDiagnosticForTesting = { diagnosticPhase = $0 }
+            let recovered = try await recovery.reconcileAtStartup(
+                diagnosticsStore: harness.diagnostics
+            )
 
             diagnosticPhase = "post-recovery-assertions"
             XCTAssertEqual(recovered?.generationID, newID)
@@ -1057,6 +1068,7 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                     makeUUID: sequence([newID, UUID()]),
                     failureInjection: EraseAllFailureInjection(failOnceAt: point)
                 )
+                service.erasePhaseDiagnosticForTesting = { diagnosticPhase = $0 }
                 diagnosticPhase = "erase.injection.\(point)"
                 await XCTAssertThrowsErrorAsync {
                     _ = try await service.erase(
@@ -1127,6 +1139,7 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                         ? harness.defaultsSuiteName
                         : nil
                 )
+                recovery.erasePhaseDiagnosticForTesting = { diagnosticPhase = $0 }
                 diagnosticPhase = "startup-reconcile.\(point)"
                 let recovered = try await recovery.reconcileAtStartup(
                     diagnosticsStore: harness.diagnostics

@@ -5210,8 +5210,10 @@ private extension StoreGenerationFactory {
         at root: URL,
         staging: Bool,
         restoreProof: StoreRestoreGenerationManifestProofV1? = nil,
-        restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1? = nil
+        restoreFileSnapshot: StoreRestoreGenerationFileSnapshotV1? = nil,
+        diagnosticPhase: (@MainActor (String) -> Void)? = nil
     ) throws {
+        diagnosticPhase?("manifest.restore-proof")
         guard manifest.restoreProof == restoreProof else {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
@@ -5228,6 +5230,7 @@ private extension StoreGenerationFactory {
         } else if restoreProof != nil {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
+        diagnosticPhase?("manifest.marker")
         let modelStoreURL = root.appendingPathComponent(Self.modelStoreName)
         let markerMigrationID = try autoreleasepool { () throws -> UUID in
             let container: ModelContainer
@@ -5401,26 +5404,37 @@ private extension StoreGenerationFactory {
                 return value
             }
         }
+        diagnosticPhase?("manifest.identity")
         guard manifest.generationID == generationID,
-              manifest.predecessorGenerationID == expectedOldID,
-              manifest.migrationID == markerMigrationID,
-              manifest.semanticSHA256 == (try semanticDigest(
-                  at: modelStoreURL,
-                  manifest: manifest
-              )),
-              manifest.files == (try generationFileDigests(
-                  at: root,
-                  durable: true,
-                  restoreProof: restoreProof,
-                  restoreFileSnapshot: restoreFileSnapshot
-              )),
-              manifest.frozenIdentityDigest == (try frozenIdentityDigest(
+               manifest.predecessorGenerationID == expectedOldID,
+               manifest.migrationID == markerMigrationID else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        diagnosticPhase?("manifest.semantic")
+        guard manifest.semanticSHA256 == (try semanticDigest(
+                   at: modelStoreURL,
+                   manifest: manifest
+               )) else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        diagnosticPhase?("manifest.files")
+        guard manifest.files == (try generationFileDigests(
+                   at: root,
+                   durable: true,
+                   restoreProof: restoreProof,
+                   restoreFileSnapshot: restoreFileSnapshot
+               )) else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        diagnosticPhase?("manifest.frozen-identity")
+        guard manifest.frozenIdentityDigest == (try frozenIdentityDigest(
                    for: root,
                    restoreProof: restoreProof,
                    restoreFileSnapshot: restoreFileSnapshot
                )) else {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
+        diagnosticPhase?("manifest.post-protection")
         if restoreProof == nil {
             try protectGeneration(at: root, staging: staging, requireModel: true)
         } else {
@@ -9437,9 +9451,12 @@ struct StoreGenerationFactory {
         targetGenerationID: UUID,
         targetIdentity: WorkspaceReplicaIdentityV1,
         expectedEmptyLedger: DeletionLedgerProofV2,
-        authority: StoreRestoreGenerationAuthority
+        authority: StoreRestoreGenerationAuthority,
+        diagnosticPhase: (@MainActor (String) -> Void)? = nil
     ) throws {
+        diagnosticPhase?("discard.expected-ledger")
         try expectedEmptyLedger.validate()
+        diagnosticPhase?("discard.current-pointer")
         let old = try requireCurrentPointer(expectedOldPointer, authority: authority)
         let oldIdentityValues = Set(
             [
@@ -9457,6 +9474,7 @@ struct StoreGenerationFactory {
         )
         let activeRelease = PersistentSchemaReleaseRegistryV1.activeRelease
         let activeSchemaVersion = PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major
+        diagnosticPhase?("discard.identity")
         guard old.storeSchemaVersion == activeSchemaVersion,
               expectedEmptyLedger.entryCount == 0,
               targetGenerationID != expectedOldPointer.generationID,
@@ -9466,8 +9484,10 @@ struct StoreGenerationFactory {
               !forbidden.contains(targetIdentity.replicaID.rawValue) else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
+        diagnosticPhase?("discard.restore-journal")
         try authority.requireNoRestoreJournal()
 
+        diagnosticPhase?("discard.inventory")
         let retired = try authority.retiredGenerationIDs()
         guard !retired.contains(targetGenerationID),
               try authority.restoreGenerationNames().isEmpty,
@@ -9504,12 +9524,14 @@ struct StoreGenerationFactory {
             return
         }
 
+        diagnosticPhase?("discard.open-target")
         let root = installedGenerationURL(id: targetGenerationID)
         let session = try openGeneration(
             id: targetGenerationID,
             at: root,
             identity: targetIdentity
         )
+        diagnosticPhase?("discard.marker")
         let marker = try session.modelContext.fetch(
             FetchDescriptor<PersistentSchemaReleaseMarker>()
         )
@@ -9517,16 +9539,23 @@ struct StoreGenerationFactory {
               marker.first?.schemaVersion == activeSchemaVersion,
               marker.first?.releaseID
                 == activeRelease.compatibilityID,
-              marker.first?.migrationID == targetGenerationID,
-              BackupRestoreService.isEmptyCurrent(session.modelContext),
-              try deletionLedgerProof(in: session.modelContext)
-                == expectedEmptyLedger else {
+               marker.first?.migrationID == targetGenerationID else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        diagnosticPhase?("discard.empty-content")
+        guard BackupRestoreService.isEmptyCurrent(session.modelContext) else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        diagnosticPhase?("discard.empty-ledger")
+        guard try deletionLedgerProof(in: session.modelContext) == expectedEmptyLedger else {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
 
+        diagnosticPhase?("discard.manifest-load")
         if let prepared = try store.loadManifestIfPresent(
             targetGenerationID: targetGenerationID
         ) {
+            diagnosticPhase?("discard.manifest-identity")
             guard prepared.manifest.generationID == targetGenerationID,
                   prepared.manifest.predecessorGenerationID
                     == expectedOldPointer.generationID,
@@ -9534,13 +9563,16 @@ struct StoreGenerationFactory {
                   prepared.manifest.migrationID == targetGenerationID else {
                 throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
             }
+            diagnosticPhase?("discard.manifest-snapshot")
             try requireRestoreManifestSnapshot(
                 prepared.manifest,
                 expectedOldID: expectedOldPointer.generationID,
                 generationID: targetGenerationID,
                 at: root,
-                staging: false
+                staging: false,
+                diagnosticPhase: diagnosticPhase
             )
+            diagnosticPhase?("discard.remove-manifest")
             try removePreparedRestoreGenerationManifestBeforeDiscard(
                 expectedOldID: expectedOldPointer.generationID,
                 generationID: targetGenerationID,
@@ -9549,8 +9581,10 @@ struct StoreGenerationFactory {
             )
         }
 
+        diagnosticPhase?("discard.final-current-pointer")
         _ = try requireCurrentPointer(expectedOldPointer, authority: authority)
         let registry = try makeGenerationLeaseRegistry()
+        diagnosticPhase?("discard.remove-target")
         try registry.withNoMigrationReservation {
             guard try !registry.activeEpochs().contains(where: {
                 $0.generationID == targetGenerationID
@@ -9559,6 +9593,7 @@ struct StoreGenerationFactory {
             }
             try authority.removeInstalledGeneration(id: targetGenerationID)
         }
+        diagnosticPhase?("discard.final-presence")
         let finalPresence = try authority.presence(id: targetGenerationID)
         guard !finalPresence.staging,
               !finalPresence.installed,
