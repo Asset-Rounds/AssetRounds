@@ -3,15 +3,19 @@
 import copy
 import hashlib
 import importlib.util
+import io
 import json
+import os
 from pathlib import Path
 import signal
+import shutil
 import subprocess
 import sys
 import tempfile
 import threading
 import time
 import unittest
+import zipfile
 from unittest import mock
 
 
@@ -30,7 +34,7 @@ class CompilerTimingTests(unittest.TestCase):
         self.artifacts = self.root / "artifacts"
         self.artifacts.mkdir()
         # Legacy admission stays exercised against its frozen source objects,
-        # even while the checked-in active observation uses schema4.
+        # even while the checked-in active observation uses schema5.
         self.config = dict(schemaVersion=1, mode="timing-f6-source-v1",
             sourceHead=TIMING.SOURCE_HEAD, sourceTrees=copy.deepcopy(TIMING.SOURCE_TREES),
             sampleIntervalSeconds=5, **TIMING.SOURCE_SELECTION_HASHES)
@@ -160,7 +164,9 @@ class CompilerTimingTests(unittest.TestCase):
             with self.subTest(argv=invalid), self.assertRaises(ValueError):
                 self.admit(command=invalid)
         before = subprocess.check_output(["git", "show", TIMING.SOURCE_HEAD + ":Scripts/build-smoke.sh"], cwd=ROOT)
-        after = (ROOT / "Scripts/build-smoke.sh").read_bytes()
+        # Replay the original instrumented wrapper, independent of later routes.
+        after = subprocess.check_output(["git", "show",
+            "3ed1b0068819fbb43a0c4ecf0442847f1913ad81:Scripts/build-smoke.sh"], cwd=ROOT)
         addition = b'''compiler_timing_prefix=(xcodebuild)
 if [ "${CI_NATIVE_ACCEPTANCE_CONTRACT:-none}" = v23.integration.current-native.v1 ]; then
   compiler_timing_prefix=(python3 Scripts/v23-compiler-timing.py -- xcodebuild)
@@ -373,11 +379,14 @@ class CurrentSourceTimingTests(unittest.TestCase):
         CompilerTimingTests.setUp(self)
         self.config = copy.deepcopy(TIMING.CURRENT_PROFILE)
         self.assertEqual(self.config["schemaVersion"], 2)
-        default = (ROOT / "Scripts/ci-selection.json").read_bytes()
-        mapping = (ROOT / "Scripts/ci-selection-map.json").read_bytes()
+        default = subprocess.check_output(["git", "show", self.config["sourceHead"] + ":Scripts/ci-selection.json"], cwd=ROOT)
+        mapping = subprocess.check_output(["git", "show", self.config["sourceHead"] + ":Scripts/ci-selection-map.json"], cwd=ROOT)
         (self.root / "Scripts/ci-selection.json").write_bytes(default)
         (self.root / "Scripts/ci-selection-map.json").write_bytes(mapping)
-        spec = importlib.util.spec_from_file_location("current_selector", ROOT / "Scripts/v23-native-ci.py")
+        selector_path = self.root / "historical-native-ci.py"
+        selector_path.write_bytes(subprocess.check_output(["git", "show",
+            self.config["sourceHead"] + ":Scripts/v23-native-ci.py"], cwd=ROOT))
+        spec = importlib.util.spec_from_file_location("current_selector", selector_path)
         selector = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(selector)
         selected = selector.resolve_selection(json.loads(default), json.loads(mapping), TIMING.CURRENT_SELECTION_ID)
@@ -488,8 +497,8 @@ class ShallowSourceTimingTests(CurrentSourceTimingTests):
 class CommandSourceTimingTests(ShallowSourceTimingTests):
     def setUp(self):
         super().setUp()
-        self.config = TIMING.read_configuration(ROOT / "Scripts/v23-compiler-timing.json")
-        self.assertEqual(self.config, TIMING.COMMAND_PROFILE)
+        self.config = copy.deepcopy(TIMING.COMMAND_PROFILE)
+        self.assertEqual(TIMING.validate_configuration(self.config), TIMING.COMMAND_PROFILE)
         self.assertEqual(self.config["schemaVersion"], 4)
 
     def testFinalCommandColumnPreservesLongSpacedShortAndNoArgumentExecutables(self):
@@ -526,6 +535,368 @@ class CommandSourceTimingTests(ShallowSourceTimingTests):
         with mock.patch.object(TIMING.subprocess, "run") as query:
             self.assertEqual(TIMING.process_commands([]), {})
             query.assert_not_called()
+
+
+def passive_fixture_source_archive(source_root, parent):
+    # Prospective sources may live below an ignored directory in the actual
+    # repository. git archive otherwise restricts output to that cwd prefix.
+    repository = subprocess.check_output(["git", "rev-parse", "--show-toplevel"],
+                                         cwd=source_root, text=True).strip()
+    return subprocess.check_output(["git", "archive", "--format=zip", parent], cwd=repository)
+
+
+def run_passive_build_fixture(case, ci, directory, selector, receipt_exit=0, build_exit=0):
+    """Real Git/receipt/shell/observer; substitute Darwin OS, Xcode and write failure.
+
+    Shared only by the current interruption route's existing shell assertions.
+    The fixture owns its Git objects/index/refs and does not modify ROOT's Git.
+    """
+    case.assertEqual(selector, TIMING.INTERRUPTION_SELECTION_ID)
+    base = Path(directory).resolve()
+    checkout = base / "c"
+    checkout.mkdir()
+    archive = passive_fixture_source_archive(ROOT, case.source_parent)
+    extract_path = "\\\\?\\" + str(checkout) if os.name == "nt" else checkout
+    zipfile.ZipFile(io.BytesIO(archive)).extractall(extract_path)
+    owned = ("Scripts/build-smoke.sh", "Scripts/v23-native-ci.py", "Scripts/v23-compiler-timing.py",
+             "Scripts/v23-compiler-timing.json", "Scripts/test-v23-compiler-timing.py")
+    for relative in owned:
+        (checkout / relative).write_bytes((ROOT / relative).read_bytes())
+    subprocess.check_call(["git", "init", "-q", str(checkout)])
+    common = subprocess.check_output(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], cwd=ROOT, text=True).strip()
+    (checkout / ".git/objects/info/alternates").write_text((Path(common) / "objects").as_posix() + "\n", encoding="utf-8", newline="\n")
+    def git(*args, data=None):
+        return subprocess.check_output(["git", *args], cwd=checkout, input=data)
+    git("config", "core.autocrlf", "false")
+    git("config", "core.longpaths", "true")
+    git("read-tree", case.source_parent)
+    for relative in owned:
+        mode = git("ls-tree", case.source_parent, "--", relative).split()[0].decode()
+        blob = git("hash-object", "-w", "--stdin", data=(checkout / relative).read_bytes()).decode().strip()
+        git("update-index", "--add", "--cacheinfo", mode, blob, relative)
+    tree = git("write-tree").decode().strip()
+    identity = dict(os.environ, GIT_AUTHOR_NAME="Observer fixture", GIT_AUTHOR_EMAIL="fixture@example.invalid",
+                    GIT_COMMITTER_NAME="Observer fixture", GIT_COMMITTER_EMAIL="fixture@example.invalid")
+    head = subprocess.check_output(["git", "commit-tree", tree, "-p", case.source_parent,
+                                   "-m", "Disposable observer fixture; no native evidence"],
+                                  cwd=checkout, env=identity, text=True).strip()
+    git("update-ref", "HEAD", head)
+    for relative, expected in case.source_trees.items():
+        case.assertEqual(git("rev-parse", "HEAD:" + relative).decode().strip(), expected)
+    case.assertEqual(git("diff", "HEAD", "--"), b"")
+    bash = Path(shutil.which("git")).resolve().parents[1] / "bin/bash.exe" if os.name == "nt" else Path(shutil.which("bash"))
+    def shell_path(path):
+        if os.name != "nt": return str(path)
+        return subprocess.check_output([str(bash), "-c", 'cygpath -u "$1"', "_", str(path)], text=True).strip()
+    binary = base / "bin"
+    binary.mkdir()
+    shim = base / "python-entry.py"
+    shim.write_text('''import importlib.util,json,os,runpy,subprocess,sys
+from pathlib import Path
+from unittest import mock
+target=sys.argv[1]; sys.argv=sys.argv[1:]
+output=Path(os.environ['CI_ARTIFACT_DIR'])
+if target == 'Scripts/v23-native-ci.py':
+    with Path(os.environ['TEST_EVENTS_NATIVE']).open('a') as stream: stream.write('receipt\\n')
+    original_open=Path.open
+    def receipt_open(path,mode='r',*args,**kwargs):
+        if path == output/os.environ['TEST_RECEIPT_NAME'] and mode=='xb' and os.environ['TEST_RECEIPT_EXIT']!='0':
+            raise SystemExit(int(os.environ['TEST_RECEIPT_EXIT']))
+        return original_open(path,mode,*args,**kwargs)
+    with mock.patch.object(Path,'open',receipt_open): runpy.run_path(target,run_name='__main__')
+    raise SystemExit(0)
+if target != 'Scripts/v23-compiler-timing.py': raise AssertionError('unexpected Python entry')
+spec=importlib.util.spec_from_file_location('observer_entry',target)
+m=importlib.util.module_from_spec(spec)
+with mock.patch.object(sys,'platform','darwin'): spec.loader.exec_module(m)
+original_popen,original_check,original_run=subprocess.Popen,subprocess.check_output,subprocess.run
+def launch(argv,*args,**kwargs):
+    if argv and argv[0]=='xcodebuild':
+        if argv != m.expected_command(os.environ,m.read_configuration(Path('Scripts/v23-compiler-timing.json'))):
+            raise AssertionError('changed admitted build argv')
+        if args or kwargs: raise AssertionError('changed inherited streams/process group')
+        with (output/'observed-launch.json').open('x') as stream: json.dump(argv,stream)
+        return original_popen([os.environ['TEST_BASH'],os.environ['TEST_XCODE'],*argv[1:]])
+    return original_popen(argv,*args,**kwargs)
+def check(argv,*args,**kwargs):
+    if argv[:2]==['/bin/ps','-axo']:
+        return b'123 45 9.0 0:12.00 00:20 2048 R Mon Sep 14 22:05:03 2026 /tool/swift-frontend\\n'
+    return original_check(argv,*args,**kwargs)
+def run(argv,*args,**kwargs):
+    if argv[:2]==['/bin/ps','-ww']:
+        return subprocess.CompletedProcess(argv,0,b'123 Mon Sep 14 22:05:03 2026 /tool/swift-frontend -module-name FieldEvidenceAppTests\\n',b'')
+    return original_run(argv,*args,**kwargs)
+def forbidden(*args,**kwargs): raise AssertionError('passive profile must not query or add flags')
+with mock.patch.object(m.subprocess,'Popen',side_effect=launch), mock.patch.object(m.subprocess,'check_output',side_effect=check), mock.patch.object(m.subprocess,'run',side_effect=run), mock.patch.object(m.os,'getloadavg',return_value=(1.,1.,1.),create=True), mock.patch.object(m,'run_observed_capability',side_effect=forbidden), mock.patch.object(m,'diagnostic_command',side_effect=forbidden):
+    raise SystemExit(m.main())
+''', encoding="utf-8", newline="\n")
+    (binary / "python3").write_text('#!/bin/bash\nexec "' + shell_path(Path(sys.executable)) + '" "' + shell_path(shim) + '" "$@"\n', encoding="utf-8", newline="\n")
+    (binary / "python3").chmod(0o755)
+    xcode = binary / "xcodebuild"
+    xcode.write_text('''#!/bin/bash
+printf "build\\n" >> "$TEST_EVENTS"
+printf "%s\\n" "$@" > "$TEST_BUILD_ARGS"
+sleep 0.1
+if [ "$TEST_BUILD_EXIT" != 0 ]; then exit "$TEST_BUILD_EXIT"; fi
+mkdir -p "$CI_ARTIFACT_DIR/Build.xcresult" "$RUNNER_TEMP/FieldEvidenceDerivedData/Build/Products/Debug-iphonesimulator/FieldEvidenceApp.app"
+touch "$CI_ARTIFACT_DIR/Build.xcresult/result" "$RUNNER_TEMP/FieldEvidenceDerivedData/Build/Products/fixture.xctestrun" "$RUNNER_TEMP/FieldEvidenceDerivedData/Build/Products/Debug-iphonesimulator/FieldEvidenceApp.app/Info.plist"
+''', encoding="utf-8", newline="\n")
+    xcode.chmod(0o755)
+    artifact = base / "artifact"
+    artifact.mkdir()
+    resolved = artifact / "ci-selection.selected.json"
+    resolved.write_bytes(ci.canonical(case.selected))
+    udid = "00000000-0000-0000-0000-000000000001"
+    e = dict(os.environ, **case.bound_environment())
+    e.update(GITHUB_WORKSPACE=str(checkout), GITHUB_SHA=head, NATIVE_SELECTION_ID=selector,
+        PROJECT_PATH="FieldEvidenceApp.xcodeproj", SCHEME="FieldEvidenceApp", CONFIGURATION="Debug",
+        CODE_SIGNING_ALLOWED="NO", CI_SIMULATOR_UDID=udid, CI_DESTINATION="platform=iOS Simulator,id=" + udid,
+        CI_TASK_ID="V23-INTEGRATION-20260910", CI_TIER="D30", CI_SETUP_ARTIFACT_TIMEOUT_SECONDS="300",
+        CI_BUILD_TIMEOUT_SECONDS="1800", CI_TEST_TIMEOUT_SECONDS="900", CI_UI_TIMEOUT_SECONDS="0",
+        CI_TOTAL_BUDGET_SECONDS="3000", CI_RUN_UI_SMOKE="false", CI_SELECTOR_RUN_UI_SMOKE="false",
+        RUNNER_ARCH="ARM64", DEVELOPER_DIR="/Applications/Xcode_26.6.app/Contents/Developer",
+        MSYS2_ENV_CONV_EXCL="DEVELOPER_DIR",
+        CI_ARTIFACT_DIR=str(artifact), CI_SELECTION_PATH=str(resolved), RUNNER_TEMP=str(base / "runner temp"),
+        TEST_BASH=str(bash), TEST_XCODE=str(xcode), TEST_EVENTS=shell_path(base / "events"),
+        TEST_EVENTS_NATIVE=str(base / "events"), TEST_BUILD_ARGS=shell_path(base / "build-args"),
+        TEST_RECEIPT_EXIT=str(receipt_exit), TEST_RECEIPT_NAME=ci.NO_INDEX_RECEIPT, TEST_BUILD_EXIT=str(build_exit))
+    admitted = subprocess.run([sys.executable, str(checkout / "Scripts/v23-native-ci.py"), "admit"],
+                              cwd=checkout, env=e, capture_output=True, text=True)
+    case.assertEqual(admitted.returncode, 0, admitted.stderr)
+    result = subprocess.run([str(bash), "-c", 'export PATH="$1:$PATH"; exec bash Scripts/build-smoke.sh', "_", shell_path(binary)],
+                            cwd=checkout, env=e, capture_output=True, text=True, timeout=60)
+    events = (base / "events").read_text().splitlines() if (base / "events").exists() else []
+    args = (base / "build-args").read_text().splitlines() if (base / "build-args").exists() else []
+    if receipt_exit:
+        case.assertFalse((artifact / ci.NO_INDEX_RECEIPT).exists())
+        case.assertFalse((artifact / "v23-compiler-timing").exists())
+    else:
+        case.assertEqual(result.returncode, build_exit, result.stderr)
+        receipt = ci.read_json(artifact / ci.NO_INDEX_RECEIPT)
+        launched = ci.read_json(artifact / "observed-launch.json")
+        compared, expected = list(launched), list(receipt["argv"])
+        if os.name == "nt":
+            for index in (10, 12):
+                compared[index], expected[index] = Path(compared[index]).as_posix(), Path(expected[index]).as_posix()
+        case.assertEqual(compared, expected)
+        rows = [json.loads(line) for line in (artifact / "v23-compiler-timing/events.jsonl").read_bytes().splitlines()]
+        case.assertEqual(rows[0]["command"], launched)
+        case.assertEqual(rows[0]["baseCommand"], launched)
+        case.assertEqual(rows[0]["buildWatchdogSeconds"], 1800)
+        case.assertEqual(rows[-1]["buildReturnCode"], build_exit)
+        case.assertFalse(rows[0]["nativeAcceptance"])
+        case.assertFalse(rows[-1]["providerQualification"])
+        case.assertFalse((artifact / "v23-compiler-timing/capability-events.jsonl").exists())
+    return result, e, events, args
+
+
+class InterruptionPassiveTimingTests(unittest.TestCase):
+    admit = CompilerTimingTests.admit
+    git = CurrentSourceTimingTests.git
+    testAdmissionBindsExactHostedSourceSelectorAndUnchangedBudgets = CompilerTimingTests.testAdmissionBindsExactHostedSourceSelectorAndUnchangedBudgets
+
+    def setUp(self):
+        CompilerTimingTests.setUp(self)
+        self.config = TIMING.read_configuration(ROOT / "Scripts/v23-compiler-timing.json")
+        self.assertEqual(self.config, TIMING.INTERRUPTION_PROFILE)
+        for relative in ("Scripts/ci-selection.json", "Scripts/ci-selection-map.json"):
+            data = subprocess.check_output(["git", "show", self.config["sourceHead"] + ":" + relative], cwd=ROOT)
+            (self.root / relative).write_bytes(data)
+        spec = importlib.util.spec_from_file_location("passive_selector", ROOT / "Scripts/v23-native-ci.py")
+        selector = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(selector)
+        selected = selector.resolve_selection(
+            json.loads((self.root / "Scripts/ci-selection.json").read_bytes()),
+            json.loads((self.root / "Scripts/ci-selection-map.json").read_bytes()),
+            TIMING.INTERRUPTION_SELECTION_ID)
+        self.assertEqual(selected["unitTestSelectors"], [
+            "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testRetainedLiveContextDefersCleanupUntilColdRecovery",
+            "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testEveryInterruptionRecoversOldOrFullyErasedNew"])
+        self.assertEqual((selected["tier"], selected["buildTimeoutSeconds"], selected["testTimeoutSeconds"],
+                          selected["setupArtifactTimeoutSeconds"], selected["totalBudgetSeconds"],
+                          selected["uiTimeoutSeconds"], selected["runUISmoke"]),
+                         ("D30", 1800, 900, 300, 3000, 0, False))
+        self.resolved.write_bytes(selector.canonical(selected))
+        self.env.update(NATIVE_SELECTION_ID=TIMING.INTERRUPTION_SELECTION_ID, CI_TIER="D30",
+                        CI_BUILD_TIMEOUT_SECONDS="1800", CI_TOTAL_BUDGET_SECONDS="3000",
+                        DISPATCH_NATIVE_SELECTION_SHA256=self.config["resolvedSelectionSHA256"])
+        self.command = TIMING.expected_command(self.env, self.config)
+
+    def testClosedPassiveProfileRejectsMissingExtraAndJointSourceDrift(self):
+        self.assertEqual(TIMING.validate_configuration(self.config), self.config)
+        for key in self.config:
+            changed = copy.deepcopy(self.config)
+            del changed[key]
+            with self.subTest(missing=key), self.assertRaises(ValueError):
+                TIMING.validate_configuration(changed)
+        for key, value in (("extra", True), ("schemaVersion", True), ("schemaVersion", 6),
+                           ("parentHead", "a" * 40), ("sourceHead", "a" * 40),
+                           ("sampleIntervalSeconds", 1), ("sampleIntervalSeconds", True), ("sampleIntervalSeconds", 5.0),
+                           ("mode", "timing-command-source-v4"), ("selectionSHA256", "A" * 64),
+                           ("selectionMapSHA256", "B" * 64), ("resolvedSelectionSHA256", "C" * 64)):
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                TIMING.validate_configuration({**self.config, key: value})
+        for path in TIMING.SOURCE_PATHS:
+            changed = copy.deepcopy(self.config)
+            changed["sourceTrees"][path] = "b" * 40
+            def drift(*args):
+                return b"b" * 40 if args == ("rev-parse", "HEAD:" + path) else self.git(*args)
+            with self.subTest(path=path), self.assertRaisesRegex(ValueError, "fixed interruption"):
+                self.admit(config=changed, git=drift)
+            actual = subprocess.check_output(["git", "rev-parse", self.config["sourceHead"] + ":" + path], cwd=ROOT).decode().strip()
+            self.assertEqual(actual, self.config["sourceTrees"][path])
+        target = self.root / "profile.json"
+        raw = json.dumps(self.config)
+        target.write_text(raw[:-1] + ',"schemaVersion":5}', encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "duplicate JSON key"):
+            TIMING.read_configuration(target)
+
+    def testPassiveArgvRejectsAddedFlagsOmittedIndexAndForeignAction(self):
+        self.assertEqual(self.command, TIMING.expected_command(self.env)[:-1] +
+                         ["COMPILER_INDEX_STORE_ENABLE=NO", "build-for-testing"])
+        for command in (TIMING.expected_command(self.env), TIMING.diagnostic_command(self.command),
+                        self.command[:-1] + ["test"], self.command + ["clean"],
+                        self.command[:-1] + ["-only-testing:FieldEvidenceAppTests", self.command[-1]],
+                        self.command[:-2] + ["COMPILER_INDEX_STORE_ENABLE=YES", self.command[-1]],
+                        self.command[:-1] + ["COMPILER_INDEX_STORE_ENABLE=NO", self.command[-1]]):
+            with self.subTest(command=command), self.assertRaisesRegex(ValueError, "exact base build argv"):
+                self.admit(command=command)
+
+    def testPassiveAdmissionRejectsRootMergeIndirectAndMalformedParent(self):
+        valid = b"parent " + self.config["parentHead"].encode()
+        for header in (b"tree " + b"c" * 40, b"parent " + b"d" * 40,
+                       valid + b"\nparent " + b"d" * 40, valid + b"\n" + valid,
+                       valid + b" ", valid.replace(b"parent ", b"parent\t")):
+            def wrong(*args):
+                return header + b"\n\nmessage" if args == ("cat-file", "commit", "HEAD") else self.git(*args)
+            with self.subTest(header=header), self.assertRaisesRegex(ValueError, "exact single direct parent"):
+                self.admit(git=wrong)
+
+    def testPassiveFixtureArchiveUsesRepositoryRootFromIgnoredNestedSource(self):
+        repository = self.root / "archive-origin"
+        (repository / "Scripts").mkdir(parents=True)
+        body = b"fixture build bytes\n"
+        (repository / "Scripts/build-smoke.sh").write_bytes(body)
+        (repository / ".gitignore").write_text("nested/\n", encoding="utf-8")
+        def git(*args):
+            return subprocess.check_output(["git", *args], cwd=repository, stderr=subprocess.PIPE)
+        git("init", "--quiet")
+        git("config", "core.autocrlf", "false")
+        git("config", "core.hooksPath", str(self.root / "no-hooks"))
+        git("add", "--", ".gitignore", "Scripts/build-smoke.sh")
+        git("-c", "user.name=Archive fixture", "-c", "user.email=fixture@example.invalid",
+            "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "Archive origin")
+        parent = git("rev-parse", "HEAD").decode().strip()
+        nested = repository / "nested/prospective/source"
+        nested.mkdir(parents=True)
+        # Reproduce the actual failure: a valid, empty archive from the nested cwd.
+        restricted = subprocess.check_output(["git", "archive", "--format=zip", parent], cwd=nested)
+        self.assertEqual(zipfile.ZipFile(io.BytesIO(restricted)).namelist(), [])
+        archive = passive_fixture_source_archive(nested, parent)
+        self.assertEqual(archive, passive_fixture_source_archive(repository, parent))
+        with zipfile.ZipFile(io.BytesIO(archive)) as retained:
+            self.assertEqual(retained.namelist(), [".gitignore", "Scripts/", "Scripts/build-smoke.sh"])
+            self.assertEqual(retained.read("Scripts/build-smoke.sh"), body)
+        with self.assertRaises(subprocess.CalledProcessError):
+            passive_fixture_source_archive(nested, "0" * 40)
+
+    def make_real_git_fixture(self):
+        checkout = self.root / "checkout"
+        origin = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], cwd=ROOT).decode().strip()
+        subprocess.check_call(["git", "clone", "--quiet", "--shared", "--no-checkout", origin, str(checkout)])
+        def git(*args):
+            return subprocess.check_output(["git", *args], cwd=checkout, stderr=subprocess.PIPE)
+        git("config", "core.autocrlf", "false")
+        git("config", "core.hooksPath", str(self.root / "no-hooks"))
+        git("sparse-checkout", "set", "--no-cone", "/Scripts/")
+        git("checkout", "--quiet", "--detach", self.config["sourceHead"])
+        for name in ("v23-compiler-timing.py", "v23-compiler-timing.json"):
+            (checkout / "Scripts" / name).write_bytes((ROOT / "Scripts" / name).read_bytes())
+        git("add", "--", "Scripts/v23-compiler-timing.py", "Scripts/v23-compiler-timing.json")
+        git("-c", "user.name=Protocol fixture", "-c", "user.email=fixture@example.invalid",
+            "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "Passive observer fixture; no native evidence")
+        head = git("rev-parse", "HEAD").decode().strip()
+        for path, expected in self.config["sourceTrees"].items():
+            self.assertEqual(git("rev-parse", "HEAD:" + path).decode().strip(), expected)
+        self.assertEqual(git("diff", "HEAD", "--", *TIMING.SOURCE_PATHS), b"")
+        return checkout, head
+
+    def testRealMainPreservesArgvAndRetainsNonzeroSamplerFailureAndInterruptedEvidence(self):
+        # Real Git/admission/main/observer run. Windows substitutes only the
+        # Darwin platform and OS process interfaces; no admission is mocked.
+        checkout, head = self.make_real_git_fixture()
+        original_popen, original_check, original_run = subprocess.Popen, subprocess.check_output, subprocess.run
+        compiler = "123 45 9.0 0:12.00 00:20 2048 R Mon Sep 14 22:05:03 2026 /tool/swift-frontend\n"
+        old_defaults = TIMING.admit.__defaults__
+        self.addCleanup(setattr, TIMING.admit, "__defaults__", old_defaults)
+        TIMING.admit.__defaults__ = ("darwin",)
+        for label, status in (("success", 0), ("compiler-failure", 7), ("sampler-failure", 7), ("interrupted", None)):
+            artifact = self.root / label
+            artifact.mkdir()
+            resolved = artifact / "ci-selection.selected.json"
+            resolved.write_bytes(self.resolved.read_bytes())
+            env = dict(self.env, GITHUB_SHA=head, CI_ARTIFACT_DIR=str(artifact),
+                       CI_SELECTION_PATH=str(resolved), RUNNER_TEMP=str(self.root / (label + "-runner")))
+            command = TIMING.expected_command(env, self.config)
+            launches = []
+            class InterruptedChild:
+                pid = 45
+                signals = []
+                def poll(self): return None
+                def send_signal(self, value): self.signals.append(value)
+                def wait(self, timeout): raise subprocess.TimeoutExpired("owned-build", timeout)
+            child = InterruptedChild()
+            def launch(argv, *args, **kwargs):
+                if argv and argv[0] == "xcodebuild":
+                    self.assertEqual(argv, command)
+                    self.assertEqual(args, ())
+                    self.assertEqual(kwargs, {})  # Preserve streams and process group.
+                    self.assertIn(b'build-request', (artifact / "v23-compiler-timing/events.jsonl").read_bytes())
+                    launches.append(argv)
+                    if status is None: return child
+                    return original_popen([sys.executable, "-c", "import time,sys;time.sleep(.1);sys.exit(" + str(status) + ")"])
+                return original_popen(argv, *args, **kwargs)
+            def check(argv, *args, **kwargs):
+                if argv[:2] == ["/bin/ps", "-axo"]:
+                    if label == "sampler-failure": raise OSError("test-only ps unavailable")
+                    if status is None: signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)
+                    return compiler.encode()
+                return original_check(argv, *args, **kwargs)
+            def run(argv, *args, **kwargs):
+                if argv[:2] == ["/bin/ps", "-ww"]:
+                    return subprocess.CompletedProcess(argv, 0,
+                        b"123 Mon Sep 14 22:05:03 2026 /tool/swift-frontend -module-name FieldEvidenceAppTests\n", b"")
+                return original_run(argv, *args, **kwargs)
+            previous_handler = signal.getsignal(signal.SIGTERM)
+            with self.subTest(label=label), mock.patch.object(TIMING.Path, "cwd", return_value=checkout), \
+                 mock.patch.object(TIMING.sys, "argv", ["Scripts/v23-compiler-timing.py", "--", *command]), \
+                 mock.patch.dict(TIMING.os.environ, env), \
+                 mock.patch.object(TIMING.os, "getloadavg", return_value=(1., 1., 1.), create=True), \
+                 mock.patch.object(TIMING.subprocess, "Popen", side_effect=launch), \
+                 mock.patch.object(TIMING.subprocess, "check_output", side_effect=check), \
+                 mock.patch.object(TIMING.subprocess, "run", side_effect=run), \
+                 mock.patch.object(TIMING, "diagnostic_command", side_effect=AssertionError("passive flags prohibited")), \
+                 mock.patch.object(TIMING, "run_observed_capability", side_effect=AssertionError("passive query prohibited")):
+                self.assertEqual(TIMING.main(), status if status is not None else 128 + signal.SIGTERM)
+            self.assertEqual(launches, [command])
+            self.assertEqual(signal.getsignal(signal.SIGTERM), previous_handler)
+            events = [json.loads(line) for line in (artifact / "v23-compiler-timing/events.jsonl").read_bytes().splitlines()]
+            first, terminal = events[0], events[-1]
+            self.assertEqual((first["command"], first["baseCommand"], first["head"]), (command, command, head))
+            self.assertEqual(first["buildWatchdogSeconds"], 1800)
+            self.assertEqual(first["configuration"]["sampleIntervalSeconds"], 5)
+            self.assertFalse(first["nativeAcceptance"])
+            self.assertFalse(first["providerQualification"])
+            self.assertFalse(terminal["nativeAcceptance"])
+            self.assertFalse(terminal["providerQualification"])
+            self.assertEqual(terminal["buildReturnCode"], status)
+            self.assertFalse((artifact / "v23-compiler-timing/capability-events.jsonl").exists())
+            if label == "sampler-failure":
+                self.assertTrue(any(e["event"] == "observation-error" for e in events))
+            if status is None:
+                self.assertEqual(child.signals, [signal.SIGTERM])
+                self.assertEqual(terminal["receivedSignals"], [signal.SIGTERM])
+                self.assertIn("123@Mon Sep 14 22:05:03 2026", terminal["processesWithUnobservedTerminal"])
 
 
 class CapabilityTests(unittest.TestCase):
@@ -682,7 +1053,7 @@ class CapabilityTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 TIMING.capability_command(env)
         (self.output / "Scripts").mkdir()
-        config = (ROOT / "Scripts/v23-compiler-timing.json").read_bytes()
+        config = json.dumps(TIMING.COMMAND_PROFILE).encode()
         (self.output / "Scripts/v23-compiler-timing.json").write_bytes(config)
         base_command = ["xcodebuild", "original-value", "build-for-testing"]
         for status in (65, 0):

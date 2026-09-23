@@ -239,7 +239,7 @@ ACTIVITY_COMPLETED_SOURCE_SELECTORS = tuple(
     member for _, members in ACTIVITY_COMPLETED_SOURCE_GROUPS for member in members
 ) + ACTIVITY_CONTRACT_SELECTORS
 NOTIFICATION_INTERRUPTION_SELECTION_ID = 'notification-interruption-no-index-build30m'
-NOTIFICATION_INTERRUPTION_PARENT = '1ea75748b17006490bab5aa0e11d4a9267af8aaa'
+NOTIFICATION_INTERRUPTION_PARENT = '1cf1d8618a2a2a410c36a328933cd22339293876'
 NOTIFICATION_INTERRUPTION_TREES = {'FieldEvidenceApp': '7731c5593306ce9bc2fa8ef49e928e50ad4f1ba3', 'FieldEvidenceAppTests': '6c326564ba3538891a086515168d7d3e2a541f28', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 NOTIFICATION_INTERRUPTION_SELECTORS = (
     'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testRetainedLiveContextDefersCleanupUntilColdRecovery',

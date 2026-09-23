@@ -10,6 +10,7 @@ import time
 import importlib.util
 import json
 import re
+import shlex
 from pathlib import Path
 import shutil
 import tempfile
@@ -2928,6 +2929,52 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
     source_parent = CI.NOTIFICATION_INTERRUPTION_PARENT
     source_trees = CI.NOTIFICATION_INTERRUPTION_TREES
 
+    def run_mock_build(self, directory, selector, receipt_exit=0, build_exit=0):
+        # The passive observer must run its real admission and command path;
+        # historical routes retain their existing shell stand-ins.
+        path = ROOT / 'Scripts/test-v23-compiler-timing.py'
+        spec = importlib.util.spec_from_file_location('interruption_observer_fixture', path)
+        timing = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(timing)
+        return timing.run_passive_build_fixture(self, CI, directory, selector, receipt_exit, build_exit)
+
+    def test_command_vector_is_nonempty_under_bash32_nounset(self):
+        # Static compatibility guard: newer local Bash cannot reproduce the
+        # hosted Bash 3.2 empty-array nounset behavior. The paired shell tests
+        # separately execute both command paths and check their exact argv.
+        source = (ROOT / 'Scripts/build-smoke.sh').read_text(encoding='utf-8')
+
+        def assert_nonempty_command_vectors(text):
+            self.assertIn('set -euo pipefail', text)
+            invocations = list(re.finditer(r'^"\$\{([A-Za-z_][A-Za-z0-9_]*)\[@\]\}"([^\r\n]*)$', text, re.M))
+            self.assertEqual(len(invocations), 1)
+            invocation = invocations[0]
+            name = invocation.group(1)
+            # The vector contains the executable; there is no empty optional
+            # prefix expanded ahead of a separate command token.
+            self.assertEqual(invocation.group(2).strip(), '\\')
+            assignments = list(re.finditer(r'^([ \t]*)' + re.escape(name) + r'=\(([^)\r\n]*)\)[ \t]*$', text, re.M))
+            self.assertEqual(len(assignments), 2)
+            self.assertEqual(assignments[0].group(1), '')
+            self.assertLess(assignments[-1].end(), invocation.start())
+            self.assertEqual(len(re.findall(r'\b' + re.escape(name) + r'\s*\+?=', text)), 2)
+            self.assertNotRegex(text, r'(?m)^\s*unset\b[^\n]*\b' + re.escape(name) + r'\b')
+            for assignment in assignments:
+                words = shlex.split(assignment.group(2))
+                self.assertTrue(words, 'Bash 3.2 nounset cannot expand an empty command array')
+                self.assertTrue(all(word and '$' not in word for word in words),
+                                'Every closed command vector must contain nonempty literal arguments')
+            return assignments
+
+        assignments = assert_nonempty_command_vectors(source)
+        # Reintroduce the evidenced defect on either route, including a quoted
+        # empty first argument, and require this guard to reject each mutation.
+        for assignment in assignments:
+            for unsafe in ('', '""'):
+                changed = source[:assignment.start(2)] + unsafe + source[assignment.end(2):]
+                with self.subTest(assignment=assignment.group(0), unsafe=unsafe), self.assertRaises(AssertionError):
+                    assert_nonempty_command_vectors(changed)
+
     def test_public_choices_and_report_boundary_are_exact(self):
         workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
         block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
@@ -2937,7 +2984,7 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
         self.assertEqual(options[options.index(CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID) + 1],
                          CI.NOTIFICATION_INTERRUPTION_SELECTION_ID)
         self.assertEqual(len(options), len(set(options)))
-        self.assertEqual(self.source_parent, '1ea75748b17006490bab5aa0e11d4a9267af8aaa')
+        self.assertEqual(self.source_parent, '1cf1d8618a2a2a410c36a328933cd22339293876')
         self.assertEqual(self.source_trees, {'FieldEvidenceApp': '7731c5593306ce9bc2fa8ef49e928e50ad4f1ba3', 'FieldEvidenceAppTests': '6c326564ba3538891a086515168d7d3e2a541f28', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'})
 
     def test_exact_disjoint_ordered_union_and_historical_routes(self):

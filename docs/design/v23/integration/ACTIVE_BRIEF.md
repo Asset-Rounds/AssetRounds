@@ -8,11 +8,13 @@ Only C:\AssetRounds-v23-s10-integration, codex/v23-s10-integration-20260910, tas
 
 ## Current critical path
 
-Original35869740275/1ea7574 is terminal and sole-collected. Bound original logs show compilation success and27/28 method completions passing. EveryInterruption reaches all16points; eight assertions fail at sidecar readback in four cleanup windows. The test's earlier currentGenerationID() observation restores that sidecar before its no-effect witnesses. Move that observation after stale-owner denial and fresh cold-owner restoration; retain every assertion,53methods/exact28 and existing budgets. Earlier intermittent bootstrap failure did not recur and remains unexplained.
+Original35884474567/1cf1d86 is terminal, sole-collected and root-audited8740A0B5: all16 integrity checks pass,128files/29sourcepins retained. Build1800 exits124 after1825 wrapper seconds, with0Swift errors and0newwarning signatures. The exact retained-context/interruption pair did not start. Its assertion-order correction remains natively unverified.
 
-The test command then hits900seconds/exit124 during XCResult finalization; Info.plist is absent and transport is INTERRUPTED. Artifact105listed hashes match, but25late unlisted diagnostic files fail manifest integrity. Preserve all originals and failures; complete a separately reviewed failed-original audit, never infer acceptance from console results. Capture diagnosis and real hash-step reproduction are in runtime-1ea7574/xcresult-manifest-diagnosis. Measured28-method execution finishes at893/900seconds. Qualify the fixed retained-context+interruption pair on unchanged D30budgets for the next development question; full28coverage stays due. Source/protocol/index/committed-route gates remain due.
+The preceding1ea build finished1455seconds with identical app/project/UI trees and observed toolchain/image/runtime. Timestamped logs show slower app compilation and unfinished unit compilation, but do not establish the cause. Retained timing comparison is in runtime-1cf1d86. Narrow an observer-only current-route qualification from the existing dormant build observer; keep exact2/D30/no-index and every coverage/gate. No unchanged retry, increased watchdog or source-layer expansion.
 
-MyDay shared-file mechanical reconciliation is isolated. The reviewed normalized-history amendment awaits an explicit owner choice; no V54 activation or Finding successor allocation until the controlling contract is settled.
+Prior35869740275 retains27/28 console passes, eight sidecar assertions failed, incomplete XCResult and25unlisted diagnostic files; artifact integrity remains FAIL. Full28same-head coverage, the publication race and earlier intermittent bootstrap cause remain unresolved. C36 stays frozen at its retained source/enrollment/helper checkpoint until usable native feedback.
+
+MyDay normalized-history amendment awaits the existing owner decision; no V54 activation or Finding successor allocation until that contract is settled.
 
 ## Retained evidence and remaining gates
 
@@ -22,6 +24,6 @@ C36 saved-review/discard isolated ea0 candidate passed262 checks (entry1/protoco
 
 ## Cadence
 
-Hands-on root honors session model/effort/speed. Performance ceiling is four bounded helpers, limited by owner max_threads=3 and session capacity; substantive work defaults to Astra xhigh. Reuse relevant helper context with delta-only follow-ups and compact checkpoints; fresh mutable-state checks and review independence remain required. One reviewer owns each complete changed contract. Scripts collect each original once. REVIEW_EFFICIENCY separates required gates from avoidable rework; tokens/net savings UNKNOWN.
+Hands-on root honors session model/effort/speed. Performance ceiling is four bounded helpers, limited by owner max_threads=3 and session capacity; substantive work defaults to Astra xhigh. Reuse relevant helper context with delta-only follow-ups and compact checkpoints; fresh mutable-state checks and review independence remain required. One semantic reviewer owns each complete changed contract; qualified automation binds matching index/commit bytes. Scripts collect each original once. REVIEW_EFFICIENCY separates required gates from avoidable rework; tokens/net savings UNKNOWN.
 
-Windows checks are not Swift execution. Complete same-head functional/compatibility, provider, affected S10 visuals, independent and genuine human review before non-force main integration and exact-main verification. No partial merge or development-run acceptance.
+Windows checks are not Swift execution. Before non-force main integration and exact-main verification, complete same-head functionality/compatibility, qualified required execution kinds, critical S10 journeys and independent/genuine human review. GitHub may suffice without Bitrise; only explicit noncritical polish can remain until release. No partial merge or development-run acceptance.

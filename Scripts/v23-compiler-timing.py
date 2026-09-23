@@ -42,6 +42,10 @@ SHALLOW_PROFILE = dict(CURRENT_PROFILE, schemaVersion=3, mode="timing-shallow-so
 COMMAND_PROFILE = dict(CURRENT_PROFILE, schemaVersion=4, mode="timing-command-source-v4",
                        parentHead="8d7a886ac1186eceac26d0c3c42f08a92280a206")
 
+# Passive observation of the exact current interruption build; historical profiles stay fixed.
+INTERRUPTION_SELECTION_ID = "notification-interruption-no-index-build30m"
+INTERRUPTION_PROFILE = {'schemaVersion': 5, 'mode': 'timing-interruption-no-index-source-v5', 'sourceHead': '1cf1d8618a2a2a410c36a328933cd22339293876', 'parentHead': '1cf1d8618a2a2a410c36a328933cd22339293876', 'sourceTrees': {'FieldEvidenceApp': '7731c5593306ce9bc2fa8ef49e928e50ad4f1ba3', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0', 'FieldEvidenceAppTests': '6c326564ba3538891a086515168d7d3e2a541f28', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190'}, 'sampleIntervalSeconds': 5, 'selectionSHA256': 'CDD7411107440470C44C2AA29AC2C8139B44BBF1D7DD7F9A55D06221FE9D517E', 'selectionMapSHA256': '316967E3CF0BF31ED1F1DFE05A118D041A61C7E3FA756C35637E226506008D5B', 'resolvedSelectionSHA256': '7E4D6D273ED3002156A31A7C1B8F533721F1F62ADC4C60CD3F8CCC7EFD03CCBB'}
+
 SWIFT_FLAGS = ("OTHER_SWIFT_FLAGS=$(inherited) -Xfrontend -warn-long-function-bodies=500"
                " -Xfrontend -warn-long-expression-type-checking=200")
 COMPILERS = {"xcodebuild", "swiftc", "swift-frontend", "clang", "clang++", "ld",
@@ -73,6 +77,10 @@ def read_configuration(path):
 
 def validate_configuration(config):
     require(isinstance(config, dict), "configuration object")
+    if type(config.get("schemaVersion")) is int and config["schemaVersion"] == 5:
+        require(type(config.get("sampleIntervalSeconds")) is int, "integer interruption sample interval")
+        require(config == INTERRUPTION_PROFILE, "fixed interruption no-index source profile")
+        return config
     if type(config.get("schemaVersion")) is int and config["schemaVersion"] == 4:
         require(config == COMMAND_PROFILE, "fixed current command source profile")
         return config
@@ -105,7 +113,7 @@ def validate_configuration(config):
     return config
 
 
-def expected_command(environment):
+def expected_command(environment, config=None):
     e = environment
     for key in ("PROJECT_PATH", "SCHEME", "CONFIGURATION", "CI_SIMULATOR_UDID",
                 "CI_DESTINATION", "RUNNER_TEMP", "CI_ARTIFACT_DIR"):
@@ -116,11 +124,14 @@ def expected_command(environment):
                          e["CI_SIMULATOR_UDID"]), "Simulator identity")
     require(e["CI_DESTINATION"] == "platform=iOS Simulator,id=" + e["CI_SIMULATOR_UDID"],
             "destination")
-    return ["xcodebuild", "-project", e["PROJECT_PATH"], "-scheme", e["SCHEME"],
+    command = ["xcodebuild", "-project", e["PROJECT_PATH"], "-scheme", e["SCHEME"],
             "-configuration", e["CONFIGURATION"], "-destination", e["CI_DESTINATION"],
             "-derivedDataPath", e["RUNNER_TEMP"] + "/FieldEvidenceDerivedData",
             "-resultBundlePath", e["CI_ARTIFACT_DIR"] + "/Build.xcresult",
             "CODE_SIGNING_ALLOWED=NO", "build-for-testing"]
+    if config is not None and config["schemaVersion"] == 5:
+        command.insert(-1, "COMPILER_INDEX_STORE_ENABLE=NO")
+    return command
 
 
 def require_direct_parent(git_output, expected):
@@ -151,14 +162,17 @@ def admit(config, environment, command, root, git_output, platform=sys.platform)
     }
     if config["schemaVersion"] in (2, 3, 4):
         required["NATIVE_SELECTION_ID"] = CURRENT_SELECTION_ID
+    if config["schemaVersion"] == 5:
+        required.update(NATIVE_SELECTION_ID=INTERRUPTION_SELECTION_ID, CI_TIER="D30",
+                        CI_BUILD_TIMEOUT_SECONDS="1800", CI_TOTAL_BUDGET_SECONDS="3000")
     require(platform == "darwin", "host platform")
     for key, value in required.items():
         require(environment.get(key) == value, key)
-    require(command == expected_command(environment), "exact base build argv")
+    require(command == expected_command(environment, config), "exact base build argv")
     head = git_output("rev-parse", "HEAD").decode().strip()
     require(re.fullmatch(r"[a-f0-9]{40}", head)
             and head == environment.get("GITHUB_SHA"), "actual checkout head")
-    if config["schemaVersion"] in (2, 3, 4):
+    if config["schemaVersion"] in (2, 3, 4, 5):
         require_direct_parent(git_output, config.get("parentHead", config["sourceHead"]))
     for path, tree in config["sourceTrees"].items():
         require(git_output("rev-parse", "HEAD:" + path).decode().strip() == tree, path + " tree")
@@ -501,8 +515,13 @@ def main():
                 "configuration": config,
                 "configurationSHA256": hashlib.sha256(config_path.read_bytes()).hexdigest().upper(),
                 "baseCommand": command, "nativeAcceptance": False,
-                "providerQualification": False, "buildWatchdogSeconds": 1200,
+                "providerQualification": False,
+                "buildWatchdogSeconds": 1800 if config["schemaVersion"] == 5 else 1200,
                 "limits": "Sampling gives first/last sightings, not per-process exit codes. CPU percent is a decaying average. Host compilers can be unrelated; bind rendered source/primary paths before attribution. Instrumentation may affect duration."}
+    if config["schemaVersion"] == 5:
+        # No compiler flags are added, so there is no capability query.
+        return run_observed_build(command, output, metadata,
+                                  interval=config["sampleIntervalSeconds"])
     # This single capability query must succeed before xcodebuild. Its durable
     # request and stream files precede launch, including every failure path.
     if run_observed_capability(capability_command(os.environ), output, metadata) != 0:

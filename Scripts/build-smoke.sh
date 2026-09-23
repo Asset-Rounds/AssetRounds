@@ -68,7 +68,15 @@ if [ "${NATIVE_SELECTION_ID:-none}" = c36-restore-review-no-index ] || \
   v23_index_setting="COMPILER_INDEX_STORE_ENABLE=NO"
 fi
 
-xcodebuild \
+# Passive observation is closed to the current interruption diagnostic.
+# The observer admits the exact source, route and unmodified no-index argv.
+# Bash 3.2 nounset requires a nonempty array on ordinary routes too.
+v23_build_command=(xcodebuild)
+if [ "${NATIVE_SELECTION_ID:-none}" = notification-interruption-no-index-build30m ]; then
+  v23_build_command=(python3 Scripts/v23-compiler-timing.py -- xcodebuild)
+fi
+
+"${v23_build_command[@]}" \
   -project "${PROJECT_PATH:?}" \
   -scheme "${SCHEME:?}" \
   -configuration "${CONFIGURATION:?}" \
