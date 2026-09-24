@@ -33,7 +33,7 @@ UI = "FieldEvidenceAppUITests/NativeJourneyTests/testContinuousJourney"
 def worker_before_live_host_d50(test_case, raw):
     # Reverse only the owner-approved live-host D50 job cap; every other
     # worker byte must still match its historical boundary.
-    changed = b"    timeout-minutes: ${{ inputs.native_selection_id == 'c36-live-host-no-index-build30m' && 120 || 90 }}\n"
+    changed = b"    timeout-minutes: ${{ (inputs.native_selection_id == 'c36-live-host-no-index-build30m' || inputs.native_selection_id == 'c36-round-item-mount-no-index-build30m' || inputs.native_selection_id == 'c36-startup-retirement-no-index-build30m') && 120 || 90 }}\n"
     test_case.assertEqual(raw.count(changed), 1)
     return raw.replace(changed, b"    timeout-minutes: 90\n")
 
@@ -430,7 +430,29 @@ FINDING_PROFILE_FIXTURES_SELECTORS = [
 
 EXPECTED_LIVE_HOST_RUNTIME = ['FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldOperationAuthoritySurvivesSuspensionAndRecoversOriginalReceipt', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testPhotoDiscardPreparationReopensOriginalPendingReceipt', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testPhotoDiscardValuesRetainOriginalStagesAndRejectCommit', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testDurablePreflightSubmitsConfirmedEnteredTimeZoneWithoutRewritingSavedInput', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementPreservesCanonicalNamesAndRejectsStaleOrReplacedPlans', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementRejectsMalformedNamesAndUnsafeFileKinds', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementPreservesInterruptedFinalizationAndReachesEraseAdmission', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testLiveFinalizationUsesOriginalReceiptAndRejectsRetiredOperation', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testLivePhotoRejectsRetiredPublicationAndRecoversOriginalCommitReceipt', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testLiveItemFactoryAndEditorKeepOriginalPublicationWithoutCreatingStaging', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testPreparedImmutableOriginalPublishesOnceAndRetainsAuthenticRetryReceipt', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testPreparedImmutableOriginalRejectsTargetAppearingAfterPreparation', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testPreparedImmutableOriginalRejectsSubstitutionAndCancellation', 'FieldEvidenceAppTests/S8_2GoldenAccessibilityTests/testGoldenFlowAccessibilitySpineAndControlMetricsAreExact']
 
+EXPECTED_ROUND_ITEM_MOUNT = ['FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testContinueLaunchesEntersOnceOpensDurableHostAndColdReopenAddsNoWrites', 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testContinueDeniesDraftPausedAndCompetingSourcesWithoutEffects', 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testForeignCanonicalDraftDeniesEntryBeforeAnyWrite', 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testContinueRecoversSourceAndEntryAcknowledgementLossWithOneOfEach', 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testPendingEffectForAnotherItemIsNotSettledByAnOutOfOrderTap', 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testRevisionPinnedRouteRetargetsThenReusesEntryAndBegunParentReopens', 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testInterruptedPreparedBeginReopensForExplicitRecoveryAndCompletesOnce']
+EXPECTED_STARTUP_RETIREMENT = [s for s in EXPECTED_LIVE_HOST_RUNTIME if '/testStartupPrivateRetirement' in s]
+
+
+def preround_item_mount_values(default, mapping):
+    if len(default.get('unitTestSelectors', [])) != 1085:
+        raise AssertionError('changed round item mount pool count')
+    if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.ROUND_ITEM_MOUNT_POOL_SHA256, CI.ROUND_ITEM_MOUNT_MAP_SHA256):
+        raise AssertionError('changed round item mount generated inputs')
+    if default['unitTestSelectors'][1078:] != EXPECTED_ROUND_ITEM_MOUNT:
+        raise AssertionError('changed exact round item mount append')
+    default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+    default['unitTestSelectors'] = default['unitTestSelectors'][:1078]
+    if mapping['groups'].pop() != {'id': 'c36-round-item-mount', 'classes': ['V23ProductionRoundItemMountingTests'], 'methodCount': 7}:
+        raise AssertionError('changed round item mount class group')
+    if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.LIVE_HOST_POOL_SHA256, CI.LIVE_HOST_MAP_SHA256):
+        raise AssertionError('changed historical live host profile')
+    return default, mapping
+
+
 def prelive_host_values(default, mapping):
+    if len(default.get('unitTestSelectors', [])) == 1085:
+        default, mapping = preround_item_mount_values(default, mapping)
     if len(default.get('unitTestSelectors', [])) != 1078:
         raise AssertionError('changed live host pool count')
     if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.LIVE_HOST_POOL_SHA256, CI.LIVE_HOST_MAP_SHA256):
@@ -449,7 +471,7 @@ def prelive_host_values(default, mapping):
 
 
 def prefield_edit_values(default, mapping):
-    if len(default.get('unitTestSelectors', [])) == 1078:
+    if len(default.get('unitTestSelectors', [])) in (1078, 1085):
         default, mapping = prelive_host_values(default, mapping)
     if len(default.get('unitTestSelectors', [])) != 1064:
         raise AssertionError('changed field edit pool count')
@@ -467,7 +489,7 @@ def prefield_edit_values(default, mapping):
 
 
 def presaved_review_values(default, mapping):
-    if len(default.get('unitTestSelectors', [])) in (1064, 1078):
+    if len(default.get('unitTestSelectors', [])) in (1064, 1078, 1085):
         default, mapping = prefield_edit_values(default, mapping)
     if len(default.get('unitTestSelectors', [])) != 1059:
         raise AssertionError('changed saved review pool count')
@@ -485,7 +507,7 @@ def presaved_review_values(default, mapping):
 
 
 def prefinding_values(default, mapping):
-    if len(default.get('unitTestSelectors', [])) in (1059, 1064, 1078):
+    if len(default.get('unitTestSelectors', [])) in (1059, 1064, 1078, 1085):
         default, mapping = presaved_review_values(default, mapping)
     if len(default.get('unitTestSelectors', [])) != 1054:
         raise AssertionError('changed finding pool count')
@@ -502,7 +524,7 @@ def prefinding_values(default, mapping):
 
 
 def precompleted_values(default, mapping):
-    if len(default.get('unitTestSelectors', [])) in (1054, 1059, 1064, 1078):
+    if len(default.get('unitTestSelectors', [])) in (1054, 1059, 1064, 1078, 1085):
         default, mapping = prefinding_values(default, mapping)
     if len(default.get('unitTestSelectors', [])) != 968:
         raise AssertionError('changed completed-source pool count')
@@ -517,7 +539,7 @@ def precompleted_values(default, mapping):
 
 
 def prepartition_values(default, mapping):
-    if len(default.get('unitTestSelectors', [])) in (1054, 1059, 1064, 1078):
+    if len(default.get('unitTestSelectors', [])) in (1054, 1059, 1064, 1078, 1085):
         default, mapping = prefinding_values(default, mapping)
     if len(default.get('unitTestSelectors', [])) == 968:
         default, mapping = precompleted_values(default, mapping)
@@ -751,7 +773,7 @@ def prepartition_workflow(workflow):
     choice = '          - ' + CI.NOTIFICATION_INTERRUPTION_SELECTION_ID + '\n'
     if workflow.count(choice) != 1: raise AssertionError('missing exact notification interruption choice')
     workflow = workflow.replace(choice, '')
-    for group_id in (CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
+    for group_id in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, 'c36-round-item-mount', CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
         choice = '          - ' + group_id + '\n'
         if workflow.count(choice) != 1: raise AssertionError('missing exact field edit choice')
         workflow = workflow.replace(choice, '')
@@ -937,7 +959,7 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
         changed = copy.deepcopy(self.mapping); changed['groups'][0]['classes'] += changed['groups'][1]['classes']
         changes.append((self.root / CI.SELECTION_MAP_PATH, CI.canonical(changed)))
         path = self.root / 'Scripts/v23-selection-manifest.json'; changed = CI.read_json(path)
-        next(p for p in changed['profiles'] if p['id'] == CI.LIVE_HOST_PROFILE)['excludedSelectors'] = [CI.SAVED_REVIEW_NEW_SELECTORS[-1]]
+        next(p for p in changed['profiles'] if p['id'] == CI.ROUND_ITEM_MOUNT_PROFILE)['excludedSelectors'] = [CI.SAVED_REVIEW_NEW_SELECTORS[-1]]
         changes.append((path, CI.canonical(changed)))
         for selector in CI.SAVED_REVIEW_NEW_SELECTORS:
             _, name, method = selector.split('/')
@@ -983,7 +1005,7 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
                 self.assertEqual(CI.canonical(CI.resolve_selection(old_pool, old_map, identifier)), old.canonical(previous))
                 current = CI.resolve_selection(self.default, self.mapping, identifier)
                 additions = list(CI.SAVED_REVIEW_NEW_SELECTORS + CI.FIELD_EDIT_SELECTORS) if identifier == CI.DEFAULT_SELECTION_ID else list(CI.SAVED_REVIEW_NEW_SELECTORS[:4]) if identifier == 'c36-production-destination' else list(CI.SAVED_REVIEW_NEW_SELECTORS[4:]) if identifier == 'app-myday-production' else []
-                additions += [s for s in EXPECTED_LIVE_HOST_RUNTIME if identifier == CI.DEFAULT_SELECTION_ID or CI.selection_class(s) in next((g['classes'] for g in self.mapping['groups'] if g['id'] == identifier), [])]
+                additions += [s for s in EXPECTED_LIVE_HOST_RUNTIME + EXPECTED_ROUND_ITEM_MOUNT if identifier == CI.DEFAULT_SELECTION_ID or CI.selection_class(s) in next((g['classes'] for g in self.mapping['groups'] if g['id'] == identifier), [])]
                 self.assertEqual(current, dict(previous, unitTestSelectors=previous['unitTestSelectors'] + additions))
 
     def test_partition_selected_input_binds_manifest_and_exact_public_worker_choice(self):
@@ -1009,8 +1031,8 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
 
     def test_current_generated_profile_admits_exact_new_groups_and_binds_protocol_sources(self):
         report = CI.verify_generated_selection(self.root, self.default, self.mapping)
-        self.assertEqual((report['selectorCount'], report['groupCount']), (1078, 70))
-        for group_id, count in [('c36-live-host', 9), ('c36-field-edit', 6), ('mutation-receipt-safety', 1), ('c36-raw-staging', 5),
+        self.assertEqual((report['selectorCount'], report['groupCount']), (1085, 71))
+        for group_id, count in [('c36-round-item-mount', 7), ('c36-live-host', 9), ('c36-field-edit', 6), ('mutation-receipt-safety', 1), ('c36-raw-staging', 5),
                                 ('notification-owner', 93), ('c36-startup-recovery', 2),
                                 ('backup-capacity', 1), ('c36-photo-backup-transport', 12),
                                 ('c36-photo-backup-restore', 3), ('c36-photo-configuration-clone', 7),
@@ -1052,7 +1074,7 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
                 value[key] = value[key][::-1]
                 changes.append((path, CI.canonical(value)))
             path = self.root/'Scripts/v23-selection-manifest.json'; value = CI.read_json(path)
-            next(p for p in value['profiles'] if p['id'] == CI.LIVE_HOST_PROFILE)['excludedGroupIDs'] = ['finding-owner-selection']
+            next(p for p in value['profiles'] if p['id'] == CI.ROUND_ITEM_MOUNT_PROFILE)['excludedGroupIDs'] = ['finding-owner-selection']
             changes.append((path, CI.canonical(value)))
             for group in FINDING_PROFILE_FIXTURES_GROUPS:
                 name = group['classes'][0]; path = self.root/'FieldEvidenceAppTests'/(name+'.swift')
@@ -1204,7 +1226,7 @@ class GeneratedSelectionAdmissionTests(unittest.TestCase):
         path = self.root / 'Scripts/v23-selection-manifest.json'
         original = path.read_bytes()
         changed = CI.read_json(path)
-        current = next(profile for profile in changed['profiles'] if profile['id'] == CI.LIVE_HOST_PROFILE)
+        current = next(profile for profile in changed['profiles'] if profile['id'] == CI.ROUND_ITEM_MOUNT_PROFILE)
         current['excludedGroupIDs'] = ['c36-startup-recovery']
         try:
             path.write_bytes(CI.canonical(changed))
@@ -1474,7 +1496,7 @@ class ReportPartitionTests(unittest.TestCase):
         default=CI.read_json(ROOT / 'Scripts/ci-selection.json')
         mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
         prior, prior_map=prepartition_values(default,mapping)
-        self.assertEqual(len(default['unitTestSelectors']),1078)
+        self.assertEqual(len(default['unitTestSelectors']),1085)
         self.assertEqual(default['unitTestSelectors'][:677],prior['unitTestSelectors'][:677])
         seen=[]
         for group in mapping['groups']:
@@ -1499,6 +1521,8 @@ class ReportPartitionTests(unittest.TestCase):
                 self.assertEqual(actual, dict(prior, unitTestSelectors=list(CI.FIELD_EDIT_SELECTORS) + EXPECTED_LIVE_HOST_RUNTIME[:1]))
             elif group['id'] == 'c36-live-host':
                 self.assertEqual(actual, dict(prior, unitTestSelectors=EXPECTED_LIVE_HOST_RUNTIME[1:10]))
+            elif group['id'] == 'c36-round-item-mount':
+                self.assertEqual(actual, dict(prior, unitTestSelectors=EXPECTED_ROUND_ITEM_MOUNT))
             elif group['id'] == 'activity-codec-evolution':
                 self.assertEqual(actual, dict(prior, unitTestSelectors=ACTIVITY_CODEC_SELECTORS))
             elif group['id'] == 'activity-contracts':
@@ -1545,7 +1569,8 @@ class ReportPartitionTests(unittest.TestCase):
         expected.insert(expected.index('c36-production-destination') + 1, CI.SAVED_REVIEW_SELECTION_ID)
         expected.remove('c36-field-edit')
         expected.remove('c36-live-host')
-        expected[expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1:expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1] = [CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit']
+        expected.remove('c36-round-item-mount')
+        expected[expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1:expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1] = [CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, 'c36-live-host', 'c36-round-item-mount', CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit']
         expected.insert(expected.index('c36-restore-review') + 1, CI.NO_INDEX_SELECTION_ID)
         expected.insert(expected.index(CI.NO_INDEX_SELECTION_ID) + 1, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID)
         expected.insert(expected.index('notification-schedule-erase') + 1, CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID)
@@ -1892,7 +1917,7 @@ class NoIndexBuildDiagnosticTests(unittest.TestCase):
         self.assertEqual(self.selected, CI.resolve_selection(self.default, self.mapping, 'c36-restore-review'))
         self.assertEqual(len(self.selected['unitTestSelectors']), 6)
         self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1078, 70))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1085, 71))
         for suffix in ('-retry', '-parallel', '-30m'):
             with self.assertRaises(ValueError):
                 CI.resolve_selection(self.default, self.mapping, CI.NO_INDEX_SELECTION_ID + suffix)
@@ -2113,7 +2138,7 @@ class RestoreBuildWatchdogDiagnosticTests(unittest.TestCase):
         self.assertEqual(len(self.selected['unitTestSelectors']), 6)
         self.assertEqual(tuple(ordinary[k] for k in CI.BUDGET_KEYS), (300,1200,900,0,2400))
         self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.NO_INDEX_SELECTION_ID), ordinary)
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1078,70))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1085, 71))
         for suffix in ('-retry', '-parallel', '-permanent'):
             with self.assertRaises(ValueError):
                 CI.resolve_selection(self.default, self.mapping, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID + suffix)
@@ -2231,7 +2256,7 @@ class ReminderBuildWatchdogDiagnosticTests(unittest.TestCase):
         self.assertEqual(self.selected['unitTestSelectors'], members)
         self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
         self.assertFalse(self.selected['runUISmoke'])
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1078, 70))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1085, 71))
         self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.DEFAULT_SELECTION_ID), self.default)
         for suffix in ('-retry', '-parallel', '-34'):
             with self.assertRaises(ValueError):
@@ -2337,7 +2362,7 @@ class RestoreHistoryBuildWatchdogDiagnosticTests(unittest.TestCase):
         self.assertEqual(self.selected['unitTestSelectors'], members)
         self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
         self.assertFalse(self.selected['runUISmoke'])
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1078, 70))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1085, 71))
         self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.DEFAULT_SELECTION_ID), self.default)
         for suffix in ('-retry', '-parallel', '-8'):
             with self.assertRaises(ValueError):
@@ -2434,7 +2459,7 @@ class ReplacementUnionBuildWatchdogDiagnosticTests(unittest.TestCase):
         self.assertEqual(tuple(self.selected['unitTestSelectors']), CI.REPLACEMENT_UNION_SELECTORS)
         self.assertEqual(tuple(ordinary[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
         self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1078, 70))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1085, 71))
         self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.DEFAULT_SELECTION_ID), self.default)
         self.assertEqual(len(CI.resolve_selection(self.default, self.mapping, CI.RESTORE_HISTORY_SELECTION_ID)['unitTestSelectors']), 7)
         self.assertTrue(set(self.selected['unitTestSelectors']).isdisjoint(CI.REMINDER_BUILD_WATCHDOG_SELECTORS))
@@ -2540,7 +2565,7 @@ class EraseBuildWatchdogDiagnosticTests(unittest.TestCase):
         self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
         self.assertFalse(self.selected['runUISmoke'])
         self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.DEFAULT_SELECTION_ID), self.default)
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1078, 70))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1085, 71))
         for suffix in ('-retry', '-parallel', '-14'):
             with self.assertRaises(ValueError):
                 CI.resolve_selection(self.default, self.mapping, CI.ERASE_BUILD_WATCHDOG_SELECTION_ID + suffix)
@@ -2905,7 +2930,17 @@ class LiveHostBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
                          ('FCFF658FCE118760EAC50B13A3941470EA86ED6FB40E78D17E6A573A10DFA5DB',))
         self.assertEqual(CI.NO_INDEX_ROUTES[CI.LIVE_HOST_SELECTION_ID], (CI.LIVE_HOST_PARENT, 'D50'))
         self.assertEqual(sorted(k for k, (_, tier) in CI.NO_INDEX_ROUTES.items() if tier == 'D50'),
-                         [CI.LIVE_HOST_SELECTION_ID])
+                         sorted(CI.D50_SELECTION_IDS))
+        self.assertEqual(sorted(CI.D50_SELECTION_IDS), sorted([CI.LIVE_HOST_SELECTION_ID,
+                         CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID]))
+        for identifier, members in ((CI.ROUND_ITEM_MOUNT_SELECTION_ID, EXPECTED_ROUND_ITEM_MOUNT),
+                                    (CI.STARTUP_RETIREMENT_SELECTION_ID, [s for s in EXPECTED_LIVE_HOST_RUNTIME
+                                     if '/testStartupPrivateRetirement' in s])):
+            question = CI.resolve_selection(self.default, self.mapping, identifier)
+            self.assertEqual((question['tier'], question['unitTestSelectors']), ('D50', members))
+            accepted = subprocess.run(['jq', '-e', '-f', str(ROOT / 'Scripts/ci-worker-selection.jq')],
+                                      input=CI.canonical(question), capture_output=True)
+            self.assertEqual(accepted.returncode, 0, accepted.stderr)
         jq = ROOT / 'Scripts/ci-worker-selection.jq'
         def rejected(value):
             with self.assertRaises(ValueError):
@@ -2935,7 +2970,7 @@ class LiveHostBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
             self.record = original
         worker = (ROOT / '.github/workflows/ios-ci-worker.yml').read_text(encoding='utf-8')
         self.assertEqual(re.findall(r'^    timeout-minutes: (.+)$', worker, re.M),
-                         ["${{ inputs.native_selection_id == 'c36-live-host-no-index-build30m' && 120 || 90 }}"])
+                         ["${{ (inputs.native_selection_id == 'c36-live-host-no-index-build30m' || inputs.native_selection_id == 'c36-round-item-mount-no-index-build30m' || inputs.native_selection_id == 'c36-startup-retirement-no-index-build30m') && 120 || 90 }}"])
 
     def test_collection_requires_each_original_result_once_and_passed(self):
         methods = EXPECTED_LIVE_HOST_RUNTIME
@@ -2955,6 +2990,88 @@ class LiveHostBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
                 CI.executed_methods(hostile, methods, 'FieldEvidenceAppTests', 'Unit test bundle')
 
 
+class RoundItemMountBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
+    # Both closed D50 development questions bind one reviewed parent and trees.
+    diagnostic_routes = ((CI.ROUND_ITEM_MOUNT_SELECTION_ID, tuple(EXPECTED_ROUND_ITEM_MOUNT)),
+                         (CI.STARTUP_RETIREMENT_SELECTION_ID, tuple(EXPECTED_STARTUP_RETIREMENT)))
+    source_parent = CI.ROUND_ITEM_MOUNT_PARENT
+    source_trees = CI.ROUND_ITEM_MOUNT_TREES
+
+    def test_public_choices_and_report_boundary_are_exact(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        for identifier in [k for k, _ in self.diagnostic_routes] + ['c36-round-item-mount']:
+            self.assertEqual(options.count(identifier), 1, identifier)
+        self.assertEqual(len(options), len(set(options)))
+        whole_class = CI.resolve_selection(self.default, self.mapping, 'c36-round-item-mount')
+        self.assertEqual(whole_class['unitTestSelectors'], EXPECTED_ROUND_ITEM_MOUNT)
+
+    def test_exact_disjoint_ordered_union_and_historical_routes(self):
+        self.assertEqual((len(set(EXPECTED_ROUND_ITEM_MOUNT)), len(set(EXPECTED_STARTUP_RETIREMENT))), (7, 3))
+        self.assertFalse(set(EXPECTED_ROUND_ITEM_MOUNT) & set(EXPECTED_STARTUP_RETIREMENT))
+        self.assertEqual(self.default['unitTestSelectors'][1078:], EXPECTED_ROUND_ITEM_MOUNT)
+        live = CI.resolve_selection(self.default, self.mapping, CI.LIVE_HOST_SELECTION_ID)['unitTestSelectors']
+        self.assertEqual([s for s in live if s in EXPECTED_STARTUP_RETIREMENT], EXPECTED_STARTUP_RETIREMENT)
+        for identifier, members in self.diagnostic_routes:
+            self.select(identifier)
+            self.assertEqual(self.selected['unitTestSelectors'], list(members))
+            self.assertEqual(self.selected['tier'], 'D50')
+            self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 3000, 0, 5100))
+            self.assertEqual((self.selected['runUISmoke'], self.selected['uiTestSelectors']), (False, []))
+            self.assertEqual(CI.NO_INDEX_ROUTES[identifier], (CI.ROUND_ITEM_MOUNT_PARENT, 'D50'))
+            self.assertEqual(CI.no_index_source_trees(identifier), CI.ROUND_ITEM_MOUNT_TREES)
+            for suffix in ('-retry', '-parallel', '-45m'):
+                with self.assertRaises(ValueError):
+                    CI.resolve_selection(self.default, self.mapping, identifier + suffix)
+            for changed in (list(members[:-1]), list(members[::-1]), list(members) + [UNIT],
+                            list(members[:-1]) + list(members[:1])):
+                value = dict(self.selected, unitTestSelectors=changed)
+                with self.assertRaises(ValueError):
+                    CI.validate_selection(value)
+                result = subprocess.run(['jq', '-e', '-f', str(ROOT / 'Scripts/ci-worker-selection.jq')],
+                                        input=CI.canonical(value), capture_output=True)
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+        previous, previous_map = preround_item_mount_values(self.default, self.mapping)
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(previous, previous_map, CI.ROUND_ITEM_MOUNT_SELECTION_ID)
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(previous, previous_map, 'c36-round-item-mount')
+        # validate_selection accepts every closed D50 list; admission binds each
+        # route ID to its own members, so swapped members are denied at both stages.
+        for identifier, members in self.diagnostic_routes:
+            self.select(identifier)
+            other = [m for k, m in self.diagnostic_routes if k != identifier][0]
+            value = dict(self.selected, unitTestSelectors=list(other))
+            record = dict(self.record, selectionSHA256=CI.sha256(CI.canonical(value)))
+            original, self.record = self.record, record
+            try:
+                # The environment carries the swapped digest, so only the binding can deny.
+                for stage in ('dispatch', 'worker'):
+                    with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts),                             self.assertRaisesRegex(ValueError, 'selector/method binding'):
+                        CI.admission(value, self.bound_environment(), HEAD, stage, record)
+            finally:
+                self.record = original
+
+    def test_collection_requires_each_original_result_once_and_passed(self):
+        for _, members in self.diagnostic_routes:
+            methods = list(members)
+            tree = native_tree(methods[0])
+            cases = tree['testNodes'][0]['children'][0]['children']
+            cases[:] = [copy.deepcopy(leaf(native_tree(method))) for method in methods]
+            self.assertEqual(CI.executed_methods(tree, methods, 'FieldEvidenceAppTests', 'Unit test bundle'), sorted(methods))
+            for values in (cases[:-1], cases + [cases[0]], cases[:-1] + [leaf(native_tree(UNIT))]):
+                hostile = copy.deepcopy(tree)
+                hostile['testNodes'][0]['children'][0]['children'] = values
+                with self.assertRaises(ValueError):
+                    CI.executed_methods(hostile, methods, 'FieldEvidenceAppTests', 'Unit test bundle')
+            for status in ('Failed', 'Skipped', 'NotStarted'):
+                hostile = copy.deepcopy(tree)
+                hostile['testNodes'][0]['children'][0]['children'][-1]['result'] = status
+                with self.assertRaises(ValueError):
+                    CI.executed_methods(hostile, methods, 'FieldEvidenceAppTests', 'Unit test bundle')
+
+
 class FieldAutosaveBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
     diagnostic_routes = ((CI.FIELD_AUTOSAVE_SELECTION_ID, CI.FIELD_AUTOSAVE_SELECTORS),)
     source_parent = CI.FIELD_AUTOSAVE_PARENT
@@ -2965,7 +3082,7 @@ class FieldAutosaveBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
         self.assertEqual(self.selected['unitTestSelectors'], expected)
         self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
         self.assertEqual((self.selected['runUISmoke'], self.selected['uiTestSelectors']), (False, []))
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1078, 70))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1085, 71))
         self.assertIn(expected[0], CI.resolve_selection(self.default, self.mapping, 'c36-field-edit')['unitTestSelectors'])
         combined = CI.resolve_selection(self.default, self.mapping, CI.SAVED_REVIEW_FIELDS_SELECTION_ID)
         self.assertEqual(len(combined['unitTestSelectors']), 14)
@@ -2980,7 +3097,8 @@ class FieldAutosaveBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
         original = subprocess.check_output(['git', 'show', self.source_parent + ':Scripts/v23-native-ci.py'], cwd=ROOT)
         old = {'__name__': 'field_autosave_parent'}
         exec(compile(original, 'field-autosave-parent.py', 'exec'), old)
-        self.assertEqual(set(CI.NO_INDEX_ROUTES), set(old['NO_INDEX_ROUTES']) | {CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID})
+        self.assertEqual(set(CI.NO_INDEX_ROUTES), set(old['NO_INDEX_ROUTES']) | {CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID,
+                         CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID})
         self.assertEqual(CI.NO_INDEX_ROUTES[CI.FIELD_AUTOSAVE_SELECTION_ID], (self.source_parent, 'D30'))
         self.assertEqual(CI.no_index_source_trees(CI.FIELD_AUTOSAVE_SELECTION_ID), self.source_trees)
         for identifier, binding in old['NO_INDEX_ROUTES'].items():
@@ -3000,7 +3118,7 @@ class FieldAutosaveBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
             (ROOT / '.github/workflows/ios-ci.yml').read_text()).group(1), re.M)
         previous, previous_map = prelive_host_values(self.default, self.mapping)
         for identifier in identifiers:
-            if identifier in (CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, 'c36-live-host'):
+            if identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, 'c36-round-item-mount', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, 'c36-live-host'):
                 continue
             self.assertEqual(CI.resolve_selection(previous, previous_map, identifier),
                              old['resolve_selection'](previous, previous_map, identifier), identifier)
@@ -3066,7 +3184,7 @@ class SavedReviewFieldsBuild30DiagnosticTests(ReplacementPartitionDiagnosticTest
         block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
         choices = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
         for identifier in choices:
-            if identifier in (CI.DEFAULT_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
+            if identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, 'c36-round-item-mount', CI.DEFAULT_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
                 continue
             previous = CI.resolve_selection(old_pool, old_map, identifier)
             additions = [s for s in EXPECTED_LIVE_HOST_RUNTIME if CI.selection_class(s) in next((g['classes'] for g in self.mapping['groups'] if g['id'] == identifier), [])]
@@ -3255,7 +3373,7 @@ class NotificationScheduleEraseBuild30DiagnosticTests(ReplacementPartitionDiagno
     def test_exact_disjoint_ordered_union_and_historical_routes(self):
         ordinary = CI.resolve_selection(self.default, self.mapping, 'notification-schedule-erase')
         expected = ordinary['unitTestSelectors']
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1078, 70))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1085, 71))
         self.assertEqual(self.selected['unitTestSelectors'], expected)
         self.assertEqual(len(expected), 28)
         self.assertEqual(len(set(expected)), 28)
@@ -3301,7 +3419,7 @@ class NotificationScheduleEraseBuild30DiagnosticTests(ReplacementPartitionDiagno
                     continue  # The full pool grows; named prior questions stay exact.
                 self.assertEqual(CI.canonical(CI.resolve_selection(presaved, presaved_map, identifier)),
                                  old.canonical(old.resolve_selection(prior, prior_map, identifier)), identifier)
-            self.assertEqual(set(CI.NO_INDEX_ROUTES) - set(old.NO_INDEX_ROUTES), {self.record['selectionID'], CI.FINDING_PROFILE_FIXTURES_SELECTION_ID, CI.NOTIFICATION_INTERRUPTION_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID})
+            self.assertEqual(set(CI.NO_INDEX_ROUTES) - set(old.NO_INDEX_ROUTES), {CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, self.record['selectionID'], CI.FINDING_PROFILE_FIXTURES_SELECTION_ID, CI.NOTIFICATION_INTERRUPTION_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID})
             for identifier, binding in old.NO_INDEX_ROUTES.items():
                 self.assertEqual(CI.NO_INDEX_ROUTES[identifier], binding)
                 self.assertEqual(CI.no_index_source_trees(identifier), old.no_index_source_trees(identifier))
@@ -3316,7 +3434,7 @@ class NotificationScheduleEraseBuild30DiagnosticTests(ReplacementPartitionDiagno
         saved_review_choice = ('          - ' + CI.SAVED_REVIEW_SELECTION_ID + '\n').encode()
         self.assertEqual(current_workflow.count(saved_review_choice), 1)
         current_workflow = current_workflow.replace(saved_review_choice, b'')
-        for identifier in (CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
+        for identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, 'c36-round-item-mount', CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
             choice = ('          - ' + identifier + '\n').encode()
             self.assertEqual(current_workflow.count(choice), 1)
             current_workflow = current_workflow.replace(choice, b'')
@@ -3445,7 +3563,7 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
         ]
         ordinary = CI.resolve_selection(self.default, self.mapping, 'notification-schedule-erase')
         parent = CI.resolve_selection(self.default, self.mapping, CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID)
-        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1078, 70))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1085, 71))
         historical_pool, historical_map = presaved_review_values(self.default, self.mapping)
         self.assertEqual((len(historical_pool['unitTestSelectors']), len(historical_map['groups'])), (1054, 68))
         self.assertEqual([method for method in ordinary['unitTestSelectors'] if method in expected], expected)
@@ -3495,6 +3613,13 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
                 current_bytes = CI.canonical(projected[0 if path == 'Scripts/ci-selection.json' else 1])
             elif path == 'Scripts/v23-selection-manifest.json':
                 manifest = json.loads(current_bytes)
+                self.assertEqual(manifest['selectorPool'][1078:], EXPECTED_ROUND_ITEM_MOUNT)
+                manifest['selectorPool'] = manifest['selectorPool'][:1078]
+                self.assertEqual(manifest['groups'].pop(), {'id': 'c36-round-item-mount', 'classes': ['V23ProductionRoundItemMountingTests']})
+                self.assertEqual(manifest['profiles'].pop(), {'id': 'round-item-mount-v1', 'excludedGroupIDs': []})
+                for profile in manifest['profiles']:
+                    self.assertEqual(profile['excludedGroupIDs'].count('c36-round-item-mount'), 1)
+                    profile['excludedGroupIDs'].remove('c36-round-item-mount')
                 self.assertEqual(manifest['selectorPool'][1064:], EXPECTED_LIVE_HOST_RUNTIME)
                 manifest['selectorPool'] = manifest['selectorPool'][:1064]
                 self.assertEqual(manifest['groups'].pop(), {'id': 'c36-live-host', 'classes': ['V23ProductionCheckRunnerItemHostTests']})
@@ -3527,7 +3652,7 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
         choice = ('          - ' + self.record['selectionID'] + '\n').encode()
         current = (ROOT / '.github/workflows/ios-ci.yml').read_bytes()
         self.assertEqual(current.count(choice), 1)
-        for added in (CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
+        for added in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, 'c36-round-item-mount', CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
             added_choice = ('          - ' + added + '\n').encode()
             self.assertEqual(current.count(added_choice), 1)
             current = current.replace(added_choice, b'')
@@ -3551,11 +3676,12 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
                     expected_current['unitTestSelectors'] += list(CI.SAVED_REVIEW_NEW_SELECTORS[:4])
                 elif identifier == 'app-myday-production':
                     expected_current['unitTestSelectors'] += list(CI.SAVED_REVIEW_NEW_SELECTORS[4:])
-                expected_current['unitTestSelectors'] += [v for v in EXPECTED_LIVE_HOST_RUNTIME if identifier == CI.DEFAULT_SELECTION_ID or CI.selection_class(v) in next((g['classes'] for g in self.mapping['groups'] if g['id'] == identifier), [])]
+                expected_current['unitTestSelectors'] += [v for v in EXPECTED_LIVE_HOST_RUNTIME + EXPECTED_ROUND_ITEM_MOUNT if identifier == CI.DEFAULT_SELECTION_ID or CI.selection_class(v) in next((g['classes'] for g in self.mapping['groups'] if g['id'] == identifier), [])]
                 self.assertEqual(CI.canonical(CI.resolve_selection(self.default, self.mapping, identifier)),
                                  CI.canonical(expected_current), identifier)
             self.assertEqual(set(CI.NO_INDEX_ROUTES) - set(old.NO_INDEX_ROUTES),
-                         {self.record['selectionID'], CI.SAVED_REVIEW_FIELDS_SELECTION_ID, CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID})
+                         {self.record['selectionID'], CI.SAVED_REVIEW_FIELDS_SELECTION_ID, CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID,
+                          CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID})
             for identifier, binding in old.NO_INDEX_ROUTES.items():
                 self.assertEqual(CI.NO_INDEX_ROUTES[identifier], binding, identifier)
                 self.assertEqual(CI.no_index_source_trees(identifier), old.no_index_source_trees(identifier), identifier)
@@ -3826,8 +3952,8 @@ class BuildOrderDiagnosticTests(unittest.TestCase):
         for suffix in ('-retry', '-parallel', '-30m'):
             with self.assertRaises(ValueError):
                 CI.resolve_selection(self.default, self.mapping, CI.BUILD_ORDER_SELECTION_ID + suffix)
-        self.assertEqual(len(self.default['unitTestSelectors']), 1078)
-        self.assertEqual(len(self.mapping['groups']), 70)
+        self.assertEqual(len(self.default['unitTestSelectors']), 1085)
+        self.assertEqual(len(self.mapping['groups']), 71)
 
     def test_both_admission_stages_require_original_github_parent_and_all_four_source_trees(self):
         for stage in ('dispatch', 'worker'):
@@ -4131,8 +4257,8 @@ class BuildWatchdogDiagnosticTests(unittest.TestCase):
         for name in [CI.DEFAULT_SELECTION_ID, 'c36-parent-finalization-check-no-issue'] + [g['id'] for g in self.mapping['groups']]:
             old = CI.resolve_selection(self.default, self.mapping, name)
             self.assertEqual(tuple(old[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
-        self.assertEqual(CI.sha256(CI.canonical(self.default)), CI.LIVE_HOST_POOL_SHA256)
-        self.assertEqual(CI.sha256(CI.canonical(self.mapping)), CI.LIVE_HOST_MAP_SHA256)
+        self.assertEqual(CI.sha256(CI.canonical(self.default)), CI.ROUND_ITEM_MOUNT_POOL_SHA256)
+        self.assertEqual(CI.sha256(CI.canonical(self.mapping)), CI.ROUND_ITEM_MOUNT_MAP_SHA256)
         previous, previous_map = prelive_host_values(self.default, self.mapping)
         self.assertEqual(CI.sha256(CI.canonical(previous)), CI.GENERATED_SELECTION_POOL_SHA256)
         self.assertEqual(CI.sha256(CI.canonical(previous_map)), CI.GENERATED_SELECTION_MAP_SHA256)

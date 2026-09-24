@@ -646,6 +646,34 @@ final class AppAccessPresentationV1: ObservableObject {
             }
         }
 
+        /// Read only: authenticated capture sources already launched for this Round.
+        func readRepetitiveCaptureSources(round: RoundSessionV1) throws -> [ProductionRepetitiveCaptureReadV2] {
+            try publicationAccess.withRead {
+                guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
+                return try repetitiveCapture.sources(roundSessionID: round.sessionID)
+            }
+        }
+
+        /// Read only, before any launch or ENTRY write for this item.
+        func validateCheckRunnerItemEntry(round: RoundSessionV1, itemID: UUID) throws {
+            try publicationAccess.withRead {
+                guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
+                try itemStore.validateLiveCheckRunnerItemEntry(round: round, itemID: itemID,
+                    progress: repetitiveCapture)
+            }
+        }
+
+        /// Read only: the frozen check/recheck source for the chain's current ENTRY item.
+        func captureCheckRunnerItemSource(read: ProductionRepetitiveCaptureReadV2, itemID: UUID) throws
+            -> CheckRunnerRoundItemSourceV1 {
+            try publicationAccess.withRead {
+                guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
+                try repetitiveCapture.validateForPublication(read)
+                return try itemStore.captureLiveCheckRunnerItemSource(read: read, itemID: itemID,
+                    progress: repetitiveCapture)
+            }
+        }
+
         func captureCheckRunnerItemOperation(service: ProductionCheckRunnerItemDraftServiceV1,
             scene: AppShellSceneStateV1, target: NavigationTargetV1) throws -> CheckRunnerItemOperationAccess {
             guard let repetitiveCapture, let snapshot = scene.snapshot else {

@@ -380,6 +380,15 @@ final class ProductionRepetitiveCaptureProgressServiceV2 {
         return .init(chain: chain, ownerID: ownerID, revision: try current.workspaceWriter.currentRevision())
     }
 
+    /// Read only. Authenticated capture sources for one Round session. A caller
+    /// resumes the single existing source and never launches a competing one.
+    func sources(roundSessionID: UUID) throws -> [ProductionRepetitiveCaptureReadV2] {
+        let current = try currentSession()
+        let revision = try current.workspaceWriter.currentRevision()
+        return try adapter(current).repetitiveCaptureSources(workspaceID: workspaceID, sessionID: roundSessionID)
+            .map { .init(chain: $0, ownerID: ownerID, revision: revision) }
+    }
+
     func validateForPublication(_ value: ProductionRepetitiveCaptureReadV2) throws {
         try requireOwner(value.ownerID)
         let current = try currentSession()

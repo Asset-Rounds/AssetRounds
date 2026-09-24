@@ -334,6 +334,103 @@ final class StoreSessionCoordinator: ObservableObject {
             serviceContext: .live(source))
     }
 
+    private struct LiveCheckRunnerItemBindingV1 {
+        let assetID: UUID
+        let lifecycle: WorkspacePackageLifecycleDependenciesV1
+        let profile: WorkspacePackageLifecycleProfileV1
+        let requestedEntry: CheckRunnerRequestedEntryV1
+        let published: InspectionPackageReleaseV1
+    }
+
+    /// Read only. The item's package requirement fixes the stage; a recheck
+    /// needs the asset's single recheck-due Issue. Ambiguity fails closed.
+    private func liveCheckRunnerItemBinding(round: RoundSessionV1, itemID: UUID,
+        progress: ProductionRepetitiveCaptureProgressServiceV2) throws -> LiveCheckRunnerItemBindingV1 {
+        try progress.validateCheckRunnerOwner(writer: workspaceWriter, modelContext: modelContext)
+        guard round.workspaceID == workspaceID,
+              let item = round.items.first(where: { $0.itemID == itemID }) else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+        let assetID = item.selection.assetID
+        let assets = try modelContext.fetch(FetchDescriptor<Asset>(predicate: #Predicate { $0.id == assetID }))
+        guard assets.count == 1, let asset = assets.first else { throw FieldDraftFailureV1.missingContent }
+        let lifecycle = try packageLifecycleDependencies()
+        let profile = try lifecycle.profileRegistry.resolve(PackageReleaseIdentityV1(
+            packageID: asset.packID, schemaVersion: asset.packSchemaVersion,
+            contentVersion: asset.packContentVersion))
+        let required = item.requirement.packageRelease
+        let stages = try [WorkflowStage.check, .recheck].filter { stage in
+            let binding = try ShippingIlluminatedSignAdapterV1.finalizationInspectionRelease(
+                from: profile.package, stage: stage)
+            return binding.packageReleaseID == required.packageReleaseID
+                && binding.packageID == required.packageID
+                && binding.packageContentVersion == required.packageContentVersion
+                && binding.packageSHA256 == required.packageSHA256
+                && binding.workflowSHA256 == required.workflowSHA256
+        }
+        guard stages.count == 1, let stage = stages.first else { throw ScanToWorkFailureV1.authorityMismatch }
+        let requestedEntry: CheckRunnerRequestedEntryV1
+        if stage == .recheck {
+            let due = IssueStatus.recheckDue.rawValue
+            let issues = try modelContext.fetch(FetchDescriptor<Issue>(predicate: #Predicate {
+                $0.assetID == assetID && $0.status == due
+            }))
+            guard issues.count == 1, let issue = issues.first else { throw ScanToWorkFailureV1.authorityMismatch }
+            requestedEntry = .recheck(issueID: issue.id)
+        } else {
+            requestedEntry = .check
+        }
+        let sources = try ProductionOfflineReadinessSourceClosureV1(context: modelContext,
+                                                                   workspaceID: workspaceID)
+        guard let published = try sources.package(for: required),
+              try RoundPackageReleaseReferenceV1(published) == required else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+        return .init(assetID: assetID, lifecycle: lifecycle, profile: profile,
+                     requestedEntry: requestedEntry, published: published)
+    }
+
+    /// Read only, before any launch or ENTRY write: the item must bind to one
+    /// stage and its asset must have no canonical draft this Round did not begin.
+    func validateLiveCheckRunnerItemEntry(round: RoundSessionV1, itemID: UUID,
+        progress: ProductionRepetitiveCaptureProgressServiceV2) throws {
+        let binding = try liveCheckRunnerItemBinding(round: round, itemID: itemID, progress: progress)
+        let coordinator = try CheckRunnerCoordinator(modelContext: modelContext,
+            packageLifecycleDependencies: binding.lifecycle, packageLifecycleProfile: binding.profile)
+        guard try coordinator.existingDraft(assetID: binding.assetID) == nil else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+    }
+
+    /// Read only: the frozen source for the Round's current ENTRY item. An
+    /// existing parent for this exact source reopens through the historical
+    /// ENTRY check and may own its Begin record; otherwise new-Begin admission
+    /// applies unchanged. No draft, staging or Round effect.
+    func captureLiveCheckRunnerItemSource(read: ProductionRepetitiveCaptureReadV2, itemID: UUID,
+        progress: ProductionRepetitiveCaptureProgressServiceV2) throws -> CheckRunnerRoundItemSourceV1 {
+        let binding = try liveCheckRunnerItemBinding(round: read.chain.currentRound, itemID: itemID,
+                                                     progress: progress)
+        let coordinator = try CheckRunnerCoordinator(modelContext: modelContext,
+            packageLifecycleDependencies: binding.lifecycle, packageLifecycleProfile: binding.profile)
+        let source = try CheckRunnerRoundItemSourceV1(read: read, itemID: itemID,
+            publishedRelease: binding.published, signPack: binding.profile.package,
+            requestedEntry: binding.requestedEntry)
+        let service = try makeLiveCheckRunnerItemService(source: source, progress: progress)
+        if let parent = try service.readCurrentDraft(source: source),
+           let attempt = try CheckRunnerItemDraftCodecV1.validateCheckpoint(parent).field.begin.attempt {
+            try coordinator.validateHistoricalCheckRunnerSource(source, read: read, progress: progress,
+                publishedRelease: binding.published)
+            let canonical = try coordinator.existingDraft(assetID: binding.assetID)
+            guard attempt.source == source,
+                  canonical == nil || canonical?.id == attempt.recordCommand.recordID else {
+                throw ScanToWorkFailureV1.authorityMismatch
+            }
+            return source
+        }
+        return try coordinator.captureFrozenBeginSource(read: read, progress: progress, itemID: itemID,
+            publishedRelease: binding.published, requestedEntry: binding.requestedEntry)
+    }
+
     /// The explicit backup operation reuses the incumbent source, publication
     /// and physical owners. This factory does not register a capture route.
     func makePhotoBackupService(parentCheckpoint: FieldDraftCheckpointV1,

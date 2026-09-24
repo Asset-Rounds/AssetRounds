@@ -294,11 +294,22 @@ SAVED_REVIEW_SELECTORS = ['FieldEvidenceAppTests/V23ProductionDestinationReviewT
 SAVED_REVIEW_BASE_COMMIT = '8a4672e15ddf340a63f2edc3c5245de4b22cc6ce'
 
 EXPECTED_LIVE_HOST_RUNTIME = ['FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldOperationAuthoritySurvivesSuspensionAndRecoversOriginalReceipt', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testPhotoDiscardPreparationReopensOriginalPendingReceipt', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testPhotoDiscardValuesRetainOriginalStagesAndRejectCommit', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testDurablePreflightSubmitsConfirmedEnteredTimeZoneWithoutRewritingSavedInput', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementPreservesCanonicalNamesAndRejectsStaleOrReplacedPlans', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementRejectsMalformedNamesAndUnsafeFileKinds', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementPreservesInterruptedFinalizationAndReachesEraseAdmission', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testLiveFinalizationUsesOriginalReceiptAndRejectsRetiredOperation', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testLivePhotoRejectsRetiredPublicationAndRecoversOriginalCommitReceipt', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testLiveItemFactoryAndEditorKeepOriginalPublicationWithoutCreatingStaging', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testPreparedImmutableOriginalPublishesOnceAndRetainsAuthenticRetryReceipt', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testPreparedImmutableOriginalRejectsTargetAppearingAfterPreparation', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testPreparedImmutableOriginalRejectsSubstitutionAndCancellation', 'FieldEvidenceAppTests/S8_2GoldenAccessibilityTests/testGoldenFlowAccessibilitySpineAndControlMetricsAreExact']
+EXPECTED_ROUND_ITEM_MOUNT = ['FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testContinueLaunchesEntersOnceOpensDurableHostAndColdReopenAddsNoWrites', 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testContinueDeniesDraftPausedAndCompetingSourcesWithoutEffects', 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testForeignCanonicalDraftDeniesEntryBeforeAnyWrite', 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testContinueRecoversSourceAndEntryAcknowledgementLossWithOneOfEach', 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testPendingEffectForAnotherItemIsNotSettledByAnOutOfOrderTap', 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testRevisionPinnedRouteRetargetsThenReusesEntryAndBegunParentReopens', 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testInterruptedPreparedBeginReopensForExplicitRecoveryAndCompletesOnce']
 
 class GeneratorTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.manifest = generator.load_json(MANIFEST)
+        # Historical reconstructions predate the round-item-mount-v1 append.
+        cls.pre_mount_manifest = copy.deepcopy(cls.manifest)
+        cls.pre_mount_manifest['selectorPool'] = [s for s in cls.pre_mount_manifest['selectorPool']
+                                                  if s not in EXPECTED_ROUND_ITEM_MOUNT]
+        cls.pre_mount_manifest['groups'] = [g for g in cls.pre_mount_manifest['groups']
+                                            if g['id'] != 'c36-round-item-mount']
+        cls.pre_mount_manifest['profiles'] = [p for p in cls.pre_mount_manifest['profiles']
+                                              if p['id'] != 'round-item-mount-v1']
+        for profile in cls.pre_mount_manifest['profiles']:
+            profile['excludedGroupIDs'].remove('c36-round-item-mount')
         cls.temp = tempfile.TemporaryDirectory()
         cls.addClassCleanup(cls.temp.cleanup)
         cls.checkout = Path(cls.temp.name).resolve() / "checkout"
@@ -342,6 +353,7 @@ class GeneratorTests(unittest.TestCase):
                 'V23RepetitiveCaptureRestoreReviewTests': REPO / 'FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests.swift',
                 'V23RestoreReviewAuthorityTests': REPO / 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests.swift',
                 'V23CheckRunnerItemFieldEditingTests': REPO / 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests.swift',
+                'V23ProductionRoundItemMountingTests': REPO / 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests.swift',
                 'V23ProductionDestinationReviewTests': REPO / 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests.swift',
                 'V23ProductionFourRootShellTests': REPO / 'FieldEvidenceAppTests/V23ProductionFourRootShellTests.swift',
                 'V23RepetitiveCaptureDestinationReviewTests': REPO / 'FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests.swift',
@@ -373,7 +385,7 @@ class GeneratorTests(unittest.TestCase):
         expected = EXPECTED_LIVE_HOST_RUNTIME
         prior, prior_map, _ = self.generate('saved-review-fields-v1')
         current, mapping, report = self.generate('live-host-v1')
-        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1078, 70, 1078))
+        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1078, 70, 1085))
         self.assertEqual(current, dict(prior, unitTestSelectors=prior['unitTestSelectors'] + expected))
         expected_map = copy.deepcopy(prior_map)
         additions = {'c36-field-edit': 1, 'media-policy': 3, 'legacy-lifecycle-recovery': 1}
@@ -384,7 +396,7 @@ class GeneratorTests(unittest.TestCase):
             group['methodCount'] += additions.get(group['id'], 0)
         expected_map['groups'].append({'id': 'c36-live-host', 'classes': ['V23ProductionCheckRunnerItemHostTests'], 'methodCount': 9})
         self.assertEqual(mapping, expected_map)
-        historical = copy.deepcopy(self.manifest)
+        historical = copy.deepcopy(self.pre_mount_manifest)
         historical['selectorPool'] = historical['selectorPool'][:1064]
         historical['groups'] = historical['groups'][:-1]
         historical['profiles'] = historical['profiles'][:-1]
@@ -401,13 +413,13 @@ class GeneratorTests(unittest.TestCase):
         fields = ['FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditsPersistIncompleteValuesAndColdReopenWithoutEffects', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditCASPreservesBeginAndPhotoSlotsAndRejectsFrozenOrForeignState', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditAcknowledgementLossRecoversOriginalBeforeNewerEdits', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldAutosaveUsesTrailingMaximumAndRetainsFailedAttempt', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldFlushDrainsEditsArrivingDuringAwaitAndAuthenticatesReadback']
         prior, prior_map, _ = self.generate('saved-review-discard-v1')
         current, mapping, report = self.generate('saved-review-fields-v1')
-        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1064, 69, 1078))
+        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1064, 69, 1085))
         self.assertEqual(current, dict(prior, unitTestSelectors=prior['unitTestSelectors'] + fields))
         self.assertEqual(mapping, dict(prior_map, groups=prior_map['groups'] + [
             {'id': 'c36-field-edit', 'classes': ['V23CheckRunnerItemFieldEditingTests'], 'methodCount': 5}]))
         self.assertEqual(generator.sha256(generator.canonical(prior)), 'A45F6BA826036252B8FFAE2C1B94FB599CA59FCAAA75CF5ACA09F1A5277A9DE1')
         self.assertEqual(generator.sha256(generator.canonical(prior_map)), 'C4CC0CE51ECE1A2920E9B809ECA1210A4507D341579255FE8A7C998024DEF43F')
-        historical = copy.deepcopy(self.manifest)
+        historical = copy.deepcopy(self.pre_mount_manifest)
         historical['selectorPool'] = historical['selectorPool'][:1059]
         historical['groups'] = historical['groups'][:-2]
         historical['profiles'] = historical['profiles'][:-2]
@@ -440,15 +452,36 @@ class GeneratorTests(unittest.TestCase):
         finally:
             source.write_bytes(original)
 
-    def test_active_live_host_files_match_generated_output(self):
+    def test_live_host_profile_remains_pinned_after_round_item_mount(self):
         current, mapping, _ = self.generate('live-host-v1')
+        self.assertEqual(generator.sha256(generator.canonical(current)),
+                         '5B672136EC763EABF8C478751B43AD95EC9691491B001B1C11B67B0B23BC133C')
+        self.assertEqual(generator.sha256(generator.canonical(mapping)),
+                         '173827019D64F5D1940C09D5D2571DD13B0E74C31D27E32D15E1E6D31297D551')
+
+    def test_round_item_mount_adds_exact_six_and_active_files_match(self):
+        prior, prior_map, _ = self.generate('live-host-v1')
+        current, mapping, report = self.generate('round-item-mount-v1')
+        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']),
+                         (1085, 71, 1085))
+        self.assertEqual(current, dict(prior, unitTestSelectors=prior['unitTestSelectors'] + EXPECTED_ROUND_ITEM_MOUNT))
+        self.assertEqual(mapping, dict(prior_map, groups=prior_map['groups'] + [
+            {'id': 'c36-round-item-mount', 'classes': ['V23ProductionRoundItemMountingTests'], 'methodCount': 7}]))
         self.assertEqual(generator.canonical(current), (HERE/'ci-selection.json').read_bytes())
         self.assertEqual(generator.canonical(mapping), (HERE/'ci-selection-map.json').read_bytes())
+        self.assertEqual(len(self.pre_mount_manifest['profiles']), 24)
+        for profile in self.pre_mount_manifest['profiles']:
+            old = generator.generate(self.pre_mount_manifest, profile['id'], self.checkout)
+            new = self.generate(profile['id'])
+            self.assertEqual(tuple(generator.canonical(v) for v in old[:2]),
+                             tuple(generator.canonical(v) for v in new[:2]), profile['id'])
+        self.assertFalse(report['nativeReady'])
+        self.assertFalse(report['acceptance'])
 
     def test_saved_review_profile_adds_exact_five_without_changing_order_or_budgets(self):
         prior, prior_map, _ = self.generate('finding-profile-fixtures-v1')
         current, mapping, report = self.generate('saved-review-discard-v1')
-        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1059, 68, 1078))
+        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1059, 68, 1085))
         self.assertEqual(current['unitTestSelectors'], prior['unitTestSelectors'] + SAVED_REVIEW_SELECTORS)
         self.assertEqual({k: v for k, v in current.items() if k != 'unitTestSelectors'},
                          {k: v for k, v in prior.items() if k != 'unitTestSelectors'})
@@ -919,7 +952,7 @@ class GeneratorTests(unittest.TestCase):
     def test_finding_profile_appends_exact_86_and_real_command_rejects_hostile_sources(self):
         prior, prior_map, _ = self.generate('activity-completed-source-v1')
         current, mapping, report = self.generate('finding-profile-fixtures-v1')
-        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1054, 68, 1078))
+        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1054, 68, 1085))
         self.assertNotIn('finding-owner-components-v1', [p['id'] for p in self.manifest['profiles']])
         with self.assertRaises(generator.ManifestError):
             self.generate('finding-owner-components-v1')
@@ -966,7 +999,7 @@ class GeneratorTests(unittest.TestCase):
                 selected, mapping, report = self.generate(pin['profile'])
                 self.assertEqual(generator.sha256(generator.canonical(selected)), pin['selectionSHA256'])
                 self.assertEqual(generator.sha256(generator.canonical(mapping)), pin['mapSHA256'])
-                self.assertEqual(report['manifestSourceDeclarationCount'], 1078)
+                self.assertEqual(report['manifestSourceDeclarationCount'], 1085)
                 self.assertFalse(set(FINDING_PROFILE_FIXTURES_SELECTORS) & set(selected['unitTestSelectors']))
 
     def test_manifest_shape_membership_environment_and_path_hostiles(self):
@@ -1152,6 +1185,16 @@ class DiagnosticPartitionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.manifest = generator.load_json(MANIFEST)
+        # Historical reconstructions predate the round-item-mount-v1 append.
+        cls.pre_mount_manifest = copy.deepcopy(cls.manifest)
+        cls.pre_mount_manifest['selectorPool'] = [s for s in cls.pre_mount_manifest['selectorPool']
+                                                  if s not in EXPECTED_ROUND_ITEM_MOUNT]
+        cls.pre_mount_manifest['groups'] = [g for g in cls.pre_mount_manifest['groups']
+                                            if g['id'] != 'c36-round-item-mount']
+        cls.pre_mount_manifest['profiles'] = [p for p in cls.pre_mount_manifest['profiles']
+                                              if p['id'] != 'round-item-mount-v1']
+        for profile in cls.pre_mount_manifest['profiles']:
+            profile['excludedGroupIDs'].remove('c36-round-item-mount')
         cls.temp = tempfile.TemporaryDirectory()
         cls.addClassCleanup(cls.temp.cleanup)
         cls.checkout = Path(cls.temp.name).resolve()

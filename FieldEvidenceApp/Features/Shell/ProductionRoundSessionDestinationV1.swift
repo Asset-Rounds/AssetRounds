@@ -47,6 +47,11 @@ final class ProductionRoundSessionPresentationV1: ObservableObject {
     @Published private(set) var pendingTransition: PreparedRoundSessionTransitionV1?
     @Published private(set) var couldNotTransition = false
     @Published private(set) var isTransitioning = false
+    @Published private(set) var captureIntent: UUID?
+    @Published private(set) var isOpeningCapture = false
+    @Published private(set) var couldNotOpenCapture = false
+    @Published private(set) var captureOutOfOrder = false
+    @Published private(set) var captureHost: ProductionCheckRunnerItemCapturePresentationV1?
     private var transitionSceneSnapshot: SceneNavigationSnapshotV1?
     private var operationID: UUID?
     private var orderingSceneSnapshot: SceneNavigationSnapshotV1?
@@ -372,7 +377,168 @@ final class ProductionRoundSessionPresentationV1: ObservableObject {
         }
     }
 
+    // MARK: Item capture — explicit Continue only; opening or resuming never writes.
+
+    /// Capture progress is linear, so an item opens only when it is the chain's
+    /// navigation item. Every write is receipt-backed and reused on retry.
+    var permitsCapture: Bool {
+        access.supportsRepetitiveCaptureProgress && session?.state == .active
+            && !isLoading && !isRebuilding && !isOrdering && orderingIntent == nil
+            && !isTransitioning && transitionIntent == nil
+            && !isOpeningCapture && captureIntent == nil && captureHost == nil
+    }
+
+    func requestCapture(itemID: UUID) {
+        guard permitsCapture, let displayed = session,
+              let item = displayed.items.first(where: { $0.itemID == itemID }),
+              !item.disposition.isTerminal else { return }
+        do {
+            try validateScene()
+            try access.validateSessionForPublication(displayed)
+            captureIntent = itemID
+            couldNotOpenCapture = false
+            captureOutOfOrder = false
+        } catch {
+            couldNotOpenCapture = true
+        }
+    }
+
+    @discardableResult
+    func cancelCapture() -> Bool {
+        guard !isOpeningCapture else { return false }
+        captureIntent = nil
+        couldNotOpenCapture = false
+        captureOutOfOrder = false
+        return true
+    }
+
+    /// Resume the Round's one capture source or launch it with fresh readiness,
+    /// record ENTRY on the navigation item unless it is already the tip, then
+    /// open the existing durable item host. No Begin, camera or finalization.
+    @discardableResult
+    func confirmCapture(recordedByName: String) async -> Bool {
+        guard !isOpeningCapture, captureHost == nil, let itemID = captureIntent,
+              let displayed = session, displayed.state == .active, isActiveRoute else { return false }
+        isOpeningCapture = true
+        couldNotOpenCapture = false
+        captureOutOfOrder = false
+        defer { isOpeningCapture = false }
+        var createdHost: ProductionCheckRunnerItemCapturePresentationV1?
+        do {
+            try validateScene()
+            try access.validateSessionForPublication(displayed)
+            guard let capturedScene = scene.snapshot else { throw AppAccessContractFailureV1.accessDenied }
+            let validateIntent: @MainActor () throws -> Void = {
+                try Task.checkCancellation()
+                guard self.captureIntent == itemID, self.isActiveRoute else {
+                    throw AppAccessContractFailureV1.accessDenied
+                }
+                try self.scene.validatePersistedIntent(self.target, expectedSnapshot: capturedScene)
+            }
+            let sources = try access.readRepetitiveCaptureSources(round: displayed)
+            guard sources.count <= 1 else { throw ScanToWorkFailureV1.duplicate }
+            var read: ProductionRepetitiveCaptureReadV2
+            if let existing = sources.first {
+                read = existing
+            } else {
+                // A new chain starts at the first incomplete item; never launch for another tap.
+                guard displayed.items.sorted(by: { $0.order < $1.order })
+                        .first(where: { !$0.disposition.isTerminal })?.itemID == itemID else {
+                    captureOutOfOrder = true
+                    throw ScanToWorkFailureV1.authorityMismatch
+                }
+                try access.validateCheckRunnerItemEntry(round: displayed, itemID: itemID)
+                let readiness = try await access.rebuildReadiness(for: displayed, previous: nil)
+                try validateIntent()
+                let launch = try access.prepareRepetitiveCaptureLaunch(round: displayed, readiness: readiness)
+                read = try access.persistRepetitiveCaptureLaunch(launch, validateIntent: validateIntent)
+            }
+            // Settling a stored Round effect never changes its navigation item, so
+            // the order check comes first and an out-of-order tap writes nothing.
+            let navigationItemID = read.chain.nodes.last?.step.navigationItemID
+                ?? (read.chain.nodes.isEmpty ? read.chain.launch.firstIncompleteItemID : nil)
+            guard navigationItemID == itemID else {
+                captureOutOfOrder = true
+                throw ScanToWorkFailureV1.authorityMismatch
+            }
+            if let tip = read.chain.nodes.last, tip.isPendingRoundEffect {
+                // Settle the one stored Round effect before any new step.
+                read = try await access.resumeRepetitiveCaptureProgress(
+                    sourceDraftID: read.chain.sourceCheckpoint.draftID,
+                    stepDraftID: tip.checkpoint.draftID, validateIntent: validateIntent).progress
+                guard read.chain.nodes.last?.step.navigationItemID == itemID else {
+                    throw ScanToWorkFailureV1.authorityMismatch
+                }
+            }
+            if let tip = read.chain.nodes.last, tip.step.action == .enter, tip.step.itemID == itemID {
+                // The original ENTRY is reused; reopening performs no Round write.
+            } else {
+                try access.validateCheckRunnerItemEntry(round: read.chain.currentRound, itemID: itemID)
+                let readiness = try await access.rebuildReadiness(for: read.chain.currentRound, previous: nil)
+                try validateIntent()
+                let step = try access.prepareRepetitiveCaptureStep(read: read, readiness: readiness,
+                    action: .enter, focus: .facts, recordedByName: recordedByName)
+                read = try await access.executeRepetitiveCaptureStep(step, validateIntent: validateIntent).progress
+            }
+            let round = read.chain.currentRound
+            try access.validateSessionForPublication(round)
+            let destination = try NavigationTargetV1(workspaceID: target.workspaceID,
+                destination: .work, stableSessionID: round.sessionID,
+                requestedMode: target.requestedMode,
+                expectedRevision: target.expectedRevision == nil ? nil : round.revision,
+                fallback: target.fallback)
+            guard destination == target else {
+                // A revision-pinned route re-targets first; its successor reopens
+                // this same ENTRY without another write.
+                try scene.open(destination)
+                captureIntent = nil
+                session = nil
+                return false
+            }
+            session = round
+            let source = try access.captureCheckRunnerItemSource(read: read, itemID: itemID)
+            try validateIntent()
+            let host = try ProductionCheckRunnerItemCapturePresentationV1(source: source,
+                target: target, scene: scene, access: access)
+            createdHost = host
+            if host.checkpoint == nil, let snapshot = host.preflight?.snapshot {
+                try host.startEditing(preflight: .init(timeZoneID: snapshot.timeZoneID ?? "",
+                    isTimeZoneConfirmed: snapshot.timeZoneID != nil,
+                    confirmedTimeZoneID: snapshot.timeZoneID))
+            }
+            // Present only an editable parent or an already begun one; anything
+            // else would open a screen with no durable content.
+            guard host.editor != nil || host.checkpoint != nil else {
+                throw ProductionCheckRunnerItemCaptureFailureV1.missingEditor
+            }
+            try validateIntent()
+            captureIntent = nil
+            captureHost = host
+            return true
+        } catch {
+            if let createdHost, captureHost !== createdHost {
+                Task { await createdHost.retire() }
+            }
+            if Task.isCancelled {
+                captureIntent = nil
+                couldNotOpenCapture = false
+            } else {
+                couldNotOpenCapture = true
+            }
+            return false
+        }
+    }
+
+    /// Called after the host's own forced flush. The durable parent stays
+    /// resumable from its original ENTRY; nothing is discarded or finalized.
+    func dismissCapture() {
+        guard let host = captureHost else { return }
+        captureHost = nil
+        Task { await host.retire() }
+    }
+
     func refresh() async {
+        if isOpeningCapture || captureHost != nil { return }
         if isOrdering || hasUnacknowledgedReorder || isTransitioning || hasUnacknowledgedTransition {
             if !isActiveRoute { session = nil; readiness = nil }
             return
@@ -475,7 +641,8 @@ final class ProductionRoundSessionPresentationV1: ObservableObject {
 
     func validateForLeaving() throws {
         guard !isOrdering, !hasUnacknowledgedReorder,
-              !isTransitioning, !hasUnacknowledgedTransition else {
+              !isTransitioning, !hasUnacknowledgedTransition,
+              !isOpeningCapture, captureHost == nil else {
             throw AppAccessContractFailureV1.accessDenied
         }
         try validateScene()
@@ -516,6 +683,13 @@ final class ProductionRoundSessionPresentationV1: ObservableObject {
         readiness = nil
         isLoading = false
         isRebuilding = false
+        captureIntent = nil
+        couldNotOpenCapture = false
+        captureOutOfOrder = false
+        if let host = captureHost {
+            captureHost = nil
+            Task { await host.retire() }
+        }
         if !hasUnacknowledgedReorder {
             orderingIntent = nil
             pendingReorder = nil
@@ -529,6 +703,95 @@ final class ProductionRoundSessionPresentationV1: ObservableObject {
     }
 }
 
+/// The opened item. Close forces a flush first; if that save cannot complete,
+/// leaving keeps the last durable checkpoint and never discards the draft.
+@MainActor
+private struct ProductionRoundCaptureHostViewV1: View {
+    @ObservedObject var host: ProductionCheckRunnerItemCapturePresentationV1
+    let dismiss: @MainActor () -> Void
+    @State private var isClosing = false
+    @State private var closeFailed = false
+    @State private var actionFailed = false
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                switch host.durableBegin {
+                case .bound?:
+                    AssetRoundsEmptyState(title: Text("Check started"),
+                        message: Text("This check is saved on this iPhone. Close to return to the round."))
+                        .accessibilityIdentifier("production.round.capture.started")
+                case .prepared?:
+                    // An interrupted Begin has no editor; recovery never flushes fields.
+                    VStack(spacing: DesignTokens.Spacing.space16) {
+                        AssetRoundsEmptyState(title: Text("Finish starting this check"),
+                            message: Text("Starting this check was interrupted. Finish starting it with the details you already confirmed."))
+                        AssetRoundsPrimaryAction("Finish starting") {
+                            do { try host.finishPreparedBegin(); actionFailed = false } catch { actionFailed = true }
+                        }
+                        .disabled(host.isPerformingAction)
+                        .accessibilityIdentifier("production.round.capture.finish-begin")
+                        if actionFailed {
+                            Text("The check could not be started. Try again.")
+                                .font(DesignTokens.Typography.primaryBody)
+                                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+                        }
+                    }
+                case .notBegun?:
+                    if host.editor != nil {
+                        ProductionCheckRunnerItemPreflightViewV1(state: host, leave: { dismiss() })
+                    } else {
+                        unavailable
+                    }
+                case nil:
+                    unavailable
+                }
+            }
+            .safeAreaInset(edge: .top) {
+                if closeFailed {
+                    VStack(spacing: 8) {
+                        Text("Your latest changes could not be saved.")
+                        Button("Leave anyway") { dismiss() }
+                            .accessibilityIdentifier("production.round.capture.leave-anyway")
+                    }
+                    .padding(8)
+                    .frame(maxWidth: .infinity)
+                    .background(DesignTokens.SemanticColors.workBackground)
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { close() }
+                        .disabled(isClosing || host.isPerformingAction)
+                        .accessibilityIdentifier("production.round.capture.close")
+                }
+            }
+        }
+    }
+
+    /// No authenticated parent is presented; an explicit reread may recover it.
+    private var unavailable: some View {
+        VStack(spacing: DesignTokens.Spacing.space16) {
+            AssetRoundsEmptyState(title: Text("Check unavailable"),
+                message: Text("Your saved check could not be opened."))
+            AssetRoundsSecondaryAction("Try again") { Task { try? await host.reload() } }
+                .disabled(host.isPerformingAction)
+                .accessibilityIdentifier("production.round.capture.reload")
+        }
+    }
+
+    private func close() {
+        guard host.editor != nil else { dismiss(); return }
+        isClosing = true
+        closeFailed = false
+        Task {
+            defer { isClosing = false }
+            do { try await host.flushAndPerform(reason: .back) { dismiss() } }
+            catch { closeFailed = true }
+        }
+    }
+}
+
 @MainActor
 struct ProductionRoundSessionDestinationV1: View {
     @ObservedObject private var scene: AppShellSceneStateV1
@@ -537,6 +800,7 @@ struct ProductionRoundSessionDestinationV1: View {
     @State private var recorderName = ""
     @State private var orderingTask: Task<Void, Never>?
     @State private var transitionTask: Task<Void, Never>?
+    @State private var captureTask: Task<Void, Never>?
 
     init(target: NavigationTargetV1, scene: AppShellSceneStateV1,
          access: AppAccessPresentationV1.RoundAccess) {
@@ -551,7 +815,11 @@ struct ProductionRoundSessionDestinationV1: View {
                 RoundSessionView(session: session, readiness: state.readiness,
                     fieldSectionIndex: nil, fieldPositionAnchor: nil,
                     fieldPositionRequirement: .notRequired, batchHandoffStatus: .unavailable,
-                    actions: .init(openItem: nil, requestReorder: state.permitsDraftOrdering ? { itemID, delta in
+                    actions: .init(openItem: state.permitsCapture ? { itemID in
+                            showsReadiness = false
+                            recorderName = ""
+                            state.requestCapture(itemID: itemID)
+                        } : nil, requestReorder: state.permitsDraftOrdering ? { itemID, delta in
                             showsReadiness = false
                             recorderName = ""
                             state.requestDraftReorder(itemID: itemID, delta: delta)
@@ -579,7 +847,8 @@ struct ProductionRoundSessionDestinationV1: View {
             }
         }
         .navigationBarBackButtonHidden(state.isOrdering || state.hasUnacknowledgedReorder
-            || state.isTransitioning || state.hasUnacknowledgedTransition)
+            || state.isTransitioning || state.hasUnacknowledgedTransition
+            || state.isOpeningCapture || state.captureHost != nil)
         .toolbar {
             if state.session != nil {
                 ToolbarItem(placement: .primaryAction) {
@@ -587,7 +856,8 @@ struct ProductionRoundSessionDestinationV1: View {
                         showsReadiness = true
                         Task { await state.rebuildReadiness() }
                     }
-                    .disabled(state.orderingIntent != nil || state.transitionIntent != nil)
+                    .disabled(state.orderingIntent != nil || state.transitionIntent != nil
+                        || state.captureIntent != nil)
                 }
             }
         }
@@ -615,6 +885,24 @@ struct ProductionRoundSessionDestinationV1: View {
             sessionTransitionConfirmation
                 .interactiveDismissDisabled(state.isTransitioning || state.hasUnacknowledgedTransition)
         }
+        // One sheet swaps confirmation for the opened host, so no dismissal and
+        // presentation race; the host leaves only through its own Close.
+        .sheet(isPresented: Binding(get: {
+            (state.captureIntent != nil || state.captureHost != nil)
+                && scene.snapshot?.selectedRoot == .work
+        }, set: { presented in
+            guard !presented else { return }
+            if state.captureHost != nil { state.dismissCapture() } else { state.cancelCapture() }
+        })) {
+            Group {
+                if let host = state.captureHost {
+                    ProductionRoundCaptureHostViewV1(host: host, dismiss: { state.dismissCapture() })
+                } else {
+                    captureConfirmation
+                }
+            }
+            .interactiveDismissDisabled(state.isOpeningCapture || state.captureHost != nil)
+        }
         .task(id: scene.snapshot?.selectedRoot == .work) {
             if scene.snapshot?.selectedRoot != .work { showsReadiness = false }
             await state.refresh()
@@ -622,6 +910,51 @@ struct ProductionRoundSessionDestinationV1: View {
         .onDisappear {
             orderingTask?.cancel()
             transitionTask?.cancel()
+            captureTask?.cancel()
+        }
+    }
+
+    private var captureConfirmation: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    if let itemID = state.captureIntent,
+                       let item = state.session?.items.first(where: { $0.itemID == itemID }) {
+                        Text("Continue: \(item.selection.labelAtSelection)")
+                    }
+                    TextField("Recorded by", text: $recorderName)
+                        .textInputAutocapitalization(.words)
+                        .disabled(state.isOpeningCapture)
+                        .accessibilityIdentifier("production.round.capture.recorder")
+                }
+                if state.couldNotOpenCapture {
+                    Section {
+                        Text(state.captureOutOfOrder
+                            ? "Continue with the next item in this round first."
+                            : "This item could not be opened. Try again.")
+                    }
+                }
+                if state.isOpeningCapture { ProgressView("Opening item") }
+            }
+            .navigationTitle("Continue")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        if state.isOpeningCapture { captureTask?.cancel() }
+                        else { state.cancelCapture() }
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Open") {
+                        captureTask = Task { _ = await state.confirmCapture(recordedByName: recorderName) }
+                    }
+                    .disabled(state.isOpeningCapture
+                        || recorderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .accessibilityIdentifier("production.round.capture.open")
+                }
+            }
+            .accessibilityIdentifier("production.round.capture.confirmation")
         }
     }
 

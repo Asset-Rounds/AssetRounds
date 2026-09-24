@@ -298,6 +298,8 @@ final class V23ProductionCheckRunnerItemHostTests: XCTestCase {
                 let history = try h.coordinator.workspaceWriter.sourceMutationHistorySnapshot()
                 try h.closeCoordinator()
                 let router = StartupRouter(applicationSupportURL: h.root)
+                var startupDiagnostics: [String] = []
+                router.startupFailureDiagnosticForTesting = { startupDiagnostics.append($0) }
                 let gate = AppAccessGateV1(setting: .absentDisabled,
                     authentication: FrozenBeginAuthentication(), clock: h.clock, identifiers: h.ids)
                 var boundaryCount = 0
@@ -326,7 +328,7 @@ final class V23ProductionCheckRunnerItemHostTests: XCTestCase {
                 if mode == "access-expired" {
                     do {
                         try await router.startIfNeeded(accessGate: gate)
-                        XCTFail("Startup must reject its expired original access token")
+                        XCTFail("Startup must reject its expired original access token" + " " + startupDiagnosis(router, diagnostics: startupDiagnostics, boundary: boundaryCount))
                     } catch {
                         XCTAssertNotNil(error as? AppAccessContractFailureV1)
                     }
@@ -336,7 +338,7 @@ final class V23ProductionCheckRunnerItemHostTests: XCTestCase {
                 XCTAssertEqual(try Data(contentsOf: canonicalName), canary)
                 if mode == "replacement" {
                     guard case .maintenance(.finalizationInconsistent) = router.route else {
-                        return XCTFail("Startup must reject substitution before deleting any prepared leaf")
+                        return XCTFail("Startup must reject substitution before deleting any prepared leaf" + " " + startupDiagnosis(router, diagnostics: startupDiagnostics, boundary: boundaryCount))
                     }
                     XCTAssertEqual(boundaryCount, 1)
                     XCTAssertEqual(try Data(contentsOf: privatePhoto), replacedBytes)
@@ -344,7 +346,7 @@ final class V23ProductionCheckRunnerItemHostTests: XCTestCase {
                     XCTAssertTrue(FileManager.default.fileExists(atPath: displacedSnapshot.path))
                 } else if mode == "retired" || mode == "access-expired" {
                     guard case .checking = router.route else {
-                        return XCTFail("A retired startup must not publish its former writer")
+                        return XCTFail("A retired startup must not publish its former writer" + " " + startupDiagnosis(router, diagnostics: startupDiagnostics, boundary: boundaryCount))
                     }
                     XCTAssertEqual(boundaryCount, 1)
                     XCTAssertEqual(try Data(contentsOf: privatePhoto), Data("private-photo-preparation".utf8))
@@ -355,7 +357,7 @@ final class V23ProductionCheckRunnerItemHostTests: XCTestCase {
                         router.beforePrivatePreparationCleanupForTesting = nil
                         try await router.retryChecks(accessGate: gate)
                         guard case let .ready(store, _, _) = router.route else {
-                            return XCTFail("Fresh access must recover without reusing the expired cleanup ticket")
+                            return XCTFail("Fresh access must recover without reusing the expired cleanup ticket" + " " + startupDiagnosis(router, diagnostics: startupDiagnostics, boundary: boundaryCount))
                         }
                         defer { XCTAssertNoThrow(try store.invalidateAndReleaseWriter()) }
                         for url in [partialJournal, displacedSnapshot, privatePhoto] {
@@ -366,7 +368,7 @@ final class V23ProductionCheckRunnerItemHostTests: XCTestCase {
                     }
                 } else {
                     guard case let .ready(store, _, _) = router.route else {
-                        return XCTFail("Actual startup must dispose of reserved crash leftovers before publication")
+                        return XCTFail("Actual startup must dispose of reserved crash leftovers before publication" + " " + startupDiagnosis(router, diagnostics: startupDiagnostics, boundary: boundaryCount))
                     }
                     defer { XCTAssertNoThrow(try store.invalidateAndReleaseWriter()) }
                     for url in [partialJournal, displacedSnapshot, privatePhoto] + resourceLeftovers {
@@ -412,11 +414,13 @@ final class V23ProductionCheckRunnerItemHostTests: XCTestCase {
                 try h.closeCoordinator()
                 let router = StartupRouter(applicationSupportURL: h.root)
                 var publicationBoundaryCount = 0
+                var startupDiagnostics: [String] = []
+                router.startupFailureDiagnosticForTesting = { startupDiagnostics.append($0) }
                 router.beforePrivatePreparationCleanupForTesting = { _ in publicationBoundaryCount += 1 }
                 defer { router.beforePrivatePreparationCleanupForTesting = nil }
                 await router.startIfNeeded()
                 guard case .maintenance(.finalizationInconsistent) = router.route else {
-                    return XCTFail("Unsafe private preparation must fail the actual startup route: \(mode)")
+                    return XCTFail("Unsafe private preparation must fail the actual startup route: \(mode) " + startupDiagnosis(router, diagnostics: startupDiagnostics, boundary: publicationBoundaryCount))
                 }
                 XCTAssertEqual(publicationBoundaryCount, 0)
                 XCTAssertEqual(try Data(contentsOf: legitimate), privateBytes)
@@ -480,6 +484,8 @@ final class V23ProductionCheckRunnerItemHostTests: XCTestCase {
 
                 let router = StartupRouter(applicationSupportURL: h.root)
                 var preparationCount = 0
+                var startupDiagnostics: [String] = []
+                router.startupFailureDiagnosticForTesting = { startupDiagnostics.append($0) }
                 router.beforePrivatePreparationCleanupForTesting = { _ in
                     preparationCount += 1
                     XCTAssertEqual(try Data(contentsOf: journal), journalBytes)
@@ -488,7 +494,7 @@ final class V23ProductionCheckRunnerItemHostTests: XCTestCase {
                 defer { router.beforePrivatePreparationCleanupForTesting = nil }
                 await router.startIfNeeded()
                 guard case let .ready(store, diagnostics, _) = router.route else {
-                    return XCTFail("Private retirement must leave canonical interrupted finalization recoverable")
+                    return XCTFail("Private retirement must leave canonical interrupted finalization recoverable " + startupDiagnosis(router, diagnostics: startupDiagnostics, boundary: preparationCount))
                 }
                 defer { XCTAssertNoThrow(try store.invalidateAndReleaseWriter()) }
                 XCTAssertEqual(preparationCount, 1)
@@ -538,6 +544,22 @@ final class V23ProductionCheckRunnerItemHostTests: XCTestCase {
                 XCTAssertNil(try EraseIntentStore(applicationSupportURL: h.root).load())
             }
         }
+    }
+
+    /// Diagnostic only: the actual startup route and the router's DEBUG failure phase.
+    @MainActor
+    private func startupDiagnosis(_ router: StartupRouter, diagnostics: [String], boundary: Int) -> String {
+        let route: String
+        switch router.route {
+        case .checking: route = "checking"
+        case let .maintenance(reason): route = "maintenance(\(reason))"
+        case .ready: route = "ready"
+        case .awaitingIndependentValidation: route = "awaitingIndependentValidation"
+        case .eraseCleanupPending: route = "eraseCleanupPending"
+        }
+        let summary = "route=\(route) boundary=\(boundary) diagnostics=\(diagnostics)"
+        print("V23_STARTUP_DIAGNOSIS " + summary)
+        return summary
     }
 
     func testLiveFinalizationUsesOriginalReceiptAndRejectsRetiredOperation() async throws {

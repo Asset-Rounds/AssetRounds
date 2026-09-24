@@ -170,6 +170,20 @@ extension FieldDraftLifecycleAdapterV1 {
             durableReceipt: { try self.writer.durableReceipt(mutationID: $0) })
     }
 
+    /// Read only. Every active authenticated capture source launched for one
+    /// Round session, in stable draft order; resuming callers require exactly one.
+    func repetitiveCaptureSources(workspaceID: WorkspaceID, sessionID: UUID) throws
+        -> [ReviewedRepetitiveCaptureProgressChainV2] {
+        try progressCheckpoints(workspaceID: workspaceID)
+            .filter { $0.state == .active }
+            .sorted { $0.draftID.uuidString < $1.draftID.uuidString }
+            .compactMap { checkpoint in
+                guard case let .source(launch) = try RepetitiveCaptureProgressDraftCodecV2.decode(checkpoint.payloadData),
+                      launch.round.sessionID == sessionID else { return nil }
+                return try reviewedRepetitiveCaptureProgress(workspaceID: workspaceID, sourceDraftID: checkpoint.draftID)
+            }
+    }
+
     private func authenticatedProgressCheckpoint(workspaceID: WorkspaceID, draftID: UUID) throws
         -> (FieldDraftCheckpointV1, MutationReceiptV1) {
         _ = try writer.currentRevision()

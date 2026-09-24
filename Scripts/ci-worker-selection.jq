@@ -41,7 +41,7 @@
                 and [.setupArtifactTimeoutSeconds, .buildTimeoutSeconds,
                      .testTimeoutSeconds, .uiTimeoutSeconds, .totalBudgetSeconds]
                     == [300, 1800, 3000, 0, 5100]
-                and .unitTestSelectors == [
+                and (.unitTestSelectors == [
     "FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldOperationAuthoritySurvivesSuspensionAndRecoversOriginalReceipt",
     "FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testPhotoDiscardPreparationReopensOriginalPendingReceipt",
     "FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testPhotoDiscardValuesRetainOriginalStagesAndRejectCommit",
@@ -56,7 +56,19 @@
     "FieldEvidenceAppTests/S3_2MediaPipelineTests/testPreparedImmutableOriginalRejectsTargetAppearingAfterPreparation",
     "FieldEvidenceAppTests/S3_2MediaPipelineTests/testPreparedImmutableOriginalRejectsSubstitutionAndCancellation",
     "FieldEvidenceAppTests/S8_2GoldenAccessibilityTests/testGoldenFlowAccessibilitySpineAndControlMetricsAreExact"
-                ]
+                ] or .unitTestSelectors == [
+    "FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testContinueLaunchesEntersOnceOpensDurableHostAndColdReopenAddsNoWrites",
+    "FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testContinueDeniesDraftPausedAndCompetingSourcesWithoutEffects",
+    "FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testForeignCanonicalDraftDeniesEntryBeforeAnyWrite",
+    "FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testContinueRecoversSourceAndEntryAcknowledgementLossWithOneOfEach",
+    "FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testPendingEffectForAnotherItemIsNotSettledByAnOutOfOrderTap",
+    "FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testRevisionPinnedRouteRetargetsThenReusesEntryAndBegunParentReopens",
+    "FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testInterruptedPreparedBeginReopensForExplicitRecoveryAndCompletesOnce"
+                ] or .unitTestSelectors == [
+    "FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementPreservesCanonicalNamesAndRejectsStaleOrReplacedPlans",
+    "FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementRejectsMalformedNamesAndUnsafeFileKinds",
+    "FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementPreservesInterruptedFinalizationAndReachesEraseAdmission"
+                ])
               elif .tier == "D30" then
                 .taskID == "V23-INTEGRATION-20260910"
                 and [.setupArtifactTimeoutSeconds, .buildTimeoutSeconds,

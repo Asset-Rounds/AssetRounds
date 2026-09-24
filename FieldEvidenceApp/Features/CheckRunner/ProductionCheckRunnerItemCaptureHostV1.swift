@@ -8,7 +8,7 @@ struct CheckRunnerItemPreflightPresentationV1 {
 }
 
 enum ProductionCheckRunnerItemCaptureFailureV1: Error, Equatable {
-    case operationInProgress, missingEditor, retired
+    case operationInProgress, missingEditor, retired, notPreparedBegin
 }
 
 /// One scene's owner for the existing durable editor and parent service.
@@ -29,6 +29,26 @@ final class ProductionCheckRunnerItemCapturePresentationV1: ObservableObject {
     @Published private(set) var preflight: CheckRunnerItemPreflightPresentationV1?
 
     var checkpoint: FieldDraftCheckpointV1? { editor?.acknowledgement.checkpoint ?? retainedCheckpoint }
+
+    /// The durable Begin state, or nil when no parent is presented or it fails
+    /// validation. The parent stays in its editing phase after Begin, so
+    /// presentation never infers Preflight from editor availability.
+    var durableBegin: CheckRunnerBeginStateV1? {
+        guard let checkpoint else { return nil }
+        return try? CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint).field.begin
+    }
+
+    /// Only a receipt-bound Begin has started the check. An interrupted
+    /// PREPARED Begin admits no field edit or flush; see `finishPreparedBegin`.
+    var hasBoundBegin: Bool {
+        if case .bound = durableBegin { return true }
+        return false
+    }
+
+    var hasPreparedBegin: Bool {
+        if case .prepared = durableBegin { return true }
+        return false
+    }
 
     init(source: CheckRunnerRoundItemSourceV1, target: NavigationTargetV1,
          scene: AppShellSceneStateV1, access: AppAccessPresentationV1.RoundAccess) throws {
@@ -89,18 +109,55 @@ final class ProductionCheckRunnerItemCapturePresentationV1: ObservableObject {
         defer { isPerformingAction = false }
         let proof = try await editor.forceFlushAndReadBack(reason: .begin)
         try editor.validateForPublication(proof)
-        try operation.withAuthorization {
-            try requireActive()
-            guard self.editor === editor else { throw CheckRunnerItemEditingSessionFailureV1.changedCheckpoint }
-            try service.validateForPublication(proof.parent)
-            let prepared = try service.prepareBegin(draftID: proof.parent.checkpoint.draftID,
-                expectedCheckpointSHA256: proof.parent.checkpoint.checkpointSHA256,
-                observedAtUTC: observedAtUTC)
-            _ = try service.resumeInitialBegin(draftID: prepared.draftID)
+        do {
+            try operation.withAuthorization {
+                try requireActive()
+                guard self.editor === editor else { throw CheckRunnerItemEditingSessionFailureV1.changedCheckpoint }
+                try service.validateForPublication(proof.parent)
+                let prepared = try service.prepareBegin(draftID: proof.parent.checkpoint.draftID,
+                    expectedCheckpointSHA256: proof.parent.checkpoint.checkpointSHA256,
+                    observedAtUTC: observedAtUTC)
+                _ = try service.resumeInitialBegin(draftID: prepared.draftID)
+            }
+        } catch {
+            // Either write may already be durable. Never present the pre-Begin
+            // acknowledgement again; reread current state when still active.
+            await supersede(editor)
+            if (try? requireActive()) != nil { try? installCurrentRead(authorizing: operation) }
+            throw error
         }
         // The old acknowledgement belongs to the pre-Begin parent. Do not
         // publish it as current or leave its scheduler able to write afterward.
-        await editor.retire()
+        await supersede(editor)
+        try requireActive()
+        try installCurrentRead(authorizing: operation)
+    }
+
+    /// Explicit recovery of an interrupted Begin from its frozen original. A
+    /// PREPARED parent has no editor, so no field flush or new sample occurs.
+    func finishPreparedBegin() throws {
+        try requireIdle()
+        guard editor == nil, hasPreparedBegin, let expected = retainedCheckpoint else {
+            throw ProductionCheckRunnerItemCaptureFailureV1.notPreparedBegin
+        }
+        let operation = try captureOperation()
+        isPerformingAction = true
+        defer { isPerformingAction = false }
+        do {
+            try operation.withAuthorization {
+                try requireActive()
+                guard retainedCheckpoint == expected,
+                      try service.readCurrentDraft(source: source) == expected else {
+                    throw CheckRunnerItemEditingSessionFailureV1.changedCheckpoint
+                }
+                _ = try service.resumeInitialBegin(draftID: expected.draftID)
+            }
+        } catch {
+            // The bound write may be durable; present only a fresh reread.
+            retainedCheckpoint = nil
+            if (try? requireActive()) != nil { try? installCurrentRead(authorizing: operation) }
+            throw error
+        }
         try requireActive()
         try installCurrentRead(authorizing: operation)
     }
@@ -115,7 +172,7 @@ final class ProductionCheckRunnerItemCapturePresentationV1: ObservableObject {
         let operation = try captureOperation()
         isPerformingAction = true
         defer { isPerformingAction = false }
-        await editor?.retire()
+        if let editor { await supersede(editor) }
         try requireActive()
         try installCurrentRead(authorizing: operation)
     }
@@ -124,6 +181,17 @@ final class ProductionCheckRunnerItemCapturePresentationV1: ObservableObject {
         retired = true
         editorObservation = nil
         await editor?.retire()
+    }
+
+    /// A superseded acknowledgement is never presented as current. Until an
+    /// authenticated reread succeeds, the host has no editor or checkpoint.
+    private func supersede(_ superseded: CheckRunnerItemEditingSessionV1) async {
+        if editor === superseded {
+            editorObservation = nil
+            editor = nil
+            retainedCheckpoint = nil
+        }
+        await superseded.retire()
     }
 
     private func captureOperation() throws -> AppAccessPresentationV1.CheckRunnerItemOperationAccess {
@@ -135,8 +203,13 @@ final class ProductionCheckRunnerItemCapturePresentationV1: ObservableObject {
         let current = try operation.withAuthorization { try service.readCurrentDraft(source: source) }
         let next: CheckRunnerItemEditingSessionV1?
         var fieldRead: CheckRunnerFieldReadbackV1?
-        if let current, current.state == .active,
-           try CheckRunnerItemDraftCodecV1.validateCheckpoint(current).phase == .editing {
+        var editable = false
+        if let current, current.state == .active {
+            let payload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(current)
+            // A PREPARED Begin rejects every field flush, so it gets no editor.
+            if case .prepared = payload.field.begin { editable = false } else { editable = payload.phase == .editing }
+        }
+        if let current, editable {
             let read = try operation.withAuthorization { try service.readEditableFields(draftID: current.draftID) }
             fieldRead = read
             next = try CheckRunnerItemEditingSessionV1(service: service, initialRead: read,
