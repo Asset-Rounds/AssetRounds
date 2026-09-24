@@ -720,7 +720,7 @@ def prepartition_workflow(workflow):
     choice = '          - ' + CI.NOTIFICATION_INTERRUPTION_SELECTION_ID + '\n'
     if workflow.count(choice) != 1: raise AssertionError('missing exact notification interruption choice')
     workflow = workflow.replace(choice, '')
-    for group_id in (CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
+    for group_id in (CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
         choice = '          - ' + group_id + '\n'
         if workflow.count(choice) != 1: raise AssertionError('missing exact field edit choice')
         workflow = workflow.replace(choice, '')
@@ -1509,7 +1509,7 @@ class ReportPartitionTests(unittest.TestCase):
         expected.insert(expected.index('c36-destination-discard') + 1, CI.BUILD_ORDER_SELECTION_ID)
         expected.insert(expected.index('c36-production-destination') + 1, CI.SAVED_REVIEW_SELECTION_ID)
         expected.remove('c36-field-edit')
-        expected[expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1:expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1] = [CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit']
+        expected[expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1:expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1] = [CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit']
         expected.insert(expected.index('c36-restore-review') + 1, CI.NO_INDEX_SELECTION_ID)
         expected.insert(expected.index(CI.NO_INDEX_SELECTION_ID) + 1, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID)
         expected.insert(expected.index('notification-schedule-erase') + 1, CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID)
@@ -2832,6 +2832,62 @@ class ReplacementPartitionDiagnosticTests(unittest.TestCase):
                     self.assertEqual(args[-2:], ['CODE_SIGNING_ALLOWED=NO', 'test-without-building'])
 
 
+class FieldAutosaveBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
+    diagnostic_routes = ((CI.FIELD_AUTOSAVE_SELECTION_ID, CI.FIELD_AUTOSAVE_SELECTORS),)
+    source_parent = CI.FIELD_AUTOSAVE_PARENT
+    source_trees = CI.FIELD_AUTOSAVE_TREES
+
+    def test_exact_disjoint_ordered_union_and_historical_routes(self):
+        expected = ['FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldAutosaveUsesTrailingMaximumAndRetainsFailedAttempt']
+        self.assertEqual(self.selected['unitTestSelectors'], expected)
+        self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
+        self.assertEqual((self.selected['runUISmoke'], self.selected['uiTestSelectors']), (False, []))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1064, 69))
+        self.assertIn(expected[0], CI.resolve_selection(self.default, self.mapping, 'c36-field-edit')['unitTestSelectors'])
+        combined = CI.resolve_selection(self.default, self.mapping, CI.SAVED_REVIEW_FIELDS_SELECTION_ID)
+        self.assertEqual(len(combined['unitTestSelectors']), 14)
+        for changed in ((), tuple(expected * 2), (UNIT,), tuple(combined['unitTestSelectors'])):
+            with mock.patch.object(CI, 'FIELD_AUTOSAVE_SELECTORS', changed), self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.FIELD_AUTOSAVE_SELECTION_ID)
+        for suffix in ('-retry', '-parallel', '-45m'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.FIELD_AUTOSAVE_SELECTION_ID + suffix)
+
+    def test_all_parent_inputs_and_named_routes_are_preserved(self):
+        original = subprocess.check_output(['git', 'show', self.source_parent + ':Scripts/v23-native-ci.py'], cwd=ROOT)
+        old = {'__name__': 'field_autosave_parent'}
+        exec(compile(original, 'field-autosave-parent.py', 'exec'), old)
+        self.assertEqual(set(CI.NO_INDEX_ROUTES) - set(old['NO_INDEX_ROUTES']), {CI.FIELD_AUTOSAVE_SELECTION_ID})
+        for identifier, binding in old['NO_INDEX_ROUTES'].items():
+            self.assertEqual(CI.NO_INDEX_ROUTES[identifier], binding, identifier)
+            self.assertEqual(CI.no_index_source_trees(identifier), old['no_index_source_trees'](identifier), identifier)
+        for path in ('Scripts/v23-selection-manifest.json', 'Scripts/ci-selection.json', 'Scripts/ci-selection-map.json',
+                     'Scripts/v23-selection-generator.py', 'Scripts/test-v23-selection-generator.py',
+                     '.github/workflows/ios-ci-worker.yml', 'Scripts/test-smoke.sh'):
+            self.assertEqual((ROOT / path).read_bytes(), subprocess.check_output(
+                ['git', 'show', self.source_parent + ':' + path], cwd=ROOT), path)
+        identifiers = re.findall(r'^          - ([a-z0-9.-]+)$', re.search(
+            r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)',
+            (ROOT / '.github/workflows/ios-ci.yml').read_text()).group(1), re.M)
+        for identifier in identifiers:
+            if identifier == CI.FIELD_AUTOSAVE_SELECTION_ID:
+                continue
+            self.assertEqual(CI.resolve_selection(self.default, self.mapping, identifier),
+                             old['resolve_selection'](self.default, self.mapping, identifier), identifier)
+
+    def test_collection_requires_the_original_complete_autosave_method(self):
+        methods = list(CI.FIELD_AUTOSAVE_SELECTORS)
+        tree = native_tree(methods[0])
+        self.assertEqual(CI.executed_methods(tree, methods, 'FieldEvidenceAppTests', 'Unit test bundle'), methods)
+        for status in ('Failed', 'Skipped', 'NotStarted'):
+            hostile = copy.deepcopy(tree)
+            leaf(hostile)['result'] = status
+            with self.assertRaises(ValueError):
+                CI.executed_methods(hostile, methods, 'FieldEvidenceAppTests', 'Unit test bundle')
+        with self.assertRaises(ValueError):
+            CI.executed_methods(native_tree(UNIT), methods, 'FieldEvidenceAppTests', 'Unit test bundle')
+
+
 class SavedReviewFieldsBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
     diagnostic_routes = ((CI.SAVED_REVIEW_FIELDS_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTORS),)
     source_parent = CI.SAVED_REVIEW_FIELDS_PARENT
@@ -2880,7 +2936,7 @@ class SavedReviewFieldsBuild30DiagnosticTests(ReplacementPartitionDiagnosticTest
         block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
         choices = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
         for identifier in choices:
-            if identifier in (CI.DEFAULT_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
+            if identifier in (CI.DEFAULT_SELECTION_ID, CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
                 continue
             self.assertEqual(CI.canonical(CI.resolve_selection(self.default, self.mapping, identifier)),
                              CI.canonical(CI.resolve_selection(old_pool, old_map, identifier)), identifier)
@@ -3114,7 +3170,7 @@ class NotificationScheduleEraseBuild30DiagnosticTests(ReplacementPartitionDiagno
                     continue  # The full pool grows; named prior questions stay exact.
                 self.assertEqual(CI.canonical(CI.resolve_selection(presaved, presaved_map, identifier)),
                                  old.canonical(old.resolve_selection(prior, prior_map, identifier)), identifier)
-            self.assertEqual(set(CI.NO_INDEX_ROUTES) - set(old.NO_INDEX_ROUTES), {self.record['selectionID'], CI.FINDING_PROFILE_FIXTURES_SELECTION_ID, CI.NOTIFICATION_INTERRUPTION_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID})
+            self.assertEqual(set(CI.NO_INDEX_ROUTES) - set(old.NO_INDEX_ROUTES), {self.record['selectionID'], CI.FINDING_PROFILE_FIXTURES_SELECTION_ID, CI.NOTIFICATION_INTERRUPTION_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, CI.FIELD_AUTOSAVE_SELECTION_ID})
             for identifier, binding in old.NO_INDEX_ROUTES.items():
                 self.assertEqual(CI.NO_INDEX_ROUTES[identifier], binding)
                 self.assertEqual(CI.no_index_source_trees(identifier), old.no_index_source_trees(identifier))
@@ -3129,7 +3185,7 @@ class NotificationScheduleEraseBuild30DiagnosticTests(ReplacementPartitionDiagno
         saved_review_choice = ('          - ' + CI.SAVED_REVIEW_SELECTION_ID + '\n').encode()
         self.assertEqual(current_workflow.count(saved_review_choice), 1)
         current_workflow = current_workflow.replace(saved_review_choice, b'')
-        for identifier in (CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
+        for identifier in (CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
             choice = ('          - ' + identifier + '\n').encode()
             self.assertEqual(current_workflow.count(choice), 1)
             current_workflow = current_workflow.replace(choice, b'')
@@ -3332,7 +3388,7 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
         choice = ('          - ' + self.record['selectionID'] + '\n').encode()
         current = (ROOT / '.github/workflows/ios-ci.yml').read_bytes()
         self.assertEqual(current.count(choice), 1)
-        for added in (CI.SAVED_REVIEW_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
+        for added in (CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
             added_choice = ('          - ' + added + '\n').encode()
             self.assertEqual(current.count(added_choice), 1)
             current = current.replace(added_choice, b'')
@@ -3359,7 +3415,7 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
                 self.assertEqual(CI.canonical(CI.resolve_selection(self.default, self.mapping, identifier)),
                                  CI.canonical(expected_current), identifier)
             self.assertEqual(set(CI.NO_INDEX_ROUTES) - set(old.NO_INDEX_ROUTES),
-                         {self.record['selectionID'], CI.SAVED_REVIEW_FIELDS_SELECTION_ID})
+                         {self.record['selectionID'], CI.SAVED_REVIEW_FIELDS_SELECTION_ID, CI.FIELD_AUTOSAVE_SELECTION_ID})
             for identifier, binding in old.NO_INDEX_ROUTES.items():
                 self.assertEqual(CI.NO_INDEX_ROUTES[identifier], binding, identifier)
                 self.assertEqual(CI.no_index_source_trees(identifier), old.no_index_source_trees(identifier), identifier)

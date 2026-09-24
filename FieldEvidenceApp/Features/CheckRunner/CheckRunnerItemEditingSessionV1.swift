@@ -42,6 +42,8 @@ final class CheckRunnerItemEditingSessionV1: @MainActor ObservableObject {
         let attempt: CheckRunnerFieldEditAttemptV1
     }
 
+    private final class FlushIdentity {}
+
     private let service: ProductionCheckRunnerItemDraftServiceV1
     private let clock: any DraftAutosaveClockV1
     private let policy: DraftAutosavePolicyV1
@@ -52,7 +54,8 @@ final class CheckRunnerItemEditingSessionV1: @MainActor ObservableObject {
     private var acknowledgedGeneration: UInt64 = 0
     private var pending: Pending?
     private var registration: Task<Void, Never>?
-    private var flushTask: Task<Void, Error>?
+    private var flushTask: (identity: FlushIdentity, task: Task<Void, Error>)?
+    private var lastStartedFlush: FlushIdentity?
     private var retired = false
 
     private(set) var values: CheckRunnerEditableItemValuesV1
@@ -66,6 +69,8 @@ final class CheckRunnerItemEditingSessionV1: @MainActor ObservableObject {
     #if DEBUG
     var afterAcknowledgementReadyForTesting:
         (@MainActor @Sendable (CheckRunnerFieldReadbackV1) async throws -> Void)?
+    var afterFailedFlushReceivedForTesting: (@MainActor @Sendable () async -> Void)?
+    var joinedFlushForTesting: (@MainActor () -> Void)?
 
     func autosaveFailureStateForTesting() async -> DraftAutosaveFailureStateV1? {
         await scheduler.failureState(draftID: draftID)
@@ -168,21 +173,50 @@ final class CheckRunnerItemEditingSessionV1: @MainActor ObservableObject {
     private func performSerializedFlush() async throws {
         try requireCurrentIntent()
         if let flushTask {
-            try await flushTask.value
+            #if DEBUG
+            joinedFlushForTesting?()
+            #endif
+            try await flushTask.task.value
             try requireCurrentIntent()
             return
         }
-        let task = Task { @MainActor in try await self.drain() }
-        flushTask = task
-        defer { flushTask = nil }
+        let identity = FlushIdentity()
+        let task: Task<Void, Error> = Task { @MainActor in
+            do {
+                try await self.drain()
+            } catch {
+                // Release this operation and publish its failure before any
+                // awaiting caller can observe completion or begin recovery.
+                self.publishFlushFailure(identity: identity)
+                throw error
+            }
+            if self.flushTask?.identity === identity { self.flushTask = nil }
+        }
+        lastStartedFlush = identity
+        flushTask = (identity, task)
         do {
             try await task.value
-            try requireCurrentIntent()
         } catch {
-            objectWillChange.send()
-            durabilityState = .saveBlocked
+            #if DEBUG
+            await afterFailedFlushReceivedForTesting?()
+            #endif
             throw error
         }
+        do {
+            try requireCurrentIntent()
+        } catch {
+            // A caller may resume after a newer operation has already run.
+            // Preserve intent rejection without overwriting that operation.
+            publishFlushFailure(identity: identity)
+            throw error
+        }
+    }
+
+    private func publishFlushFailure(identity: FlushIdentity) {
+        if flushTask?.identity === identity { flushTask = nil }
+        guard lastStartedFlush === identity else { return }
+        objectWillChange.send()
+        durabilityState = .saveBlocked
     }
 
     private func drain() async throws {

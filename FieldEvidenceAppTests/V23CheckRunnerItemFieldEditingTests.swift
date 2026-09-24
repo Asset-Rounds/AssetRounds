@@ -254,6 +254,120 @@ final class V23CheckRunnerItemFieldEditingTests: XCTestCase {
         }
     }
 
+    private func verifyFieldFlushFailureReleasesOnlyItsOwnOperationBeforeRecovery() async throws {
+        try await withAsyncFrozenBeginFixture("field-terminal-owner", entry: .check,
+                                             storedTimeZoneID: "America/New_York") { h in
+            let service = try self.service(h)
+            let created = try service.create(source: h.captureSource(), preflight: .init())
+            let initial = try service.readEditableFields(draftID: created.draftID)
+            let editor = try CheckRunnerItemEditingSessionV1(service: service, initialRead: initial,
+                clock: FieldEditingClock(), validateIntent: {})
+            let failedCallerReached = FieldEditingBarrier(), releaseFailedCaller = FieldEditingBarrier()
+            let recoveryReached = FieldEditingBarrier(), releaseRecovery = FieldEditingBarrier()
+            var receivedOriginalFailure = false
+            editor.afterFailedFlushReceivedForTesting = {
+                receivedOriginalFailure = true
+                await failedCallerReached.release()
+                await releaseFailedCaller.wait()
+            }
+            service.beforeFieldEditAcknowledgementForTesting = {
+                throw FieldEditingInjectedFailure.lostAcknowledgement
+            }
+            let desired = self.changed(initial.values, note: "original receipt survives delayed failure")
+            try editor.replaceEditableValues(desired)
+            let original: Task<CheckRunnerFieldFlushReadbackV1, Error> = Task { @MainActor in
+                do {
+                    let result = try await editor.forceFlushAndReadBack(reason: .leave)
+                    await failedCallerReached.release()
+                    return result
+                } catch {
+                    await failedCallerReached.release()
+                    throw error
+                }
+            }
+            var recovery: Task<CheckRunnerFieldFlushReadbackV1, Error>?
+            var joined: Task<CheckRunnerFieldFlushReadbackV1, Error>?
+            do {
+                await failedCallerReached.wait()
+                XCTAssertTrue(receivedOriginalFailure)
+                XCTAssertEqual(editor.durabilityState, .saveBlocked)
+                guard receivedOriginalFailure, editor.durabilityState == .saveBlocked else {
+                    throw FieldEditingInjectedFailure.invalidFlushBoundary
+                }
+                // Only the original caller is held; recovery failures must
+                // reach their completion signal and the fixture cleanup.
+                editor.afterFailedFlushReceivedForTesting = nil
+                XCTAssertTrue(editor.hasUnacknowledgedEdits)
+                XCTAssertEqual(editor.acknowledgement.checkpoint, initial.checkpoint)
+                let durable = try service.readEditableFields(draftID: created.draftID)
+                XCTAssertEqual(durable.values, desired)
+                XCTAssertEqual(durable.checkpoint.draftRevision, created.draftRevision + 1)
+                let savedSnapshot = try h.snapshot(), savedIDs = h.ids.callCount
+                service.beforeFieldEditAcknowledgementForTesting = nil
+                var recoveryAcknowledgements = 0
+                editor.afterAcknowledgementReadyForTesting = { read in
+                    recoveryAcknowledgements += 1
+                    XCTAssertEqual(read.receipt, durable.receipt)
+                    await recoveryReached.release()
+                    await releaseRecovery.wait()
+                }
+                recovery = Task { @MainActor in
+                    do {
+                        let result = try await editor.forceFlushAndReadBack(reason: .back)
+                        await recoveryReached.release()
+                        return result
+                    } catch {
+                        await recoveryReached.release()
+                        throw error
+                    }
+                }
+                await recoveryReached.wait()
+                XCTAssertEqual(recoveryAcknowledgements, 1)
+                guard recoveryAcknowledgements == 1 else {
+                    throw FieldEditingInjectedFailure.invalidFlushBoundary
+                }
+                XCTAssertEqual(editor.durabilityState, .savingOnThisIPhone)
+                await releaseFailedCaller.release()
+                do {
+                    _ = try await original.value
+                    XCTFail("The delayed caller must retain its original acknowledgement error")
+                } catch {
+                    XCTAssertEqual(error as? FieldEditingInjectedFailure, .lostAcknowledgement)
+                }
+                XCTAssertEqual(editor.durabilityState, .savingOnThisIPhone)
+                var joinedRecovery = false
+                editor.joinedFlushForTesting = { joinedRecovery = true }
+                joined = Task { @MainActor in try await editor.forceFlushAndReadBack(reason: .camera) }
+                try await self.waitUntil { joinedRecovery }
+                XCTAssertEqual(recoveryAcknowledgements, 1)
+                await releaseRecovery.release()
+                let recoveryTask = try XCTUnwrap(recovery), joinedTask = try XCTUnwrap(joined)
+                let recovered = try await recoveryTask.value
+                let shared = try await joinedTask.value
+                XCTAssertEqual(recovered.parent.receipt, durable.receipt)
+                XCTAssertEqual(shared.parent.receipt, durable.receipt)
+                XCTAssertEqual(recovered.parent.checkpoint, durable.checkpoint)
+                XCTAssertEqual(shared.parent.checkpoint, durable.checkpoint)
+                XCTAssertEqual(recoveryAcknowledgements, 1)
+                XCTAssertEqual(try h.snapshot(), savedSnapshot)
+                XCTAssertEqual(h.ids.callCount, savedIDs)
+                XCTAssertEqual(editor.durabilityState, .savedOnThisIPhone)
+                XCTAssertFalse(editor.hasUnacknowledgedEdits)
+                try editor.validateForPublication(recovered)
+                try editor.validateForPublication(shared)
+                await editor.retire()
+            } catch {
+                await releaseFailedCaller.release()
+                await releaseRecovery.release()
+                _ = try? await original.value
+                if let recovery { _ = try? await recovery.value }
+                if let joined { _ = try? await joined.value }
+                await editor.retire()
+                throw error
+            }
+        }
+    }
+
     func testFieldEditAcknowledgementLossRecoversOriginalBeforeNewerEdits() async throws {
         try await withAsyncFrozenBeginFixture("field-ack", entry: .check,
                                              storedTimeZoneID: "America/New_York") { h in
@@ -554,6 +668,7 @@ final class V23CheckRunnerItemFieldEditingTests: XCTestCase {
             XCTAssertEqual(h.ids.callCount, idCalls + 1)
             await editor.retire()
         }
+        try await verifyFieldFlushFailureReleasesOnlyItsOwnOperationBeforeRecovery()
     }
 
     func testFieldFlushDrainsEditsArrivingDuringAwaitAndAuthenticatesReadback() async throws {
@@ -692,7 +807,7 @@ final class V23CheckRunnerItemFieldEditingTests: XCTestCase {
 }
 
 private enum FieldEditingInjectedFailure: Error, Equatable {
-    case lostAcknowledgement, revoked, timedOut
+    case lostAcknowledgement, revoked, timedOut, invalidFlushBoundary
 }
 
 private actor FieldEditingClock: DraftAutosaveClockV1 {

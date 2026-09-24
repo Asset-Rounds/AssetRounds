@@ -389,7 +389,12 @@ SAVED_REVIEW_FIELDS_PARENT = '392e4072ee4a2af13c00adf5274fe0cc85b7611a'
 SAVED_REVIEW_FIELDS_TREES = {'FieldEvidenceApp': 'ceec35dfeb8f25e34455206977f31d0c3f67bf6f', 'FieldEvidenceAppTests': '1e29182844d0d652b896adf11cb32a6a0d9c5543', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 FIELD_EDIT_SELECTORS = ('FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditsPersistIncompleteValuesAndColdReopenWithoutEffects', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditCASPreservesBeginAndPhotoSlotsAndRejectsFrozenOrForeignState', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditAcknowledgementLossRecoversOriginalBeforeNewerEdits', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldAutosaveUsesTrailingMaximumAndRetainsFailedAttempt', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldFlushDrainsEditsArrivingDuringAwaitAndAuthenticatesReadback')
 SAVED_REVIEW_FIELDS_SELECTORS = ('FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionResolutionFreezesOneChoiceAndRecoversOriginalWithoutNewIDs', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionResolutionRejectsStaleTargetAndRetiredOwnerWithoutEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionDiscardRequiresConfirmationThenReplaysOriginalWithoutConfirmationOrEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionDiscardCanCompleteReviewWithoutOperationalRoundAndRejectsRetirement', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceAuthenticatesCurrentPendingAndTerminalOriginalsWithoutReadEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceRejectsEverySubstitutedFieldAndNonDraftWithoutEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceReturnsUnsupportedOnlyAfterAuthenticCurrentReceipt', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceRejectsDirtyCorruptQuarantinedAndRetiredHistoryWithoutEffects', 'FieldEvidenceAppTests/V23ProductionFourRootShellTests/testPhysicalRestoredReviewDiscardUsesProductionAccessAndColdOriginalReadback', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditsPersistIncompleteValuesAndColdReopenWithoutEffects', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditCASPreservesBeginAndPhotoSlotsAndRejectsFrozenOrForeignState', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditAcknowledgementLossRecoversOriginalBeforeNewerEdits', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldAutosaveUsesTrailingMaximumAndRetainsFailedAttempt', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldFlushDrainsEditsArrivingDuringAwaitAndAuthenticatesReadback')
+FIELD_AUTOSAVE_SELECTION_ID = 'c36-field-autosave-no-index-build30m'
+FIELD_AUTOSAVE_PARENT = '351067c1151704dd25f607b2b25bcd93521c25ff'
+FIELD_AUTOSAVE_TREES = {'FieldEvidenceApp': 'dd8e80c285cab57ea3cc57d0a8e250442921cace', 'FieldEvidenceAppTests': '4a469a823f12b0614b87697f16bde238d6811d0d', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+FIELD_AUTOSAVE_SELECTORS = ('FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldAutosaveUsesTrailingMaximumAndRetainsFailedAttempt',)
 NO_INDEX_ROUTES = {
+    FIELD_AUTOSAVE_SELECTION_ID: (FIELD_AUTOSAVE_PARENT, "D30"),
     NOTIFICATION_INTERRUPTION_SELECTION_ID: (NOTIFICATION_INTERRUPTION_PARENT, "D30"),
     SAVED_REVIEW_FIELDS_SELECTION_ID: (SAVED_REVIEW_FIELDS_PARENT, "D30"),
     FINDING_PROFILE_FIXTURES_SELECTION_ID: (FINDING_PROFILE_FIXTURES_PARENT, "D30"),
@@ -411,6 +416,8 @@ NO_INDEX_ROUTES = {
 
 def no_index_source_trees(selection_id):
     require(selection_id in NO_INDEX_ROUTES, "no-index closed source binding")
+    if selection_id == FIELD_AUTOSAVE_SELECTION_ID:
+        return FIELD_AUTOSAVE_TREES
     if selection_id == NOTIFICATION_INTERRUPTION_SELECTION_ID:
         return NOTIFICATION_INTERRUPTION_TREES
     if selection_id == SAVED_REVIEW_FIELDS_SELECTION_ID:
@@ -1271,7 +1278,7 @@ def validate_selection(selection):
         require(tuple(selection["unitTestSelectors"]) in (
             PARENT_FINALIZATION_METHOD_PARTITIONS[0][1], RESTORE_BUILD_WATCHDOG_SELECTORS,
             REMINDER_BUILD_WATCHDOG_SELECTORS, RESTORE_HISTORY_SELECTORS, REPLACEMENT_UNION_SELECTORS, ERASE_RECOVERY_SELECTORS, ACTIVITY_CONTRACT_SELECTORS, ACTIVITY_CODEC_PUNCH_SELECTORS, ACTIVITY_COMPLETED_SOURCE_SELECTORS,
-            NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS, NOTIFICATION_INTERRUPTION_SELECTORS, FINDING_PROFILE_FIXTURES_SELECTORS, SAVED_REVIEW_FIELDS_SELECTORS,
+            NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS, NOTIFICATION_INTERRUPTION_SELECTORS, FINDING_PROFILE_FIXTURES_SELECTORS, SAVED_REVIEW_FIELDS_SELECTORS, FIELD_AUTOSAVE_SELECTORS,
             *(members for _, members in ERASE_DIAGNOSTIC_PARTITIONS),
             *(members for _, members in REPLACEMENT_DIAGNOSTIC_PARTITIONS)),
             "build watchdog exact approved methods")
@@ -1632,6 +1639,12 @@ def resolve_selection(default, selection_map, selection_id):
                         **dict(zip(BUDGET_KEYS, TIERS["D30"])))
         validate_selection(combined)
         resolved[SAVED_REVIEW_FIELDS_SELECTION_ID] = combined
+        require(FIELD_AUTOSAVE_SELECTORS == (FIELD_EDIT_SELECTORS[3],)
+                and FIELD_AUTOSAVE_SELECTION_ID not in resolved,
+                "field autosave exact existing method")
+        autosave = dict(combined, unitTestSelectors=list(FIELD_AUTOSAVE_SELECTORS))
+        validate_selection(autosave)
+        resolved[FIELD_AUTOSAVE_SELECTION_ID] = autosave
     if "erase-lease-lifecycle" in resolved:
         require(tuple(resolved["erase-lease-lifecycle"]["unitTestSelectors"]) == ERASE_LEASE_SELECTORS,
                 "erase exact enrolled lifecycle methods")
@@ -1773,6 +1786,7 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
     require(all(re.fullmatch(r"[1-9][0-9]*", e.get(key, ""))
                 for key in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT")), "original run identity")
     watchdog_routes = {
+        FIELD_AUTOSAVE_SELECTION_ID: (FIELD_AUTOSAVE_PARENT, FIELD_AUTOSAVE_SELECTORS),
         NOTIFICATION_INTERRUPTION_SELECTION_ID: (NOTIFICATION_INTERRUPTION_PARENT, NOTIFICATION_INTERRUPTION_SELECTORS),
         SAVED_REVIEW_FIELDS_SELECTION_ID: (SAVED_REVIEW_FIELDS_PARENT, SAVED_REVIEW_FIELDS_SELECTORS),
         FINDING_PROFILE_FIXTURES_SELECTION_ID: (FINDING_PROFILE_FIXTURES_PARENT, FINDING_PROFILE_FIXTURES_SELECTORS),

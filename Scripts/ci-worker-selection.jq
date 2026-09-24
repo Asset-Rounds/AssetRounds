@@ -42,6 +42,8 @@
                      .testTimeoutSeconds, .uiTimeoutSeconds, .totalBudgetSeconds]
                     == [300, 1800, 900, 0, 3000]
                 and (.unitTestSelectors == [
+                    "FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldAutosaveUsesTrailingMaximumAndRetainsFailedAttempt"
+                ] or .unitTestSelectors == [
                     "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testRetainedLiveContextDefersCleanupUntilColdRecovery",
                     "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testEveryInterruptionRecoversOldOrFullyErasedNew"
                 ] or .unitTestSelectors == [

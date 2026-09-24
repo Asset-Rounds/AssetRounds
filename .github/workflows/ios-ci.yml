@@ -106,6 +106,7 @@ on:
           - c36-destination-continuation
           - c36-production-destination
           - c36-saved-review-discard
+          - c36-field-autosave-no-index-build30m
           - c36-saved-review-fields-no-index-build30m
           - c36-field-edit
           - c36-restore-review
