@@ -919,6 +919,43 @@ private final class EvidenceBundleStoreAssetLabelPublicationV1: @unchecked Senda
 }
 
 actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
+    /// C05 owns both the verified private file and its publication. The caller
+    /// retains this capability privately until its original operation is fenced.
+    final class PreparedImmutableOriginal: @unchecked Sendable {
+        fileprivate let store: EvidenceBundleStore
+        fileprivate let owner: ObjectIdentifier
+        fileprivate let request: DraftImmutableContentWriteRequestV1
+        fileprivate let receipt: DraftImmutableContentWriteReceiptV1
+        fileprivate let sourceURL: URL
+        fileprivate let descriptor: Int32
+        fileprivate let rootDescriptor: Int32
+        fileprivate let rootIdentity: FileIdentity
+        fileprivate let facts: stat
+        fileprivate let consumption = NSLock()
+        fileprivate var consumed = false
+
+        fileprivate init(store: EvidenceBundleStore, owner: ObjectIdentifier,
+            request: DraftImmutableContentWriteRequestV1, receipt: DraftImmutableContentWriteReceiptV1,
+            sourceURL: URL, descriptor: Int32, rootDescriptor: Int32,
+            rootIdentity: FileIdentity, facts: stat) {
+            self.store = store; self.owner = owner; self.request = request; self.receipt = receipt
+            self.sourceURL = sourceURL; self.descriptor = descriptor
+            self.rootDescriptor = rootDescriptor; self.rootIdentity = rootIdentity; self.facts = facts
+        }
+
+        deinit {
+            store.discardPrivateImmutablePreparation(self)
+            _ = Darwin.close(descriptor)
+            _ = Darwin.close(rootDescriptor)
+        }
+
+        /// Synchronous metadata/rename only. The live caller must already hold
+        /// its original publication, generation and raw-stage authorities.
+        func publish(owner: ObjectIdentifier) throws -> DraftImmutableContentWriteReceiptV1 {
+            try store.publishImmutableOriginal(self, owner: owner)
+        }
+    }
+
     private static let legacyBundleLock = NSRecursiveLock()
     private let sourceMutationGuard: StoreMigrationSourceMutationGuardV1?
     nonisolated private let expectedGenerationRootIdentity: ReportPDFAnchoredFile.RootIdentity?
@@ -1209,6 +1246,158 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         } catch {
             throw EvidenceBundleStoreError.fileOperationFailed
         }
+    }
+
+    /// Off-main preparation never creates the named content directory or target.
+    /// Existing bytes are read and hashed here, rather than inside the UI fence.
+    func prepareImmutableOriginal(bytes: Data, request: DraftImmutableContentWriteRequestV1,
+        owner: ObjectIdentifier) throws -> PreparedImmutableOriginal {
+        try Task.checkCancellation()
+        try requireProducerAuthority()
+        let probe = try DraftImmutableContentWriteReceiptV1(request: request,
+            relativePath: request.relativePath, reusedExistingBytes: false)
+        try probe.validate(request: request, bytes: bytes)
+        try validateGenerationRoot()
+        let rootDescriptor = try withOwnedDirectory(at: generationRootURL) { descriptor in
+            let retained = Darwin.dup(descriptor)
+            guard retained >= 0 else { throw EvidenceBundleStoreError.fileOperationFailed }
+            return retained
+        }
+        var descriptor: Int32 = -1
+        var transferred = false
+        defer {
+            if !transferred {
+                if descriptor >= 0 { _ = Darwin.close(descriptor) }
+                _ = Darwin.close(rootDescriptor)
+            }
+        }
+        let rootIdentity = try directoryIdentity(rootDescriptor)
+        let target = generationRootURL.appendingPathComponent(request.relativePath)
+        let exists = try itemType(at: target) != nil
+        let source = exists ? target : generationRootURL.appendingPathComponent(
+            ".immutable-\(UUID().uuidString.lowercased()).tmp")
+        if !exists {
+            try writeProtectedFile(bytes, to: source, policy: .temporaryFile, cancellationChecks: true)
+        }
+        descriptor = try withParentDescriptor(of: source) { parent, leaf in
+            let fd = Darwin.openat(parent, leaf, O_RDONLY | O_NONBLOCK | O_NOFOLLOW)
+            guard fd >= 0 else { throw EvidenceBundleStoreError.fileOperationFailed }
+            return fd
+        }
+        var facts = stat()
+        guard Darwin.fstat(descriptor, &facts) == 0,
+              facts.st_mode & S_IFMT == S_IFREG, facts.st_nlink == 1 else {
+            throw DraftImmutableContentWriterFailureV1.immutableConflict
+        }
+        let receipt = try DraftImmutableContentWriteReceiptV1(request: request,
+            relativePath: request.relativePath, reusedExistingBytes: exists)
+        let prepared = PreparedImmutableOriginal(store: self, owner: owner, request: request,
+            receipt: receipt, sourceURL: source, descriptor: descriptor,
+            rootDescriptor: rootDescriptor, rootIdentity: rootIdentity, facts: facts)
+        transferred = true
+        try validateImmutablePreparation(prepared)
+        let readback = try withParentDescriptor(of: source) { parent, leaf in
+            try readProtectedRegularFile(exists ? .mediaOriginal : .temporaryFile, at: source, parent: parent, name: leaf)
+        }
+        guard readback == bytes else { throw DraftImmutableContentWriterFailureV1.immutableConflict }
+        try receipt.validate(request: request, bytes: readback)
+        try Task.checkCancellation()
+        try validateImmutablePreparation(prepared)
+        return prepared
+    }
+
+    nonisolated private func validateImmutablePreparation(_ prepared: PreparedImmutableOriginal,
+        at publishedURL: URL? = nil, expectedChangeTime: timespec? = nil, verifyPolicy: Bool = true) throws {
+        try validateGenerationRoot()
+        guard prepared.store === self,
+              try directoryIdentity(prepared.rootDescriptor) == prepared.rootIdentity,
+              try directoryIdentity(at: generationRootURL) == prepared.rootIdentity else {
+            throw EvidenceBundleStoreError.generationRootInvalid
+        }
+        let url = publishedURL ?? prepared.sourceURL
+        var now = stat()
+        let original = prepared.facts
+        let changeTime = expectedChangeTime ?? original.st_ctimespec
+        guard Darwin.fstat(prepared.descriptor, &now) == 0,
+              now.st_mode & S_IFMT == S_IFREG, now.st_nlink == 1,
+              now.st_dev == original.st_dev, now.st_ino == original.st_ino,
+              now.st_size == original.st_size,
+              now.st_mtimespec.tv_sec == original.st_mtimespec.tv_sec,
+              now.st_mtimespec.tv_nsec == original.st_mtimespec.tv_nsec,
+              now.st_ctimespec.tv_sec == changeTime.tv_sec,
+              now.st_ctimespec.tv_nsec == changeTime.tv_nsec,
+              try withParentDescriptor(of: url, { parent, leaf in
+                try regularIdentity(parent: parent, name: leaf)
+              }) == checkRunnerPhotoIdentity(original) else {
+            throw DraftImmutableContentWriterFailureV1.immutableConflict
+        }
+        if verifyPolicy {
+            try ProtectedFilePolicyV1.verify(publishedURL != nil || prepared.receipt.reusedExistingBytes
+                ? .mediaOriginal : .temporaryFile, at: url)
+        }
+    }
+
+    nonisolated private func publishImmutableOriginal(_ prepared: PreparedImmutableOriginal,
+        owner: ObjectIdentifier) throws -> DraftImmutableContentWriteReceiptV1 {
+        try Task.checkCancellation()
+        try requireProducerAuthority()
+        guard prepared.owner == owner, prepared.store === self,
+              prepared.consumption.try() else { throw DraftImmutableContentWriterFailureV1.invalidRequest }
+        defer { prepared.consumption.unlock() }
+        guard !prepared.consumed else { throw DraftImmutableContentWriterFailureV1.invalidRequest }
+        prepared.consumed = true
+        Self.legacyBundleLock.lock()
+        defer { Self.legacyBundleLock.unlock() }
+        try validateImmutablePreparation(prepared)
+        if prepared.receipt.reusedExistingBytes { return prepared.receipt }
+        let request = prepared.request
+        try ensureDirectory(relativeComponents: ["content",
+            request.workspaceID.rawValue.uuidString.lowercased(), request.contentID],
+            policyKind: .durableDirectory)
+        let target = generationRootURL.appendingPathComponent(request.relativePath)
+        try withParentDescriptor(of: target) { parent, leaf in
+            try Task.checkCancellation()
+            try validateImmutablePreparation(prepared)
+            // A target appearing since preparation requires a fresh full-byte
+            // verification off-main; never overwrite or hash under this fence.
+            guard try itemType(parent: parent, name: leaf) == nil,
+                  Darwin.renameatx_np(prepared.rootDescriptor, prepared.sourceURL.lastPathComponent,
+                    parent, leaf, UInt32(RENAME_EXCL)) == 0 else {
+                throw DraftImmutableContentWriterFailureV1.immutableConflict
+            }
+            var moved = stat()
+            guard Darwin.fstat(prepared.descriptor, &moved) == 0 else { throw EvidenceBundleStoreError.fileOperationFailed }
+            guard Darwin.fsync(prepared.rootDescriptor) == 0, Darwin.fsync(parent) == 0 else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            try validateImmutablePreparation(prepared, at: target, expectedChangeTime: moved.st_ctimespec,
+                verifyPolicy: false)
+            try applyLeafPolicy(.mediaOriginal, at: target, parent: parent, name: leaf,
+                descriptor: prepared.descriptor, expected: checkRunnerPhotoIdentity(prepared.facts))
+            guard Darwin.fsync(prepared.descriptor) == 0, Darwin.fsync(parent) == 0 else {
+                throw EvidenceBundleStoreError.fileOperationFailed
+            }
+            var published = stat()
+            guard Darwin.fstat(prepared.descriptor, &published) == 0 else { throw EvidenceBundleStoreError.fileOperationFailed }
+            try validateImmutablePreparation(prepared, at: target, expectedChangeTime: published.st_ctimespec)
+        }
+        return prepared.receipt
+    }
+
+    nonisolated private func discardPrivateImmutablePreparation(_ prepared: PreparedImmutableOriginal) {
+        guard !prepared.receipt.reusedExistingBytes,
+              (try? regularIdentity(parent: prepared.rootDescriptor,
+                name: prepared.sourceURL.lastPathComponent)) == checkRunnerPhotoIdentity(prepared.facts)
+        else { return }
+        try? quarantineRegularFileAndRemove(parent: prepared.rootDescriptor,
+            name: prepared.sourceURL.lastPathComponent, expectedIdentity: checkRunnerPhotoIdentity(prepared.facts))
+    }
+
+    nonisolated private static func isPrivateImmutablePreparationName(_ name: String) -> Bool {
+        let prefix = ".immutable-", suffix = ".tmp"
+        guard name.hasPrefix(prefix), name.hasSuffix(suffix) else { return false }
+        let raw = String(name.dropFirst(prefix.count).dropLast(suffix.count))
+        return UUID(uuidString: raw)?.uuidString.lowercased() == raw
     }
 
     func resolveContentReference(
@@ -4687,7 +4876,9 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         name: String,
         expectedIdentity: FileIdentity
     ) throws {
-        let quarantine = ".remove-\(UUID().uuidString.lowercased()).file"
+        let quarantine = Self.isPrivateImmutablePreparationName(name)
+            ? ".immutable-\(UUID().uuidString.lowercased()).tmp"
+            : ".remove-\(UUID().uuidString.lowercased()).file"
         guard validPathComponent(quarantine),
               Darwin.renameatx_np(
                   parent,

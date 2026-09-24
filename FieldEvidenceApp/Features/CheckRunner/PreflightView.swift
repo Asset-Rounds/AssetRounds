@@ -33,6 +33,15 @@ struct PreflightBeginOperationV1 {
     }
 }
 
+@MainActor
+struct CheckRunnerDurablePreflightActionsV1 {
+    let values: @MainActor () -> CheckRunnerEditablePreflightV1
+    let update: @MainActor (CheckRunnerEditablePreflightV1) throws -> Void
+    let begin: @MainActor () async throws -> Void
+    let leave: @MainActor () async throws -> Void
+}
+
+@MainActor
 struct PreflightView: View {
     static let screenAccessibilityIdentifier = "s3.preflight.screen"
     static let timeZoneAccessibilityIdentifier = "s3.preflight.time-zone"
@@ -44,17 +53,35 @@ struct PreflightView: View {
 
     let snapshot: FirstSignSnapshot
     let pack: SignPack
-    let coordinator: CheckRunnerCoordinator
-    let generationRootURL: URL
+    private enum Backend {
+        case standalone(CheckRunnerCoordinator, URL, cannotComplete: () -> Void, cancel: () -> Void)
+        case durable(CheckRunnerDurablePreflightActionsV1)
+    }
+    private let backend: Backend
     let usesImportedCaptureFixturesForUITest: Bool
     let cameraAdapter: CameraAdapter
     let beforeBeginRouteValidation: (() throws -> Void)?
-    let cannotComplete: () -> Void
-    let cancel: () -> Void
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    @State private var editable: CheckRunnerEditablePreflightV1
+    @State private var standaloneEditable: CheckRunnerEditablePreflightV1
+    private var editable: CheckRunnerEditablePreflightV1 {
+        get {
+            if case let .durable(actions) = backend { return actions.values() }
+            return standaloneEditable
+        }
+        nonmutating set {
+            if case let .durable(actions) = backend {
+                do { try actions.update(newValue) }
+                catch { errorMessage = "Your changes could not be saved. Try again." }
+            } else {
+                standaloneEditable = newValue
+            }
+        }
+    }
+    private var editableBinding: Binding<CheckRunnerEditablePreflightV1> {
+        Binding(get: { editable }, set: { editable = $0 })
+    }
 
     private var timeZoneID: String { editable.timeZoneID }
     private var isTimeZoneConfirmed: Bool { editable.isTimeZoneConfirmed }
@@ -86,24 +113,34 @@ struct PreflightView: View {
     ) {
         self.snapshot = snapshot
         self.pack = pack
-        self.coordinator = coordinator
-        self.generationRootURL = generationRootURL
+        self.backend = .standalone(coordinator, generationRootURL, cannotComplete: cannotComplete, cancel: cancel)
         self.usesImportedCaptureFixturesForUITest =
             usesImportedCaptureFixturesForUITest
         self.cameraAdapter = cameraAdapter
         self.beforeBeginRouteValidation = beforeBeginRouteValidation
-        self.cannotComplete = cannotComplete
-        self.cancel = cancel
-        _editable = State(initialValue: .init(
+        _standaloneEditable = State(initialValue: .init(
             timeZoneID: snapshot.timeZoneID ?? "",
             isTimeZoneConfirmed: snapshot.timeZoneID != nil,
             confirmedTimeZoneID: snapshot.timeZoneID
         ))
     }
 
+    /// The live parent owns navigation after Begin. This backend never calls
+    /// the standalone coordinator or implicitly enters its capture route.
+    init(snapshot: FirstSignSnapshot, pack: SignPack, durable: CheckRunnerDurablePreflightActionsV1) {
+        self.snapshot = snapshot
+        self.pack = pack
+        self.backend = .durable(durable)
+        self.usesImportedCaptureFixturesForUITest = false
+        self.cameraAdapter = .live
+        self.beforeBeginRouteValidation = nil
+        _standaloneEditable = State(initialValue: .init())
+    }
+
     var body: some View {
         Group {
-            if !isCheckingForDraft, !didFailDraftCheck, hasDraft {
+            if !isCheckingForDraft, !didFailDraftCheck, hasDraft,
+               case let .standalone(coordinator, _, cannotComplete, _) = backend {
                 CaptureStepView(
                     assetID: snapshot.assetID,
                     coordinator: coordinator,
@@ -125,6 +162,7 @@ struct PreflightView: View {
                             loadFailure
                         } else {
                             preflight
+                                .disabled(isBeginning)
                                 #if DEBUG
                                 .background {
                                     NativeScreenObservationAnchorV1(identifier: Self.screenAccessibilityIdentifier)
@@ -151,6 +189,10 @@ struct PreflightView: View {
         .task {
             guard !didCheckForDraft else { return }
             didCheckForDraft = true
+            guard case let .standalone(coordinator, generationRootURL, _, _) = backend else {
+                isCheckingForDraft = false
+                return
+            }
             coordinator.configureCapture(generationRootURL: generationRootURL)
 
             do {
@@ -247,6 +289,7 @@ struct PreflightView: View {
             .accessibilityHidden(focusedField == .timeZone)
 
             AssetRoundsSecondaryAction("Cancel — no check started", action: cancel)
+                .disabled(isBeginning)
                 .accessibilityIdentifier(Self.cancelAccessibilityIdentifier)
                 .accessibilityHidden(focusedField == .timeZone)
         }
@@ -258,7 +301,7 @@ struct PreflightView: View {
                 .font(DesignTokens.Typography.fieldLabel)
                 .foregroundStyle(DesignTokens.SemanticColors.primaryText)
 
-            TextField("IANA time zone, for example America/New_York", text: $editable.timeZoneID)
+            TextField("IANA time zone, for example America/New_York", text: editableBinding.timeZoneID)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .textContentType(.none)
@@ -279,11 +322,11 @@ struct PreflightView: View {
                 .accessibilityHint("Enter a time zone such as America slash New York")
                 .accessibilityIdentifier(Self.timeZoneAccessibilityIdentifier)
                 .onChange(of: timeZoneID) { _, _ in
-                    editable.isTimeZoneConfirmed = false
                     errorMessage = nil
+                    editable.isTimeZoneConfirmed = false
                 }
 
-            Toggle(isOn: $editable.isTimeZoneConfirmed) {
+            Toggle(isOn: editableBinding.isTimeZoneConfirmed) {
                 Text("I confirm this is the site's time zone.")
             }
                 .frame(
@@ -350,6 +393,11 @@ struct PreflightView: View {
 
     private func begin() {
         guard canBegin, !isBeginning else { return }
+        if case let .durable(actions) = backend {
+            performDurableAction(actions.begin)
+            return
+        }
+        guard case let .standalone(coordinator, _, _, _) = backend else { return }
         isBeginning = true
         errorMessage = nil
         focusedField = nil
@@ -379,12 +427,31 @@ struct PreflightView: View {
         isBeginning = false
     }
 
+    private func cancel() {
+        guard !isBeginning else { return }
+        switch backend {
+        case let .standalone(_, _, _, cancel): cancel()
+        case let .durable(actions): performDurableAction(actions.leave)
+        }
+    }
+
+    private func performDurableAction(_ action: @escaping @MainActor () async throws -> Void) {
+        isBeginning = true
+        errorMessage = nil
+        focusedField = nil
+        Task { @MainActor in
+            defer { isBeginning = false }
+            do { try await action() }
+            catch { errorMessage = "Your changes could not be saved. Try again." }
+        }
+    }
+
     private func acknowledgementBinding(for key: String) -> Binding<Bool> {
         switch key {
         case "after_dark":
-            $editable.afterDarkAccepted
+            editableBinding.afterDarkAccepted
         case "safe_authorized_position":
-            $editable.safePositionAccepted
+            editableBinding.safePositionAccepted
         default:
             .constant(false)
         }

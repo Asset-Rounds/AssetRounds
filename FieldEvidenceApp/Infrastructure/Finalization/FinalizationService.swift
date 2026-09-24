@@ -127,6 +127,7 @@ final class FinalizationService {
     private let failureInjection: FinalizationServiceFailureInjection?
     private let operationBarrier: FinalizationServiceOperationBarrier?
     private let workspaceWriter: WorkspaceWriterV1?
+    private let liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess?
 
 #if DEBUG
     private func readbackDiagnosticFailure(
@@ -172,7 +173,8 @@ final class FinalizationService {
         failureInjection: FinalizationServiceFailureInjection? = nil,
         operationBarrier: FinalizationServiceOperationBarrier? = nil,
         expectedRootIdentity: ReportPDFAnchoredFile.RootIdentity? = nil,
-        workspaceWriter: WorkspaceWriterV1? = nil
+        workspaceWriter: WorkspaceWriterV1? = nil,
+        authorizing liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess? = nil
     ) throws {
         let root = generationRootURL.standardizedFileURL
         guard root.deletingLastPathComponent().lastPathComponent == "generations",
@@ -197,14 +199,35 @@ final class FinalizationService {
         } catch {
             throw FinalizationServiceError.invalidGeneration
         }
-        self.intentStore = FinalizationIntentStore(
-            generationRootURL: root,
-            failureInjection: intentStoreFailureInjection,
-            expectedGenerationRootIdentity: capturedRootIdentity
-        )
+        let makeIntentStore = {
+            FinalizationIntentStore(generationRootURL: root,
+                failureInjection: intentStoreFailureInjection,
+                expectedGenerationRootIdentity: capturedRootIdentity)
+        }
+        if let liveOperation {
+            guard let workspaceWriter else { throw FinalizationServiceError.preconditionFailed }
+            self.intentStore = try liveOperation.withFinalizationWriterAuthorization(workspaceWriter,
+                generationID: generationID, generationRootURL: root) {
+                try liveOperation.withFinalizationAuthorization(generationID: generationID, generationRootURL: root) {
+                    makeIntentStore()
+                }
+            }
+        } else {
+            self.intentStore = makeIntentStore()
+        }
         self.failureInjection = failureInjection
         self.operationBarrier = operationBarrier
         self.workspaceWriter = workspaceWriter
+        self.liveOperation = liveOperation
+    }
+
+    private func withLiveWriterAuthorization<T>(_ body: () throws -> T) throws -> T {
+        if let liveOperation {
+            guard let workspaceWriter else { throw FinalizationServiceError.preconditionFailed }
+            return try liveOperation.withFinalizationWriterAuthorization(workspaceWriter,
+                generationID: generationID, generationRootURL: generationRootURL, body)
+        }
+        return try body()
     }
 
     /// Read the frozen attempt through the existing replay and writer owners.
@@ -213,6 +236,7 @@ final class FinalizationService {
         _ input: FinalizationServiceInput,
         expectedWorkflowRecordRevision: UInt64? = nil
     ) throws -> ReviewedFinalizationCommitV1? {
+        try withLiveWriterAuthorization { }
         guard !modelContext.hasChanges, let workspaceWriter,
               input.evidence.count <= 2 else {
 #if DEBUG
@@ -491,6 +515,7 @@ final class FinalizationService {
         _ input: FinalizationServiceInput,
         expectedWorkflowRecordRevision: UInt64? = nil
     ) async throws -> FinalizationServiceOutcome {
+        try withLiveWriterAuthorization { }
         guard !modelContext.hasChanges, let workspaceWriter else {
             throw FinalizationServiceError.preconditionFailed
         }
@@ -531,10 +556,12 @@ final class FinalizationService {
 #if DEBUG
             journalPreparationPhase = "prepare"
 #endif
-            prepared = try await intentStore.prepare(
-                intent: commitIntent,
-                snapshot: frozen.encodedSnapshot
-            )
+            if let liveOperation {
+                prepared = try await intentStore.prepareLive(intent: commitIntent,
+                    snapshot: frozen.encodedSnapshot, authorizing: liveOperation)
+            } else {
+                prepared = try await intentStore.prepare(intent: commitIntent, snapshot: frozen.encodedSnapshot)
+            }
 #if DEBUG
             journalPreparationPhase = "root-after-prepare"
 #endif
@@ -542,7 +569,11 @@ final class FinalizationService {
 #if DEBUG
             journalPreparationPhase = "promote-snapshot"
 #endif
-            promoted = try await intentStore.promoteSnapshot(prepared)
+            if let liveOperation {
+                promoted = try await intentStore.promoteSnapshotLive(prepared, authorizing: liveOperation)
+            } else {
+                promoted = try await intentStore.promoteSnapshot(prepared)
+            }
 #if DEBUG
             journalPreparationPhase = "root-after-promotion"
 #endif
@@ -550,10 +581,12 @@ final class FinalizationService {
 #if DEBUG
             journalPreparationPhase = "advance-snapshot-promoted"
 #endif
-            snapshotPromoted = try await intentStore.advance(
-                promoted,
-                to: .snapshotPromoted
-            )
+            if let liveOperation {
+                snapshotPromoted = try await intentStore.advanceLive(promoted, to: .snapshotPromoted,
+                    authorizing: liveOperation)
+            } else {
+                snapshotPromoted = try await intentStore.advance(promoted, to: .snapshotPromoted)
+            }
 #if DEBUG
             journalPreparationPhase = "root-after-advance"
 #endif
@@ -596,16 +629,22 @@ final class FinalizationService {
             if failureInjection?.consume(.modelSave) == true {
                 throw FinalizationServiceError.saveFailed
             }
-            _ = try workspaceWriter.commitFinalization(commitBinding)
+            try withLiveWriterAuthorization {
+                _ = try workspaceWriter.commitFinalization(commitBinding)
+            }
         } catch {
             // A notification or response failure after the atomic save cannot
             // authorize removal of the committed immutable snapshot.
-            if try workspaceWriter.finalizationCommitReceipt(commitBinding) != nil {
+            if try withLiveWriterAuthorization({ try workspaceWriter.finalizationCommitReceipt(commitBinding) }) != nil {
                 throw FinalizationServiceError.cleanupFailed
             }
             do {
                 try requireFrozenRootIdentity()
-                try await intentStore.rollbackUncommitted(snapshotPromoted)
+                if let liveOperation {
+                    try await intentStore.rollbackUncommittedLive(snapshotPromoted, authorizing: liveOperation)
+                } else {
+                    try await intentStore.rollbackUncommitted(snapshotPromoted)
+                }
                 try requireFrozenRootIdentity()
             } catch {
                 throw FinalizationServiceError.cleanupFailed
@@ -619,17 +658,24 @@ final class FinalizationService {
         let committed: PromotedFinalization
         do {
             try requireFrozenRootIdentity()
-            committed = try await intentStore.advance(
-                snapshotPromoted,
-                to: .databaseCommitted
-            )
+            if let liveOperation {
+                committed = try await intentStore.advanceLive(snapshotPromoted, to: .databaseCommitted,
+                    authorizing: liveOperation)
+            } else {
+                committed = try await intentStore.advance(snapshotPromoted, to: .databaseCommitted)
+            }
             try requireFrozenRootIdentity()
-            try await intentStore.cleanupCommitted(committed)
+            if let liveOperation {
+                try await intentStore.cleanupCommittedLive(committed, authorizing: liveOperation)
+            } else {
+                try await intentStore.cleanupCommitted(committed)
+            }
             try requireFrozenRootIdentity()
         } catch {
             throw FinalizationServiceError.cleanupFailed
         }
 
+        try withLiveWriterAuthorization { }
         return FinalizationServiceOutcome(
             result: FinalizationResult(
                 recordID: input.draft.id,
@@ -651,6 +697,7 @@ final class FinalizationService {
     func finalizeCorrection(
         _ input: ReportCorrectionFinalizationInput
     ) async throws -> ReportCorrectionFinalizationOutcome {
+        guard liveOperation == nil else { throw FinalizationServiceError.preconditionFailed }
         guard !modelContext.hasChanges, let workspaceWriter else {
             throw FinalizationServiceError.preconditionFailed
         }

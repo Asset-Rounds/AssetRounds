@@ -148,6 +148,16 @@ struct CheckRunnerPhotoBackupPhysicalPlanV1: Equatable, Sendable {
             guard let member = CheckRunnerPhotoBackupMemberKeyV1(path: entry.path) else { throw failure }
             try member.validate(entry)
         }
+        if let discard = child.discardHistory {
+            // A pending cleanup can contain an interrupted subset of its original
+            // files. It is not a complete backup until that transport is qualified.
+            guard let terminal = discard.terminal,
+                  terminal.checkpoint == child.currentCheckpoint,
+                  terminal.receipt.disposedStageIDs == child.currentCheckpoint.stageIDs,
+                  owned.isEmpty, child.target == nil, child.committingCheckpoint == nil else { throw failure }
+            return .init(childDraftID: childID, stageID: stageID, physicalEntry: nil,
+                         pairLocation: .absent, immutableRawPath: nil, entries: [])
+        }
         guard let raw = child.raw else {
             guard case .awaitingRawStage = payload.phase, owned.isEmpty,
                   child.currentStage == nil, child.pair == nil, child.target == nil else { throw failure }

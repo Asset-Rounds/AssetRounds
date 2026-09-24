@@ -48,6 +48,37 @@ final class StartupMediaRecoveryAuthorityV1 {
     }
 }
 
+/// Only the router can mint this capability for its unpublished startup writer.
+@MainActor
+final class StartupPrivatePreparationAuthorityV1 {
+    let generationRootURL: URL
+    let rootIdentity: ReportPDFAnchoredFile.RootIdentity
+    private let validate: @MainActor () throws -> Void
+    private var publishing = false
+
+    fileprivate init(generationRootURL: URL, rootIdentity: ReportPDFAnchoredFile.RootIdentity,
+        validate: @escaping @MainActor () throws -> Void) {
+        self.generationRootURL = generationRootURL; self.rootIdentity = rootIdentity; self.validate = validate
+    }
+
+    func validatePreparation() throws -> (root: URL, identity: ReportPDFAnchoredFile.RootIdentity) {
+        try validate()
+        return (generationRootURL, rootIdentity)
+    }
+
+    func revalidateCleanup() throws {
+        guard publishing else { throw StartupMaintenanceReason.finalizationInconsistent }
+        try validate()
+    }
+
+    fileprivate func publish(_ prepared: FinalizationIntentStore.StartupPrivateRetirement) throws {
+        guard !publishing else { throw StartupMaintenanceReason.finalizationInconsistent }
+        publishing = true
+        defer { publishing = false }
+        try prepared.finish(authority: self)
+    }
+}
+
 enum StartupMaintenanceReason: String, CaseIterable, Error, Sendable {
     case dataPointerInvalid = "data_pointer_invalid"
     case dataGenerationMissing = "data_generation_missing"
@@ -224,6 +255,7 @@ final class StartupRouter: ObservableObject {
 #if DEBUG
     /// Test observation after read-only preparation, before final authorization.
     var beforeCurrentMediaCleanupForTesting: (@MainActor (ModelContext) async throws -> Void)?
+    var beforePrivatePreparationCleanupForTesting: (@MainActor (ModelContext) async throws -> Void)?
 #endif
     private enum StartupAuthorization {
         case content(AppAccessGateV1, AppAccessGateV1.ContentReadToken)
@@ -925,6 +957,7 @@ final class StartupRouter: ObservableObject {
             unpublishedOwner = owner
             operationOwnedWriter = owner
             do {
+                try await retireCurrentPrivatePreparations(session: session, operation: operation, owner: owner)
                 _ = try await FinalizationRecoveryService(
                     modelContext: session.modelContext,
                     generationRootURL: session.generationRootURL,
@@ -2166,6 +2199,7 @@ final class StartupRouter: ObservableObject {
             operationOwnedWriter = owner
 
             do {
+                try await retireCurrentPrivatePreparations(session: session, operation: operation, owner: owner)
                 _ = try await FinalizationRecoveryService(
                     modelContext: session.modelContext,
                     generationRootURL: session.generationRootURL,
@@ -2275,6 +2309,40 @@ final class StartupRouter: ObservableObject {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
         return .init(revision: revision, authorities: authorities, photos: photos)
+    }
+
+    private func retireCurrentPrivatePreparations(session: StoreGenerationSession, operation: UUID,
+        owner: OwnedWriter) async throws {
+        try await requireCurrentOperationAndAccess(operation, owner: owner)
+        let originalAuthorization = operationAuthorization
+        let revision = try owner.writer.currentRevision()
+        let rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: session.generationRootURL)
+        let authority = StartupPrivatePreparationAuthorityV1(generationRootURL: session.generationRootURL,
+            rootIdentity: rootIdentity) {
+            try self.requireCurrentOperation(operation, owner: owner)
+            guard self.operationOwnedWriter?.writer === owner.writer,
+                  self.publishedWriter?.writer !== owner.writer,
+                  !session.modelContext.hasChanges,
+                  try owner.writer.currentRevision() == revision else {
+                throw StartupMaintenanceReason.finalizationInconsistent
+            }
+        }
+        let store = FinalizationIntentStore(generationRootURL: session.generationRootURL,
+            expectedGenerationRootIdentity: rootIdentity)
+        let prepared = try await store.prepareStartupPrivateRetirement(authority: authority)
+#if DEBUG
+        try await beforePrivatePreparationCleanupForTesting?(session.modelContext)
+#endif
+        try await requireCurrentOperationAndAccess(operation, owner: owner)
+        let publish = {
+            try owner.coordinator.withCheckRunnerPhotoPublication(expectedWriter: owner.writer,
+                applicationSupportURL: self.applicationSupportURL) {
+                try self.requireCurrentOperation(operation, owner: owner)
+                try authority.publish(prepared)
+            }
+        }
+        if let originalAuthorization { try originalAuthorization.withMediaRecovery(publish) }
+        else { try publish() }
     }
 
     private func recoverCurrentMedia(session: StoreGenerationSession, operation: UUID,

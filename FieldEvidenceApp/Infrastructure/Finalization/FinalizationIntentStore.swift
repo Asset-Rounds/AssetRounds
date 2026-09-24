@@ -199,6 +199,8 @@ actor FinalizationIntentStore {
     private let authorityResult: Result<PinnedAuthority, FinalizationIntentStoreError>
     private let failureInjection: FinalizationIntentStoreFailureInjection?
     private let authorityBarrier: FinalizationIntentStoreAuthorityBarrier?
+    private var liveMutationInFlight = false
+    private var livePrivatePreparations: [LivePrivatePreparation] = []
 
     private final class MutationProgress {
         var didMutateLeaf = false
@@ -468,6 +470,425 @@ actor FinalizationIntentStore {
                 snapshotSHA256: recovery.intent.snapshotSHA256
             )
         )
+    }
+
+    /// The live path reserves the actor across its MainActor publication hop.
+    /// Legacy/recovery entries fail closed until that operation returns.
+    final class StartupPrivateRetirement: @unchecked Sendable {
+        private let authority: StartupPrivatePreparationAuthorityV1
+        private let body: @MainActor () throws -> Void
+        private let consumption = NSLock()
+        private var consumed = false
+
+        fileprivate init(authority: StartupPrivatePreparationAuthorityV1,
+            body: @escaping @MainActor () throws -> Void) {
+            self.authority = authority; self.body = body
+        }
+
+        @MainActor
+        func finish(authority expected: StartupPrivatePreparationAuthorityV1) throws {
+            guard authority === expected, consumption.try() else { throw FinalizationIntentStoreError.notOwned }
+            defer { consumption.unlock() }
+            guard !consumed else { throw FinalizationIntentStoreError.notOwned }
+            consumed = true
+            try authority.revalidateCleanup()
+            try body()
+        }
+    }
+
+    /// Startup alone supplies the unpublished writer capability. Generic
+    /// finalization discovery/reconciliation never invokes this disposal route.
+    func prepareStartupPrivateRetirement(authority startup: StartupPrivatePreparationAuthorityV1) async throws
+        -> StartupPrivateRetirement {
+        try await withLiveMutation {
+            let binding = try await startup.validatePreparation()
+            let authority = try requireAuthority(allowLiveMutation: true)
+            guard binding.root.standardizedFileURL == authority.liveGenerationRootURL,
+                  try ReportPDFAnchoredFile.rootIdentity(at: binding.root) == binding.identity else {
+                throw FinalizationIntentStoreError.generationRootInvalid
+            }
+            try authority.verify()
+            var leaves: [StartupPrivateLeaf] = []
+            for atRoot in [false, true] {
+                let parent = atRoot ? authority.generationDescriptor : authority.stagingSnapshotsDescriptor
+                let prefix = atRoot ? ".immutable-" : ".live-finalization-"
+                for name in try LivePrivatePreparation.names(in: parent) where name.hasPrefix(prefix) {
+                    try Task.checkCancellation()
+                    guard LivePrivatePreparation.isReservedName(name, prefix: prefix),
+                          let info = try authority.itemInfo(parent: parent, name: name),
+                          PinnedAuthority.isRegular(info), info.st_nlink == 1 else {
+                        throw FinalizationIntentStoreError.itemTypeInvalid
+                    }
+                    let components = atRoot ? [name] : [".staging", "snapshots", name]
+                    let url = try authority.generationFileURL(components: components)
+                    var policy: OwnedFileKindV1 = atRoot ? .temporaryFile : .stagingFile
+                    if !atRoot {
+                        do { try authority.verifyRegularFilePolicy(policy, parent: parent, name: name, policyURL: url) }
+                        catch {
+                            // Rollback may have moved an immutable final snapshot
+                            // to a private name before the process stopped.
+                            policy = .reportSnapshot
+                            try authority.verifyRegularFilePolicy(policy, parent: parent, name: name, policyURL: url)
+                        }
+                    }
+                    leaves.append(try StartupPrivateLeaf(authority: authority, parent: parent,
+                        name: name, url: url, policy: policy, facts: info))
+                }
+            }
+            let retained = leaves
+            return StartupPrivateRetirement(authority: startup) {
+                try startup.revalidateCleanup()
+                for leaf in retained { try leaf.verifyNamed() }
+                for leaf in retained {
+                    try startup.revalidateCleanup()
+                    try Self.retirePreparedStartupPrivateLeaf(leaf, authority: startup)
+                }
+            }
+        }
+    }
+
+    @MainActor
+    private static func retirePreparedStartupPrivateLeaf(_ leaf: StartupPrivateLeaf,
+        authority startup: StartupPrivatePreparationAuthorityV1) throws {
+        let prefix = leaf.parent == leaf.authority.generationDescriptor ? ".immutable-" : ".live-finalization-"
+        guard LivePrivatePreparation.isReservedName(leaf.name, prefix: prefix) else {
+            throw FinalizationIntentStoreError.notOwned
+        }
+        try Task.checkCancellation()
+        try leaf.withPinnedDescriptor { descriptor in
+            try startup.revalidateCleanup()
+            let quarantine = "\(prefix)\(UUID().uuidString.lowercased()).tmp"
+            guard Darwin.renameatx_np(leaf.parent, leaf.name, leaf.parent, quarantine, UInt32(RENAME_EXCL)) == 0 else {
+                throw FinalizationIntentStoreError.fileOperationFailed
+            }
+            do {
+                var moved = stat()
+                guard Darwin.fstat(descriptor, &moved) == 0 else { throw FinalizationIntentStoreError.fileOperationFailed }
+                try leaf.verify(descriptor: descriptor, name: quarantine, expectedChangeTime: moved.st_ctimespec)
+                try startup.revalidateCleanup()
+                guard Darwin.unlinkat(leaf.parent, quarantine, 0) == 0, Darwin.fsync(leaf.parent) == 0 else {
+                    throw FinalizationIntentStoreError.fileOperationFailed
+                }
+            } catch {
+                _ = Darwin.renameatx_np(leaf.parent, quarantine, leaf.parent, leaf.name, UInt32(RENAME_EXCL))
+                _ = Darwin.fsync(leaf.parent)
+                throw error
+            }
+        }
+    }
+
+    /// Startup discards private preparation regardless of its payload. Retain
+    /// only metadata across the access hop, not unbounded Data or one FD per file.
+    /// Canonical/live publication continues to use its byte-verified leaf below.
+    private final class StartupPrivateLeaf: @unchecked Sendable {
+        let authority: PinnedAuthority
+        let parent: Int32
+        let name: String
+        let url: URL
+        let policy: OwnedFileKindV1
+        let facts: stat
+
+        init(authority: PinnedAuthority, parent: Int32, name: String, url: URL,
+             policy: OwnedFileKindV1, facts: stat) throws {
+            self.authority = authority; self.parent = parent; self.name = name
+            self.url = url; self.policy = policy; self.facts = facts
+            try verifyNamed()
+        }
+
+        func verifyNamed() throws { try withPinnedDescriptor { _ in } }
+
+        func withPinnedDescriptor<T>(_ body: (Int32) throws -> T) throws -> T {
+            try Task.checkCancellation()
+            try authority.verify()
+            let descriptor = Darwin.openat(parent, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW)
+            guard descriptor >= 0 else { throw FinalizationIntentStoreError.itemMissing }
+            defer { _ = Darwin.close(descriptor) }
+            try verify(descriptor: descriptor, name: name)
+            return try body(descriptor)
+        }
+
+        func verify(descriptor: Int32, name: String, expectedChangeTime: timespec? = nil) throws {
+            try authority.verify()
+            var opened = stat(), named = stat()
+            guard Darwin.fstat(descriptor, &opened) == 0,
+                  Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0 else {
+                throw FinalizationIntentStoreError.notOwned
+            }
+            let changeTime = expectedChangeTime ?? facts.st_ctimespec
+            for observed in [opened, named] {
+                guard PinnedAuthority.isRegular(observed), observed.st_nlink == 1,
+                      observed.st_dev == facts.st_dev, observed.st_ino == facts.st_ino,
+                      observed.st_size == facts.st_size,
+                      observed.st_mtimespec.tv_sec == facts.st_mtimespec.tv_sec,
+                      observed.st_mtimespec.tv_nsec == facts.st_mtimespec.tv_nsec,
+                      observed.st_ctimespec.tv_sec == changeTime.tv_sec,
+                      observed.st_ctimespec.tv_nsec == changeTime.tv_nsec else {
+                    throw FinalizationIntentStoreError.notOwned
+                }
+            }
+            try authority.verifyRegularFilePolicy(policy, parent: parent, name: name,
+                policyURL: url.deletingLastPathComponent().appendingPathComponent(name))
+        }
+    }
+
+    func prepareLive(intent: FinalizationIntentV1, snapshot: EncodedReportSnapshotV1,
+        authorizing operation: AppAccessPresentationV1.CheckRunnerItemOperationAccess) async throws
+        -> PreparedFinalization {
+        return try await withLiveMutation {
+            let authority = try requireAuthority(allowLiveMutation: true)
+            try await Self.validateLiveGeneration(authority, operation: operation)
+            let paths = try validatedPaths(for: intent)
+            guard intent.generationID == authority.generationID, intent.phase == .prepared,
+                  [1, 2].contains(intent.schemaVersion), intent.snapshotSHA256 == snapshot.sha256,
+                  sha256(snapshot.data) == snapshot.sha256 else { throw FinalizationIntentStoreError.intentInvalid }
+            guard case nil = try authority.itemInfo(parent: authority.finalizationDescriptor, name: paths.intentName),
+                  case nil = try itemInfo(components: paths.stagingComponents, authority: authority),
+                  case nil = try itemInfo(components: paths.finalComponents, authority: authority) else {
+                throw FinalizationIntentStoreError.itemAlreadyExists
+            }
+            guard failureInjection?.consume(.snapshotStagingWrite) != true,
+                  failureInjection?.consume(.intentPhaseWrite(.prepared)) != true else {
+                throw FinalizationIntentStoreError.fileOperationFailed
+            }
+            let snapshotLeaf = try preparePrivateLiveLeaf(snapshot.data, policy: .stagingFile, authority: authority)
+            let intentLeaf = try preparePrivateLiveLeaf(encodedIntent(intent).data, policy: .journal, authority: authority)
+            let intentMove = try LivePreparedMove(source: intentLeaf, destinationParent: authority.finalizationDescriptor,
+                destinationName: paths.intentName, destinationURL: authority.finalizationFileURL(name: paths.intentName),
+                destinationPolicy: .journal, operation: operation, barrier: authorityBarrier)
+            let snapshotMove = try LivePreparedMove(source: snapshotLeaf, destinationParent: authority.stagingSnapshotsDescriptor,
+                destinationName: paths.stagingComponents.last!,
+                destinationURL: authority.generationFileURL(components: paths.stagingComponents),
+                destinationPolicy: .stagingFile, operation: operation, barrier: authorityBarrier)
+            // Publishing the journal first leaves a recognized prepared intent if
+            // snapshot publication fails. Recovery already handles a missing snapshot.
+            try await Self.publishLivePreparation(intent: intentMove, snapshot: snapshotMove, operation: operation)
+            let prepared = PreparedFinalization(intent: intent, intentRelativePath: paths.intentRelativePath,
+                snapshotStagingRelativePath: intent.snapshotStagingRelativePath,
+                snapshotFinalRelativePath: intent.snapshotFinalRelativePath,
+                snapshotByteCount: snapshot.data.count, snapshotSHA256: snapshot.sha256)
+            try verifyHandle(prepared, paths: paths, authority: authority)
+            return prepared
+        }
+    }
+
+    @MainActor
+    private static func validateLiveGeneration(_ authority: PinnedAuthority,
+        operation: AppAccessPresentationV1.CheckRunnerItemOperationAccess) throws {
+        try operation.withFinalizationAuthorization(generationID: authority.generationID,
+            generationRootURL: authority.liveGenerationRootURL) { try authority.verify() }
+    }
+
+    @MainActor
+    private static func publishLivePreparation(intent: LivePreparedMove, snapshot: LivePreparedMove,
+        operation: AppAccessPresentationV1.CheckRunnerItemOperationAccess) throws {
+#if DEBUG
+        try operation.beforeFinalizationPreparationPublicationForTesting?()
+#endif
+        try operation.withAuthorization {
+            try intent.perform(authorizing: operation)
+            try intent.verifyPublished()
+            try snapshot.perform(authorizing: operation)
+            try intent.verifyPublished()
+            try snapshot.verifyPublished()
+        }
+    }
+
+    func promoteSnapshotLive(_ prepared: PreparedFinalization,
+        authorizing operation: AppAccessPresentationV1.CheckRunnerItemOperationAccess) async throws
+        -> PromotedFinalization {
+        return try await withLiveMutation {
+            let authority = try requireAuthority(allowLiveMutation: true)
+            try await Self.validateLiveGeneration(authority, operation: operation)
+            let paths = try validatedPaths(for: prepared.intent)
+            try verifyHandle(prepared, paths: paths, authority: authority)
+            guard prepared.intent.phase == .prepared else { throw FinalizationIntentStoreError.phaseInvalid }
+            guard failureInjection?.consume(.snapshotPromotionMove) != true else {
+                // The valid prepared journal remains recoverable. No unguarded
+                // catch-path deletion is permitted on a live operation.
+                throw FinalizationIntentStoreError.fileOperationFailed
+            }
+            let encoded = try encodedIntent(prepared.intent)
+            let intentLeaf = try LivePreparedLeaf(authority: authority, parent: authority.finalizationDescriptor,
+                name: paths.intentName, url: authority.finalizationFileURL(name: paths.intentName),
+                policy: .journal, expectedCount: encoded.data.count, expectedSHA256: sha256(encoded.data),
+                expectedData: encoded.data)
+            let snapshotLeaf = try LivePreparedLeaf(authority: authority, parent: authority.stagingSnapshotsDescriptor,
+                name: paths.stagingComponents.last!, url: authority.generationFileURL(components: paths.stagingComponents),
+                policy: .stagingFile, expectedCount: prepared.snapshotByteCount, expectedSHA256: prepared.snapshotSHA256)
+            let move = try LivePreparedMove(source: snapshotLeaf, destinationParent: authority.snapshotsDescriptor,
+                destinationName: paths.finalComponents.last!, destinationURL: authority.generationFileURL(components: paths.finalComponents),
+                destinationPolicy: .reportSnapshot, operation: operation, barrier: authorityBarrier,
+                dependencies: [intentLeaf])
+            try await move.perform(authorizing: operation)
+            let promoted = PromotedFinalization(intent: prepared.intent, intentRelativePath: prepared.intentRelativePath,
+                snapshotStagingRelativePath: prepared.snapshotStagingRelativePath,
+                snapshotFinalRelativePath: prepared.snapshotFinalRelativePath,
+                snapshotByteCount: prepared.snapshotByteCount, snapshotSHA256: prepared.snapshotSHA256)
+            try verifyPromotedHandle(promoted, paths: paths, authority: authority)
+            return promoted
+        }
+    }
+
+    func advanceLive(_ promoted: PromotedFinalization, to phase: FinalizationPhaseV1,
+        authorizing operation: AppAccessPresentationV1.CheckRunnerItemOperationAccess) async throws
+        -> PromotedFinalization {
+        return try await withLiveMutation {
+            let authority = try requireAuthority(allowLiveMutation: true)
+            try await Self.validateLiveGeneration(authority, operation: operation)
+            let paths = try validatedPaths(for: promoted.intent)
+            try verifyPromotedHandle(promoted, paths: paths, authority: authority)
+            let expectedPhase: FinalizationPhaseV1
+            switch promoted.intent.phase {
+            case .prepared: expectedPhase = .snapshotPromoted
+            case .snapshotPromoted: expectedPhase = .databaseCommitted
+            case .databaseCommitted: throw FinalizationIntentStoreError.phaseInvalid
+            }
+            guard phase == expectedPhase else { throw FinalizationIntentStoreError.phaseInvalid }
+            guard failureInjection?.consume(.intentPhaseWrite(phase)) != true else {
+                throw FinalizationIntentStoreError.fileOperationFailed
+            }
+            return try await replaceLivePhase(promoted, to: phase, paths: paths, authority: authority,
+                operation: operation)
+        }
+    }
+
+    private func replaceLivePhase(_ promoted: PromotedFinalization, to phase: FinalizationPhaseV1,
+        paths: Paths, authority: PinnedAuthority,
+        operation: AppAccessPresentationV1.CheckRunnerItemOperationAccess,
+        rollbackMutationID: UUID? = nil) async throws -> PromotedFinalization {
+        let advanced = promoted.intent.withPhase(phase)
+        let old = try encodedIntent(promoted.intent), new = try encodedIntent(advanced)
+        let journal = try LivePreparedLeaf(authority: authority, parent: authority.finalizationDescriptor,
+            name: paths.intentName, url: authority.finalizationFileURL(name: paths.intentName),
+            policy: .journal, expectedCount: old.data.count, expectedSHA256: sha256(old.data), expectedData: old.data)
+        let snapshot = try LivePreparedLeaf(authority: authority, parent: authority.snapshotsDescriptor,
+            name: paths.finalComponents.last!, url: authority.generationFileURL(components: paths.finalComponents),
+            policy: .reportSnapshot, expectedCount: promoted.snapshotByteCount, expectedSHA256: promoted.snapshotSHA256)
+        let candidate = try preparePrivateLiveLeaf(new.data, policy: .journal, authority: authority)
+        livePrivatePreparations.append(.init(authority: authority, name: candidate.name,
+            identity: .init(device: journal.facts.st_dev, inode: journal.facts.st_ino),
+            data: journal.verifiedData, policy: .journal))
+        let replacement = try LivePreparedReplacement(original: journal, candidate: candidate,
+            dependencies: [snapshot], operation: operation, barrier: authorityBarrier,
+            rollbackMutationID: rollbackMutationID)
+        try await replacement.perform(authorizing: operation)
+        let result = PromotedFinalization(intent: advanced, intentRelativePath: promoted.intentRelativePath,
+            snapshotStagingRelativePath: promoted.snapshotStagingRelativePath,
+            snapshotFinalRelativePath: promoted.snapshotFinalRelativePath,
+            snapshotByteCount: promoted.snapshotByteCount, snapshotSHA256: promoted.snapshotSHA256)
+        try verifyPromotedHandle(result, paths: paths, authority: authority)
+        return result
+    }
+
+    func cleanupCommittedLive(_ committed: PromotedFinalization,
+        authorizing operation: AppAccessPresentationV1.CheckRunnerItemOperationAccess) async throws {
+        return try await withLiveMutation {
+            guard committed.intent.phase == .databaseCommitted,
+                  let binding = committed.intent.writerCommitBinding else { throw FinalizationIntentStoreError.phaseInvalid }
+            let authority = try requireAuthority(allowLiveMutation: true)
+            try await Self.validateLiveGeneration(authority, operation: operation)
+            let paths = try validatedPaths(for: committed.intent)
+            try verifyPromotedHandle(committed, paths: paths, authority: authority)
+            let journal = try pinLiveJournal(committed.intent, paths: paths, authority: authority)
+            guard let snapshot = try pinLiveSnapshotIfPresent(committed, staged: false, paths: paths, authority: authority) else {
+                throw FinalizationIntentStoreError.notOwned
+            }
+            var removals: [LivePreparedRemoval] = []
+            var absences: [LivePreparedAbsence] = []
+            if let staged = try pinLiveSnapshotIfPresent(committed, staged: true, paths: paths, authority: authority) {
+                removals.append(makeLiveRemoval(source: staged, dependencies: [journal, snapshot], operation: operation,
+                    mutationID: committed.intent.finalizationMutationID, committedBinding: binding, barrier: authorityBarrier))
+            } else {
+                absences.append(.init(authority: authority, parent: authority.stagingSnapshotsDescriptor,
+                    name: paths.stagingComponents.last!))
+            }
+            removals.append(makeLiveRemoval(source: journal, dependencies: [snapshot], operation: operation,
+                mutationID: committed.intent.finalizationMutationID, committedBinding: binding, barrier: authorityBarrier))
+            try await Self.performLiveRemovals(removals, initialAbsences: absences, operation: operation)
+            // The immutable final snapshot is never included in committed cleanup.
+            try verifyRegularFile(components: paths.finalComponents, expectedByteCount: committed.snapshotByteCount,
+                expectedSHA256: committed.snapshotSHA256, authority: authority)
+        }
+    }
+
+    func rollbackUncommittedLive(_ promoted: PromotedFinalization,
+        authorizing operation: AppAccessPresentationV1.CheckRunnerItemOperationAccess) async throws {
+        return try await withLiveMutation {
+            guard promoted.intent.phase != .databaseCommitted else { throw FinalizationIntentStoreError.phaseInvalid }
+            let authority = try requireAuthority(allowLiveMutation: true)
+            try await Self.validateLiveGeneration(authority, operation: operation)
+            let paths = try validatedPaths(for: promoted.intent)
+            try verifyPromotedHandle(promoted, paths: paths, authority: authority)
+            var rollback = promoted
+            if promoted.intent.phase == .snapshotPromoted {
+                // Existing recovery can abandon a prepared intent with no snapshots.
+                // Restore that phase before any deletions, so interrupted rollback
+                // does not leave a snapshot-promoted journal naming missing bytes.
+                rollback = try await replaceLivePhase(promoted, to: .prepared, paths: paths, authority: authority,
+                    operation: operation, rollbackMutationID: promoted.intent.finalizationMutationID)
+            }
+            let journal = try pinLiveJournal(rollback.intent, paths: paths, authority: authority)
+            var removals: [LivePreparedRemoval] = []
+            var absences: [LivePreparedAbsence] = []
+            for staged in [false, true] {
+                if let leaf = try pinLiveSnapshotIfPresent(rollback, staged: staged, paths: paths, authority: authority) {
+                    removals.append(makeLiveRemoval(source: leaf, dependencies: [journal], operation: operation,
+                        mutationID: rollback.intent.finalizationMutationID, committedBinding: nil, barrier: authorityBarrier))
+                } else {
+                    absences.append(.init(authority: authority,
+                        parent: staged ? authority.stagingSnapshotsDescriptor : authority.snapshotsDescriptor,
+                        name: (staged ? paths.stagingComponents : paths.finalComponents).last!))
+                }
+            }
+            removals.append(makeLiveRemoval(source: journal, dependencies: [], operation: operation,
+                mutationID: rollback.intent.finalizationMutationID, committedBinding: nil, barrier: authorityBarrier))
+            try await Self.performLiveRemovals(removals, initialAbsences: absences, operation: operation)
+        }
+    }
+
+    private func makeLiveRemoval(source: LivePreparedLeaf, dependencies: [LivePreparedLeaf],
+        operation: AppAccessPresentationV1.CheckRunnerItemOperationAccess, mutationID: UUID,
+        committedBinding: FinalizationWriterCommitBindingV1?, barrier: FinalizationIntentStoreAuthorityBarrier?)
+        -> LivePreparedRemoval {
+        let name = ".live-finalization-\(UUID().uuidString.lowercased()).tmp"
+        livePrivatePreparations.append(.init(authority: source.authority, name: name,
+            identity: .init(device: source.facts.st_dev, inode: source.facts.st_ino),
+            data: source.verifiedData, policy: source.policy))
+        return .init(source: source, dependencies: dependencies, operation: operation,
+            mutationID: mutationID, committedBinding: committedBinding, barrier: barrier, privateName: name)
+    }
+
+    private func pinLiveJournal(_ intent: FinalizationIntentV1, paths: Paths,
+        authority: PinnedAuthority) throws -> LivePreparedLeaf {
+        let encoded = try encodedIntent(intent)
+        return try LivePreparedLeaf(authority: authority, parent: authority.finalizationDescriptor,
+            name: paths.intentName, url: authority.finalizationFileURL(name: paths.intentName),
+            policy: .journal, expectedCount: encoded.data.count, expectedSHA256: sha256(encoded.data),
+            expectedData: encoded.data)
+    }
+
+    private func pinLiveSnapshotIfPresent(_ promoted: PromotedFinalization, staged: Bool,
+        paths: Paths, authority: PinnedAuthority) throws -> LivePreparedLeaf? {
+        let components = staged ? paths.stagingComponents : paths.finalComponents
+        let parent = staged ? authority.stagingSnapshotsDescriptor : authority.snapshotsDescriptor
+        if case nil = try authority.itemInfo(parent: parent, name: components.last!) { return nil }
+        return try LivePreparedLeaf(authority: authority, parent: parent, name: components.last!,
+            url: authority.generationFileURL(components: components), policy: staged ? .stagingFile : .reportSnapshot,
+            expectedCount: promoted.snapshotByteCount, expectedSHA256: promoted.snapshotSHA256)
+    }
+
+    @MainActor
+    private static func performLiveRemovals(_ removals: [LivePreparedRemoval],
+        initialAbsences: [LivePreparedAbsence],
+        operation: AppAccessPresentationV1.CheckRunnerItemOperationAccess) throws {
+        try operation.withAuthorization {
+            var absences = initialAbsences
+            for removal in removals {
+                try removal.perform(authorizing: operation, expectedAbsences: absences)
+                absences.append(removal.sourceAbsence)
+            }
+            for absence in absences { try absence.verify() }
+        }
     }
 
     func prepare(
@@ -1206,9 +1627,32 @@ actor FinalizationIntentStore {
 
     private func requireProducerAuthority() throws {
         guard sourceMutationGuard == nil else { throw FinalizationIntentStoreError.generationRootInvalid }
+        guard !liveMutationInFlight else { throw FinalizationIntentStoreError.fileOperationFailed }
     }
 
-    private func requireAuthority() throws -> PinnedAuthority {
+    private func withLiveMutation<Value: Sendable>(_ body: () async throws -> Value) async throws -> Value {
+        try beginLiveMutation()
+        defer {
+            livePrivatePreparations.removeAll()
+            liveMutationInFlight = false
+        }
+        let result: Result<Value, Error>
+        do { result = .success(try await body()) }
+        catch { result = .failure(error) }
+        // Disposal is actor-owned preparation work, even if live authority has
+        // retired. It can touch only registered private names and exact bytes.
+        try LivePrivatePreparation.dispose(livePrivatePreparations)
+        return try result.get()
+    }
+
+    private func beginLiveMutation() throws {
+        try Task.checkCancellation()
+        try requireProducerAuthority()
+        liveMutationInFlight = true
+    }
+
+    private func requireAuthority(allowLiveMutation: Bool = false) throws -> PinnedAuthority {
+        guard allowLiveMutation || !liveMutationInFlight else { throw FinalizationIntentStoreError.fileOperationFailed }
         let authority: PinnedAuthority
         switch authorityResult {
         case .success(let value):
@@ -1242,6 +1686,490 @@ actor FinalizationIntentStore {
         (error as? FinalizationIntentStoreError) ?? .fileOperationFailed
     }
 
+    /// An exact-byte observation made on the store actor, retained through the
+    /// later live publication fence. No bytes are read by verifyNamed.
+    private struct LivePrivatePreparation {
+        let authority: PinnedAuthority
+        let name: String
+        let identity: PinnedAuthority.Identity
+        let data: Data
+        let policy: OwnedFileKindV1
+
+        static func isReservedName(_ name: String, prefix: String = ".live-finalization-") -> Bool {
+            let suffix = ".tmp"
+            guard name.hasPrefix(prefix), name.hasSuffix(suffix) else { return false }
+            let raw = String(name.dropFirst(prefix.count).dropLast(suffix.count))
+            return UUID(uuidString: raw)?.uuidString.lowercased() == raw
+        }
+
+        static func names(in parent: Int32) throws -> [String] {
+            let fd = Darwin.openat(parent, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            guard fd >= 0, let directory = Darwin.fdopendir(fd) else {
+                if fd >= 0 { _ = Darwin.close(fd) }
+                throw FinalizationIntentStoreError.fileOperationFailed
+            }
+            defer { _ = Darwin.closedir(directory) }
+            var names: [String] = []
+            errno = 0
+            while let entry = Darwin.readdir(directory) {
+                var tuple = entry.pointee.d_name
+                let capacity = MemoryLayout.size(ofValue: tuple)
+                let name = withUnsafePointer(to: &tuple) { pointer in
+                    pointer.withMemoryRebound(to: CChar.self, capacity: capacity) { String(cString: $0) }
+                }
+                if name != "." && name != ".." { names.append(name) }
+                errno = 0
+            }
+            guard errno == 0 else { throw FinalizationIntentStoreError.fileOperationFailed }
+            return names.sorted()
+        }
+
+        static func dispose(_ preparations: [Self]) throws {
+            for group in Dictionary(grouping: preparations, by: \.name).values {
+                guard let first = group.first, isReservedName(first.name),
+                      group.allSatisfy({ $0.authority === first.authority }) else {
+                    throw FinalizationIntentStoreError.notOwned
+                }
+                let authority = first.authority, parent = authority.stagingSnapshotsDescriptor
+                try authority.verify()
+                guard let info = try authority.itemInfo(parent: parent, name: first.name) else { continue }
+                guard PinnedAuthority.isRegular(info), info.st_nlink == 1 else {
+                    throw FinalizationIntentStoreError.itemTypeInvalid
+                }
+                let original = try authority.readRegularFile(parent: parent, name: first.name)
+                guard let owned = group.first(where: { $0.identity == original.identity && $0.data == original.data }) else {
+                    throw FinalizationIntentStoreError.notOwned
+                }
+                try owned.disposeObservedPrivateLeaf()
+            }
+        }
+
+        private func verify(at name: String) throws {
+            try authority.verify()
+            let parent = authority.stagingSnapshotsDescriptor
+            guard Self.isReservedName(name),
+                  let info = try authority.itemInfo(parent: parent, name: name),
+                  PinnedAuthority.isRegular(info), info.st_nlink == 1 else {
+                throw FinalizationIntentStoreError.itemTypeInvalid
+            }
+            let observed = try authority.readRegularFile(parent: parent, name: name)
+            guard observed.identity == identity, observed.data == data else {
+                throw FinalizationIntentStoreError.notOwned
+            }
+            try authority.verifyRegularFilePolicy(policy, parent: parent, name: name,
+                policyURL: authority.generationFileURL(components: [".staging", "snapshots", name]))
+        }
+
+        private func disposeObservedPrivateLeaf() throws {
+            try verify(at: name)
+            let parent = authority.stagingSnapshotsDescriptor
+            let quarantine = ".live-finalization-\(UUID().uuidString.lowercased()).tmp"
+            guard Darwin.renameatx_np(parent, name, parent, quarantine, UInt32(RENAME_EXCL)) == 0 else {
+                throw FinalizationIntentStoreError.fileOperationFailed
+            }
+            do {
+                try verify(at: quarantine)
+                guard Darwin.unlinkat(parent, quarantine, 0) == 0, Darwin.fsync(parent) == 0 else {
+                    throw FinalizationIntentStoreError.fileOperationFailed
+                }
+            } catch {
+                // Both names are private. Never restore into a canonical path
+                // or overwrite a leaf that appeared after preparation.
+                _ = Darwin.renameatx_np(parent, quarantine, parent, name, UInt32(RENAME_EXCL))
+                _ = Darwin.fsync(parent)
+                throw error
+            }
+        }
+    }
+
+    private final class LivePreparedLeaf: @unchecked Sendable {
+        let authority: PinnedAuthority
+        let parent: Int32
+        let name: String
+        let url: URL
+        let policy: OwnedFileKindV1
+        let descriptor: Int32
+        let facts: stat
+        let verifiedData: Data
+
+        init(authority: PinnedAuthority, parent: Int32, name: String, url: URL,
+             policy: OwnedFileKindV1, expectedCount: Int, expectedSHA256: String,
+             expectedData: Data? = nil) throws {
+            try Task.checkCancellation()
+            try authority.verify()
+            let fd = Darwin.openat(parent, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW)
+            guard fd >= 0 else { throw FinalizationIntentStoreError.itemMissing }
+            var transferred = false
+            defer { if !transferred { _ = Darwin.close(fd) } }
+            var before = stat()
+            guard Darwin.fstat(fd, &before) == 0, PinnedAuthority.isRegular(before),
+                  before.st_nlink == 1, before.st_size == Int64(expectedCount) else {
+                throw FinalizationIntentStoreError.bytesMismatch
+            }
+            try authority.verifyRegularFilePolicy(policy, parent: parent, name: name, policyURL: url)
+            let read = try authority.readRegularFile(parent: parent, name: name)
+            guard read.identity == PinnedAuthority.Identity(device: before.st_dev, inode: before.st_ino),
+                  read.data.count == expectedCount,
+                  SHA256.hash(data: read.data).map({ String(format: "%02x", $0) }).joined() == expectedSHA256,
+                  expectedData.map({ $0 == read.data }) ?? true else {
+                throw FinalizationIntentStoreError.bytesMismatch
+            }
+            var after = stat()
+            guard Darwin.fstat(fd, &after) == 0,
+                  let named = try authority.itemInfo(parent: parent, name: name),
+                  PinnedAuthority.isRegular(after), after.st_nlink == 1,
+                  PinnedAuthority.isRegular(named), named.st_nlink == 1,
+                  after.st_dev == before.st_dev, after.st_ino == before.st_ino,
+                  named.st_dev == before.st_dev, named.st_ino == before.st_ino,
+                  after.st_size == before.st_size,
+                  after.st_mtimespec.tv_sec == before.st_mtimespec.tv_sec,
+                  after.st_mtimespec.tv_nsec == before.st_mtimespec.tv_nsec,
+                  after.st_ctimespec.tv_sec == before.st_ctimespec.tv_sec,
+                  after.st_ctimespec.tv_nsec == before.st_ctimespec.tv_nsec else {
+                throw FinalizationIntentStoreError.notOwned
+            }
+            try Task.checkCancellation()
+            try authority.verify()
+            self.authority = authority; self.parent = parent; self.name = name; self.url = url
+            self.policy = policy; descriptor = fd; facts = before
+            verifiedData = read.data
+            transferred = true
+        }
+
+        deinit { _ = Darwin.close(descriptor) }
+
+        func verifyNamed(parent movedParent: Int32? = nil, name movedName: String? = nil,
+                         url movedURL: URL? = nil, policy movedPolicy: OwnedFileKindV1? = nil,
+                         allowMetadataChange: Bool = false, verifyPolicy: Bool = true,
+                         expectedChangeTime: timespec? = nil) throws {
+            try authority.verify()
+            let parent = movedParent ?? self.parent, name = movedName ?? self.name
+            var now = stat(), named = stat()
+            guard Darwin.fstat(descriptor, &now) == 0,
+                  Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  PinnedAuthority.isRegular(now), now.st_nlink == 1,
+                  PinnedAuthority.isRegular(named), named.st_nlink == 1,
+                  now.st_dev == facts.st_dev, now.st_ino == facts.st_ino,
+                  named.st_dev == facts.st_dev, named.st_ino == facts.st_ino,
+                  now.st_size == facts.st_size, named.st_size == facts.st_size,
+                  now.st_mtimespec.tv_sec == facts.st_mtimespec.tv_sec,
+                  now.st_mtimespec.tv_nsec == facts.st_mtimespec.tv_nsec,
+                  named.st_mtimespec.tv_sec == facts.st_mtimespec.tv_sec,
+                  named.st_mtimespec.tv_nsec == facts.st_mtimespec.tv_nsec,
+                  allowMetadataChange || (
+                    now.st_ctimespec.tv_sec == facts.st_ctimespec.tv_sec &&
+                    now.st_ctimespec.tv_nsec == facts.st_ctimespec.tv_nsec &&
+                    named.st_ctimespec.tv_sec == facts.st_ctimespec.tv_sec &&
+                    named.st_ctimespec.tv_nsec == facts.st_ctimespec.tv_nsec) else {
+                throw FinalizationIntentStoreError.notOwned
+            }
+            if let expectedChangeTime {
+                guard now.st_ctimespec.tv_sec == expectedChangeTime.tv_sec,
+                      now.st_ctimespec.tv_nsec == expectedChangeTime.tv_nsec,
+                      named.st_ctimespec.tv_sec == expectedChangeTime.tv_sec,
+                      named.st_ctimespec.tv_nsec == expectedChangeTime.tv_nsec else {
+                    throw FinalizationIntentStoreError.notOwned
+                }
+            }
+            if verifyPolicy {
+                try authority.verifyRegularFilePolicy(movedPolicy ?? policy, parent: parent,
+                    name: name, policyURL: movedURL ?? url)
+            }
+        }
+    }
+
+    /// Private bytes live outside the strictly enumerated intent directory and
+    /// never use a canonical report name. This is preparation, not publication.
+    private func preparePrivateLiveLeaf(_ data: Data, policy: OwnedFileKindV1,
+                                        authority: PinnedAuthority) throws -> LivePreparedLeaf {
+        try Task.checkCancellation()
+        let name = ".live-finalization-\(UUID().uuidString.lowercased()).tmp"
+        let url = try authority.generationFileURL(components: [".staging", "snapshots", name])
+        let identity = try authority.createRegularFile(data, parent: authority.stagingSnapshotsDescriptor,
+            name: name, policyKind: policy, policyURL: url)
+        livePrivatePreparations.append(.init(authority: authority, name: name,
+            identity: identity, data: data, policy: policy))
+        return try LivePreparedLeaf(authority: authority, parent: authority.stagingSnapshotsDescriptor,
+            name: name, url: url, policy: policy, expectedCount: data.count,
+            expectedSHA256: sha256(data), expectedData: data)
+    }
+
+    /// Single-use, no-overwrite publication of one already verified leaf.
+    /// Construction is actor-owned; only the captured live operation can run it.
+    private final class LivePreparedMove: @unchecked Sendable {
+        private let source: LivePreparedLeaf
+        private let destinationParent: Int32
+        private let destinationName: String
+        private let destinationURL: URL
+        private let destinationPolicy: OwnedFileKindV1
+        private let operationID: ObjectIdentifier
+        private let barrier: FinalizationIntentStoreAuthorityBarrier?
+        private let dependencies: [LivePreparedLeaf]
+        private let consumption = NSLock()
+        private var consumed = false
+        @MainActor private var publishedChangeTime: timespec?
+
+        init(source: LivePreparedLeaf, destinationParent: Int32, destinationName: String,
+             destinationURL: URL, destinationPolicy: OwnedFileKindV1,
+             operation: AppAccessPresentationV1.CheckRunnerItemOperationAccess,
+             barrier: FinalizationIntentStoreAuthorityBarrier?, dependencies: [LivePreparedLeaf] = []) throws {
+            try source.verifyNamed()
+            for dependency in dependencies { try dependency.verifyNamed() }
+            guard case nil = try source.authority.itemInfo(parent: destinationParent, name: destinationName) else {
+                throw FinalizationIntentStoreError.itemAlreadyExists
+            }
+            self.source = source; self.destinationParent = destinationParent
+            self.destinationName = destinationName; self.destinationURL = destinationURL
+            self.destinationPolicy = destinationPolicy; operationID = ObjectIdentifier(operation)
+            self.barrier = barrier
+            self.dependencies = dependencies
+        }
+
+        @MainActor
+        func verifyPublished() throws {
+            guard let publishedChangeTime else { throw FinalizationIntentStoreError.notOwned }
+            try source.verifyNamed(parent: destinationParent, name: destinationName,
+                url: destinationURL, policy: destinationPolicy, allowMetadataChange: true,
+                expectedChangeTime: publishedChangeTime)
+            for dependency in dependencies { try dependency.verifyNamed() }
+        }
+
+        @MainActor
+        func perform(authorizing operation: AppAccessPresentationV1.CheckRunnerItemOperationAccess) throws {
+            guard ObjectIdentifier(operation) == operationID else {
+                throw AppAccessContractFailureV1.accessDenied
+            }
+            try operation.withFinalizationAuthorization(generationID: source.authority.generationID,
+                generationRootURL: source.authority.liveGenerationRootURL) {
+                guard consumption.try() else { throw FinalizationIntentStoreError.fileOperationFailed }
+                defer { consumption.unlock() }
+                guard !consumed else { throw FinalizationIntentStoreError.fileOperationFailed }
+                consumed = true
+                try Task.checkCancellation()
+                try source.verifyNamed()
+                for dependency in dependencies { try dependency.verifyNamed() }
+                barrier?.reach(.beforeLeafMutation)
+                try source.verifyNamed()
+                for dependency in dependencies { try dependency.verifyNamed() }
+                // A boundary callback may retire the presentation. Reentering
+                // the same synchronous scope validates it without relocking.
+                try operation.withAuthorization {
+                    guard case nil = try source.authority.itemInfo(parent: destinationParent, name: destinationName),
+                          Darwin.renameatx_np(source.parent, source.name,
+                            destinationParent, destinationName, UInt32(RENAME_EXCL)) == 0 else {
+                        throw FinalizationIntentStoreError.itemAlreadyExists
+                    }
+                    var renamedFacts = stat()
+                    guard Darwin.fstat(source.descriptor, &renamedFacts) == 0 else {
+                        throw FinalizationIntentStoreError.fileOperationFailed
+                    }
+                    barrier?.reach(.afterLeafMutation)
+                    guard Darwin.fsync(source.parent) == 0, Darwin.fsync(destinationParent) == 0 else {
+                        throw FinalizationIntentStoreError.fileOperationFailed
+                    }
+                    // Failure after rename retains the exact named bytes for
+                    // recovery. Never run unguarded compensating deletion.
+                    try operation.withAuthorization {
+                        try source.verifyNamed(parent: destinationParent, name: destinationName,
+                            url: destinationURL, policy: source.policy, allowMetadataChange: true,
+                            expectedChangeTime: renamedFacts.st_ctimespec)
+                        try ProtectedFilePolicyV1.applyAndVerify(destinationPolicy, at: destinationURL) {
+                            try source.verifyNamed(parent: destinationParent, name: destinationName,
+                                url: destinationURL, allowMetadataChange: true, verifyPolicy: false)
+                        }
+                        guard Darwin.fsync(source.descriptor) == 0, Darwin.fsync(destinationParent) == 0 else {
+                            throw FinalizationIntentStoreError.fileOperationFailed
+                        }
+                        var publishedFacts = stat()
+                        guard Darwin.fstat(source.descriptor, &publishedFacts) == 0 else {
+                            throw FinalizationIntentStoreError.fileOperationFailed
+                        }
+                        publishedChangeTime = publishedFacts.st_ctimespec
+                        try verifyPublished()
+                    }
+                }
+            }
+        }
+    }
+
+    /// Atomic phase replacement always leaves either the old or new canonical
+    /// journal. Failure after a swap retains the recoverable phase; it never
+    /// deletes snapshots or falls back to an unguarded compensating write.
+    private final class LivePreparedReplacement: @unchecked Sendable {
+        private let original: LivePreparedLeaf
+        private let candidate: LivePreparedLeaf
+        private let dependencies: [LivePreparedLeaf]
+        private let operationID: ObjectIdentifier
+        private let barrier: FinalizationIntentStoreAuthorityBarrier?
+        private let rollbackMutationID: UUID?
+        private let consumption = NSLock()
+        private var consumed = false
+
+        init(original: LivePreparedLeaf, candidate: LivePreparedLeaf,
+             dependencies: [LivePreparedLeaf], operation: AppAccessPresentationV1.CheckRunnerItemOperationAccess,
+             barrier: FinalizationIntentStoreAuthorityBarrier?, rollbackMutationID: UUID? = nil) throws {
+            guard original.authority === candidate.authority,
+                  original.parent == original.authority.finalizationDescriptor,
+                  candidate.parent == original.authority.stagingSnapshotsDescriptor,
+                  candidate.name.hasPrefix(".live-finalization-"), candidate.name.hasSuffix(".tmp") else {
+                throw FinalizationIntentStoreError.notOwned
+            }
+            try original.verifyNamed(); try candidate.verifyNamed()
+            for dependency in dependencies { try dependency.verifyNamed() }
+            self.original = original; self.candidate = candidate; self.dependencies = dependencies
+            operationID = ObjectIdentifier(operation); self.barrier = barrier
+            self.rollbackMutationID = rollbackMutationID
+            if let rollbackMutationID {
+                guard original.name == rollbackMutationID.uuidString.lowercased() + ".json" else {
+                    throw FinalizationIntentStoreError.notOwned
+                }
+            }
+        }
+
+        @MainActor
+        func perform(authorizing operation: AppAccessPresentationV1.CheckRunnerItemOperationAccess) throws {
+            guard ObjectIdentifier(operation) == operationID else { throw AppAccessContractFailureV1.accessDenied }
+            try operation.withFinalizationAuthorization(generationID: original.authority.generationID,
+                generationRootURL: original.authority.liveGenerationRootURL) {
+                guard consumption.try() else { throw FinalizationIntentStoreError.fileOperationFailed }
+                defer { consumption.unlock() }
+                guard !consumed else { throw FinalizationIntentStoreError.fileOperationFailed }
+                consumed = true
+                try Task.checkCancellation()
+                try original.verifyNamed(); try candidate.verifyNamed()
+                for dependency in dependencies { try dependency.verifyNamed() }
+                barrier?.reach(.beforeLeafMutation)
+                try original.verifyNamed(); try candidate.verifyNamed()
+                for dependency in dependencies { try dependency.verifyNamed() }
+                try operation.withAuthorization {
+                    if let rollbackMutationID { try operation.requireUncommittedFinalization(mutationID: rollbackMutationID) }
+                    guard Darwin.renameatx_np(candidate.parent, candidate.name,
+                        original.parent, original.name, UInt32(RENAME_SWAP)) == 0 else {
+                        throw FinalizationIntentStoreError.fileOperationFailed
+                    }
+                    var newFacts = stat(), oldFacts = stat()
+                    guard Darwin.fstat(candidate.descriptor, &newFacts) == 0,
+                          Darwin.fstat(original.descriptor, &oldFacts) == 0 else {
+                        throw FinalizationIntentStoreError.fileOperationFailed
+                    }
+                    barrier?.reach(.afterLeafMutation)
+                    guard Darwin.fsync(original.parent) == 0, Darwin.fsync(candidate.parent) == 0 else {
+                        throw FinalizationIntentStoreError.fileOperationFailed
+                    }
+                    try operation.withAuthorization {
+                        if let rollbackMutationID { try operation.requireUncommittedFinalization(mutationID: rollbackMutationID) }
+                        try candidate.verifyNamed(parent: original.parent, name: original.name, url: original.url,
+                            policy: .journal, allowMetadataChange: true, expectedChangeTime: newFacts.st_ctimespec)
+                        try original.verifyNamed(parent: candidate.parent, name: candidate.name, url: candidate.url,
+                            policy: .journal, allowMetadataChange: true, expectedChangeTime: oldFacts.st_ctimespec)
+                        for dependency in dependencies { try dependency.verifyNamed() }
+                        // The displaced exact journal is now a private leaf.
+                        // Remove it only while the same operation is current.
+                        guard Darwin.unlinkat(candidate.parent, candidate.name, 0) == 0,
+                              Darwin.fsync(candidate.parent) == 0 else {
+                            throw FinalizationIntentStoreError.fileOperationFailed
+                        }
+                        try candidate.verifyNamed(parent: original.parent, name: original.name, url: original.url,
+                            policy: .journal, allowMetadataChange: true, expectedChangeTime: newFacts.st_ctimespec)
+                        for dependency in dependencies { try dependency.verifyNamed() }
+                    }
+                }
+            }
+        }
+    }
+
+    private struct LivePreparedAbsence: Sendable {
+        let authority: PinnedAuthority
+        let parent: Int32
+        let name: String
+
+        func verify() throws {
+            try authority.verify()
+            guard case nil = try authority.itemInfo(parent: parent, name: name) else {
+                throw FinalizationIntentStoreError.notOwned
+            }
+        }
+    }
+
+    private final class LivePreparedRemoval: @unchecked Sendable {
+        private let source: LivePreparedLeaf
+        private let dependencies: [LivePreparedLeaf]
+        private let operationID: ObjectIdentifier
+        private let mutationID: UUID
+        private let committedBinding: FinalizationWriterCommitBindingV1?
+        private let barrier: FinalizationIntentStoreAuthorityBarrier?
+        private let privateName: String
+        private let consumption = NSLock()
+        private var consumed = false
+
+        init(source: LivePreparedLeaf, dependencies: [LivePreparedLeaf],
+             operation: AppAccessPresentationV1.CheckRunnerItemOperationAccess,
+             mutationID: UUID, committedBinding: FinalizationWriterCommitBindingV1?,
+             barrier: FinalizationIntentStoreAuthorityBarrier?, privateName: String) {
+            self.source = source; self.dependencies = dependencies; operationID = ObjectIdentifier(operation)
+            self.mutationID = mutationID; self.committedBinding = committedBinding; self.barrier = barrier
+            self.privateName = privateName
+        }
+
+        var sourceAbsence: LivePreparedAbsence {
+            .init(authority: source.authority, parent: source.parent, name: source.name)
+        }
+
+        @MainActor
+        private func validateReceipt(_ operation: AppAccessPresentationV1.CheckRunnerItemOperationAccess) throws {
+            if let committedBinding { try operation.requireCommittedFinalization(binding: committedBinding) }
+            else { try operation.requireUncommittedFinalization(mutationID: mutationID) }
+        }
+
+        @MainActor
+        func perform(authorizing operation: AppAccessPresentationV1.CheckRunnerItemOperationAccess,
+            expectedAbsences: [LivePreparedAbsence]) throws {
+            guard ObjectIdentifier(operation) == operationID else { throw AppAccessContractFailureV1.accessDenied }
+            try operation.withFinalizationAuthorization(generationID: source.authority.generationID,
+                generationRootURL: source.authority.liveGenerationRootURL) {
+                guard consumption.try() else { throw FinalizationIntentStoreError.fileOperationFailed }
+                defer { consumption.unlock() }
+                guard !consumed else { throw FinalizationIntentStoreError.fileOperationFailed }
+                consumed = true
+                try Task.checkCancellation()
+                try validateReceipt(operation)
+                try source.verifyNamed()
+                for dependency in dependencies { try dependency.verifyNamed() }
+                for absence in expectedAbsences { try absence.verify() }
+                barrier?.reach(.beforeLeafMutation)
+                try source.verifyNamed()
+                for dependency in dependencies { try dependency.verifyNamed() }
+                for absence in expectedAbsences { try absence.verify() }
+                try operation.withAuthorization {
+                    try validateReceipt(operation)
+                    let parent = source.authority.stagingSnapshotsDescriptor
+                    let url = try source.authority.generationFileURL(components: [".staging", "snapshots", privateName])
+                    guard case nil = try source.authority.itemInfo(parent: parent, name: privateName),
+                          Darwin.renameatx_np(source.parent, source.name, parent, privateName, UInt32(RENAME_EXCL)) == 0 else {
+                        throw FinalizationIntentStoreError.fileOperationFailed
+                    }
+                    var moved = stat()
+                    guard Darwin.fstat(source.descriptor, &moved) == 0 else { throw FinalizationIntentStoreError.fileOperationFailed }
+                    barrier?.reach(.afterLeafMutation)
+                    guard Darwin.fsync(source.parent) == 0, Darwin.fsync(parent) == 0 else {
+                        throw FinalizationIntentStoreError.fileOperationFailed
+                    }
+                    try operation.withAuthorization {
+                        try validateReceipt(operation)
+                        try source.verifyNamed(parent: parent, name: privateName, url: url,
+                            allowMetadataChange: true, expectedChangeTime: moved.st_ctimespec)
+                        for dependency in dependencies { try dependency.verifyNamed() }
+                        for absence in expectedAbsences { try absence.verify() }
+                        guard Darwin.unlinkat(parent, privateName, 0) == 0, Darwin.fsync(parent) == 0 else {
+                            throw FinalizationIntentStoreError.fileOperationFailed
+                        }
+                        try sourceAbsence.verify()
+                    }
+                }
+            }
+        }
+    }
+
     private final class PinnedAuthority: @unchecked Sendable {
         typealias Identity = ReportPDFAnchoredFile.RootIdentity
 
@@ -1255,6 +2183,7 @@ actor FinalizationIntentStore {
         let stagingDescriptor: Int32
         let stagingSnapshotsDescriptor: Int32
         let snapshotsDescriptor: Int32
+        var liveGenerationRootURL: URL { generationRootURL }
 
         private let applicationSupportIdentity: Identity
         private let generationIdentity: Identity
@@ -1774,13 +2703,14 @@ actor FinalizationIntentStore {
                 .appendingPathComponent(generationName, isDirectory: true)
         }
 
+        @discardableResult
         func createRegularFile(
             _ data: Data,
             parent: Int32,
             name: String,
             policyKind: OwnedFileKindV1,
             policyURL: URL
-        ) throws {
+        ) throws -> Identity {
             guard Self.validComponent(name) else {
                 throw FinalizationIntentStoreError.unsafePath
             }
@@ -1857,6 +2787,7 @@ actor FinalizationIntentStore {
                 }
                 throw error
             }
+            return identity
         }
 
         func replaceExactRegularFile(
@@ -2186,7 +3117,9 @@ actor FinalizationIntentStore {
                   expectedData.map({ $0 == current.data }) ?? true else {
                 throw FinalizationIntentStoreError.notOwned
             }
-            let quarantine = ".remove-\(UUID().uuidString.lowercased())"
+            let quarantine = LivePrivatePreparation.isReservedName(name)
+                ? ".live-finalization-\(UUID().uuidString.lowercased()).tmp"
+                : ".remove-\(UUID().uuidString.lowercased())"
             guard Darwin.renameatx_np(
                 parent,
                 name,

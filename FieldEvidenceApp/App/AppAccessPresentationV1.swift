@@ -60,8 +60,15 @@ final class AppAccessPresentationV1: ObservableObject {
 
         @MainActor
         func withRead<T>(_ body: () throws -> T) throws -> T {
-            guard isCurrent() else { throw AppAccessContractFailureV1.accessDenied }
+            try validateCurrentPublication()
             return try token.withContentRead(for: surface, body)
+        }
+
+        /// A nested synchronous validator already inside this token's read
+        /// fence can check presentation retirement without locking it again.
+        @MainActor
+        fileprivate func validateCurrentPublication() throws {
+            guard isCurrent() else { throw AppAccessContractFailureV1.accessDenied }
         }
 
         @MainActor
@@ -234,6 +241,113 @@ final class AppAccessPresentationV1: ObservableObject {
             try withAuthorization { store in
                 try store.makePhotoBackupService(parentCheckpoint: parentCheckpoint, accessGate: gate, staging: staging)
             }
+        }
+    }
+
+    /// One synchronous item effect remains inside the original publication's
+    /// read fence. The next asynchronous step must enter this scope again.
+    @MainActor
+    final class CheckRunnerItemOperationAccess: CheckRunnerItemOperationScopeV1 {
+        private let content: ContentAccess
+        private let store: StoreSessionCoordinator
+        private let writer: WorkspaceWriterV1
+        private let service: ProductionCheckRunnerItemDraftServiceV1
+        private let progress: ProductionRepetitiveCaptureProgressServiceV2
+        private let scene: AppShellSceneStateV1
+        private let target: NavigationTargetV1
+        private let snapshot: SceneNavigationSnapshotV1
+        private var holdingOriginalRead = false
+#if DEBUG
+        /// Runs after real off-main preparation, before any live file effect.
+        var beforeFinalizationPreparationPublicationForTesting: (() throws -> Void)?
+#endif
+
+        /// The finalizer must publish into the original store's generation,
+        /// under the same content -> generation order as live photo effects.
+        func withFinalizationAuthorization<T>(generationID: UUID, generationRootURL: URL,
+                                              _ body: () throws -> T) throws -> T {
+            try withFinalizationWriterAuthorization(writer, generationID: generationID,
+                generationRootURL: generationRootURL) {
+                try store.withCheckRunnerPhotoPublication(expectedWriter: writer,
+                    applicationSupportURL: store.checkRunnerPhotoApplicationSupportURL, body)
+            }
+        }
+
+        /// The writer acquires its own generation fence for database commits.
+        /// Keep its entire synchronous call inside the original content scope,
+        /// without adding a redundant outer generation fence.
+        func withFinalizationWriterAuthorization<T>(_ expectedWriter: WorkspaceWriterV1,
+            generationID: UUID, generationRootURL: URL, _ body: () throws -> T) throws -> T {
+            try withAuthorization {
+                guard writer === expectedWriter, store.generationID == generationID,
+                      store.generationRootURL.standardizedFileURL == generationRootURL.standardizedFileURL else {
+                    throw AppAccessContractFailureV1.accessDenied
+                }
+                return try body()
+            }
+        }
+
+        /// Called inside the finalizer's generation fence immediately before
+        /// rollback effects. A durable save always wins over a lost response.
+        func requireUncommittedFinalization(mutationID: UUID) throws {
+            try withAuthorization {
+                guard try writer.durableReceipt(mutationID: .init(rawValue: mutationID)) == nil else {
+                    throw AppAccessContractFailureV1.accessDenied
+                }
+            }
+        }
+
+        func requireCommittedFinalization(binding: FinalizationWriterCommitBindingV1) throws {
+            try withAuthorization {
+                guard try writer.finalizationCommitReceipt(binding) != nil else {
+                    throw AppAccessContractFailureV1.accessDenied
+                }
+            }
+        }
+
+        fileprivate init(content: ContentAccess, store: StoreSessionCoordinator,
+            service: ProductionCheckRunnerItemDraftServiceV1,
+            progress: ProductionRepetitiveCaptureProgressServiceV2,
+            scene: AppShellSceneStateV1, target: NavigationTargetV1,
+            snapshot: SceneNavigationSnapshotV1) {
+            self.content = content; self.store = store; self.writer = store.workspaceWriter
+            self.service = service; self.progress = progress
+            self.scene = scene; self.target = target; self.snapshot = snapshot
+        }
+
+        private func validateInsidePublication() throws {
+            try Task.checkCancellation()
+            try content.validateCurrentPublication()
+            guard scene.snapshot == snapshot, store.workspaceWriter === writer else {
+                throw AppAccessContractFailureV1.accessDenied
+            }
+            try progress.validateCheckRunnerOwner(writer: writer, modelContext: store.modelContext)
+            try service.validateFinalizationOwner(progress)
+            try service.validateLiveTarget(target)
+        }
+
+        func withAuthorization<T>(_ body: () throws -> T) throws -> T {
+            if holdingOriginalRead {
+                // Editor/service validators may re-enter during this same
+                // synchronous effect. Do not recursively lock the gate or
+                // persisted scene port; still reject an in-memory scene change.
+                try validateInsidePublication()
+                return try body()
+            }
+            try Task.checkCancellation()
+            try scene.validatePersistedIntent(target, expectedSnapshot: snapshot)
+            return try content.withRead {
+                holdingOriginalRead = true
+                defer { holdingOriginalRead = false }
+                try validateInsidePublication()
+                return try body()
+            }
+        }
+
+        func withAuthorization<T>(for expectedService: ProductionCheckRunnerItemDraftServiceV1,
+            _ body: () throws -> T) throws -> T {
+            guard expectedService === service else { throw AppAccessContractFailureV1.accessDenied }
+            return try withAuthorization(body)
         }
     }
 
@@ -478,6 +592,7 @@ final class AppAccessPresentationV1: ObservableObject {
         private let draftOrdering: ProductionRoundDraftOrderingServiceV1?
         private let sessionTransitions: ProductionRoundSessionTransitionServiceV1?
         private let repetitiveCapture: ProductionRepetitiveCaptureProgressServiceV2?
+        private let itemStore: StoreSessionCoordinator
 
         #if DEBUG
         func repetitiveCaptureOwnerForTesting() throws -> ProductionRepetitiveCaptureProgressServiceV2 {
@@ -506,13 +621,15 @@ final class AppAccessPresentationV1: ObservableObject {
             readinessAuthority: ProductionOfflineReadinessAuthorityV1,
             draftOrdering: ProductionRoundDraftOrderingServiceV1?,
             sessionTransitions: ProductionRoundSessionTransitionServiceV1?,
-            repetitiveCapture: ProductionRepetitiveCaptureProgressServiceV2?
+            repetitiveCapture: ProductionRepetitiveCaptureProgressServiceV2?,
+            itemStore: StoreSessionCoordinator
         ) {
             self.publicationAccess = publicationAccess
             self.readinessAuthority = readinessAuthority
             self.draftOrdering = draftOrdering
             self.sessionTransitions = sessionTransitions
             self.repetitiveCapture = repetitiveCapture
+            self.itemStore = itemStore
         }
 
         /// Presentation availability only. Every command remains fenced by
@@ -520,6 +637,25 @@ final class AppAccessPresentationV1: ObservableObject {
         var supportsDraftOrdering: Bool { draftOrdering != nil }
         var supportsSessionTransitions: Bool { sessionTransitions != nil }
         var supportsRepetitiveCaptureProgress: Bool { repetitiveCapture != nil }
+
+        func makeCheckRunnerItemService(source: CheckRunnerRoundItemSourceV1) throws
+            -> ProductionCheckRunnerItemDraftServiceV1 {
+            try publicationAccess.withRead {
+                guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
+                return try itemStore.makeLiveCheckRunnerItemService(source: source, progress: repetitiveCapture)
+            }
+        }
+
+        func captureCheckRunnerItemOperation(service: ProductionCheckRunnerItemDraftServiceV1,
+            scene: AppShellSceneStateV1, target: NavigationTargetV1) throws -> CheckRunnerItemOperationAccess {
+            guard let repetitiveCapture, let snapshot = scene.snapshot else {
+                throw AppAccessContractFailureV1.accessDenied
+            }
+            let operation = CheckRunnerItemOperationAccess(content: publicationAccess, store: itemStore,
+                service: service, progress: repetitiveCapture, scene: scene, target: target, snapshot: snapshot)
+            try operation.withAuthorization {}
+            return operation
+        }
 
         func readRepetitiveCaptureDestinationReview(reference: MyDayEligibleReferenceV1) throws
             -> RepetitiveCaptureReviewLineageV1? {
@@ -668,15 +804,23 @@ final class AppAccessPresentationV1: ObservableObject {
 
         func prepareCheckRunnerFinalization(service: ProductionCheckRunnerItemDraftServiceV1,
             draftID: UUID, expectedCheckpointSHA256: String, sourceApp: SourceAppSnapshotV1,
+            authorizing liveOperation: CheckRunnerItemOperationAccess? = nil,
             validateIntent: @MainActor () throws -> Void) async throws -> FieldDraftCheckpointV1 {
             guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
             func validate() throws {
                 try Task.checkCancellation(); try validateIntent()
-                try publicationAccess.withRead { try service.validateFinalizationOwner(repetitiveCapture) }
+                if let liveOperation {
+                    try liveOperation.withAuthorization(for: service) {
+                        try service.validateFinalizationOwner(repetitiveCapture)
+                    }
+                } else {
+                    try publicationAccess.withRead { try service.validateFinalizationOwner(repetitiveCapture) }
+                }
             }
             try validate()
             let result = try await service.prepareFinalization(draftID: draftID,
-                expectedCheckpointSHA256: expectedCheckpointSHA256, sourceApp: sourceApp, validateIntent: validate)
+                expectedCheckpointSHA256: expectedCheckpointSHA256, sourceApp: sourceApp,
+                authorizing: liveOperation, validateIntent: validate)
             try validate()
             return result
         }
@@ -685,20 +829,33 @@ final class AppAccessPresentationV1: ObservableObject {
         /// retried from its original COMPLETE checkpoint without refinalizing.
         func resumeCheckRunnerFinalization(service: ProductionCheckRunnerItemDraftServiceV1,
             draftID: UUID, focus: RepetitiveCaptureRequirementFocusV1, recordedByName: String,
+            authorizing liveOperation: CheckRunnerItemOperationAccess? = nil,
             validateIntent: @escaping @MainActor () throws -> Void) async throws -> RepetitiveCaptureProgressResultV2 {
             guard let repetitiveCapture else { throw AppAccessContractFailureV1.accessDenied }
+            func withItemRead<T>(_ body: () throws -> T) throws -> T {
+                if let liveOperation { return try liveOperation.withAuthorization(for: service, body) }
+                return try publicationAccess.withRead(body)
+            }
             let validate: @MainActor () throws -> Void = {
                 try Task.checkCancellation(); try validateIntent()
-                try self.publicationAccess.withRead { try service.validateFinalizationOwner(repetitiveCapture) }
+                if let liveOperation {
+                    try liveOperation.withAuthorization(for: service) {
+                        try service.validateFinalizationOwner(repetitiveCapture)
+                    }
+                } else {
+                    try self.publicationAccess.withRead { try service.validateFinalizationOwner(repetitiveCapture) }
+                }
             }
             try validate()
-            _ = try await service.resumeFinalization(draftID: draftID, validateIntent: validate)
+            _ = try await service.resumeFinalization(draftID: draftID,
+                authorizing: liveOperation, validateIntent: validate)
             try validate()
-            let terminal = try publicationAccess.withRead {
-                try service.terminalFinalizationSource(draftID: draftID, progress: repetitiveCapture)
+            let terminal = try withItemRead {
+                try service.terminalFinalizationSource(draftID: draftID, progress: repetitiveCapture,
+                    authorizing: liveOperation)
             }
             let read = try readRepetitiveCaptureProgress(sourceDraftID: terminal.source.sourceCheckpoint.draftID)
-            if let checkpoint = try publicationAccess.withRead({
+            if let checkpoint = try withItemRead({
                 try repetitiveCapture.checkRunnerCompletion(read: read, source: terminal.source, recordID: terminal.recordID)
             }) {
                 return try await resumeRepetitiveCaptureProgress(sourceDraftID: terminal.source.sourceCheckpoint.draftID,
@@ -706,8 +863,9 @@ final class AppAccessPresentationV1: ObservableObject {
             }
             let readiness = try await rebuildReadiness(for: read.chain.currentRound, previous: nil)
             try validate()
-            try publicationAccess.withRead {
-                let refreshed = try service.terminalFinalizationSource(draftID: draftID, progress: repetitiveCapture)
+            try withItemRead {
+                let refreshed = try service.terminalFinalizationSource(draftID: draftID, progress: repetitiveCapture,
+                    authorizing: liveOperation)
                 guard refreshed.source == terminal.source, refreshed.recordID == terminal.recordID else {
                     throw ScanToWorkFailureV1.stale
                 }
@@ -1685,7 +1843,8 @@ final class AppAccessPresentationV1: ObservableObject {
                         ),
                         draftOrdering: draftOrdering,
                         sessionTransitions: sessionTransitions,
-                        repetitiveCapture: repetitiveCapture
+                        repetitiveCapture: repetitiveCapture,
+                        itemStore: store
                     )
                 } else {
                     publishedRoundAccess = nil

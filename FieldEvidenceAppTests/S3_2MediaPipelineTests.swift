@@ -10,6 +10,121 @@ import XCTest
 final class S3_2MediaPipelineTests: XCTestCase {
     private let fileManager = FileManager.default
 
+    func testPreparedImmutableOriginalPublishesOnceAndRetainsAuthenticRetryReceipt() async throws {
+        let support = try makeTemporaryDirectory().resolvingSymlinksInPath()
+        defer { try? fileManager.removeItem(at: support) }
+        let root = support.appendingPathComponent(
+            "FieldEvidenceData/generations/\(UUID().uuidString.lowercased())", isDirectory: true)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        let store = EvidenceBundleStore(generationRootURL: root)
+        let bytes = try makePNG(width: 40, height: 20, seed: 53, orientation: 6)
+        let request = try immutablePreparationRequest(bytes: bytes, contentID: "prepared-original")
+        let owner = NSObject(), stranger = NSObject()
+        let prepared = try await store.prepareImmutableOriginal(bytes: bytes, request: request,
+            owner: ObjectIdentifier(owner))
+        let target = root.appendingPathComponent(request.relativePath)
+        XCTAssertFalse(fileManager.fileExists(atPath: root.appendingPathComponent("content").path))
+        let privateNames = try fileManager.contentsOfDirectory(atPath: root.path).filter { $0.hasPrefix(".immutable-") }
+        XCTAssertEqual(privateNames.count, 1)
+        let privateURL = root.appendingPathComponent(try XCTUnwrap(privateNames.first))
+        try ProtectedFilePolicyV1.verify(.temporaryFile, at: privateURL)
+        XCTAssertEqual(try privateURL.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup, true)
+        XCTAssertThrowsError(try prepared.publish(owner: ObjectIdentifier(stranger)))
+        XCTAssertFalse(fileManager.fileExists(atPath: target.path))
+        let receipt = try prepared.publish(owner: ObjectIdentifier(owner))
+        try receipt.validate(request: request, bytes: Data(contentsOf: target))
+        try ProtectedFilePolicyV1.verify(.mediaOriginal, at: target)
+        XCTAssertEqual(try target.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup, false)
+        XCTAssertFalse(receipt.reusedExistingBytes)
+        XCTAssertEqual(receipt.mutationID, request.mutationID)
+        XCTAssertThrowsError(try prepared.publish(owner: ObjectIdentifier(owner)))
+        let retry = try await store.prepareImmutableOriginal(bytes: bytes, request: request,
+            owner: ObjectIdentifier(owner))
+        let reused = try retry.publish(owner: ObjectIdentifier(owner))
+        XCTAssertTrue(reused.reusedExistingBytes)
+        XCTAssertEqual(reused.mutationID, receipt.mutationID)
+        XCTAssertEqual(reused.createdAt, receipt.createdAt)
+        try reused.validate(request: request, bytes: Data(contentsOf: target))
+
+        let changed = try makePNG(width: 40, height: 20, seed: 54, orientation: 6)
+        try changed.write(to: target)
+        do {
+            _ = try await store.prepareImmutableOriginal(bytes: bytes, request: request,
+                owner: ObjectIdentifier(owner))
+            XCTFail("Conflicting existing bytes must not be accepted or overwritten")
+        } catch { }
+        XCTAssertEqual(try Data(contentsOf: target), changed)
+    }
+
+    func testPreparedImmutableOriginalRejectsTargetAppearingAfterPreparation() async throws {
+        let support = try makeTemporaryDirectory().resolvingSymlinksInPath()
+        defer { try? fileManager.removeItem(at: support) }
+        let root = support.appendingPathComponent(
+            "FieldEvidenceData/generations/\(UUID().uuidString.lowercased())", isDirectory: true)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        let store = EvidenceBundleStore(generationRootURL: root)
+        let bytes = try makePNG(width: 40, height: 20, seed: 55, orientation: 6)
+        let request = try immutablePreparationRequest(bytes: bytes, contentID: "racing-original")
+        let owner = NSObject()
+        let prepared = try await store.prepareImmutableOriginal(bytes: bytes, request: request,
+            owner: ObjectIdentifier(owner))
+        let original = try await store.persistImmutableOriginal(bytes: bytes, request: request)
+        XCTAssertFalse(original.reusedExistingBytes)
+        XCTAssertThrowsError(try prepared.publish(owner: ObjectIdentifier(owner)))
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent(request.relativePath)), bytes)
+        let retry = try await store.prepareImmutableOriginal(bytes: bytes, request: request,
+            owner: ObjectIdentifier(owner))
+        let receipt = try retry.publish(owner: ObjectIdentifier(owner))
+        XCTAssertTrue(receipt.reusedExistingBytes)
+        XCTAssertEqual(receipt.mutationID, original.mutationID)
+    }
+
+    func testPreparedImmutableOriginalRejectsSubstitutionAndCancellation() async throws {
+        let support = try makeTemporaryDirectory().resolvingSymlinksInPath()
+        defer { try? fileManager.removeItem(at: support) }
+        let root = support.appendingPathComponent(
+            "FieldEvidenceData/generations/\(UUID().uuidString.lowercased())", isDirectory: true)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        let store = EvidenceBundleStore(generationRootURL: root)
+        let bytes = try makePNG(width: 40, height: 20, seed: 56, orientation: 6)
+        let request = try immutablePreparationRequest(bytes: bytes, contentID: "guarded-original")
+        let owner = NSObject()
+        let ownerID = ObjectIdentifier(owner)
+        let prepared = try await store.prepareImmutableOriginal(bytes: bytes, request: request, owner: ownerID)
+        let privateFiles = try fileManager.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix(".immutable-") }
+        XCTAssertEqual(privateFiles.count, 1)
+        let privateFile = try XCTUnwrap(privateFiles.first)
+        try fileManager.moveItem(at: privateFile, to: root.appendingPathComponent("retained-private.bin"))
+        try Data(repeating: 0, count: bytes.count).write(to: privateFile)
+        XCTAssertThrowsError(try prepared.publish(owner: ownerID))
+        XCTAssertFalse(fileManager.fileExists(atPath: root.appendingPathComponent("content").path))
+
+        let cancelled = try await store.prepareImmutableOriginal(bytes: bytes, request: request, owner: ownerID)
+        let task = Task<DraftImmutableContentWriteReceiptV1, Error> {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try cancelled.publish(owner: ownerID)
+        }
+        do { _ = try await task.value; XCTFail("Cancelled publication must not name the content") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        XCTAssertFalse(fileManager.fileExists(atPath: root.appendingPathComponent("content").path))
+
+        let moved = support.appendingPathComponent("retained-generation", isDirectory: true)
+        try fileManager.moveItem(at: root, to: moved)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        XCTAssertThrowsError(try cancelled.publish(owner: ownerID))
+        XCTAssertFalse(fileManager.fileExists(atPath: root.appendingPathComponent("content").path))
+        XCTAssertFalse(fileManager.fileExists(atPath: moved.appendingPathComponent("content").path))
+    }
+
+    private func immutablePreparationRequest(bytes: Data, contentID: String) throws
+        -> DraftImmutableContentWriteRequestV1 {
+        try .init(workspaceID: .init(rawValue: UUID()), contentID: contentID,
+            digest: .init(algorithm: .sha256, hexadecimalValue: sha256(bytes)),
+            byteLength: Int64(bytes.count), mediaType: "image/png",
+            mutationID: .init(rawValue: UUID()), createdAt: "2026-09-24T00:00:00Z")
+    }
+
     func testSourceInspectionRetainsOriginalFactsAndExactNormalizedOutputs() async throws {
         let normalizer = MediaNormalizerV1()
         let source = try makePNG(width: 40, height: 20, seed: 53, orientation: 6)

@@ -123,6 +123,9 @@ struct CheckRunnerPhotoBackupHistoryChildV1: Equatable, Sendable {
     let parentLink: CheckRunnerPhotoParentEvidenceV1?
     let currentTarget: CheckRunnerPhotoCurrentTargetEvidenceV1?
     let phaseEvidence: PhaseEvidence
+    // phaseEvidence authenticates the retained active prefix for a discard.
+    // Media admission must also inspect this current lifecycle, not payload phase alone.
+    let discardHistory: CheckRunnerPhotoDiscardHistoryV1?
     let sourceGraph: ReviewedRepetitiveCaptureSourceGraphV2
 }
 
@@ -240,6 +243,7 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
         var sagas: [UUID: DraftCommitSagaV1] = [:]
         var reservations: [UUID: DraftContentReservationV1] = [:]
         var commitReceipts: [UUID: DraftCommitReceiptV1] = [:]
+        var discardReceipts: [UUID: DraftDiscardReceiptV1] = [:]
 
         init(_ records: [V16BackupFieldDraftRecordV1], workspaceID: WorkspaceID) throws {
             let failure = WorkspaceMutationFailureV1.receiptHistoryCorrupt
@@ -281,7 +285,8 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
                         DraftDiscardReceiptV1.self, from: row.canonicalData)
                     try value.validate()
                     guard value.workspaceID == workspaceID, value.receiptID == row.id,
-                          value.revision == row.revision else { throw failure }
+                          value.revision == row.revision,
+                          discardReceipts.updateValue(value, forKey: value.receiptID) == nil else { throw failure }
                 }
             }
         }
@@ -458,6 +463,18 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
             .sorted { $0.reservationID.uuidString < $1.reservationID.uuidString }
         let receipts = rows.commitReceipts.values.filter { $0.draftID == checkpoint.draftID }
             .sorted { $0.receiptID.uuidString < $1.receiptID.uuidString }
+        let discardReceipts = rows.discardReceipts.values.filter { $0.draftID == checkpoint.draftID }
+            .sorted { $0.receiptID.uuidString < $1.receiptID.uuidString }
+        let discardHistory: CheckRunnerPhotoDiscardHistoryV1?
+        if checkpoint.state == .discardPending || checkpoint.state == .discarded {
+            guard sagas.isEmpty, reservations.isEmpty, receipts.isEmpty else { throw failure }
+            discardHistory = try .init(history: childHistory, checkpoint: checkpoint, receipts: discardReceipts)
+        } else {
+            guard discardReceipts.isEmpty else { throw failure }
+            discardHistory = nil
+        }
+        let activeHistory = discardHistory?.activeHistory ?? childHistory
+        let activeCheckpoint = discardHistory?.pending.activeCheckpoint ?? checkpoint
 
         let phase = try phaseFacts(payload, checkpoint: checkpoint, history: history,
                                    required: &required)
@@ -489,7 +506,7 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
             let evidence = try CheckRunnerPhotoRawStageEvidenceV1(
                 parentHistory: parentEvidence, parentCheckpoint: parentCheckpoint,
                 workflow: begin.workflow, timeZone: begin.timeZone,
-                childHistory: childHistory, childCheckpoint: checkpoint, currentStage: nil,
+                childHistory: activeHistory, childCheckpoint: activeCheckpoint, currentStage: nil,
                 currentWorkflowPostImage: priorImage,
                 precedingWide: currentTargets[payload.parentDraftID])
             phaseEvidence = .awaitingRaw(evidence); terminal = nil
@@ -500,7 +517,7 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
             let evidence = try CheckRunnerPhotoRawStageEvidenceV1(
                 parentHistory: parentEvidence, parentCheckpoint: parentCheckpoint,
                 workflow: begin.workflow, timeZone: begin.timeZone,
-                childHistory: childHistory, childCheckpoint: checkpoint, currentStage: stage,
+                childHistory: activeHistory, childCheckpoint: activeCheckpoint, currentStage: stage,
                 currentWorkflowPostImage: priorImage,
                 precedingWide: currentTargets[payload.parentDraftID])
             phaseEvidence = .rawReady(evidence); terminal = nil
@@ -509,7 +526,7 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
             let evidence = try CheckRunnerPhotoContinuationEvidenceV1(
                 parentHistory: parentEvidence, parentCheckpoint: parentCheckpoint,
                 workflow: begin.workflow, timeZone: begin.timeZone,
-                history: childHistory, checkpoint: checkpoint, stages: [stage], sagas: sagas,
+                history: activeHistory, checkpoint: activeCheckpoint, stages: [stage], sagas: sagas,
                 reservations: reservations, receipts: receipts,
                 precedingWide: parentLinks[payload.parentDraftID], target: phase.target,
                 currentWorkflowPostImage: continuationWorkflowImage,
@@ -580,7 +597,7 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
             reservations: reservations, commitReceipts: receipts, target: phase.target,
             targetRecords: targetRecords, terminal: terminal,
             parentLink: parentLink, currentTarget: currentTarget,
-            phaseEvidence: phaseEvidence, sourceGraph: graph)
+            phaseEvidence: phaseEvidence, discardHistory: discardHistory, sourceGraph: graph)
     }
 
     struct ParentHistory {

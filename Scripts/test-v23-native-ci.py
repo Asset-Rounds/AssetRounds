@@ -5731,8 +5731,19 @@ class WorkflowWiringTests(unittest.TestCase):
                 self.assertEqual(CI.resolve_selection(default, mapping, group["id"]),
                                  CI.resolve_selection(prior, prior_map, group["id"]))
         source = (ROOT / "FieldEvidenceAppTests/S3_2MediaPipelineTests.swift").read_text(encoding="utf-8")
+        prepared_methods = [
+            "testPreparedImmutableOriginalPublishesOnceAndRetainsAuthenticRetryReceipt",
+            "testPreparedImmutableOriginalRejectsTargetAppearingAfterPreparation",
+            "testPreparedImmutableOriginalRejectsSubstitutionAndCancellation",
+        ]
+        # The compiler checkpoint adds source regressions before enrolling them.
+        # Retain the exact original nine-method admission and the full source census.
         self.assertEqual(re.findall(r"^    func (test\w+)\(", source, re.M),
-                         [s.rsplit("/", 1)[1] for s in media])
+                         prepared_methods + [s.rsplit("/", 1)[1] for s in media])
+        current_pool = json.loads((ROOT / "Scripts/ci-selection.json").read_text(encoding="utf-8"))
+        for method in prepared_methods:
+            self.assertNotIn("FieldEvidenceAppTests/S3_2MediaPipelineTests/" + method,
+                             current_pool["unitTestSelectors"])
         for selector in media + precision:
             bundle, klass, method = selector.split("/")
             source = (ROOT / bundle / (klass + ".swift")).read_text(encoding="utf-8")

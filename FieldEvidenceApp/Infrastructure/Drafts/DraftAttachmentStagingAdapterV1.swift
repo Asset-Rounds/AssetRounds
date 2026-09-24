@@ -838,6 +838,17 @@ fileprivate final class DraftRawPhotoReadSnapshotV1: @unchecked Sendable {
         try verifyBytesAndInspection()
         return receipt
     }
+
+    func prepareImmutable(using writer: EvidenceBundleStore, request: DraftImmutableContentWriteRequestV1,
+        publicationOwner: ObjectIdentifier) async throws -> EvidenceBundleStore.PreparedImmutableOriginal {
+        try verifyBytesAndInspection()
+        let bytes = try mappedBytes()
+        let prepared = try await writer.prepareImmutableOriginal(bytes: bytes, request: request,
+            owner: publicationOwner)
+        try Task.checkCancellation()
+        try verifyBytesAndInspection()
+        return prepared
+    }
 }
 
 /// Retains the already-inspected raw descriptors through the pair-ready CAS.
@@ -1303,6 +1314,7 @@ final class DraftPreparedRawPhotoPromotionV1: @unchecked Sendable {
     private let stateLock = NSLock()
     private var writing = false
     private var verifiedReceipt: DraftImmutableContentWriteReceiptV1?
+    private var immutablePreparation: EvidenceBundleStore.PreparedImmutableOriginal?
     private var consumed = false
 
     private init(rawReady: CheckRunnerPhotoRawReadyV1, plan: DraftCommitPlanV1,
@@ -1339,7 +1351,9 @@ final class DraftPreparedRawPhotoPromotionV1: @unchecked Sendable {
     private func beginWrite() throws {
         guard stateLock.try() else { throw DraftAttachmentStagingFailureV1.staleStage }
         defer { stateLock.unlock() }
-        guard !writing, verifiedReceipt == nil, !consumed else { throw DraftAttachmentStagingFailureV1.invalidTransition }
+        guard !writing, verifiedReceipt == nil, immutablePreparation == nil, !consumed else {
+            throw DraftAttachmentStagingFailureV1.invalidTransition
+        }
         writing = true
     }
 
@@ -1358,10 +1372,34 @@ final class DraftPreparedRawPhotoPromotionV1: @unchecked Sendable {
         try finishWrite(receipt)
     }
 
+    fileprivate func prepareImmutable(using writer: any DraftImmutableContentWriterV1) async throws {
+        // Live publication must stay with the incumbent C05 owner. An async
+        // protocol-only writer cannot provide the required synchronous fence.
+        guard let store = writer as? EvidenceBundleStore else {
+            throw DraftAttachmentStagingFailureV1.contentWriterUnavailable
+        }
+        try beginWrite()
+        let prepared = try await snapshot.prepareImmutable(using: store, request: request,
+            publicationOwner: ObjectIdentifier(self))
+        try finishPreparation(prepared)
+    }
+
+    private func finishPreparation(_ prepared: EvidenceBundleStore.PreparedImmutableOriginal) throws {
+        guard stateLock.try() else { throw DraftAttachmentStagingFailureV1.staleStage }
+        defer { stateLock.unlock() }
+        guard writing, verifiedReceipt == nil, immutablePreparation == nil, !consumed else {
+            throw DraftAttachmentStagingFailureV1.invalidTransition
+        }
+        immutablePreparation = prepared
+        writing = false
+    }
+
     func withPublicationLock<T>(_ body: (_ publish: () throws -> Void) throws -> T) throws -> T {
         guard stateLock.try() else { throw DraftAttachmentStagingFailureV1.staleStage }
         defer { stateLock.unlock() }
-        guard !writing, verifiedReceipt != nil, !consumed else { throw DraftAttachmentStagingFailureV1.invalidTransition }
+        guard !writing, verifiedReceipt != nil || immutablePreparation != nil, !consumed else {
+            throw DraftAttachmentStagingFailureV1.invalidTransition
+        }
         consumed = true
         let lock = try snapshot.owner.acquire()
         defer { lock.release() }
@@ -1370,6 +1408,10 @@ final class DraftPreparedRawPhotoPromotionV1: @unchecked Sendable {
         let result = try body {
             guard !published else { throw DraftAttachmentStagingFailureV1.invalidTransition }
             try self.snapshot.requireCurrent()
+            if let immutable = self.immutablePreparation {
+                self.verifiedReceipt = try immutable.publish(owner: ObjectIdentifier(self))
+                self.immutablePreparation = nil
+            }
             if self.candidate != self.snapshot.base.manifest {
                 try DraftStagingRootOwnerV1.replaceFile(self.candidateBytes,
                     at: self.snapshot.owner.rootURL.appendingPathComponent(DraftAttachmentStagingAdapterV1.manifestName),
@@ -1982,7 +2024,11 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
             try Task.checkCancellation()
             try await authority.validateBeforeImmutableWrite(prepared)
             let writing = Task.detached(priority: .userInitiated) {
-                try await prepared.persist(using: immutableContentWriter)
+                if authority.requiresSynchronousImmutablePublication {
+                    try await prepared.prepareImmutable(using: immutableContentWriter)
+                } else {
+                    try await prepared.persist(using: immutableContentWriter)
+                }
             }
             try await withTaskCancellationHandler(operation: {
                 try await writing.value

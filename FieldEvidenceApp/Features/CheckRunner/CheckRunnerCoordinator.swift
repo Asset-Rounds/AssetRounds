@@ -1330,16 +1330,20 @@ final class CheckRunnerCoordinator {
 
     func readParentFinalization(parentCheckpoint: FieldDraftCheckpointV1,
         progress: ProductionRepetitiveCaptureProgressServiceV2,
-        publishedRelease: InspectionPackageReleaseV1) throws -> ReviewedFinalizationCommitV1? {
-        let current = try parentFinalizationContext(parentCheckpoint: parentCheckpoint,
-            progress: progress, publishedRelease: publishedRelease)
-        let target = try parentFinalizationTarget(current)
-        let read = try target.adapter.readCommittedFinalization(target.input, binding: target.binding,
-            expectedWorkflowRecordRevision: target.attempt.expectedWorkflowRecordRevision)
-        guard read?.receipt == current.parent.finalization?.target?.receipt else {
-            throw FieldDraftFailureV1.missingReceipt
+        publishedRelease: InspectionPackageReleaseV1,
+        authorizing liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess? = nil) throws
+        -> ReviewedFinalizationCommitV1? {
+        try withParentFinalizationAuthorization(liveOperation) {
+            let current = try parentFinalizationContext(parentCheckpoint: parentCheckpoint,
+                progress: progress, publishedRelease: publishedRelease)
+            let target = try parentFinalizationTarget(current, authorizing: liveOperation)
+            let read = try target.adapter.readCommittedFinalization(target.input, binding: target.binding,
+                expectedWorkflowRecordRevision: target.attempt.expectedWorkflowRecordRevision)
+            guard read?.receipt == current.parent.finalization?.target?.receipt else {
+                throw FieldDraftFailureV1.missingReceipt
+            }
+            return read
         }
-        return read
     }
 
     /// Uses only the incumbent package-bound finalizer. A saved effect is
@@ -1348,13 +1352,19 @@ final class CheckRunnerCoordinator {
     func commitParentFinalization(parentCheckpoint: FieldDraftCheckpointV1,
         progress: ProductionRepetitiveCaptureProgressServiceV2,
         publishedRelease: InspectionPackageReleaseV1,
+        authorizing liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess? = nil,
         revalidate: @MainActor () throws -> Void) async throws -> MutationReceiptV1 {
         try Task.checkCancellation(); try revalidate()
-        let current = try parentFinalizationContext(parentCheckpoint: parentCheckpoint,
-            progress: progress, publishedRelease: publishedRelease)
-        let target = try parentFinalizationTarget(current)
-        if let read = try target.adapter.readCommittedFinalization(target.input, binding: target.binding,
-            expectedWorkflowRecordRevision: target.attempt.expectedWorkflowRecordRevision) {
+        let current = try withParentFinalizationAuthorization(liveOperation) {
+            try parentFinalizationContext(parentCheckpoint: parentCheckpoint,
+                progress: progress, publishedRelease: publishedRelease)
+        }
+        let target = try parentFinalizationTarget(current, authorizing: liveOperation)
+        let existing = try withParentFinalizationAuthorization(liveOperation) {
+            try target.adapter.readCommittedFinalization(target.input, binding: target.binding,
+                expectedWorkflowRecordRevision: target.attempt.expectedWorkflowRecordRevision)
+        }
+        if let read = existing {
             guard read.receipt == current.parent.finalization?.target?.receipt else {
                 throw FieldDraftFailureV1.missingReceipt
             }
@@ -1373,7 +1383,7 @@ final class CheckRunnerCoordinator {
         } catch { failure = error }
         try Task.checkCancellation(); try revalidate()
         if let read = try readParentFinalization(parentCheckpoint: parentCheckpoint,
-            progress: progress, publishedRelease: publishedRelease) {
+            progress: progress, publishedRelease: publishedRelease, authorizing: liveOperation) {
             guard returnedIdentity == nil || returnedIdentity == read.receipt.identity else {
                 throw FieldDraftFailureV1.digestMismatch
             }
@@ -1381,6 +1391,13 @@ final class CheckRunnerCoordinator {
         }
         if let failure { throw failure }
         throw FieldDraftFailureV1.missingReceipt
+    }
+
+    private func withParentFinalizationAuthorization<T>(
+        _ operation: AppAccessPresentationV1.CheckRunnerItemOperationAccess?,
+        _ body: () throws -> T) throws -> T {
+        if let operation { return try operation.withAuthorization(body) }
+        return try body()
     }
 
     private struct ParentFinalizationContext {
@@ -1472,7 +1489,8 @@ final class CheckRunnerCoordinator {
             outcome: outcome, workflowRevision: workflowRevision)
     }
 
-    private func parentFinalizationTarget(_ current: ParentFinalizationContext) throws
+    private func parentFinalizationTarget(_ current: ParentFinalizationContext,
+        authorizing liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess?) throws
         -> (adapter: PackFinalizationAdapterV1, input: FinalizationServiceInput,
             binding: PackFinalizationBindingV1, attempt: CheckRunnerFinalizationAttemptInputsV1) {
         guard let finalization = current.parent.finalization else { throw FieldDraftFailureV1.invalidTransition }
@@ -1488,7 +1506,7 @@ final class CheckRunnerCoordinator {
         let adapter = try PackFinalizationAdapterV1(dependencies: current.dependencies,
             profile: current.profile, legacyModelContext: modelContext,
             intentStoreFailureInjection: finalizationStoreFailureInjection,
-            failureInjection: finalizationServiceFailureInjection)
+            failureInjection: finalizationServiceFailureInjection, authorizing: liveOperation)
         let binding = try PackFinalizationBindingV1(workspaceID: current.dependencies.workspaceID,
             generationID: current.dependencies.generationID, packageRelease: current.profile.release,
             mutationID: .init(rawValue: attempt.identifiers.mutationID),

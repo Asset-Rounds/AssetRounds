@@ -17,13 +17,15 @@ final class PackFinalizationAdapterV1 {
     private let dependencies: WorkspacePackageLifecycleDependenciesV1
     private let profile: WorkspacePackageLifecycleProfileV1
     private let service: FinalizationService
+    private let liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess?
 
     init(
         dependencies: WorkspacePackageLifecycleDependenciesV1,
         profile: WorkspacePackageLifecycleProfileV1,
         legacyModelContext: ModelContext,
         intentStoreFailureInjection: FinalizationIntentStoreFailureInjection? = nil,
-        failureInjection: FinalizationServiceFailureInjection? = nil
+        failureInjection: FinalizationServiceFailureInjection? = nil,
+        authorizing liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess? = nil
     ) throws {
         guard try dependencies.profileRegistry.resolve(profile.release) == profile,
               profile.release.matches(profile.package) else {
@@ -31,13 +33,15 @@ final class PackFinalizationAdapterV1 {
         }
         self.dependencies = dependencies
         self.profile = profile
+        self.liveOperation = liveOperation
         service = try FinalizationService(
             modelContext: legacyModelContext,
             signPack: profile.package,
             generationRootURL: dependencies.generationRootURL,
             intentStoreFailureInjection: intentStoreFailureInjection,
             failureInjection: failureInjection,
-            workspaceWriter: dependencies.writer
+            workspaceWriter: dependencies.writer,
+            authorizing: liveOperation
         )
     }
 
@@ -47,14 +51,14 @@ final class PackFinalizationAdapterV1 {
         expectedWorkflowRecordRevision: UInt64? = nil
     ) async throws -> PackFinalizationAdapterOutcomeV1 {
         try Task.checkCancellation()
-        try validateBinding(input, binding: binding)
+        try withLiveAuthorization { try validateBinding(input, binding: binding) }
 
         let outcome = try await service.finalize(
             input, expectedWorkflowRecordRevision: expectedWorkflowRecordRevision
         )
-        let durableReceipt = try dependencies.writer.durableReceipt(
-            mutationID: binding.mutationID
-        )
+        let durableReceipt = try withLiveAuthorization {
+            try dependencies.writer.durableReceipt(mutationID: binding.mutationID)
+        }
         guard let durableReceipt,
               binding.durableReceiptIdentity.map({ $0 == durableReceipt.identity }) ?? true else {
             throw CheckRunnerCoordinatorError.packageLifecycleMismatch
@@ -73,6 +77,7 @@ final class PackFinalizationAdapterV1 {
         expectedWorkflowRecordRevision: UInt64? = nil
     ) throws -> ReviewedFinalizationCommitV1? {
         try Task.checkCancellation()
+        try withLiveAuthorization { }
         try validateBinding(input, binding: binding)
         guard let committed = try service.readCommittedFinalization(
             input, expectedWorkflowRecordRevision: expectedWorkflowRecordRevision
@@ -88,6 +93,14 @@ final class PackFinalizationAdapterV1 {
             throw CheckRunnerCoordinatorError.packageLifecycleMismatch
         }
         return committed
+    }
+
+    private func withLiveAuthorization<T>(_ body: () throws -> T) throws -> T {
+        if let liveOperation {
+            return try liveOperation.withFinalizationWriterAuthorization(dependencies.writer,
+                generationID: dependencies.generationID, generationRootURL: dependencies.generationRootURL, body)
+        }
+        return try body()
     }
 
     private func validateBinding(

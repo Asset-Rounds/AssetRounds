@@ -780,6 +780,89 @@ final class V23CheckRunnerItemFieldEditingTests: XCTestCase {
         }
     }
 
+    func testFieldOperationAuthoritySurvivesSuspensionAndRecoversOriginalReceipt() async throws {
+        try await withAsyncFrozenBeginFixture("field-operation-authority", entry: .check,
+                                             storedTimeZoneID: "America/New_York") { h in
+            let service = try self.service(h)
+            let created = try service.create(source: h.captureSource(), preflight: .init())
+            let initial = try service.readEditableFields(draftID: created.draftID)
+            var sceneEpoch = 0
+            let editor = try CheckRunnerItemEditingSessionV1(service: service, initialRead: initial,
+                clock: FieldEditingClock(), captureOperation: {
+                    let originalEpoch = sceneEpoch
+                    return CheckRunnerFieldOperationAuthorizationV1 {
+                        guard sceneEpoch == originalEpoch else { throw FieldEditingInjectedFailure.revoked }
+                    }
+                })
+            let barrier = FieldEditingBarrier()
+            var suspended = false
+            var observedReceipts: [MutationReceiptV1] = []
+            var observedIDCounts: [Int] = []
+            editor.afterAcknowledgementReadyForTesting = { read in
+                observedReceipts.append(read.receipt)
+                observedIDCounts.append(h.ids.callCount)
+                if !suspended { suspended = true; await barrier.wait() }
+            }
+            try editor.replaceEditableValues(self.changed(initial.values, note: "original durable attempt"))
+            let oldFlush = Task { @MainActor in try await editor.forceFlushAndReadBack(reason: .back) }
+            try await self.waitUntil { suspended }
+            let original = try service.readEditableFields(draftID: created.draftID)
+            let originalSnapshot = try h.snapshot()
+            let originalIDCount = h.ids.callCount
+
+            // The same editor accepts a new action under fresh intent, but the
+            // suspended action must neither drain it nor publish its old proof.
+            sceneEpoch += 1
+            let latest = self.changed(editor.values, note: "new scene intent")
+            try editor.replaceEditableValues(latest)
+            await barrier.release()
+            do {
+                _ = try await oldFlush.value
+                XCTFail("The old operation must retain its original authority")
+            } catch {
+                XCTAssertEqual(error as? FieldEditingInjectedFailure, .revoked)
+            }
+            XCTAssertEqual(try h.snapshot(), originalSnapshot)
+            XCTAssertEqual(h.ids.callCount, originalIDCount)
+            XCTAssertEqual(editor.acknowledgement.receipt, initial.receipt)
+            XCTAssertEqual(editor.values, latest)
+            XCTAssertTrue(editor.hasUnacknowledgedEdits)
+            XCTAssertEqual(editor.durabilityState, .saveBlocked)
+
+            let fresh = try await editor.forceFlushAndReadBack(reason: .leave)
+            XCTAssertEqual(observedReceipts.count, 3)
+            XCTAssertEqual(observedIDCounts.count, 3)
+            guard observedReceipts.count == 3, observedIDCounts.count == 3 else {
+                await editor.retire()
+                return XCTFail("Original acknowledgement, receipt recovery and new edit must all be observed")
+            }
+            XCTAssertEqual(observedReceipts[0], original.receipt)
+            XCTAssertEqual(observedReceipts[1], original.receipt)
+            XCTAssertEqual(observedIDCounts[0], originalIDCount)
+            XCTAssertEqual(observedIDCounts[1], originalIDCount)
+            XCTAssertEqual(fresh.parent.receipt, observedReceipts[2])
+            XCTAssertEqual(fresh.parent.values, latest)
+            XCTAssertEqual(fresh.parent.checkpoint.draftRevision, created.draftRevision + 2)
+            XCTAssertEqual(h.ids.callCount, originalIDCount + 1)
+            XCTAssertFalse(editor.hasUnacknowledgedEdits)
+            try editor.validateForPublication(fresh)
+
+            // Proofs retain the authority that produced them even when their
+            // durable values and generation still match the same live editor.
+            sceneEpoch += 1
+            XCTAssertThrowsError(try editor.validateForPublication(fresh)) {
+                XCTAssertEqual($0 as? FieldEditingInjectedFailure, .revoked)
+            }
+            let beforeFreshProof = try h.snapshot()
+            let refreshed = try await editor.forceFlushAndReadBack(reason: .share)
+            try editor.validateForPublication(refreshed)
+            XCTAssertEqual(refreshed.parent.receipt, fresh.parent.receipt)
+            XCTAssertEqual(try h.snapshot(), beforeFreshProof)
+            XCTAssertEqual(h.ids.callCount, originalIDCount + 1)
+            await editor.retire()
+        }
+    }
+
     private func service(_ h: FrozenBeginFixture) throws -> ProductionCheckRunnerItemDraftServiceV1 {
         try .init(session: h.coordinator, progress: h.progress, coordinator: h.runner,
                   publishedRelease: h.publishedRelease, clock: h.clock, ids: h.ids)

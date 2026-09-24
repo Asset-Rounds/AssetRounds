@@ -87,10 +87,16 @@ actor DraftAutosaveSchedulerV1 {
     }
 
     func forceFlush(draftID: UUID) async throws {
+        try await forceFlush(draftID: draftID, flush: flush)
+    }
+
+    /// A caller-owned operation can retain its authorization across the actor
+    /// hop. Automatic flushes continue to use the scheduler's original port.
+    func forceFlush(draftID: UUID, flush operation: Flush) async throws {
         dirty[draftID]?.task?.cancel()
         guard let generation = dirty[draftID]?.generation else { return }
         do {
-            try await flush(draftID)
+            try await operation(draftID)
             guard dirty[draftID]?.generation == generation else { return }
             dirty[draftID] = nil
         } catch {

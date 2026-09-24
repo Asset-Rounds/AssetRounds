@@ -304,6 +304,36 @@ final class StoreSessionCoordinator: ObservableObject {
         try .init(session: self, transitions: transitions, clock: clock, idSource: idSource)
     }
 
+    /// Opening a live item retains the published Round's progress owner. This
+    /// read-only factory does not construct staging or create a draft.
+    func makeLiveCheckRunnerItemService(source: CheckRunnerRoundItemSourceV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2) throws -> ProductionCheckRunnerItemDraftServiceV1 {
+        try source.validate()
+        guard source.roundAtEntry.workspaceID == workspaceID else { throw FieldDraftFailureV1.wrongWorkspace }
+        try progress.validateCheckRunnerOwner(writer: workspaceWriter, modelContext: modelContext)
+        let lifecycle = try packageLifecycleDependencies()
+        let profile = try lifecycle.profileRegistry.resolve(source.legacyPackageIdentity)
+        let binding = try ShippingIlluminatedSignAdapterV1.finalizationInspectionRelease(
+            from: profile.package, stage: source.requestedEntry.stage)
+        let sources = try ProductionOfflineReadinessSourceClosureV1(context: modelContext,
+                                                                   workspaceID: workspaceID)
+        guard let published = try sources.package(for: source.packageRelease),
+              published.packageReleaseID == binding.packageReleaseID,
+              published.packageID == binding.packageID,
+              published.packageContentVersion == binding.packageContentVersion,
+              published.packageSHA256 == binding.packageSHA256,
+              published.workflowSHA256 == binding.workflowSHA256,
+              try RoundPackageReleaseReferenceV1(published) == source.packageRelease else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+        let coordinator = try CheckRunnerCoordinator(modelContext: modelContext,
+            packageLifecycleDependencies: lifecycle, packageLifecycleProfile: profile)
+        coordinator.configureCapture(generationRootURL: generationRootURL)
+        return try ProductionCheckRunnerItemDraftServiceV1(session: self, progress: progress,
+            coordinator: coordinator, publishedRelease: published, clock: clock, ids: idSource,
+            serviceContext: .live(source))
+    }
+
     /// The explicit backup operation reuses the incumbent source, publication
     /// and physical owners. This factory does not register a capture route.
     func makePhotoBackupService(parentCheckpoint: FieldDraftCheckpointV1,
@@ -333,7 +363,7 @@ final class StoreSessionCoordinator: ObservableObject {
         coordinator.configureCapture(generationRootURL: generationRootURL)
         return try ProductionCheckRunnerItemDraftServiceV1(session: self, progress: progress,
             coordinator: coordinator, publishedRelease: published, clock: clock, ids: idSource,
-            attachmentStaging: staging)
+            attachmentStaging: staging, serviceContext: .backup)
     }
 
     func dropSearchProjectionForRebuild() async throws {
