@@ -479,6 +479,9 @@ final class V23CheckRunnerItemFieldEditingTests: XCTestCase {
             }
             await clock.advance(to: 6_000_000_000)
             try await self.waitUntil { !editor.hasUnacknowledgedEdits }
+            // Acknowledgement precedes scheduler cleanup. Let this automatic
+            // cycle finish before asserting the next cycle's trailing deadline.
+            try await self.waitUntil { await editor.autosaveIsIdleForTesting() }
             XCTAssertEqual(try service.readEditableFields(draftID: created.draftID).values.outcome.recheckNote,
                            "continuous 9")
             service.beforeFieldEditAcknowledgementForTesting = { throw FieldEditingInjectedFailure.lostAcknowledgement }

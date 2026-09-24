@@ -109,6 +109,12 @@ actor DraftAutosaveSchedulerV1 {
         dirty[draftID]?.failureState
     }
 
+    #if DEBUG
+    func isIdleForTesting(draftID: UUID) -> Bool {
+        dirty[draftID] == nil
+    }
+    #endif
+
     func cancel(draftID: UUID) {
         dirty[draftID]?.task?.cancel()
         dirty[draftID] = nil

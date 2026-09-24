@@ -75,6 +75,11 @@ final class CheckRunnerItemEditingSessionV1: @MainActor ObservableObject {
     func autosaveFailureStateForTesting() async -> DraftAutosaveFailureStateV1? {
         await scheduler.failureState(draftID: draftID)
     }
+
+    func autosaveIsIdleForTesting() async -> Bool {
+        await registration?.value
+        return await scheduler.isIdleForTesting(draftID: draftID)
+    }
     #endif
 
     private lazy var scheduler = DraftAutosaveSchedulerV1(
