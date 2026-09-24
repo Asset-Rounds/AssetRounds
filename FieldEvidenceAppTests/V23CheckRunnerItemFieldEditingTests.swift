@@ -6,6 +6,9 @@ import XCTest
 
 @MainActor
 final class V23CheckRunnerItemFieldEditingTests: XCTestCase {
+    // Default-off observations for the two unresolved methods in original35942432840.
+    private var fieldTiming: RestoreReviewTimingV1?
+
     func testFieldEditsPersistIncompleteValuesAndColdReopenWithoutEffects() async throws {
         let entries: [CheckRunnerRequestedEntryV1] = [.check, .recheck(issueID: beginPreparationUUID(49_001))]
         for (offset, entry) in entries.enumerated() {
@@ -80,9 +83,15 @@ final class V23CheckRunnerItemFieldEditingTests: XCTestCase {
     }
 
     func testFieldEditCASPreservesBeginAndPhotoSlotsAndRejectsFrozenOrForeignState() async throws {
+        fieldTiming = RestoreReviewTimingV1(enabled: true)
+        fieldTiming?.mark("field-cas.enter")
+        defer { fieldTiming?.mark("field-cas.exit"); fieldTiming = nil }
         try await withAsyncFrozenBeginFixture("field-photo", entry: .check,
-                                             storedTimeZoneID: "America/New_York") { h in
+            storedTimeZoneID: "America/New_York",
+            diagnosticPhase: { self.fieldTiming?.mark("field-photo.\($0)") }) { h in
+            self.fieldTiming?.mark("field-photo.media.begin")
             let photo = try await h.persistCurrentPhotoApplicationFixture()
+            self.fieldTiming?.mark("field-photo.media.end")
             let service = photo.service
             let read = try service.readEditableFields(draftID: photo.value.parentCheckpoint.draftID)
             // Photo adoption freezes a later time than the fixture's initial clock.
@@ -129,6 +138,7 @@ final class V23CheckRunnerItemFieldEditingTests: XCTestCase {
             XCTAssertEqual(try h.snapshot(), after)
             XCTAssertEqual(h.ids.callCount, ids)
         }
+        fieldTiming?.mark("field-prepared.begin")
         try withFrozenBeginFixture("field-prepared", entry: .check,
                                    storedTimeZoneID: "America/New_York") { h in
             let service = try self.service(h)
@@ -146,14 +156,18 @@ final class V23CheckRunnerItemFieldEditingTests: XCTestCase {
             XCTAssertEqual(try h.snapshot(), before)
             XCTAssertEqual(h.ids.callCount, ids)
         }
+        fieldTiming?.mark("field-prepared.end")
         for variant in 0..<3 {
             try await withAsyncFrozenBeginFixture("field-pending-photo-\(variant)", entry: .check,
-                                                 storedTimeZoneID: "America/Chicago") { h in
+                storedTimeZoneID: "America/Chicago",
+                diagnosticPhase: { self.fieldTiming?.mark("field-pending-photo-\(variant).\($0)") }) { h in
+                self.fieldTiming?.mark("field-pending-photo-\(variant).media.begin")
                 let photo = try await FrozenProductionPhotoV1.make(h, publishRaw: variant != 0)
                 if variant == 2 {
                     _ = try await photo.service.preparePhotoPair(parentDraftID: photo.parentID,
                                                                  childDraftID: photo.childID)
                 }
+                self.fieldTiming?.mark("field-pending-photo-\(variant).media.end")
                 let childBefore = try photo.checkpoint()
                 let childPayload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(childBefore)
                 switch (variant, childPayload.phase) {
@@ -198,13 +212,18 @@ final class V23CheckRunnerItemFieldEditingTests: XCTestCase {
             }
         }
         try await withAsyncFrozenBeginFixture("field-finalization-denials", entry: .check,
-                                             storedTimeZoneID: "America/Chicago") { h in
+            storedTimeZoneID: "America/Chicago",
+            diagnosticPhase: { self.fieldTiming?.mark("field-finalization-denials.\($0)") }) { h in
+            self.fieldTiming?.mark("field-finalization-denials.draft.begin")
             let draft = try await makeFrozenParentFinalizationDraft(h,
                 selection: .couldNotVerify(reasonKey: "conditions_changed", note: nil), photoCount: 0)
+            self.fieldTiming?.mark("field-finalization-denials.draft.end")
             let editing = try draft.service.readEditableFields(draftID: draft.checkpoint.draftID)
+            self.fieldTiming?.mark("field-finalization-denials.prepare.begin")
             let prepared = try await draft.service.prepareFinalization(draftID: draft.checkpoint.draftID,
                 expectedCheckpointSHA256: draft.checkpoint.checkpointSHA256,
                 sourceApp: SourceAppSnapshotV1(build: "field-edit-denials", version: "1.0")) {}
+            self.fieldTiming?.mark("field-finalization-denials.prepare.end")
             let preparedSnapshot = try h.snapshot(), preparedIDs = h.ids.callCount
             XCTAssertEqual(prepared.state, .committing)
             XCTAssertThrowsError(try draft.service.readEditableFields(draftID: prepared.draftID)) {
@@ -217,7 +236,9 @@ final class V23CheckRunnerItemFieldEditingTests: XCTestCase {
             }
             XCTAssertEqual(try h.snapshot(), preparedSnapshot)
             XCTAssertEqual(h.ids.callCount, preparedIDs)
+            self.fieldTiming?.mark("field-finalization-denials.resume.begin")
             let terminal = try await draft.service.resumeFinalization(draftID: prepared.draftID) {}
+            self.fieldTiming?.mark("field-finalization-denials.resume.end")
             let terminalSnapshot = try h.snapshot(), terminalIDs = h.ids.callCount
             XCTAssertEqual(terminal.state, .committed)
             XCTAssertThrowsError(try draft.service.readEditableFields(draftID: terminal.draftID)) {
@@ -311,8 +332,12 @@ final class V23CheckRunnerItemFieldEditingTests: XCTestCase {
     }
 
     func testFieldAutosaveUsesTrailingMaximumAndRetainsFailedAttempt() async throws {
+        fieldTiming = RestoreReviewTimingV1(enabled: true)
+        fieldTiming?.mark("field-autosave.enter")
+        defer { fieldTiming?.mark("field-autosave.exit"); fieldTiming = nil }
         try await withAsyncFrozenBeginFixture("field-clock", entry: .check,
-                                             storedTimeZoneID: "America/New_York") { h in
+            storedTimeZoneID: "America/New_York",
+            diagnosticPhase: { self.fieldTiming?.mark("field-clock.\($0)") }) { h in
             let service = try self.service(h)
             let created = try service.create(source: h.captureSource(), preflight: .init())
             let initial = try service.readEditableFields(draftID: created.draftID)
@@ -343,6 +368,7 @@ final class V23CheckRunnerItemFieldEditingTests: XCTestCase {
             XCTAssertEqual(try service.readEditableFields(draftID: created.draftID).values.outcome.recheckNote,
                            "continuous 9")
             service.beforeFieldEditAcknowledgementForTesting = { throw FieldEditingInjectedFailure.lostAcknowledgement }
+            self.fieldTiming?.mark("field-clock.injected-acknowledgement-loss")
             try editor.replaceEditableValues(self.changed(editor.values, note: "failed automatic acknowledgement"))
             try await self.waitUntil { await clock.deadlines().contains(6_750_000_000) }
             await clock.advance(to: 6_750_000_000)
@@ -351,13 +377,16 @@ final class V23CheckRunnerItemFieldEditingTests: XCTestCase {
             let saved = try service.readEditableFields(draftID: created.draftID)
             let revision = try h.coordinator.workspaceWriter.currentRevision()
             service.beforeFieldEditAcknowledgementForTesting = nil
+            self.fieldTiming?.mark("field-clock.explicit-recovery.begin")
             let proof = try await editor.forceFlushAndReadBack(reason: .back)
+            self.fieldTiming?.mark("field-clock.explicit-recovery.end")
             XCTAssertEqual(proof.parent.receipt, saved.receipt)
             XCTAssertEqual(try h.coordinator.workspaceWriter.currentRevision(), revision)
             await editor.retire()
         }
         try await withAsyncFrozenBeginFixture("field-automatic-exhaustion", entry: .check,
-                                             storedTimeZoneID: "America/New_York") { h in
+            storedTimeZoneID: "America/New_York",
+            diagnosticPhase: { self.fieldTiming?.mark("field-automatic-exhaustion.\($0)") }) { h in
             let service = try self.service(h)
             let created = try service.create(source: h.captureSource(), preflight: .init())
             let initial = try service.readEditableFields(draftID: created.draftID)
@@ -373,6 +402,7 @@ final class V23CheckRunnerItemFieldEditingTests: XCTestCase {
             let before = try h.snapshot(), idsBefore = h.ids.callCount
             try editor.replaceEditableValues(desired)
             for attemptNumber in 1...4 {
+                self.fieldTiming?.mark("field-automatic-exhaustion.attempt-\(attemptNumber).begin")
                 let deadline = UInt64(attemptNumber) * 750_000_000
                 try await self.waitUntil { await clock.deadlines().contains(deadline) }
                 await clock.advance(to: deadline)
@@ -389,6 +419,7 @@ final class V23CheckRunnerItemFieldEditingTests: XCTestCase {
                 XCTAssertTrue(attemptedReceipts.allSatisfy { $0 == saved.receipt })
                 XCTAssertEqual(editor.acknowledgement.checkpoint, initial.checkpoint)
                 XCTAssertTrue(editor.hasUnacknowledgedEdits)
+                self.fieldTiming?.mark("field-automatic-exhaustion.attempt-\(attemptNumber).end")
             }
             let exhaustedState = await editor.autosaveFailureStateForTesting()
             let exhausted = try XCTUnwrap(exhaustedState)
@@ -404,7 +435,9 @@ final class V23CheckRunnerItemFieldEditingTests: XCTestCase {
             XCTAssertEqual(try h.snapshot(), savedSnapshot)
             XCTAssertEqual(h.ids.callCount, savedIDs)
             editor.afterAcknowledgementReadyForTesting = nil
+            self.fieldTiming?.mark("field-automatic-exhaustion.explicit-recovery.begin")
             let recovered = try await editor.forceFlushAndReadBack(reason: .leave)
+            self.fieldTiming?.mark("field-automatic-exhaustion.explicit-recovery.end")
             XCTAssertEqual(recovered.parent.receipt, original.receipt)
             XCTAssertEqual(recovered.parent.checkpoint, original.checkpoint)
             XCTAssertEqual(recovered.parent.values, desired)
@@ -415,7 +448,8 @@ final class V23CheckRunnerItemFieldEditingTests: XCTestCase {
             await editor.retire()
         }
         try await withAsyncFrozenBeginFixture("field-before-save", entry: .check,
-                                             storedTimeZoneID: "America/New_York") { h in
+            storedTimeZoneID: "America/New_York",
+            diagnosticPhase: { self.fieldTiming?.mark("field-before-save.\($0)") }) { h in
             let originalService = try self.service(h)
             let created = try originalService.create(source: h.captureSource(), preflight: .init())
             try h.closeCoordinator()
@@ -636,15 +670,24 @@ final class V23CheckRunnerItemFieldEditingTests: XCTestCase {
         return .init(preflight: old.preflight, outcome: outcome, semanticAnchor: old.semanticAnchor)
     }
 
-    private func waitUntil(_ predicate: @MainActor () async throws -> Bool) async throws {
+    private func waitUntil(line: UInt = #line,
+                           _ predicate: @MainActor () async throws -> Bool) async throws {
         let deadline = ContinuousClock().now.advanced(by: .seconds(10))
-        while !(try await predicate()) {
-            guard ContinuousClock().now < deadline else {
-                XCTFail("Timed out waiting for the real editing/scheduler boundary")
-                throw FieldEditingInjectedFailure.timedOut
+        fieldTiming?.mark("field-wait.line-\(line).begin")
+        do {
+            while !(try await predicate()) {
+                guard ContinuousClock().now < deadline else {
+                    fieldTiming?.mark("field-wait.line-\(line).timeout")
+                    XCTFail("Timed out waiting for the real editing/scheduler boundary")
+                    throw FieldEditingInjectedFailure.timedOut
+                }
+                try await Task.sleep(nanoseconds: 1_000_000)
             }
-            try await Task.sleep(nanoseconds: 1_000_000)
+        } catch {
+            fieldTiming?.mark("field-wait.line-\(line).error-\(String(reflecting: error))")
+            throw error
         }
+        fieldTiming?.mark("field-wait.line-\(line).end")
     }
 }
 
