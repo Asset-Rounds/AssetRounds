@@ -393,7 +393,11 @@ FIELD_AUTOSAVE_SELECTION_ID = 'c36-field-autosave-no-index-build30m'
 FIELD_AUTOSAVE_PARENT = '147da0541cfd6d93dc890fa95b8dd08b2bd4712e'
 FIELD_AUTOSAVE_TREES = {'FieldEvidenceApp': '8d3040a6ad649679ece18553ac4226369c075a6a', 'FieldEvidenceAppTests': '86c04f43bb49d5f41c4e3d1385a63087aeeb12f7', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 FIELD_AUTOSAVE_SELECTORS = ('FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldAutosaveUsesTrailingMaximumAndRetainsFailedAttempt',)
+LIVE_HOST_SELECTION_ID = 'c36-live-host-no-index-build30m'
+LIVE_HOST_PARENT = '4af0b5ad05f30bd470270491c2fc6ef9875d1743'
+LIVE_HOST_TREES = {'FieldEvidenceApp': '6db6810a7e210c4b856590a6e39a698aef0e4731', 'FieldEvidenceAppTests': '86c04f43bb49d5f41c4e3d1385a63087aeeb12f7', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 NO_INDEX_ROUTES = {
+    LIVE_HOST_SELECTION_ID: (LIVE_HOST_PARENT, "D30"),
     FIELD_AUTOSAVE_SELECTION_ID: (FIELD_AUTOSAVE_PARENT, "D30"),
     NOTIFICATION_INTERRUPTION_SELECTION_ID: (NOTIFICATION_INTERRUPTION_PARENT, "D30"),
     SAVED_REVIEW_FIELDS_SELECTION_ID: (SAVED_REVIEW_FIELDS_PARENT, "D30"),
@@ -416,6 +420,8 @@ NO_INDEX_ROUTES = {
 
 def no_index_source_trees(selection_id):
     require(selection_id in NO_INDEX_ROUTES, "no-index closed source binding")
+    if selection_id == LIVE_HOST_SELECTION_ID:
+        return LIVE_HOST_TREES
     if selection_id == FIELD_AUTOSAVE_SELECTION_ID:
         return FIELD_AUTOSAVE_TREES
     if selection_id == NOTIFICATION_INTERRUPTION_SELECTION_ID:
@@ -518,7 +524,14 @@ SAVED_REVIEW_REGRESSION_SELECTORS = (
     'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionDiscardCanCompleteReviewWithoutOperationalRoundAndRejectsRetirement',
 )
 SAVED_REVIEW_SELECTORS = SAVED_REVIEW_REGRESSION_SELECTORS + SAVED_REVIEW_NEW_SELECTORS
+LIVE_HOST_PROFILE = 'live-host-v1'
+LIVE_HOST_POOL_SHA256 = '5B672136EC763EABF8C478751B43AD95EC9691491B001B1C11B67B0B23BC133C'
+LIVE_HOST_MAP_SHA256 = '173827019D64F5D1940C09D5D2571DD13B0E74C31D27E32D15E1E6D31297D551'
+LIVE_HOST_NEW_SELECTORS = ('FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldOperationAuthoritySurvivesSuspensionAndRecoversOriginalReceipt', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testPhotoDiscardPreparationReopensOriginalPendingReceipt', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testPhotoDiscardValuesRetainOriginalStagesAndRejectCommit', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testDurablePreflightSubmitsConfirmedEnteredTimeZoneWithoutRewritingSavedInput', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementPreservesCanonicalNamesAndRejectsStaleOrReplacedPlans', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementRejectsMalformedNamesAndUnsafeFileKinds', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementPreservesInterruptedFinalizationAndReachesEraseAdmission', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testLiveFinalizationUsesOriginalReceiptAndRejectsRetiredOperation', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testLivePhotoRejectsRetiredPublicationAndRecoversOriginalCommitReceipt', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testLiveItemFactoryAndEditorKeepOriginalPublicationWithoutCreatingStaging', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testPreparedImmutableOriginalPublishesOnceAndRetainsAuthenticRetryReceipt', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testPreparedImmutableOriginalRejectsTargetAppearingAfterPreparation', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testPreparedImmutableOriginalRejectsSubstitutionAndCancellation')
+LIVE_HOST_RUNTIME_SELECTORS = LIVE_HOST_NEW_SELECTORS + ('FieldEvidenceAppTests/S8_2GoldenAccessibilityTests/testGoldenFlowAccessibilitySpineAndControlMetricsAreExact',)
+LIVE_HOST_SELECTORS = ('FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testPhotoDiscardPreparationReopensOriginalPendingReceipt', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testPhotoDiscardValuesRetainOriginalStagesAndRejectCommit', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testDurablePreflightSubmitsConfirmedEnteredTimeZoneWithoutRewritingSavedInput', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementPreservesCanonicalNamesAndRejectsStaleOrReplacedPlans', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementRejectsMalformedNamesAndUnsafeFileKinds', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementPreservesInterruptedFinalizationAndReachesEraseAdmission', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testLiveFinalizationUsesOriginalReceiptAndRejectsRetiredOperation', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testLivePhotoRejectsRetiredPublicationAndRecoversOriginalCommitReceipt', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testLiveItemFactoryAndEditorKeepOriginalPublicationWithoutCreatingStaging')
 GENERATED_PROFILE_PINS = {
+    LIVE_HOST_POOL_SHA256: (LIVE_HOST_PROFILE, LIVE_HOST_MAP_SHA256),
     SAVED_REVIEW_POOL_SHA256: (SAVED_REVIEW_PROFILE, SAVED_REVIEW_MAP_SHA256),
     GENERATED_SELECTION_POOL_SHA256: (GENERATED_SELECTION_PROFILE, GENERATED_SELECTION_MAP_SHA256),
     PRE_SAVED_REVIEW_POOL_SHA256: (PRE_SAVED_REVIEW_PROFILE, PRE_SAVED_REVIEW_MAP_SHA256),
@@ -1278,7 +1291,7 @@ def validate_selection(selection):
         require(tuple(selection["unitTestSelectors"]) in (
             PARENT_FINALIZATION_METHOD_PARTITIONS[0][1], RESTORE_BUILD_WATCHDOG_SELECTORS,
             REMINDER_BUILD_WATCHDOG_SELECTORS, RESTORE_HISTORY_SELECTORS, REPLACEMENT_UNION_SELECTORS, ERASE_RECOVERY_SELECTORS, ACTIVITY_CONTRACT_SELECTORS, ACTIVITY_CODEC_PUNCH_SELECTORS, ACTIVITY_COMPLETED_SOURCE_SELECTORS,
-            NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS, NOTIFICATION_INTERRUPTION_SELECTORS, FINDING_PROFILE_FIXTURES_SELECTORS, SAVED_REVIEW_FIELDS_SELECTORS, FIELD_AUTOSAVE_SELECTORS,
+            NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS, NOTIFICATION_INTERRUPTION_SELECTORS, FINDING_PROFILE_FIXTURES_SELECTORS, SAVED_REVIEW_FIELDS_SELECTORS, FIELD_AUTOSAVE_SELECTORS, LIVE_HOST_RUNTIME_SELECTORS,
             *(members for _, members in ERASE_DIAGNOSTIC_PARTITIONS),
             *(members for _, members in REPLACEMENT_DIAGNOSTIC_PARTITIONS)),
             "build watchdog exact approved methods")
@@ -1330,10 +1343,11 @@ def resolve_selection(default, selection_map, selection_id):
                  and g.get("classes") == ['S3_6CameraRecoveryTests', 'S4_5CorrectionTests', 'S6_2BackupExportTests', 'V9_18PackLifecycleIntegrationTests']]) == 1
     )
     generated_profile_shape = (
-        isinstance(groups, list) and len(groups) in (68, 69)
+        isinstance(groups, list) and len(groups) in (68, 69, 70)
         and (sha256(canonical(default)), sha256(canonical(selection_map))) in (
             (SAVED_REVIEW_POOL_SHA256, SAVED_REVIEW_MAP_SHA256),
             (GENERATED_SELECTION_POOL_SHA256, GENERATED_SELECTION_MAP_SHA256),
+            (LIVE_HOST_POOL_SHA256, LIVE_HOST_MAP_SHA256),
             (PRE_SAVED_REVIEW_POOL_SHA256, PRE_SAVED_REVIEW_MAP_SHA256))
     )
     require(isinstance(groups, list) and
@@ -1373,6 +1387,7 @@ def resolve_selection(default, selection_map, selection_id):
         require((sha256(canonical(default)), sha256(canonical(selection_map))) in (
                     (DURABLE_BEGIN_BASE_POOL_SHA256, DURABLE_BEGIN_BASE_MAP_SHA256),
                     (GENERATED_SELECTION_POOL_SHA256, GENERATED_SELECTION_MAP_SHA256),
+                    (LIVE_HOST_POOL_SHA256, LIVE_HOST_MAP_SHA256),
                     (PRE_SAVED_REVIEW_POOL_SHA256, PRE_SAVED_REVIEW_MAP_SHA256),
                     (SAVED_REVIEW_POOL_SHA256, SAVED_REVIEW_MAP_SHA256)),
                 "durable begin exact base pool/map")
@@ -1616,7 +1631,7 @@ def resolve_selection(default, selection_map, selection_id):
         finding.update(tier="D30", **dict(zip(BUDGET_KEYS, TIERS["D30"])))
         validate_selection(finding)
         resolved[FINDING_PROFILE_FIXTURES_SELECTION_ID] = finding
-    if generated_profile_shape and sha256(canonical(default)) in (SAVED_REVIEW_POOL_SHA256, GENERATED_SELECTION_POOL_SHA256):
+    if generated_profile_shape and sha256(canonical(default)) in (SAVED_REVIEW_POOL_SHA256, GENERATED_SELECTION_POOL_SHA256, LIVE_HOST_POOL_SHA256):
         require(tuple(default["unitTestSelectors"][1054:1059]) == SAVED_REVIEW_NEW_SELECTORS
                 and tuple(default["unitTestSelectors"][773:777]) == SAVED_REVIEW_REGRESSION_SELECTORS
                 and tuple(resolved["c36-production-destination"]["unitTestSelectors"])
@@ -1628,9 +1643,11 @@ def resolve_selection(default, selection_map, selection_id):
         saved_review = dict(default, unitTestSelectors=list(SAVED_REVIEW_SELECTORS))
         validate_selection(saved_review)
         resolved[SAVED_REVIEW_SELECTION_ID] = saved_review
-    if generated_profile_shape and sha256(canonical(default)) == GENERATED_SELECTION_POOL_SHA256:
-        require(tuple(default["unitTestSelectors"][1059:]) == FIELD_EDIT_SELECTORS
-                and tuple(resolved["c36-field-edit"]["unitTestSelectors"]) == FIELD_EDIT_SELECTORS
+    if generated_profile_shape and sha256(canonical(default)) in (GENERATED_SELECTION_POOL_SHA256, LIVE_HOST_POOL_SHA256):
+        live_host = sha256(canonical(default)) == LIVE_HOST_POOL_SHA256
+        expected_fields = FIELD_EDIT_SELECTORS + ((LIVE_HOST_NEW_SELECTORS[0],) if live_host else ())
+        require(tuple(default["unitTestSelectors"][1059:1064]) == FIELD_EDIT_SELECTORS
+                and tuple(resolved["c36-field-edit"]["unitTestSelectors"]) == expected_fields
                 and SAVED_REVIEW_FIELDS_SELECTORS == SAVED_REVIEW_SELECTORS + FIELD_EDIT_SELECTORS
                 and len(SAVED_REVIEW_FIELDS_SELECTORS) == len(set(SAVED_REVIEW_FIELDS_SELECTORS)) == 14,
                 "saved review fields exact ordered disjoint enrolled union")
@@ -1645,6 +1662,15 @@ def resolve_selection(default, selection_map, selection_id):
         autosave = dict(combined, unitTestSelectors=list(FIELD_AUTOSAVE_SELECTORS))
         validate_selection(autosave)
         resolved[FIELD_AUTOSAVE_SELECTION_ID] = autosave
+        if live_host:
+            require(tuple(default["unitTestSelectors"][1064:]) == LIVE_HOST_RUNTIME_SELECTORS
+                    and tuple(resolved["c36-live-host"]["unitTestSelectors"]) == LIVE_HOST_SELECTORS,
+                    "live host exact appended methods and class group")
+            require(len(LIVE_HOST_RUNTIME_SELECTORS) == len(set(LIVE_HOST_RUNTIME_SELECTORS)) == 14
+                    and LIVE_HOST_SELECTION_ID not in resolved, "live host distinct exact14 question")
+            live_question = dict(combined, unitTestSelectors=list(LIVE_HOST_RUNTIME_SELECTORS))
+            validate_selection(live_question)
+            resolved[LIVE_HOST_SELECTION_ID] = live_question
     if "erase-lease-lifecycle" in resolved:
         require(tuple(resolved["erase-lease-lifecycle"]["unitTestSelectors"]) == ERASE_LEASE_SELECTORS,
                 "erase exact enrolled lifecycle methods")
@@ -1787,6 +1813,7 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
                 for key in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT")), "original run identity")
     watchdog_routes = {
         FIELD_AUTOSAVE_SELECTION_ID: (FIELD_AUTOSAVE_PARENT, FIELD_AUTOSAVE_SELECTORS),
+        LIVE_HOST_SELECTION_ID: (LIVE_HOST_PARENT, LIVE_HOST_RUNTIME_SELECTORS),
         NOTIFICATION_INTERRUPTION_SELECTION_ID: (NOTIFICATION_INTERRUPTION_PARENT, NOTIFICATION_INTERRUPTION_SELECTORS),
         SAVED_REVIEW_FIELDS_SELECTION_ID: (SAVED_REVIEW_FIELDS_PARENT, SAVED_REVIEW_FIELDS_SELECTORS),
         FINDING_PROFILE_FIXTURES_SELECTION_ID: (FINDING_PROFILE_FIXTURES_PARENT, FINDING_PROFILE_FIXTURES_SELECTORS),

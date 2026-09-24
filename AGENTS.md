@@ -58,6 +58,7 @@ The owner permits the 30-minute proposal to be permanent or temporary. Reuse the
 | --- | --- |
 | `c36-restore-review-no-index-build30m` | Six restore-review journeys |
 | `c36-field-autosave-no-index-build30m` | Exact existing autosave method, including its terminal-ownership recovery regression. Isolate the corrected failure family after audited35949714322; preserve historical14/full coverage due,1064/69 and every assertion. Qualify before use; development only. |
+| `c36-live-host-no-index-build30m` | Exact ordered13 newly enrolled live-operation/host/C05 methods (field1, host9, media3), then the existing S8 golden accessibility spine; qualify live-host-v1 at1078/70 and exact14 before use. Existing D30/no-index budgets; preserve every historical selector, full production/lifecycle coverage and all final gates. |
 | `c36-saved-review-fields-no-index-build30m` | Exact saved-review/discard9 followed by durable field-edit5; qualify ordered14 and1064/69 before use. Existing D30/no-index budgets; development only, complete C36 host/lifecycle and all final gates remain due. |
 | `reminder-production-no-index-build30m` | Ordered33-method union of the four reminder groups |
 | `notification-schedule-erase-no-index-build30m` | Exact existing ordered28 notification-schedule-erase methods, including the eight populated reminder cases; qualify before use |

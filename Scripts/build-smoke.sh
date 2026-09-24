@@ -48,7 +48,8 @@ fi
 
 # Closed index-emission experiment. Ordinary and historical argv stays exact.
 v23_index_setting=""
-if [ "${NATIVE_SELECTION_ID:-none}" = c36-field-autosave-no-index-build30m ] || \
+if [ "${NATIVE_SELECTION_ID:-none}" = c36-live-host-no-index-build30m ] || \
+   [ "${NATIVE_SELECTION_ID:-none}" = c36-field-autosave-no-index-build30m ] || \
    [ "${NATIVE_SELECTION_ID:-none}" = c36-saved-review-fields-no-index-build30m ] || \
    [ "${NATIVE_SELECTION_ID:-none}" = c36-restore-review-no-index ] || \
    [ "${NATIVE_SELECTION_ID:-none}" = c36-restore-review-no-index-build30m ] || \

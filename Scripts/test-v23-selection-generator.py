@@ -293,6 +293,8 @@ FINDING_HISTORICAL_PINS = [{'profile': 'incumbent-v1', 'selectionSHA256': '91E6F
 SAVED_REVIEW_SELECTORS = ['FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceAuthenticatesCurrentPendingAndTerminalOriginalsWithoutReadEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceRejectsEverySubstitutedFieldAndNonDraftWithoutEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceReturnsUnsupportedOnlyAfterAuthenticCurrentReceipt', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceRejectsDirtyCorruptQuarantinedAndRetiredHistoryWithoutEffects', 'FieldEvidenceAppTests/V23ProductionFourRootShellTests/testPhysicalRestoredReviewDiscardUsesProductionAccessAndColdOriginalReadback']
 SAVED_REVIEW_BASE_COMMIT = '8a4672e15ddf340a63f2edc3c5245de4b22cc6ce'
 
+EXPECTED_LIVE_HOST_RUNTIME = ['FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldOperationAuthoritySurvivesSuspensionAndRecoversOriginalReceipt', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testPhotoDiscardPreparationReopensOriginalPendingReceipt', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testPhotoDiscardValuesRetainOriginalStagesAndRejectCommit', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testDurablePreflightSubmitsConfirmedEnteredTimeZoneWithoutRewritingSavedInput', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementPreservesCanonicalNamesAndRejectsStaleOrReplacedPlans', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementRejectsMalformedNamesAndUnsafeFileKinds', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementPreservesInterruptedFinalizationAndReachesEraseAdmission', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testLiveFinalizationUsesOriginalReceiptAndRejectsRetiredOperation', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testLivePhotoRejectsRetiredPublicationAndRecoversOriginalCommitReceipt', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testLiveItemFactoryAndEditorKeepOriginalPublicationWithoutCreatingStaging', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testPreparedImmutableOriginalPublishesOnceAndRetainsAuthenticRetryReceipt', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testPreparedImmutableOriginalRejectsTargetAppearingAfterPreparation', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testPreparedImmutableOriginalRejectsSubstitutionAndCancellation', 'FieldEvidenceAppTests/S8_2GoldenAccessibilityTests/testGoldenFlowAccessibilitySpineAndControlMetricsAreExact']
+
 class GeneratorTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -306,6 +308,9 @@ class GeneratorTests(unittest.TestCase):
         for class_name in classes:
             relative = "FieldEvidenceAppTests/" + class_name + ".swift"
             overlays = {
+                'S8_2GoldenAccessibilityTests': REPO / 'FieldEvidenceAppTests/S8_2GoldenAccessibilityTests.swift',
+                'S3_2MediaPipelineTests': REPO / 'FieldEvidenceAppTests/S3_2MediaPipelineTests.swift',
+                'V23ProductionCheckRunnerItemHostTests': REPO / 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests.swift',
                 'V9_101AdvancedRecurrenceWorkflowTests': REPO / 'FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests.swift',
                 'V9_69ShopProfileOpenHandoffTests': REPO / 'FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests.swift',
                 'V23FindingOwnerSelectionContractsTests': REPO / 'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests.swift',
@@ -364,22 +369,52 @@ class GeneratorTests(unittest.TestCase):
         return generator.generate(manifest or copy.deepcopy(self.manifest), profile,
                                   checkout or self.checkout)
 
+    def test_live_host_adds_exact_fourteen_and_preserves_all_historical_profiles(self):
+        expected = EXPECTED_LIVE_HOST_RUNTIME
+        prior, prior_map, _ = self.generate('saved-review-fields-v1')
+        current, mapping, report = self.generate('live-host-v1')
+        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1078, 70, 1078))
+        self.assertEqual(current, dict(prior, unitTestSelectors=prior['unitTestSelectors'] + expected))
+        expected_map = copy.deepcopy(prior_map)
+        additions = {'c36-field-edit': 1, 'media-policy': 3, 'legacy-lifecycle-recovery': 1}
+        # Locate the C05 owning group from its explicit class contract.
+        media_group = next(g['id'] for g in prior_map['groups'] if 'S3_2MediaPipelineTests' in g['classes'])
+        additions[media_group] = additions.pop('media-policy')
+        for group in expected_map['groups']:
+            group['methodCount'] += additions.get(group['id'], 0)
+        expected_map['groups'].append({'id': 'c36-live-host', 'classes': ['V23ProductionCheckRunnerItemHostTests'], 'methodCount': 9})
+        self.assertEqual(mapping, expected_map)
+        historical = copy.deepcopy(self.manifest)
+        historical['selectorPool'] = historical['selectorPool'][:1064]
+        historical['groups'] = historical['groups'][:-1]
+        historical['profiles'] = historical['profiles'][:-1]
+        for profile in historical['profiles']:
+            profile['excludedGroupIDs'].remove('c36-live-host')
+            profile['excludedSelectors'] = [s for s in profile.get('excludedSelectors', []) if s in historical['selectorPool']]
+        self.assertEqual(len(historical['profiles']), 23)
+        for profile in historical['profiles']:
+            old = generator.generate(historical, profile['id'], self.checkout)
+            new = self.generate(profile['id'])
+            self.assertEqual(tuple(generator.canonical(v) for v in old[:2]), tuple(generator.canonical(v) for v in new[:2]), profile['id'])
+
     def test_saved_review_fields_profile_and_all_prior_outputs_are_exact(self):
         fields = ['FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditsPersistIncompleteValuesAndColdReopenWithoutEffects', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditCASPreservesBeginAndPhotoSlotsAndRejectsFrozenOrForeignState', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditAcknowledgementLossRecoversOriginalBeforeNewerEdits', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldAutosaveUsesTrailingMaximumAndRetainsFailedAttempt', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldFlushDrainsEditsArrivingDuringAwaitAndAuthenticatesReadback']
         prior, prior_map, _ = self.generate('saved-review-discard-v1')
         current, mapping, report = self.generate('saved-review-fields-v1')
-        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1064, 69, 1064))
+        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1064, 69, 1078))
         self.assertEqual(current, dict(prior, unitTestSelectors=prior['unitTestSelectors'] + fields))
         self.assertEqual(mapping, dict(prior_map, groups=prior_map['groups'] + [
             {'id': 'c36-field-edit', 'classes': ['V23CheckRunnerItemFieldEditingTests'], 'methodCount': 5}]))
         self.assertEqual(generator.sha256(generator.canonical(prior)), 'A45F6BA826036252B8FFAE2C1B94FB599CA59FCAAA75CF5ACA09F1A5277A9DE1')
         self.assertEqual(generator.sha256(generator.canonical(prior_map)), 'C4CC0CE51ECE1A2920E9B809ECA1210A4507D341579255FE8A7C998024DEF43F')
         historical = copy.deepcopy(self.manifest)
-        historical['selectorPool'] = historical['selectorPool'][:-5]
-        historical['groups'] = historical['groups'][:-1]
-        historical['profiles'] = historical['profiles'][:-1]
+        historical['selectorPool'] = historical['selectorPool'][:1059]
+        historical['groups'] = historical['groups'][:-2]
+        historical['profiles'] = historical['profiles'][:-2]
         for profile in historical['profiles']:
             profile['excludedGroupIDs'].remove('c36-field-edit')
+            profile['excludedGroupIDs'].remove('c36-live-host')
+            profile['excludedSelectors'] = [s for s in profile.get('excludedSelectors', []) if s in historical['selectorPool']]
         for profile in historical['profiles']:
             old = generator.generate(historical, profile['id'], self.checkout)
             new = self.generate(profile['id'])
@@ -405,15 +440,15 @@ class GeneratorTests(unittest.TestCase):
         finally:
             source.write_bytes(original)
 
-    def test_active_saved_review_fields_files_match_generated_output(self):
-        current, mapping, _ = self.generate('saved-review-fields-v1')
+    def test_active_live_host_files_match_generated_output(self):
+        current, mapping, _ = self.generate('live-host-v1')
         self.assertEqual(generator.canonical(current), (HERE/'ci-selection.json').read_bytes())
         self.assertEqual(generator.canonical(mapping), (HERE/'ci-selection-map.json').read_bytes())
 
     def test_saved_review_profile_adds_exact_five_without_changing_order_or_budgets(self):
         prior, prior_map, _ = self.generate('finding-profile-fixtures-v1')
         current, mapping, report = self.generate('saved-review-discard-v1')
-        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1059, 68, 1064))
+        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1059, 68, 1078))
         self.assertEqual(current['unitTestSelectors'], prior['unitTestSelectors'] + SAVED_REVIEW_SELECTORS)
         self.assertEqual({k: v for k, v in current.items() if k != 'unitTestSelectors'},
                          {k: v for k, v in prior.items() if k != 'unitTestSelectors'})
@@ -884,7 +919,7 @@ class GeneratorTests(unittest.TestCase):
     def test_finding_profile_appends_exact_86_and_real_command_rejects_hostile_sources(self):
         prior, prior_map, _ = self.generate('activity-completed-source-v1')
         current, mapping, report = self.generate('finding-profile-fixtures-v1')
-        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1054, 68, 1064))
+        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1054, 68, 1078))
         self.assertNotIn('finding-owner-components-v1', [p['id'] for p in self.manifest['profiles']])
         with self.assertRaises(generator.ManifestError):
             self.generate('finding-owner-components-v1')
@@ -931,7 +966,7 @@ class GeneratorTests(unittest.TestCase):
                 selected, mapping, report = self.generate(pin['profile'])
                 self.assertEqual(generator.sha256(generator.canonical(selected)), pin['selectionSHA256'])
                 self.assertEqual(generator.sha256(generator.canonical(mapping)), pin['mapSHA256'])
-                self.assertEqual(report['manifestSourceDeclarationCount'], 1064)
+                self.assertEqual(report['manifestSourceDeclarationCount'], 1078)
                 self.assertFalse(set(FINDING_PROFILE_FIXTURES_SELECTORS) & set(selected['unitTestSelectors']))
 
     def test_manifest_shape_membership_environment_and_path_hostiles(self):

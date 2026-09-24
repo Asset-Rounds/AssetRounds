@@ -43,13 +43,13 @@ struct CheckRunnerDurablePreflightActionsV1 {
 
 @MainActor
 struct PreflightView: View {
-    static let screenAccessibilityIdentifier = "s3.preflight.screen"
-    static let timeZoneAccessibilityIdentifier = "s3.preflight.time-zone"
-    static let timeZoneConfirmationAccessibilityIdentifier = "s3.preflight.time-zone-confirmed"
-    static let afterDarkAccessibilityIdentifier = "s3.preflight.after-dark"
-    static let safePositionAccessibilityIdentifier = "s3.preflight.safe-position"
-    static let beginAccessibilityIdentifier = "s3.preflight.begin"
-    static let cancelAccessibilityIdentifier = "s3.preflight.cancel"
+    nonisolated static let screenAccessibilityIdentifier = "s3.preflight.screen"
+    nonisolated static let timeZoneAccessibilityIdentifier = "s3.preflight.time-zone"
+    nonisolated static let timeZoneConfirmationAccessibilityIdentifier = "s3.preflight.time-zone-confirmed"
+    nonisolated static let afterDarkAccessibilityIdentifier = "s3.preflight.after-dark"
+    nonisolated static let safePositionAccessibilityIdentifier = "s3.preflight.safe-position"
+    nonisolated static let beginAccessibilityIdentifier = "s3.preflight.begin"
+    nonisolated static let cancelAccessibilityIdentifier = "s3.preflight.cancel"
 
     let snapshot: FirstSignSnapshot
     let pack: SignPack
