@@ -447,7 +447,7 @@ final class V23CheckRunnerItemFieldEditingTests: XCTestCase {
             let beforeRevision = try writer.currentRevision()
             let beforeHistory = try writer.sourceMutationHistorySnapshot()
             let beforeReceiptCount = try context.fetchCount(FetchDescriptor<MutationReceiptRow>())
-            let frozenMutationID = MutationIDV1(rawValue: beginPreparationUUID(49_901))
+            let frozenMutationID = try MutationIDV1(rawValue: beginPreparationUUID(49_901))
             h.ids.enqueue([frozenMutationID.rawValue])
             let idCalls = h.ids.callCount
             h.clock.value = h.clock.millisecondValue.addingTimeInterval(1)
@@ -665,7 +665,7 @@ private actor FieldEditingClock: DraftAutosaveClockV1 {
         guard deadline > now else { return }
         let id = UUID()
         try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { continuation in
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 if Task.isCancelled { continuation.resume(throwing: CancellationError()) }
                 else if deadline <= now { continuation.resume() }
                 else { waiters[id] = Waiter(deadline: deadline, continuation: continuation) }

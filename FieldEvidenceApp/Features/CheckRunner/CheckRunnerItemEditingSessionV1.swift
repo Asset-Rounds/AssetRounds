@@ -34,7 +34,7 @@ final class CheckRunnerFieldFlushReadbackV1 {
 /// Only the parent service writes. A frozen attempt survives failed or lost
 /// acknowledgement, and must resolve before a newer buffer can be persisted.
 @MainActor
-final class CheckRunnerItemEditingSessionV1: ObservableObject {
+final class CheckRunnerItemEditingSessionV1: @MainActor ObservableObject {
     let objectWillChange = ObservableObjectPublisher()
 
     private struct Pending {
