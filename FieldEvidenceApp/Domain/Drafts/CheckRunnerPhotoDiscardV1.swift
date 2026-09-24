@@ -60,7 +60,7 @@ struct CheckRunnerPhotoDiscardV1: Equatable, Sendable {
             stageIDs: pending.stageIDs, reservationIDs: [],
             estimatedBytes: photo.phase.intent.expectedSourceByteCount)
         self.receiptID = receiptID
-        self.terminalMutationID = .init(rawValue: terminalID)
+        self.terminalMutationID = try .init(rawValue: terminalID)
     }
 
     /// Value construction only. The application must first authenticate the

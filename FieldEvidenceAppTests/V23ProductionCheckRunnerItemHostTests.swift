@@ -581,7 +581,7 @@ final class V23ProductionCheckRunnerItemHostTests: XCTestCase {
                 authorizing: operation) { }
             let payload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(prepared)
             let attempt = try XCTUnwrap(payload.finalizationAttempt)
-            let mutationID = MutationIDV1(rawValue: attempt.identifiers.mutationID)
+            let mutationID = try MutationIDV1(rawValue: attempt.identifiers.mutationID)
             let reportName = "\(attempt.identifiers.reportID.uuidString.lowercased()).json"
             let snapshot = store.generationRootURL.appendingPathComponent("snapshots/\(reportName)")
             let staged = store.generationRootURL.appendingPathComponent(".staging/snapshots/\(reportName)")
