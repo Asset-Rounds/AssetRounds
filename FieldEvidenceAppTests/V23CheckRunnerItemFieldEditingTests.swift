@@ -520,6 +520,9 @@ final class V23CheckRunnerItemFieldEditingTests: XCTestCase {
                 let deadline = UInt64(attemptNumber) * 750_000_000
                 try await self.waitUntil { await clock.deadlines().contains(deadline) }
                 await clock.advance(to: deadline)
+                // Observe the real persistence callback on this actor before
+                // querying the scheduler's separately published failure state.
+                try await self.waitUntil { attemptedReceipts.count == attemptNumber }
                 try await self.waitUntil {
                     let failure = await editor.autosaveFailureStateForTesting()
                     return failure?.attempt == attemptNumber && editor.durabilityState == .saveBlocked

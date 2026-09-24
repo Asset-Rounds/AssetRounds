@@ -2857,8 +2857,12 @@ class FieldAutosaveBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
         original = subprocess.check_output(['git', 'show', self.source_parent + ':Scripts/v23-native-ci.py'], cwd=ROOT)
         old = {'__name__': 'field_autosave_parent'}
         exec(compile(original, 'field-autosave-parent.py', 'exec'), old)
-        self.assertEqual(set(CI.NO_INDEX_ROUTES) - set(old['NO_INDEX_ROUTES']), {CI.FIELD_AUTOSAVE_SELECTION_ID})
+        self.assertEqual(set(CI.NO_INDEX_ROUTES), set(old['NO_INDEX_ROUTES']) | {CI.FIELD_AUTOSAVE_SELECTION_ID})
+        self.assertEqual(CI.NO_INDEX_ROUTES[CI.FIELD_AUTOSAVE_SELECTION_ID], (self.source_parent, 'D30'))
+        self.assertEqual(CI.no_index_source_trees(CI.FIELD_AUTOSAVE_SELECTION_ID), self.source_trees)
         for identifier, binding in old['NO_INDEX_ROUTES'].items():
+            if identifier == CI.FIELD_AUTOSAVE_SELECTION_ID:
+                continue  # Only the exact reviewed causal route is rebound.
             self.assertEqual(CI.NO_INDEX_ROUTES[identifier], binding, identifier)
             self.assertEqual(CI.no_index_source_trees(identifier), old['no_index_source_trees'](identifier), identifier)
         for path in ('Scripts/v23-selection-manifest.json', 'Scripts/ci-selection.json', 'Scripts/ci-selection-map.json',
