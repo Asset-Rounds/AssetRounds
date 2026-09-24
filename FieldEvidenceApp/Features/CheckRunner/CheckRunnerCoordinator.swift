@@ -1840,8 +1840,7 @@ final class CheckRunnerCoordinator {
             throw CheckRunnerCoordinatorError.invalidLineage
         }
         if attempt.timeZone != nil {
-            guard payload.field.preflight.isTimeZoneConfirmed,
-                  payload.field.preflight.confirmedTimeZoneID?.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard payload.field.preflight.submittedTimeZoneID?.trimmingCharacters(in: .whitespacesAndNewlines)
                     == attempt.resolvedSiteTimeZoneID else { throw CheckRunnerCoordinatorError.invalidTimeZoneID }
         }
         // Reuse frozen civil fields. Recovery must not rerun the time-zone

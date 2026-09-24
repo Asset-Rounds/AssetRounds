@@ -2092,9 +2092,7 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
             publishedRelease: publishedRelease, submission: .init(assetID: payload.source.assetID,
                 requestedStage: payload.source.requestedEntry.stage, issueID: payload.source.requestedEntry.issueID,
                 observedAtUTC: observedAtUTC,
-                confirmedTimeZoneID: field.preflight.isTimeZoneConfirmed
-                    ? (field.preflight.confirmedTimeZoneID
-                        ?? field.preflight.timeZoneID.trimmingCharacters(in: .whitespacesAndNewlines)) : nil,
+                confirmedTimeZoneID: field.preflight.submittedTimeZoneID,
                 afterDarkAccepted: field.preflight.afterDarkAccepted,
                 safePositionAccepted: field.preflight.safePositionAccepted))
         return try replaceBegin(.prepared(attempt: attempt), in: checkpoint, payload: payload)

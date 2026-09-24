@@ -23,6 +23,13 @@ struct CheckRunnerEditablePreflightV1: Codable, Equatable, Sendable {
         self.safePositionAccepted = safePositionAccepted
     }
 
+    /// The one zone a confirmed preflight submits to Begin. Recovery compares
+    /// against this same derivation, never a rewritten saved input.
+    var submittedTimeZoneID: String? {
+        guard isTimeZoneConfirmed else { return nil }
+        return confirmedTimeZoneID ?? timeZoneID.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     static func == (lhs: Self, rhs: Self) -> Bool {
         checkRunnerEditableBytesEqualV1(lhs.timeZoneID, rhs.timeZoneID)
             && lhs.isTimeZoneConfirmed == rhs.isTimeZoneConfirmed

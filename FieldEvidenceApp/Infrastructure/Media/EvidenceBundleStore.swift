@@ -1258,7 +1258,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
             relativePath: request.relativePath, reusedExistingBytes: false)
         try probe.validate(request: request, bytes: bytes)
         try validateGenerationRoot()
-        let rootDescriptor = try withOwnedDirectory(at: generationRootURL) { descriptor in
+        // The generation root has no parent inside itself; retain the anchored authority descriptor.
+        let rootDescriptor = try withDirectoryDescriptor(relativeComponents: []) { descriptor in
             let retained = Darwin.dup(descriptor)
             guard retained >= 0 else { throw EvidenceBundleStoreError.fileOperationFailed }
             return retained

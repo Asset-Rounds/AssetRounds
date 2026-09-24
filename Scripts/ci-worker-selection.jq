@@ -36,6 +36,27 @@
                       then [300, 1200, 900, 0, 2400]
                       else [300, 600, 900, 0, 2400]
                       end)
+              elif .tier == "D50" then
+                .taskID == "V23-INTEGRATION-20260910"
+                and [.setupArtifactTimeoutSeconds, .buildTimeoutSeconds,
+                     .testTimeoutSeconds, .uiTimeoutSeconds, .totalBudgetSeconds]
+                    == [300, 1800, 3000, 0, 5100]
+                and .unitTestSelectors == [
+    "FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldOperationAuthoritySurvivesSuspensionAndRecoversOriginalReceipt",
+    "FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testPhotoDiscardPreparationReopensOriginalPendingReceipt",
+    "FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testPhotoDiscardValuesRetainOriginalStagesAndRejectCommit",
+    "FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testDurablePreflightSubmitsConfirmedEnteredTimeZoneWithoutRewritingSavedInput",
+    "FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementPreservesCanonicalNamesAndRejectsStaleOrReplacedPlans",
+    "FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementRejectsMalformedNamesAndUnsafeFileKinds",
+    "FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementPreservesInterruptedFinalizationAndReachesEraseAdmission",
+    "FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testLiveFinalizationUsesOriginalReceiptAndRejectsRetiredOperation",
+    "FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testLivePhotoRejectsRetiredPublicationAndRecoversOriginalCommitReceipt",
+    "FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testLiveItemFactoryAndEditorKeepOriginalPublicationWithoutCreatingStaging",
+    "FieldEvidenceAppTests/S3_2MediaPipelineTests/testPreparedImmutableOriginalPublishesOnceAndRetainsAuthenticRetryReceipt",
+    "FieldEvidenceAppTests/S3_2MediaPipelineTests/testPreparedImmutableOriginalRejectsTargetAppearingAfterPreparation",
+    "FieldEvidenceAppTests/S3_2MediaPipelineTests/testPreparedImmutableOriginalRejectsSubstitutionAndCancellation",
+    "FieldEvidenceAppTests/S8_2GoldenAccessibilityTests/testGoldenFlowAccessibilitySpineAndControlMetricsAreExact"
+                ]
               elif .tier == "D30" then
                 .taskID == "V23-INTEGRATION-20260910"
                 and [.setupArtifactTimeoutSeconds, .buildTimeoutSeconds,
@@ -410,12 +431,12 @@
             exact_keys
             and (.schemaVersion == 1)
             and (.taskID | nonempty_string)
-            and (.tier | type == "string" and IN("N8", "D30", "P12", "F25"))
+            and (.tier | type == "string" and IN("N8", "D30", "D50", "P12", "F25"))
             and (.runUISmoke | type == "boolean")
             and tier_values_match
             and (.unitTestSelectors | selectors("FieldEvidenceAppTests/"; 1))
             and (
-              if .tier == "N8" or .tier == "D30" then
+              if .tier == "N8" or .tier == "D30" or .tier == "D50" then
                 (.runUISmoke == false)
                 and (.uiTestSelectors | type == "array" and length == 0)
               else

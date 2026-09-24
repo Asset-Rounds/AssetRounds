@@ -192,6 +192,66 @@ final class ProtectedFileSimulatorDiagnosticJournalV1: @unchecked Sendable {
         }
     }
 }
+
+/// Development timing only. It aggregates the cost of the Simulator fallback
+/// path and never participates in a verification or evidence decision.
+final class ProtectedFileSimulatorTimingV1: @unchecked Sendable {
+    private let lock = NSLock()
+    private let writer: ProtectedFileDiagnosticWriterV1
+    private let temporaryPrefix: String
+    private let applicationSupportPrefix: String?
+    private var calls = 0
+    private var fallbackNanoseconds: UInt64 = 0
+    private var journalNanoseconds: UInt64 = 0
+    private var temporaryCalls = 0
+    private var applicationSupportCalls = 0
+    private var lastEmitNanoseconds: UInt64
+
+    init(writer: ProtectedFileDiagnosticWriterV1) {
+        self.writer = writer
+        temporaryPrefix = FileManager.default.temporaryDirectory.standardizedFileURL.path
+        applicationSupportPrefix = FileManager.default.urls(for: .applicationSupportDirectory,
+            in: .userDomainMask).first?.standardizedFileURL.path
+        lastEmitNanoseconds = DispatchTime.now().uptimeNanoseconds
+    }
+
+    func recordFallback(at url: URL, startedAt start: UInt64) {
+        let current = DispatchTime.now().uptimeNanoseconds
+        let elapsed = current &- start
+        let path = url.standardizedFileURL.path
+        lock.lock()
+        calls += 1
+        fallbackNanoseconds &+= elapsed
+        if path.hasPrefix(temporaryPrefix) {
+            temporaryCalls += 1
+        } else if let applicationSupportPrefix, path.hasPrefix(applicationSupportPrefix) {
+            applicationSupportCalls += 1
+        }
+        // Emit on a call count or a 30-second interval so an interrupted test keeps recent totals.
+        let due = calls % 2_000 == 0 || current &- lastEmitNanoseconds >= 30_000_000_000
+        if due { lastEmitNanoseconds = current }
+        let line = due ? summary(uptimeNanoseconds: current) : nil
+        lock.unlock()
+        if let line { writer.write(line) }
+    }
+
+    func recordJournal(startedAt start: UInt64) {
+        let elapsed = DispatchTime.now().uptimeNanoseconds &- start
+        lock.lock()
+        journalNanoseconds &+= elapsed
+        lock.unlock()
+    }
+
+    private func summary(uptimeNanoseconds: UInt64) -> String {
+        "V23_PROTECTED_FILE_TIMING_V1 calls=\(calls)"
+            + " fallbackMs=\(fallbackNanoseconds / 1_000_000)"
+            + " journalMs=\(journalNanoseconds / 1_000_000)"
+            + " temporaryCalls=\(temporaryCalls)"
+            + " applicationSupportCalls=\(applicationSupportCalls)"
+            + " otherCalls=\(calls - temporaryCalls - applicationSupportCalls)"
+            + " uptimeMs=\(uptimeNanoseconds / 1_000_000)\n"
+    }
+}
 #endif
 
 enum C50IncumbentFileExchangeProtectedFileBoundaryV1 {
@@ -313,6 +373,7 @@ enum ProtectedFilePolicyV1 {
 
     #if DEBUG && os(iOS) && targetEnvironment(simulator)
     private static let diagnosticJournal = ProtectedFileSimulatorDiagnosticJournalV1()
+    private static let simulatorTiming = ProtectedFileSimulatorTimingV1(writer: diagnosticWriter)
     #endif
 
     /// C27 adds database rows only. Locator representations are references,
@@ -918,13 +979,28 @@ enum ProtectedFilePolicyV1 {
             + " urlProtection=completeUntilFirstUserAuthentication"
             + " backupExcluded=\(disposition.isExcludedFromBackup)"
             + " expectsDirectory=\(disposition.expectsDirectory) identityUnchanged=true\n"
+        let journalStart = DispatchTime.now().uptimeNanoseconds
+        defer { simulatorTiming.recordJournal(startedAt: journalStart) }
         try diagnosticJournal.write(Data(facts.utf8))
         #endif
     }
 
     #if DEBUG && os(iOS) && targetEnvironment(simulator)
-    /// A per-call diagnostic proof. No remembered path or inode can authorize a later call.
     private static func verifySimulatorResourceValues(
+        _ kind: OwnedFileKindV1,
+        at url: URL,
+        disposition: OwnedFileProtectionDispositionV1,
+        identity: LeafIdentity,
+        successfulRequestReadback: DirectoryProtectionReadback?
+    ) throws -> ProtectedFileVerificationDispositionV1 {
+        let start = DispatchTime.now().uptimeNanoseconds
+        defer { simulatorTiming.recordFallback(at: url, startedAt: start) }
+        return try verifySimulatorResourceValuesUntimed(kind, at: url, disposition: disposition,
+            identity: identity, successfulRequestReadback: successfulRequestReadback)
+    }
+
+    /// A per-call diagnostic proof. No remembered path or inode can authorize a later call.
+    private static func verifySimulatorResourceValuesUntimed(
         _ kind: OwnedFileKindV1,
         at url: URL,
         disposition: OwnedFileProtectionDispositionV1,

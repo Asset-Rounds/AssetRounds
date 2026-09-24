@@ -30,7 +30,8 @@ LANES = {
     "bitrise-build-hub-xcode-26.6-acceptance": ("bitrise", "bitrise-runner-Asset Roundddd"),
 }
 TIERS = {"N8": (300, 1200, 900, 0, 2400), "P12": (300, 600, 900, 900, 3300),
-         "F25": (300, 900, 1200, 1800, 4500), "D30": (300, 1800, 900, 0, 3000)}
+         "F25": (300, 900, 1200, 1800, 4500), "D30": (300, 1800, 900, 0, 3000),
+         "D50": (300, 1800, 3000, 0, 5100)}
 BUILD_WATCHDOG_SELECTION_ID = "c36-parent-finalization-check-no-issue-build30m"
 BUILD_WATCHDOG_PARENT = "6289befddaf75036c7fb7a4d971ba7cc171ec003"
 BUILD_ORDER_SELECTION_ID = "c36-destination-discard-build-before-boot"
@@ -394,10 +395,10 @@ FIELD_AUTOSAVE_PARENT = '147da0541cfd6d93dc890fa95b8dd08b2bd4712e'
 FIELD_AUTOSAVE_TREES = {'FieldEvidenceApp': '8d3040a6ad649679ece18553ac4226369c075a6a', 'FieldEvidenceAppTests': '86c04f43bb49d5f41c4e3d1385a63087aeeb12f7', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 FIELD_AUTOSAVE_SELECTORS = ('FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldAutosaveUsesTrailingMaximumAndRetainsFailedAttempt',)
 LIVE_HOST_SELECTION_ID = 'c36-live-host-no-index-build30m'
-LIVE_HOST_PARENT = '4af0b5ad05f30bd470270491c2fc6ef9875d1743'
-LIVE_HOST_TREES = {'FieldEvidenceApp': '6db6810a7e210c4b856590a6e39a698aef0e4731', 'FieldEvidenceAppTests': '86c04f43bb49d5f41c4e3d1385a63087aeeb12f7', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+LIVE_HOST_PARENT = '94e9b4f6ef1861079b34fc08009a1063bbfc24cc'
+LIVE_HOST_TREES = {'FieldEvidenceApp': '57781115fb9333da7da89a811d2d9a961bf4a38f', 'FieldEvidenceAppTests': '86c04f43bb49d5f41c4e3d1385a63087aeeb12f7', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 NO_INDEX_ROUTES = {
-    LIVE_HOST_SELECTION_ID: (LIVE_HOST_PARENT, "D30"),
+    LIVE_HOST_SELECTION_ID: (LIVE_HOST_PARENT, "D50"),
     FIELD_AUTOSAVE_SELECTION_ID: (FIELD_AUTOSAVE_PARENT, "D30"),
     NOTIFICATION_INTERRUPTION_SELECTION_ID: (NOTIFICATION_INTERRUPTION_PARENT, "D30"),
     SAVED_REVIEW_FIELDS_SELECTION_ID: (SAVED_REVIEW_FIELDS_PARENT, "D30"),
@@ -648,7 +649,10 @@ SIMULATOR_DIAGNOSTIC_OWNER_POLICY_SHA256 = "FDCAF78EEAEDDFC9A2661CB283A16810B88F
 SIMULATOR_DIAGNOSTIC_POLICY_SHA256 = "4CE71CA43D961CF8A1318DA882BBA8989179700AB5202E5CE191185CFC0E44E0"
 SIMULATOR_DIAGNOSTIC_POLICY_ID = "V23-SIMULATOR-FILE-PROTECTION-DIAGNOSTIC-20260915"
 SIMULATOR_DIAGNOSTIC_SOURCE_PATH = "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift"
-SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "FCFF658FCE118760EAC50B13A3941470EA86ED6FB40E78D17E6A573A10DFA5DB"
+SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "A8B18FFF49DE387183EA9B8B2377669BF1EE9E73A6DB11992178503070EDE139"
+# The original owner-approved allowance source remains admissible for historical replays;
+# the current source adds only development timing aggregates (2026-09-24).
+SIMULATOR_DIAGNOSTIC_HISTORICAL_SOURCE_SHA256S = ("FCFF658FCE118760EAC50B13A3941470EA86ED6FB40E78D17E6A573A10DFA5DB",)
 SIMULATOR_DIAGNOSTIC_PREFIX = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V2"
 SIMULATOR_DIAGNOSTIC_MARKER_STEM = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_"
 SIMULATOR_DIAGNOSTIC_OUTPUT = "simulator-file-protection-diagnostics.json"
@@ -764,7 +768,8 @@ def simulator_diagnostic_policy_binding(root):
     source_path = root / SIMULATOR_DIAGNOSTIC_SOURCE_PATH
     require(source_path.is_file() and not source_path.is_symlink(), "simulator diagnostic allowance source")
     source_bytes = source_path.read_bytes()
-    require(sha256(source_bytes) == SIMULATOR_DIAGNOSTIC_SOURCE_SHA256,
+    require(sha256(source_bytes) in (SIMULATOR_DIAGNOSTIC_SOURCE_SHA256,
+                                     *SIMULATOR_DIAGNOSTIC_HISTORICAL_SOURCE_SHA256S),
             "simulator diagnostic reviewed source digest")
     source = source_bytes.decode("utf-8")
     require(source.count(SIMULATOR_DIAGNOSTIC_PREFIX) == 1
@@ -1276,7 +1281,7 @@ def validate_selection(selection):
     require(selection["taskID"] == TASK and selection["tier"] in TIERS, "task/tier")
     require(all(type(selection[key]) is int for key in BUDGET_KEYS), "integer budgets")
     require(tuple(selection[key] for key in BUDGET_KEYS) == TIERS[selection["tier"]], "budgets")
-    ui = selection["tier"] not in ("N8", "D30")
+    ui = selection["tier"] not in ("N8", "D30", "D50")
     require(type(selection["runUISmoke"]) is bool and selection["runUISmoke"] == ui, "UI/tier")
     for key, bundle in (("unitTestSelectors", "FieldEvidenceAppTests"),
                         ("uiTestSelectors", "FieldEvidenceAppUITests")):
@@ -1287,6 +1292,9 @@ def validate_selection(selection):
                     for x in selectors), "exact native method selectors")
     require(bool(selection["unitTestSelectors"]), "no unit methods")
     require(len(selection["uiTestSelectors"]) == int(ui), "UI method count")
+    if selection["tier"] == "D50":
+        require(tuple(selection["unitTestSelectors"]) == LIVE_HOST_RUNTIME_SELECTORS,
+                "development D50 exact live-host methods")
     if selection["tier"] == "D30":
         require(tuple(selection["unitTestSelectors"]) in (
             PARENT_FINALIZATION_METHOD_PARTITIONS[0][1], RESTORE_BUILD_WATCHDOG_SELECTORS,
@@ -1668,7 +1676,9 @@ def resolve_selection(default, selection_map, selection_id):
                     "live host exact appended methods and class group")
             require(len(LIVE_HOST_RUNTIME_SELECTORS) == len(set(LIVE_HOST_RUNTIME_SELECTORS)) == 14
                     and LIVE_HOST_SELECTION_ID not in resolved, "live host distinct exact14 question")
-            live_question = dict(combined, unitTestSelectors=list(LIVE_HOST_RUNTIME_SELECTORS))
+            # Owner-approved 2026-09-24: development-only longer test watchdog for this question.
+            live_question = dict(combined, unitTestSelectors=list(LIVE_HOST_RUNTIME_SELECTORS),
+                                 tier="D50", **dict(zip(BUDGET_KEYS, TIERS["D50"])))
             validate_selection(live_question)
             resolved[LIVE_HOST_SELECTION_ID] = live_question
     if "erase-lease-lifecycle" in resolved:
@@ -1832,8 +1842,8 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
         **{key: (ERASE_PARTITION_PARENT, members)
            for key, members in ERASE_DIAGNOSTIC_PARTITIONS},
     }
-    if selection["tier"] == "D30" or selection_record["selectionID"] in watchdog_routes:
-        require(selection["tier"] == "D30"
+    if selection["tier"] in ("D30", "D50") or selection_record["selectionID"] in watchdog_routes:
+        require(selection["tier"] == ("D50" if selection_record["selectionID"] == LIVE_HOST_SELECTION_ID else "D30")
                 and selection_record["selectionID"] in watchdog_routes,
                 "build watchdog selector/tier binding")
         approved_parent, approved_methods = watchdog_routes[selection_record["selectionID"]]

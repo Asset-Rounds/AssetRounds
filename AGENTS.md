@@ -50,15 +50,24 @@ Accepted main is `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`. Preserve S10 brandi
 
 Use the existing five GitHub and three Bitrise capacity only for distinct, source-defined, dependency-ready questions under CURRENT_INTEGRATION. Never dispatch duplicate, speculative, known-failing or unqualified acceptance runs. One collector audits each original once. Preserve all native-environment and final-main gates.
 
+## Claude Code continuation decisions — owner approved 2026-09-24
+
+These supersede conflicting routing and route-binding text above; every product, safety, evidence and main/release gate is unchanged.
+
+- Independent review: when work continues in Claude Code, one separate Claude reviewer subagent (read-only, never the author) is the independent semantic reviewer in place of `gpt-6-astra`. Keep zero helpers otherwise and at most one active; record the reviewer model and verdict.
+- Streamlined native route: `.codex-temp/native-tools/v23-original.py` dispatches exactly one original at the pushed, index-empty head (refusing active runs and any prior dispatch of the same head+selection via `C:/AssetRounds-v23-review-evidence/v23-original-ledger.jsonl`) and is its sole collector (exclusive claim, retained run/job metadata, logs zip and original artifact zip with SHA-256 manifests, derived `summary.json`). It replaces per-run pinned binder/dispatcher transitions. The committed workflow and `Scripts/v23-native-ci.py` still enforce the closed selection, exact parent/trees, budgets and evidence. No duplicate, rerun, cancellation or unchanged known-failure dispatch.
+- Development tier D50 `(300, 1800, 3000, 0, 5100)` with a 120-minute job cap applies only to `c36-live-host-no-index-build30m` (exact14), after audited original36039088906 proved the 900-second test watchdog cannot hold that question. Ordinary, D30 and acceptance budgets are unchanged; D50 grants no acceptance.
+- `ProtectedFileSimulatorTimingV1` (DEBUG Simulator only) emits aggregate `V23_PROTECTED_FILE_TIMING_V1` lines to measure the fallback verification cost before any performance change. It never affects a verification decision.
+
 ## Reusable development build allowance — owner approved 2026-09-20
 
-The owner permits the 30-minute proposal to be permanent or temporary. Reuse the closed no-index development routes below after source/helper qualification. All use build1800/test900/setup-artifact300/total3000/UI0/job90min; ordinary and acceptance budgets remain unchanged.
+The owner permits the 30-minute proposal to be permanent or temporary. Reuse the closed no-index development routes below after source/helper qualification. All use build1800/test900/setup-artifact300/total3000/UI0/job90min except the live-host row (D50); ordinary and acceptance budgets remain unchanged.
 
 | Closed diagnostic selector | Exact existing method boundary |
 | --- | --- |
 | `c36-restore-review-no-index-build30m` | Six restore-review journeys |
 | `c36-field-autosave-no-index-build30m` | Exact existing autosave method, including its terminal-ownership recovery regression. Isolate the corrected failure family after audited35949714322; preserve historical14/full coverage due,1064/69 and every assertion. Qualify before use; development only. |
-| `c36-live-host-no-index-build30m` | Exact ordered13 newly enrolled live-operation/host/C05 methods (field1, host9, media3), then the existing S8 golden accessibility spine; qualify live-host-v1 at1078/70 and exact14 before use. Existing D30/no-index budgets; preserve every historical selector, full production/lifecycle coverage and all final gates. |
+| `c36-live-host-no-index-build30m` | Exact ordered13 newly enrolled live-operation/host/C05 methods (field1, host9, media3), then the existing S8 golden accessibility spine; qualify live-host-v1 at1078/70 and exact14 before use. D50 no-index budgets build1800/test3000/setup-artifact300/total5100/UI0/job120 since the 2026-09-24 owner decision (audited36039088906 exhausted D30 test900); preserve every historical selector, full production/lifecycle coverage and all final gates. |
 | `c36-saved-review-fields-no-index-build30m` | Exact saved-review/discard9 followed by durable field-edit5; qualify ordered14 and1064/69 before use. Existing D30/no-index budgets; development only, complete C36 host/lifecycle and all final gates remain due. |
 | `reminder-production-no-index-build30m` | Ordered33-method union of the four reminder groups |
 | `notification-schedule-erase-no-index-build30m` | Exact existing ordered28 notification-schedule-erase methods, including the eight populated reminder cases; qualify before use |

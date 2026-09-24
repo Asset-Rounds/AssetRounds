@@ -30,6 +30,14 @@ UNIT = "FieldEvidenceAppTests/NativeFixtureTests/testActualMethod"
 UI = "FieldEvidenceAppUITests/NativeJourneyTests/testContinuousJourney"
 
 
+def worker_before_live_host_d50(test_case, raw):
+    # Reverse only the owner-approved live-host D50 job cap; every other
+    # worker byte must still match its historical boundary.
+    changed = b"    timeout-minutes: ${{ inputs.native_selection_id == 'c36-live-host-no-index-build30m' && 120 || 90 }}\n"
+    test_case.assertEqual(raw.count(changed), 1)
+    return raw.replace(changed, b"    timeout-minutes: 90\n")
+
+
 def worker_before_interruption_build_order(test_case, raw):
     # Reverse only the two qualified ordering predicates; every other
     # worker byte must still match the historical enrollment boundary.
@@ -39,6 +47,7 @@ def worker_before_interruption_build_order(test_case, raw):
         (b"&& inputs.native_selection_id != 'c36-destination-discard-build-before-boot' && inputs.native_selection_id != 'notification-interruption-no-index-build30m' }}",
          b"&& inputs.native_selection_id != 'c36-destination-discard-build-before-boot' }}"),
     )
+    raw = worker_before_live_host_d50(test_case, raw)
     for changed, original in replacements:
         test_case.assertEqual(raw.count(changed), 1)
         raw = raw.replace(changed, original)
@@ -2867,7 +2876,8 @@ class LiveHostBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
     def test_exact_disjoint_ordered_union_and_historical_routes(self):
         self.assertEqual(self.selected['unitTestSelectors'], EXPECTED_LIVE_HOST_RUNTIME)
         self.assertEqual(len(set(EXPECTED_LIVE_HOST_RUNTIME)), 14)
-        self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
+        self.assertEqual(self.selected['tier'], 'D50')
+        self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 3000, 0, 5100))
         self.assertEqual((self.selected['runUISmoke'], self.selected['uiTestSelectors']), (False, []))
         previous, previous_map = prelive_host_values(self.default, self.mapping)
         with self.assertRaises(ValueError):
@@ -2887,6 +2897,45 @@ class LiveHostBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
             result = subprocess.run(['jq', '-e', '-f', str(ROOT / 'Scripts/ci-worker-selection.jq')],
                                     input=CI.canonical(value), capture_output=True)
             self.assertNotEqual(result.returncode, 0, result.stdout)
+
+    def test_d50_is_exact_to_live_host_and_every_other_route_keeps_d30(self):
+        self.assertEqual(CI.TIERS['D50'], (300, 1800, 3000, 0, 5100))
+        self.assertEqual(CI.TIERS['D30'], (300, 1800, 900, 0, 3000))
+        self.assertEqual(CI.SIMULATOR_DIAGNOSTIC_HISTORICAL_SOURCE_SHA256S,
+                         ('FCFF658FCE118760EAC50B13A3941470EA86ED6FB40E78D17E6A573A10DFA5DB',))
+        self.assertEqual(CI.NO_INDEX_ROUTES[CI.LIVE_HOST_SELECTION_ID], (CI.LIVE_HOST_PARENT, 'D50'))
+        self.assertEqual(sorted(k for k, (_, tier) in CI.NO_INDEX_ROUTES.items() if tier == 'D50'),
+                         [CI.LIVE_HOST_SELECTION_ID])
+        jq = ROOT / 'Scripts/ci-worker-selection.jq'
+        def rejected(value):
+            with self.assertRaises(ValueError):
+                CI.validate_selection(value)
+            result = subprocess.run(['jq', '-e', '-f', str(jq)], input=CI.canonical(value), capture_output=True)
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+        accepted = subprocess.run(['jq', '-e', '-f', str(jq)], input=CI.canonical(self.selected), capture_output=True)
+        self.assertEqual(accepted.returncode, 0, accepted.stderr)
+        for key in CI.BUDGET_KEYS:
+            rejected(dict(self.selected, **{key: self.selected[key] + 1}))
+        d50_budgets = dict(zip(CI.BUDGET_KEYS, CI.TIERS['D50']))
+        for identifier in (CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID,
+                           CI.ERASE_DRAIN_SELECTION_ID, CI.REPLACEMENT_UNION_SELECTION_ID):
+            other = CI.resolve_selection(self.default, self.mapping, identifier)
+            self.assertEqual(other['tier'], 'D30', identifier)
+            rejected(dict(other, tier='D50', **d50_budgets))
+        rejected(dict(self.selected, tier='D30'))
+        d30 = dict(self.selected, tier='D30', **dict(zip(CI.BUDGET_KEYS, CI.TIERS['D30'])))
+        original = self.record
+        self.record = dict(original, selectionSHA256=CI.sha256(CI.canonical(d30)))
+        try:
+            for stage in ('dispatch', 'worker'):
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), \
+                        self.assertRaises(ValueError):
+                    CI.admission(d30, self.bound_environment(), HEAD, stage, self.record)
+        finally:
+            self.record = original
+        worker = (ROOT / '.github/workflows/ios-ci-worker.yml').read_text(encoding='utf-8')
+        self.assertEqual(re.findall(r'^    timeout-minutes: (.+)$', worker, re.M),
+                         ["${{ inputs.native_selection_id == 'c36-live-host-no-index-build30m' && 120 || 90 }}"])
 
     def test_collection_requires_each_original_result_once_and_passed(self):
         methods = EXPECTED_LIVE_HOST_RUNTIME
@@ -2941,7 +2990,10 @@ class FieldAutosaveBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
             self.assertEqual(CI.no_index_source_trees(identifier), old['no_index_source_trees'](identifier), identifier)
         for path in ('Scripts/v23-selection-generator.py',
                      '.github/workflows/ios-ci-worker.yml', 'Scripts/test-smoke.sh'):
-            self.assertEqual((ROOT / path).read_bytes(), subprocess.check_output(
+            current_bytes = (ROOT / path).read_bytes()
+            if path == '.github/workflows/ios-ci-worker.yml':
+                current_bytes = worker_before_live_host_d50(self, current_bytes)
+            self.assertEqual(current_bytes, subprocess.check_output(
                 ['git', 'show', self.source_parent + ':' + path], cwd=ROOT), path)
         identifiers = re.findall(r'^          - ([a-z0-9.-]+)$', re.search(
             r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)',
