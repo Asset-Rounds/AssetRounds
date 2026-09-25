@@ -8,7 +8,7 @@ private enum C52ServiceRequestBoundary_V9_04StreamingArchiveTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45StreamingArchiveCompatibilityTests: XCTestCase {
+final class C45StreamingArchiveCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityBoundsCanonicalSnapshotBytes() {
         XCTAssertEqual(AssetLabelCanonicalCodecV1.maximumCanonicalByteCount, 16 * 1_024 * 1_024)
         XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion, 33)
@@ -16,7 +16,7 @@ private final class C45StreamingArchiveCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_04StreamingArchive: XCTestCase {
+final class C30EvidenceContextAnchorV9_04StreamingArchive: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -408,7 +408,7 @@ final class V9_04StreamingArchiveTests: XCTestCase {
     }
 }
 
-private final class C27V904StreamingTypedLocatorAnchorTests: XCTestCase {
+final class C27V904StreamingTypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(AssetLocatorLimitsV1.maximumInputBytes, 1_024)
         XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
@@ -543,7 +543,7 @@ extension V9_04StreamingArchiveTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorV904StreamingArchiveTests: XCTestCase {
+final class C31LightingAnchorV904StreamingArchiveTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -606,7 +606,7 @@ extension V9_04StreamingArchiveTests {
     }
 }
 
-private final class C33TemporalEvidenceAnchorV904StreamingArchive: XCTestCase {
+final class C33TemporalEvidenceAnchorV904StreamingArchive: XCTestCase {
     func testC33V904StreamingArchiveCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "streaming.temporal-content-bytes",
@@ -625,7 +625,7 @@ private final class C33TemporalEvidenceAnchorV904StreamingArchive: XCTestCase {
     }
 }
 
-private final class C32AssistanceAnchorV904StreamingArchive: XCTestCase {
+final class C32AssistanceAnchorV904StreamingArchive: XCTestCase {
     func testC32V904StreamingArchiveCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .packet,
@@ -646,7 +646,7 @@ private final class C32AssistanceAnchorV904StreamingArchive: XCTestCase {
     }
 }
 
-private final class C48PortableReviewV904ArchiveTests: XCTestCase {
+final class C48PortableReviewV904ArchiveTests: XCTestCase {
     func testC48ArchiveFilesAreProtectedAndExcludedFromBackup() throws {
         try PortableExchangeProtectedFilePolicyV2.validate()
         XCTAssertEqual(PortableExchangeProtectedFilePolicyV2.directoryKind, .portableExchangeDirectory)
@@ -655,7 +655,7 @@ private final class C48PortableReviewV904ArchiveTests: XCTestCase {
         XCTAssertEqual(PortableExchangeProtectedFilePolicyV2.quarantineKind, .portableExchangeQuarantineFile)
     }
 }
-private final class C46V904StreamingArchiveCompatibilityTests: XCTestCase {
+final class C46V904StreamingArchiveCompatibilityTests: XCTestCase {
     func testC46StreamingArchiveKeepsContactValueRestricted() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "streaming-archive",
@@ -665,11 +665,11 @@ private final class C46V904StreamingArchiveCompatibilityTests: XCTestCase {
         )
     }
 }
-private final class C49WorkResourceStreamingArchiveBoundaryTests: XCTestCase {
+final class C49WorkResourceStreamingArchiveBoundaryTests: XCTestCase {
     func testStreamingArchiveCarriesFrozenSnapshotNotLivePartLink() { XCTAssertFalse(C49WorkResourceContractBoundaryV1.liveInventoryReference) }
 }
 
-private final class C50IncumbentFileExchangeV904StreamingArchiveTests: XCTestCase {
+final class C50IncumbentFileExchangeV904StreamingArchiveTests: XCTestCase {
     func testAdapterScratchAndQuarantineAreNotBackupMembers() {
         XCTAssertTrue(
             C50IncumbentFileExchangeStreamingArchiveBoundaryV1.validate(

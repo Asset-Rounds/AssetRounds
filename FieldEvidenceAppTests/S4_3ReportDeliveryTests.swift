@@ -12,7 +12,7 @@ private enum C52ServiceRequestBoundary_S4_3ReportDeliveryTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45ReportDeliveryCompatibilityTests: XCTestCase {
+final class C45ReportDeliveryCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityDoesNotEquateGenerationWithExternalHandoff() {
         XCTAssertEqual(LabelOutputDispositionV1.generated.rawValue, "GENERATED")
         XCTAssertEqual(LabelOutputDispositionV1.handedOffToSystem.rawValue, "HANDED_OFF_TO_SYSTEM")
@@ -20,7 +20,7 @@ private final class C45ReportDeliveryCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C51S43ReportDeliveryAnchorTests: XCTestCase {
+final class C51S43ReportDeliveryAnchorTests: XCTestCase {
     func testV23P03C51AdvancedScheduleDeliveryIsLocalDerivedOutput() {
         let export: (AdvancedScheduleReportProjectionV1) throws -> Data =
             ReportDeliveryCoordinator.localAdvancedScheduleExport
@@ -30,7 +30,7 @@ private final class C51S43ReportDeliveryAnchorTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorS4_3ReportDelivery: XCTestCase {
+final class C30EvidenceContextAnchorS4_3ReportDelivery: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -565,7 +565,7 @@ final class S4_3ReportDeliveryTests: XCTestCase {
     }
 }
 
-private final class C27S43TypedLocatorAnchorTests: XCTestCase {
+final class C27S43TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(AssetLocatorStateV1.allCases.count, 4)
         XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
@@ -987,7 +987,7 @@ extension S4_3ReportDeliveryTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorS43ReportDeliveryTests: XCTestCase {
+final class C31LightingAnchorS43ReportDeliveryTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -996,7 +996,7 @@ private final class C31LightingAnchorS43ReportDeliveryTests: XCTestCase {
     }
 }
 
-private final class C33TemporalEvidenceAnchorS43ReportDelivery: XCTestCase {
+final class C33TemporalEvidenceAnchorS43ReportDelivery: XCTestCase {
     func testC33S43ReportDeliveryCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "report.temporal-accessible-link",
@@ -1015,7 +1015,7 @@ private final class C33TemporalEvidenceAnchorS43ReportDelivery: XCTestCase {
     }
 }
 
-private final class C32AssistanceAnchorS43ReportDelivery: XCTestCase {
+final class C32AssistanceAnchorS43ReportDelivery: XCTestCase {
     func testC32S43ReportDeliveryCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .report,
@@ -1035,7 +1035,7 @@ private final class C32AssistanceAnchorS43ReportDelivery: XCTestCase {
         )
     }
 }
-private final class C46S43ReportDeliveryCompatibilityTests: XCTestCase {
+final class C46S43ReportDeliveryCompatibilityTests: XCTestCase {
     func testC46ReportDeliveryNeverClaimsOperationalHandoffDelivery() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "report-delivery",
@@ -1057,7 +1057,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_3ReportDe
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_3ReportDeliveryTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_3ReportDeliveryTests_swift_Tests: XCTestCase {
     func testC47S43ReportDeliveryTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_3ReportDeliveryTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_3ReportDeliveryTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
@@ -1071,21 +1071,21 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_3R
     }
 }
 
-private final class C48PortableReviewS43DeliveryTests: XCTestCase {
+final class C48PortableReviewS43DeliveryTests: XCTestCase {
     func testC48ResponseIsNeitherDeliveryReceiptNorDeliveryProof() {
         XCTAssertTrue(C48PortableReviewReportDeliveryBoundaryV1.responseRecordIsNotDeliveryReceipt)
         XCTAssertTrue(C48PortableReviewReportDeliveryBoundaryV1.responseDispositionIsNotDeliveryProof)
         XCTAssertFalse(C48PortableReviewReportDeliveryBoundaryV1.rawRequestResponseBytesEmitted)
     }
 }
-private final class C49WorkResourceDeliveryBoundaryTests: XCTestCase {
+final class C49WorkResourceDeliveryBoundaryTests: XCTestCase {
     func testCustomerSafeIsAnExplicitVisibilitySelection() {
         XCTAssertNotEqual(WorkResourceVisibilityPolicyV1.customerSafe, .internalOnly)
         XCTAssertTrue(C49WorkResourceLifecycleBoundaryV1.searchAndReportAreDerivedOnly)
     }
 }
 
-private final class C50IncumbentAdapterS43DeliveryBoundaryTests: XCTestCase {
+final class C50IncumbentAdapterS43DeliveryBoundaryTests: XCTestCase {
     func testExchangeReceiptCannotClaimExternalDelivery() {
         XCTAssertFalse(C50IncumbentFileExchangeBackupExportBoundaryV1.exportsSecurityBookmarksOrExternalPaths)
         XCTAssertFalse(C50IncumbentFileExchangeEraseAllBoundaryV1.recallsEscapedFiles)

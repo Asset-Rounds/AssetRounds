@@ -242,7 +242,7 @@ private enum C52ServiceRequestBoundary_V9_30FieldDraftResilienceTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45FieldDraftCompatibilityTests: XCTestCase {
+final class C45FieldDraftCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityKeepsUnacceptedPlansAndResultsDerivedScratch() {
         XCTAssertEqual(Set(AssetLabelPersistenceEnrollmentV1.derivedFamilies), ["AssetLabelGenerationPlanV1", "LabelProjectionResultV1"])
         XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.persistentFamilies.contains("AssetLabelGenerationPlanV1"))
@@ -250,7 +250,7 @@ private final class C45FieldDraftCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_30FieldDraftResilience: XCTestCase {
+final class C30EvidenceContextAnchorV9_30FieldDraftResilience: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -1887,7 +1887,7 @@ extension V9_30FieldDraftResilienceTests {
         XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
     }
 }
-private final class C31LightingAnchorV930FieldDraftResilienceTests: XCTestCase {
+final class C31LightingAnchorV930FieldDraftResilienceTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -1896,7 +1896,7 @@ private final class C31LightingAnchorV930FieldDraftResilienceTests: XCTestCase {
     }
 }
 
-private final class C33TemporalEvidenceAnchorV930FieldDraftResilience: XCTestCase {
+final class C33TemporalEvidenceAnchorV930FieldDraftResilience: XCTestCase {
     func testC33V930FieldDraftResilienceCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "draft.temporal-scratch-promotion",
@@ -1915,7 +1915,7 @@ private final class C33TemporalEvidenceAnchorV930FieldDraftResilience: XCTestCas
     }
 }
 
-private final class C32AssistanceAnchorV930FieldDraftResilience: XCTestCase {
+final class C32AssistanceAnchorV930FieldDraftResilience: XCTestCase {
     func testC32V930FieldDraftResilienceCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .fieldDraftCheckpoint,
@@ -1935,7 +1935,7 @@ private final class C32AssistanceAnchorV930FieldDraftResilience: XCTestCase {
         )
     }
 }
-private final class C46V930DraftCompatibilityTests: XCTestCase {
+final class C46V930DraftCompatibilityTests: XCTestCase {
     func testC46DraftScratchCannotBecomeOperationalContact() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "field-draft",

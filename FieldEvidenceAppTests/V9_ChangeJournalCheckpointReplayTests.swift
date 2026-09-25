@@ -40,7 +40,7 @@ private enum C53AssetServiceReliabilityBoundary_V9_ChangeJournalCheckpointReplay
     static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
 }
 
-private final class C45JournalReplayCompatibilityTests: XCTestCase {
+final class C45JournalReplayCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityUsesOneTypedWorkspaceCommand() {
         XCTAssertEqual(WorkspaceCommandKindV1.applyAssetLabel.rawValue, "apply_asset_label")
         XCTAssertTrue(WorkspaceWriterAdapterV1.activeSupportedCommandKinds.contains(.applyAssetLabel))
@@ -48,7 +48,7 @@ private final class C45JournalReplayCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_ChangeJournalCheckpointReplay: XCTestCase {
+final class C30EvidenceContextAnchorV9_ChangeJournalCheckpointReplay: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -833,7 +833,7 @@ final class V9_ChangeJournalCheckpointReplayTests: XCTestCase {
     }
 }
 
-private final class C27ChangeJournalTypedLocatorAnchorTests: XCTestCase {
+final class C27ChangeJournalTypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(PersistentSchemaReleaseV1.v26.compatibilityID, "ASSET_LOCATOR_V1")
         XCTAssertEqual(LocatorBindingActionV1.allCases.count, 6)
@@ -1198,7 +1198,7 @@ extension V9_ChangeJournalCheckpointReplayTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorV9ChangeJournalCheckpointReplayTests: XCTestCase {
+final class C31LightingAnchorV9ChangeJournalCheckpointReplayTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -1291,7 +1291,7 @@ extension V9_ChangeJournalCheckpointReplayTests {
     }
 }
 
-private final class C33TemporalEvidenceAnchorV9ChangeJournalCheckpointReplay: XCTestCase {
+final class C33TemporalEvidenceAnchorV9ChangeJournalCheckpointReplay: XCTestCase {
     func testC33V9ChangeJournalCheckpointReplayCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "journal.temporal-evidence-replay",
@@ -1310,7 +1310,7 @@ private final class C33TemporalEvidenceAnchorV9ChangeJournalCheckpointReplay: XC
     }
 }
 
-private final class C32AssistanceAnchorV9ChangeJournalCheckpointReplay: XCTestCase {
+final class C32AssistanceAnchorV9ChangeJournalCheckpointReplay: XCTestCase {
     func testC32V9ChangeJournalCheckpointReplayCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .factCapture,
@@ -1330,7 +1330,7 @@ private final class C32AssistanceAnchorV9ChangeJournalCheckpointReplay: XCTestCa
         )
     }
 }
-private final class C46JournalReplayCompatibilityTests: XCTestCase {
+final class C46JournalReplayCompatibilityTests: XCTestCase {
     func testC46JournalReplayBindsContactRevisionAndHandoffTarget() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "journal-replay",

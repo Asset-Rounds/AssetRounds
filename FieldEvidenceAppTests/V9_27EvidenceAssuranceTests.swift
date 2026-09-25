@@ -8,7 +8,7 @@ private enum C52ServiceRequestBoundary_V9_27EvidenceAssuranceTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C50EvidenceAssuranceTests: XCTestCase {
+final class C50EvidenceAssuranceTests: XCTestCase {
     func testV23P03C50DisabledSelectionCarriesExactEvidenceWithoutProviderClaim() throws {
         let receipt = try IncumbentSelectionReceiptV1(
             receiptID: UUID(uuidString: "c5000000-0000-4000-8000-000000002701")!,
@@ -464,13 +464,13 @@ extension V9_27EvidenceAssuranceTests {
     }
 }
 
-private final class C48PortableReviewV927EvidenceAssuranceTests: XCTestCase {
+final class C48PortableReviewV927EvidenceAssuranceTests: XCTestCase {
     func testC48ReviewResponseIsNotEvidenceAssurance() {
         XCTAssertTrue(C48PortableReviewEvidenceAssuranceBoundaryV1.reviewResponseIsNotEvidenceAssurance)
         XCTAssertFalse(C48PortableReviewEvidenceAssuranceBoundaryV1.capabilityProofBytesBecomeEvidence)
         XCTAssertTrue(C48PortableReviewEvidenceAssuranceBoundaryV1.existingAssuranceManifestRemainsCanonical)
     }
 }
-private final class C49WorkResourceAssuranceBoundaryTests: XCTestCase {
+final class C49WorkResourceAssuranceBoundaryTests: XCTestCase {
     func testManualCostDoesNotBecomeInventoryEvidence() { XCTAssertFalse(C49WorkResourceContractBoundaryV1.liveInventoryReference) }
 }

@@ -35,7 +35,7 @@ private actor S66EraseReceiptAuthentication: LocalAuthenticationClient {
     func cancel(attemptID: UUID) {}
 }
 
-private final class C45EraseRecoveryCompatibilityTests: XCTestCase {
+final class C45EraseRecoveryCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityLeavesNoDurableRenderScratch() {
         XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.persistentFamilies, ["AcceptedLabelGenerationSnapshotRow"])
         XCTAssertTrue(AssetLabelPersistenceEnrollmentV1.derivedFamilies.contains("LabelProjectionResultV1"))
@@ -43,7 +43,7 @@ private final class C45EraseRecoveryCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorS6_6EraseRecovery: XCTestCase {
+final class C30EvidenceContextAnchorS6_6EraseRecovery: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -1565,7 +1565,7 @@ final class S6_6EraseRecoveryTests: XCTestCase {
     }
 }
 
-private final class C27S66TypedLocatorAnchorTests: XCTestCase {
+final class C27S66TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(PersistentSchemaV26.models.count, 94)
         XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
@@ -2186,7 +2186,7 @@ extension S6_6EraseRecoveryTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorS66EraseRecoveryTests: XCTestCase {
+final class C31LightingAnchorS66EraseRecoveryTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -2330,7 +2330,7 @@ extension S6_6EraseRecoveryTests {
     }
 }
 
-private final class C33TemporalEvidenceAnchorS66EraseRecovery: XCTestCase {
+final class C33TemporalEvidenceAnchorS66EraseRecovery: XCTestCase {
     func testC33S66EraseRecoveryCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "erase.temporal-evidence-no-orphan",
@@ -2349,7 +2349,7 @@ private final class C33TemporalEvidenceAnchorS66EraseRecovery: XCTestCase {
     }
 }
 
-private final class C32AssistanceAnchorS66EraseRecovery: XCTestCase {
+final class C32AssistanceAnchorS66EraseRecovery: XCTestCase {
     func testC32S66EraseRecoveryCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .site,
@@ -2369,7 +2369,7 @@ private final class C32AssistanceAnchorS66EraseRecovery: XCTestCase {
         )
     }
 }
-private final class C46S66EraseRecoveryCompatibilityTests: XCTestCase {
+final class C46S66EraseRecoveryCompatibilityTests: XCTestCase {
     func testC46EraseRecoveryKeepsContactWorkspaceScoped() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "erase-recovery",
@@ -2391,7 +2391,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_6EraseRec
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_6EraseRecoveryTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_6EraseRecoveryTests_swift_Tests: XCTestCase {
     func testC47S66EraseRecoveryTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_6EraseRecoveryTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_6EraseRecoveryTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
@@ -2405,14 +2405,14 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_6E
     }
 }
 
-private final class C48PortableReviewS66EraseTests: XCTestCase {
+final class C48PortableReviewS66EraseTests: XCTestCase {
     func testC48EraseRemovesAppOwnedExchangeStaging() {
         XCTAssertTrue(C48PortableExchangePersistentLifecycleBoundaryV2.eraseRemovesAppOwnedStagingOnly)
         XCTAssertTrue(C48PortableReviewPersistenceBoundaryV1.quarantineIsExcludedFromBackup)
         XCTAssertTrue(C48PortableReviewPersistenceBoundaryV1.sessionStoreIsNonpersistent)
     }
 }
-private final class C49WorkResourceEraseBoundaryTests: XCTestCase {
+final class C49WorkResourceEraseBoundaryTests: XCTestCase {
     func testEraseClassificationIncludesEmbeddedCostNotASecondLedger() {
         XCTAssertTrue(C49WorkResourceContractBoundaryV1.directCostIsEmbedded)
         XCTAssertFalse(C49WorkResourceContractBoundaryV1.liveInventoryReference)
@@ -2420,7 +2420,7 @@ private final class C49WorkResourceEraseBoundaryTests: XCTestCase {
     }
 }
 
-private final class C50IncumbentAdapterS66EraseBoundaryTests: XCTestCase {
+final class C50IncumbentAdapterS66EraseBoundaryTests: XCTestCase {
     func testEraseClearsOnlyAppOwnedExchangeScratchAndQuarantine() {
         XCTAssertTrue(C50IncumbentFileExchangeEraseAllBoundaryV1.removesAppOwnedScratch)
         XCTAssertTrue(C50IncumbentFileExchangeEraseAllBoundaryV1.removesAppOwnedQuarantine)

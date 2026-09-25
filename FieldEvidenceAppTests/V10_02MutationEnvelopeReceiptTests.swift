@@ -3546,6 +3546,94 @@ extension V10_02MutationEnvelopeReceiptTests {
         ))
     }
 
+    /// The writer authority is decoded from the envelope's millisecond double,
+    /// so its Dates can drift from in-memory sub-millisecond Dates by a ULP.
+    /// Binding must hold at the persisted RFC3339-millisecond precision, and a
+    /// genuinely different instant (1 ms or more) must still be rejected.
+    func testFinalizationSchemaTwoBindsSubMillisecondInstantsAtCanonicalPrecision() throws {
+        let fractions: [TimeInterval] = [0.000_4, 0.123_456_7, 0.456_789_1, 0.707_070_7, 0.987_654_3]
+        var driftedCount = 0
+        for fraction in fractions {
+            // Built from the reference-date interval, as `Date()` stores it;
+            // 821_792_801 is the fixture's whole-second 1_800_100_001 epoch.
+            let fixture = try FinalizationCodecAdmissionFixtureV1.make(
+                completedAt: Date(timeIntervalSinceReferenceDate: 821_792_801 + fraction),
+                snapshotCreatedAt: Date(timeIntervalSinceReferenceDate: 821_792_802 + fraction / 2)
+            )
+            let binding = FinalizationWriterCommitBindingV1(
+                envelopeData: try fixture.boundFinalizationEnvelope().canonicalData(),
+                occurredAt: fixture.occurredAt
+            )
+            let decodedEnvelope = try binding.envelope()
+            guard case let .finalizeCheck(command) = decodedEnvelope.command else {
+                return XCTFail("Expected a bound finalize-check envelope")
+            }
+            let authority = try XCTUnwrap(command.writerAuthority)
+            if authority.payload.workflowRecordAfter.completedAt != fixture.completedAt
+                || authority.payload.reportInsert?.createdAt != fixture.snapshotCreatedAt {
+                driftedCount += 1
+            }
+
+            let intent = fixture.intent(schemaVersion: 2, writerCommitBinding: binding)
+            let encoded = try FinalizationContractEncoderV1().encodeIntent(intent).data
+            let decodedIntent = try FinalizationContractDecoderV1().decodeIntent(encoded)
+            XCTAssertEqual(try FinalizationContractEncoderV1().encodeIntent(decodedIntent).data, encoded)
+            XCTAssertNoThrow(try intent.validateCommittedEnvelope(
+                decodedEnvelope, contentDigests: fixture.contentDigests
+            ))
+            XCTAssertNoThrow(try decodedIntent.validateCommittedEnvelope(
+                decodedEnvelope, contentDigests: fixture.contentDigests
+            ))
+
+            let laterCompletion = FinalizationIntentV1(
+                completedAt: fixture.completedAt.addingTimeInterval(0.001),
+                finalizationMutationID: intent.finalizationMutationID,
+                finalizationPayload: intent.finalizationPayload,
+                finalizationPayloadSHA256: intent.finalizationPayloadSHA256,
+                generationID: intent.generationID, packetID: intent.packetID, phase: intent.phase,
+                recordID: intent.recordID, reportID: intent.reportID, schemaVersion: 2,
+                snapshotCreatedAt: intent.snapshotCreatedAt,
+                snapshotFinalRelativePath: intent.snapshotFinalRelativePath,
+                snapshotSHA256: intent.snapshotSHA256,
+                snapshotStagingRelativePath: intent.snapshotStagingRelativePath,
+                stableRootID: intent.stableRootID, writerCommitBinding: binding
+            )
+            XCTAssertThrowsError(try FinalizationContractEncoderV1().encodeIntent(laterCompletion)) {
+                XCTAssertEqual($0 as? FinalizationContractEncodingErrorV1, .unsupportedValue)
+            }
+            let earlierSnapshot = FinalizationIntentV1(
+                completedAt: intent.completedAt,
+                finalizationMutationID: intent.finalizationMutationID,
+                finalizationPayload: intent.finalizationPayload,
+                finalizationPayloadSHA256: intent.finalizationPayloadSHA256,
+                generationID: intent.generationID, packetID: intent.packetID, phase: intent.phase,
+                recordID: intent.recordID, reportID: intent.reportID, schemaVersion: 2,
+                snapshotCreatedAt: fixture.snapshotCreatedAt.addingTimeInterval(-0.001),
+                snapshotFinalRelativePath: intent.snapshotFinalRelativePath,
+                snapshotSHA256: intent.snapshotSHA256,
+                snapshotStagingRelativePath: intent.snapshotStagingRelativePath,
+                stableRootID: intent.stableRootID, writerCommitBinding: binding
+            )
+            XCTAssertThrowsError(try FinalizationContractEncoderV1().encodeIntent(earlierSnapshot)) {
+                XCTAssertEqual($0 as? FinalizationContractEncodingErrorV1, .unsupportedValue)
+            }
+
+            // A payload one millisecond away is a different persisted payload.
+            let shifted = try FinalizationCodecAdmissionFixtureV1.make(
+                completedAt: fixture.completedAt.addingTimeInterval(0.001),
+                snapshotCreatedAt: fixture.snapshotCreatedAt
+            )
+            XCTAssertThrowsError(try FinalizationContractEncoderV1().encodeIntent(
+                shifted.intent(schemaVersion: 2, writerCommitBinding: binding)
+            ))
+            XCTAssertThrowsError(try shifted.intent(schemaVersion: 2, writerCommitBinding: binding)
+                .validateCommittedEnvelope(decodedEnvelope, contentDigests: fixture.contentDigests))
+        }
+        // At least one candidate must exercise the raw floating-point drift,
+        // otherwise this test would not cover the defect it guards.
+        XCTAssertGreaterThan(driftedCount, 0)
+    }
+
     func testFinalizationSchemaTwoAdmitsMigratedBaselineAndRejectsHostileBindings() throws {
         let fixture = try FinalizationCodecAdmissionFixtureV1.make()
         let envelope = try fixture.boundFinalizationEnvelope()
@@ -3761,7 +3849,11 @@ private struct FinalizationCodecAdmissionFixtureV1 {
     let sourceBinding: FinalizationWriterSourceBindingV1
     let report: ReportPayloadV1
 
-    static func make(inspectionRelease: FinalizationInspectionReleaseBindingV1? = nil) throws -> Self {
+    static func make(
+        inspectionRelease: FinalizationInspectionReleaseBindingV1? = nil,
+        completedAt: Date = Date(timeIntervalSince1970: 1_800_100_001),
+        snapshotCreatedAt: Date = Date(timeIntervalSince1970: 1_800_100_002)
+    ) throws -> Self {
         let workspaceID = WorkspaceID(rawValue: Self.id(1))
         let generationID = Self.id(3)
         let mutationID = try MutationIDV1(rawValue: Self.id(4))
@@ -3770,14 +3862,15 @@ private struct FinalizationCodecAdmissionFixtureV1 {
         let stableRootID = Self.id(7)
         let reportID = Self.id(8)
         let assetID = Self.id(10)
-        let completedAt = Date(timeIntervalSince1970: 1_800_100_001)
-        let snapshotCreatedAt = Date(timeIntervalSince1970: 1_800_100_002)
+        // The observation instant stays whole-second so the migrated
+        // companion bytes are unchanged when a test varies completedAt.
+        let observedAt = Date(timeIntervalSince1970: 1_800_100_001)
         let snapshotSHA256 = Self.digest("a")
         let migratedObservation = try ObservationAndTimeMigrationV1.migrate(
             existingObservationBasisData: nil, existingTemporalContextData: nil,
             couldNotVerifyKey: nil, couldNotVerifyDisplaySnapshot: nil,
-            couldNotVerifyRegistryVersion: nil, observedAtUTC: completedAt,
-            recordedAtUTC: completedAt, timeZoneID: "UTC", utcOffsetMinutes: 0,
+            couldNotVerifyRegistryVersion: nil, observedAtUTC: observedAt,
+            recordedAtUTC: observedAt, timeZoneID: "UTC", utcOffsetMinutes: 0,
             localDate: "2027-01-16", localTime: "08:00:01"
         )
         let record = WorkflowRecordPayloadV1(
@@ -3788,7 +3881,7 @@ private struct FinalizationCodecAdmissionFixtureV1 {
             stage: WorkflowStage.check.rawValue,
             state: WorkflowState.completed.rawValue,
             draftStepKey: nil, startedAt: completedAt.addingTimeInterval(-60),
-            completedAt: completedAt, observedAtUTC: completedAt, timeZoneID: "UTC",
+            completedAt: completedAt, observedAtUTC: observedAt, timeZoneID: "UTC",
             utcOffsetMinutes: 0, localDate: "2027-01-16", localTime: "08:00:01",
             afterDarkAcknowledgementKey: "after_dark",
             afterDarkAcknowledgementCopy: "Work after dark requires care.",

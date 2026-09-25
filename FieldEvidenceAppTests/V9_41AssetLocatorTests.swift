@@ -9,7 +9,7 @@ private enum C52ServiceRequestBoundary_V9_41AssetLocatorTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45AssetLocatorCompatibilityTests: XCTestCase {
+final class C45AssetLocatorCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityShortCodeUsesExistingExternalKeyAuthority() throws {
         let code = try ManualShortCodeV1(randomBody: "23456789AB")
         let key = try code.externalKey()
@@ -19,7 +19,7 @@ private final class C45AssetLocatorCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_41AssetLocator: XCTestCase {
+final class C30EvidenceContextAnchorV9_41AssetLocator: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -1136,7 +1136,7 @@ private struct C27LocatorQuery: AssetLocatorQueryingV1 {
         byLookup[lookupKey, default: []].filter { $0.workspaceID == workspaceID }
     }
 }
-private final class C31LightingAnchorV941AssetLocatorTests: XCTestCase {
+final class C31LightingAnchorV941AssetLocatorTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -1145,7 +1145,7 @@ private final class C31LightingAnchorV941AssetLocatorTests: XCTestCase {
     }
 }
 
-private final class C33TemporalEvidenceAnchorV941AssetLocator: XCTestCase {
+final class C33TemporalEvidenceAnchorV941AssetLocator: XCTestCase {
     func testC33V941AssetLocatorCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "locator.temporal-target-facts",
@@ -1164,7 +1164,7 @@ private final class C33TemporalEvidenceAnchorV941AssetLocator: XCTestCase {
     }
 }
 
-private final class C32AssistanceAnchorV941AssetLocator: XCTestCase {
+final class C32AssistanceAnchorV941AssetLocator: XCTestCase {
     func testC32V941AssetLocatorCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .assetLocator,
@@ -1184,7 +1184,7 @@ private final class C32AssistanceAnchorV941AssetLocator: XCTestCase {
         )
     }
 }
-private final class C46V941LocatorCompatibilityTests: XCTestCase {
+final class C46V941LocatorCompatibilityTests: XCTestCase {
     func testC46AssetLocatorNeverAliasesContactPointID() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "asset-locator",

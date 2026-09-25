@@ -3848,3 +3848,33 @@ Workstream status:
 - C57-1 My Day cross-workspace replacement projection: implemented in an isolated worktree, independently APPROVED (three Low findings; test strengthening in progress), not compiled. The production caller still passes no bindings, so a populated cross-workspace Replace remains fail-closed.
 - C55-1 restore Clone/Fork report test: no test-only correction exists. Production re-encodes legacy report snapshots with temporal/assurance content on Clone/Fork (`BackupRestoreService` rebinding), and no production producer writes such snapshots through the finalizer. Requires a producer and an owner-level immutability decision; stale schema pins 33/32 noted.
 - P03-C43 signoff batch 1: design complete (no new persistence, no writer edits); implementation in an isolated worktree.
+
+## Batch K: sweep 36133511753 triage and first fixes (2026-09-25, cloud Mac)
+
+Requirement: triage the early development-only full sweep (original 36133511753, head 5eb2f5f, before batch J) and fix the understood failure families. The run itself is not yet collected by the dispatcher: its dispatch folder is on Windows (MAC_HANDOFF step 7 kept run folders there); job logs were read through the GitHub API for triage only.
+
+Findings (41 of 44 partitions failed; development only):
+- Unselectable tests: 455 `private`/`fileprivate` XCTestCase classes get private-discriminator runtime names, so `-only-testing` never matched them. S01 ran 0 of 203 and S02 4 of 280; about 460 methods never ran. The evidence validator rejected S01 silently.
+- Timeouts (exit 124) in S08, S14, S16, S18, S26, S32 and S35: single methods ran 200–1,200 s. The main cost is DEBUG protected-file verification (up to 1.09M calls per partition, one journal fsync each), amplified by writer-lease re-proofs on every `currentRevision`. There is a deterministic helper deadlock in V9_09 I01 and an unexplained stall in S6_2 MixedExport. Partition estimates came from an even census split, not measured time.
+- S10 brand (907 assertions): fixed at head by batch J (S10_3 5/5 locally); V9_90/V9_91 test-design defects remained.
+- Finalization schema-2 binding compared raw Dates with the millisecond-double canonical round trip (product defect; about 23 diagnostics in V23 Round and S4/S5/S8 journeys).
+- Test harness: subdirectory fixture lookups against a flat test bundle; S2 startup tests on bare roots without the required sibling Caches; S2 V1 pointer pins against the V3 codec.
+- Not yet fixed (see VERIFICATION_DUE): persistence expectation drift (schema v53 pins, catalog counts), receiptHistoryCorrupt/digestMismatch/invalidValue setup family, restore/migration (restricted), V23 access/scene state, V23PhaseGate Settings probes, performance.
+
+Files and changes:
+- 64 test files: `private final class X: XCTestCase` → `final class X: XCTestCase` (455 lines, no other change; no name collisions).
+- `FinalizationContracts.swift` (product): `FinalizationCanonicalBindingV1` compares payload and instants by their canonical contract encoding in `encodeIntent` and `validateCommittedEnvelope`. Persisted bytes and hash inputs are unchanged; a 1 ms difference is still rejected. New test `V10_02…testFinalizationSchemaTwoBindsSubMillisecondInstantsAtCanonicalPrecision`.
+- `S2PersistenceLedgerTests`: startup cases use the sandbox layout (ApplicationSupport plus Caches); V1 byte pins replaced by V3 codec decode, re-encode, schema, generation and manifest-digest checks; hostile pointers are built from real V3 bytes. Expectation changes, with reasons: the codec's own `StoreMigrationFailure` errors (invalidPointer, canonicalDecodingFailed, futureVersion) replace StoreGenerationFailure for current-pointer cases, and the startup outcome is unchanged; the duplicate key is pinned to canonicalDecodingFailed (observed on iOS 26.5, to confirm on 26.2); `field_draft_inconsistent` was added to the reason list. `S3_4` MediaReconcile moves to the sandbox layout.
+- New `TestFixtureLocatorV1.swift` (flat bundle, then subdirectory, then `#filePath`) used by V9_15/45/46/64/87/LocationHierarchy. V9_64 fallback name corrected.
+- V9_09: helper lock split (commitLock across gate and effect, stateLock for reads) plus named 30 s gate timeouts; assertions unchanged.
+- V9_90: expects the real preflight call `verify_p04_c27_contracts.py --json` plus its sourceReady and finalHashesSealed checks (always equivalent). V9_91: registry order is sorted by design (set and count asserted); `c28Valid` is non-asserting so hostile cases must return false.
+- Tooling: discovery fails closed on private or fileprivate test classes; `validate-required-evidence.sh` names unexecuted selectors before failing (same exit status, SHA pin unchanged); `v23-coverage-partitions.py` gains `--repack` (measured-time packing, heavy classes split by method, target 1,500 s, fails closed above 60); new `Scripts/dev/v23-coverage-timings.py` and `Scripts/v23-coverage-timings.json` (from 36133511753, development only; 2,475 measured, 29 lower bounds). Partitions regenerated: 42 partitions, 3,446 methods, maximum estimate 2,599 s. Two layout-dependent cases in `test_stale_overlapping…` now pick donors by rule (the method-count case tests the 500/501 boundary).
+
+Review: one independent reviewer (Claude Opus 5.5, read-only, not the author) returned APPROVE WITH CHANGES, then APPROVE after R1 (untracked locator staged), R2 (single pinned duplicate-key outcome) and R3 (tooling reviewed; the edits to the partition-file test don't weaken it). Recommended: boundary-exact millisecond fractions in the new V10_02 test.
+
+Local results (development only; Xcode 26.6, iOS 26.5 Simulator because the 26.2 runtime isn't downloadable from this Xcode):
+- build-for-testing SUCCEEDED.
+- Targeted: V9_15, V9_87, V9_90, V9_91 and V23ProductionRoundSessionTransition pass; S2 went from 13 failing to 3 (routing expectations from the pointer era).
+- Deeper failures remain in V9_45/46/64, LocationHierarchy, S3_4, V10_02 (9 tests, unchanged) and the V9_09 R01 memory budget (541 MB vs 128 MB).
+- Python under 3.14 with TMPDIR resolved: selection generator 38/38; native CI 314/316. Two real-git fixture tests fail on file-mode-only diffs on macOS, and the same two fail at clean e9cc843 (310/312).
+- Native result: pending the development sweep at this head.

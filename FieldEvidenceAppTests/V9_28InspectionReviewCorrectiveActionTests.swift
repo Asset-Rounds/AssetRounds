@@ -643,7 +643,7 @@ extension V9_28InspectionReviewCorrectiveActionTests {
     }
 }
 
-private final class C48PortableReviewV928C14ReconciliationTests: XCTestCase {
+final class C48PortableReviewV928C14ReconciliationTests: XCTestCase {
     func testC48AcceptedResponseUsesExistingC14WriterAndOriginRemainsUnverified() {
         XCTAssertTrue(C48PortableExchangePersistentLifecycleBoundaryV2.acceptedResponseUsesExistingC14Writer)
         XCTAssertEqual(C48PortableExchangeSyncBoundaryV2.canonicalAcceptedResponseOwner, "C14")
@@ -651,7 +651,7 @@ private final class C48PortableReviewV928C14ReconciliationTests: XCTestCase {
         XCTAssertTrue(C48PortableReviewOriginMetadataBoundaryV1.identityVerificationIsForbidden)
     }
 }
-private final class C49WorkResourceCorrectiveSubjectBoundaryTests: XCTestCase {
+final class C49WorkResourceCorrectiveSubjectBoundaryTests: XCTestCase {
     func testCorrectiveWorkIsExplicitSupportedSubject() { XCTAssertTrue(WorkResourceSubjectKindV1.allCases.contains(.correctiveWork)) }
 
     @MainActor
@@ -766,7 +766,7 @@ private enum C49WriterRecoverySupportV1 {
     }
 }
 
-private final class C50IncumbentInspectionReviewBoundaryTests: XCTestCase {
+final class C50IncumbentInspectionReviewBoundaryTests: XCTestCase {
     func testC50InspectionReviewBoundaryDelegatesAndNeverPersistsExchangeBytes() {
         XCTAssertEqual(C50InspectionReviewIncumbentPersistenceBoundaryV1.nonPersistentContractTypes.count, 7)
         XCTAssertTrue(C50InspectionReviewIncumbentExchangeBoundaryV1.privacyAllowlistIsClosed)

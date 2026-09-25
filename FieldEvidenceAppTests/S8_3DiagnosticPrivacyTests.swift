@@ -10,7 +10,7 @@ private enum C53AssetServiceReliabilityBoundary_S8_3DiagnosticPrivacyTests {
     static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
 }
 
-private final class C45DiagnosticPrivacyCompatibilityTests: XCTestCase {
+final class C45DiagnosticPrivacyCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityKeepsArtifactKindsBoundedAndTyped() {
         XCTAssertEqual(Set(LabelArtifactKindV1.allCases), [.pdf, .formulaSafeCSV, .structuredText])
         XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.createsSecondLocatorStore)
@@ -18,7 +18,7 @@ private final class C45DiagnosticPrivacyCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C51S83DiagnosticPrivacyAnchorTests: XCTestCase {
+final class C51S83DiagnosticPrivacyAnchorTests: XCTestCase {
     func testV23P03C51AdvancedScheduleDiagnosticsAreAggregateOnly() throws {
         let value = try AdvancedScheduleDiagnosticMetadataV1()
         XCTAssertTrue(value.isValid)
@@ -29,7 +29,7 @@ private final class C51S83DiagnosticPrivacyAnchorTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorS8_3DiagnosticPrivacy: XCTestCase {
+final class C30EvidenceContextAnchorS8_3DiagnosticPrivacy: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -681,7 +681,7 @@ final class S8_3DiagnosticPrivacyTests: XCTestCase {
     }
 }
 
-private final class C27S83TypedLocatorAnchorTests: XCTestCase {
+final class C27S83TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(ExternalKeyNormalizationV1.allCases.count, 2)
         XCTAssertEqual(AssetLocatorLimitsV1.maximumNamespaceBytes, 128)
@@ -815,7 +815,7 @@ extension S8_3DiagnosticPrivacyTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorS83DiagnosticPrivacyTests: XCTestCase {
+final class C31LightingAnchorS83DiagnosticPrivacyTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -824,7 +824,7 @@ private final class C31LightingAnchorS83DiagnosticPrivacyTests: XCTestCase {
     }
 }
 
-private final class C33TemporalEvidenceAnchorS83DiagnosticPrivacy: XCTestCase {
+final class C33TemporalEvidenceAnchorS83DiagnosticPrivacy: XCTestCase {
     func testC33S83DiagnosticPrivacyCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "diagnostics.temporal-metadata-only",
@@ -843,7 +843,7 @@ private final class C33TemporalEvidenceAnchorS83DiagnosticPrivacy: XCTestCase {
     }
 }
 
-private final class C32AssistanceAnchorS83DiagnosticPrivacy: XCTestCase {
+final class C32AssistanceAnchorS83DiagnosticPrivacy: XCTestCase {
     func testC32S83DiagnosticPrivacyCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .asset,
@@ -863,7 +863,7 @@ private final class C32AssistanceAnchorS83DiagnosticPrivacy: XCTestCase {
         )
     }
 }
-private final class C46S83DiagnosticPrivacyCompatibilityTests: XCTestCase {
+final class C46S83DiagnosticPrivacyCompatibilityTests: XCTestCase {
     func testC46DiagnosticsNeverProjectRawOperationalContact() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "diagnostic-privacy",
@@ -885,7 +885,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_3Diagnost
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_3DiagnosticPrivacyTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_3DiagnosticPrivacyTests_swift_Tests: XCTestCase {
     func testC47S83DiagnosticPrivacyTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_3DiagnosticPrivacyTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_3DiagnosticPrivacyTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
@@ -899,7 +899,7 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_3D
     }
 }
 
-private final class C48PortableReviewS83DiagnosticPrivacyTests: XCTestCase {
+final class C48PortableReviewS83DiagnosticPrivacyTests: XCTestCase {
     func testC48DiagnosticsExposeDerivedMetadataOnly() {
         XCTAssertTrue(C48PortableReviewDiagnosticPrivacyBoundaryV1.diagnosticProjectionIsDerivedMetadataOnly)
         XCTAssertFalse(C48PortableReviewDiagnosticPrivacyBoundaryV1.capabilityBytesEmitted)
@@ -907,14 +907,14 @@ private final class C48PortableReviewS83DiagnosticPrivacyTests: XCTestCase {
         XCTAssertFalse(C48PortableReviewDiagnosticPrivacyBoundaryV1.authorIdentityEmitted)
     }
 }
-private final class C49WorkResourceDiagnosticPrivacyBoundaryTests: XCTestCase {
+final class C49WorkResourceDiagnosticPrivacyBoundaryTests: XCTestCase {
     func testDirectCostIsEmbeddedInternalTruth() {
         XCTAssertTrue(C49WorkResourceContractBoundaryV1.directCostIsEmbedded)
         XCTAssertEqual(WorkResourceVisibilityPolicyV1.internalOnly.rawValue, "INTERNAL_ONLY")
     }
 }
 
-private final class C50IncumbentAdapterS83DiagnosticPrivacyBoundaryTests: XCTestCase {
+final class C50IncumbentAdapterS83DiagnosticPrivacyBoundaryTests: XCTestCase {
     func testDiagnosticsDoNotPersistExternalFilePossessionOrSecurityBookmarks() {
         XCTAssertFalse(C50IncumbentFileExchangeProtectedFileBoundaryV1.externalSourceAndExportFilesAreAppOwned)
         XCTAssertFalse(C50IncumbentFileExchangeProtectedFileBoundaryV1.persistsSecurityScopedBookmarks)

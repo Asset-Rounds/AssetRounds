@@ -33,7 +33,7 @@ extension V9_10LifecycleBoundaryTests {
     }
 }
 
-private final class C45LifecycleBoundaryCompatibilityTests: XCTestCase {
+final class C45LifecycleBoundaryCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityClosesReprintLifecycleOutcomes() {
         XCTAssertEqual(LabelReprintEligibilityV1.activeExactReprint.rawValue, "ACTIVE_EXACT_REPRINT")
         XCTAssertEqual(LabelReprintEligibilityV1.historicExportOnly.rawValue, "HISTORIC_EXPORT_ONLY")
@@ -41,7 +41,7 @@ private final class C45LifecycleBoundaryCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_10LifecycleBoundary: XCTestCase {
+final class C30EvidenceContextAnchorV9_10LifecycleBoundary: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -1168,7 +1168,7 @@ final class V9_10LifecycleBoundaryTests: XCTestCase {
     }
 }
 
-private final class C27V910TypedLocatorAnchorTests: XCTestCase {
+final class C27V910TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(LocatorBindingActionV1.allCases.count, 6)
         XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
@@ -1539,7 +1539,7 @@ extension V9_10LifecycleBoundaryTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorV910LifecycleBoundaryTests: XCTestCase {
+final class C31LightingAnchorV910LifecycleBoundaryTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -1591,7 +1591,7 @@ extension V9_10LifecycleBoundaryTests {
     }
 }
 
-private final class C33TemporalEvidenceAnchorV910LifecycleBoundary: XCTestCase {
+final class C33TemporalEvidenceAnchorV910LifecycleBoundary: XCTestCase {
     func testC33V910LifecycleBoundaryCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "lifecycle.temporal-protected-data",
@@ -1610,7 +1610,7 @@ private final class C33TemporalEvidenceAnchorV910LifecycleBoundary: XCTestCase {
     }
 }
 
-private final class C32AssistanceAnchorV910LifecycleBoundary: XCTestCase {
+final class C32AssistanceAnchorV910LifecycleBoundary: XCTestCase {
     func testC32V910LifecycleBoundaryCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .asset,
@@ -1630,7 +1630,7 @@ private final class C32AssistanceAnchorV910LifecycleBoundary: XCTestCase {
         )
     }
 }
-private final class C46V910LifecycleBoundaryCompatibilityTests: XCTestCase {
+final class C46V910LifecycleBoundaryCompatibilityTests: XCTestCase {
     func testC46LifecycleBoundaryKeepsHandoffOutcomeNoncanonical() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "lifecycle-boundary",
@@ -1652,7 +1652,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_10Lifecyc
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_10LifecycleBoundaryTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_10LifecycleBoundaryTests_swift_Tests: XCTestCase {
     func testC47V910LifecycleBoundaryTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_10LifecycleBoundaryTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_10LifecycleBoundaryTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)

@@ -859,7 +859,7 @@ extension V9_25AuthorityCriterionDerivationTests {
     }
 }
 
-private final class C53SharedAuthorityReliabilityTests: XCTestCase {
+final class C53SharedAuthorityReliabilityTests: XCTestCase {
     func testV23P03C53AuthorityBindingFreezesReliabilitySubject() {
         XCTAssertTrue(C53SharedAuthorityCriterionBoundaryV1.reliabilityInputsBindToFrozenSubjectContext)
         XCTAssertTrue(C53SharedAuthorityCriterionBoundaryV1.causeAndRestorationAreRecordedProvenance)

@@ -11,7 +11,7 @@ private enum C53AssetServiceReliabilityBoundary_V9_19LocalSearchTests {
     static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
 }
 
-private final class C50LocalSearchTests: XCTestCase {
+final class C50LocalSearchTests: XCTestCase {
     func testV23P03C50SearchCannotIndexScratchQuarantineBookmarksOrEscapedPaths() {
         XCTAssertTrue(C50IncumbentFileExchangeBackupBoundaryV1.sourceScratchAndQuarantineAreExcluded)
         XCTAssertTrue(C50IncumbentFileExchangeBackupBoundaryV1.securityBookmarksAreExcluded)
@@ -25,7 +25,7 @@ private final class C50LocalSearchTests: XCTestCase {
     }
 }
 
-private final class C51V919LocalSearchAnchorTests: XCTestCase {
+final class C51V919LocalSearchAnchorTests: XCTestCase {
     func testV23P03C51AdvancedScheduleSearchIsDerivedAndRebuildable() throws {
         let policy = AdvancedScheduleOccurrenceSearchPersistencePolicyV1()
         try policy.validate()
@@ -36,7 +36,7 @@ private final class C51V919LocalSearchAnchorTests: XCTestCase {
     }
 }
 
-private final class C45LocalSearchCompatibilityTests: XCTestCase {
+final class C45LocalSearchCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityIndexesAcceptedSnapshotTruthNotScratchArtifacts() {
         XCTAssertTrue(AssetLabelPersistenceEnrollmentV1.persistentFamilies.contains("AcceptedLabelGenerationSnapshotRow"))
         XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.persistentFamilies.contains("AssetLabelGenerationPlanV1"))
@@ -44,7 +44,7 @@ private final class C45LocalSearchCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_19LocalSearch: XCTestCase {
+final class C30EvidenceContextAnchorV9_19LocalSearch: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -987,7 +987,7 @@ final class V9_19LocalSearchTests: XCTestCase {
     }
 }
 
-private final class C27V919TypedLocatorAnchorTests: XCTestCase {
+final class C27V919TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(LocatorInputSourceV1.allCases.count, 3)
         XCTAssertEqual(AssetLocatorLimitsV1.maximumInputBytes, 1_024)
@@ -1374,7 +1374,7 @@ extension V9_19LocalSearchTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorV919LocalSearchTests: XCTestCase {
+final class C31LightingAnchorV919LocalSearchTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -1435,7 +1435,7 @@ extension V9_19LocalSearchTests {
     }
 }
 
-private final class C33TemporalEvidenceAnchorV919LocalSearch: XCTestCase {
+final class C33TemporalEvidenceAnchorV919LocalSearch: XCTestCase {
     func testC33V919LocalSearchCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "search.temporal-metadata-only",
@@ -1454,7 +1454,7 @@ private final class C33TemporalEvidenceAnchorV919LocalSearch: XCTestCase {
     }
 }
 
-private final class C32AssistanceAnchorV919LocalSearch: XCTestCase {
+final class C32AssistanceAnchorV919LocalSearch: XCTestCase {
     func testC32V919LocalSearchCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .asset,
@@ -1474,7 +1474,7 @@ private final class C32AssistanceAnchorV919LocalSearch: XCTestCase {
         )
     }
 }
-private final class C46V919SearchCompatibilityTests: XCTestCase {
+final class C46V919SearchCompatibilityTests: XCTestCase {
     func testC46SearchBoundaryUsesContactMetadataNotDefaultExport() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "local-search",
@@ -1496,7 +1496,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_19LocalSe
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_19LocalSearchTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_19LocalSearchTests_swift_Tests: XCTestCase {
     func testC47V919LocalSearchTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_19LocalSearchTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_19LocalSearchTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
@@ -1510,7 +1510,7 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_19
     }
 }
 
-private final class C48PortableReviewV919SearchTests: XCTestCase {
+final class C48PortableReviewV919SearchTests: XCTestCase {
     func testC48SearchIndexesDerivedMetadataWithoutSecrets() {
         XCTAssertTrue(C48PortableReviewSearchBoundaryV1.currentStateAndHistoryMayBeRead)
         XCTAssertFalse(C48PortableReviewSearchBoundaryV1.capabilityBytesIndexed)
@@ -1518,7 +1518,7 @@ private final class C48PortableReviewV919SearchTests: XCTestCase {
         XCTAssertTrue(C48PortableReviewSearchBoundaryV1.responseHistoryIsNotMutationAuthority)
     }
 }
-private final class C49WorkResourceSearchBoundaryTests: XCTestCase {
+final class C49WorkResourceSearchBoundaryTests: XCTestCase {
     func testSearchProjectionCannotPromoteStockSnapshotToLiveInventory() {
         XCTAssertFalse(C49WorkResourceContractBoundaryV1.liveInventoryReference)
         XCTAssertTrue(C49WorkResourceLifecycleBoundaryV1.searchAndReportAreDerivedOnly)
@@ -1584,7 +1584,7 @@ private enum C57MyDaySearchFixtureV1 {
     }
 }
 
-private final class C57MyDayLocalSearchProjectionTests: XCTestCase {
+final class C57MyDayLocalSearchProjectionTests: XCTestCase {
     func testC57SearchIsDeterministicWorkspaceScopedDisposableAndSourcePrivate() throws {
         let (plan, readiness) = try C57MyDaySearchFixtureV1.values()
         let first = try C57MyDaySearchRebuildBoundaryV1.records(

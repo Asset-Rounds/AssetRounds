@@ -2974,21 +2974,21 @@ extension S4_5CorrectionTests {
     }
 }
 
-private final class C48PortableReviewS45CorrectionTests: XCTestCase {
+final class C48PortableReviewS45CorrectionTests: XCTestCase {
     func testC48ExternalResponseDoesNotFinalizeOrRewriteHistoricSnapshot() {
         XCTAssertTrue(C48PortableReviewFinalizationBoundaryV1.externalReviewCannotFinalize)
         XCTAssertTrue(C48PortableReviewReportSnapshotBoundaryV1.externalReviewCannotRewriteHistoricSnapshot)
         XCTAssertTrue(C48PortableReviewWorkflowBoundaryV1.acceptanceDoesNotAutoFinalize)
     }
 }
-private final class C49WorkResourceCorrectionBoundaryTests: XCTestCase {
+final class C49WorkResourceCorrectionBoundaryTests: XCTestCase {
     func testCorrectionIsSuccessorNotInPlaceEdit() {
         XCTAssertTrue(C49WorkResourceContractBoundaryV1.appendOnly)
         XCTAssertEqual(WorkResourceDispositionV1.superseded.rawValue, "SUPERSEDED")
     }
 }
 
-private final class C50IncumbentAdapterS45CorrectionBoundaryTests: XCTestCase {
+final class C50IncumbentAdapterS45CorrectionBoundaryTests: XCTestCase {
     func testCorrectionCannotCreateASecondProductionProfileOrCanonicalDeletionReceipt() {
         XCTAssertTrue(C50IncumbentFileExchangeKernelDeletionEnrollmentV1.ordinaryDeletionPreservesCanonicalHistory)
         XCTAssertEqual(C50IncumbentFileExchangeKernelDeletionEnrollmentV1.canonicalRowRegistrationCount, 0)

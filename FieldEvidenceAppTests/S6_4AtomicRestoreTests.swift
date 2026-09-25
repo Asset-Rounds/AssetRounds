@@ -15,7 +15,7 @@ private enum C53AssetServiceReliabilityBoundary_S6_4AtomicRestoreTests {
     static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
 }
 
-private final class C45AtomicRestoreCompatibilityTests: XCTestCase {
+final class C45AtomicRestoreCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityRestoresActiveOrHistoricDispositionExactly() {
         XCTAssertEqual(Set(AcceptedLabelSnapshotDispositionV1.allCases), [.activeSourceWorkspace, .historicCloneOrFork])
         XCTAssertEqual(LabelReprintEligibilityV1.activeExactReprint.rawValue, "ACTIVE_EXACT_REPRINT")
@@ -23,7 +23,7 @@ private final class C45AtomicRestoreCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorS6_4AtomicRestore: XCTestCase {
+final class C30EvidenceContextAnchorS6_4AtomicRestore: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -1621,7 +1621,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
     }
 }
 
-private final class C27S64TypedLocatorAnchorTests: XCTestCase {
+final class C27S64TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(AssetLocatorStateV1.allCases.count, 4)
         XCTAssertEqual(LocatorBindingActionV1.allCases.count, 6)
@@ -2470,7 +2470,7 @@ extension S6_4AtomicRestoreTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorS64AtomicRestoreTests: XCTestCase {
+final class C31LightingAnchorS64AtomicRestoreTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -3535,7 +3535,7 @@ private final class S64PackageIdentityAuthority: EntityIdentityResolutionCanonic
     }
 }
 
-private final class C33TemporalEvidenceAnchorS64AtomicRestore: XCTestCase {
+final class C33TemporalEvidenceAnchorS64AtomicRestore: XCTestCase {
     func testC33S64AtomicRestoreCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "restore.atomic.temporal-evidence",
@@ -3554,7 +3554,7 @@ private final class C33TemporalEvidenceAnchorS64AtomicRestore: XCTestCase {
     }
 }
 
-private final class C32AssistanceAnchorS64AtomicRestore: XCTestCase {
+final class C32AssistanceAnchorS64AtomicRestore: XCTestCase {
     func testC32S64AtomicRestoreCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .site,
@@ -3574,7 +3574,7 @@ private final class C32AssistanceAnchorS64AtomicRestore: XCTestCase {
         )
     }
 }
-private final class C46S64AtomicRestoreCompatibilityTests: XCTestCase {
+final class C46S64AtomicRestoreCompatibilityTests: XCTestCase {
     func testC46AtomicRestoreKeepsStableContactIdentity() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "atomic-restore",
@@ -3596,7 +3596,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_4AtomicRe
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_4AtomicRestoreTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_4AtomicRestoreTests_swift_Tests: XCTestCase {
     func testC47S64AtomicRestoreTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_4AtomicRestoreTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_4AtomicRestoreTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
@@ -3610,7 +3610,7 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_4A
     }
 }
 
-private final class C48PortableReviewS64AtomicRestoreBoundaryTests: XCTestCase {
+final class C48PortableReviewS64AtomicRestoreBoundaryTests: XCTestCase {
     func testC48RestoreSidecarContractRequiresExactBytesAndCloneForkInvalidation() {
         XCTAssertTrue(BackupRestoreFailurePoint.allCases.contains(.afterPointerSwitch))
         XCTAssertTrue(C48PortableExchangeMigrationBoundaryV2.preservesExactBytes)
@@ -3619,7 +3619,7 @@ private final class C48PortableReviewS64AtomicRestoreBoundaryTests: XCTestCase {
         XCTAssertTrue(C48PortableReviewPersistenceBoundaryV1.sessionStoreIsNonpersistent)
     }
 }
-private final class C49WorkResourceAtomicRestoreBoundaryTests: XCTestCase {
+final class C49WorkResourceAtomicRestoreBoundaryTests: XCTestCase {
     func testRestoreRetainsAppendOnlyManualResourceSemantics() {
         XCTAssertTrue(C49WorkResourceContractBoundaryV1.appendOnly)
         XCTAssertEqual(C49WorkResourceContractBoundaryV1.soleWriter, "WorkspaceWriterV1")
@@ -3627,7 +3627,7 @@ private final class C49WorkResourceAtomicRestoreBoundaryTests: XCTestCase {
     }
 }
 
-private final class C50IncumbentAdapterS64AtomicRestoreBoundaryTests: XCTestCase {
+final class C50IncumbentAdapterS64AtomicRestoreBoundaryTests: XCTestCase {
     func testAtomicRestoreDoesNotReenableSelectionOrCopyExternalAuthority() {
         XCTAssertTrue(C50IncumbentFileExchangeBackupRestoreServiceBoundaryV1.validate(mode: .replaceExisting))
         XCTAssertTrue(C50IncumbentFileExchangeBackupRestoreServiceBoundaryV1.validate(mode: .clone))

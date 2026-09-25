@@ -11,7 +11,7 @@ private enum C52ServiceRequestBoundary_S4_2PDFRecoveryTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45PDFRecoveryCompatibilityTests: XCTestCase {
+final class C45PDFRecoveryCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityFreezesQRGeometryForDeterministicPDFRecovery() {
         XCTAssertEqual(DeterministicPDFRendererV1.assetLabelQuietZoneModules, 4)
         XCTAssertFalse(DeterministicPDFRendererV1.assetLabelInterpolationEnabled)
@@ -20,7 +20,7 @@ private final class C45PDFRecoveryCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C51S42PDFRecoveryAnchorTests: XCTestCase {
+final class C51S42PDFRecoveryAnchorTests: XCTestCase {
     func testV23P03C51PDFAndRecoveryConsumeTheSameFrozenProjection() {
         let pdf: (AdvancedScheduleReportProjectionV1) throws -> [String] =
             DeterministicPDFRendererV1.advancedScheduleTextLines
@@ -30,7 +30,7 @@ private final class C51S42PDFRecoveryAnchorTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorS4_2PDFRecovery: XCTestCase {
+final class C30EvidenceContextAnchorS4_2PDFRecovery: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -681,7 +681,7 @@ final class S4_2PDFRecoveryTests: XCTestCase {
     }
 }
 
-private final class C27S42TypedLocatorAnchorTests: XCTestCase {
+final class C27S42TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(LocatorInputSourceV1.allCases.count, 3)
         XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
@@ -1131,7 +1131,7 @@ extension S4_2PDFRecoveryTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorS42PDFRecoveryTests: XCTestCase {
+final class C31LightingAnchorS42PDFRecoveryTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -1140,7 +1140,7 @@ private final class C31LightingAnchorS42PDFRecoveryTests: XCTestCase {
     }
 }
 
-private final class C33TemporalEvidenceAnchorS42PDFRecovery: XCTestCase {
+final class C33TemporalEvidenceAnchorS42PDFRecovery: XCTestCase {
     func testC33S42PDFRecoveryCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "pdf.temporal-link-recovery",
@@ -1159,7 +1159,7 @@ private final class C33TemporalEvidenceAnchorS42PDFRecovery: XCTestCase {
     }
 }
 
-private final class C32AssistanceAnchorS42PDFRecovery: XCTestCase {
+final class C32AssistanceAnchorS42PDFRecovery: XCTestCase {
     func testC32S42PDFRecoveryCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .report,
@@ -1179,7 +1179,7 @@ private final class C32AssistanceAnchorS42PDFRecovery: XCTestCase {
         )
     }
 }
-private final class C46S42PDFCompatibilityTests: XCTestCase {
+final class C46S42PDFCompatibilityTests: XCTestCase {
     func testC46PDFRecoveryNeverPrefillsContactValue() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "pdf-recovery",
@@ -1201,7 +1201,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_2PDFRecov
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_2PDFRecoveryTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_2PDFRecoveryTests_swift_Tests: XCTestCase {
     func testC47S42PDFRecoveryTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_2PDFRecoveryTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_2PDFRecoveryTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
@@ -1215,7 +1215,7 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_2P
     }
 }
 
-private final class C48PortableReviewS42PDFRecoveryTests: XCTestCase {
+final class C48PortableReviewS42PDFRecoveryTests: XCTestCase {
     func testC48PDFRecoveryPreservesImmutableHistoryWithoutSecretBytes() {
         XCTAssertTrue(C48PortableReviewPDFBoundaryV1.usesExistingPDFRenderer)
         XCTAssertTrue(C48PortableReviewReportRecoveryBoundaryV1.recoveryReadsImmutableResponseHistory)
@@ -1223,13 +1223,13 @@ private final class C48PortableReviewS42PDFRecoveryTests: XCTestCase {
         XCTAssertFalse(C48PortableReviewPDFBoundaryV1.capabilityProofBytesEmitted)
     }
 }
-private final class C49WorkResourcePDFRecoveryBoundaryTests: XCTestCase {
+final class C49WorkResourcePDFRecoveryBoundaryTests: XCTestCase {
     func testRecoveredDirectCostDefaultsToInternalVisibility() {
         XCTAssertEqual(WorkResourceVisibilityPolicyV1.internalOnly.rawValue, "INTERNAL_ONLY")
     }
 }
 
-private final class C50IncumbentAdapterS42RecoveryBoundaryTests: XCTestCase {
+final class C50IncumbentAdapterS42RecoveryBoundaryTests: XCTestCase {
     func testRecoveryDoesNotRestoreProfileSelectionOrSourceScratch() {
         XCTAssertTrue(C50IncumbentFileExchangeReplacementRestoreRuleV1.validate())
         XCTAssertFalse(C50IncumbentFileExchangeReplacementRestoreRuleV1.restoresProfileOrSelectionState)

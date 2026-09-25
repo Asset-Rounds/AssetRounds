@@ -8,7 +8,7 @@ private enum C52ServiceRequestBoundary_S6_1DeletionGraphTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45DeletionGraphCompatibilityTests: XCTestCase {
+final class C45DeletionGraphCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityAddsOneWorkspaceScopedDurableLeaf() {
         XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.persistentFamilies, ["AcceptedLabelGenerationSnapshotRow"])
         XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.durableModelCount, 1)
@@ -16,7 +16,7 @@ private final class C45DeletionGraphCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C51S61DeletionGraphAnchorTests: XCTestCase {
+final class C51S61DeletionGraphAnchorTests: XCTestCase {
     func testV23P03C51DeletionPreservesOrErasesTheCompleteScheduleClosure() {
         XCTAssertTrue(ScheduleDeletionIntentBoundaryV1.validate())
         XCTAssertTrue(ScheduleDeletionIntentBoundaryV1.ordinaryDeletionPreservesCalendarOverrideBasisAndReceiptClosure)
@@ -25,7 +25,7 @@ private final class C51S61DeletionGraphAnchorTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorS6_1DeletionGraph: XCTestCase {
+final class C30EvidenceContextAnchorS6_1DeletionGraph: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -783,7 +783,7 @@ final class S6_1DeletionGraphTests: XCTestCase {
     }
 }
 
-private final class C27S61TypedLocatorAnchorTests: XCTestCase {
+final class C27S61TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(PersistentSchemaV26.models.count, 94)
         XCTAssertEqual(AssetLocatorLimitsV1.maximumCandidates, 32)
@@ -1149,7 +1149,7 @@ extension S6_1DeletionGraphTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorS61DeletionGraphTests: XCTestCase {
+final class C31LightingAnchorS61DeletionGraphTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -1158,7 +1158,7 @@ private final class C31LightingAnchorS61DeletionGraphTests: XCTestCase {
     }
 }
 
-private final class C33TemporalEvidenceAnchorS61DeletionGraph: XCTestCase {
+final class C33TemporalEvidenceAnchorS61DeletionGraph: XCTestCase {
     func testC33S61DeletionGraphCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "deletion.temporal-content-graph",
@@ -1177,7 +1177,7 @@ private final class C33TemporalEvidenceAnchorS61DeletionGraph: XCTestCase {
     }
 }
 
-private final class C32AssistanceAnchorS61DeletionGraph: XCTestCase {
+final class C32AssistanceAnchorS61DeletionGraph: XCTestCase {
     func testC32S61DeletionGraphCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .evidenceFile,
@@ -1197,7 +1197,7 @@ private final class C32AssistanceAnchorS61DeletionGraph: XCTestCase {
         )
     }
 }
-private final class C46S61DeletionGraphCompatibilityTests: XCTestCase {
+final class C46S61DeletionGraphCompatibilityTests: XCTestCase {
     func testC46DeletionGraphKeepsSiteDeletionNoncascading() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "deletion-graph",

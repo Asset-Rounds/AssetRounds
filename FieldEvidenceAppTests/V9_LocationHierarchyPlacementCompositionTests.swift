@@ -20,7 +20,7 @@ private enum C52ServiceRequestBoundary_V9_LocationHierarchyPlacementCompositionT
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45LocationPlacementCompatibilityTests: XCTestCase {
+final class C45LocationPlacementCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityDisclosesLocationOnlyInExplicitProfile() {
         XCTAssertNotEqual(LabelDisclosureProfileV1.assetAndShortCode, .assetLocationAndShortCode)
         XCTAssertEqual(LabelDisclosureProfileV1.assetLocationAndShortCode.rawValue, "ASSET_LOCATION_AND_SHORT_CODE")
@@ -28,7 +28,7 @@ private final class C45LocationPlacementCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_LocationHierarchyPlacementComposition: XCTestCase {
+final class C30EvidenceContextAnchorV9_LocationHierarchyPlacementComposition: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -934,12 +934,12 @@ final class V9_LocationHierarchyPlacementCompositionTests: XCTestCase {
     private func id(_ value: String) -> UUID { UUID(uuidString: value)! }
 
     private func loadCorpus() throws -> [String: Any] {
-        let bundle = Bundle(for: Self.self)
-        let url = try XCTUnwrap(bundle.url(
-            forResource: "V21P03C35LocationPlacementCompositionCorpusV1",
+        // Resources are copied flat into the synchronized test bundle; resolve through the shared locator.
+        let url = try TestFixtureLocatorV1.url(
+            "V21P03C35LocationPlacementCompositionCorpusV1",
             withExtension: "json",
             subdirectory: "Fixtures/V21/Location"
-        ))
+        )
         return try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
     }
 
@@ -968,7 +968,7 @@ extension V9_LocationHierarchyPlacementCompositionTests {
         XCTAssertEqual(FieldReferencePackLifecycleV1.persistentFamilies.count, 2)
     }
 }
-private final class C31LightingAnchorV9LocationHierarchyPlacementCompositionTests: XCTestCase {
+final class C31LightingAnchorV9LocationHierarchyPlacementCompositionTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -977,7 +977,7 @@ private final class C31LightingAnchorV9LocationHierarchyPlacementCompositionTest
     }
 }
 
-private final class C33TemporalEvidenceAnchorV9LocationHierarchyPlacementComposition: XCTestCase {
+final class C33TemporalEvidenceAnchorV9LocationHierarchyPlacementComposition: XCTestCase {
     func testC33V9LocationHierarchyPlacementCompositionCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "location.temporal-evidence-placement",
@@ -996,7 +996,7 @@ private final class C33TemporalEvidenceAnchorV9LocationHierarchyPlacementComposi
     }
 }
 
-private final class C32AssistanceAnchorV9LocationHierarchyPlacementComposition: XCTestCase {
+final class C32AssistanceAnchorV9LocationHierarchyPlacementComposition: XCTestCase {
     func testC32V9LocationHierarchyPlacementCompositionCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .locationNode,
@@ -1016,7 +1016,7 @@ private final class C32AssistanceAnchorV9LocationHierarchyPlacementComposition: 
         )
     }
 }
-private final class C46LocationCompatibilityTests: XCTestCase {
+final class C46LocationCompatibilityTests: XCTestCase {
     func testC46LocationHierarchyKeepsDirectionsSiteTargetExplicit() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "location-hierarchy",

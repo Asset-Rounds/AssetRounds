@@ -1494,7 +1494,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_32Package
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_32PackageEvolutionTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_32PackageEvolutionTests_swift_Tests: XCTestCase {
     func testC47V932PackageEvolutionTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_32PackageEvolutionTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_32PackageEvolutionTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)

@@ -1043,8 +1043,12 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
 
     @MainActor
     func testMediaReconcileRemovesOrphansAndPreservesMismatchForMaintenance() async throws {
-        let applicationSupportURL = try makeTemporaryDirectory("MediaReconcile")
-        defer { try? fileManager.removeItem(at: applicationSupportURL) }
+        // Real startup runs the erase step first, which opens the Caches
+        // directory beside Application Support and fails closed when it is
+        // absent; use the real sandbox layout instead of a bare temp root.
+        let sandbox = try makeTemporaryDirectory("MediaReconcile")
+        defer { try? fileManager.removeItem(at: sandbox) }
+        let applicationSupportURL = try makeSandboxApplicationSupportURL(in: sandbox)
         let releaseProbe = MediaReconcileSeedReleaseProbe()
         let seeded = try await seedMediaReconcileOrphans(
             applicationSupportURL: applicationSupportURL,
@@ -2303,6 +2307,16 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         )
         try fileManager.createDirectory(at: url, withIntermediateDirectories: false)
         return url
+    }
+
+    /// Startup's Application Support/Caches sibling layout inside one owned
+    /// sandbox; never create a shared Caches directory under system tmp.
+    private func makeSandboxApplicationSupportURL(in sandbox: URL) throws -> URL {
+        let support = sandbox.appendingPathComponent("ApplicationSupport", isDirectory: true)
+        let caches = sandbox.appendingPathComponent("Caches", isDirectory: true)
+        try fileManager.createDirectory(at: support, withIntermediateDirectories: false)
+        try fileManager.createDirectory(at: caches, withIntermediateDirectories: false)
+        return support
     }
 
     private func makePNG(seed: UInt8) throws -> Data {

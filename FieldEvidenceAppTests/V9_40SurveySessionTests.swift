@@ -69,7 +69,7 @@ private enum C52ServiceRequestBoundary_V9_40SurveySessionTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45SurveySessionCompatibilityTests: XCTestCase {
+final class C45SurveySessionCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityRequiresExplicitBoundedPlanStart() {
         XCTAssertEqual(AssetLabelGenerationPlanV1.schemaVersion, 1)
         XCTAssertEqual(AssetLabelGenerationPlanV1.maximumItemCount, 1_000)
@@ -77,7 +77,7 @@ private final class C45SurveySessionCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C51V940SurveySessionAnchorTests: XCTestCase {
+final class C51V940SurveySessionAnchorTests: XCTestCase {
     func testV23P03C51SurveySessionUsesExplicitStartAndDerivedScheduleMetadata() {
         XCTAssertTrue(C51SurveySessionScheduleCoordinatorBoundaryV1.scheduledStartUsesExplicitAtomicLink)
         XCTAssertTrue(C51SurveySessionScheduleCoordinatorBoundaryV1.scheduleClosureMetadataIsDerivedOnly)
@@ -86,7 +86,7 @@ private final class C51V940SurveySessionAnchorTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_40SurveySession: XCTestCase {
+final class C30EvidenceContextAnchorV9_40SurveySession: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -1742,7 +1742,7 @@ extension V9_40SurveySessionTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorV940SurveySessionTests: XCTestCase {
+final class C31LightingAnchorV940SurveySessionTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -1751,7 +1751,7 @@ private final class C31LightingAnchorV940SurveySessionTests: XCTestCase {
     }
 }
 
-private final class C33TemporalEvidenceAnchorV940SurveySession: XCTestCase {
+final class C33TemporalEvidenceAnchorV940SurveySession: XCTestCase {
     func testC33V940SurveySessionCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "session.temporal-count-budget",
@@ -1770,7 +1770,7 @@ private final class C33TemporalEvidenceAnchorV940SurveySession: XCTestCase {
     }
 }
 
-private final class C32AssistanceAnchorV940SurveySession: XCTestCase {
+final class C32AssistanceAnchorV940SurveySession: XCTestCase {
     func testC32V940SurveySessionCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .factCapture,
@@ -1790,7 +1790,7 @@ private final class C32AssistanceAnchorV940SurveySession: XCTestCase {
         )
     }
 }
-private final class C46V940SurveySessionCompatibilityTests: XCTestCase {
+final class C46V940SurveySessionCompatibilityTests: XCTestCase {
     func testC46SurveySessionCannotRecordHandoffOutcome() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "survey-session",

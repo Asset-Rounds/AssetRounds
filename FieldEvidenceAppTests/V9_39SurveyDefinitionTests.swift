@@ -7,7 +7,7 @@ private enum C52ServiceRequestBoundary_V9_39SurveyDefinitionTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45SurveyDefinitionCompatibilityTests: XCTestCase {
+final class C45SurveyDefinitionCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityUsesImmutableTemplateReleaseReferences() throws {
         let reference = try AssetLabelTemplateReferenceV1(
             templateID: "c45.template",
@@ -19,7 +19,7 @@ private final class C45SurveyDefinitionCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C51V939SurveyDefinitionAnchorTests: XCTestCase {
+final class C51V939SurveyDefinitionAnchorTests: XCTestCase {
     func testV23P03C51SurveyDefinitionDoesNotCreateOrWriteSchedules() {
         XCTAssertFalse(C51SurveyDefinitionScheduleBoundaryV1.publicationCreatesSchedule)
         XCTAssertTrue(C51SurveyDefinitionScheduleBoundaryV1.scheduleClosureMetadataIsDerivedOnly)
@@ -28,7 +28,7 @@ private final class C51V939SurveyDefinitionAnchorTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_39SurveyDefinition: XCTestCase {
+final class C30EvidenceContextAnchorV9_39SurveyDefinition: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -1438,7 +1438,7 @@ extension V9_39SurveyDefinitionTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorV939SurveyDefinitionTests: XCTestCase {
+final class C31LightingAnchorV939SurveyDefinitionTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -1447,7 +1447,7 @@ private final class C31LightingAnchorV939SurveyDefinitionTests: XCTestCase {
     }
 }
 
-private final class C33TemporalEvidenceAnchorV939SurveyDefinition: XCTestCase {
+final class C33TemporalEvidenceAnchorV939SurveyDefinition: XCTestCase {
     func testC33V939SurveyDefinitionCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "definition.temporal-limit-binding",
@@ -1466,7 +1466,7 @@ private final class C33TemporalEvidenceAnchorV939SurveyDefinition: XCTestCase {
     }
 }
 
-private final class C32AssistanceAnchorV939SurveyDefinition: XCTestCase {
+final class C32AssistanceAnchorV939SurveyDefinition: XCTestCase {
     func testC32V939SurveyDefinitionCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .surveyDefinitionRelease,
@@ -1486,7 +1486,7 @@ private final class C32AssistanceAnchorV939SurveyDefinition: XCTestCase {
         )
     }
 }
-private final class C46V939SurveyDefinitionCompatibilityTests: XCTestCase {
+final class C46V939SurveyDefinitionCompatibilityTests: XCTestCase {
     func testC46SurveyDefinitionCannotDeclareContactIdentity() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "survey-definition",
@@ -1508,7 +1508,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_39SurveyD
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_39SurveyDefinitionTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_39SurveyDefinitionTests_swift_Tests: XCTestCase {
     func testC47V939SurveyDefinitionTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_39SurveyDefinitionTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_39SurveyDefinitionTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)

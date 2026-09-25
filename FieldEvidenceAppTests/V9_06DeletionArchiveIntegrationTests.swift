@@ -12,7 +12,7 @@ private enum C53AssetServiceReliabilityBoundary_V9_06DeletionArchiveIntegrationT
     static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
 }
 
-private final class C50DeletionArchiveIntegrationTests: XCTestCase {
+final class C50DeletionArchiveIntegrationTests: XCTestCase {
     func testV23P03C50ArchiveExcludesAdapterStateScratchQuarantineAndExternalAuthority() {
         XCTAssertFalse(C50IncumbentFileExchangeBackupEncoderBoundaryV1.encodesProfileSelectionOrSession)
         XCTAssertFalse(C50IncumbentFileExchangeBackupEncoderBoundaryV1.encodesSourceScratchOrQuarantine)
@@ -25,7 +25,7 @@ private final class C50DeletionArchiveIntegrationTests: XCTestCase {
     }
 }
 
-private final class C45DeletionArchiveCompatibilityTests: XCTestCase {
+final class C45DeletionArchiveCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilitySeparatesGeneratedFromSystemHandoffReceipts() {
         XCTAssertEqual(LabelOutputDispositionV1.generated.rawValue, "GENERATED")
         XCTAssertEqual(LabelOutputDispositionV1.handedOffToSystem.rawValue, "HANDED_OFF_TO_SYSTEM")
@@ -33,7 +33,7 @@ private final class C45DeletionArchiveCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_06DeletionArchiveIntegration: XCTestCase {
+final class C30EvidenceContextAnchorV9_06DeletionArchiveIntegration: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -455,7 +455,7 @@ final class V9_06DeletionArchiveIntegrationTests: XCTestCase {
     }
 }
 
-private final class C27V906ArchiveTypedLocatorAnchorTests: XCTestCase {
+final class C27V906ArchiveTypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(AssetLocatorLimitsV1.maximumCandidates, 32)
         XCTAssertEqual(LocatorInputSourceV1.allCases.count, 3)
@@ -609,7 +609,7 @@ extension V9_06DeletionArchiveIntegrationTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorV906DeletionArchiveIntegrationTests: XCTestCase {
+final class C31LightingAnchorV906DeletionArchiveIntegrationTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -618,7 +618,7 @@ private final class C31LightingAnchorV906DeletionArchiveIntegrationTests: XCTest
     }
 }
 
-private final class C33TemporalEvidenceAnchorV906DeletionArchiveIntegration: XCTestCase {
+final class C33TemporalEvidenceAnchorV906DeletionArchiveIntegration: XCTestCase {
     func testC33V906DeletionArchiveIntegrationCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "archive.temporal-evidence-closure",
@@ -637,7 +637,7 @@ private final class C33TemporalEvidenceAnchorV906DeletionArchiveIntegration: XCT
     }
 }
 
-private final class C32AssistanceAnchorV906DeletionArchiveIntegration: XCTestCase {
+final class C32AssistanceAnchorV906DeletionArchiveIntegration: XCTestCase {
     func testC32V906DeletionArchiveIntegrationCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .packet,
@@ -657,7 +657,7 @@ private final class C32AssistanceAnchorV906DeletionArchiveIntegration: XCTestCas
         )
     }
 }
-private final class C46V906DeletionArchiveCompatibilityTests: XCTestCase {
+final class C46V906DeletionArchiveCompatibilityTests: XCTestCase {
     func testC46DeletionArchiveKeepsContactPrivacyPurposeSeparated() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "deletion-archive",
@@ -679,7 +679,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_06Deletio
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_06DeletionArchiveIntegrationTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_06DeletionArchiveIntegrationTests_swift_Tests: XCTestCase {
     func testC47V906DeletionArchiveIntegrationTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_06DeletionArchiveIntegrationTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_06DeletionArchiveIntegrationTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
@@ -693,14 +693,14 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_06
     }
 }
 
-private final class C48PortableReviewV906DeletionArchiveTests: XCTestCase {
+final class C48PortableReviewV906DeletionArchiveTests: XCTestCase {
     func testC48ArchiveIntegrationExcludesQuarantineAndCapabilitySecrets() {
         XCTAssertTrue(C48PortableReviewPersistenceBoundaryV1.quarantineIsExcludedFromBackup)
         XCTAssertTrue(C48PortableExchangeSyncBoundaryV2.rawCapabilityExcludedFromSyncSearchReport)
         XCTAssertTrue(C48PortableExchangePersistentLifecycleBoundaryV2.eraseRemovesAppOwnedStagingOnly)
     }
 }
-private final class C49WorkResourceDeletionArchiveBoundaryTests: XCTestCase {
+final class C49WorkResourceDeletionArchiveBoundaryTests: XCTestCase {
     func testArchiveTreatsDirectCostAsEmbeddedWithEntry() { XCTAssertTrue(C49WorkResourceContractBoundaryV1.directCostIsEmbedded) }
 }
 

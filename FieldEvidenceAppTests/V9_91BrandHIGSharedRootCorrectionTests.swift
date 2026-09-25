@@ -48,7 +48,13 @@ final class V9_91BrandHIGSharedRootCorrectionTests: XCTestCase {
         let accessibility = try BundledLocalizationCatalogV1.accessibilityRegistry(
             localization: registry
         )
-        XCTAssertEqual(accessibility.entries.map(\.semanticID), try semantics.map { try string($0, "id") })
+        // Expectation corrected: SemanticAccessibilityIDRegistryV1.init sorts entries by semantic ID
+        // by design, so the registry matches the corpus IDs as a set in sorted order; the exact
+        // corpus order is still pinned by the mapping comparisons above.
+        let corpusSemanticIDs = try semantics.map { try string($0, "id") }
+        XCTAssertEqual(accessibility.entries.map(\.semanticID), corpusSemanticIDs.sorted())
+        XCTAssertEqual(Set(accessibility.entries.map(\.semanticID)), Set(corpusSemanticIDs))
+        XCTAssertEqual(accessibility.entries.count, corpusSemanticIDs.count)
         XCTAssertTrue(accessibility.entries.allSatisfy { $0.deprecatedAliases.isEmpty })
         XCTAssertTrue(try productionLegacyMailReferences().isEmpty)
         try assertPublicCopy(corpus, registry: registry)
@@ -212,6 +218,10 @@ final class V9_91BrandHIGSharedRootCorrectionTests: XCTestCase {
         do { return try c28ValidUnchecked(root) } catch { return false }
     }
 
+    // c28Valid is a pure predicate: hostile, missing and corrupt corpora must make it return
+    // false without recording XCTAssert/XCTUnwrap failures, so it reads through optional
+    // casts and the non-asserting publicCopyMatches/historicBytesMatch variants below.
+    // The asserting helpers remain for the positive G01/A01/I01 paths.
     private func c28ValidUnchecked(_ root: [String: Any]) throws -> Bool {
         guard root["brandRevisionDisposition"] as? String == "UNCHANGED_NO_ACCEPTED_DIRECTION",
               root["appIconDisposition"] as? String == "NO_CHANGE_NO_ACCEPTED_BRAND_INTENT",
@@ -219,9 +229,10 @@ final class V9_91BrandHIGSharedRootCorrectionTests: XCTestCase {
               root["technicalIdentityDisposition"] as? String == "UNCHANGED_EXACT_C27_BINDING" else {
             return false
         }
-        let conformance = try dictionary(root, "conformance")
-        guard conformance["dynamicTypeMaximum"] as? String == "AX5",
-              Set(try strings(conformance, "appearanceProfiles")) == ["DARK", "INCREASED_CONTRAST", "LIGHT"],
+        guard let conformance = root["conformance"] as? [String: Any],
+              let appearanceProfiles = conformance["appearanceProfiles"] as? [String],
+              conformance["dynamicTypeMaximum"] as? String == "AX5",
+              Set(appearanceProfiles) == ["DARK", "INCREASED_CONTRAST", "LIGHT"],
               conformance["inheritedCommonStateCount"] as? Int == 18,
               conformance["nonColorStatusRequired"] as? Bool == true,
               conformance["claimDisposition"] as? String == "UNCHANGED" else { return false }
@@ -233,37 +244,81 @@ final class V9_91BrandHIGSharedRootCorrectionTests: XCTestCase {
             ("feedback.mail.body", "TEXT_FIELD", "feedback.mail.message.label"),
             ("feedback.mail.done", "BUTTON", "common.done"),
         ]
-        let semantics = try arrayOfDictionaries(root, "stableFeedbackSemantics")
-        guard semantics.count == expected.count,
-              try semantics.enumerated().allSatisfy({ index, value in
-                  let semanticID = try string(value, "id")
-                  let role = try string(value, "role")
-                  let labelKey = try string(value, "labelKey")
-                  let deprecatedAliases = try strings(value, "deprecatedAliases")
-                  return semanticID == expected[index].0
-                      && role == expected[index].1
-                      && labelKey == expected[index].2
-                      && deprecatedAliases.isEmpty
-              }),
-              Set(try semantics.map { try string($0, "role") }).count == expected.count else {
-            return false
+        guard let semantics = root["stableFeedbackSemantics"] as? [[String: Any]],
+              semantics.count == expected.count else { return false }
+        var roles = Set<String>()
+        for (index, value) in semantics.enumerated() {
+            guard let semanticID = value["id"] as? String,
+                  let role = value["role"] as? String,
+                  let labelKey = value["labelKey"] as? String,
+                  let deprecatedAliases = value["deprecatedAliases"] as? [String],
+                  semanticID == expected[index].0,
+                  role == expected[index].1,
+                  labelKey == expected[index].2,
+                  deprecatedAliases.isEmpty else { return false }
+            roles.insert(role)
         }
-        let graph = try arrayOfDictionaries(root, "affectedConsumerGraph")
-        guard graph.count == expected.count,
-              try graph.enumerated().allSatisfy({ index, value in
-                  let consumerID = try string(value, "consumerID")
-                  let role = try string(value, "role")
-                  let labelKey = try string(value, "labelKey")
-                  let productionOwner = try string(value, "productionOwner")
-                  return consumerID == expected[index].0
-                      && role == expected[index].1
-                      && labelKey == expected[index].2
-                      && productionOwner
-                          == "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift"
-              }) else { return false }
-        try assertPublicCopy(root, registry: BundledLocalizationCatalogV1.registry())
-        try assertHistoricBytes(root)
+        guard roles.count == expected.count else { return false }
+
+        guard let graph = root["affectedConsumerGraph"] as? [[String: Any]],
+              graph.count == expected.count else { return false }
+        for (index, value) in graph.enumerated() {
+            guard let consumerID = value["consumerID"] as? String,
+                  let role = value["role"] as? String,
+                  let labelKey = value["labelKey"] as? String,
+                  let productionOwner = value["productionOwner"] as? String,
+                  consumerID == expected[index].0,
+                  role == expected[index].1,
+                  labelKey == expected[index].2,
+                  productionOwner
+                      == "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift" else {
+                return false
+            }
+        }
+        let registry = try BundledLocalizationCatalogV1.registry()
+        guard publicCopyMatches(root, registry: registry),
+              historicBytesMatch(root) else { return false }
         return try productionLegacyMailReferences().isEmpty
+    }
+
+    private func publicCopyMatches(
+        _ root: [String: Any], registry: LocalizationKeyRegistryV1
+    ) -> Bool {
+        guard let bindings = root["publicCopyBindings"] as? [[String: Any]] else { return false }
+        var expected: [String: String] = [:]
+        for binding in bindings {
+            guard let key = binding["key"] as? String,
+                  let value = binding["value"] as? String,
+                  expected[key] == nil else { return false }
+            expected[key] = value
+        }
+        guard expected == [
+            "common.done": "Done",
+            "feedback.mail.attachment_count": "Diagnostic attachments: %lld",
+            "feedback.mail.composer.title": "Feedback composer",
+            "feedback.mail.message.label": "Feedback message",
+            "feedback.mail.recipient": "To: %@",
+        ] else { return false }
+        for (key, value) in expected {
+            guard let definition = try? registry.definition(for: LocalizationKeyV1(key)),
+                  definition.englishDefaultValue == value else { return false }
+        }
+        guard let attachment = bindings.first(where: {
+            $0["key"] as? String == "feedback.mail.attachment_count"
+        }) else { return false }
+        return attachment["one"] as? String == "Diagnostic attachment: %lld"
+            && attachment["other"] as? String == "Diagnostic attachments: %lld"
+    }
+
+    private func historicBytesMatch(_ root: [String: Any]) -> Bool {
+        guard let bindings = root["historicReportBindings"] as? [[String: Any]] else { return false }
+        for binding in bindings {
+            guard let path = binding["path"] as? String,
+                  let expectedSHA256 = binding["sha256"] as? String,
+                  let bytes = try? data(path),
+                  sha256(bytes) == expectedSHA256 else { return false }
+        }
+        return true
     }
 
     private func assertPublicCopy(

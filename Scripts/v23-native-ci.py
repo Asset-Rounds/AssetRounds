@@ -2244,6 +2244,14 @@ def discover_unit_test_methods(root):
 
         for relative, name, superclass in nested:
             require(not xctest(superclass), "nested XCTestCase subclass is not supported: " + relative + "/" + name)
+        # A private or fileprivate class gets a private-discriminator Objective-C name that
+        # -only-testing never matches, so its methods would be selected but never executed.
+        hidden = sorted(entry["file"] + "/" + entry["name"] for entry in declarations
+                        if entry["kind"] == "class" and xctest(entry["name"])
+                        and re.search(r"\b(?:private|fileprivate)\b",
+                                      method_modifiers(entry["masked"], entry["match"].start())))
+        require(not hidden, "unselectable private XCTestCase: %s%s"
+                % (", ".join(hidden[:10]), "" if len(hidden) <= 10 else " and %d more" % (len(hidden) - 10)))
         direct = {}
         for entry in declarations:
             if entry["name"] not in classes or not xctest(entry["name"]):

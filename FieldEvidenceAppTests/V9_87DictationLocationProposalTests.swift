@@ -729,11 +729,12 @@ private enum C24Support {
     }
 
     static func loadCorpus() throws -> [String: Any] {
-        let url = try XCTUnwrap(Foundation.Bundle(for: V9_87DictationLocationProposalTests.self).url(
-            forResource: "V23P04C24DictationLocationProposalCorpusV1",
+        // Resources are copied flat into the synchronized test bundle; resolve through the shared locator.
+        let url = try TestFixtureLocatorV1.url(
+            "V23P04C24DictationLocationProposalCorpusV1",
             withExtension: "json",
             subdirectory: "Fixtures/V23/Assistance"
-        ))
+        )
         return try XCTUnwrap(JSONSerialization.jsonObject(
             with: Data(contentsOf: url)
         ) as? [String: Any])

@@ -6,7 +6,7 @@ private enum C52ServiceRequestBoundary_V9_17KernelPersistenceTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C50KernelPersistenceTests: XCTestCase {
+final class C50KernelPersistenceTests: XCTestCase {
     func testV23P03C50PortEnrollsNoPersistentModelStoreOrCanonicalFamily() {
         XCTAssertEqual(C50IncumbentFileExchangeKernelBackupEnrollmentV1.canonicalRegistrationCount, 0)
         XCTAssertEqual(C50IncumbentFileExchangeKernelDeletionEnrollmentV1.canonicalRowRegistrationCount, 0)
@@ -21,7 +21,7 @@ private final class C50KernelPersistenceTests: XCTestCase {
     }
 }
 
-private final class C45KernelPersistenceCompatibilityTests: XCTestCase {
+final class C45KernelPersistenceCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityPinsV34Records33AndOneRow() {
         XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.persistentSchemaVersion, 34)
         XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion, 33)
@@ -29,7 +29,7 @@ private final class C45KernelPersistenceCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_17KernelPersistence: XCTestCase {
+final class C30EvidenceContextAnchorV9_17KernelPersistence: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -421,7 +421,7 @@ final class V9_17KernelPersistenceTests: XCTestCase {
     }
 }
 
-private final class C27V917TypedLocatorAnchorTests: XCTestCase {
+final class C27V917TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(PersistentSchemaV26.models.count, 94)
         XCTAssertEqual(AssetLocatorStateV1.allCases.count, 4)
@@ -512,7 +512,7 @@ extension V9_17KernelPersistenceTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorV917KernelPersistenceTests: XCTestCase {
+final class C31LightingAnchorV917KernelPersistenceTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -521,7 +521,7 @@ private final class C31LightingAnchorV917KernelPersistenceTests: XCTestCase {
     }
 }
 
-private final class C33TemporalEvidenceAnchorV917KernelPersistence: XCTestCase {
+final class C33TemporalEvidenceAnchorV917KernelPersistence: XCTestCase {
     func testC33V917KernelPersistenceCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "persistence.temporal-clip-anchor",
@@ -540,7 +540,7 @@ private final class C33TemporalEvidenceAnchorV917KernelPersistence: XCTestCase {
     }
 }
 
-private final class C32AssistanceAnchorV917KernelPersistence: XCTestCase {
+final class C32AssistanceAnchorV917KernelPersistence: XCTestCase {
     func testC32V917KernelPersistenceCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .factCapture,
@@ -560,7 +560,7 @@ private final class C32AssistanceAnchorV917KernelPersistence: XCTestCase {
         )
     }
 }
-private final class C46V917PersistenceCompatibilityTests: XCTestCase {
+final class C46V917PersistenceCompatibilityTests: XCTestCase {
     func testC46PersistenceBindsExactContactRevision() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "kernel-persistence",
@@ -582,7 +582,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_17KernelP
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_17KernelPersistenceTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_17KernelPersistenceTests_swift_Tests: XCTestCase {
     func testC47V917KernelPersistenceTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_17KernelPersistenceTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_17KernelPersistenceTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
@@ -596,7 +596,7 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_17
     }
 }
 
-private final class C48PortableReviewV917PersistenceTests: XCTestCase {
+final class C48PortableReviewV917PersistenceTests: XCTestCase {
     func testC48PersistenceUsesExistingC14RowsOnly() {
         XCTAssertEqual(C48PortableExchangePersistentLifecycleBoundaryV2.canonicalRowsAdded, 0)
         XCTAssertTrue(C48PortableExchangePersistentLifecycleBoundaryV2.acceptedResponseUsesExistingC14Writer)
@@ -604,7 +604,7 @@ private final class C48PortableReviewV917PersistenceTests: XCTestCase {
         XCTAssertTrue(PortableReviewChangeJournalPolicyV1.postimagesUseOnlyExistingC14Families)
     }
 }
-private final class C49WorkResourceKernelPersistenceBoundaryTests: XCTestCase {
+final class C49WorkResourceKernelPersistenceBoundaryTests: XCTestCase {
     func testOnlyWorkspaceWriterOwnsOneCanonicalEntryRow() throws {
         XCTAssertEqual(C49WorkResourceContractBoundaryV1.soleWriter, "WorkspaceWriterV1")
         XCTAssertEqual(C49WorkResourcePersistenceBoundaryV1.durableModelCount, 1)

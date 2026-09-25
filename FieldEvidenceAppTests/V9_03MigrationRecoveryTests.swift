@@ -12,7 +12,7 @@ private enum C53AssetServiceReliabilityBoundary_V9_03MigrationRecoveryTests {
     static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
 }
 
-private final class C50MigrationRecoveryTests: XCTestCase {
+final class C50MigrationRecoveryTests: XCTestCase {
     func testV23P03C50MigrationAndReplacementRestoreExcludeNonpersistentAdapterState() {
         XCTAssertTrue(C50IncumbentFileExchangeBackupBoundaryV1.validate())
         XCTAssertTrue(C50IncumbentFileExchangeBackupImportBoundaryV1.validate())
@@ -23,7 +23,7 @@ private final class C50MigrationRecoveryTests: XCTestCase {
     }
 }
 
-private final class C45MigrationRecoveryCompatibilityTests: XCTestCase {
+final class C45MigrationRecoveryCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityPinsForwardOnlyAcceptedSnapshotSchema() {
         XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.persistentSchemaVersion, 34)
         XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion, 33)
@@ -31,7 +31,7 @@ private final class C45MigrationRecoveryCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_03MigrationRecovery: XCTestCase {
+final class C30EvidenceContextAnchorV9_03MigrationRecovery: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -2451,7 +2451,7 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
     }
 }
 
-private final class C27V903TypedLocatorAnchorTests: XCTestCase {
+final class C27V903TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(Set(LocatorInputSourceV1.allCases), [.camera, .manual, .imported])
         XCTAssertEqual(AssetLocatorStateV1.allCases.count, 4)
@@ -2635,7 +2635,7 @@ extension V9_03MigrationRecoveryTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorV903MigrationRecoveryTests: XCTestCase {
+final class C31LightingAnchorV903MigrationRecoveryTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -2644,7 +2644,7 @@ private final class C31LightingAnchorV903MigrationRecoveryTests: XCTestCase {
     }
 }
 
-private final class C33TemporalEvidenceAnchorV903MigrationRecovery: XCTestCase {
+final class C33TemporalEvidenceAnchorV903MigrationRecovery: XCTestCase {
     func testC33V903MigrationRecoveryCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "migration.v33-temporal-evidence",
@@ -2692,7 +2692,7 @@ private actor V903StartupAuthentication: LocalAuthenticationClient {
     func cancel(attemptID: UUID) {}
 }
 
-private final class C32AssistanceAnchorV903MigrationRecovery: XCTestCase {
+final class C32AssistanceAnchorV903MigrationRecovery: XCTestCase {
     func testC32V903MigrationRecoveryCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .asset,
@@ -2712,7 +2712,7 @@ private final class C32AssistanceAnchorV903MigrationRecovery: XCTestCase {
         )
     }
 }
-private final class C46V903MigrationRecoveryCompatibilityTests: XCTestCase {
+final class C46V903MigrationRecoveryCompatibilityTests: XCTestCase {
     func testC46MigrationRecoveryKeepsOperationalEmailPurposeSeparated() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "migration-recovery",
@@ -2734,7 +2734,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_03Migrati
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_03MigrationRecoveryTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_03MigrationRecoveryTests_swift_Tests: XCTestCase {
     func testC47V903MigrationRecoveryTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_03MigrationRecoveryTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_03MigrationRecoveryTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
@@ -2748,7 +2748,7 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_03
     }
 }
 
-private final class C48PortableReviewV903MigrationTests: XCTestCase {
+final class C48PortableReviewV903MigrationTests: XCTestCase {
     func testC48SessionMigrationPreservesBytesWithoutSwiftDataMigration() {
         XCTAssertEqual(C48PortableExchangeMigrationBoundaryV2.sourceVersion, 1)
         XCTAssertEqual(C48PortableExchangeMigrationBoundaryV2.targetVersion, 2)
@@ -2756,7 +2756,7 @@ private final class C48PortableReviewV903MigrationTests: XCTestCase {
         XCTAssertTrue(C48PortableExchangeMigrationBoundaryV2.preservesExactBytes)
     }
 }
-private final class C49WorkResourceMigrationBoundaryTests: XCTestCase {
+final class C49WorkResourceMigrationBoundaryTests: XCTestCase {
     func testMigrationPreservesAllReleasedDispositions() {
         XCTAssertEqual(WorkResourceDispositionV1.allCases.count, 4)
         XCTAssertEqual(C49WorkResourcePersistenceBoundaryV1.recordsSchemaVersion, 36)
@@ -2764,7 +2764,7 @@ private final class C49WorkResourceMigrationBoundaryTests: XCTestCase {
     }
 }
 
-private final class C05EvidenceMetadataMigrationBoundaryTests: XCTestCase {
+final class C05EvidenceMetadataMigrationBoundaryTests: XCTestCase {
     func testV23P03C05V42ToV43MigrationAndRecords41CompatibilityAreClosed() {
         XCTAssertTrue(C05EvidenceCurationMigrationBoundaryV1.validate())
         XCTAssertEqual(C05EvidenceCurationMigrationBoundaryV1.sourcePersistentSchemaVersion, 42)

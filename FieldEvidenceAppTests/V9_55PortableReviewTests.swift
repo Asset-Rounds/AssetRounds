@@ -2410,7 +2410,7 @@ final class V9_55PortableReviewTests: XCTestCase {
         }
     }
 }
-private final class C49PortableReviewRegressionBoundaryTests: XCTestCase {
+final class C49PortableReviewRegressionBoundaryTests: XCTestCase {
     func testC49DoesNotChangeC48CapabilityOrExchangeAuthority() {
         XCTAssertTrue(C49WorkResourceContractBoundaryV1.appendOnly)
         XCTAssertEqual(C49WorkResourceContractBoundaryV1.soleWriter, "WorkspaceWriterV1")
@@ -2552,7 +2552,7 @@ enum C50AuthoritativePrivacyTestSupport {
     }
 }
 
-private final class C50PortableReviewAdapterRegressionBoundaryTests: XCTestCase {
+final class C50PortableReviewAdapterRegressionBoundaryTests: XCTestCase {
     func testC50ReceivesOnlyValidatedDerivedPortableReviewState() throws {
         let approval = try C50AuthoritativePrivacyTestSupport.approval(
             workspaceID: WorkspaceID(rawValue: UUID(

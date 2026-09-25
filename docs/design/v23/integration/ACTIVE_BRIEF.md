@@ -8,18 +8,18 @@ Only C:\AssetRounds-v23-s10-integration, codex/v23-s10-integration-20260910, tas
 
 ## Current critical path
 
-Owner decisions 8 to 11 (2026-09-25): development moves to a persistent cloud Mac running Claude Code (see MAC_HANDOFF); development-run rules are relaxed (infrastructure reruns, cancelling known-broken runs, parallel development batches; merge and release gates stay strict); trunk-based on main after Phase 1; Bitrise Build Hub may add development capacity.
+Owner decisions 8 to 11 (2026-09-25): development moves to the cloud Mac running Claude Code (MAC_HANDOFF), development-run rules are relaxed and gates stay strict, and work is trunk-based on main after Phase 1. Bitrise Build Hub may add development capacity.
 
-Phase 1 is platform and shell at V53 behind `V23PhaseGateV1` (MERGE_READINESS). Pushed head `5eb2f5f`: the shared-build coverage route passed live qualification (one build sealed, consumers restored without rebuilding), and the early full sweep, original 36133511753, is running; all seven Round mount journeys pass. Batch J (Phase 1 UI tests, S10 reconciliation, signoff editor S10 styling, S-class UI launch fix, regenerated partitions) is reviewed and ready to push.
+Phase 1 is platform and shell at V53 behind `V23PhaseGateV1` (MERGE_READINESS). Batch J (b16e965) is pushed. The early development sweep, original 36133511753 at 5eb2f5f, finished with 41 of 44 partitions failing, triaged into families in CURRENT_INTEGRATION "Batch K". Batch K fixes unselectable private test classes (about 460 methods never ran), the finalization Date binding defect, test-harness defects and measured-time partitioning. It is reviewed and compiled on the Mac. Collecting 36133511753 waits for its dispatch folder from Windows.
+
+Mac notes: Xcode 26.6 is selected. The iOS 26.2 runtime can't be downloaded from this Xcode, so local runs use iOS 26.5 (development only). Use Homebrew `python3` 3.14 (`/usr/bin/python3` is 3.9). zsh does not word-split `$var`, so pass selector arrays through bash.
 
 Next steps:
-1. Collect and triage the sweep.
-2. Push J.
-3. Add the RUI1 UI route.
-4. Fix sweep failure families in parallel.
-5. Run the Phase 1 UI evidence and the owner's human review.
-6. Run the final same-head sweep and the independent integration review.
-7. Fast-forward main.
+1. Push K, then run a development sweep at K's head.
+2. Fix the families listed in VERIFICATION_DUE "Sweep 36133511753 follow-ups", using parallel helpers; get the owner's three product decisions.
+3. Add the RUI1 UI route, then run the Phase 1 UI evidence and the owner's human review.
+4. Run the final same-head sweep and the independent integration review.
+5. Fast-forward main.
 
 Phase 2 C36 Round capture: Continue works, the full finish journey passed once natively, and the mount journeys pass. Due: lost-acknowledgement finalization, the defer and two-photo journeys, B3, the startup live-path test rewrite, a production Round creator, and journey performance.
 

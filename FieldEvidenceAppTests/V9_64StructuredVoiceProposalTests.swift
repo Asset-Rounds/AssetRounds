@@ -768,16 +768,12 @@ private final class C56VoicePendingResultProbe {
 @MainActor
 final class V9_64StructuredVoiceProposalTests: XCTestCase {
     private func corpus() throws -> C56VoiceCorpusV1 {
-        let bundle = Bundle(for: Self.self)
-        let url = try XCTUnwrap(
-            bundle.url(
-                forResource: "V22P03C56StructuredVoiceProposalCorpusV1",
-                withExtension: "json",
-                subdirectory: "Fixtures/V22/StructuredVoice"
-            ) ?? bundle.url(
-                forResource: "V22P03C56StructuredVoiceCorpusV1",
-                withExtension: "json"
-            )
+        // Resources are copied flat into the synchronized test bundle; resolve through the shared locator.
+        // The real fixture is V22P03C56StructuredVoiceProposalCorpusV1.json (the old flat fallback omitted "Proposal").
+        let url = try TestFixtureLocatorV1.url(
+            "V22P03C56StructuredVoiceProposalCorpusV1",
+            withExtension: "json",
+            subdirectory: "Fixtures/V22/StructuredVoice"
         )
         return try JSONDecoder().decode(C56VoiceCorpusV1.self, from: Data(contentsOf: url))
     }

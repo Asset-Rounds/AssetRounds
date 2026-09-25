@@ -6,7 +6,7 @@ private enum C52ServiceRequestBoundary_V9_15ContentReferenceProvenanceTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45ContentProvenanceCompatibilityTests: XCTestCase {
+final class C45ContentProvenanceCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityQRPersistsOnlyOpaqueLocatorConvenience() {
         XCTAssertEqual(AssetLabelOpaqueQRPayloadV1.prefix, "AR1")
         XCTAssertEqual(ManualShortCodeV1.externalKeyNamespace, "assetrounds.asset-label.short-code.v1")
@@ -14,7 +14,7 @@ private final class C45ContentProvenanceCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C51V915ContentReferenceAnchorTests: XCTestCase {
+final class C51V915ContentReferenceAnchorTests: XCTestCase {
     func testV23P03C51ScheduleMetadataNeverBecomesContentTruth() {
         XCTAssertFalse(C51ScheduleContentContractRegistryBoundaryV1.scheduleIsContentContract)
         XCTAssertTrue(C51ScheduleContentContractRegistryBoundaryV1.scheduleUsesNoParallelByteStore)
@@ -23,7 +23,7 @@ private final class C51V915ContentReferenceAnchorTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_15ContentReferenceProvenance: XCTestCase {
+final class C30EvidenceContextAnchorV9_15ContentReferenceProvenance: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -943,12 +943,13 @@ final class V9_15ContentReferenceProvenanceTests: XCTestCase {
     }
 
     private func loadFixture() throws -> [String: Any] {
-        let url = Bundle(for: Self.self).url(
-            forResource: "V21P03C05ContentReferenceProvenanceCorpusV1",
+        // Resources are copied flat into the synchronized test bundle; resolve through the shared locator.
+        let url = try TestFixtureLocatorV1.url(
+            "V21P03C05ContentReferenceProvenanceCorpusV1",
             withExtension: "json",
             subdirectory: "Fixtures/V21/Content"
         )
-        let data = try Data(contentsOf: XCTUnwrap(url))
+        let data = try Data(contentsOf: url)
         return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
 
@@ -1070,7 +1071,7 @@ final class V9_15ContentReferenceProvenanceTests: XCTestCase {
     }
 }
 
-private final class C27V915TypedLocatorAnchorTests: XCTestCase {
+final class C27V915TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(ExternalKeyNormalizationV1.allCases.count, 2)
         XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
@@ -1112,7 +1113,7 @@ extension V9_15ContentReferenceProvenanceTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorV915ContentReferenceProvenanceTests: XCTestCase {
+final class C31LightingAnchorV915ContentReferenceProvenanceTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -1121,7 +1122,7 @@ private final class C31LightingAnchorV915ContentReferenceProvenanceTests: XCTest
     }
 }
 
-private final class C33TemporalEvidenceAnchorV915ContentReferenceProvenance: XCTestCase {
+final class C33TemporalEvidenceAnchorV915ContentReferenceProvenance: XCTestCase {
     func testC33V915ContentReferenceProvenanceCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "content.temporal-immutable-original",
@@ -1189,7 +1190,7 @@ private final class C33TemporalEvidenceAnchorV915ContentReferenceProvenance: XCT
     }
 }
 
-private final class C32AssistanceAnchorV915ContentReferenceProvenance: XCTestCase {
+final class C32AssistanceAnchorV915ContentReferenceProvenance: XCTestCase {
     func testC32V915ContentReferenceProvenanceCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .evidenceFile,
@@ -1209,7 +1210,7 @@ private final class C32AssistanceAnchorV915ContentReferenceProvenance: XCTestCas
         )
     }
 }
-private final class C46V915ContentCompatibilityTests: XCTestCase {
+final class C46V915ContentCompatibilityTests: XCTestCase {
     func testC46ContentProvenanceDoesNotBecomeContactSourceBytes() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "content-provenance",

@@ -7,7 +7,7 @@ private enum C52ServiceRequestBoundary_V9_49TemporalEvidenceClipTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45TemporalEvidenceCompatibilityTests: XCTestCase {
+final class C45TemporalEvidenceCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityKeepsLabelArtifactsDerivedAndOutputClaimsBounded() {
         XCTAssertEqual(Set(LabelArtifactKindV1.allCases), [.pdf, .formulaSafeCSV, .structuredText])
         XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.persistentFamilies.contains("LabelProjectedArtifactV1"))
@@ -2158,7 +2158,7 @@ private extension TemporalEvidenceContractFailureV1 {
         [.insufficientStorage, .unsupportedMedia, .interruption]
     }
 }
-private final class C46V949TemporalCompatibilityTests: XCTestCase {
+final class C46V949TemporalCompatibilityTests: XCTestCase {
     func testC46TemporalEvidenceCannotBecomeContactHistory() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "temporal-evidence",

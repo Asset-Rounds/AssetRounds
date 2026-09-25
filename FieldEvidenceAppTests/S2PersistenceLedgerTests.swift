@@ -70,6 +70,7 @@ final class S2PersistenceLedgerTests: XCTestCase {
         let factory = StoreGenerationFactory(applicationSupportURL: root)
 
         let generationID: UUID
+        let publishedPointer: Data
         do {
             var session: StoreGenerationSession? = try factory.openOrBootstrapCurrent()
             let opened = try XCTUnwrap(session)
@@ -99,10 +100,11 @@ final class S2PersistenceLedgerTests: XCTestCase {
             )
             try opened.modelContext.save()
 
-            XCTAssertEqual(
-                try Data(contentsOf: currentPointerURL(in: root)),
-                Data("{\"generationID\":\"\(generationID.uuidString.lowercased())\",\"schemaVersion\":1}".utf8)
-            )
+            // The bootstrap now publishes CurrentGenerationPointerV3 (identity +
+            // manifest digest); the exact bytes are derived from its codec
+            // instead of pinning the retired 73-byte V1 pointer.
+            try assertCanonicalV3CurrentPointer(in: root, generationID: generationID)
+            publishedPointer = try Data(contentsOf: currentPointerURL(in: root))
             XCTAssertEqual(
                 try Data(contentsOf: retiredPointerURL(in: root)),
                 Data("{\"generationIDs\":[],\"schemaVersion\":1}".utf8)
@@ -145,10 +147,8 @@ final class S2PersistenceLedgerTests: XCTestCase {
         XCTAssertEqual(asset.createdAt, createdAt)
         XCTAssertEqual(asset.updatedAt, updatedAt)
 
-        XCTAssertEqual(
-            try Data(contentsOf: currentPointerURL(in: root)),
-            Data("{\"generationID\":\"\(generationID.uuidString.lowercased())\",\"schemaVersion\":1}".utf8)
-        )
+        try assertCanonicalV3CurrentPointer(in: root, generationID: generationID)
+        XCTAssertEqual(try Data(contentsOf: currentPointerURL(in: root)), publishedPointer)
         XCTAssertEqual(
             try Data(contentsOf: retiredPointerURL(in: root)),
             Data("{\"generationIDs\":[],\"schemaVersion\":1}".utf8)
@@ -157,10 +157,39 @@ final class S2PersistenceLedgerTests: XCTestCase {
 
     @MainActor
     func testInvalidGenerationLedgerFailsClosedWithoutMutationOrNewestGuessing() throws {
+        // The V3 current-pointer codec (CurrentPointerCodecV1.decode) rejects
+        // hostile current.json bytes as StoreMigrationFailure (maintenance
+        // invalid_pointer / future_version, or canonicalDecodingFailed), not
+        // StoreGenerationFailure; StartupRouter.openCurrentGeneration still maps
+        // every such rejection to .dataPointerInvalid. Each case pins the exact
+        // fail-closed rejection and the no-mutation checks below are unchanged.
+        enum LedgerFailure: Equatable {
+            case generation(StoreGenerationFailure)
+            case migration(StoreMigrationFailure)
+        }
+
         struct InvalidLedgerCase {
             let name: String
-            let expectedFailure: StoreGenerationFailure
+            let expectedFailures: [LedgerFailure]
             let mutate: (URL, UUID) throws -> Void
+
+            init(
+                name: String,
+                expectedFailures: [LedgerFailure],
+                mutate: @escaping (URL, UUID) throws -> Void
+            ) {
+                self.name = name
+                self.expectedFailures = expectedFailures
+                self.mutate = mutate
+            }
+
+            init(
+                name: String,
+                expectedFailure: StoreGenerationFailure,
+                mutate: @escaping (URL, UUID) throws -> Void
+            ) {
+                self.init(name: name, expectedFailures: [.generation(expectedFailure)], mutate: mutate)
+            }
         }
 
         let cases: [InvalidLedgerCase] = [
@@ -170,25 +199,38 @@ final class S2PersistenceLedgerTests: XCTestCase {
             .init(name: "missing retired pointer", expectedFailure: .dataPointerInvalid) { root, _ in
                 try self.fileManager.removeItem(at: self.retiredPointerURL(in: root))
             },
-            .init(name: "malformed current pointer", expectedFailure: .dataPointerInvalid) { root, _ in
+            // Hostile current pointers are derived from the published canonical
+            // CurrentGenerationPointerV3 bytes rather than the retired V1 shape.
+            .init(name: "malformed current pointer",
+                  expectedFailures: [.migration(.maintenanceRequired(.invalidPointer))]) { root, _ in
                 try Data("{".utf8).write(to: self.currentPointerURL(in: root), options: .atomic)
             },
-            .init(name: "noncanonical current pointer", expectedFailure: .dataPointerInvalid) { root, id in
-                try Data("{ \"generationID\" : \"\(id.uuidString.lowercased())\", \"schemaVersion\" : 1 }".utf8)
+            .init(name: "noncanonical current pointer",
+                  expectedFailures: [.migration(.canonicalDecodingFailed)]) { root, _ in
+                let canonical = try self.canonicalV3CurrentPointerBytes(in: root)
+                try self.inserting(" ", after: "{", in: canonical)
                     .write(to: self.currentPointerURL(in: root), options: .atomic)
             },
-            .init(name: "extra current key", expectedFailure: .dataPointerInvalid) { root, id in
-                try Data("{\"extra\":0,\"generationID\":\"\(id.uuidString.lowercased())\",\"schemaVersion\":1}".utf8)
+            .init(name: "extra current key",
+                  expectedFailures: [.migration(.canonicalDecodingFailed)]) { root, _ in
+                let canonical = try self.canonicalV3CurrentPointerBytes(in: root)
+                try self.inserting("\"extra\":0,", after: "{", in: canonical)
                     .write(to: self.currentPointerURL(in: root), options: .atomic)
             },
-            .init(name: "duplicate current key", expectedFailure: .dataPointerInvalid) { root, id in
-                let value = id.uuidString.lowercased()
-                try Data("{\"generationID\":\"\(value)\",\"generationID\":\"\(value)\",\"schemaVersion\":1}".utf8)
+            // Foundation's JSONDecoder accepts the duplicate key, so the
+            // canonical re-encoding rejects it (observed on iOS 26.5 Simulator).
+            .init(name: "duplicate current key",
+                  expectedFailures: [.migration(.canonicalDecodingFailed)]) { root, id in
+                let canonical = try self.canonicalV3CurrentPointerBytes(in: root)
+                try self.inserting("\"generationID\":\"\(id.uuidString.lowercased())\",", after: "{", in: canonical)
                     .write(to: self.currentPointerURL(in: root), options: .atomic)
             },
-            .init(name: "unsupported current schema", expectedFailure: .dataPointerInvalid) { root, id in
-                try Data("{\"generationID\":\"\(id.uuidString.lowercased())\",\"schemaVersion\":2}".utf8)
-                    .write(to: self.currentPointerURL(in: root), options: .atomic)
+            .init(name: "unsupported current schema",
+                  expectedFailures: [.migration(.maintenanceRequired(.futureVersion))]) { root, _ in
+                let canonical = try self.canonicalV3CurrentPointerBytes(in: root)
+                let future = self.replacing("\"schemaVersion\":3", with: "\"schemaVersion\":4", in: canonical)
+                XCTAssertNotEqual(future, canonical, "unsupported current schema")
+                try future.write(to: self.currentPointerURL(in: root), options: .atomic)
             },
             .init(name: "malformed retired pointer", expectedFailure: .dataPointerInvalid) { root, _ in
                 try Data("[]".utf8).write(to: self.retiredPointerURL(in: root), options: .atomic)
@@ -248,7 +290,18 @@ final class S2PersistenceLedgerTests: XCTestCase {
             ).sorted()
 
             XCTAssertThrowsError(try factory.openOrBootstrapCurrent(), testCase.name) { error in
-                XCTAssertEqual(error as? StoreGenerationFailure, testCase.expectedFailure, testCase.name)
+                let observed: LedgerFailure?
+                if let failure = error as? StoreGenerationFailure {
+                    observed = .generation(failure)
+                } else if let failure = error as? StoreMigrationFailure {
+                    observed = .migration(failure)
+                } else {
+                    observed = nil
+                }
+                XCTAssertTrue(
+                    observed.map { testCase.expectedFailures.contains($0) } ?? false,
+                    "\(testCase.name): unexpected failure \(error)"
+                )
             }
 
             XCTAssertEqual(try optionalData(contentsOf: currentPointerURL(in: root)), currentBefore, testCase.name)
@@ -565,7 +618,7 @@ final class S2PersistenceLedgerTests: XCTestCase {
 
     @MainActor
     func testStartupUsesTheFrozenOrderBeforeEnablingWrites() async throws {
-        let root = try makeTemporaryApplicationSupportURL()
+        let root = try makeStartupApplicationSupportURL()
         defer { try? fileManager.removeItem(at: root) }
 
         var observedSteps: [StartupStep] = []
@@ -594,7 +647,7 @@ final class S2PersistenceLedgerTests: XCTestCase {
         ]
 
         for testCase in cases {
-            let root = try makeTemporaryApplicationSupportURL()
+            let root = try makeStartupApplicationSupportURL()
             defer { try? fileManager.removeItem(at: root) }
 
             let pendingRoot = root.appendingPathComponent(testCase.directoryName, isDirectory: true)
@@ -634,7 +687,7 @@ final class S2PersistenceLedgerTests: XCTestCase {
         ]
 
         for testCase in cases {
-            let root = try makeTemporaryApplicationSupportURL()
+            let root = try makeStartupApplicationSupportURL()
             defer { try? fileManager.removeItem(at: root) }
             let factory = StoreGenerationFactory(applicationSupportURL: root)
             let generationID: UUID
@@ -672,6 +725,8 @@ final class S2PersistenceLedgerTests: XCTestCase {
                 "media_inconsistent",
                 "restore_inconsistent",
                 "erase_inconsistent",
+                // Added with the field-draft startup step (StartupStep.fieldDraft).
+                "field_draft_inconsistent",
             ]
         )
         XCTAssertEqual(StartupMaintenanceView.titleText, "Local data needs attention")
@@ -692,6 +747,59 @@ final class S2PersistenceLedgerTests: XCTestCase {
             .appendingPathComponent("S2PersistenceLedgerTests-\(UUID().uuidString)", isDirectory: true)
         try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
         return root
+    }
+
+    /// Real-startup roots: StartupRouter's erase step opens the Caches
+    /// directory that is the sibling of Application Support and fails closed
+    /// (eraseInconsistent) when it is absent, exactly as on device. A bare temp
+    /// root only passed while an ambient tmp/Caches happened to exist. Returns
+    /// the ApplicationSupport directory of an owned sandbox that also holds a
+    /// sibling Caches directory; the whole sandbox is removed at teardown, so
+    /// callers may keep removing the returned root early.
+    private func makeStartupApplicationSupportURL() throws -> URL {
+        let sandbox = try makeTemporaryApplicationSupportURL()
+        addTeardownBlock { try? FileManager.default.removeItem(at: sandbox) }
+        return try makeEraseApplicationSupportURL(in: sandbox)
+    }
+
+    /// Derives the expected current pointer from the production V3 codec:
+    /// the published bytes must be the canonical encoding of a valid
+    /// CurrentGenerationPointerV3 naming this generation at the active store
+    /// schema, bound to the digest of that generation's stored manifest.
+    @MainActor
+    private func assertCanonicalV3CurrentPointer(
+        in applicationSupportURL: URL,
+        generationID: UUID,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let bytes = try Data(contentsOf: currentPointerURL(in: applicationSupportURL))
+        let pointer = try CurrentGenerationPointerV3.decodeCanonical(from: bytes)
+        XCTAssertEqual(try pointer.canonicalData(), bytes, file: file, line: line)
+        XCTAssertEqual(pointer.schemaVersion, 3, file: file, line: line)
+        XCTAssertEqual(pointer.generationID, generationID.uuidString.lowercased(), file: file, line: line)
+        XCTAssertEqual(
+            pointer.storeSchemaVersion,
+            PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major,
+            file: file, line: line
+        )
+        let manifest = try XCTUnwrap(
+            StoreMigrationJournalStoreV1(applicationSupportURL: applicationSupportURL)
+                .loadManifestIfPresent(targetGenerationID: generationID),
+            file: file, line: line
+        )
+        XCTAssertEqual(pointer.generationManifestSHA256, manifest.digest, file: file, line: line)
+    }
+
+    /// Reads the published current pointer and proves it is canonical V3
+    /// before a test derives hostile variants from it.
+    private func canonicalV3CurrentPointerBytes(in applicationSupportURL: URL) throws -> Data {
+        let bytes = try Data(contentsOf: currentPointerURL(in: applicationSupportURL))
+        let pointer = try CurrentGenerationPointerV3.decodeCanonical(from: bytes)
+        guard try pointer.canonicalData() == bytes else {
+            throw StoreMigrationFailure.canonicalDecodingFailed
+        }
+        return bytes
     }
 
     /// Match startup's Application Support/Caches sibling layout inside one
@@ -835,7 +943,7 @@ extension S2PersistenceLedgerTests {
 
     @MainActor
     func testStartupRetryAndUnsafePDFFailureExplicitlyReleaseRetainedPublishedWriters() async throws {
-        let root = try makeTemporaryApplicationSupportURL()
+        let root = try makeStartupApplicationSupportURL()
         defer { try? fileManager.removeItem(at: root) }
         let router = StartupRouter(applicationSupportURL: root, entitlementRuntime: isolatedStartupRuntime)
         defer { router.failClosedPDFRecovery() }
@@ -869,7 +977,7 @@ extension S2PersistenceLedgerTests {
 
     @MainActor
     func testStartupReleaseFailureRemainsOwnedAndBlocksRetryUntilOriginalRegistryIsReadable() async throws {
-        let root = try makeTemporaryApplicationSupportURL()
+        let root = try makeStartupApplicationSupportURL()
         defer { try? fileManager.removeItem(at: root) }
         let router = StartupRouter(applicationSupportURL: root, entitlementRuntime: isolatedStartupRuntime)
         defer { router.failClosedPDFRecovery() }
@@ -912,7 +1020,7 @@ extension S2PersistenceLedgerTests {
 
     @MainActor
     func testSupersededStartupCannotPublishOrClearTheNewReadyOperation() async throws {
-        let root = try makeTemporaryApplicationSupportURL()
+        let root = try makeStartupApplicationSupportURL()
         defer { try? fileManager.removeItem(at: root) }
         let pause = S2StartupPublicationPause()
         var observedWriterIDs: [UUID] = []
@@ -947,7 +1055,7 @@ extension S2PersistenceLedgerTests {
 
     @MainActor
     func testAppAccessRevocationDuringSuspendedStartupCannotPublishOrReviveCommerce() async throws {
-        let root = try makeTemporaryApplicationSupportURL()
+        let root = try makeStartupApplicationSupportURL()
         defer { try? fileManager.removeItem(at: root) }
         let pause = S2StartupPublicationPause()
         let authentication = S2StartupAuthentication(outcomes: [.authenticated, .authenticated])
@@ -995,7 +1103,7 @@ extension S2PersistenceLedgerTests {
 
     @MainActor
     func testToggleNotificationUsesSettledPreparedOwnerThenOrdinaryStartupAdoptsIt() async throws {
-        let root = try makeTemporaryApplicationSupportURL()
+        let root = try makeStartupApplicationSupportURL()
         defer { try? fileManager.removeItem(at: root) }
         var observedSteps: [StartupStep] = []
         let gate = AppAccessGateV1(
@@ -1076,7 +1184,7 @@ extension S2PersistenceLedgerTests {
 
     @MainActor
     func testConfigurationNotificationStartupPreparesThenOrdinaryStartupAdoptsTheSameWriter() async throws {
-        let root = try makeTemporaryApplicationSupportURL()
+        let root = try makeStartupApplicationSupportURL()
         defer { try? fileManager.removeItem(at: root) }
         var observedSteps: [StartupStep] = []
         let operationID = UUID()

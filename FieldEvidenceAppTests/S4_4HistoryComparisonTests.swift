@@ -11,14 +11,14 @@ private enum C52ServiceRequestBoundary_S4_4HistoryComparisonTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45HistoryComparisonCompatibilityTests: XCTestCase {
+final class C45HistoryComparisonCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityComparesActiveAndHistoricSnapshotsWithoutReinterpretation() {
         XCTAssertEqual(Set(AcceptedLabelSnapshotDispositionV1.allCases), [.activeSourceWorkspace, .historicCloneOrFork])
         XCTAssertEqual(Set(LabelReprintEligibilityV1.allCases), [.activeExactReprint, .historicExportOnly, .blockedMissingRelease])
     }
 }
 
-private final class C51S44HistoryComparisonAnchorTests: XCTestCase {
+final class C51S44HistoryComparisonAnchorTests: XCTestCase {
     func testV23P03C51AdvancedScheduleHistoryNeverReinterpretsFrozenBasis() {
         XCTAssertTrue(AdvancedScheduleReportHistoryPolicyV1.historicBasisIsFrozen)
         XCTAssertTrue(AdvancedScheduleReportHistoryPolicyV1.laterCalendarOrOverrideDoesNotRewriteHistory)
@@ -26,7 +26,7 @@ private final class C51S44HistoryComparisonAnchorTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorS4_4HistoryComparison: XCTestCase {
+final class C30EvidenceContextAnchorS4_4HistoryComparison: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -403,7 +403,7 @@ final class S4_4HistoryComparisonTests: XCTestCase {
     }
 }
 
-private final class C27S44TypedLocatorAnchorTests: XCTestCase {
+final class C27S44TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(LocatorBindingActionV1.allCases.count, 6)
         XCTAssertEqual(LocatorInputSourceV1.allCases.count, 3)
@@ -819,7 +819,7 @@ extension S4_4HistoryComparisonTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorS44HistoryComparisonTests: XCTestCase {
+final class C31LightingAnchorS44HistoryComparisonTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -871,7 +871,7 @@ extension S4_4HistoryComparisonTests {
     }
 }
 
-private final class C33TemporalEvidenceAnchorS44HistoryComparison: XCTestCase {
+final class C33TemporalEvidenceAnchorS44HistoryComparison: XCTestCase {
     func testC33S44HistoryComparisonCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "history.temporal-source-revision",
@@ -890,7 +890,7 @@ private final class C33TemporalEvidenceAnchorS44HistoryComparison: XCTestCase {
     }
 }
 
-private final class C32AssistanceAnchorS44HistoryComparison: XCTestCase {
+final class C32AssistanceAnchorS44HistoryComparison: XCTestCase {
     func testC32S44HistoryComparisonCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .report,
@@ -910,7 +910,7 @@ private final class C32AssistanceAnchorS44HistoryComparison: XCTestCase {
         )
     }
 }
-private final class C46S44HistoryCompatibilityTests: XCTestCase {
+final class C46S44HistoryCompatibilityTests: XCTestCase {
     func testC46HistoryKeepsContactRevisionExplicit() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "history-comparison",
@@ -932,7 +932,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_4HistoryC
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_4HistoryComparisonTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_4HistoryComparisonTests_swift_Tests: XCTestCase {
     func testC47S44HistoryComparisonTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_4HistoryComparisonTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_4HistoryComparisonTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
@@ -946,14 +946,14 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_4H
     }
 }
 
-private final class C48PortableReviewS44HistoryTests: XCTestCase {
+final class C48PortableReviewS44HistoryTests: XCTestCase {
     func testC48HistoryIsImmutableAndCannotReopenCurrentWork() {
         XCTAssertTrue(C48PortableReviewReportHistoryBoundaryV1.responseHistoryIsImmutable)
         XCTAssertTrue(C48PortableReviewReportHistoryBoundaryV1.historyOnlyCannotReopenCurrentWork)
         XCTAssertFalse(C48PortableReviewReportHistoryBoundaryV1.capabilityBytesRetainedByHistoryProjection)
     }
 }
-private final class C49WorkResourceHistoryBoundaryTests: XCTestCase {
+final class C49WorkResourceHistoryBoundaryTests: XCTestCase {
     func testHistoryUsesSemanticAppendDispositions() {
         XCTAssertEqual(Set(WorkResourceDispositionV1.allCases), [.active, .superseded, .voidedWithReason, .reversed])
         XCTAssertEqual(WorkResourceDispositionV1.active.rawValue, "ACTIVE")
@@ -961,7 +961,7 @@ private final class C49WorkResourceHistoryBoundaryTests: XCTestCase {
     }
 }
 
-private final class C50IncumbentAdapterS44HistoryBoundaryTests: XCTestCase {
+final class C50IncumbentAdapterS44HistoryBoundaryTests: XCTestCase {
     func testHistoricExchangeBytesAreNotReinterpretedOnCloneOrFork() {
         XCTAssertTrue(C50IncumbentFileExchangeRestoreIdentityBoundaryV1.validate(.clone))
         XCTAssertTrue(C50IncumbentFileExchangeRestoreIdentityBoundaryV1.validate(.fork))

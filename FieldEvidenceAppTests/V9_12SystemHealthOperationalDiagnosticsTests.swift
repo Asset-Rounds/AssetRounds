@@ -9,7 +9,7 @@ private enum C52ServiceRequestBoundary_V9_12SystemHealthOperationalDiagnosticsTe
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45SystemHealthCompatibilityTests: XCTestCase {
+final class C45SystemHealthCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityDeclaresNoProviderOrSecondAuthority() {
         XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.createsSecondLocatorStore)
         XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.createsSecondRenderer)
@@ -17,7 +17,7 @@ private final class C45SystemHealthCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_12SystemHealthOperationalDiagnostics: XCTestCase {
+final class C30EvidenceContextAnchorV9_12SystemHealthOperationalDiagnostics: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -1173,7 +1173,7 @@ final class V9_12SystemHealthOperationalDiagnosticsTests: XCTestCase {
     }
 }
 
-private final class C27V912TypedLocatorAnchorTests: XCTestCase {
+final class C27V912TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(LocatorInputSourceV1.allCases.count, 3)
         XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
@@ -1217,7 +1217,7 @@ extension V9_12SystemHealthOperationalDiagnosticsTests {
     }
 }
 
-private final class C53SharedDiagnosticsReliabilityTests: XCTestCase {
+final class C53SharedDiagnosticsReliabilityTests: XCTestCase {
     func testV23P03C53DiagnosticsRemainTruthfulAndNoncanonical() {
         XCTAssertTrue(C53SharedMeasurementLifecycleBoundaryV1.measurementRowsAreNotReliabilityMetricOutputs)
         XCTAssertTrue(C53SharedMeasurementLifecycleBoundaryV1.replayAndRetryRemainOldOrNewOnly)
@@ -1782,7 +1782,7 @@ extension V9_12SystemHealthOperationalDiagnosticsTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorV912SystemHealthOperationalDiagnosticsTests: XCTestCase {
+final class C31LightingAnchorV912SystemHealthOperationalDiagnosticsTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -1791,7 +1791,7 @@ private final class C31LightingAnchorV912SystemHealthOperationalDiagnosticsTests
     }
 }
 
-private final class C33TemporalEvidenceAnchorV912SystemHealthOperationalDiagnostics: XCTestCase {
+final class C33TemporalEvidenceAnchorV912SystemHealthOperationalDiagnostics: XCTestCase {
     func testC33V912SystemHealthOperationalDiagnosticsCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "health.temporal-scratch-orphan-count",
@@ -1810,7 +1810,7 @@ private final class C33TemporalEvidenceAnchorV912SystemHealthOperationalDiagnost
     }
 }
 
-private final class C32AssistanceAnchorV912SystemHealthOperationalDiagnostics: XCTestCase {
+final class C32AssistanceAnchorV912SystemHealthOperationalDiagnostics: XCTestCase {
     func testC32V912SystemHealthOperationalDiagnosticsCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .asset,
@@ -1830,7 +1830,7 @@ private final class C32AssistanceAnchorV912SystemHealthOperationalDiagnostics: X
         )
     }
 }
-private final class C46V912SystemHealthCompatibilityTests: XCTestCase {
+final class C46V912SystemHealthCompatibilityTests: XCTestCase {
     func testC46SystemHealthDoesNotTreatContactAsDiagnosticIdentity() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "system-health",

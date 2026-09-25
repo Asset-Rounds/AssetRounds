@@ -7,7 +7,7 @@ private enum C52ServiceRequestBoundary_V9_46LightingPackageTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45LightingPackageCompatibilityTests: XCTestCase {
+final class C45LightingPackageCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityForbidsInterpolationAndOverlayInQRRendering() {
         XCTAssertFalse(DeterministicPDFRendererV1.assetLabelInterpolationEnabled)
         XCTAssertFalse(DeterministicPDFRendererV1.assetLabelOverlaidLogoEnabled)
@@ -600,13 +600,11 @@ private struct C31LightingCorpus: Decodable {
 @MainActor
 final class V9_46LightingPackageTests: XCTestCase {
     private func loadCorpus() throws -> C31LightingCorpus {
-        let bundle = Bundle(for: V9_46LightingPackageTests.self)
-        let url = try XCTUnwrap(
-            bundle.url(
-                forResource: "V22P03C31LightingPackageCorpusV1",
-                withExtension: "json",
-                subdirectory: "Lighting"
-            )
+        // Resources are copied flat into the synchronized test bundle; resolve through the shared locator.
+        let url = try TestFixtureLocatorV1.url(
+            "V22P03C31LightingPackageCorpusV1",
+            withExtension: "json",
+            subdirectory: "Fixtures/V22/Lighting"
         )
         return try JSONDecoder().decode(C31LightingCorpus.self, from: Data(contentsOf: url))
     }
@@ -1703,7 +1701,7 @@ private final class C31InterruptedLightingWriter: LightingCanonicalWorkspaceWrit
     }
 }
 
-private final class C33TemporalEvidenceAnchorV946LightingPackage: XCTestCase {
+final class C33TemporalEvidenceAnchorV946LightingPackage: XCTestCase {
     func testC33V946LightingPackageCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "lighting.temporal-evidence-claim",
@@ -1722,7 +1720,7 @@ private final class C33TemporalEvidenceAnchorV946LightingPackage: XCTestCase {
     }
 }
 
-private final class C32AssistanceAnchorV946LightingPackage: XCTestCase {
+final class C32AssistanceAnchorV946LightingPackage: XCTestCase {
     func testC32V946LightingPackageCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .lightingObservation,
@@ -1742,7 +1740,7 @@ private final class C32AssistanceAnchorV946LightingPackage: XCTestCase {
         )
     }
 }
-private final class C46V946LightingCompatibilityTests: XCTestCase {
+final class C46V946LightingCompatibilityTests: XCTestCase {
     func testC46LightingPackageCannotOwnContactPurpose() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "lighting-package",

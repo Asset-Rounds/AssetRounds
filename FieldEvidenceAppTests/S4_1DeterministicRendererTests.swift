@@ -29,7 +29,7 @@ private enum C52ServiceRequestBoundary_S4_1DeterministicRendererTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45DeterministicRendererCompatibilityTests: XCTestCase {
+final class C45DeterministicRendererCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityReusesSoleDeterministicRendererPolicy() {
         XCTAssertEqual(DeterministicPDFRendererV1.assetLabelRendererID, "deterministic-pdf-renderer-v1")
         XCTAssertEqual(DeterministicPDFRendererV1.assetLabelQuietZoneModules, 4)
@@ -38,7 +38,7 @@ private final class C45DeterministicRendererCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C51S41DeterministicRendererAnchorTests: XCTestCase {
+final class C51S41DeterministicRendererAnchorTests: XCTestCase {
     func testV23P03C51AdvancedScheduleRendererUsesTypedFrozenProjection() {
         let render: (AdvancedScheduleReportProjectionV1, String) throws -> ReportProjectionOutputV1 =
             DeterministicOpenJSONRendererV1.renderAdvancedSchedule
@@ -49,7 +49,7 @@ private final class C51S41DeterministicRendererAnchorTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorS4_1DeterministicRenderer: XCTestCase {
+final class C30EvidenceContextAnchorS4_1DeterministicRenderer: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -373,7 +373,7 @@ final class S4_1DeterministicRendererTests: XCTestCase {
     }
 }
 
-private final class C27S41TypedLocatorAnchorTests: XCTestCase {
+final class C27S41TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
         XCTAssertEqual(ExternalKeyNormalizationV1.allCases.count, 2)
@@ -1443,7 +1443,7 @@ extension S4_1DeterministicRendererTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorS41DeterministicRendererTests: XCTestCase {
+final class C31LightingAnchorS41DeterministicRendererTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -1489,7 +1489,7 @@ extension S4_1DeterministicRendererTests {
     }
 }
 
-private final class C33TemporalEvidenceAnchorS41DeterministicRenderer: XCTestCase {
+final class C33TemporalEvidenceAnchorS41DeterministicRenderer: XCTestCase {
     func testC33S41DeterministicRendererCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "renderer.temporal-typed-link",
@@ -1508,7 +1508,7 @@ private final class C33TemporalEvidenceAnchorS41DeterministicRenderer: XCTestCas
     }
 }
 
-private final class C32AssistanceAnchorS41DeterministicRenderer: XCTestCase {
+final class C32AssistanceAnchorS41DeterministicRenderer: XCTestCase {
     func testC32S41DeterministicRendererCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .report,
@@ -1528,7 +1528,7 @@ private final class C32AssistanceAnchorS41DeterministicRenderer: XCTestCase {
         )
     }
 }
-private final class C46S41RendererCompatibilityTests: XCTestCase {
+final class C46S41RendererCompatibilityTests: XCTestCase {
     func testC46RendererDoesNotProjectOperationalContactValue() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "renderer",
@@ -1550,7 +1550,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_1Determin
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_1DeterministicRendererTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_1DeterministicRendererTests_swift_Tests: XCTestCase {
     func testC47S41DeterministicRendererTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_1DeterministicRendererTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_1DeterministicRendererTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
@@ -1564,7 +1564,7 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S4_1D
     }
 }
 
-private final class C48PortableReviewS41RendererTests: XCTestCase {
+final class C48PortableReviewS41RendererTests: XCTestCase {
     func testC48OpenJSONRendersDerivedMetadataWithoutExchangeSecrets() {
         XCTAssertTrue(C48PortableReviewOpenJSONBoundaryV1.usesExistingOpenJSONRenderer)
         XCTAssertTrue(C48PortableReviewOpenJSONBoundaryV1.emitsDerivedMetadataOnly)
@@ -1572,14 +1572,14 @@ private final class C48PortableReviewS41RendererTests: XCTestCase {
         XCTAssertFalse(C48PortableReviewOpenJSONBoundaryV1.rawRequestResponseBytesEmitted)
     }
 }
-private final class C49WorkResourceRendererBoundaryTests: XCTestCase {
+final class C49WorkResourceRendererBoundaryTests: XCTestCase {
     func testManualFactsRenderWithoutInventoryOrConversionAuthority() {
         XCTAssertTrue(C49WorkResourceContractBoundaryV1.appendOnly)
         XCTAssertFalse(C49WorkResourceContractBoundaryV1.liveInventoryReference)
     }
 }
 
-private final class C50IncumbentAdapterS41RendererBoundaryTests: XCTestCase {
+final class C50IncumbentAdapterS41RendererBoundaryTests: XCTestCase {
     func testPreviewAndRenderStayOutsideCanonicalAndExternalFileAuthority() {
         XCTAssertTrue(C50IncumbentFileExchangeProtectedFileBoundaryV1.validate())
         XCTAssertFalse(C50IncumbentFileExchangeProtectedFileBoundaryV1.externalSourceAndExportFilesAreAppOwned)

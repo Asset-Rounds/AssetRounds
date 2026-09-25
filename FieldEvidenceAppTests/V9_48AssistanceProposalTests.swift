@@ -7,7 +7,7 @@ private enum C52ServiceRequestBoundary_V9_48AssistanceProposalTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45AssistanceCompatibilityTests: XCTestCase {
+final class C45AssistanceCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityNeverTreatsDerivedProposalOrPlanAsAcceptedSnapshot() {
         XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.persistentFamilies, ["AcceptedLabelGenerationSnapshotRow"])
         XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.persistentFamilies.contains("AssetLabelGenerationPlanV1"))
@@ -955,7 +955,7 @@ private final class C32PersistentAcceptanceHarness {
 }
 
 @MainActor
-private final class C33TemporalEvidenceAnchorV948AssistanceProposal: XCTestCase {
+final class C33TemporalEvidenceAnchorV948AssistanceProposal: XCTestCase {
     func testC33V948AssistanceProposalCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "assistance.temporal-manual-fallback",
@@ -2020,7 +2020,7 @@ final class V9_48AssistanceProposalTests: XCTestCase {
         XCTAssertEqual(value.lifecycle.report, "EXCLUDED")
     }
 }
-private final class C46V948AssistanceCompatibilityTests: XCTestCase {
+final class C46V948AssistanceCompatibilityTests: XCTestCase {
     func testC46AssistanceProposalCannotAutoCreateContact() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "assistance-proposal",

@@ -1520,7 +1520,7 @@ final class V9_53OperationalContactTests: XCTestCase {
     }
 }
 
-private final class C32OperationalContactRestoreBoundaryTests: XCTestCase {
+final class C32OperationalContactRestoreBoundaryTests: XCTestCase {
     @MainActor
     func testV23P04C32RestoreRebindsOneAggregateReceiptWithoutContactFanout() async throws {
         let root = try C46OperationalContactTestSupport.temporaryDirectory("c32-restore")

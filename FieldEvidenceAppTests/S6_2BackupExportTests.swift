@@ -18,7 +18,7 @@ private enum C53AssetServiceReliabilityBoundary_S6_2BackupExportTests {
     static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
 }
 
-private final class C45BackupExportCompatibilityTests: XCTestCase {
+final class C45BackupExportCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityExportsAcceptedSnapshotNotScratchPlans() {
         XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.persistentFamilies, ["AcceptedLabelGenerationSnapshotRow"])
         XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.persistentFamilies.contains("AssetLabelGenerationPlanV1"))
@@ -26,7 +26,7 @@ private final class C45BackupExportCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorS6_2BackupExport: XCTestCase {
+final class C30EvidenceContextAnchorS6_2BackupExport: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -1776,7 +1776,7 @@ final class S6_2BackupExportTests: XCTestCase {
     }
 }
 
-private final class C27S62TypedLocatorAnchorTests: XCTestCase {
+final class C27S62TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(PersistentSchemaV26.models.count, 94)
         XCTAssertEqual(LocatorInputSourceV1.allCases.count, 3)
@@ -4397,7 +4397,7 @@ extension S6_2BackupExportTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorS62BackupExportTests: XCTestCase {
+final class C31LightingAnchorS62BackupExportTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -4442,7 +4442,7 @@ extension S6_2BackupExportTests {
     }
 }
 
-private final class C33TemporalEvidenceAnchorS62BackupExport: XCTestCase {
+final class C33TemporalEvidenceAnchorS62BackupExport: XCTestCase {
     func testC33S62BackupExportCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "backup.temporal-content-bytes",
@@ -4461,7 +4461,7 @@ private final class C33TemporalEvidenceAnchorS62BackupExport: XCTestCase {
     }
 }
 
-private final class C32AssistanceAnchorS62BackupExport: XCTestCase {
+final class C32AssistanceAnchorS62BackupExport: XCTestCase {
     func testC32S62BackupExportCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .packet,
@@ -4481,7 +4481,7 @@ private final class C32AssistanceAnchorS62BackupExport: XCTestCase {
         )
     }
 }
-private final class C46S62BackupExportCompatibilityTests: XCTestCase {
+final class C46S62BackupExportCompatibilityTests: XCTestCase {
     func testC46BackupExportExcludesContactFromDefaultExport() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "backup-export",
@@ -4503,7 +4503,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_2BackupEx
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_2BackupExportTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_2BackupExportTests_swift_Tests: XCTestCase {
     func testC47S62BackupExportTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_2BackupExportTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_2BackupExportTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
@@ -4517,7 +4517,7 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_2B
     }
 }
 
-private final class C48PortableReviewS62BackupExportTests: XCTestCase {
+final class C48PortableReviewS62BackupExportTests: XCTestCase {
     func testC48BackupOwnerPreservesExchangeBytesButExcludesQuarantine() {
         XCTAssertTrue(C48PortableReviewPersistenceBoundaryV1.sessionStoreIsNonpersistent)
         XCTAssertTrue(C48PortableReviewPersistenceBoundaryV1.quarantineIsExcludedFromBackup)
@@ -4525,7 +4525,7 @@ private final class C48PortableReviewS62BackupExportTests: XCTestCase {
         XCTAssertTrue(C48PortableExchangeMigrationBoundaryV2.quarantineExcludedFromBackup)
     }
 }
-private final class C49WorkResourceBackupExportBoundaryTests: XCTestCase {
+final class C49WorkResourceBackupExportBoundaryTests: XCTestCase {
     func testBackupOwnsManualTruthButNotLiveInventory() {
         XCTAssertTrue(C49WorkResourceContractBoundaryV1.appendOnly)
         XCTAssertFalse(C49WorkResourceContractBoundaryV1.liveInventoryReference)
@@ -4533,7 +4533,7 @@ private final class C49WorkResourceBackupExportBoundaryTests: XCTestCase {
     }
 }
 
-private final class C50IncumbentAdapterS62BackupExportBoundaryTests: XCTestCase {
+final class C50IncumbentAdapterS62BackupExportBoundaryTests: XCTestCase {
     func testBackupExcludesAdapterScratchSelectionAndExternalPossession() {
         XCTAssertTrue(C50IncumbentFileExchangeBackupBoundaryV1.validate())
         XCTAssertFalse(C50IncumbentFileExchangeBackupEncoderBoundaryV1.encodesSourceScratchOrQuarantine)

@@ -38,7 +38,7 @@ private struct HistoricalWorkflowPostImageV8: Codable {
     let requirementAssurance: RequirementAssuranceSnapshotV1?
 }
 
-private final class C45WorkspaceWriterCompatibilityTests: XCTestCase {
+final class C45WorkspaceWriterCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityWriterSupportsOnlyTypedAssetLabelCommand() {
         XCTAssertTrue(WorkspaceWriterAdapterV1.activeSupportedCommandKinds.contains(.applyAssetLabel))
         XCTAssertEqual(WorkspaceCommandKindV1.applyAssetLabel.rawValue, "apply_asset_label")
@@ -46,7 +46,7 @@ private final class C45WorkspaceWriterCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV10_01WorkspaceWriter: XCTestCase {
+final class C30EvidenceContextAnchorV10_01WorkspaceWriter: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -2223,7 +2223,7 @@ extension V10_01WorkspaceWriterTests {
     }
 }
 
-private final class C27V1001TypedLocatorAnchorTests: XCTestCase {
+final class C27V1001TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(LocatorBindingActionV1.allCases.count, 6)
         XCTAssertEqual(AssetLocatorLimitsV1.maximumCandidates, 32)
@@ -2597,7 +2597,7 @@ extension V10_01WorkspaceWriterTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorV1001WorkspaceWriterTests: XCTestCase {
+final class C31LightingAnchorV1001WorkspaceWriterTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -2606,7 +2606,7 @@ private final class C31LightingAnchorV1001WorkspaceWriterTests: XCTestCase {
     }
 }
 
-private final class C33TemporalEvidenceAnchorV1001WorkspaceWriter: XCTestCase {
+final class C33TemporalEvidenceAnchorV1001WorkspaceWriter: XCTestCase {
     func testC33V1001WorkspaceWriterCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "writer.temporal-evidence-single-command",
@@ -2625,7 +2625,7 @@ private final class C33TemporalEvidenceAnchorV1001WorkspaceWriter: XCTestCase {
     }
 }
 
-private final class C32AssistanceAnchorV1001WorkspaceWriter: XCTestCase {
+final class C32AssistanceAnchorV1001WorkspaceWriter: XCTestCase {
     func testC32V1001WorkspaceWriterCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .asset,
@@ -2645,7 +2645,7 @@ private final class C32AssistanceAnchorV1001WorkspaceWriter: XCTestCase {
         )
     }
 }
-private final class C46V1001WriterCompatibilityTests: XCTestCase {
+final class C46V1001WriterCompatibilityTests: XCTestCase {
     func testC46WorkspaceWriterBindsContactConcurrencyIdentity() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "workspace-writer",

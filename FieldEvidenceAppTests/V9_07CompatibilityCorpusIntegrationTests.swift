@@ -12,7 +12,7 @@ private enum C53AssetServiceReliabilityBoundary_V9_07CompatibilityCorpusIntegrat
     static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
 }
 
-private final class C50CompatibilityCorpusIntegrationTests: XCTestCase {
+final class C50CompatibilityCorpusIntegrationTests: XCTestCase {
     func testV23P03C50CompatibilityVocabularyIsClosedAndNeverBestGuess() {
         XCTAssertEqual(IncumbentFileDirectionV1.allCases.map(\.rawValue), [
             "IMPORT_ONLY", "EXPORT_ONLY", "BIDIRECTIONAL_FILES",
@@ -29,7 +29,7 @@ private final class C50CompatibilityCorpusIntegrationTests: XCTestCase {
     }
 }
 
-private final class C45CompatibilityCorpusTypedTests: XCTestCase {
+final class C45CompatibilityCorpusTypedTests: XCTestCase {
     func testV23P03C45CompatibilityClosesDisclosureProfiles() {
         XCTAssertEqual(LabelDisclosureProfileV1.allCases.map(\.rawValue), [
             "SHORT_CODE_ONLY", "ASSET_AND_SHORT_CODE", "ASSET_LOCATION_AND_SHORT_CODE",
@@ -37,7 +37,7 @@ private final class C45CompatibilityCorpusTypedTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_07CompatibilityCorpusIntegration: XCTestCase {
+final class C30EvidenceContextAnchorV9_07CompatibilityCorpusIntegration: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -643,7 +643,7 @@ final class V9_07CompatibilityCorpusIntegrationTests: XCTestCase {
     }
 }
 
-private final class C27V907CorpusTypedLocatorAnchorTests: XCTestCase {
+final class C27V907CorpusTypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
         XCTAssertEqual(LocatorBindingActionV1.allCases.count, 6)
@@ -843,7 +843,7 @@ extension V9_07CompatibilityCorpusIntegrationTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorV907CompatibilityCorpusIntegrationTests: XCTestCase {
+final class C31LightingAnchorV907CompatibilityCorpusIntegrationTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -891,7 +891,7 @@ extension V9_07CompatibilityCorpusIntegrationTests {
     }
 }
 
-private final class C33TemporalEvidenceAnchorV907CompatibilityCorpusIntegration: XCTestCase {
+final class C33TemporalEvidenceAnchorV907CompatibilityCorpusIntegration: XCTestCase {
     func testC33V907CompatibilityCorpusIntegrationCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "compatibility.temporal-evidence-corpus",
@@ -910,7 +910,7 @@ private final class C33TemporalEvidenceAnchorV907CompatibilityCorpusIntegration:
     }
 }
 
-private final class C32AssistanceAnchorV907CompatibilityCorpusIntegration: XCTestCase {
+final class C32AssistanceAnchorV907CompatibilityCorpusIntegration: XCTestCase {
     func testC32V907CompatibilityCorpusIntegrationCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .report,
@@ -930,7 +930,7 @@ private final class C32AssistanceAnchorV907CompatibilityCorpusIntegration: XCTes
         )
     }
 }
-private final class C46V907CorpusCompatibilityTests: XCTestCase {
+final class C46V907CorpusCompatibilityTests: XCTestCase {
     func testC46CorpusCompatibilityKeepsImportPreviewNoncanonical() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "corpus-integration",
@@ -952,7 +952,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_07Compati
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_07CompatibilityCorpusIntegrationTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_07CompatibilityCorpusIntegrationTests_swift_Tests: XCTestCase {
     func testC47V907CompatibilityCorpusIntegrationTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_07CompatibilityCorpusIntegrationTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_07CompatibilityCorpusIntegrationTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
@@ -966,14 +966,14 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_07
     }
 }
 
-private final class C48PortableReviewV907CorpusCompatibilityTests: XCTestCase {
+final class C48PortableReviewV907CorpusCompatibilityTests: XCTestCase {
     func testC48CompatibilityKeepsExchangeProtocolSeparateFromWorkspaceSchema() {
         XCTAssertTrue(C48PortableReviewReleasedDataCompatibilityBoundaryV1.exchangeProtocolIsSeparateFromWorkspaceSchema)
         XCTAssertTrue(C48PortableReviewReleasedDataCompatibilityBoundaryV1.responseBytesArePreservedOnlyByTheExchangeOwner)
         XCTAssertTrue(C48PortableReviewReleasedDataCompatibilityBoundaryV1.cloneAndForkMustNotReuseActiveCapability)
     }
 }
-private final class C49WorkResourceCompatibilityCorpusBoundaryTests: XCTestCase {
+final class C49WorkResourceCompatibilityCorpusBoundaryTests: XCTestCase {
     func testExactDecimalCorpusRejectsPrecisionBeyondThreePlaces() {
         XCTAssertThrowsError(try ExactDecimalQuantityV1(mantissa: 1, scale: 4))
     }

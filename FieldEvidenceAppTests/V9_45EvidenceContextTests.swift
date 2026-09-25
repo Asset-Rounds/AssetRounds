@@ -6,7 +6,7 @@ private enum C52ServiceRequestBoundary_V9_45EvidenceContextTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45EvidenceContextCompatibilityTests: XCTestCase {
+final class C45EvidenceContextCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityMakesDisclosurePurposeExplicit() {
         XCTAssertEqual(Set(LabelDisclosureProfileV1.allCases), [.shortCodeOnly, .assetAndShortCode, .assetLocationAndShortCode])
         XCTAssertNotEqual(LabelDisclosureProfileV1.shortCodeOnly, .assetAndShortCode)
@@ -254,13 +254,11 @@ final class V9_45EvidenceContextTests: XCTestCase {
     }
 
     private func loadCorpus() throws -> C30EvidenceContextCorpus {
-        let bundle = Bundle(for: V9_45EvidenceContextTests.self)
-        let url = try XCTUnwrap(
-            bundle.url(
-                forResource: "V22P03C30EvidenceContextCorpusV1",
-                withExtension: "json",
-                subdirectory: "EvidenceContext"
-            )
+        // Resources are copied flat into the synchronized test bundle; resolve through the shared locator.
+        let url = try TestFixtureLocatorV1.url(
+            "V22P03C30EvidenceContextCorpusV1",
+            withExtension: "json",
+            subdirectory: "Fixtures/V22/EvidenceContext"
         )
         return try JSONDecoder().decode(
             C30EvidenceContextCorpus.self,
@@ -822,7 +820,7 @@ private enum C30EvidenceTestTemporal {
         )
     }
 }
-private final class C31LightingAnchorV945EvidenceContextTests: XCTestCase {
+final class C31LightingAnchorV945EvidenceContextTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -831,7 +829,7 @@ private final class C31LightingAnchorV945EvidenceContextTests: XCTestCase {
     }
 }
 
-private final class C33TemporalEvidenceAnchorV945EvidenceContext: XCTestCase {
+final class C33TemporalEvidenceAnchorV945EvidenceContext: XCTestCase {
     func testC33V945EvidenceContextCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "context.temporal-evidence-binding",
@@ -850,7 +848,7 @@ private final class C33TemporalEvidenceAnchorV945EvidenceContext: XCTestCase {
     }
 }
 
-private final class C32AssistanceAnchorV945EvidenceContext: XCTestCase {
+final class C32AssistanceAnchorV945EvidenceContext: XCTestCase {
     func testC32V945EvidenceContextCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .evidenceContext,
@@ -870,7 +868,7 @@ private final class C32AssistanceAnchorV945EvidenceContext: XCTestCase {
         )
     }
 }
-private final class C46V945EvidenceCompatibilityTests: XCTestCase {
+final class C46V945EvidenceCompatibilityTests: XCTestCase {
     func testC46EvidenceContextDoesNotBecomeContactProvenance() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "evidence-context",

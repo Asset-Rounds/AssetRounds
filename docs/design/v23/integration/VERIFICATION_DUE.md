@@ -175,3 +175,19 @@ The production photo journey takes priority over another isolated foundation. So
 - UI tests still assuming the two-tab shell or launch on the Signs welcome: `S10_1BrandInventoryUITests.swift:111`, `S4_4ReportsUITests.swift:77`, and about 30 S-class UI files that wait for `s2.welcome.screen` right after launch. A fresh launch now opens Today, and later launches restore the last root. A systematic fix is due before the Phase 1 UI evidence run.
 - Privacy successor `privacy-supply-chain-review-v23.json` is drafted for owner review with five release items: undeclared `ProcessInfo.systemUptime` reason in the privacy manifest (also `S9_1ReleasePreflightTests` line 163), microphone and speech purpose strings without a reachable requester, the camera purpose declared twice, backup and Erase copy that describes only S10 data while backups now include contact values and typed signoff names, and the App Store privacy answers and archive report (owner gates).
 - S10 `performance.cold-launch` gate (p95 cold_launch_to_welcome at most 5,000 ms, `docs/design/s10/s10-experience-validation.json:112-126`): in the four-tab shell the metric now includes finding and tapping the Assets tab, so it measures launch plus navigation. Record the change against the gate, and consider emitting `cold_launch_to_shell` at Today.
+
+## Sweep 36133511753 follow-ups (2026-09-25)
+
+- Collect original 36133511753 once `36133511753/dispatch.json` is copied from Windows (sole collector: the Mac root session); confirm no Windows claim exists.
+- Persistence expectation drift, test-only with recorded reasons: V9_01, V9_07 (both), V10_02 R01, V9_13 R01, V9_06:590 and V10_03 counts pin pre-v53 active releases and catalog sizes; historical facts must pin their historical release, not `activeRelease`.
+- Owner decisions: forward-fix disposition wording (`…_AFTER_ACTIVATION` in product vs `…_AFTER_FIRST_V17_WRITE` in S6_6, V10_03 and V9_03); `.immutable` vs `.supported` for replicated immutable-version kinds (V9_13, V10_03; catalog is backup/erase policy); closed-vocabulary fixtures behind code (V9_13 units, V9_35, V9_39, V9_41, V9_50, V9_77, V9_93, V9_68, V9_32).
+- Setup-family errors (receiptHistoryCorrupt, digestMismatch, invalidValue, invalidIdentity) across V23MutationReceiptSafety, V23StoreSemanticValidation, V9_33/46, V9_64, LocationHierarchy and S5 journeys; isolate one class natively first.
+- Restricted, not Phase 1 code changes: S6_4 configuration-clone retirement (invalidAuthority), S6_1 graphInvalid, completed-work restore, V9_03 legacy migration targetMismatch.
+- V23PhaseGateTests :177 and :222: the Settings accessibility probe can't see ScrollView content in the unit host, so the negative "no Reminders row" checks are vacuous. Add native witnesses (gate-evidence gap for Phase 1).
+- V23 access and scene state (AppAccessPresentation eraseInconsistent, nil SceneNavigation/MyDay access, selectedRoot drift): test isolation vs product.
+- S2 StartupRouter routing expectations (3 tests) and the S4_2 PDF harness bare root; S5_3/S5_4 wall-clock sub-millisecond Date drift beyond finalization.
+- Performance: lease/fence proof once per service call; DEBUG protected-file journal cost; V10_01 historical-schema migration time; S6_2 MixedExport stall (needs stage diagnostics); V9_09 R01 memory budget.
+- The Windows-bound P04/P05 contract verifiers read `C:\AssetRounds-v23-coordination` at import and can't run on the Mac.
+- On macOS, two real-git fixture tests fail on file-mode-only diffs, and GeneratorTests need a resolved TMPDIR (`/var` symlink); `python3` there is 3.9 (use Homebrew 3.14).
+- Confirm the S2 duplicate-key outcome on the pinned iOS 26.2 route.
+

@@ -1458,7 +1458,7 @@ private extension V9_02FileAuthorityTests {
         )
     }
 }
-private final class C49WorkResourceFileAuthorityBoundaryTests: XCTestCase {
+final class C49WorkResourceFileAuthorityBoundaryTests: XCTestCase {
     func testWorkResourceCoreDoesNotClaimLiveStockFileAuthority() {
         XCTAssertFalse(C49WorkResourceContractBoundaryV1.liveInventoryReference)
         XCTAssertTrue(C49WorkResourceLifecycleBoundaryV1.liveInventoryLookupIsForbidden)
@@ -1467,7 +1467,7 @@ private final class C49WorkResourceFileAuthorityBoundaryTests: XCTestCase {
 }
 
 
-private final class C50IncumbentFileExchangeFileAuthorityBoundaryTests: XCTestCase {
+final class C50IncumbentFileExchangeFileAuthorityBoundaryTests: XCTestCase {
     func testCopiedSourceMappingScratchAndQuarantineAreProtectedAndBackupExcluded() {
         XCTAssertTrue(C50IncumbentFileExchangeProtectedFileBoundaryV1.validate())
         XCTAssertFalse(C50IncumbentFileExchangeProtectedFileBoundaryV1.persistsSecurityScopedBookmarks)

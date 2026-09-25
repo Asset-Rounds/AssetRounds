@@ -12,7 +12,7 @@ private enum C53AssetServiceReliabilityBoundary_V9_05RestoreIdentityTests {
     static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
 }
 
-private final class C50RestoreIdentityTests: XCTestCase {
+final class C50RestoreIdentityTests: XCTestCase {
     func testV23P03C50ReplaceCloneAndForkNeverActivateOrReinterpretAdapterState() {
         for mode in BackupRestoreMode.allCases {
             XCTAssertTrue(C50IncumbentFileExchangeRestoreIdentityBoundaryV1.validate(mode))
@@ -25,7 +25,7 @@ private final class C50RestoreIdentityTests: XCTestCase {
     }
 }
 
-private final class C45RestoreIdentityCompatibilityTests: XCTestCase {
+final class C45RestoreIdentityCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityMakesCloneForkSnapshotsHistoricOnly() {
         XCTAssertEqual(AcceptedLabelSnapshotDispositionV1.activeSourceWorkspace.rawValue, "ACTIVE_SOURCE_WORKSPACE")
         XCTAssertEqual(AcceptedLabelSnapshotDispositionV1.historicCloneOrFork.rawValue, "HISTORIC_CLONE_OR_FORK")
@@ -33,7 +33,7 @@ private final class C45RestoreIdentityCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_05RestoreIdentity: XCTestCase {
+final class C30EvidenceContextAnchorV9_05RestoreIdentity: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -656,7 +656,7 @@ final class V9_05RestoreIdentityTests: XCTestCase {
     }
 }
 
-private final class C27V905TypedLocatorAnchorTests: XCTestCase {
+final class C27V905TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(ExternalKeyNormalizationV1.allCases.count, 2)
         XCTAssertEqual(LocatorBindingActionV1.allCases.count, 6)
@@ -1136,7 +1136,7 @@ extension V9_05RestoreIdentityTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorV905RestoreIdentityTests: XCTestCase {
+final class C31LightingAnchorV905RestoreIdentityTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -1182,7 +1182,7 @@ extension V9_05RestoreIdentityTests {
     }
 }
 
-private final class C33TemporalEvidenceAnchorV905RestoreIdentity: XCTestCase {
+final class C33TemporalEvidenceAnchorV905RestoreIdentity: XCTestCase {
     func testC33V905RestoreIdentityCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "restore.temporal-evidence-identity",
@@ -1201,7 +1201,7 @@ private final class C33TemporalEvidenceAnchorV905RestoreIdentity: XCTestCase {
     }
 }
 
-private final class C32AssistanceAnchorV905RestoreIdentity: XCTestCase {
+final class C32AssistanceAnchorV905RestoreIdentity: XCTestCase {
     func testC32V905RestoreIdentityCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .site,
@@ -1221,7 +1221,7 @@ private final class C32AssistanceAnchorV905RestoreIdentity: XCTestCase {
         )
     }
 }
-private final class C46V905RestoreIdentityCompatibilityTests: XCTestCase {
+final class C46V905RestoreIdentityCompatibilityTests: XCTestCase {
     func testC46RestoreIdentityKeepsStableDirectionsReference() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "restore-identity",
@@ -1243,7 +1243,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_05Restore
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_05RestoreIdentityTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_05RestoreIdentityTests_swift_Tests: XCTestCase {
     func testC47V905RestoreIdentityTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_05RestoreIdentityTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_05RestoreIdentityTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
@@ -1257,7 +1257,7 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_05
     }
 }
 
-private final class C48PortableReviewV905RestoreIdentityBoundaryTests: XCTestCase {
+final class C48PortableReviewV905RestoreIdentityBoundaryTests: XCTestCase {
     func testC48ReplacePreservesWhileCloneForkInvalidatesActiveCapability() {
         XCTAssertTrue(BackupRestoreFailurePoint.allCases.contains(.afterPointerSwitch))
         XCTAssertTrue(C48PortableExchangeMigrationBoundaryV2.cloneOrForkInvalidatesCapabilities)
@@ -1265,7 +1265,7 @@ private final class C48PortableReviewV905RestoreIdentityBoundaryTests: XCTestCas
         XCTAssertTrue(C48PortableReviewPersistenceBoundaryV1.sessionStoreIsNonpersistent)
     }
 }
-private final class C49WorkResourceRestoreIdentityBoundaryTests: XCTestCase {
+final class C49WorkResourceRestoreIdentityBoundaryTests: XCTestCase {
     func testRestoreIdentityKeepsSubjectKindsClosed() {
         XCTAssertEqual(Set(WorkResourceSubjectKindV1.allCases), [.workPacket, .correctiveWork])
     }

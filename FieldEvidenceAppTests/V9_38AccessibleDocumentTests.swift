@@ -1110,7 +1110,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_38Accessi
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_38AccessibleDocumentTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_38AccessibleDocumentTests_swift_Tests: XCTestCase {
     func testC47V938AccessibleDocumentTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_38AccessibleDocumentTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_38AccessibleDocumentTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
@@ -1124,7 +1124,7 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_38
     }
 }
 
-private final class C48PortableReviewV938AccessibleDocumentTests: XCTestCase {
+final class C48PortableReviewV938AccessibleDocumentTests: XCTestCase {
     func testC48AccessibleDocumentsSpeakOnlyDerivedUnverifiedMetadata() {
         XCTAssertTrue(C48PortableReviewAccessibleDocumentBoundaryV1.spokenProjectionIsDerivedMetadataOnly)
         XCTAssertTrue(C48PortableReviewAccessibleDocumentBoundaryV1.selfAssertedOriginMayBeSpoken)
@@ -1132,11 +1132,11 @@ private final class C48PortableReviewV938AccessibleDocumentTests: XCTestCase {
         XCTAssertFalse(C48PortableReviewAccessibleDocumentPersistenceBoundaryV1.rawRequestResponseBytesPersisted)
     }
 }
-private final class C49WorkResourceAccessibleDocumentBoundaryTests: XCTestCase {
+final class C49WorkResourceAccessibleDocumentBoundaryTests: XCTestCase {
     func testAccessibleDocumentsCanDistinguishInternalFromCustomerSafe() { XCTAssertNotEqual(WorkResourceVisibilityPolicyV1.internalOnly, .customerSafe) }
 }
 
-private final class C50IncumbentAccessibleDocumentBoundaryTests: XCTestCase {
+final class C50IncumbentAccessibleDocumentBoundaryTests: XCTestCase {
     func testC50AccessibleDocumentBoundaryIsTypedAndNonPersistent() {
         XCTAssertEqual(C50AccessibleDocumentIncumbentExchangeBoundaryV1.crossContractTypes.count, 4)
         XCTAssertEqual(C50AccessibleDocumentIncumbentPersistenceBoundaryV1.nonPersistentContractTypes.count, 7)

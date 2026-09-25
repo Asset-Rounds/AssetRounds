@@ -11,7 +11,7 @@ private enum C53AssetServiceReliabilityBoundary_V9_01VersionedSchemaIdentityTest
     static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
 }
 
-private final class C50VersionedSchemaIdentityTests: XCTestCase {
+final class C50VersionedSchemaIdentityTests: XCTestCase {
     func testV23P03C50NonpersistentPortDoesNotAdvanceCanonicalSchemas() {
         XCTAssertEqual(IncumbentFileProfileReleaseV1.schemaVersion, 1)
         XCTAssertEqual(IncumbentSelectionReceiptV1.schemaVersion, 1)
@@ -25,7 +25,7 @@ private final class C50VersionedSchemaIdentityTests: XCTestCase {
     }
 }
 
-private final class C45SchemaIdentityCompatibilityTests: XCTestCase {
+final class C45SchemaIdentityCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityEnrollsExactlyOneV34SnapshotFamily() {
         XCTAssertEqual(PersistentSchemaV34.versionIdentifier, Schema.Version(34, 0, 0))
         XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.persistentFamilies, ["AcceptedLabelGenerationSnapshotRow"])
@@ -33,7 +33,7 @@ private final class C45SchemaIdentityCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_01VersionedSchemaIdentity: XCTestCase {
+final class C30EvidenceContextAnchorV9_01VersionedSchemaIdentity: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -956,7 +956,7 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
     }
 }
 
-private final class C27V901TypedLocatorAnchorTests: XCTestCase {
+final class C27V901TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(AssetLocatorLimitsV1.maximumInputBytes, 1_024)
         XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
@@ -1155,7 +1155,7 @@ extension V9_01VersionedSchemaIdentityTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorV901VersionedSchemaIdentityTests: XCTestCase {
+final class C31LightingAnchorV901VersionedSchemaIdentityTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -1164,7 +1164,7 @@ private final class C31LightingAnchorV901VersionedSchemaIdentityTests: XCTestCas
     }
 }
 
-private final class C33TemporalEvidenceAnchorV901VersionedSchemaIdentity: XCTestCase {
+final class C33TemporalEvidenceAnchorV901VersionedSchemaIdentity: XCTestCase {
     func testC33V901VersionedSchemaIdentityCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "schema.temporal-evidence",
@@ -1183,7 +1183,7 @@ private final class C33TemporalEvidenceAnchorV901VersionedSchemaIdentity: XCTest
     }
 }
 
-private final class C32AssistanceAnchorV901VersionedSchemaIdentity: XCTestCase {
+final class C32AssistanceAnchorV901VersionedSchemaIdentity: XCTestCase {
     func testC32V901VersionedSchemaIdentityCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .asset,
@@ -1203,7 +1203,7 @@ private final class C32AssistanceAnchorV901VersionedSchemaIdentity: XCTestCase {
         )
     }
 }
-private final class C46V901VersionedSchemaIdentityCompatibilityTests: XCTestCase {
+final class C46V901VersionedSchemaIdentityCompatibilityTests: XCTestCase {
     func testC46SchemaIdentityBindsOperationalContactDurableIdentity() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "schema-identity",
@@ -1225,7 +1225,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_01Version
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_01VersionedSchemaIdentityTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_01VersionedSchemaIdentityTests_swift_Tests: XCTestCase {
     func testC47V901VersionedSchemaIdentityTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_01VersionedSchemaIdentityTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_01VersionedSchemaIdentityTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
@@ -1239,7 +1239,7 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_01
     }
 }
 
-private final class C48PortableReviewV901SchemaTests: XCTestCase {
+final class C48PortableReviewV901SchemaTests: XCTestCase {
     func testC48DoesNotAdvanceCanonicalPersistentSchema() {
         XCTAssertEqual(C48PortableReviewStoreGenerationBoundaryV1.activePersistentSchemaVersion, 36)
         XCTAssertTrue(C48PortableReviewStoreGenerationBoundaryV1.semanticEnvelopeUnchanged)
@@ -1247,7 +1247,7 @@ private final class C48PortableReviewV901SchemaTests: XCTestCase {
         XCTAssertEqual(C48PortableExchangePersistentLifecycleBoundaryV2.canonicalRowsAdded, 0)
     }
 }
-private final class C49WorkResourceSchemaIdentityBoundaryTests: XCTestCase {
+final class C49WorkResourceSchemaIdentityBoundaryTests: XCTestCase {
     func testReleasedEntryAndPersistentSchemaIdentitiesAreExact() {
         XCTAssertEqual(WorkResourceEntryV1.schemaVersion, 1)
         XCTAssertEqual(C49WorkResourcePersistenceBoundaryV1.persistentSchemaVersion, 37)

@@ -7,7 +7,7 @@ private enum C52ServiceRequestBoundary_V9_43PlanRebaseTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45PlanRebaseCompatibilityTests: XCTestCase {
+final class C45PlanRebaseCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityFreezesPlanOrderAndBoundedMaximum() {
         XCTAssertEqual(AssetLabelGenerationPlanV1.maximumItemCount, 1_000)
         XCTAssertEqual(LabelGenerationStartDecisionV1.allCases, [.explicitStartRequired])
@@ -16,7 +16,7 @@ private final class C45PlanRebaseCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_43PlanRebase: XCTestCase {
+final class C30EvidenceContextAnchorV9_43PlanRebase: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -836,7 +836,7 @@ final class V9_43PlanRebaseTests: XCTestCase {
         XCTAssertEqual(writer.received, nil)
     }
 }
-private final class C31LightingAnchorV943PlanRebaseTests: XCTestCase {
+final class C31LightingAnchorV943PlanRebaseTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -845,7 +845,7 @@ private final class C31LightingAnchorV943PlanRebaseTests: XCTestCase {
     }
 }
 
-private final class C33TemporalEvidenceAnchorV943PlanRebase: XCTestCase {
+final class C33TemporalEvidenceAnchorV943PlanRebase: XCTestCase {
     func testC33V943PlanRebaseCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "plan.temporal-source-revision",
@@ -864,7 +864,7 @@ private final class C33TemporalEvidenceAnchorV943PlanRebase: XCTestCase {
     }
 }
 
-private final class C32AssistanceAnchorV943PlanRebase: XCTestCase {
+final class C32AssistanceAnchorV943PlanRebase: XCTestCase {
     func testC32V943PlanRebaseCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .planRevision,
@@ -884,7 +884,7 @@ private final class C32AssistanceAnchorV943PlanRebase: XCTestCase {
         )
     }
 }
-private final class C46V943PlanCompatibilityTests: XCTestCase {
+final class C46V943PlanCompatibilityTests: XCTestCase {
     func testC46PlanRebaseDoesNotRewriteContactRevision() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "plan-rebase",

@@ -8,7 +8,7 @@ private enum C52ServiceRequestBoundary_V9_11ObservationTemporalSemanticsTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45TemporalSemanticsCompatibilityTests: XCTestCase {
+final class C45TemporalSemanticsCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityFreezesGeneratedTimeInsideCanonicalPlan() {
         XCTAssertEqual(AssetLabelGenerationPlanV1.schemaVersion, 1)
         XCTAssertEqual(LabelOutputReceiptV1.schemaVersion, 1)
@@ -16,7 +16,7 @@ private final class C45TemporalSemanticsCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C51V911TemporalSemanticsAnchorTests: XCTestCase {
+final class C51V911TemporalSemanticsAnchorTests: XCTestCase {
     func testV23P03C51FrozenScheduleTimeNeverRebindsToDeviceWallClock() {
         XCTAssertFalse(ScheduleDeviceClockBoundaryV1.wallClockRollbackMutatesOccurrenceHistory)
         XCTAssertFalse(ScheduleDeviceClockBoundaryV1.travelOrCurrentZoneChangeRebindsFrozenBasis)
@@ -25,7 +25,7 @@ private final class C51V911TemporalSemanticsAnchorTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_11ObservationTemporalSemantics: XCTestCase {
+final class C30EvidenceContextAnchorV9_11ObservationTemporalSemantics: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -1072,7 +1072,7 @@ final class V9_11ObservationTemporalSemanticsTests: XCTestCase {
     }
 }
 
-private final class C53SharedObservationReliabilityTests: XCTestCase {
+final class C53SharedObservationReliabilityTests: XCTestCase {
     func testV23P03C53ObservationEvidenceKeepsQualificationExplicit() {
         XCTAssertEqual(C53SharedObservationTimeBoundaryV1.sourceContractNames.count, 4)
         XCTAssertTrue(C53SharedObservationTimeBoundaryV1.timeBasisAndZoneAreExplicit)
@@ -1378,7 +1378,7 @@ extension V9_11ObservationTemporalSemanticsTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorV911ObservationTemporalSemanticsTests: XCTestCase {
+final class C31LightingAnchorV911ObservationTemporalSemanticsTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -1387,7 +1387,7 @@ private final class C31LightingAnchorV911ObservationTemporalSemanticsTests: XCTe
     }
 }
 
-private final class C33TemporalEvidenceAnchorV911ObservationTemporalSemantics: XCTestCase {
+final class C33TemporalEvidenceAnchorV911ObservationTemporalSemantics: XCTestCase {
     func testC33V911ObservationTemporalSemanticsCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "observation.monotonic-anchor-offset",
@@ -1406,7 +1406,7 @@ private final class C33TemporalEvidenceAnchorV911ObservationTemporalSemantics: X
     }
 }
 
-private final class C32AssistanceAnchorV911ObservationTemporalSemantics: XCTestCase {
+final class C32AssistanceAnchorV911ObservationTemporalSemantics: XCTestCase {
     func testC32V911ObservationTemporalSemanticsCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .factCapture,
@@ -1426,7 +1426,7 @@ private final class C32AssistanceAnchorV911ObservationTemporalSemantics: XCTestC
         )
     }
 }
-private final class C46V911TemporalCompatibilityTests: XCTestCase {
+final class C46V911TemporalCompatibilityTests: XCTestCase {
     func testC46ObservationTimeDoesNotBecomeContactEffectiveTime() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "observation-time",

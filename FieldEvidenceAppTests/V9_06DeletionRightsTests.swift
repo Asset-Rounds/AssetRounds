@@ -12,7 +12,7 @@ private enum C53AssetServiceReliabilityBoundary_V9_06DeletionRightsTests {
     static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
 }
 
-private final class C50DeletionRightsTests: XCTestCase {
+final class C50DeletionRightsTests: XCTestCase {
     func testV23P03C50DeletionPreservesCanonicalHistoryAndEraseClearsOnlyAppOwnedExchangeBytes() {
         XCTAssertFalse(C50IncumbentFileExchangeDeletionIntentBoundaryV1.ordinaryDeletionTargetsAdapterState)
         XCTAssertTrue(C50IncumbentFileExchangeDeletionIntentBoundaryV1.ordinaryDeletionPreservesAcceptedCanonicalHistory)
@@ -25,7 +25,7 @@ private final class C50DeletionRightsTests: XCTestCase {
     }
 }
 
-private final class C45DeletionRightsCompatibilityTests: XCTestCase {
+final class C45DeletionRightsCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityDeletesOnlyDurableAcceptedSnapshotState() {
         XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.persistentFamilies, ["AcceptedLabelGenerationSnapshotRow"])
         XCTAssertEqual(Set(AssetLabelPersistenceEnrollmentV1.derivedFamilies), ["AssetLabelGenerationPlanV1", "LabelProjectionResultV1"])
@@ -33,7 +33,7 @@ private final class C45DeletionRightsCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_06DeletionRights: XCTestCase {
+final class C30EvidenceContextAnchorV9_06DeletionRights: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -340,7 +340,7 @@ final class V9_06DeletionRightsTests: XCTestCase {
     }
 }
 
-private final class C27V906RightsTypedLocatorAnchorTests: XCTestCase {
+final class C27V906RightsTypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(AssetLocatorStateV1.allCases, [.active, .retired, .revoked, .replaced])
         XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
@@ -766,7 +766,7 @@ extension V9_06DeletionRightsTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorV906DeletionRightsTests: XCTestCase {
+final class C31LightingAnchorV906DeletionRightsTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -775,7 +775,7 @@ private final class C31LightingAnchorV906DeletionRightsTests: XCTestCase {
     }
 }
 
-private final class C33TemporalEvidenceAnchorV906DeletionRights: XCTestCase {
+final class C33TemporalEvidenceAnchorV906DeletionRights: XCTestCase {
     func testC33V906DeletionRightsCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "deletion.temporal-evidence-rights",
@@ -794,7 +794,7 @@ private final class C33TemporalEvidenceAnchorV906DeletionRights: XCTestCase {
     }
 }
 
-private final class C32AssistanceAnchorV906DeletionRights: XCTestCase {
+final class C32AssistanceAnchorV906DeletionRights: XCTestCase {
     func testC32V906DeletionRightsCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .asset,
@@ -814,7 +814,7 @@ private final class C32AssistanceAnchorV906DeletionRights: XCTestCase {
         )
     }
 }
-private final class C46V906DeletionRightsCompatibilityTests: XCTestCase {
+final class C46V906DeletionRightsCompatibilityTests: XCTestCase {
     func testC46DeletionRightsKeepContactWorkspaceScoped() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "deletion-rights",
@@ -836,7 +836,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_06Deletio
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_06DeletionRightsTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_06DeletionRightsTests_swift_Tests: XCTestCase {
     func testC47V906DeletionRightsTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_06DeletionRightsTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_06DeletionRightsTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
@@ -850,14 +850,14 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_06
     }
 }
 
-private final class C48PortableReviewV906DeletionRightsTests: XCTestCase {
+final class C48PortableReviewV906DeletionRightsTests: XCTestCase {
     func testC48DeletionOwnsOnlyLocalExchangeState() {
         XCTAssertTrue(C48PortableExchangePersistentLifecycleBoundaryV2.eraseRemovesAppOwnedStagingOnly)
         XCTAssertTrue(C48PortableReviewPersistenceBoundaryV1.sessionStoreIsNonpersistent)
         XCTAssertTrue(C48PortableReviewPersistenceBoundaryV1.quarantineIsExcludedFromBackup)
     }
 }
-private final class C49WorkResourceDeletionRightsBoundaryTests: XCTestCase {
+final class C49WorkResourceDeletionRightsBoundaryTests: XCTestCase {
     func testNoIndependentInventoryDeletionAuthority() { XCTAssertFalse(C49WorkResourceContractBoundaryV1.liveInventoryReference) }
 }
 

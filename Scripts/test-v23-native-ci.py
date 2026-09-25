@@ -7888,6 +7888,9 @@ class SharedCoverageRouteTests(unittest.TestCase):
         CI.load_coverage_partitions(self.root)
         base = self.value()
         first = base['partitions'][0]['selectors'][0]
+        # Layout-independent donors: measured-time repacking can leave single-method partitions.
+        donor = next(index for index, partition in enumerate(base['partitions']) if len(partition['selectors']) > 1)
+        removed = base['partitions'][donor]['selectors'][0]
 
         def case(mutate):
             value = copy.deepcopy(base)
@@ -7895,7 +7898,7 @@ class SharedCoverageRouteTests(unittest.TestCase):
             return value
         cases = [
             ('overlap: ' + re.escape(first), case(lambda v: v['partitions'][1]['selectors'].append(first))),
-            (r'1 missing \[' + re.escape(repr(first)), case(lambda v: v['partitions'][0]['selectors'].remove(first))),
+            (r'1 missing \[' + re.escape(repr(removed)), case(lambda v: v['partitions'][donor]['selectors'].remove(removed))),
             (r'1 extra \[.*NoSuchTests/testNothing', case(lambda v: v['partitions'][0]['selectors'].append(
                 'FieldEvidenceAppTests/NoSuchTests/testNothing'))),
             ('coverage partition count', case(lambda v: v.update(partitions=v['partitions'] + [
@@ -7907,9 +7910,8 @@ class SharedCoverageRouteTests(unittest.TestCase):
             ('fit the test budget', case(lambda v: v['partitions'][0].update(estimatedSeconds=3001))),
             ('fit the test budget', case(lambda v: v['partitions'][0].update(estimatedSeconds=0))),
             ('coverage partition method count', case(lambda v: v['partitions'][0].update(selectors=[]))),
-            ('coverage partition method count', case(lambda v: (
-                v['partitions'][1]['selectors'].extend(v['partitions'][38]['selectors'] + v['partitions'][34]['selectors']),
-                v['partitions'][38]['selectors'].clear()))),
+            ('coverage partition method count', case(lambda v: v['partitions'][1].update(
+                selectors=[first] * (CI.SHARED_MAX_PARTITION_METHODS + 1)))),
             ('coverage partition selector', case(lambda v: v['partitions'][0]['selectors'].append(
                 'FieldEvidenceAppUITests/S0LaunchUITests/testLaunch'))),
             ('coverage partition selector', case(lambda v: v['partitions'][0]['selectors'].append(first + '\n'))),
@@ -8809,6 +8811,136 @@ class SharedCoverageRouteTests(unittest.TestCase):
             self.assertFalse((artifact / 'artifact-budget.txt').exists())
             self.assertNotEqual(run('unknown', 'rerun')[0].returncode, 0)
 
+    def test_consumer_evidence_names_unexecuted_selectors_before_failing(self):
+        bash = git_bash()
+        selectors = ['FieldEvidenceAppTests/EvidenceFixtureTests/test%02d' % index for index in range(25)]
+
+        def results(executed):
+            cases = [{'nodeType': 'Test Case', 'nodeIdentifier': 'EvidenceFixtureTests/%s()' % name.split('/')[-1],
+                      'result': 'Passed'} for name in executed]
+            return {'testNodes': [{'nodeType': 'Unit test bundle', 'name': 'FieldEvidenceAppTests', 'children': [
+                {'nodeType': 'Test Suite', 'name': 'EvidenceFixtureTests', 'children': cases}]}]}
+        # (selectors, executed or None when xcresulttool fails, exit status, expected stderr lines)
+        cases = [
+            (selectors[:3], selectors[:3], 0, []),
+            (selectors[:3], selectors[:1], 1, ['unexecuted selectors: 1 tests executed; 3 selectors; 2 missing',
+                                               '  missing: ' + selectors[1], '  missing: ' + selectors[2]]),
+            (selectors, [], 1, ['unexecuted selectors: 0 tests executed; 25 selectors; 25 missing']
+             + ['  missing: ' + item for item in selectors[:20]] + ['  ... 5 more']),
+            (selectors[:2], None, 3, ['unexecuted selectors: 0 tests executed; 2 selectors; 2 missing',
+                                      '  missing: ' + selectors[0], '  missing: ' + selectors[1]]),
+        ]
+        for wanted, executed, expected, lines in cases:
+            with self.subTest(wanted=len(wanted), executed=executed), tempfile.TemporaryDirectory() as directory:
+                artifact = Path(directory) / 'artifacts'
+                tools = Path(directory) / 'bin'
+                artifact.mkdir()
+                tools.mkdir()
+                for name in ('simulator-boot-start.log', 'simulator-boot.log', 'runner-provider.txt',
+                             'v23-shared-restore.json', 'v23-shared-fingerprint-before.json',
+                             'v23-shared-fingerprint-after.json', 'v23-shared-deriveddata-delta.json', 'test-smoke.log'):
+                    (artifact / name).write_text('fixture\n')
+                (artifact / 'UnitTests.xcresult').mkdir()
+                (artifact / 'UnitTests.xcresult/result').write_text('fixture\n')
+                (artifact / 'ci-selection.selected.json').write_text(json.dumps({'unitTestSelectors': wanted}))
+                (Path(directory) / 'results.json').write_text(json.dumps(results(executed or [])))
+                xcrun = tools / 'xcrun'
+                xcrun.write_bytes(b'#!/bin/sh\n' + (b'exit 3\n' if executed is None else
+                                                    b'cat "$V23_FIXTURE_RESULTS"\n'))
+                xcrun.chmod(0o755)
+                e = dict(os.environ, CI_ARTIFACT_DIR=posix_path(artifact), V23_SHARED_ROLE='consumer',
+                         CI_S10_4_SHARED_BUILD_MODE='none', CI_RUN_UI_SMOKE='false',
+                         CI_SELECTION_PATH=posix_path(artifact) + '/ci-selection.selected.json',
+                         V23_FIXTURE_RESULTS=posix_path(Path(directory) / 'results.json'),
+                         PATH=str(tools) + os.pathsep + os.environ['PATH'])
+                result = subprocess.run([str(bash), '--noprofile', '--norc', '-e', '-o', 'pipefail',
+                                         posix_path(ROOT / 'Scripts/validate-required-evidence.sh')],
+                                        cwd=ROOT, env=e, capture_output=True, text=True)
+                self.assertEqual(result.returncode, expected, result.stderr)
+                reported = [line for line in result.stderr.splitlines()
+                            if line.startswith(('unexecuted selectors:', '  missing: ', '  ... '))]
+                self.assertEqual(reported, lines, result.stderr)
+
+    def test_discovery_rejects_private_and_fileprivate_test_classes_by_name(self):
+        fixture = self.root / 'FieldEvidenceAppTests/SharedCoverageFixtureTests.swift'
+        try:
+            for source, name in (
+                    ('private final class HiddenFixtureTests: XCTestCase {\n    func testHidden() {}\n}\n',
+                     'HiddenFixtureTests'),
+                    ('@MainActor\nfileprivate class HiddenFixtureTests: SharedCoverageBaseTests {}\n',
+                     'HiddenFixtureTests'),
+                    ('private class SharedCoverageMiddleTests: XCTestCase {}\n', 'SharedCoverageMiddleTests')):
+                with self.subTest(source=source):
+                    fixture.write_bytes((SHARED_FIXTURE_SOURCE + '\n' + source).encode())
+                    with self.assertRaisesRegex(ValueError, re.escape(
+                            'unselectable private XCTestCase: FieldEvidenceAppTests/SharedCoverageFixtureTests.swift/'
+                            + name)):
+                        CI.discover_unit_test_methods(self.root)
+            # Private helpers that are not XCTestCase descendants, and private methods, stay allowed.
+            fixture.write_bytes((SHARED_FIXTURE_SOURCE + '\nprivate final class HelperBox {}\n'
+                                 'private class HelperSubclass: NSObject {}\n').encode())
+            found = CI.discover_unit_test_methods(self.root)
+            self.assertEqual(sorted(set(found) - set(self.discovered)),
+                             [item for item in SHARED_FIXTURE_EXPECTED if 'OtherFile' not in item])
+        finally:
+            fixture.unlink()
+        self.assertEqual(CI.discover_unit_test_methods(self.root), self.discovered)
+
+    def test_repack_splits_heavy_classes_by_measured_time_and_covers_every_method_once(self):
+        script = load_partition_script()
+        base = self.value()
+        heavy = sorted((selector for selector in self.discovered if selector.split('/')[1] == 'S6_2BackupExportTests'))
+        self.assertGreater(len(heavy), 3)
+        timings = {'schema': script.TIMINGS_SCHEMA, 'defaultSeconds': 60,
+                   'seconds': dict({selector: 5.0 for selector in self.discovered},
+                                   **{selector: 700.0 for selector in heavy}, **{self.discovered[0]: 2900.0}),
+                   'provenance': {'head': 'e' * 40, 'runID': '1'}}
+        value = script.regenerate(CI, self.root, base, 'c' * 40, timings, True)
+        self.assertEqual(value, script.regenerate(CI, self.root, base, 'c' * 40, timings, True))
+        self.assertEqual((value['sourceCensusHead'], value['generatedAtHead']), ('e' * 40, 'c' * 40))
+        owners = [selector for partition in value['partitions'] for selector in partition['selectors']]
+        self.assertEqual(sorted(owners), sorted(self.discovered))
+        self.assertEqual(len(owners), len(set(owners)))
+        self.assertLessEqual(len(value['partitions']), CI.SHARED_MAX_PARTITIONS)
+        self.assertEqual(value['sweepOrder'], ['S%02d' % index for index in range(1, len(value['partitions']) + 1)])
+        loads = [partition['estimatedSeconds'] for partition in value['partitions']]
+        self.assertEqual(loads, sorted(loads, reverse=True))
+        # The one method heavier than the target runs alone; every other partition fits the target.
+        self.assertEqual(value['partitions'][0]['selectors'], [self.discovered[0]])
+        self.assertTrue(all(load <= script.TARGET_SECONDS for load in loads[1:]))
+        # The heavy class is split: at most two of its 700 s methods share a 1500 s partition.
+        holders = collections.Counter(partition['id'] for partition in value['partitions']
+                                      for selector in partition['selectors'] if selector in heavy)
+        self.assertGreater(len(holders), 1)
+        self.assertLessEqual(max(holders.values()), 2)
+        self.write_partitions(script.encode(value))
+        CI.load_coverage_partitions(self.root)
+        # The sticky mode keeps the repacked assignment, and bounds hold.
+        sticky = script.regenerate(CI, self.root, value, 'c' * 40, timings)
+        self.assertEqual([(row['id'], row['selectors']) for row in sticky['partitions']],
+                         [(row['id'], row['selectors']) for row in value['partitions']])
+        self.assertEqual(sticky['sweepOrder'], value['sweepOrder'])
+        with self.assertRaisesRegex(SystemExit, 'repacking needs .* partitions at target 60 s'):
+            script.regenerate(CI, self.root, base, 'c' * 40, timings, True, 60.0)
+        with self.assertRaisesRegex(SystemExit, 'fit the test budget'):
+            script.regenerate(CI, self.root, base, 'c' * 40, dict(timings, seconds=dict(timings['seconds'], **{self.discovered[0]: 3001.0})), True)
+        with self.assertRaisesRegex(SystemExit, 'packing target'):
+            script.regenerate(CI, self.root, base, 'c' * 40, timings, True, 3001.0)
+        for bad in (dict(timings, extra=1), dict(timings, provenance=[]), dict(timings, provenance={'head': 'HEAD'})):
+            with self.subTest(bad=bad), self.assertRaisesRegex(SystemExit, 'invalid timings'):
+                script.regenerate(CI, self.root, base, 'c' * 40, bad, True)
+        # The committed timings are measured development evidence with named provenance.
+        committed = json.loads((ROOT / 'Scripts/v23-coverage-timings.json').read_text(encoding='utf-8'))
+        self.assertEqual(committed['provenance']['runID'], '36133511753')
+        self.assertEqual(committed['provenance']['head'], '5eb2f5f330d2567eb9d1cfb4ff1cbbe97c1071f7')
+        self.assertTrue(committed['provenance']['developmentOnly'])
+        self.assertTrue(set(committed['seconds']) <= set(self.discovered))
+        script.read_timings(committed)
+        # A new class heavier than the target is split in sticky mode as well.
+        units = script.class_units(CI, heavy, lambda selector: 700.0, 1500.0)
+        self.assertEqual([len(unit) for unit in units][:-1], [2] * (len(units) - 1))
+        self.assertEqual(sum(units, []), heavy)
+
     def test_consumer_shell_tests_restored_products_and_evidence_is_role_exact(self):
         bash = (Path(shutil.which('git')).resolve().parents[1] / 'bin/bash.exe') if os.name == 'nt' else Path(shutil.which('bash'))
 
@@ -8890,6 +9022,44 @@ class SharedCoverageRouteTests(unittest.TestCase):
                                          shell_path(ROOT / 'Scripts/validate-required-evidence.sh')],
                                         cwd=ROOT, env=e, capture_output=True, text=True)
                 self.assertEqual(result.returncode, expected, result.stderr)
+
+
+class CoverageTimingsFromLogsTests(unittest.TestCase):
+    """Scripts/dev/v23-coverage-timings.py: measured per-method seconds with lower bounds for interruptions."""
+
+    def test_largest_attempt_and_interruption_lower_bounds_are_recorded(self):
+        prefix = 'FieldEvidenceAppTests/TimingFixtureTests/'
+        log = '\n'.join((
+            '﻿2026-09-25T13:00:00.0000000Z Current runner version',
+            "2026-09-25T13:00:00.0000000Z Test Case '-[FieldEvidenceAppTests.TimingFixtureTests testA]' started.",
+            "2026-09-25T13:00:02.0000000Z Test Case '-[FieldEvidenceAppTests.TimingFixtureTests testA]' failed (2.000 seconds).",
+            "2026-09-25T13:00:02.0000000Z Test Case '-[FieldEvidenceAppTests.TimingFixtureTests testA]' started.",
+            "2026-09-25T13:00:07.5000000Z Test Case '-[FieldEvidenceAppTests.TimingFixtureTests testA]' passed (5.500 seconds).",
+            "2026-09-25T13:00:08.0000000Z Test Case '-[FieldEvidenceAppTests.TimingFixtureTests testCrash]' started.",
+            '2026-09-25T13:00:18.2500000Z Restarting after unexpected exit, crash, or test timeout; summary will include totals',
+            "2026-09-25T13:00:20.0000000Z Test Case '-[FieldEvidenceAppTests.TimingFixtureTests testSkipped]' skipped (0.001 seconds).",
+            "2026-09-25T13:00:20.0000000Z Test Case '-[FieldEvidenceAppTests.TimingFixtureTests testHung]' started.",
+            '2026-09-25T13:50:20.0000000Z ** BUILD INTERRUPTED **',
+            "2026-09-25T13:50:21.0000000Z Test Case '-[FieldEvidenceAppTests.OtherTests testUnknown]' passed (1.000 seconds).",
+            "2026-09-25T13:50:21.0000000Z Test Case '-[FieldEvidenceAppTests.(unknown context at $1).HiddenTests testHidden]' passed (1.000 seconds).",
+        )) + '\n'
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'S01.log').write_text(log, encoding='utf-8')
+            (root / 'partitions.json').write_text(json.dumps({'partitions': [{'selectors': [
+                prefix + name for name in ('testA', 'testCrash', 'testSkipped', 'testHung', 'testNeverStarted')]}]}))
+            output = root / 'timings.json'
+            result = subprocess.run([sys.executable, str(ROOT / 'Scripts/dev/v23-coverage-timings.py'),
+                                     '--run-id', '42', '--head', 'a' * 40, '--partitions', str(root / 'partitions.json'),
+                                     '--output', str(output), str(root / 'S01.log')], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            value = json.loads(output.read_text(encoding='utf-8'))
+        self.assertEqual(value['seconds'], {prefix + 'testA': 5.5, prefix + 'testCrash': 10.25,
+                                            prefix + 'testHung': 3000.0, prefix + 'testSkipped': 0.001})
+        self.assertEqual(value['provenance']['lowerBoundMethods'], [prefix + 'testCrash', prefix + 'testHung'])
+        self.assertEqual((value['provenance']['runID'], value['provenance']['head'],
+                          value['provenance']['unknownMethodsDropped']), ('42', 'a' * 40, 1))
+        load_partition_script().read_timings(value)
 
 
 class WorkflowTemplateBudgetTests(unittest.TestCase):

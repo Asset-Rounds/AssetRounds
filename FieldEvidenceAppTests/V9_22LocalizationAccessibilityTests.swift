@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 @testable import FieldEvidenceApp
 
-private final class V23P04C16LocalizationAccessibilityContractTests: XCTestCase {
+final class V23P04C16LocalizationAccessibilityContractTests: XCTestCase {
     func testC16TypedShellLocalizationCatalogIsClosedAndEnglishOnly() throws {
         try C16ShellLocalizationPolicyV1.validate()
         let keys = C16ShellLocalizationKeyV1.allCases
@@ -83,7 +83,7 @@ private enum C53AssetServiceReliabilityBoundary_V9_22LocalizationAccessibilityTe
     static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
 }
 
-private final class C45LocalizationAccessibilityCompatibilityTests: XCTestCase {
+final class C45LocalizationAccessibilityCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityIncludesAccessibleTextAndClosedDisclosures() {
         XCTAssertTrue(LabelArtifactKindV1.allCases.contains(.structuredText))
         XCTAssertEqual(LabelDisclosureProfileV1.allCases.count, 3)
@@ -91,7 +91,7 @@ private final class C45LocalizationAccessibilityCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C51V922LocalizationAccessibilityAnchorTests: XCTestCase {
+final class C51V922LocalizationAccessibilityAnchorTests: XCTestCase {
     func testV23P03C51ScheduleLocalizationAndAccessibilityAreTypedWithoutUIClaim() throws {
         XCTAssertEqual(ScheduleLocalizationKeyV1.recurrenceKey(for: .advanced(
             AdvancedScheduleConfigurationV1(
@@ -109,7 +109,7 @@ private final class C51V922LocalizationAccessibilityAnchorTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_22LocalizationAccessibility: XCTestCase {
+final class C30EvidenceContextAnchorV9_22LocalizationAccessibility: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -2155,7 +2155,7 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
     }
 }
 
-private final class C27V922TypedLocatorAnchorTests: XCTestCase {
+final class C27V922TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(ExternalKeyNormalizationV1.allCases, [.exactNFC, .asciiCaseInsensitive])
         XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
@@ -2249,7 +2249,7 @@ extension V9_22LocalizationAccessibilityTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorV922LocalizationAccessibilityTests: XCTestCase {
+final class C31LightingAnchorV922LocalizationAccessibilityTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -2287,7 +2287,7 @@ extension V9_22LocalizationAccessibilityTests {
     }
 }
 
-private final class C33TemporalEvidenceAnchorV922LocalizationAccessibility: XCTestCase {
+final class C33TemporalEvidenceAnchorV922LocalizationAccessibility: XCTestCase {
     func testC33V922LocalizationAccessibilityCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "accessibility.temporal-description",
@@ -2306,7 +2306,7 @@ private final class C33TemporalEvidenceAnchorV922LocalizationAccessibility: XCTe
     }
 }
 
-private final class C32AssistanceAnchorV922LocalizationAccessibility: XCTestCase {
+final class C32AssistanceAnchorV922LocalizationAccessibility: XCTestCase {
     func testC32V922LocalizationAccessibilityCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .factCapture,
@@ -2326,7 +2326,7 @@ private final class C32AssistanceAnchorV922LocalizationAccessibility: XCTestCase
         )
     }
 }
-private final class C46V922AccessibilityCompatibilityTests: XCTestCase {
+final class C46V922AccessibilityCompatibilityTests: XCTestCase {
     func testC46AccessibilityKeepsExplicitHandoffSemantics() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "accessibility",
@@ -2348,7 +2348,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_22Localiz
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_22LocalizationAccessibilityTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_22LocalizationAccessibilityTests_swift_Tests: XCTestCase {
     func testC47V922LocalizationAccessibilityTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_22LocalizationAccessibilityTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_22LocalizationAccessibilityTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
@@ -2362,7 +2362,7 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_22
     }
 }
 
-private final class C48PortableReviewV922LocalizationTests: XCTestCase {
+final class C48PortableReviewV922LocalizationTests: XCTestCase {
     func testC48EnglishTrustWordingIsExplicitAndNonSecret() throws {
         try C48PortableReviewLocalizationPolicyV1.validate()
         try C48PortableReviewLocalizationCatalogBoundaryV1.validate()
@@ -2371,7 +2371,7 @@ private final class C48PortableReviewV922LocalizationTests: XCTestCase {
         XCTAssertFalse(C48PortableReviewAccessibilityPolicyV1.capabilityProofSpoken)
     }
 }
-private final class C49WorkResourceLocalizationBoundaryTests: XCTestCase {
+final class C49WorkResourceLocalizationBoundaryTests: XCTestCase {
     func testCanonicalCurrencyIsLocaleIndependentUppercaseISOCode() {
         XCTAssertEqual(try? ExactMoneyAmountV1(mantissa: 1, currencyCode: "USD", minorUnitScale: 2).currencyCode, "USD")
         XCTAssertThrowsError(try ExactMoneyAmountV1(mantissa: 1, currencyCode: "usd", minorUnitScale: 2))
@@ -2412,7 +2412,7 @@ private final class C49WorkResourceLocalizationBoundaryTests: XCTestCase {
     }
 }
 
-private final class C50IncumbentAdapterLocalizationAccessibilityTests: XCTestCase {
+final class C50IncumbentAdapterLocalizationAccessibilityTests: XCTestCase {
     func testDisabledProfileCopyIsStableAndContainsNoProviderOrPrivateFieldClaim() throws {
         XCTAssertEqual(
             Bundle.main.object(forInfoDictionaryKey: "FieldEvidenceIncumbentFileAdapterStatus") as? String,

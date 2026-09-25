@@ -7,7 +7,7 @@ private enum C52ServiceRequestBoundary_V9_44PlacementPoseTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45PlacementPoseCompatibilityTests: XCTestCase {
+final class C45PlacementPoseCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityUsesIntegralMicrometreTemplateGeometry() throws {
         let geometry = try AssetLabelGeometryV1(
             pageWidthMicrometres: 50_000, pageHeightMicrometres: 50_000,
@@ -21,7 +21,7 @@ private final class C45PlacementPoseCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_44PlacementPose: XCTestCase {
+final class C30EvidenceContextAnchorV9_44PlacementPose: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -1217,7 +1217,7 @@ final class V9_44PlacementPoseTests: XCTestCase {
         ).allowsNetworkInput)
     }
 }
-private final class C31LightingAnchorV944PlacementPoseTests: XCTestCase {
+final class C31LightingAnchorV944PlacementPoseTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -1226,7 +1226,7 @@ private final class C31LightingAnchorV944PlacementPoseTests: XCTestCase {
     }
 }
 
-private final class C33TemporalEvidenceAnchorV944PlacementPose: XCTestCase {
+final class C33TemporalEvidenceAnchorV944PlacementPose: XCTestCase {
     func testC33V944PlacementPoseCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "pose.temporal-anchor-context",
@@ -1245,7 +1245,7 @@ private final class C33TemporalEvidenceAnchorV944PlacementPose: XCTestCase {
     }
 }
 
-private final class C32AssistanceAnchorV944PlacementPose: XCTestCase {
+final class C32AssistanceAnchorV944PlacementPose: XCTestCase {
     func testC32V944PlacementPoseCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .assetPoseEvent,
@@ -1265,7 +1265,7 @@ private final class C32AssistanceAnchorV944PlacementPose: XCTestCase {
         )
     }
 }
-private final class C46V944PoseCompatibilityTests: XCTestCase {
+final class C46V944PoseCompatibilityTests: XCTestCase {
     func testC46PlacementPoseCannotSupplyCurrentDirectionsCoordinate() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "placement-pose",

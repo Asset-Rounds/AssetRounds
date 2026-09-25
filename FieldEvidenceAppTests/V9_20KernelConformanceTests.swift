@@ -27,7 +27,7 @@ extension V9_20KernelConformanceTests {
     }
 }
 
-private final class C50KernelConformanceTests: XCTestCase {
+final class C50KernelConformanceTests: XCTestCase {
     func testV23P03C50DisabledRegistryIsClosedZeroProductionAndTruthful() throws {
         let selection = try IncumbentSelectionReceiptV1(
             receiptID: UUID(uuidString: "c5000000-0000-4000-8000-000000002001")!,
@@ -79,7 +79,7 @@ private final class C50KernelConformanceTests: XCTestCase {
     }
 }
 
-private final class C45KernelConformanceCompatibilityTests: XCTestCase {
+final class C45KernelConformanceCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityUsesClosedChecksumAlphabetAndCanonicalLimit() {
         XCTAssertEqual(ManualShortCodeV1.alphabet, "23456789ABCDEFGHJKMNPQRSTUVWXYZ")
         XCTAssertEqual(ManualShortCodeV1.randomBodyLength, 10)
@@ -87,7 +87,7 @@ private final class C45KernelConformanceCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_20KernelConformance: XCTestCase {
+final class C30EvidenceContextAnchorV9_20KernelConformance: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -613,7 +613,7 @@ final class V9_20KernelConformanceTests: XCTestCase {
 
 }
 
-private final class C27V920TypedLocatorAnchorTests: XCTestCase {
+final class C27V920TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(PersistentSchemaV26.models.count, 94)
         XCTAssertEqual(AssetLocatorStateV1.allCases.count, 4)
@@ -630,7 +630,7 @@ extension V9_20KernelConformanceTests {
     }
 }
 
-private final class C53SharedKernelReliabilityTests: XCTestCase {
+final class C53SharedKernelReliabilityTests: XCTestCase {
     func testV23P03C53KernelBoundaryUsesExplicitUnavailableDisposition() {
         XCTAssertEqual(C53SharedCheckRunnerContractBoundaryV1.evidenceIDs.count, 5)
         XCTAssertTrue(C53SharedCheckRunnerContractBoundaryV1.checkRunnerMayRecordObservationButNotReliabilityTruth)
@@ -777,7 +777,7 @@ extension V9_20KernelConformanceTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorV920KernelConformanceTests: XCTestCase {
+final class C31LightingAnchorV920KernelConformanceTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -828,7 +828,7 @@ extension V9_20KernelConformanceTests {
     }
 }
 
-private final class C33TemporalEvidenceAnchorV920KernelConformance: XCTestCase {
+final class C33TemporalEvidenceAnchorV920KernelConformance: XCTestCase {
     func testC33V920KernelConformanceCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "kernel.temporal-evidence-subject",
@@ -847,7 +847,7 @@ private final class C33TemporalEvidenceAnchorV920KernelConformance: XCTestCase {
     }
 }
 
-private final class C32AssistanceAnchorV920KernelConformance: XCTestCase {
+final class C32AssistanceAnchorV920KernelConformance: XCTestCase {
     func testC32V920KernelConformanceCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .factCapture,
@@ -867,7 +867,7 @@ private final class C32AssistanceAnchorV920KernelConformance: XCTestCase {
         )
     }
 }
-private final class C46V920KernelConformanceCompatibilityTests: XCTestCase {
+final class C46V920KernelConformanceCompatibilityTests: XCTestCase {
     func testC46KernelConformanceKeepsSoleContactWriterBoundary() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "kernel-conformance",
@@ -889,7 +889,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_20KernelC
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_20KernelConformanceTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_20KernelConformanceTests_swift_Tests: XCTestCase {
     func testC47V920KernelConformanceTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_20KernelConformanceTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_20KernelConformanceTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
@@ -903,7 +903,7 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_20
     }
 }
 
-private final class C48PortableReviewV920KernelTests: XCTestCase {
+final class C48PortableReviewV920KernelTests: XCTestCase {
     func testC48JournalReplayUsesExactResponseAndExistingC14Postimages() {
         XCTAssertEqual(PortableReviewChangeJournalPolicyV1.commandKind, .applyPortableReview)
         XCTAssertTrue(PortableReviewChangeJournalPolicyV1.replaysExactResponseBytes)
@@ -911,7 +911,7 @@ private final class C48PortableReviewV920KernelTests: XCTestCase {
         XCTAssertTrue(PortableReviewChangeJournalPolicyV1.historyDiscardAndQuarantineAreSessionOnly)
     }
 }
-private final class C49WorkResourceKernelConformanceBoundaryTests: XCTestCase {
+final class C49WorkResourceKernelConformanceBoundaryTests: XCTestCase {
     func testManualResourceTruthHasOneWriterAndAppendOnlyHistory() {
         XCTAssertTrue(C49WorkResourceContractBoundaryV1.appendOnly)
         XCTAssertEqual(C49WorkResourceContractBoundaryV1.soleWriter, "WorkspaceWriterV1")

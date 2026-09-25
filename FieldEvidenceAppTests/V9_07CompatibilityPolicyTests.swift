@@ -11,7 +11,7 @@ private enum C53AssetServiceReliabilityBoundary_V9_07CompatibilityPolicyTests {
     static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
 }
 
-private final class C50CompatibilityPolicyTests: XCTestCase {
+final class C50CompatibilityPolicyTests: XCTestCase {
     func testV23P03C50SuccessorIsForwardFixAndExactOldReleaseRemainsReadable() throws {
         let mapping = try IncumbentMappingManifestV1(mappings: [
             IncumbentFieldMappingV1(
@@ -112,7 +112,7 @@ private final class C50CompatibilityPolicyTests: XCTestCase {
     }
 }
 
-private final class C45CompatibilityPolicyTypedTests: XCTestCase {
+final class C45CompatibilityPolicyTypedTests: XCTestCase {
     func testV23P03C45CompatibilityFreezesTemplateRenderingPolicies() {
         XCTAssertEqual(AssetLabelLineBreakPolicyV1.allCases, [.fixedGraphemeTailTruncation])
         XCTAssertEqual(AssetLabelQRCorrectionLevelV1.allCases, [.medium])
@@ -120,7 +120,7 @@ private final class C45CompatibilityPolicyTypedTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_07CompatibilityPolicy: XCTestCase {
+final class C30EvidenceContextAnchorV9_07CompatibilityPolicy: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -407,7 +407,7 @@ final class V9_07CompatibilityPolicyTests: XCTestCase {
     }
 }
 
-private final class C27V907PolicyTypedLocatorAnchorTests: XCTestCase {
+final class C27V907PolicyTypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(ExternalKeyNormalizationV1.allCases, [.exactNFC, .asciiCaseInsensitive])
         XCTAssertEqual(AssetLocatorStateV1.allCases.count, 4)
@@ -568,7 +568,7 @@ extension V9_07CompatibilityPolicyTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorV907CompatibilityPolicyTests: XCTestCase {
+final class C31LightingAnchorV907CompatibilityPolicyTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -577,7 +577,7 @@ private final class C31LightingAnchorV907CompatibilityPolicyTests: XCTestCase {
     }
 }
 
-private final class C33TemporalEvidenceAnchorV907CompatibilityPolicy: XCTestCase {
+final class C33TemporalEvidenceAnchorV907CompatibilityPolicy: XCTestCase {
     func testC33V907CompatibilityPolicyCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "compatibility.temporal-evidence-v1",
@@ -596,7 +596,7 @@ private final class C33TemporalEvidenceAnchorV907CompatibilityPolicy: XCTestCase
     }
 }
 
-private final class C32AssistanceAnchorV907CompatibilityPolicy: XCTestCase {
+final class C32AssistanceAnchorV907CompatibilityPolicy: XCTestCase {
     func testC32V907CompatibilityPolicyCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .report,
@@ -616,7 +616,7 @@ private final class C32AssistanceAnchorV907CompatibilityPolicy: XCTestCase {
         )
     }
 }
-private final class C46V907CompatibilityPolicyTests: XCTestCase {
+final class C46V907CompatibilityPolicyTests: XCTestCase {
     func testC46CompatibilityPolicyPreservesExactContactValue() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "compatibility-policy",
@@ -638,7 +638,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_07Compati
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_07CompatibilityPolicyTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_07CompatibilityPolicyTests_swift_Tests: XCTestCase {
     func testC47V907CompatibilityPolicyTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_07CompatibilityPolicyTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_07CompatibilityPolicyTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
@@ -652,14 +652,14 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_07
     }
 }
 
-private final class C48PortableReviewV907CompatibilityPolicyTests: XCTestCase {
+final class C48PortableReviewV907CompatibilityPolicyTests: XCTestCase {
     func testC48ReleasedProtocolFailsClosedWithoutRewritingHistory() {
         XCTAssertTrue(C48PortableReviewReleasedDataCompatibilityBoundaryV1.exchangeProtocolIsSeparateFromWorkspaceSchema)
         XCTAssertTrue(C48PortableReviewReleasedDataCompatibilityBoundaryV1.derivedHistoryNeverRequiresHistoricSnapshotRewrite)
         XCTAssertTrue(C48PortableReviewReleasedDataCompatibilityBoundaryV1.unknownProtocolVersionsFailClosed)
     }
 }
-private final class C49WorkResourceCompatibilityBoundaryTests: XCTestCase {
+final class C49WorkResourceCompatibilityBoundaryTests: XCTestCase {
     func testReleasedRawValuesAreStable() {
         XCTAssertEqual(WorkResourceSubjectKindV1.workPacket.rawValue, "WORK_PACKET")
         XCTAssertEqual(WorkResourceDispositionV1.reversed.rawValue, "REVERSED")

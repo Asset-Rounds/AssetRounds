@@ -7,7 +7,7 @@ private enum C52ServiceRequestBoundary_V9_36RecoverabilityVerificationTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C50RecoverabilityVerificationTests: XCTestCase {
+final class C50RecoverabilityVerificationTests: XCTestCase {
     func testV23P03C50RecoveryNeverReappliesAndDivergenceRemainsQuarantined() throws {
         let operationID = UUID(uuidString: "c5000000-0000-4000-8000-000000003601")!
         let sourceSHA256 = String(repeating: "a", count: 64)
@@ -1017,14 +1017,14 @@ extension V9_36RecoverabilityVerificationTests {
     }
 }
 
-private final class C48PortableReviewV936RecoverabilityTests: XCTestCase {
+final class C48PortableReviewV936RecoverabilityTests: XCTestCase {
     func testC48RecoverabilityPreservesExactExchangeBytesOutsideCanonicalSchema() {
         XCTAssertTrue(C48PortableExchangeMigrationBoundaryV2.preservesExactBytes)
         XCTAssertFalse(C48PortableExchangeMigrationBoundaryV2.canonicalSwiftDataSchemaChanged)
         XCTAssertTrue(C48PortableReviewPersistenceBoundaryV1.sessionStoreIsNonpersistent)
     }
 }
-private final class C49WorkResourceRecoverabilityBoundaryTests: XCTestCase {
+final class C49WorkResourceRecoverabilityBoundaryTests: XCTestCase {
     func testV23P03C49I01RecoveryContractUsesCanonicalPostimageAndRejectsDivergence() {
         XCTAssertTrue(C49WorkResourceContractBoundaryV1.appendOnly)
         XCTAssertEqual(C49WorkResourceRecoveryBoundaryV1.commandKind, .applyWorkResource)

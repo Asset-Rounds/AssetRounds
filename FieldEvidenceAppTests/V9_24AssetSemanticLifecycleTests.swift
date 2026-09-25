@@ -8,7 +8,7 @@ private enum C52ServiceRequestBoundary_V9_24AssetSemanticLifecycleTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45AssetSemanticLifecycleCompatibilityTests: XCTestCase {
+final class C45AssetSemanticLifecycleCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityDelegatesLocatorIdentityToC27() {
         XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.createsSecondLocatorStore)
         XCTAssertEqual(ManualShortCodeV1.externalKeyNamespace, "assetrounds.asset-label.short-code.v1")
@@ -16,7 +16,7 @@ private final class C45AssetSemanticLifecycleCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C51V924AssetSemanticLifecycleAnchorTests: XCTestCase {
+final class C51V924AssetSemanticLifecycleAnchorTests: XCTestCase {
     func testV23P03C51AssetSemanticsCarryNoScheduleOrOccurrenceTruth() {
         XCTAssertFalse(C51AssetScheduleBoundaryV1.assetRowsCarryScheduleClosure)
         XCTAssertFalse(C51AssetScheduleBoundaryV1.assetIdentityIsOccurrenceIdentity)
@@ -25,7 +25,7 @@ private final class C51V924AssetSemanticLifecycleAnchorTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_24AssetSemanticLifecycle: XCTestCase {
+final class C30EvidenceContextAnchorV9_24AssetSemanticLifecycle: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -764,7 +764,7 @@ final class V9_24AssetSemanticLifecycleTests: XCTestCase {
     }
 }
 
-private final class C27V924TypedLocatorAnchorTests: XCTestCase {
+final class C27V924TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(AssetLocatorStateV1.allCases.count, 4)
         XCTAssertEqual(AssetLocatorLimitsV1.maximumCandidates, 32)
@@ -799,7 +799,7 @@ extension V9_24AssetSemanticLifecycleTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorV924AssetSemanticLifecycleTests: XCTestCase {
+final class C31LightingAnchorV924AssetSemanticLifecycleTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -808,7 +808,7 @@ private final class C31LightingAnchorV924AssetSemanticLifecycleTests: XCTestCase
     }
 }
 
-private final class C33TemporalEvidenceAnchorV924AssetSemanticLifecycle: XCTestCase {
+final class C33TemporalEvidenceAnchorV924AssetSemanticLifecycle: XCTestCase {
     func testC33V924AssetSemanticLifecycleCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "asset.temporal-evidence-target",
@@ -827,7 +827,7 @@ private final class C33TemporalEvidenceAnchorV924AssetSemanticLifecycle: XCTestC
     }
 }
 
-private final class C32AssistanceAnchorV924AssetSemanticLifecycle: XCTestCase {
+final class C32AssistanceAnchorV924AssetSemanticLifecycle: XCTestCase {
     func testC32V924AssetSemanticLifecycleCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .asset,
@@ -847,7 +847,7 @@ private final class C32AssistanceAnchorV924AssetSemanticLifecycle: XCTestCase {
         )
     }
 }
-private final class C46V924AssetCompatibilityTests: XCTestCase {
+final class C46V924AssetCompatibilityTests: XCTestCase {
     func testC46AssetLifecycleDoesNotOwnPartyContact() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "asset-lifecycle",

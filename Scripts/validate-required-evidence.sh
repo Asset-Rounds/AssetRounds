@@ -91,6 +91,32 @@ test -s "$CI_ARTIFACT_DIR/simulator-boot-start.log"
 test -s "$CI_ARTIFACT_DIR/simulator-boot.log"
 test -s "$CI_ARTIFACT_DIR/runner-provider.txt"
 v23_shared_role="${V23_SHARED_ROLE:-none}"
+v23_report_unexecuted_selectors() {
+  # Name why the executed-selector superset check failed: counts and a bounded missing list.
+  local executed_tests="$CI_ARTIFACT_DIR/$2-executed-tests.json"
+  test -s "$executed_tests" || executed_tests=/dev/null
+  jq -r --arg key "$1" --slurpfile executed "$executed_tests" '
+    def normalize_identifier:
+      sub("\\(\\)$"; "");
+    (.[$key] // []) as $selectors
+    | ($executed[0] // []) as $raw
+    | (if ($raw | type) == "array" then $raw else [] end) as $actual
+    | [
+        $selectors[]
+        | . as $selector
+        | ($selector | normalize_identifier) as $wanted
+        | select(any(
+            $actual[];
+            (.identifier | normalize_identifier) as $observed
+            | ($observed == $wanted) or ($observed | startswith($wanted + "/"))
+          ) | not)
+        | $selector
+      ] as $missing
+    | "unexecuted selectors: \($actual | length) tests executed; \($selectors | length) selectors; \($missing | length) missing",
+      ($missing[:20][] | "  missing: " + .),
+      (if ($missing | length) > 20 then "  ... \(($missing | length) - 20) more" else empty end)
+  ' "$selection_path" >&2
+}
 if test "$v23_shared_role" = producer; then
   # Build-only producer: exact build evidence and a sealed payload; no tests ran.
   test "$CI_S10_4_SHARED_BUILD_MODE" = none
@@ -114,9 +140,20 @@ elif test "$v23_shared_role" = consumer; then
   test -s "$CI_ARTIFACT_DIR/v23-shared-deriveddata-delta.json"
   test -s "$CI_ARTIFACT_DIR/test-smoke.log"
   require_nonempty_directory "$CI_ARTIFACT_DIR/UnitTests.xcresult"
-  verify_executed_selectors \
-    "$CI_ARTIFACT_DIR/UnitTests.xcresult" \
-    unitTestSelectors "Unit test bundle" unit
+  # errexit stays in force inside the subshell; its status alone decides the report.
+  set +e
+  (
+    set -e
+    verify_executed_selectors \
+      "$CI_ARTIFACT_DIR/UnitTests.xcresult" \
+      unitTestSelectors "Unit test bundle" unit
+  )
+  v23_verify_status=$?
+  set -e
+  if test "$v23_verify_status" -ne 0; then
+    v23_report_unexecuted_selectors unitTestSelectors unit || true
+    exit "$v23_verify_status"
+  fi
 elif test "$v23_shared_role" != none; then
   exit 65
 elif test "$CI_S10_4_SHARED_BUILD_MODE" = consumer; then

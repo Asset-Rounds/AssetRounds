@@ -16,7 +16,7 @@ private enum C53AssetServiceReliabilityBoundary_S6_3BackupValidationTests {
     static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
 }
 
-private final class C45BackupValidationCompatibilityTests: XCTestCase {
+final class C45BackupValidationCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityValidatesCanonicalMutationAndSnapshotDigests() {
         XCTAssertEqual(AssetLabelMutationV1.schemaVersion, 1)
         XCTAssertEqual(AcceptedLabelGenerationSnapshotV1.schemaVersion, 1)
@@ -24,7 +24,7 @@ private final class C45BackupValidationCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorS6_3BackupValidation: XCTestCase {
+final class C30EvidenceContextAnchorS6_3BackupValidation: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -519,7 +519,7 @@ final class S6_3BackupValidationTests: XCTestCase {
     }
 }
 
-private final class C27S63TypedLocatorAnchorTests: XCTestCase {
+final class C27S63TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
         XCTAssertEqual(AssetLocatorLimitsV1.maximumCandidates, 32)
@@ -2414,7 +2414,7 @@ extension S6_3BackupValidationTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorS63BackupValidationTests: XCTestCase {
+final class C31LightingAnchorS63BackupValidationTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -2460,7 +2460,7 @@ extension S6_3BackupValidationTests {
     }
 }
 
-private final class C33TemporalEvidenceAnchorS63BackupValidation: XCTestCase {
+final class C33TemporalEvidenceAnchorS63BackupValidation: XCTestCase {
     func testC33S63BackupValidationCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "backup.validation.temporal-evidence",
@@ -2479,7 +2479,7 @@ private final class C33TemporalEvidenceAnchorS63BackupValidation: XCTestCase {
     }
 }
 
-private final class C32AssistanceAnchorS63BackupValidation: XCTestCase {
+final class C32AssistanceAnchorS63BackupValidation: XCTestCase {
     func testC32S63BackupValidationCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .packet,
@@ -2499,7 +2499,7 @@ private final class C32AssistanceAnchorS63BackupValidation: XCTestCase {
         )
     }
 }
-private final class C46S63BackupValidationCompatibilityTests: XCTestCase {
+final class C46S63BackupValidationCompatibilityTests: XCTestCase {
     func testC46BackupValidationRetainsContactDigestBinding() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "backup-validation",
@@ -2510,7 +2510,7 @@ private final class C46S63BackupValidationCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C32PartyContactSiteRoleImportBackupValidationTests: XCTestCase {
+final class C32PartyContactSiteRoleImportBackupValidationTests: XCTestCase {
     func testV23P04C32BackupValidationUsesExistingFamiliesAndDefaultContactFreeExport() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -2542,7 +2542,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_3BackupVa
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_3BackupValidationTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_3BackupValidationTests_swift_Tests: XCTestCase {
     func testC47S63BackupValidationTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_3BackupValidationTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_3BackupValidationTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
@@ -2556,7 +2556,7 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_3B
     }
 }
 
-private final class C48PortableReviewS63BackupValidationTests: XCTestCase {
+final class C48PortableReviewS63BackupValidationTests: XCTestCase {
     func testC48BackupValidationUsesNonpersistentSessionEnvelope() {
         XCTAssertEqual(C48PortableExchangePersistentLifecycleBoundaryV2.canonicalRowsAdded, 0)
         XCTAssertEqual(C48PortableExchangePersistentLifecycleBoundaryV2.persistentSchemaVersion, 36)
@@ -2564,14 +2564,14 @@ private final class C48PortableReviewS63BackupValidationTests: XCTestCase {
         XCTAssertTrue(C48PortableExchangeMigrationBoundaryV2.preservesExactBytes)
     }
 }
-private final class C49WorkResourceBackupValidationBoundaryTests: XCTestCase {
+final class C49WorkResourceBackupValidationBoundaryTests: XCTestCase {
     func testUnknownCurrencyAndScaleFailClosed() {
         XCTAssertThrowsError(try ExactMoneyAmountV1(mantissa: 1, currencyCode: "ZZZ", minorUnitScale: 2))
         XCTAssertThrowsError(try ExactMoneyAmountV1(mantissa: 1, currencyCode: "JPY", minorUnitScale: 2))
     }
 }
 
-private final class C50IncumbentAdapterS63BackupValidationBoundaryTests: XCTestCase {
+final class C50IncumbentAdapterS63BackupValidationBoundaryTests: XCTestCase {
     func testRestoreValidationRejectsAdapterOwnedArchiveMembers() {
         XCTAssertTrue(C50IncumbentFileExchangeBackupImportBoundaryV1.validate())
         XCTAssertEqual(C50IncumbentFileExchangePackageValidationBoundaryV1.allowedAdapterMemberCount, 0)

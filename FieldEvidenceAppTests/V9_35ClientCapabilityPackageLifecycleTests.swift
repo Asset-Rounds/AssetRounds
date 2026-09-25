@@ -7,7 +7,7 @@ private enum C52ServiceRequestBoundary_V9_35ClientCapabilityPackageLifecycleTest
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45PackageLifecycleCompatibilityTests: XCTestCase {
+final class C45PackageLifecycleCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityBlocksReprintWhenTemplateOrRendererReleaseIsMissing() {
         XCTAssertEqual(LabelReprintEligibilityV1.blockedMissingRelease.rawValue, "BLOCKED_MISSING_RELEASE")
         XCTAssertEqual(AssetLabelLineBreakPolicyV1.fixedGraphemeTailTruncation.rawValue, "FIXED_GRAPHEME_TAIL_TRUNCATION_V1")
@@ -15,7 +15,7 @@ private final class C45PackageLifecycleCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C51V935ClientCapabilityJobAnchorTests: XCTestCase {
+final class C51V935ClientCapabilityJobAnchorTests: XCTestCase {
     func testV23P03C51CapabilityJobsRequireExactLocalFrontierWithoutPartialTruth() {
         XCTAssertEqual(C51ScheduleReconciliationJobBoundaryV1.jobKind, .scheduleGeneration)
         XCTAssertTrue(C51ScheduleReconciliationJobBoundaryV1.exactSourceFrontierIsRequired)
@@ -25,7 +25,7 @@ private final class C51V935ClientCapabilityJobAnchorTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_35ClientCapabilityPackageLifecycle: XCTestCase {
+final class C30EvidenceContextAnchorV9_35ClientCapabilityPackageLifecycle: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -970,7 +970,7 @@ extension V9_35ClientCapabilityPackageLifecycleTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorV935ClientCapabilityPackageLifecycleTests: XCTestCase {
+final class C31LightingAnchorV935ClientCapabilityPackageLifecycleTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -979,7 +979,7 @@ private final class C31LightingAnchorV935ClientCapabilityPackageLifecycleTests: 
     }
 }
 
-private final class C33TemporalEvidenceAnchorV935ClientCapabilityPackageLifecycle: XCTestCase {
+final class C33TemporalEvidenceAnchorV935ClientCapabilityPackageLifecycle: XCTestCase {
     func testC33V935ClientCapabilityPackageLifecycleCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "package.temporal-codec-policy",
@@ -998,7 +998,7 @@ private final class C33TemporalEvidenceAnchorV935ClientCapabilityPackageLifecycl
     }
 }
 
-private final class C32AssistanceAnchorV935ClientCapabilityPackageLifecycle: XCTestCase {
+final class C32AssistanceAnchorV935ClientCapabilityPackageLifecycle: XCTestCase {
     func testC32V935ClientCapabilityPackageLifecycleCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .clientCapabilityAdmissionDecision,
@@ -1018,7 +1018,7 @@ private final class C32AssistanceAnchorV935ClientCapabilityPackageLifecycle: XCT
         )
     }
 }
-private final class C46V935PackageCompatibilityTests: XCTestCase {
+final class C46V935PackageCompatibilityTests: XCTestCase {
     func testC46PackageCannotSupplyOperationalContactProvider() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "capability-package",

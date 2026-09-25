@@ -7,7 +7,7 @@ private enum C52ServiceRequestBoundary_V9_29WorkPacketManifestTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45WorkPacketManifestCompatibilityTests: XCTestCase {
+final class C45WorkPacketManifestCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityBoundsBatchPlansAndManifestKinds() {
         XCTAssertEqual(AssetLabelGenerationPlanV1.maximumItemCount, 1_000)
         XCTAssertEqual(LabelArtifactKindV1.allCases.count, 3)
@@ -15,7 +15,7 @@ private final class C45WorkPacketManifestCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C51V929WorkPacketAnchorTests: XCTestCase {
+final class C51V929WorkPacketAnchorTests: XCTestCase {
     func testV23P03C51WorkPacketScheduleAdoptionIsDerivedAndExplicit() {
         XCTAssertTrue(C51WorkPacketScheduleBoundaryV1.scheduleClosureIsDerivedMetadataOnly)
         XCTAssertTrue(C51WorkPacketScheduleBoundaryV1.workPacketOwnsNoOccurrenceHistory)
@@ -24,7 +24,7 @@ private final class C51V929WorkPacketAnchorTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_29WorkPacketManifest: XCTestCase {
+final class C30EvidenceContextAnchorV9_29WorkPacketManifest: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -456,7 +456,7 @@ extension V9_29WorkPacketManifestTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorV929WorkPacketManifestTests: XCTestCase {
+final class C31LightingAnchorV929WorkPacketManifestTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -465,7 +465,7 @@ private final class C31LightingAnchorV929WorkPacketManifestTests: XCTestCase {
     }
 }
 
-private final class C33TemporalEvidenceAnchorV929WorkPacketManifest: XCTestCase {
+final class C33TemporalEvidenceAnchorV929WorkPacketManifest: XCTestCase {
     func testC33V929WorkPacketManifestCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "work-packet.temporal-limit-profile",
@@ -484,7 +484,7 @@ private final class C33TemporalEvidenceAnchorV929WorkPacketManifest: XCTestCase 
     }
 }
 
-private final class C32AssistanceAnchorV929WorkPacketManifest: XCTestCase {
+final class C32AssistanceAnchorV929WorkPacketManifest: XCTestCase {
     func testC32V929WorkPacketManifestCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .workPacketManifest,
@@ -504,7 +504,7 @@ private final class C32AssistanceAnchorV929WorkPacketManifest: XCTestCase {
         )
     }
 }
-private final class C46V929WorkPacketCompatibilityTests: XCTestCase {
+final class C46V929WorkPacketCompatibilityTests: XCTestCase {
     func testC46WorkPacketDoesNotOwnOperationalContact() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "work-packet",

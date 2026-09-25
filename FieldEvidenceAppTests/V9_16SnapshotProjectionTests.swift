@@ -10,7 +10,7 @@ private enum C53AssetServiceReliabilityBoundary_V9_16SnapshotProjectionTests {
     static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
 }
 
-private final class C50SnapshotProjectionTests: XCTestCase {
+final class C50SnapshotProjectionTests: XCTestCase {
     func testV23P03C50PrivacyManifestKeepsSensitiveClassesExplicitAndNeverImplicit() throws {
         XCTAssertEqual(IncumbentCanonicalFieldV1.allCases, [
             .fileFormatVersion,
@@ -50,7 +50,7 @@ private final class C50SnapshotProjectionTests: XCTestCase {
     }
 }
 
-private final class C51V916SnapshotProjectionAnchorTests: XCTestCase {
+final class C51V916SnapshotProjectionAnchorTests: XCTestCase {
     func testV23P03C51SnapshotAdoptsOnlyDerivedScheduleClosureMetadata() {
         let _: C51ScheduleClosureMetadataV1.Type =
             C51CompletedActivitySnapshotScheduleBoundaryV1.scheduleClosureMetadataType
@@ -60,7 +60,7 @@ private final class C51V916SnapshotProjectionAnchorTests: XCTestCase {
     }
 }
 
-private final class C45SnapshotProjectionCompatibilityTests: XCTestCase {
+final class C45SnapshotProjectionCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityProjectsExactlyPDFFormulaSafeCSVAndText() {
         XCTAssertEqual(LabelArtifactKindV1.allCases, [.pdf, .formulaSafeCSV, .structuredText])
         XCTAssertEqual(AssetLabelCanonicalCodecV1.maximumCanonicalByteCount, 16 * 1_024 * 1_024)
@@ -68,7 +68,7 @@ private final class C45SnapshotProjectionCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_16SnapshotProjection: XCTestCase {
+final class C30EvidenceContextAnchorV9_16SnapshotProjection: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -786,7 +786,7 @@ final class V9_16SnapshotProjectionTests: XCTestCase {
     }
 }
 
-private final class C27V916TypedLocatorAnchorTests: XCTestCase {
+final class C27V916TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(AssetLocatorStateV1.allCases.count, 4)
         XCTAssertEqual(LocatorBindingActionV1.allCases.count, 6)
@@ -1053,7 +1053,7 @@ extension V9_16SnapshotProjectionTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorV916SnapshotProjectionTests: XCTestCase {
+final class C31LightingAnchorV916SnapshotProjectionTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -1111,7 +1111,7 @@ extension V9_16SnapshotProjectionTests {
     }
 }
 
-private final class C33TemporalEvidenceAnchorV916SnapshotProjection: XCTestCase {
+final class C33TemporalEvidenceAnchorV916SnapshotProjection: XCTestCase {
     func testC33V916SnapshotProjectionCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "snapshot.temporal-evidence-link",
@@ -1130,7 +1130,7 @@ private final class C33TemporalEvidenceAnchorV916SnapshotProjection: XCTestCase 
     }
 }
 
-private final class C32AssistanceAnchorV916SnapshotProjection: XCTestCase {
+final class C32AssistanceAnchorV916SnapshotProjection: XCTestCase {
     func testC32V916SnapshotProjectionCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .surveyPublicationSnapshot,
@@ -1150,7 +1150,7 @@ private final class C32AssistanceAnchorV916SnapshotProjection: XCTestCase {
         )
     }
 }
-private final class C46V916SnapshotCompatibilityTests: XCTestCase {
+final class C46V916SnapshotCompatibilityTests: XCTestCase {
     func testC46SnapshotProjectionExcludesRawContactValue() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "snapshot-projection",
@@ -1172,7 +1172,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_16Snapsho
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_16SnapshotProjectionTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_16SnapshotProjectionTests_swift_Tests: XCTestCase {
     func testC47V916SnapshotProjectionTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_16SnapshotProjectionTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_16SnapshotProjectionTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
@@ -1186,14 +1186,14 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_16
     }
 }
 
-private final class C48PortableReviewV916SnapshotTests: XCTestCase {
+final class C48PortableReviewV916SnapshotTests: XCTestCase {
     func testC48SnapshotProjectionContainsDerivedHistoryOnly() {
         XCTAssertTrue(C48PortableReviewReportSnapshotBoundaryV1.reportSnapshotCarriesDerivedHistoryOnly)
         XCTAssertTrue(C48PortableReviewReportSnapshotBoundaryV1.capabilityProofIsExcluded)
         XCTAssertTrue(C48PortableReviewReportSnapshotBoundaryV1.rawResponseBytesAreExcluded)
     }
 }
-private final class C49WorkResourceSnapshotProjectionBoundaryTests: XCTestCase {
+final class C49WorkResourceSnapshotProjectionBoundaryTests: XCTestCase {
     func testTotalsProjectionKeepsCurrenciesKeyedSeparately() {
         let totals = WorkResourceTotalsProjectionV1(durationMinutes: 0, materialLineCount: 0, directCostByCurrency: ["EUR": 1, "USD": 2])
         XCTAssertEqual(Set(totals.directCostByCurrency.keys), ["EUR", "USD"])
@@ -1254,7 +1254,7 @@ private enum C57MyDaySnapshotFixtureV1 {
     }
 }
 
-private final class C57MyDaySnapshotProjectionTests: XCTestCase {
+final class C57MyDaySnapshotProjectionTests: XCTestCase {
     func testC57ProjectionAndOpenJSONAreDeterministicSourceBoundAndPrivacyBounded() throws {
         let (plan, readiness) = try C57MyDaySnapshotFixtureV1.values()
         let first = try C57MyDayReportProjectionRegistryV1.projection(

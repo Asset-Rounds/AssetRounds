@@ -7,7 +7,7 @@ private enum C52ServiceRequestBoundary_V9_37FieldReferencePackTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45FieldReferenceCompatibilityTests: XCTestCase {
+final class C45FieldReferenceCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityPinsTemplateIdentityByRevisionAndDigest() throws {
         let value = try AssetLabelTemplateReferenceV1(
             templateID: "reference-pack-label",
@@ -19,7 +19,7 @@ private final class C45FieldReferenceCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorV9_37FieldReferencePack: XCTestCase {
+final class C30EvidenceContextAnchorV9_37FieldReferencePack: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -1844,7 +1844,7 @@ final class V9_37FieldReferencePackTests: XCTestCase {
         }
     }
 }
-private final class C31LightingAnchorV937FieldReferencePackTests: XCTestCase {
+final class C31LightingAnchorV937FieldReferencePackTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -1853,7 +1853,7 @@ private final class C31LightingAnchorV937FieldReferencePackTests: XCTestCase {
     }
 }
 
-private final class C33TemporalEvidenceAnchorV937FieldReferencePack: XCTestCase {
+final class C33TemporalEvidenceAnchorV937FieldReferencePack: XCTestCase {
     func testC33V937FieldReferencePackCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "reference-pack.temporal-source-link",
@@ -1872,7 +1872,7 @@ private final class C33TemporalEvidenceAnchorV937FieldReferencePack: XCTestCase 
     }
 }
 
-private final class C32AssistanceAnchorV937FieldReferencePack: XCTestCase {
+final class C32AssistanceAnchorV937FieldReferencePack: XCTestCase {
     func testC32V937FieldReferencePackCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .fieldReferenceBinding,
@@ -1892,7 +1892,7 @@ private final class C32AssistanceAnchorV937FieldReferencePack: XCTestCase {
         )
     }
 }
-private final class C46V937PackCompatibilityTests: XCTestCase {
+final class C46V937PackCompatibilityTests: XCTestCase {
     func testC46ReferencePackCannotPrefillOperationalContact() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "reference-pack",

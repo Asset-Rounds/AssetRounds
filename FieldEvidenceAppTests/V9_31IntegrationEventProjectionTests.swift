@@ -758,7 +758,7 @@ extension V9_31IntegrationEventProjectionTests {
     }
 }
 
-private final class C53SharedProjectionReliabilityTests: XCTestCase {
+final class C53SharedProjectionReliabilityTests: XCTestCase {
     func testV23P03C53ProjectionCannotPromoteRawOrDerivedState() {
         XCTAssertTrue(C53SharedServiceReliabilitySemanticBoundaryV1.rawCapabilitiesAndDiagnosticProjectionsExcluded)
         XCTAssertTrue(C53SharedInspectionPackageRegistryBoundaryV1.registryDoesNotProjectReliabilityMetrics)

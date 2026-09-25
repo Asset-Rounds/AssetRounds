@@ -417,7 +417,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_13TypedRe
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_13TypedResponseTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_13TypedResponseTests_swift_Tests: XCTestCase {
     func testC47V913TypedResponseTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_13TypedResponseTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_13TypedResponseTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
@@ -431,7 +431,7 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_13
     }
 }
 
-private final class C53SharedTypedResponseReliabilityTests: XCTestCase {
+final class C53SharedTypedResponseReliabilityTests: XCTestCase {
     func testV23P03C53TypedResponseRemainsAnEvidenceInput() {
         XCTAssertTrue(C53SharedWorkflowReliabilityBoundaryV1.reliabilityInputIsNotWorkflowState)
         XCTAssertTrue(C53SharedWorkflowReliabilityBoundaryV1.metricProjectionIsDerivedOnly)

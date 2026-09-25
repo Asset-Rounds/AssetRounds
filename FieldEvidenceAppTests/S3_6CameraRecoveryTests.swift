@@ -7,7 +7,7 @@ import UniformTypeIdentifiers
 import XCTest
 @testable import FieldEvidenceApp
 
-private final class C45CameraRecoveryCompatibilityTests: XCTestCase {
+final class C45CameraRecoveryCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityCameraAndManualConsumeSameOpaqueGrammar() {
         XCTAssertEqual(Set(LocatorInputSourceV1.allCases), [.camera, .manual, .imported])
         XCTAssertEqual(AssetLabelOpaqueQRPayloadV1.prefix, "AR1")
@@ -19,7 +19,7 @@ private enum C52ServiceRequestBoundary_S3_6CameraRecoveryTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C51S36CameraRecoveryAnchorTests: XCTestCase {
+final class C51S36CameraRecoveryAnchorTests: XCTestCase {
     func testV23P03C51ScheduleNeverStartsWorkOrRequestsCameraPermission() {
         XCTAssertTrue(C51ScheduleCameraBoundaryV1.cameraCaptureDoesNotStartOccurrence)
         XCTAssertTrue(C51ScheduleCameraBoundaryV1.scheduleGenerationRequestsNoCameraPermission)
@@ -27,7 +27,7 @@ private final class C51S36CameraRecoveryAnchorTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorS3_6CameraRecovery: XCTestCase {
+final class C30EvidenceContextAnchorS3_6CameraRecovery: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -330,7 +330,7 @@ final class S3_6CameraRecoveryTests: XCTestCase {
     }
 }
 
-private final class C27S36TypedLocatorAnchorTests: XCTestCase {
+final class C27S36TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(LocatorInputSourceV1.allCases, [.camera, .manual, .imported])
         XCTAssertEqual(AssetLocatorLimitsV1.maximumInputBytes, 1_024)
@@ -424,7 +424,7 @@ extension S3_6CameraRecoveryTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorS3_6CameraRecovery: XCTestCase {
+final class C31LightingAnchorS3_6CameraRecovery: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -433,7 +433,7 @@ private final class C31LightingAnchorS3_6CameraRecovery: XCTestCase {
     }
 }
 
-private final class C33TemporalEvidenceAnchorS36CameraRecovery: XCTestCase {
+final class C33TemporalEvidenceAnchorS36CameraRecovery: XCTestCase {
     func testC33S36CameraRecoveryCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "capture.video-explicit-intent",
@@ -452,7 +452,7 @@ private final class C33TemporalEvidenceAnchorS36CameraRecovery: XCTestCase {
     }
 }
 
-private final class C32AssistanceAnchorS36CameraRecovery: XCTestCase {
+final class C32AssistanceAnchorS36CameraRecovery: XCTestCase {
     func testC32S36CameraRecoveryCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .evidenceFile,
@@ -472,7 +472,7 @@ private final class C32AssistanceAnchorS36CameraRecovery: XCTestCase {
         )
     }
 }
-private final class C46S36CameraCompatibilityTests: XCTestCase {
+final class C46S36CameraCompatibilityTests: XCTestCase {
     func testC46CameraRecoveryCannotInferOperationalContact() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "camera-recovery",

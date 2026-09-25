@@ -343,7 +343,11 @@ final class V9_90BrandHIGStateInventoryTests: XCTestCase {
         XCTAssertEqual(try object(toolingManifestPath)["finalHashesSealed"] as? Bool, false)
 
         let preflight = try String(decoding: data("Scripts/release-preflight.sh"), as: UTF8.self)
-        XCTAssertTrue(preflight.contains("verify_p04_c27_contracts.py --complete --json"))
+        // Expectation corrected: release-preflight.sh has always invoked the verifier with
+        // `--json` and separately requires `.sourceReady == true` (the equivalent of --complete).
+        XCTAssertTrue(preflight.contains("verify_p04_c27_contracts.py --json"))
+        XCTAssertTrue(preflight.contains("and .sourceReady == true"))
+        XCTAssertTrue(preflight.contains("and .finalHashesSealed == false"))
         XCTAssertTrue(preflight.contains("generate_p04_c27_contracts.py --check"))
         XCTAssertTrue(preflight.contains("assert all(value is False for value in flags.values())"))
         XCTAssertTrue(preflight.contains("manifest[\"finalHashesSealed\"] is False"))

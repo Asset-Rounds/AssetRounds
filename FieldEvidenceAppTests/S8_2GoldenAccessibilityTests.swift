@@ -5,7 +5,7 @@ private enum C52ServiceRequestBoundary_S8_2GoldenAccessibilityTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
 }
 
-private final class C45GoldenAccessibilityCompatibilityTests: XCTestCase {
+final class C45GoldenAccessibilityCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityOwnsAccessibleStructuredTextArtifact() {
         XCTAssertTrue(LabelArtifactKindV1.allCases.contains(.structuredText))
         XCTAssertEqual(LabelDisclosureProfileV1.shortCodeOnly.rawValue, "SHORT_CODE_ONLY")
@@ -13,7 +13,7 @@ private final class C45GoldenAccessibilityCompatibilityTests: XCTestCase {
     }
 }
 
-private final class C51S82GoldenAccessibilityAnchorTests: XCTestCase {
+final class C51S82GoldenAccessibilityAnchorTests: XCTestCase {
     func testV23P03C51AccessibilityRequirementsDoNotClaimAnImplementedUI() {
         XCTAssertTrue(ScheduleAccessibilityPolicyV1.accessibilityContractDeclared)
         XCTAssertTrue(ScheduleAccessibilityPolicyV1.voiceControlStableNameRequired)
@@ -23,7 +23,7 @@ private final class C51S82GoldenAccessibilityAnchorTests: XCTestCase {
     }
 }
 
-private final class C30EvidenceContextAnchorS8_2GoldenAccessibility: XCTestCase {
+final class C30EvidenceContextAnchorS8_2GoldenAccessibility: XCTestCase {
     func testTypedEvidenceContextContractAnchor() throws {
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
         XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
@@ -176,7 +176,7 @@ final class S8_2GoldenAccessibilityTests: XCTestCase {
     }
 }
 
-private final class C27S82TypedLocatorAnchorTests: XCTestCase {
+final class C27S82TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(ExternalKeyNormalizationV1.allCases.count, 2)
         XCTAssertEqual(AssetLocatorLimitsV1.maximumCandidates, 32)
@@ -217,7 +217,7 @@ extension S8_2GoldenAccessibilityTests {
         XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
     }
 }
-private final class C31LightingAnchorS82GoldenAccessibilityTests: XCTestCase {
+final class C31LightingAnchorS82GoldenAccessibilityTests: XCTestCase {
     func testC31TypedLightingPackageContractAnchor() throws {
         XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
         XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
@@ -272,7 +272,7 @@ extension S8_2GoldenAccessibilityTests {
     }
 }
 
-private final class C33TemporalEvidenceAnchorS82GoldenAccessibility: XCTestCase {
+final class C33TemporalEvidenceAnchorS82GoldenAccessibility: XCTestCase {
     func testC33S82GoldenAccessibilityCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
         let value = try C33TemporalEvidenceTestSupport.ownerClip(
             factID: "golden.temporal-accessible-description",
@@ -291,7 +291,7 @@ private final class C33TemporalEvidenceAnchorS82GoldenAccessibility: XCTestCase 
     }
 }
 
-private final class C32AssistanceAnchorS82GoldenAccessibility: XCTestCase {
+final class C32AssistanceAnchorS82GoldenAccessibility: XCTestCase {
     func testC32S82GoldenAccessibilityCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
         let proposal = try C32AssistanceTestSupport.ownerProposal(
             entityKind: .factCapture,
@@ -311,7 +311,7 @@ private final class C32AssistanceAnchorS82GoldenAccessibility: XCTestCase {
         )
     }
 }
-private final class C46S82GoldenAccessibilityCompatibilityTests: XCTestCase {
+final class C46S82GoldenAccessibilityCompatibilityTests: XCTestCase {
     func testC46GoldenAccessibilityRequiresExplicitHandoff() throws {
         try C46OperationalContactTestSupport.assertOwnerBoundary(
             owner: "golden-accessibility",
@@ -333,7 +333,7 @@ private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_2GoldenAc
     static let threeReceiptIsolationIsRequired = true
 }
 
-private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_2GoldenAccessibilityTests_swift_Tests: XCTestCase {
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_2GoldenAccessibilityTests_swift_Tests: XCTestCase {
     func testC47S82GoldenAccessibilityTestsOwnerCompatibilityIsTyped() {
         XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_2GoldenAccessibilityTests_swift.compatibilityCardID, "V23-P03-C47")
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_2GoldenAccessibilityTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
@@ -347,7 +347,7 @@ private final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S8_2G
     }
 }
 
-private final class C48PortableReviewS82AccessibilityTests: XCTestCase {
+final class C48PortableReviewS82AccessibilityTests: XCTestCase {
     func testC48AccessibilitySpeaksTrustLimitWithoutSecrets() {
         XCTAssertTrue(C48PortableReviewAccessibilityPolicyV1.statusIsNotColorOnly)
         XCTAssertTrue(C48PortableReviewAccessibilityPolicyV1.explicitTrustLimitationIsSpoken)
@@ -355,13 +355,13 @@ private final class C48PortableReviewS82AccessibilityTests: XCTestCase {
         XCTAssertFalse(C48PortableReviewAccessibilityPolicyV1.verifiedIdentitySpoken)
     }
 }
-private final class C49WorkResourceGoldenAccessibilityBoundaryTests: XCTestCase {
+final class C49WorkResourceGoldenAccessibilityBoundaryTests: XCTestCase {
     func testVisibilityLabelsRemainExplicitAndStable() {
         XCTAssertEqual(WorkResourceVisibilityPolicyV1.allCases.map(\.rawValue), ["INTERNAL_ONLY", "CUSTOMER_SAFE"])
     }
 }
 
-private final class C50IncumbentAdapterS82AccessibilityBoundaryTests: XCTestCase {
+final class C50IncumbentAdapterS82AccessibilityBoundaryTests: XCTestCase {
     func testDisabledProfileStateRemainsTruthfulAndProviderNeutral() {
         XCTAssertEqual(
             Bundle.main.object(forInfoDictionaryKey: "FieldEvidenceIncumbentFileAdapterStatus") as? String,

@@ -387,7 +387,7 @@ final class V9_09ConcurrencyScaleTests: XCTestCase {
                 options: .atomic
             )
             lateProbe.enter(onMainThread: pthread_main_np() != 0)
-            lateGate.wait()
+            lateGate.wait("H01 late publisher gate")
             lateProbe.leave()
             throw V909InjectedFailure.effectBeforeReceipt
         }
@@ -1039,10 +1039,25 @@ private final class V909SynchronousGate: @unchecked Sendable {
     private let condition = NSCondition()
     private var isOpenStorage = false
 
-    func wait() {
+    /// Blocks until the gate opens, or records a named XCTFail cause and
+    /// returns false after `timeout` seconds instead of hanging the run.
+    @discardableResult
+    func wait(
+        _ cause: String = "V909SynchronousGate.wait",
+        timeout: TimeInterval = 30,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
         condition.lock()
-        while !isOpenStorage { condition.wait() }
-        condition.unlock()
+        defer { condition.unlock() }
+        while !isOpenStorage {
+            guard condition.wait(until: deadline) else {
+                XCTFail("\(cause): gate was not opened within \(Int(timeout)) s", file: file, line: line)
+                return false
+            }
+        }
+        return true
     }
 
     func open() {
@@ -1125,7 +1140,15 @@ private actor V909StartBarrier {
 }
 
 private final class V909GenerationCommitAuthority: @unchecked Sendable {
-    private let lock = NSRecursiveLock()
+    // `commitLock` serialises commits and epoch replacements (a replacement
+    // attempted during an authorised commit waits for that commit to finish).
+    // `stateLock` guards the stored fields only and is never held across a
+    // gate wait or the effect, so `currentEpoch()` stays readable while a
+    // commit is parked on its publication gate. Holding one lock for both
+    // purposes deadlocked I01: the test thread read `currentEpoch()` while
+    // the commit held the lock waiting for a gate only the test thread opens.
+    private let commitLock = NSRecursiveLock()
+    private let stateLock = NSLock()
     private var accepted: GenerationEpochV1
     private var nextCommitGate: V909SynchronousGate?
     let commitEntered = V909SynchronousGate()
@@ -1137,28 +1160,42 @@ private final class V909GenerationCommitAuthority: @unchecked Sendable {
     }
 
     func currentEpoch() -> GenerationEpochV1 {
-        lock.lock()
-        defer { lock.unlock() }
+        stateLock.lock()
+        defer { stateLock.unlock() }
         return accepted
     }
 
     func blockNextCommit(on gate: V909SynchronousGate) {
-        lock.lock()
+        stateLock.lock()
         nextCommitGate = gate
-        lock.unlock()
+        stateLock.unlock()
+    }
+
+    private func storeAccepted(_ successor: GenerationEpochV1) {
+        stateLock.lock()
+        accepted = successor
+        stateLock.unlock()
+    }
+
+    private func takeNextCommitGate() -> V909SynchronousGate? {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        let gate = nextCommitGate
+        nextCommitGate = nil
+        return gate
     }
 
     func replaceImmediately(with successor: GenerationEpochV1) {
-        lock.lock()
-        accepted = successor
-        lock.unlock()
+        commitLock.lock()
+        defer { commitLock.unlock() }
+        storeAccepted(successor)
     }
 
     func replaceDuringCommit(with successor: GenerationEpochV1) {
         replacementAttempted.open()
-        lock.lock()
-        accepted = successor
-        lock.unlock()
+        commitLock.lock()
+        storeAccepted(successor)
+        commitLock.unlock()
         replacementCompleted.open()
     }
 
@@ -1166,18 +1203,19 @@ private final class V909GenerationCommitAuthority: @unchecked Sendable {
         expected: GenerationEpochV1,
         effect: @escaping @Sendable () throws -> LocalJobPublicationOutcomeV1
     ) throws -> LocalJobPublicationOutcomeV1 {
-        lock.lock()
-        defer { lock.unlock() }
-        guard expected == accepted else {
+        commitLock.lock()
+        defer { commitLock.unlock() }
+        guard expected == currentEpoch() else {
             throw GenerationLocalJobPublicationFailureV1.staleGeneration
         }
-        if let gate = nextCommitGate {
-            nextCommitGate = nil
+        if let gate = takeNextCommitGate() {
             commitEntered.open()
-            gate.wait()
+            guard gate.wait("I01 authorised-commit publication gate") else {
+                throw V909InjectedFailure.timeout
+            }
         }
         let outcome = try effect()
-        guard expected == accepted else {
+        guard expected == currentEpoch() else {
             throw GenerationLocalJobPublicationFailureV1.staleGeneration
         }
         return outcome

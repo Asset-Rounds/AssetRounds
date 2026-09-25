@@ -52,7 +52,7 @@ struct FinalizationIntentV1: Codable, Equatable, Sendable {
         }
         if let authority {
             try authority.validate(envelope: envelope)
-            guard authority.payload == finalizationPayload,
+            guard FinalizationCanonicalBindingV1.samePayload(authority.payload, finalizationPayload),
                   authority.payloadSHA256 == finalizationPayloadSHA256,
                   authority.snapshotRelativePath == snapshotFinalRelativePath,
                   authority.snapshotSHA256 == snapshotSHA256,
@@ -729,6 +729,32 @@ struct FinalizationContractDecoderV1 {
     }()
 }
 
+/// The writer authority inside a schema-2 binding is decoded from the
+/// envelope's own canonical codec (`millisecondsSince1970` as a JSON double),
+/// so its `Date` values can differ from the intent's by a floating-point ULP
+/// even when both name the same instant. Binding checks therefore compare
+/// what is persisted: the finalization contract's canonical bytes, whose
+/// timestamps are RFC3339 UTC milliseconds. Every other field is compared at
+/// full fidelity through the same canonical encoding; nothing is tolerated
+/// beyond the persisted precision, and no persisted bytes change.
+enum FinalizationCanonicalBindingV1 {
+    static func samePayload(_ lhs: FinalizationPayloadV1, _ rhs: FinalizationPayloadV1) -> Bool {
+        let encoder = FinalizationContractEncoderV1()
+        guard let left = try? encoder.encodePayload(lhs),
+              let right = try? encoder.encodePayload(rhs) else { return false }
+        return left.data == right.data
+    }
+
+    static func sameInstant(_ lhs: Date?, _ rhs: Date?) -> Bool {
+        switch (lhs, rhs) {
+        case (.none, .none): return true
+        case let (.some(left), .some(right)):
+            return CanonicalJSONV1.date(left) == CanonicalJSONV1.date(right)
+        default: return false
+        }
+    }
+}
+
 struct FinalizationContractEncoderV1 {
     func encodePayload(_ payload: FinalizationPayloadV1) throws -> EncodedFinalizationContractV1 {
         guard Self.validObservationAndTime(payload.workflowRecordAfter) else {
@@ -778,16 +804,20 @@ struct FinalizationContractEncoderV1 {
                   authority.generationID == envelope.generationID,
                   envelope.generationID == intent.generationID,
                   envelope.mutationID.rawValue == intent.finalizationMutationID,
-                  authority.payload == intent.finalizationPayload,
+                  FinalizationCanonicalBindingV1.samePayload(authority.payload, intent.finalizationPayload),
                   authority.payloadSHA256 == intent.finalizationPayloadSHA256,
                   authority.snapshotRelativePath == intent.snapshotFinalRelativePath,
                   authority.snapshotSHA256 == intent.snapshotSHA256,
                   authority.payload.workflowRecordAfter.id == intent.recordID,
-                  authority.payload.workflowRecordAfter.completedAt == intent.completedAt,
+                  FinalizationCanonicalBindingV1.sameInstant(
+                      authority.payload.workflowRecordAfter.completedAt, intent.completedAt
+                  ),
                   authority.payload.packetAfter.id == intent.packetID,
                   authority.payload.packetAfter.stableRootID == intent.stableRootID,
                   authority.payload.reportInsert?.id == intent.reportID,
-                  authority.payload.reportInsert?.createdAt == intent.snapshotCreatedAt else {
+                  FinalizationCanonicalBindingV1.sameInstant(
+                      authority.payload.reportInsert?.createdAt, intent.snapshotCreatedAt
+                  ) else {
 #if DEBUG
                 finalizationIntentBindingDiagnosticV1(authority: authority, envelope: envelope, intent: intent)
 #endif
@@ -1280,11 +1310,17 @@ private func finalizationIntentBindingDiagnosticV1(
         ("snapshotPath", authority.snapshotRelativePath == intent.snapshotFinalRelativePath),
         ("snapshotHash", authority.snapshotSHA256 == intent.snapshotSHA256),
         ("record", authority.payload.workflowRecordAfter.id == intent.recordID),
-        ("completedAt", authority.payload.workflowRecordAfter.completedAt == intent.completedAt),
+        ("completedAt", FinalizationCanonicalBindingV1.sameInstant(
+            authority.payload.workflowRecordAfter.completedAt, intent.completedAt
+        )),
+        ("rawCompletedAt", authority.payload.workflowRecordAfter.completedAt == intent.completedAt),
         ("packet", authority.payload.packetAfter.id == intent.packetID),
         ("stableRoot", authority.payload.packetAfter.stableRootID == intent.stableRootID),
         ("report", authority.payload.reportInsert?.id == intent.reportID),
-        ("snapshotCreatedAt", authority.payload.reportInsert?.createdAt == intent.snapshotCreatedAt),
+        ("snapshotCreatedAt", FinalizationCanonicalBindingV1.sameInstant(
+            authority.payload.reportInsert?.createdAt, intent.snapshotCreatedAt
+        )),
+        ("rawSnapshotCreatedAt", authority.payload.reportInsert?.createdAt == intent.snapshotCreatedAt),
     ]
     finalizationJournalDiagnosticFailureV1(
         component: "contract", phase: "schema2-binding",
