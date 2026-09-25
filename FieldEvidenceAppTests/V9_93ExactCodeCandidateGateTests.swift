@@ -44,7 +44,10 @@ final class V9_93ExactCodeCandidateGateTests: XCTestCase {
         XCTAssertEqual(counts["provisionalStateCountVector"] as? [Int], [112, 14, 5, 1])
         XCTAssertEqual(counts["commonJourneys"] as? Int, 14)
         XCTAssertEqual(counts["featureJourneys"] as? Int, 17)
-        XCTAssertEqual(counts["logicalLanes"] as? Int, 5)
+        // Owner-delegated decision (2026-09-25, owner decision 14): the frozen P05-C01 corpus
+        // (FieldEvidenceAppTests/Fixtures/V23/Release/V23P05C01ExactCodeCandidateGateCorpusV1.json at
+        // 5f17cdcd) names this count requiredCounts.logicalAcceptanceLanes; "logicalLanes" never existed.
+        XCTAssertEqual(counts["logicalAcceptanceLanes"] as? Int, 5)
         XCTAssertTrue(try valid(ledger))
         XCTAssertEqual(try strings(try dictionary(ledger, "journeyGates"), "commonJourneyIDs"), ["J01_FIRST_ENTRY", "J02_REAL_WORKSPACE_CREATE_IMPORT_SELECT", "J03_SITE_LOCATION_ASSET_CREATE_FIND_SCAN", "J04_OFFLINE_PREPARE", "J05_ROUND_START_RESUME", "J06_EVIDENCE_CAPTURE_CURATE", "J07_VALIDATION_INCOMPLETE_RESOLUTION", "J08_COMPLETE_NEXT_CLOSE", "J09_REPORT_PREVIEW_SHARE_EXPORT", "J10_BACKUP_RESTORE_RECOVERY", "J11_SETTINGS_ACCESSIBILITY_HELP", "J12_PURCHASE_RESTORE", "J13_DELETE_ERASE", "J14_PRACTICE_START_SWITCH_LEAVE"])
         XCTAssertEqual(try strings(try dictionary(ledger, "journeyGates"), "featureJourneyIDs"), (1...17).map { String(format: "FJ%02d", $0) })
@@ -136,10 +139,82 @@ final class V9_93ExactCodeCandidateGateTests: XCTestCase {
     }
 
     private func assertSourceHashClosure(_ ledger: [String: Any]) throws {
-        for binding in try objects(ledger, "readOnlyBindings") {
+        let bindings = try objects(ledger, "readOnlyBindings")
+        XCTAssertEqual(bindings.count, 17)
+        for binding in bindings {
             let path = try XCTUnwrap(binding["path"] as? String)
-            XCTAssertEqual(binding["sha256"] as? String, digest(try data(path)), path)
+            XCTAssertEqual(binding["sha256"] as? String, digest(try cardTimeData(path)), path)
         }
+        XCTAssertEqual(
+            Set(Self.cardHistory.map(\.path)).subtracting(bindings.compactMap { $0["path"] as? String }),
+            []
+        )
+    }
+
+    // Owner-delegated decision (2026-09-25): by analogy with owner decision 7, this card-time
+    // test proves the committed P05-C01 history, not live CI state. The receipt-bound record
+    // (never edited) binds the CI selector and workflow bytes as committed at 5f17cdcd, the
+    // commit that wrote it; those CI-state paths are read from exact git-blob copies indexed by
+    // docs/design/v23/integration/v23-card-history/manifest.json, each admitted only when its
+    // byte count, SHA-256 and git blob id equal the pins below (recheck: git rev-parse
+    // 5f17cdcd:<path>). Every other binding path is still read live.
+    private struct CardHistoryEntry {
+        let path: String
+        let byteCount: Int
+        let sha256: String
+        let gitBlobOID: String
+        let copy: String
+    }
+    private static let cardHistoryDirectory = "docs/design/v23/integration/v23-card-history"
+    private static let cardHistoryCommit = "5f17cdcd63a4ee7cbdfe50c73c0b0265bdbc1ef3"
+    private static let cardHistory: [CardHistoryEntry] = [
+        .init(path: "Scripts/ci-selection.json", byteCount: 340,
+              sha256: "03C23506919733DDE0174448E446D26DF4753C505BE242587886F142D281314F",
+              gitBlobOID: "2e8d194fbb52f0bdcc1bd420af4c254638eb9a49", copy: "blobs/03C23506919733DD.json"),
+        .init(path: ".github/workflows/ios-ci.yml", byteCount: 23_068,
+              sha256: "BCD64E2A42752D28844435241B5ABFCA911D04190375CBBDBFC10B45ACBA97D7",
+              gitBlobOID: "bade6a6442bd77a6c15eaefa70726b1efc1b3c73", copy: "blobs/BCD64E2A42752D28.yml"),
+        // Owner-delegated decision (2026-09-25): the other five CI-state bindings (controller and
+        // worker workflows, controller, capacity contracts, release test plan) are card-time
+        // history too (owner decision 7 by analogy); pinned to their bytes at 5f17cdcd.
+        .init(path: ".github/workflows/v23-controller.yml", byteCount: 1_009,
+              sha256: "9191E22EF1485AF2DC3DD6A1F0201FE16FE2E6F884BED89FC701F1B4EB4B817B",
+              gitBlobOID: "41ddf4caef03d8ac0041eb2d7a9da96266dfa19d", copy: "blobs/9191E22EF1485AF2.yml"),
+        .init(path: ".github/workflows/v23-worker.yml", byteCount: 5_758,
+              sha256: "EE00DD9C894CFDC353B53E52813498C81A7A6D5486920931EEC2CBE1CACA2F51",
+              gitBlobOID: "d0a1b108b9b11e7c3d31cb65ff9a718587e7dc33", copy: "blobs/EE00DD9C894CFDC3.yml"),
+        .init(path: "Scripts/v23/controller.py", byteCount: 3_060,
+              sha256: "F5634CF788AFE80911DB6DBEDFF53464B23556EFF5EEF4037A7F625343738B35",
+              gitBlobOID: "b5b49853485fbbfc35878f926db5d7eb499a965c", copy: "blobs/F5634CF788AFE809.py"),
+        .init(path: "Scripts/v23/controller_contracts.py", byteCount: 47_899,
+              sha256: "64F2A2D6975AE17CDAB96CA1DDAA78FEB5EEB8990325EE632C01F1CD79CCB977",
+              gitBlobOID: "d24d453bb0c4460ad2090b73157e673486d83659", copy: "blobs/64F2A2D6975AE17C.py"),
+        .init(path: "TestPlans/V23-ReleaseCandidate.xctestplan", byteCount: 781,
+              sha256: "0539566B34917618F575650D256A2AE125FEA6E8C31365C07871C52556F4B606",
+              gitBlobOID: "213268188de10f7e5b919272410c9cb501f09e09", copy: "blobs/0539566B34917618.xctestplan"),
+    ]
+
+    private func cardTimeData(_ path: String) throws -> Data {
+        guard let entry = Self.cardHistory.first(where: { $0.path == path }) else { return try data(path) }
+        let index = try object("\(Self.cardHistoryDirectory)/manifest.json")
+        XCTAssertEqual(index["document_id"] as? String, "v23-card-history-v1")
+        let rows = try objects(index, "entries").filter { ($0["path"] as? String) == path }
+        XCTAssertEqual(rows.count, 1, path)
+        let row = try XCTUnwrap(rows.first, path)
+        XCTAssertEqual(row["card_id"] as? String, "V23-P05-C01", path)
+        XCTAssertEqual(row["commit"] as? String, Self.cardHistoryCommit, path)
+        XCTAssertEqual(row["byte_count"] as? Int, entry.byteCount, path)
+        XCTAssertEqual(row["sha256"] as? String, entry.sha256, path)
+        XCTAssertEqual(row["git_blob_oid"] as? String, entry.gitBlobOID, path)
+        XCTAssertEqual(row["copy"] as? String, entry.copy, path)
+        let bytes = try data("\(Self.cardHistoryDirectory)/\(entry.copy)")
+        XCTAssertEqual(bytes.count, entry.byteCount, path)
+        XCTAssertEqual(digest(bytes).uppercased(), entry.sha256, path)
+        var blob = Insecure.SHA1()
+        blob.update(data: Data("blob \(bytes.count)\u{0}".utf8))
+        blob.update(data: bytes)
+        XCTAssertEqual(blob.finalize().map { String(format: "%02x", $0) }.joined(), entry.gitBlobOID, path)
+        return bytes
     }
 
     private var rootURL: URL { URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent() }

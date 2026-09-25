@@ -466,9 +466,13 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
         XCTAssertEqual(Set(descriptors.map(\.stableKindID)), expected)
         for descriptor in descriptors {
             let policy = try catalog.lifecyclePolicy(for: descriptor.subject)
-            XCTAssertEqual(try policy.backup, .supported)
-            XCTAssertEqual(try policy.replaceRestore, .supported)
-            XCTAssertEqual(try policy.erase, .supported)
+            // Owner-delegated decision (2026-09-25): the nine C40 families are replicated mutation
+            // history (stableIDAppendUnion), so the catalog routes them to immutable history:
+            // backup includeImmutableHistory, replace-restore immutable, and a descriptive immutable
+            // erase disposition (Erase-all still removes the whole generation).
+            XCTAssertEqual(try policy.backup, .immutable, descriptor.stableKindID)
+            XCTAssertEqual(try policy.replaceRestore, .immutable, descriptor.stableKindID)
+            XCTAssertEqual(try policy.erase, .immutable, descriptor.stableKindID)
         }
     }
 

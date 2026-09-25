@@ -538,6 +538,24 @@ final class StoreSessionCoordinator: ObservableObject {
         }
     }
 
+    /// Resolves the current pointer's workspace identity through this
+    /// coordinator's retained lease registry, so it is safe inside
+    /// `withCheckRunnerPhotoPublication`. A fresh `StoreGenerationFactory`
+    /// there opens a second mutation-lock descriptor whose blocking flock
+    /// waits forever on the lock this same thread already holds.
+    func currentWorkspaceIdentityWithinPublication(
+        applicationSupportURL: URL, expectedGenerationID: UUID
+    ) throws -> WorkspaceReplicaIdentityV1 {
+        guard applicationSupportURL.standardizedFileURL
+                == generationFactory.restoreApplicationSupportURL.standardizedFileURL else {
+            throw GenerationLeaseRegistryFailureV1.staleGeneration
+        }
+        return try generationFactory.currentWorkspaceIdentity(
+            expectedGenerationID: expectedGenerationID,
+            authority: generationFactory.makeRestoreGenerationAuthority()
+        )
+    }
+
     func activate(session: StoreGenerationSession) {
         do {
             try activateValidating(session: session)

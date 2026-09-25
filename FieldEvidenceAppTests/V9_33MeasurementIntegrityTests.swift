@@ -850,14 +850,14 @@ final class V9_33MeasurementIntegrityTests: XCTestCase {
         XCTAssertTrue(fixture.manualCapture.measurement.source.isLocalMeasurementCaptureSource)
         let installation = try InstallationPlanReferenceV1(
             workspaceID: fixture.workspace, planID: C19MeasurementIntegrityTestSupport.id(80),
-            planVersion: 1, planSHA256: C19MeasurementIntegrityTestSupport.digest("g"),
+            planVersion: 1, planSHA256: C19MeasurementIntegrityTestSupport.digest("7"),
             measurementSubjectID: fixture.capture.captureID,
             measurementSubjectRevision: fixture.capture.revision,
             measurementSubjectSHA256: fixture.capture.captureSHA256
         )
         let punch = try PunchPlanReferenceV1(
             workspaceID: fixture.workspace, planID: C19MeasurementIntegrityTestSupport.id(81),
-            planVersion: 1, planSHA256: C19MeasurementIntegrityTestSupport.digest("h"),
+            planVersion: 1, planSHA256: C19MeasurementIntegrityTestSupport.digest("8"),
             measurementSubjectID: fixture.capture.captureID,
             measurementSubjectRevision: fixture.capture.revision,
             measurementSubjectSHA256: fixture.capture.captureSHA256
@@ -1106,7 +1106,7 @@ final class V9_33MeasurementIntegrityTests: XCTestCase {
             subjectKind: .series,
             subjectID: fixture.series.seriesID,
             subjectRevision: fixture.series.revision,
-            subjectSHA256: C19MeasurementIntegrityTestSupport.digest("q"),
+            subjectSHA256: C19MeasurementIntegrityTestSupport.digest("9"),
             result: .reviewRequired,
             reasonCodes: [.retainedOutlier],
             policyVersion: "C19-MEASUREMENT-POLICY-V1",

@@ -399,9 +399,33 @@ struct EntityIdentityResolutionMutationCommandV1: Codable, Equatable, Sendable {
               payload.workspaceID == workspaceID, payload.mutationID == mutationID,
               commandSHA256 == (try EntityIdentityResolutionValidationV1.hash(basis)) else { throw EntityIdentityResolutionFailureV1.wrongWorkspace }
     }
+    // Owner decision 14 (2026-09-25), product fix for review: frozen V23-P04-C13 requires an exact
+    // expected revision for every canonical mutation (blueprint "Every canonical workspace mutation uses
+    // expected revision"; V21-P04-C13 "plan binds ... exact revision", excludes "history rewrite";
+    // V23P04C13EntityIdentityResolutionContractV1.json testSelectors[1] "...UseExactRevision"). The
+    // exact form follows the repo convention (ReinspectionExceptionMutationCommandV1.canonicalExpectedRevision,
+    // PartyAccountabilityCoordinatorV1): the current snapshot plus the concurrency target at revision 0
+    // when it has no row yet. This agrees with WorkspaceWriterV1.validateEntityIdentityResolutionLineage,
+    // which requires exactly one target row; a bare snapshot could never satisfy both on a first commit.
     func validate(currentRevision: WorkspaceRevisionV1, resolver: any EntityIdentityCanonicalResolvingV1) throws {
-        try validate(); guard WorkspaceExpectedRevisionV1(snapshot: currentRevision) == expectedRevision else { throw EntityIdentityResolutionFailureV1.staleRevision }
+        try validate()
+        guard try Self.canonicalExpectedRevision(WorkspaceExpectedRevisionV1(snapshot: currentRevision), for: payload) == expectedRevision
+        else { throw EntityIdentityResolutionFailureV1.staleRevision }
         try payload.validateResolved(by: resolver)
+    }
+    static func concurrencyTarget(for payload: EntityIdentityResolutionMutationPayloadV1) throws -> WorkspaceEntityIdentityV1 {
+        switch payload {
+        case let .alias(value, _): return try .init(kind: .entityAliasLink, id: value.alias.identity.id)
+        case let .consolidation(value, _): return try .init(kind: .entityConsolidationReceipt, id: value.source.identity.id)
+        }
+    }
+    static func canonicalExpectedRevision(_ snapshot: WorkspaceExpectedRevisionV1,
+                                          for payload: EntityIdentityResolutionMutationPayloadV1) throws -> WorkspaceExpectedRevisionV1 {
+        let target = try concurrencyTarget(for: payload)
+        var rows = snapshot.entityRevisions
+        if !rows.contains(where: { $0.identity == target }) { rows.append(WorkspaceEntityRevisionV1(identity: target, revision: 0)) }
+        return try WorkspaceExpectedRevisionV1(workspaceID: snapshot.workspaceID, generationID: snapshot.generationID,
+            writerInstanceID: snapshot.writerInstanceID, workspaceRevision: snapshot.workspaceRevision, entityRevisions: rows)
     }
     private var basis: Basis { .init(schemaVersion: schemaVersion, commandID: commandID, workspaceID: workspaceID, expectedRevision: expectedRevision, mutationID: mutationID, payload: payload, submittedAt: submittedAt) }
     private struct Basis: Codable { let schemaVersion: Int; let commandID: UUID; let workspaceID: WorkspaceID; let expectedRevision: WorkspaceExpectedRevisionV1; let mutationID: MutationIDV1; let payload: EntityIdentityResolutionMutationPayloadV1; let submittedAt: Date }

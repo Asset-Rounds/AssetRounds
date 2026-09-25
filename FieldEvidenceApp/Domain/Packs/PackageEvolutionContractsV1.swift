@@ -473,7 +473,10 @@ struct PackageEvolutionLifecycleClosureV1: Codable, Equatable, Sendable {
 
 enum PackageEvolutionCanonicalCodecV1{static func encode<T:Codable>(_ value:T)throws->Data{let e=JSONEncoder();e.outputFormatting=[.sortedKeys,.withoutEscapingSlashes];e.dateEncodingStrategy = .millisecondsSince1970;return try e.encode(value)};static func decode<T:Codable>(_ type:T.Type,from data:Data)throws->T{guard !data.isEmpty,data.count<=4_194_304 else{throw PackageEvolutionFailureV1.limitExceeded};let decoder=JSONDecoder();decoder.dateDecodingStrategy = .millisecondsSince1970;let value=try decoder.decode(type,from:data);guard try encode(value)==data else{throw PackageEvolutionFailureV1.nonCanonicalData};return value}}
 
-enum PackageEvolutionLifecycleV1{static let schema="PACKAGE_EVOLUTION_V1";static let persistent=true;static let migrationRequired=true;static let backupRestoreRequired=true;static let deleteEraseRequired=true;static let exportReportRequired=true;static let searchRebuildReplayRequired=true;static let postActivationPolicy=PackagePostActivationPolicyV1.forwardFixOnly;static let rollbackOperationAvailable=false;static let downgradePolicy="PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_ACTIVATION";static let interruption="OLD_COMPLETE_OR_NEW_COMPLETE_NEVER_HYBRID";static let writer="SOLE_CANONICAL_WORKSPACE_WRITER"}
+enum PackageEvolutionLifecycleV1{static let schema="PACKAGE_EVOLUTION_V1";static let persistent=true;static let migrationRequired=true;static let backupRestoreRequired=true;static let deleteEraseRequired=true;static let exportReportRequired=true;static let searchRebuildReplayRequired=true;static let postActivationPolicy=PackagePostActivationPolicyV1.forwardFixOnly;static let rollbackOperationAvailable=false;
+    // Owner-delegated decision (2026-09-25): follow the frozen C18 contract and receipt downgradeDisposition (V23P03C18PackageEvolutionContractV1.json / V23P03C18PackageEvolutionEvidenceReceiptV1.json); referenced only by tests, never persisted, encoded or hashed.
+    static let downgradePolicy="PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V17_WRITE";
+    static let interruption="OLD_COMPLETE_OR_NEW_COMPLETE_NEVER_HYBRID";static let writer="SOLE_CANONICAL_WORKSPACE_WRITER"}
 
 private extension UUID { static let zero=UUID(uuid:(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0)) }
 

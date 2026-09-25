@@ -57,7 +57,7 @@ final class S5_4RecheckCNVTests: XCTestCase {
         XCTAssertEqual(report.packetID, result.packetID)
         XCTAssertEqual(report.sourceRecordID, result.recordID)
         XCTAssertEqual(report.pdfState, ReportPDFState.pending.rawValue)
-        XCTAssertEqual(
+        assertIssueUnchangedAtPersistedPrecision(
             issuePayload(try onlyIssue(id: harness.issueID, context: harness.context)),
             issueBefore
         )
@@ -86,6 +86,10 @@ final class S5_4RecheckCNVTests: XCTestCase {
         )
         XCTAssertEqual(snapshot.history.map(\.recordID), [harness.openingRecordID, harness.workRecordID])
         XCTAssertEqual(snapshot.issues.count, 1)
+        guard snapshot.issues.count == 1 else {
+            XCTFail("snapshot.issues has \(snapshot.issues.count) entries; expected 1")
+            return
+        }
         XCTAssertEqual(snapshot.issues[0].issueID, harness.issueID)
         XCTAssertEqual(snapshot.issues[0].status, IssueStatus.recheckDue.rawValue)
         XCTAssertNil(snapshot.issues[0].resolvedByRecordID)
@@ -144,7 +148,7 @@ final class S5_4RecheckCNVTests: XCTestCase {
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Packet>()), 2)
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Report>()), 2)
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Issue>()), 1)
-        XCTAssertEqual(
+        assertIssueUnchangedAtPersistedPrecision(
             issuePayload(try onlyIssue(id: harness.issueID, context: harness.context)),
             issueBefore
         )
@@ -291,18 +295,26 @@ final class S5_4RecheckCNVTests: XCTestCase {
         }
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Packet>()), 2)
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Report>()), 2)
-        XCTAssertEqual(
+        assertIssueUnchangedAtPersistedPrecision(
             issuePayload(try onlyIssue(id: harness.issueID, context: harness.context)),
             issueBefore
         )
 
+        // V23 schema-2 finalization intents recover only through the sole
+        // workspace writer, as production startup does (StartupRouter).
         let summary = try await FinalizationRecoveryService(
             modelContext: harness.context,
-            generationRootURL: harness.generationRootURL
+            generationRootURL: harness.generationRootURL,
+            workspaceWriter: harness.fixture.lifecycleDependencies.writer,
+            lifecycleProfileRegistry: harness.fixture.storeCoordinator.lifecycleProfileRegistry
         ).reconcile()
         XCTAssertEqual(summary.completedRecordIDs.count, 1)
+        guard summary.completedRecordIDs.count == 1 else {
+            XCTFail("summary.completedRecordIDs has \(summary.completedRecordIDs.count) entries; expected 1")
+            return
+        }
         XCTAssertTrue(summary.recoveredDraftRecordIDs.isEmpty)
-        XCTAssertEqual(
+        assertIssueUnchangedAtPersistedPrecision(
             issuePayload(try onlyIssue(id: harness.issueID, context: harness.context)),
             issueBefore
         )
@@ -433,6 +445,23 @@ final class S5_4RecheckCNVTests: XCTestCase {
             thumbnailRelativePath: promoted.thumbnailRelativePath,
             thumbnailByteCount: promoted.thumbnailByteCount,
             thumbnailSHA256: promoted.thumbnailSHA256
+        )
+    }
+
+    /// V23 writes finalized rows back through the sole canonical writer, whose
+    /// finalization contract persists UTC-millisecond instants. An unchanged
+    /// issue is unchanged at that persisted precision; every other member is
+    /// still compared exactly (canonical encoding covers all issue members).
+    private func assertIssueUnchangedAtPersistedPrecision(
+        _ actual: IssuePayloadV1,
+        _ expected: IssuePayloadV1,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertTrue(
+            FinalizationCanonicalBindingV1.sameIssue(actual, expected),
+            "Issue changed at persisted precision: \(actual) != \(expected)",
+            file: file, line: line
         )
     }
 

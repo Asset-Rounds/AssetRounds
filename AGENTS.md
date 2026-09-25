@@ -97,7 +97,9 @@ Functional, privacy, accessibility or unusable-state defects block a phase. Nonc
 
 ## Model and effort
 
-The owner sets the session model and effort in the app; currently it is Extra. Claude subagents inherit the session level. Repository policy never changes these settings.
+The owner sets the session model and effort in the app. As of 2026-09-25 afternoon it is Opus 5.5 at High; the owner may raise it later depending on usage limits. Claude subagents inherit the session level. Repository policy never changes these settings.
+
+Helper budget (owner, 2026-09-25): at most 4 concurrent subagents plus the root session. Reuse an existing helper that already holds the relevant context (continue it with SendMessage) before spawning a new one, to save tokens. The owner may raise the limit to 5 if the 5-hour usage allows. Use the Mac's 16 GB and CPU fully within that limit; up to about 3 concurrent Xcode builds, the CPU being the practical limit.
 
 ## Owner decisions in force (2026-09-24/25)
 
@@ -114,6 +116,22 @@ The owner sets the session model and effort in the app; currently it is Extra. C
 11. Trunk-based development on main after Phase 1.
 12. Bitrise Build Hub (runner group `Asset Roundddd`) may be used for development capacity. It becomes official evidence only after it provides the exact runtime and is qualified.
 13. Pending the owner's call: the C55 reversal-restore decision (`C55_REVERSAL_RESTORE_DECISION.md`), a V23 privacy sign-off, App Store items, and confirmation of the D50 development tier.
+
+Owner decisions, 2026-09-25 (cloud Mac session):
+
+14. Standing decision authority. Root decides a product question when frozen V23 design material settles it. Root cites the evidence and records the decision as owner-delegated and reversible in CURRENT_INTEGRATION. Root asks the owner only when the design material is silent or contradicts itself. This never covers releases, signing, accounts, privacy sign-off or the owner's human review.
+15. DEBUG diagnostics. The DEBUG-only protected-file diagnostic journal may be batched or summarized to cut test time, with no change to Release builds. The underlying lease/fence and file-policy performance work is still a consequential product change: it needs independent review and the gates.
+16. Tooling follow-ups. Approved:
+    - a workflow change that allows parallel development batches, with a per-head concurrency term reviewed against the template-budget guard;
+    - solo partitions of up to 5,400 s for known-slow single tests until the performance fix lands.
+    Gate runs keep all other gate rules.
+17. Phase 1 scope stays as written: every unit test must be green. After the current development sweep is triaged, root will bring the owner numbers for a possible known-failures list limited to switched-off-only features. Shipping-app, S10, backup, restore, migration, privacy and access tests are never eligible. The owner decides then.
+18. Premium quality bar. When root chooses between valid options, it picks the one that gives the best end-user experience:
+    - root-cause fixes over workarounds;
+    - fast, smooth, never-hanging flows (performance is part of quality);
+    - reliable data safety;
+    - polished S10 look and feel.
+    Gates, frozen design and the boundaries above still govern.
 
 ## History
 

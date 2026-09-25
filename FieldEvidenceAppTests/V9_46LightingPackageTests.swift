@@ -467,7 +467,7 @@ private enum C31LightingTestSupport {
             releaseReference = try MeasurementProtocolReferenceV1(
                 releaseID: id(220),
                 revision: 1,
-                releaseSHA256: digest("g")
+                releaseSHA256: digest("1")
             )
         }
         guard let zoneID = system.zones.first?.zoneID else {
@@ -492,13 +492,13 @@ private enum C31LightingTestSupport {
                 planRevisionID: id(227),
                 planDocumentID: id(228),
                 revision: 1,
-                revisionSHA256: digest("h")
+                revisionSHA256: digest("2")
             ),
             protocolReference: releaseReference,
             points: [point],
             expectedSampleCount: 1,
-            environmentBasisSHA256: digest("i"),
-            controlContextSHA256: digest("j"),
+            environmentBasisSHA256: digest("3"),
+            controlContextSHA256: digest("4"),
             predecessor: predecessor,
             revision: revision,
             mutationID: try mutation(mutationSlot),
@@ -557,7 +557,7 @@ private enum C31LightingTestSupport {
             severity: try FindingSeverityBindingV1(
                 severityID: "low",
                 severityScaleReleaseID: "c31-scale",
-                severityScaleSHA256: digest("k")
+                severityScaleSHA256: digest("5")
             ),
             categoryID: "lighting",
             subject: try FindingSubjectV1(

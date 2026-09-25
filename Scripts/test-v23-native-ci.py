@@ -45,6 +45,50 @@ SHARED_WORKER_SCRIPT = 'Scripts/v23-shared-worker.sh'
 ORDINARY_WORKER_BASE_COMMIT = 'aaf21a16e48129e2072c67c64326e6047c4ae087'
 SHARED_WORKER_MAX_BYTES = 100 * 1024
 CALLED_TEMPLATE_MAX_BYTES = int(5.75 * 1024 * 1024)
+# The slim worker's job cap: D90S (total 6,000 s) gets 120 minutes, every other role 90.
+SHARED_WORKER_TIMEOUT = ("\njobs:\n  verify:\n    runs-on: macos-26\n"
+                         "    # D90S (6,000 s total budget) runs one known-slow method; every other role keeps 90.\n"
+                         "    timeout-minutes: ${{ inputs.v23_partition_tier == 'D90S' && 120 || 90 }}\n")
+# Owner decision 16 (2026-09-25): development originals of the two per-head routes get
+# per-head concurrency groups through the v23_run_kind input, and each consumer passes
+# its partition tier (D50C, or D90S for one known-slow method) to the slim worker.
+DEVELOPMENT_PER_HEAD_TERM = ("${{ github.event.inputs.v23_run_kind == 'development' && "
+                             "(github.event.inputs.native_selection_id == 'v23-dev-batch-no-index-d50' || "
+                             "github.event.inputs.native_selection_id == 'v23-shared-coverage-d50x') && "
+                             "format('-development-{0}', github.sha) || '' }}")
+RUN_KIND_INPUT_BLOCK = ('      v23_run_kind:\n'
+                        '        description: V23 run kind; development gives the dev-batch and shared-coverage routes '
+                        'per-head concurrency groups\n'
+                        '        required: false\n        default: gate\n        type: choice\n        options:\n'
+                        '          - gate\n          - development\n')
+PARTITION_TIERS_OUTPUT = ('      native_shared_partition_tiers: '
+                          '${{ steps.native_selection.outputs.native_shared_partition_tiers }}\n')
+CONSUMER_TIER_INPUT = ("      v23_partition_tier: ${{ fromJSON(needs.shared-selection.outputs.native_shared_partition_tiers "
+                       "|| '{}')[matrix.partition_id] }}\n")
+PARALLEL_DEVELOPMENT_REPLACEMENTS = (
+    (RUN_KIND_INPUT_BLOCK, ''),
+    (DEVELOPMENT_PER_HEAD_TERM + '\n  cancel-in-progress: false\n', '\n  cancel-in-progress: false\n'),
+    (PARTITION_TIERS_OUTPUT, ''),
+    (CONSUMER_TIER_INPUT, ''),
+)
+
+
+def workflow_before_parallel_development(raw):
+    """Reverse exactly the owner-decision-16 caller additions (input, group term, tier output and input)."""
+    text = raw.decode('utf-8') if isinstance(raw, bytes) else raw
+    for old, new in PARALLEL_DEVELOPMENT_REPLACEMENTS:
+        text = remove_exactly_once(text, old, new)
+    return text.encode('utf-8') if isinstance(raw, bytes) else text
+
+
+def worker_before_parallel_development(raw):
+    """Reverse exactly the per-head development term of the ordinary worker's concurrency group."""
+    text = raw.decode('utf-8') if isinstance(raw, bytes) else raw
+    text = remove_exactly_once(text, DEVELOPMENT_PER_HEAD_TERM + '\n  cancel-in-progress: false\n',
+                               '\n  cancel-in-progress: false\n')
+    return text.encode('utf-8') if isinstance(raw, bytes) else text
+
+
 SHARED_DISPATCH_REPLACEMENTS = (
     ('          - ' + SHARED_ROUTE + '\n', ''),
     ('      native_shared_partitions: ${{ steps.native_selection.outputs.native_shared_partitions }}\n', ''),
@@ -61,6 +105,7 @@ def remove_exactly_once(text, old, new=''):
 def workflow_before_shared_coverage(raw):
     """Reverse exactly the shared-coverage dispatcher additions (choice, output, two jobs)."""
     text = raw.decode('utf-8') if isinstance(raw, bytes) else raw
+    text = workflow_before_parallel_development(text)
     for old, new in SHARED_DISPATCH_REPLACEMENTS:
         text = remove_exactly_once(text, old, new)
     start = text.index('\n  v23-shared-producer:\n')
@@ -131,6 +176,8 @@ SHARED_BUILD_SMOKE_LINE = '   [ "${NATIVE_SELECTION_ID:-none}" = ' + SHARED_ROUT
 def before_shared_coverage_bytes(relative, raw):
     if relative == '.github/workflows/ios-ci.yml':
         return workflow_before_shared_coverage(raw)
+    if relative == '.github/workflows/ios-ci-worker.yml':
+        return worker_before_parallel_development(raw)
     if relative == 'Scripts/build-smoke.sh':
         return remove_exactly_once(raw.decode('utf-8'), SHARED_BUILD_SMOKE_LINE).encode('utf-8')
     if relative == 'Scripts/test-smoke.sh':
@@ -144,6 +191,7 @@ def worker_before_live_host_d50(test_case, raw):
     # Reverse only the owner-approved D50 job cap (live-host, its two rebound questions
     # and the reusable development batch); every other worker byte must still match its
     # historical boundary.
+    raw = worker_before_parallel_development(raw)
     changed = b"    timeout-minutes: " + D50_JOB_CAP_EXPRESSION.encode() + b"\n"
     test_case.assertEqual(raw.count(changed), 1)
     return raw.replace(changed, b"    timeout-minutes: 90\n")
@@ -233,6 +281,12 @@ def diagnostic_line(base_kind="database", **changes):
     values.update(changes)
     return CI.SIMULATOR_DIAGNOSTIC_PREFIX + " " + " ".join(
         key + "=" + values[key] for key in CI.SIMULATOR_DIAGNOSTIC_FIELDS) + "\n"
+
+
+def diagnostic_summary_line(base_kind="database", occurrences="1", **changes):
+    exact = diagnostic_line(base_kind, **changes)
+    return (CI.SIMULATOR_DIAGNOSTIC_SUMMARY_PREFIX + " " + exact.split(" ", 1)[1][:-1]
+            + " occurrences=" + str(occurrences) + "\n")
 
 
 def diagnostic_frame(stream_id, sequence, payload):
@@ -3072,7 +3126,8 @@ class LiveHostBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
         self.assertEqual(CI.TIERS['D30'], (300, 1800, 900, 0, 3000))
         self.assertEqual(CI.SIMULATOR_DIAGNOSTIC_HISTORICAL_SOURCE_SHA256S,
                          ('FCFF658FCE118760EAC50B13A3941470EA86ED6FB40E78D17E6A573A10DFA5DB',
-                          'A8B18FFF49DE387183EA9B8B2377669BF1EE9E73A6DB11992178503070EDE139'))
+                          'A8B18FFF49DE387183EA9B8B2377669BF1EE9E73A6DB11992178503070EDE139',
+                          'D18D48D5DB47DD61AD7D979414BD62A1A6798639EDA00B537DB5D6F1D517700E'))
         self.assertEqual(CI.NO_INDEX_ROUTES[CI.LIVE_HOST_SELECTION_ID], (CI.LIVE_HOST_PARENT, 'D50'))
         self.assertEqual(sorted(k for k, (_, tier) in CI.NO_INDEX_ROUTES.items() if tier == 'D50'),
                          sorted(CI.D50_SELECTION_IDS))
@@ -4660,6 +4715,7 @@ class SimulatorDiagnosticEvidenceTests(unittest.TestCase):
         field_offsets = [emission.index(" " + field + "=") for field in CI.SIMULATOR_DIAGNOSTIC_FIELDS]
         self.assertEqual(field_offsets, sorted(field_offsets))
         self.assertNotIn(" path=", emission)
+        self.assertEqual(swift_source.count('"' + CI.SIMULATOR_DIAGNOSTIC_SUMMARY_PREFIX + '"'), 1)
         with tempfile.TemporaryDirectory(prefix="v23-simulator-policy-") as directory:
             root = Path(directory)
             for relative in (CI.SIMULATOR_DIAGNOSTIC_POLICY_PATH, CI.SIMULATOR_DIAGNOSTIC_SOURCE_PATH):
@@ -4770,6 +4826,75 @@ class SimulatorDiagnosticEvidenceTests(unittest.TestCase):
                 self.assertEqual(retained["parseStatus"], "INVALID")
                 self.assertFalse(retained["zeroUseObserved"])
                 self.assertEqual(retained["events"], [])
+
+    def test_summaries_count_repeats_only_of_kinds_with_an_exact_first_event(self):
+        record = CI.admission(selection(), environment(), HEAD, "worker")
+        event, occurrences = CI.parse_simulator_diagnostic_summary_line(diagnostic_summary_line("scratch", 7))
+        self.assertEqual((event, occurrences), (CI.parse_simulator_diagnostic_line(diagnostic_line("scratch")), 7))
+        # A rotated stream may hold summaries whose exact first event is in an earlier stream.
+        streams = [
+            ("00000000-0000-0000-0000-000000000041",
+             [diagnostic_line("database"), diagnostic_line("scratch"),
+              diagnostic_summary_line("database", 5), diagnostic_summary_line("scratch", 2)]),
+            ("00000000-0000-0000-0000-000000000042", [diagnostic_summary_line("database", 3)]),
+        ]
+        with tempfile.TemporaryDirectory(prefix="v23-simulator-summaries-") as directory:
+            artifact = Path(directory)
+            (artifact / "test-smoke.log").write_text("ordinary output\n")
+            diagnostic_transport(artifact, streams)
+            evidence, error = CI.simulator_diagnostic_observations(ROOT, artifact, record)
+            self.assertIsNone(error)
+            self.assertEqual([item["kind"] for item in evidence["events"]], ["database", "scratch"])
+            self.assertEqual([(item["kind"], item["occurrences"]) for item in evidence["summaries"]],
+                             [("database", 5), ("scratch", 2), ("database", 3)])
+            self.assertEqual((evidence["eventCount"], evidence["occurrenceCount"]), (2, 12))
+            self.assertEqual(len(evidence["rawRecords"]), 5)
+            self.assertFalse(evidence["countsAsPerKindProtectionSuccess"])
+        with tempfile.TemporaryDirectory(prefix="v23-simulator-orphan-summary-") as directory:
+            artifact = Path(directory)
+            (artifact / "test-smoke.log").write_text("ordinary output\n")
+            diagnostic_transport(artifact, [("00000000-0000-0000-0000-000000000043", [
+                diagnostic_line("database"), diagnostic_summary_line("journal", 4)])])
+            with self.assertRaisesRegex(ValueError, "transport parse"):
+                CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
+            retained = CI.read_json(artifact / CI.SIMULATOR_DIAGNOSTIC_OUTPUT)
+            self.assertEqual(retained["parseStatus"], "INVALID")
+            self.assertIn("summary without exact first event", retained["parseError"])
+            self.assertEqual((retained["eventCount"], retained["occurrenceCount"]), (1, 5))
+        with tempfile.TemporaryDirectory(prefix="v23-simulator-console-summary-") as directory:
+            artifact = Path(directory)
+            (artifact / "test-smoke.log").write_text(diagnostic_summary_line("database", 2))
+            diagnostic_transport(artifact)
+            with self.assertRaisesRegex(ValueError, "transport parse"):
+                CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
+
+    def test_malformed_summary_values_fail_closed(self):
+        valid = diagnostic_summary_line("database", 3).strip()
+        variants = [("occurrences-" + str(value), diagnostic_summary_line("database", value))
+                    for value in ("0", "-1", "01", "+3", "1000000001", "3.0", "three", "")]
+        variants += [(field, diagnostic_summary_line("database", 3, **{field: value})) for field, value in (
+            ("policyID", "foreign"), ("disposition", "VERIFIED_COMPLETE"), ("kind", "foreignKind"),
+            ("capabilityAfter", "true"), ("urlProtection", "complete"), ("backupExcluded", "true"),
+            ("identityUnchanged", "false"))]
+        variants += [
+            ("missing-count", valid.rsplit(" ", 1)[0] + "\n"),
+            ("extra-field", valid + " extra=1\n"),
+            ("duplicate-count", valid + " occurrences=3\n"),
+            ("count-first", valid.replace(CI.SIMULATOR_DIAGNOSTIC_SUMMARY_PREFIX + " ",
+                                          CI.SIMULATOR_DIAGNOSTIC_SUMMARY_PREFIX + " occurrences=3 ", 1)
+             .rsplit(" ", 1)[0] + "\n"),
+            ("embedded-exact-marker", valid + " " + CI.SIMULATOR_DIAGNOSTIC_PREFIX + "\n"),
+            ("exact-marker-with-count", diagnostic_line("database")[:-1] + " occurrences=3\n"),
+        ]
+        for name, line in variants:
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                if line.startswith(CI.SIMULATOR_DIAGNOSTIC_SUMMARY_PREFIX + " "):
+                    CI.parse_simulator_diagnostic_summary_line(line)
+                else:
+                    CI.parse_simulator_diagnostic_line(line)
+        self.assertEqual(CI.parse_simulator_diagnostic_summary_line(
+            diagnostic_summary_line("database", CI.SIMULATOR_DIAGNOSTIC_MAX_SUMMARY_OCCURRENCES))[1],
+            CI.SIMULATOR_DIAGNOSTIC_MAX_SUMMARY_OCCURRENCES)
 
     def test_absent_log_is_unavailable_and_malformed_log_is_persisted_before_failure(self):
         record = CI.admission(selection(), environment(), HEAD, "worker")
@@ -7846,10 +7971,18 @@ class SharedCoverageRouteTests(unittest.TestCase):
             'partitionsPath': CI.SHARED_PARTITIONS_PATH, 'partitionsSHA256': digest,
             'partitionIDs': value['sweepOrder'], 'partitionID': None,
             'developmentOnly': True, 'acceptance': False})
+        tiers = {partition['id']: partition['tier'] for partition in value['partitions']}
+        # Owner decision 16: only a one-method partition heavier than the packing target is D90S.
+        self.assertIn('D90S', tiers.values())
+        for partition in value['partitions']:
+            solo = len(partition['selectors']) == 1 and partition['estimatedSeconds'] > load_partition_script().TARGET_SECONDS
+            self.assertEqual(partition['tier'], 'D90S' if solo else 'D50C', partition['id'])
         for identifier in value['sweepOrder']:
             consumer = CI.shared_selection(ROOT, identifier)
-            self.assertEqual((consumer['tier'], consumer['runUISmoke'], consumer['uiTestSelectors']), ('D50C', False, []))
-            self.assertEqual(tuple(consumer[key] for key in CI.BUDGET_KEYS), (300, 0, 3000, 0, 3600))
+            self.assertEqual((consumer['tier'], consumer['runUISmoke'], consumer['uiTestSelectors']),
+                             (tiers[identifier], False, []))
+            self.assertEqual(tuple(consumer[key] for key in CI.BUDGET_KEYS),
+                             (300, 0, 5400, 0, 6000) if tiers[identifier] == 'D90S' else (300, 0, 3000, 0, 3600))
             self.assertEqual(consumer['unitTestSelectors'], by_id[identifier])
             self.assertEqual(consumer[CI.SHARED_KEY], dict(self.plan[CI.SHARED_KEY], partitionID=identifier))
         with self.assertRaisesRegex(ValueError, 'unknown coverage partition'):
@@ -7891,35 +8024,46 @@ class SharedCoverageRouteTests(unittest.TestCase):
         # Layout-independent donors: measured-time repacking can leave single-method partitions.
         donor = next(index for index, partition in enumerate(base['partitions']) if len(partition['selectors']) > 1)
         removed = base['partitions'][donor]['selectors'][0]
+        solo = next(index for index, partition in enumerate(base['partitions']) if partition['tier'] == 'D90S')
+        self.assertEqual(base['partitions'][donor]['tier'], 'D50C')
 
         def case(mutate):
             value = copy.deepcopy(base)
             mutate(value)
             return value
         cases = [
-            ('overlap: ' + re.escape(first), case(lambda v: v['partitions'][1]['selectors'].append(first))),
+            ('overlap: ' + re.escape(first), case(lambda v: v['partitions'][donor]['selectors'].append(first))),
             (r'1 missing \[' + re.escape(repr(removed)), case(lambda v: v['partitions'][donor]['selectors'].remove(removed))),
-            (r'1 extra \[.*NoSuchTests/testNothing', case(lambda v: v['partitions'][0]['selectors'].append(
+            (r'1 extra \[.*NoSuchTests/testNothing', case(lambda v: v['partitions'][donor]['selectors'].append(
                 'FieldEvidenceAppTests/NoSuchTests/testNothing'))),
             ('coverage partition count', case(lambda v: v.update(partitions=v['partitions'] + [
-                {'id': 'S%02d' % index, 'estimatedSeconds': 1, 'selectors': []} for index in range(41, 62)]))),
+                {'id': 'S%02d' % index, 'tier': 'D50C', 'estimatedSeconds': 1, 'selectors': []}
+                for index in range(CI.SHARED_MAX_PARTITIONS + 1 - len(v['partitions']))]))),
             ('coverage partition ID', case(lambda v: v['partitions'][1].update(id=v['partitions'][0]['id']))),
             ('coverage partition ID', case(lambda v: v['partitions'][0].update(id='P01'))),
             ('coverage sweep order', case(lambda v: v['sweepOrder'].pop())),
             ('coverage sweep order', case(lambda v: v['sweepOrder'].append(v['sweepOrder'][0]))),
-            ('fit the test budget', case(lambda v: v['partitions'][0].update(estimatedSeconds=3001))),
-            ('fit the test budget', case(lambda v: v['partitions'][0].update(estimatedSeconds=0))),
+            ('fit the test budget', case(lambda v: v['partitions'][donor].update(estimatedSeconds=3001))),
+            ('fit the test budget', case(lambda v: v['partitions'][donor].update(estimatedSeconds=0))),
+            ('fit the test budget', case(lambda v: v['partitions'][solo].update(estimatedSeconds=5401))),
+            ('fit the test budget', case(lambda v: v['partitions'][solo].update(tier='D50C', estimatedSeconds=3001))),
+            ('solo tier needs exactly one method', case(lambda v: v['partitions'][donor].update(tier='D90S'))),
+            ('solo tier needs exactly one method', case(lambda v: v['partitions'][solo]['selectors'].append(removed))),
+            ('coverage partition tier', case(lambda v: v['partitions'][donor].update(tier='D50'))),
+            ('coverage partition tier', case(lambda v: v['partitions'][solo].update(tier=None))),
+            ('coverage partition keys', case(lambda v: v['partitions'][donor].pop('tier'))),
             ('coverage partition method count', case(lambda v: v['partitions'][0].update(selectors=[]))),
             ('coverage partition method count', case(lambda v: v['partitions'][1].update(
                 selectors=[first] * (CI.SHARED_MAX_PARTITION_METHODS + 1)))),
-            ('coverage partition selector', case(lambda v: v['partitions'][0]['selectors'].append(
+            ('coverage partition selector', case(lambda v: v['partitions'][donor]['selectors'].append(
                 'FieldEvidenceAppUITests/S0LaunchUITests/testLaunch'))),
-            ('coverage partition selector', case(lambda v: v['partitions'][0]['selectors'].append(first + '\n'))),
+            ('coverage partition selector', case(lambda v: v['partitions'][donor]['selectors'].append(first + '\n'))),
             ('coverage partitions keys', case(lambda v: v.update(extra=1))),
             ('coverage partitions keys', case(lambda v: v.pop('sourceCensusHead'))),
             ('coverage partitions keys', case(lambda v: v.pop('generatedAtHead'))),
             ('coverage partitions keys', case(lambda v: v.update(censusHead=v['sourceCensusHead']))),
-            ('coverage partitions schema', case(lambda v: v.update(schema='v23-coverage-partitions.v2'))),
+            ('coverage partitions schema', case(lambda v: v.update(schema='v23-coverage-partitions.v1'))),
+            ('coverage partitions schema', case(lambda v: v.update(schema='v23-coverage-partitions.v3'))),
             ('coverage partitions head: sourceCensusHead', case(lambda v: v.update(sourceCensusHead='HEAD'))),
             ('coverage partitions head: generatedAtHead', case(lambda v: v.update(generatedAtHead='A' * 40))),
             ('coverage partition keys', case(lambda v: v['partitions'][0].update(owner='x'))),
@@ -8087,7 +8231,28 @@ class SharedCoverageRouteTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             CI.admission(mount, e, HEAD, 'worker', dict(record, selectionSHA256=CI.sha256(CI.canonical(mount))), ROOT)
         # Tiers and bindings are closed.
-        self.assertEqual((CI.TIERS['D40P'], CI.TIERS['D50C']), ((300, 2400, 0, 0, 3000), (300, 0, 3000, 0, 3600)))
+        self.assertEqual((CI.TIERS['D40P'], CI.TIERS['D50C'], CI.TIERS['D90S']),
+                         ((300, 2400, 0, 0, 3000), (300, 0, 3000, 0, 3600), (300, 0, 5400, 0, 6000)))
+        self.assertEqual(CI.SHARED_CONSUMER_TIERS, ('D50C', 'D90S'))
+        solo_id = next(x for x, tier in CI.shared_partition_tiers(ROOT).items() if tier == 'D90S')
+        solo = CI.shared_selection(ROOT, solo_id)
+        self.assertEqual(len(solo['unitTestSelectors']), 1)
+        CI.validate_selection(solo)
+        d90s = dict(zip(CI.BUDGET_KEYS, CI.TIERS['D90S']))
+        for value in (dict(consumer, tier='D90S', **d90s),  # more than one method
+                      dict(solo, testTimeoutSeconds=5401), dict(solo, tier='D50C'),
+                      dict(mount, tier='D90S', **d90s),  # never outside the shared route
+                      dict(solo, **{CI.SHARED_KEY: dict(solo[CI.SHARED_KEY], partitionID=None)})):
+            with self.subTest(value=value['tier']), self.assertRaises(ValueError):
+                CI.validate_selection(value)
+        route = {'NATIVE_SELECTION_ID': SHARED_ROUTE}
+        self.assertEqual(self.jq(solo, V23_SHARED_ROLE='consumer', V23_PARTITION_ID=solo_id, **route), 0)
+        for value in (dict(consumer, tier='D90S', **d90s), dict(solo, testTimeoutSeconds=3000),
+                      dict(solo, tier='D50C', **dict(zip(CI.BUDGET_KEYS, CI.TIERS['D50C'])), unitTestSelectors=[])):
+            with self.subTest(jq=value['tier']):
+                self.assertNotEqual(self.jq(value, V23_SHARED_ROLE='consumer',
+                                            V23_PARTITION_ID=value[CI.SHARED_KEY]['partitionID'], **route), 0)
+        self.assertNotEqual(self.jq(solo, V23_SHARED_ROLE='producer', **route), 0)
         binding = consumer[CI.SHARED_KEY]
         for value in (dict(mount, tier='D40P', **dict(zip(CI.BUDGET_KEYS, CI.TIERS['D40P']))),
                       dict(consumer, testTimeoutSeconds=3001), dict(consumer, runUISmoke=True),
@@ -8456,7 +8621,10 @@ class SharedCoverageRouteTests(unittest.TestCase):
         payload = '      v23_payload_artifact_name: v23-shared-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}\n'
         self.assertTrue(producer.endswith(bound + '      v23_shared_role: producer\n' + payload), producer)
         self.assertTrue(consumer.endswith(bound + '      v23_shared_role: consumer\n'
-                                          '      v23_partition_id: ${{ matrix.partition_id }}\n' + payload), consumer)
+                                          '      v23_partition_id: ${{ matrix.partition_id }}\n'
+                                          + CONSUMER_TIER_INPUT + payload), consumer)
+        self.assertNotIn('v23_partition_tier', producer)
+        self.assertIn(PARTITION_TIERS_OUTPUT, workflow)
         for text in (producer, consumer):
             self.assertIn("inputs.execution_lane == 'github-xcode-26.6-acceptance' && inputs.native_selection_id == '" + SHARED_ROUTE + "'", text)
             self.assertNotIn('ios-ci-worker.yml', text)
@@ -8482,10 +8650,17 @@ class SharedCoverageRouteTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             outputs = dict(line.split('=', 1) for line in output.read_text().splitlines())
         self.assertEqual(json.loads(outputs['native_shared_partitions']), self.plan[CI.SHARED_KEY]['partitionIDs'])
+        # Each consumer's tier comes from its partition, keyed in sweep order.
+        tiers = json.loads(outputs['native_shared_partition_tiers'])
+        self.assertEqual(list(tiers), self.plan[CI.SHARED_KEY]['partitionIDs'])
+        self.assertEqual(tiers, {x: CI.shared_selection(ROOT, x)['tier'] for x in tiers})
+        self.assertEqual(tiers, CI.shared_partition_tiers(ROOT))
         self.assertEqual(outputs['native_selection_sha256'], CI.sha256(CI.canonical(self.plan)))
-        # The ordinary worker is byte-identical to its pre-shared-route commit.
-        self.assertEqual((ROOT / '.github/workflows/ios-ci-worker.yml').read_bytes(), subprocess.check_output(
-            ['git', 'show', ORDINARY_WORKER_BASE_COMMIT + ':.github/workflows/ios-ci-worker.yml'], cwd=ROOT))
+        # The ordinary worker is byte-identical to its pre-shared-route commit apart from the
+        # owner-decision-16 per-head development term (ending its concurrency group).
+        self.assertEqual(worker_before_parallel_development((ROOT / '.github/workflows/ios-ci-worker.yml').read_bytes()),
+                         subprocess.check_output(['git', 'show', ORDINARY_WORKER_BASE_COMMIT
+                                                  + ':.github/workflows/ios-ci-worker.yml'], cwd=ROOT))
 
     def test_slim_worker_declares_closed_inputs_steps_names_and_the_unchanged_admission_environment(self):
         worker = (ROOT / SHARED_WORKER_PATH).read_text(encoding='utf-8')
@@ -8494,9 +8669,10 @@ class SharedCoverageRouteTests(unittest.TestCase):
         inputs_block = worker.split('    inputs:\n', 1)[1].split('\n\nconcurrency:', 1)[0]
         self.assertEqual(re.findall(r'^      ([a-z0-9_]+):$', inputs_block, re.M), [
             'native_acceptance_contract', 'native_selection_id', 'native_selection_sha256',
-            'native_selection_map_sha256', 'v23_shared_role', 'v23_partition_id', 'v23_payload_artifact_name'])
+            'native_selection_map_sha256', 'v23_shared_role', 'v23_partition_id', 'v23_partition_tier',
+            'v23_payload_artifact_name'])
         self.assertNotIn('secrets', worker)
-        self.assertIn('\njobs:\n  verify:\n    runs-on: macos-26\n    timeout-minutes: 90\n', worker)
+        self.assertIn(SHARED_WORKER_TIMEOUT, worker)
         self.assertIn('  group: v23-github-${{ inputs.native_selection_id }}-${{ inputs.v23_shared_role }}-'
                       '${{ inputs.v23_partition_id }}-${{ github.run_id }}\n  cancel-in-progress: false\n', worker)
         # Every action is one the ordinary worker already pins by commit.
@@ -8585,6 +8761,7 @@ class SharedCoverageRouteTests(unittest.TestCase):
                 'native_selection_sha256': e['DISPATCH_NATIVE_SELECTION_SHA256'],
                 'native_selection_map_sha256': e['DISPATCH_NATIVE_SELECTION_MAP_SHA256'],
                 'v23_shared_role': role, 'v23_partition_id': partition,
+                'v23_partition_tier': CI.shared_selection(ROOT, partition)['tier'] if partition else '',
                 'v23_payload_artifact_name': e['V23_PAYLOAD_ARTIFACT_NAME']})
             for key in set(job) & set(e):
                 self.assertEqual(job[key], e[key], key)
@@ -8621,8 +8798,17 @@ class SharedCoverageRouteTests(unittest.TestCase):
                        '  "Scripts/v23-native-ci.py select") test "$3" = --output; test ! -e "$4"; cp "$MOCK_SELECTION" "$4" ;;\n'
                        '  *) exit 97 ;;\nesac\n')
         consumer = CI.shared_selection(ROOT, 'S27')
+        solo_id = next(x for x, tier in CI.shared_partition_tiers(ROOT).items() if tier == 'D90S')
+        solo = CI.shared_selection(ROOT, solo_id)
+        # The caller-passed tier (it set the job timeout) must equal the partition's own tier.
         cases = [('producer', '', self.plan, {}, 0, ('D40P', '300', '2400', '0', '0', '3000')),
                  ('consumer', 'S27', consumer, {}, 0, ('D50C', '300', '0', '3000', '0', '3600')),
+                 ('consumer', solo_id, solo, {}, 0, ('D90S', '300', '0', '5400', '0', '6000')),
+                 ('consumer', solo_id, solo, {'V23_PARTITION_TIER': 'D50C'}, 65, None),
+                 ('consumer', 'S27', consumer, {'V23_PARTITION_TIER': 'D90S'}, 65, None),
+                 ('consumer', 'S27', consumer, {'V23_PARTITION_TIER': ''}, 65, None),
+                 ('consumer', 'S27', consumer, {'V23_PARTITION_TIER': 'D50'}, 65, None),
+                 ('producer', '', self.plan, {'V23_PARTITION_TIER': 'D50C'}, 65, None),
                  ('consumer', 'S27', self.plan, {}, 1, None),
                  ('consumer', 'S27', consumer, {'DISPATCH_RUN_UI_SMOKE': 'true'}, 1, None),
                  ('consumer', 'S27', consumer, {'CI_RUNNER_LABEL': 'macos-15'}, 1, None),
@@ -8637,6 +8823,8 @@ class SharedCoverageRouteTests(unittest.TestCase):
                 values = dict(CI_RUNNER_PROVIDER='github', CI_RUNNER_LABEL='macos-26', CI_NATIVE_ACCEPTANCE_CONTRACT=CI.CONTRACT,
                               NATIVE_SELECTION_ID=SHARED_ROUTE, DISPATCH_NATIVE_SELECTION_ID=SHARED_ROUTE,
                               V23_SHARED_ROLE=role, V23_PARTITION_ID=partition, DISPATCH_RUN_UI_SMOKE='false',
+                              V23_PARTITION_TIER=selected['tier'] if role == 'consumer' and selected is not self.plan
+                              else ('D50C' if role == 'consumer' else ''),
                               CI_ARTIFACT_DIR=posix_path(artifact), MOCK_SELECTION=posix_path(base / 'selection.json'),
                               MOCK_LOG=posix_path(base / 'log'))
                 values.update(changes)
@@ -8704,7 +8892,8 @@ class SharedCoverageRouteTests(unittest.TestCase):
                 artifact.mkdir()
                 values = dict(CI_RUNNER_PROVIDER='github', CI_RUNNER_LABEL='macos-26', CI_NATIVE_ACCEPTANCE_CONTRACT=CI.CONTRACT,
                               NATIVE_SELECTION_ID=SHARED_ROUTE, DISPATCH_NATIVE_SELECTION_ID=SHARED_ROUTE,
-                              V23_SHARED_ROLE='consumer', V23_PARTITION_ID='S27', CI_ARTIFACT_DIR=posix_path(artifact),
+                              V23_SHARED_ROLE='consumer', V23_PARTITION_ID='S27', V23_PARTITION_TIER='D50C',
+                              CI_ARTIFACT_DIR=posix_path(artifact),
                               RUNNER_NAME='GitHub Actions 7', RUNNER_ARCH='ARM64', RUNNER_TEMP=posix_path(base),
                               DEVELOPER_DIR=developer, EXPECTED_XCODE_VERSION='Xcode 26.6',
                               EXPECTED_XCODE_BUILD='Build version 17F113', EXPECTED_MINIMUM_IOS='18.0',
@@ -8905,8 +9094,11 @@ class SharedCoverageRouteTests(unittest.TestCase):
         self.assertEqual(value['sweepOrder'], ['S%02d' % index for index in range(1, len(value['partitions']) + 1)])
         loads = [partition['estimatedSeconds'] for partition in value['partitions']]
         self.assertEqual(loads, sorted(loads, reverse=True))
-        # The one method heavier than the target runs alone; every other partition fits the target.
+        # The one method heavier than the target runs alone as a known-slow D90S solo; every
+        # other partition fits the target and keeps D50C.
         self.assertEqual(value['partitions'][0]['selectors'], [self.discovered[0]])
+        self.assertEqual([row['tier'] for row in value['partitions']],
+                         ['D90S'] + ['D50C'] * (len(value['partitions']) - 1))
         self.assertTrue(all(load <= script.TARGET_SECONDS for load in loads[1:]))
         # The heavy class is split: at most two of its 700 s methods share a 1500 s partition.
         holders = collections.Counter(partition['id'] for partition in value['partitions']
@@ -8922,8 +9114,12 @@ class SharedCoverageRouteTests(unittest.TestCase):
         self.assertEqual(sticky['sweepOrder'], value['sweepOrder'])
         with self.assertRaisesRegex(SystemExit, 'repacking needs .* partitions at target 60 s'):
             script.regenerate(CI, self.root, base, 'c' * 40, timings, True, 60.0)
+        # A solo may test for up to 5,400 s (D90S); beyond that the generator fails closed.
+        longer = script.regenerate(CI, self.root, base, 'c' * 40, dict(timings, seconds=dict(
+            timings['seconds'], **{self.discovered[0]: 5400.0})), True)
+        self.assertEqual((longer['partitions'][0]['tier'], longer['partitions'][0]['estimatedSeconds']), ('D90S', 5400.0))
         with self.assertRaisesRegex(SystemExit, 'fit the test budget'):
-            script.regenerate(CI, self.root, base, 'c' * 40, dict(timings, seconds=dict(timings['seconds'], **{self.discovered[0]: 3001.0})), True)
+            script.regenerate(CI, self.root, base, 'c' * 40, dict(timings, seconds=dict(timings['seconds'], **{self.discovered[0]: 5401.0})), True)
         with self.assertRaisesRegex(SystemExit, 'packing target'):
             script.regenerate(CI, self.root, base, 'c' * 40, timings, True, 3001.0)
         for bad in (dict(timings, extra=1), dict(timings, provenance=[]), dict(timings, provenance={'head': 'HEAD'})):
@@ -8940,6 +9136,53 @@ class SharedCoverageRouteTests(unittest.TestCase):
         units = script.class_units(CI, heavy, lambda selector: 700.0, 1500.0)
         self.assertEqual([len(unit) for unit in units][:-1], [2] * (len(units) - 1))
         self.assertEqual(sum(units, []), heavy)
+
+    def test_known_slow_solo_tier_is_derived_kept_alone_and_read_from_legacy_sources(self):
+        script = load_partition_script()
+        base = self.value()
+        solo = next(row for row in base['partitions'] if row['tier'] == 'D90S')
+        # The rule: one method whose written estimate exceeds the packing target.
+        self.assertEqual(script.partition_tier(CI, ['x'], 1500.1, 1500.0), 'D90S')
+        self.assertEqual(script.partition_tier(CI, ['x'], 1500.0, 1500.0), 'D50C')
+        self.assertEqual(script.partition_tier(CI, ['x', 'y'], 2900.0, 1500.0), 'D50C')
+        # A legacy v1 source (no tiers) regenerates to the same v2 file.
+        legacy = copy.deepcopy(base)
+        legacy['schema'] = 'v23-coverage-partitions.v1'
+        for row in legacy['partitions']:
+            row.pop('tier')
+        self.assertEqual(script.regenerate(CI, self.root, legacy, base['generatedAtHead']), base)
+        # Sticky mode: a new method of a known-slow solo's class is placed elsewhere.
+        class_name = solo['selectors'][0].split('/')[1]
+        added = self.root / 'FieldEvidenceAppTests/SharedCoverageSoloExtensionTests.swift'
+        added.write_bytes(('import XCTest\n\nextension %s {\n    func testSharedCoverageAddedBesideSolo() {}\n}\n'
+                           % class_name).encode())
+        try:
+            refreshed = script.regenerate(CI, self.root, base, 'c' * 40)
+        finally:
+            added.unlink()
+        rows = {row['id']: row for row in refreshed['partitions']}
+        self.assertEqual((rows[solo['id']]['selectors'], rows[solo['id']]['tier']), (solo['selectors'], 'D90S'))
+        new = 'FieldEvidenceAppTests/%s/testSharedCoverageAddedBesideSolo' % class_name
+        owner = next(row for row in refreshed['partitions'] if new in row['selectors'])
+        # Here no packed partition has room, so it opens a small partition: not known-slow, D50C.
+        self.assertNotEqual(owner['id'], solo['id'])
+        self.assertEqual(owner['tier'], 'D50C')
+        self.assertLessEqual(owner['estimatedSeconds'], script.TARGET_SECONDS)
+
+    def test_every_consumer_tier_is_watched_inside_its_job_timeout(self):
+        # Owner decision 16 keeps the watchdogs: the test command runs under the tier's
+        # test timeout, the total budget is checked before upload, and the job cap exceeds both.
+        worker = (ROOT / SHARED_WORKER_PATH).read_text(encoding='utf-8')
+        self.assertIn(SHARED_WORKER_TIMEOUT, worker)
+        caps = {'D90S': 120, 'D50C': 90, 'D40P': 90}
+        for tier, minutes in caps.items():
+            setup, build, test, ui, total = CI.TIERS[tier]
+            with self.subTest(tier=tier):
+                self.assertLess(setup + build + test + ui, total + 1)
+                self.assertLess(total, minutes * 60)
+        self.assertEqual(CI.TIERS['D90S'][2], 5400)
+        self.assertIn('bash Scripts/run-with-timeout.sh "$CI_TEST_TIMEOUT_SECONDS"', worker)
+        self.assertIn('run: bash Scripts/v23-shared-worker.sh total-budget', worker)
 
     def test_consumer_shell_tests_restored_products_and_evidence_is_role_exact(self):
         bash = (Path(shutil.which('git')).resolve().parents[1] / 'bin/bash.exe') if os.name == 'nt' else Path(shutil.which('bash'))

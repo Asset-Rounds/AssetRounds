@@ -193,4 +193,35 @@ The production photo journey takes priority over another isolated foundation. So
 - V10_03:614 asserts the current catalog (455 entries) is below `SyncClassificationRegistryV1.maximumRegistrationCount` (128). That cap applies to the frozen baseline registry (`validate()`, SyncClassificationRegistryV1.swift:134), not to `CurrentSyncClassificationCatalogV1`. This is most likely a stale test premise. Owner decision pending: change the expectation, or add a current-catalog cap.
 - `ReleasedDataCompatibilityPolicyV1` exact-head writers stop at store 16.0.0 and persistent16-records15 while the schema is at V53. Tests are pinned to the real values; intent is unconfirmed.
 - Seen at e37ea967: S10_4 `testPinnedOverlaySelectorAndExactSevenPlusSevenShardContract` :5396 (PreflightView action fragment, 0 vs 1); V23ProductionFourRootShell `testPhysicalRestoredReviewDiscard…` (invalidIdentity).
+- D3 items without a frozen later-card trace (left unchanged, 2026-09-25):
+  - V9_35:319: the test helper builds ranges in `allCases` order but asserts they are sorted. Test bug since C21.
+  - V9_77:20: the product sorts inventory items by stableKey; the test expects `allCases` order. Latent since C13.
+  - V9_50:495: the test-support scanner emits TRACKING_OR_IDENTITY_JOIN twice, and the scanner is hash-bound by C43 tooling.
+  - V9_68:465: independent recovery-hash assembly mismatch.
+  - V9_93:141: hashes the live `Scripts/ci-selection.json` and `ios-ci.yml` against `Release/V23P05C01…`. Release/** is receipt-bound and never edited, so this test fails whenever CI selection changes. Needs an owner decision on a successor record.
+- PHASE 1 BLOCKER. Backup export self-deadlock. Verified from `sample` stacks and lsof.
+  - `BackupExportService.export` → `withCheckRunnerPhotoPublication` → `StaleWriterFenceV1.withAuthorizedCommit` holds the exclusive generation lock (flock).
+  - Under it, `validateFrozenCanonical` → `currentStreamingWorkspaceIdentity` builds a fresh `StoreGenerationFactory`, whose new `GenerationLeaseRegistryV1` does a blocking flock on a second descriptor of the same `mutation.lock`. The thread waits forever for its own lock.
+  - Introduced in 97360687. Any export that gets past the archive write hangs. Fix in progress: reuse the open authority, with no change to lock code.
+- POSSIBLE RELEASE BLOCKER. Nested semantic-export digests in aggregate migration.
+  - Each `semanticExportVn` embeds the canonical bytes of Vn-1 as base64 and hashes the whole thing, so cost grows roughly exponentially per layer.
+  - A v4 fixture reached 2.36 GB by v49 (V10_01 testV4Accepts…; likely also its 674 s sibling).
+  - S10 shipped schema 1.0.0, so the real S10 → V53 upgrade cost is being measured before any proposal.
+  - Digests are persisted, so a fix is a restricted migration/digest-format change.
+- A permission denial ("Modify Shared Resources") blocked a helper's experimental edit to StoreMigrationService.swift lock code. It has not been retried or routed around.
+- C13 entity-identity first commit:
+  - Fixed so far (wt/decisions cb33f60d, awaiting review): the command validation and the writer lineage validation now agree. The frozen C13 exact-revision rule is used, with the target row at revision 0 for a new target.
+  - Remaining, touching persisted receipt semantics:
+    - `MutationJournalStoreV1.entityIdentityResolutionReceipt` (:4538-4543) compares the generic post-image hash `sha256(PersistedPostImageDigestBasis)` (:8044-8052) with the typed receipt's `linkSHA256`/`receiptSHA256` (EntityIdentityResolutionContractsV1:376/501). These are computed differently, so they never match.
+    - The row lookup keys also differ (linkEventID/consolidationReceiptID vs alias/source identity ids).
+    - V9_77 A01/I01/R01 now fail with receiptHistoryCorrupt.
+- Backup export deadlock: fixed in wt/stall c33db148, awaiting review. Mixed exports now complete in 24-52 s. The coordinator's retained registry re-enters the lock; lock code is untouched.
+- DATA SAFETY, high priority: an exported backup's check-runner photo history has 0 children where 6 are expected (S6_2 mixed tests and the new export test). Photo history may be missing from backups. Diagnose next.
+- S6_2 configuration-clone tests crash with SIGBUS in the `MutationPostImageV1` type-metadata accessor inside `CheckRunnerPhotoBackupHistoryV1.projectChild`, on the `BackupOffMainWorkerV1` thread. This is inferred to be a thread stack overflow; the same crash happened on hosted sweep 1.
+- S6_2 mixed tests also expect records schema 54/53 but get 53/52, a placement history count of 1 but get 2, and hit `unsafePath` at import validation.
+- Review question: the new S6_2 stall watchdog uses `fatalError` at 1200 s, which names the stage but also ends the rest of the partition's tests.
+- Owner pre-gate confirmation checklist (delegated decisions to confirm before the Phase 1 gate):
+  - D2: replicated immutable-version kinds keep immutable-history backup/export/restore/erase dispositions. The C38/C40 contracts are silent on this.
+  - D5: V9_93 checks Release/V23P05C01 against CI bytes committed at 5f17cdcd, applying decision 7 by analogy to a V23 card.
+- Batch M recommendations: a millisecond-boundary finalization case; the writer should call the shared C13 target function; name dropped exit-flush counts.
 

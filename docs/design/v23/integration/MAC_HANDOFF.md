@@ -61,7 +61,7 @@ Keep the Windows PC folder `C:\AssetRounds-v23-s10-integration`. It holds about 
   - Always pass `--kind` explicitly. Other selections default to `gate`, which is only a strictness label; a run counts as gate evidence only on the frozen candidate head, as AGENTS.md says.
   - Development runs only: `--infra-retry-of <run> --reason "<why>"` allows one rerun after a genuine runner, setup or artifact failure, and never after test failures. `cancel --run <id> --reason "<why>"` stops a run already known to be broken.
   - Gate runs never rerun or cancel, and a gate is refused if its head and selection already have an original.
-  - Parallel development batches are refused until the workflow concurrency groups include the head; that is a small follow-up batch.
+  - Parallel development runs (owner decision 16): `--kind development` passes `v23_run_kind=development`, which gives the dev-batch and shared-coverage routes per-head concurrency groups. A development original may run beside development originals at other heads; gate runs keep their groups and every gate rule.
 - **Development batch.**
   1. Edit `Scripts/v23-dev-batch.json` with the exact ordered tests, up to 150. If a test class subclasses a support class, also include one method from the file that defines it.
   2. Commit and push.
@@ -69,7 +69,7 @@ Keep the Windows PC folder `C:\AssetRounds-v23-s10-integration`. It holds about 
 - **Full coverage (shared build).**
   1. After any test-method change, run `python3 Scripts/v23-coverage-partitions.py --source Scripts/v23-coverage-partitions.json --output Scripts/v23-coverage-partitions.json`.
   2. Commit and push.
-  3. Dispatch `v23-shared-coverage-d50x` with `--kind development` for sweeps, or `--kind gate` for the frozen phase candidate. It needs zero other active runs, and it builds once then runs 44 test-only partitions, five at a time.
+  3. Dispatch `v23-shared-coverage-d50x` with `--kind development` for sweeps, or `--kind gate` for the frozen phase candidate. A gate sweep needs zero other active runs; a development sweep runs only beside development runs at other heads. It builds once, then runs the test-only partitions five at a time: D50C (3,000 s), or D90S (5,400 s) for a one-method known-slow partition (owner decision 16).
 - **Workflow size.** Keep the template-budget guard test passing. GitHub rejects about 6 MiB of called-workflow content per parse.
 
 ## 5. State at handoff (keep ACTIVE_BRIEF current after this)
@@ -92,7 +92,7 @@ Keep the Windows PC folder `C:\AssetRounds-v23-s10-integration`. It holds about 
 - the concise policy (`AGENTS.md`), `CLAUDE.md` and this handoff (`35eefd8`);
 - the `Scripts/dev` tools with run kinds and the relaxed development commands (the commit after `35eefd8`).
 
-Still due: the workflow change that allows parallel development batches, a per-head concurrency term reviewed with the template-budget guard.
+The per-head development concurrency term and the D90S solo tier (owner decision 16) are in the tools; they need independent review and a hosted development run before relying on them.
 
 **Next steps**
 1. Collect and triage the sweep, then fix failure families (helpers can work in parallel).
@@ -109,3 +109,5 @@ Still due: the workflow change that allows parallel development batches, a per-h
 - the startup live-path test rewrite;
 - a production Round creator and package source;
 - journey performance.
+
+Python: the tools and suites need Python 3.10+. On the Mac, `/usr/bin/python3` is Xcode's 3.9, so use Homebrew `/opt/homebrew/bin/python3` (3.14). For the suites, first run `export TMPDIR=$(cd "$TMPDIR" && pwd -P)/` (`/var` is a symlink). zsh does not word-split `$var`; build `-only-testing` argument arrays in bash.

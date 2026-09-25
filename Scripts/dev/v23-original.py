@@ -42,17 +42,29 @@ Windows), else C:/AssetRounds-v23-review-evidence on Windows and
                             SHA-256 manifest, then writes summary.json.
   summarize --run RUN_ID    re-derives a summary from retained files only.
 
-Parallel development batches: a development-kind v23-dev-batch-no-index-d50 may
-run at a different head beside active development-kind batches only when, at the
-new head, the ios-ci.yml concurrency group, every job that can run the batch and
-every reusable worker those jobs call (read from their `uses:`) carry the
-per-head term DEV_BATCH_PER_HEAD_GROUP_TERM outside YAML comments. Every other
-case is refused while the selection is active at any head.
+Parallel development runs (owner decision 16, 2026-09-25): a development
+dispatch passes the workflow input v23_run_kind=development (a gate dispatch
+passes nothing and keeps the workflow default, gate, so gate argv and groups are
+unchanged); the head's workflow must declare that input. For the two per-head
+routes (v23-dev-batch-no-index-d50 and v23-shared-coverage-d50x) the input adds
+DEVELOPMENT_PER_HEAD_GROUP_TERM to the caller and worker concurrency groups. A
+development original of one of those routes may run beside active development
+originals of the SAME route at other heads only when, at the new head, the
+ios-ci.yml concurrency group, every job that can run the route and every reusable
+worker those jobs call (read from their `uses:`) carry that term, or the per-run
+${{ github.run_id }}, outside YAML comments. Gate, unmarked and other-selection
+originals keep the any-head refusal.
 
 Shared-build route v23-shared-coverage-d50x (one run: shared-selection, one
 build-only producer and one test-only consumer per plan partition):
-  dispatch additionally binds the plan to the partitions file at the head and
-  requires ZERO other active runs (the run can occupy every macOS slot).
+  dispatch additionally binds the plan to the partitions file at the head. A gate
+  (or any non-development) original requires ZERO other active runs (the run can
+  occupy every macOS slot) and, while active, refuses every other dispatch. A
+  development sweep runs only beside ledgered development runs at OTHER heads
+  (their jobs queue for macOS slots; every budget clock starts on the runner),
+  never beside a gate, unmarked or unknown run, and never beside any active run of
+  its own head; while it is active, only development originals at other heads may
+  be dispatched.
   collect paginates jobs and artifacts, retains and extracts the producer and
   every consumer artifact into artifacts/<producer|Sxx>, records the payload
   artifact's id/size/digest WITHOUT downloading it, and summarizes per-partition
@@ -119,12 +131,21 @@ DEV_BATCH_SELECTION_ID = "v23-dev-batch-no-index-d50"
 # Routes that serve both development sweeps and gates: every dispatch names its kind.
 KIND_REQUIRED_SELECTIONS = (DEV_BATCH_SELECTION_ID, "v23-shared-coverage-d50x")
 KINDS = ("development", "gate")
-DEVELOPMENT_TIERS = ("D30", "D50", "D40P", "D50C")
-# The exact term the caller group, the dev-batch jobs' groups and their workers'
-# groups must carry so that dev batches at different heads get different groups
-# (every other selection evaluates it to '').
-DEV_BATCH_PER_HEAD_GROUP_TERM = ("${{ inputs.native_selection_id == '" + DEV_BATCH_SELECTION_ID
-                                 + "' && format('-{0}', github.sha) || '' }}")
+DEVELOPMENT_TIERS = ("D30", "D50", "D40P", "D50C", "D90S")
+# Development originals of these routes get per-head concurrency groups (owner decision 16).
+PER_HEAD_SELECTIONS = KIND_REQUIRED_SELECTIONS
+# The dispatch input that carries the kind to the workflow; declared with default gate.
+RUN_KIND_INPUT = "v23_run_kind"
+# The exact term the caller group, the route jobs' groups and their workers' groups must
+# carry so that development originals at different heads get different groups. It reads
+# the dispatch event (a called worker sees its caller's event), so a gate dispatch and
+# every other selection evaluate it to ''.
+DEVELOPMENT_PER_HEAD_GROUP_TERM = (
+    "${{ github.event.inputs." + RUN_KIND_INPUT + " == 'development' && ("
+    + " || ".join("github.event.inputs.native_selection_id == '%s'" % x for x in PER_HEAD_SELECTIONS)
+    + ") && format('-development-{0}', github.sha) || '' }}")
+# A group that names the run is unique per run, which is at least per head.
+PER_RUN_GROUP_TERM = "${{ github.run_id }}"
 MAX_REASON = 1000
 # Infrastructure classification of the first failing step of each failing job.
 TEST_STEP = "Run targeted tests"
@@ -345,19 +366,19 @@ def workflow_jobs(text):
     return {job: "\n".join(body) for job, body in jobs.items()}
 
 
-def dev_batch_jobs(caller_text):
+def route_jobs(caller_text, selection):
     """{job: (job text, local reusable workflow path, "" or None)} for every caller job that can
-    run the dev batch on LANE. A job is excluded only when its `if:` provably excludes it:
-    it names execution lanes but not LANE, pins another selection, or excludes the batch.
+    run SELECTION on LANE. A job is excluded only when its `if:` provably excludes it:
+    it names execution lanes but not LANE, pins another selection, or excludes this one.
     The worker path is read from the job's `uses:`; "" marks an unreadable or non-local call."""
     found = {}
     for job, text in workflow_jobs(caller_text).items():
         condition = " ".join(yaml_scalar(x) or "" for x in re.findall(r"^    if:(.*)$", text, re.M))
         if "inputs.execution_lane" in condition and f"'{LANE}'" not in condition:
             continue
-        if any(x != DEV_BATCH_SELECTION_ID for x in re.findall(r"native_selection_id == '([^']+)'", condition)):
+        if any(x != selection for x in re.findall(r"native_selection_id == '([^']+)'", condition)):
             continue
-        if f"native_selection_id != '{DEV_BATCH_SELECTION_ID}'" in condition:
+        if f"native_selection_id != '{selection}'" in condition:
             continue
         uses = [yaml_scalar(x) for x in re.findall(r"^    uses:(.*)$", text, re.M)]
         worker = None
@@ -367,36 +388,72 @@ def dev_batch_jobs(caller_text):
     return found
 
 
-def per_head_concurrency_problems(head, caller_text):
-    """Why dev batches at different heads would share a caller, job or worker concurrency group."""
-    term = DEV_BATCH_PER_HEAD_GROUP_TERM
+def per_head_group(group):
+    """True when a group expression separates development originals of different heads."""
+    return group is not None and (DEVELOPMENT_PER_HEAD_GROUP_TERM in group or PER_RUN_GROUP_TERM in group)
+
+
+def per_head_concurrency_problems(head, caller_text, selection=DEV_BATCH_SELECTION_ID):
+    """Why development originals of SELECTION at different heads would share a caller, job or
+    worker concurrency group."""
     problems = []
     group = concurrency_group(caller_text)
     if group is None:
         problems.append(f"{WORKFLOW_PATH} has no single readable top-level concurrency group")
-    elif term not in group:
-        problems.append(f"{WORKFLOW_PATH} concurrency group does not include github.sha for {DEV_BATCH_SELECTION_ID}")
+    elif not per_head_group(group):
+        problems.append(f"{WORKFLOW_PATH} concurrency group does not include github.sha for {selection}")
     workers = set()
-    for job, (text, worker) in sorted(dev_batch_jobs(caller_text).items()):
-        if any(g is None or term not in g for g in concurrency_groups(text, 4)):
+    for job, (text, worker) in sorted(route_jobs(caller_text, selection).items()):
+        if not all(per_head_group(g) for g in concurrency_groups(text, 4)):
             problems.append(f"{WORKFLOW_PATH} job {job} concurrency group does not include github.sha "
-                            f"for {DEV_BATCH_SELECTION_ID}")
+                            f"for {selection}")
         if worker == "":
             problems.append(f"{WORKFLOW_PATH} job {job} calls a workflow that is not a readable local path")
         elif worker:
             workers.add(worker)
     if not workers:
-        problems.append(f"{WORKFLOW_PATH} has no job that calls a worker for {DEV_BATCH_SELECTION_ID} on {LANE}")
+        problems.append(f"{WORKFLOW_PATH} has no job that calls a worker for {selection} on {LANE}")
     for path in sorted(workers):
         text = git_bytes("show", f"{head}:{path}").decode("utf-8")
         group = concurrency_group(text)
         if group is None:
             problems.append(f"{path} has no single readable top-level concurrency group")
-        elif term not in group:
-            problems.append(f"{path} concurrency group does not include github.sha for {DEV_BATCH_SELECTION_ID}")
-        if any(g is None or term not in g for g in concurrency_groups(text, 4)):
-            problems.append(f"{path} job concurrency group does not include github.sha for {DEV_BATCH_SELECTION_ID}")
+        elif not per_head_group(group):
+            problems.append(f"{path} concurrency group does not include github.sha for {selection}")
+        if not all(per_head_group(g) for g in concurrency_groups(text, 4)):
+            problems.append(f"{path} job concurrency group does not include github.sha for {selection}")
     return problems
+
+
+def dispatch_input_lines(text, name):
+    """The body lines of one workflow_dispatch input (a unique 6-space key), else None."""
+    lines = text.replace("\r\n", "\n").split("\n")
+    starts = [index for index, line in enumerate(lines)
+              if re.fullmatch("      " + re.escape(name) + r":\s*(?:#.*)?", line)]
+    if len(starts) != 1:
+        return None
+    body = []
+    for line in lines[starts[0] + 1:]:
+        if line.strip() and not line.lstrip().startswith("#") and len(line) - len(line.lstrip(" ")) <= 6:
+            break
+        body.append(line)
+    return body
+
+
+def run_kind_input_declared(text):
+    """True when the workflow declares the kind input: a choice of exactly the kinds, default gate."""
+    body = dispatch_input_lines(text, RUN_KIND_INPUT)
+    if body is None:
+        return False
+    keys = {}
+    for line in body:
+        match = re.fullmatch(r"        ([A-Za-z_-]+):(.*)", line)
+        if match:
+            keys[match.group(1)] = yaml_scalar(match.group(2))
+    options = [yaml_scalar(match.group(1)) for match in (re.fullmatch(r"          - (.*)", line) for line in body)
+               if match]
+    return (keys.get("type") == "choice" and keys.get("default") == "gate" and "options" in keys
+            and sorted(options) == sorted(KINDS))
 
 
 def runs_for(head):
@@ -591,6 +648,9 @@ def dispatch(selection, kind=None, infra_retry_of=None, reason=None):
     workflow = run("git", "show", f"{head}:{WORKFLOW_PATH}")
     if not re.search(r"^\s*- " + re.escape(selection) + r"\s*$", workflow, re.M):
         raise SystemExit(f"selection {selection} is not a workflow choice at {head}")
+    if kind == "development" and not run_kind_input_declared(workflow):
+        raise SystemExit(f"a development original passes {RUN_KIND_INPUT}=development, but {WORKFLOW_PATH} at "
+                         f"{head} does not declare that choice input (gate|development, default gate)")
     resolved, resolved_sha = resolve_selection(head, selection)
     if kind == "development" and not development_route(selection, resolved):
         raise SystemExit(f"--kind development is only for development routes; {selection} is not one")
@@ -616,42 +676,69 @@ def dispatch(selection, kind=None, infra_retry_of=None, reason=None):
               for x in api(f"repos/{REPO}/actions/runs?status={status}&per_page=100")["workflow_runs"]]
     if len(active) >= MAX_ACTIVE:
         raise SystemExit(f"{len(active)} active runs; capacity is {MAX_ACTIVE}")
-    if shared and active:
+    dispatches = ledger_dispatches()
+    by_run = {x["runID"]: x for x in dispatches}
+    selection_by_run = {x["runID"]: x["selection"] for x in dispatches}
+
+    def active_head(run):
+        return run.get("head_sha") or by_run.get(run["id"], {}).get("head")
+
+    def development_run(run):
+        return by_run.get(run["id"], {}).get("kind") == "development"
+    # Development originals of the per-head routes carry the head in their concurrency groups.
+    parallel = (kind == "development" and selection in PER_HEAD_SELECTIONS
+                and development_route(selection, resolved))
+    if shared and not parallel and active:
         # One shared run can hold all MAX_ACTIVE macOS slots (producer, then 5 consumers).
         raise SystemExit(f"{len(active)} active runs {sorted(x['id'] for x in active)}; "
                          f"{SHARED_SELECTION_ID} requires zero other active runs of any selection")
-    dispatches = ledger_dispatches()
-    selection_by_run = {x["runID"]: x["selection"] for x in dispatches}
+    if shared and active:
+        # A development sweep shares macOS slots only with ledgered development runs at other
+        # heads: their jobs queue, and every budget clock starts on the runner.
+        foreign = sorted(x["id"] for x in active if not development_run(x))
+        if foreign:
+            raise SystemExit(f"active runs {foreign} are not ledgered development runs; a development "
+                             f"{SHARED_SELECTION_ID} sweep runs only beside development runs at other heads")
+        here = sorted(x["id"] for x in active if active_head(x) in (head, None))
+        if here:
+            raise SystemExit(f"runs {here} are active at this head (or at an unknown head); "
+                             f"{SHARED_SELECTION_ID} never overlaps another run of its head")
     same = [x for x in active if selection_by_run.get(x["id"]) == selection]
     if same:
-        # The committed concurrency groups are per selection ID, not per head, so a second
-        # original of the same selection would queue or cancel the first. Only a development
-        # dev batch may run beside development dev batches, at a different head whose caller,
-        # job and worker groups add the head.
-        kind_by_run = {x["runID"]: x.get("kind") for x in dispatches}
-        if (selection != DEV_BATCH_SELECTION_ID or kind != "development"
-                or not development_route(selection, resolved)
-                or any(kind_by_run.get(x["id"]) != "development" for x in same)):
+        # Without the development per-head term the committed concurrency groups are per
+        # selection ID, not per head, so a second original of the same selection would queue
+        # or cancel the first. Only a development original of a per-head route may run beside
+        # development originals of that route, at a different head whose caller, job and
+        # worker groups add the head.
+        if not parallel or not all(development_run(x) for x in same):
             raise SystemExit("this selection is active (at any head); wait for its terminal audited result")
-        head_by_run = {x["runID"]: x.get("head") for x in dispatches}
-        heads = {x.get("head_sha") or head_by_run.get(x["id"]) for x in same}
+        heads = {active_head(x) for x in same}
         if head in heads or None in heads:
             raise SystemExit(f"{selection} is active at this head (runs {sorted(x['id'] for x in same)}); "
                              "wait for its terminal audited result")
-        problems = per_head_concurrency_problems(head, workflow)
+        problems = per_head_concurrency_problems(head, workflow, selection)
         if problems:
-            raise SystemExit(f"{selection} is active at another head; a parallel batch needs per-head "
+            raise SystemExit(f"{selection} is active at another head; a parallel original needs per-head "
                              "concurrency groups at this head: " + "; ".join(problems))
-    if not shared and any(selection_by_run.get(x["id"]) == SHARED_SELECTION_ID for x in active):
-        # The active shared run can occupy every macOS slot; never queue another original behind it.
-        raise SystemExit(f"{SHARED_SELECTION_ID} is active; no other selection may be dispatched until "
-                         "its terminal audited result")
+    sweeps = [x for x in active if selection_by_run.get(x["id"]) == SHARED_SELECTION_ID]
+    if not shared and sweeps:
+        # An active shared run can occupy every macOS slot. A gate or unmarked sweep admits no
+        # other original; a development sweep admits only development originals at other heads.
+        if kind != "development" or not all(development_run(x) for x in sweeps):
+            raise SystemExit(f"{SHARED_SELECTION_ID} is active; no other selection may be dispatched until "
+                             "its terminal audited result")
+        if any(active_head(x) in (head, None) for x in sweeps):
+            raise SystemExit(f"{SHARED_SELECTION_ID} is active at this head (or at an unknown head); no other "
+                             "original of this head may be dispatched until its terminal audited result")
     ATTEMPTS.mkdir(parents=True, exist_ok=True)
     attempt_path = retry_path or ATTEMPTS / f"{head}-{selection}.json"
     argv = ["gh", "workflow", "run", WORKFLOW, "--repo", REPO, "--ref", BRANCH,
             "-f", "execution_lane=" + LANE, "-f", "native_selection_id=" + selection,
             "-f", "run_ui_smoke=false", "-f", "s10_4_shard_id=none",
             "-f", "s10_4_minimum_core_smoke_id=none", "-f", "s10_4_shared_segment_id=none"]
+    if kind == "development":
+        # A gate passes nothing: the workflow default (gate) keeps its argv and groups unchanged.
+        argv += ["-f", f"{RUN_KIND_INPUT}=development"]
     attempt = {"head": head, "parent": parent, "selection": selection, "argv": argv,
                "knownRunIDs": sorted(x["id"] for x in before),
                "requestedAtUTC": now(), "resolvedSelectionSHA256": resolved_sha, "kind": kind}
@@ -1339,6 +1426,7 @@ def build_shared_summary(run_id, directory, dispatched):
     declared_all, declared_from = [], {"artifact": 0, "dispatch": 0}
     timings, diagnostics, unselected = [], [], set()
     consumer_tier = consumer_budgets = None
+    consumer_tiers = {}  # tier -> budgets, from each executed selection (D50C, D90S solo)
     entries = {}
     for pid in ids:
         job = found["consumers"].get(pid)
@@ -1369,6 +1457,7 @@ def build_shared_summary(run_id, directory, dispatched):
                 if consumer_budgets is None:
                     consumer_tier = selection.get("tier")
                     consumer_budgets = {k: selection.get(k) for k in BUDGET_KEYS}
+                consumer_tiers.setdefault(str(selection.get("tier")), {k: selection.get(k) for k in BUDGET_KEYS})
             entry["admission"] = admission_facts(read_json_file(adir / "native-admission.json"), "consumer", pid,
                                                  run_id, head, plan_sha, names["payload"])
             if entry["admission"]["present"] and not (entry["admission"]["planSHA256Matches"]
@@ -1460,6 +1549,9 @@ def build_shared_summary(run_id, directory, dispatched):
     missing_artifacts = [x for x in ["producer", *ids]
                          if not (producer["artifact"] if x == "producer"
                                  else entries[x]["artifact"])["extracted"]]
+    if len(consumer_tiers) > 1:
+        # Mixed consumer tiers (owner decision 16): name every tier and its budgets.
+        consumer_tier, consumer_budgets = sorted(consumer_tiers), dict(sorted(consumer_tiers.items()))
     return {"runID": run_id, "head": run_record["head_sha"], "parent": dispatched.get("parent"),
             "selection": dispatched["selection"], "conclusion": run_record["conclusion"], "route": "shared-build",
             "tier": {"producer": plan.get("tier"), "consumer": consumer_tier},

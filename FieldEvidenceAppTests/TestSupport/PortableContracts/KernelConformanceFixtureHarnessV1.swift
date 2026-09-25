@@ -6137,7 +6137,8 @@ enum C14InspectionReviewTestSupportV1 {
         effectiveAt: Date = fixedDate,
         supersedesReleaseID: UUID? = nil,
         revision: UInt64 = 1,
-        noDue: Bool = false
+        noDue: Bool = false,
+        policyID: UUID? = nil
     ) throws -> CorrectiveActionPolicyV1 {
         let rules: [CorrectiveActionPriorityRuleV1]
         if noDue {
@@ -6180,7 +6181,7 @@ enum C14InspectionReviewTestSupportV1 {
             )
         ]
         return try CorrectiveActionPolicyV1(
-            releaseID: id(seed), policyID: id(seed + 1), workspaceID: workspaceID,
+            releaseID: id(seed), policyID: policyID ?? id(seed + 1), workspaceID: workspaceID,
             priorityRules: rules, assignmentRule: assignmentRule,
             closureEvidenceRequirements: evidence, verifierRule: verifierRule,
             reopenTriggers: noDue ? [.manualRecordedReason] : [
@@ -6369,10 +6370,13 @@ enum C14InspectionReviewTestSupportV1 {
         )
 
         let policy = try makePolicy(seed: seed + 80, workspaceID: workspaceID)
+        // A superseding release continues the same policy lineage; the C14
+        // successor contract rejects a release that names another policyID.
         let supersedingPolicy = try makePolicy(
             seed: seed + 83, workspaceID: workspaceID,
             effectiveAt: fixedDate.addingTimeInterval(10),
-            supersedesReleaseID: policy.releaseID, revision: 2
+            supersedesReleaseID: policy.releaseID, revision: 2,
+            policyID: policy.policyID
         )
         let noDuePolicy = try makePolicy(
             seed: seed + 86, workspaceID: workspaceID,

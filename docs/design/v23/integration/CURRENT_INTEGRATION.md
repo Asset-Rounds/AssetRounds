@@ -3898,3 +3898,87 @@ Requirement: close the Phase 1 gate-evidence gap in V23PhaseGateTests and fix te
   - Deliberately untouched, pending owner decisions: the forward-fix wording and the `.immutable`/`.supported` expectations. V10_03:614 is left failing (see VERIFICATION_DUE).
 - **Review:** one independent reviewer (Claude Opus 5.5, read-only, not the author) returned APPROVE WITH CHANGES; the required changes were records only and are done here. The reviewer independently recomputed the AppShellView pin and judged compile risk LOW.
 - **Local results** (development only; iOS 26.5): build-for-testing SUCCEEDED and V23PhaseGateTests passes 8/8. Pin classes: failures went from 103 to 64, and every remaining failure belongs to another family. Also seen at unmodified e37ea967: V23ProductionFourRootShell `testPhysicalRestoredReviewDiscard…` fails with invalidIdentity, and S10_4 `testPinnedOverlaySelectorAndExactSevenPlusSevenShardContract` fails at :5396 (PreflightView fragment, 0 vs 1).
+
+## Owner-delegated decisions (2026-09-25)
+
+The owner delegated the four pending product decisions to root ("pick best answer, I trust you"). Root decided from frozen design evidence. Each is reversible by the owner.
+
+- **D1 Forward-fix wording.** `PackageEvolutionLifecycleV1.downgradePolicy` takes the C18 card's frozen contract and receipt value, `PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V17_WRITE` (V23P03C18PackageEvolutionContractV1.json and …EvidenceReceiptV1.json). The C18 tests were written with that value in 83053def. The constant is not persisted. Other `downgradeDisposition` constants keep the blueprint and registry wording `…_AFTER_ACTIVATION`.
+- **D2 Replicated immutable-version kinds.** The product's systematic rule stays: deleteWins, stableIDAppendUnion and immutableVersion replicated kinds map to immutable history (backup includeImmutableHistory, restore and erase immutable). This is consistent across all 455 kinds and matches the blueprint invariant that finalized records keep their exact revision forever. The erase disposition is descriptive, so Erase-all still removes the whole generation, and changing the rule would touch restricted backup and restore policy. The C38 and C40 tests are updated to the exact product dispositions.
+- **D3 Closed-vocabulary fixtures.** A fixture follows the app only where the app's value traces to a frozen later-card contract or receipt, and that source is cited in the test. For example, the C19 electrical units (A, Ohm, V) are in V23P03C19MeasurementIntegrityContractV1.json. Anything that doesn't trace is reported, not changed.
+- **D4 Sync registry cap.** `maximumRegistrationCount` (128) governs the frozen baseline `SyncClassificationRegistryV1.registrations`. V10_03 enforces it there, and the current catalog stays pinned at its exact count (455).
+- **Original 36133511753.** Triage used GitHub API job logs. Collecting it needs its original `dispatch.json`, which is on Windows. It is not reconstructed; that would be fabricated evidence. Development sweep 36168198155 at e37ea96 supersedes it for triage.
+- **Mac setup.**
+  - Global git identity: palatis3, with the GitHub noreply address already used on this branch.
+  - `gh auth setup-git` is configured.
+  - The forked Claude session was asked to stand down and is left idle.
+- **D5 Remaining D3 items (owner asked root to pick again, 2026-09-25).**
+  - V9_93 follows owner decision 7 by analogy: card-time tests prove committed history, not live CI state. The Release/V23P05C01 record is checked against the CI bytes committed at its card, through a history blob. Release/** is untouched.
+  - V9_35 and V9_77 expect the product's sorted-by-design order, with set and count still exact.
+  - V9_50 and V9_68 are diagnosed first. Test or harness defects get fixed; product or receipt-bound causes are reported.
+
+## Release blocker: S10 → V23 upgrade digest (2026-09-25; decided, implementation queued)
+
+Measured natively (development only, iOS 26.5 Simulator):
+- The real S10 path runs a legacy pointer from release .v1, then aggregate steps V1→V53. Every step from V3 up hashes a nested `semanticExportVn` that embeds Vn-1 as base64, so it grows by exactly 4/3 per layer.
+  - Empty store: 29 MB at V40, 289 MB at V48, about 1.2 GB predicted at V53.
+  - A V1 store with 1 site: openForStartup completed in 316 s with more than 2.1 GB RSS.
+  - A V1 store with 40 sites: killed at 660 s while still at V46 to V47, with RSS up to 7.3 GB. It would not complete on a device (jetsam).
+- The existing framed digest (`StoreSemanticLayerDigestV1`) takes 7–14 ms on the same data.
+
+Decision (root, owner decisions 14 and 18):
+- The aggregate migration path moves to framed layered digests: adjacent source and target checks, the prior projection, the final candidate and published-target validation. `StoreSemanticLayerDigestV1` extends to V3…V53, and existing V53 framed bytes stay identical.
+- V1/V2 flat source digests stay frozen in the journal, per `semanticDigestPolicy`.
+- The final aggregate manifest is written as schema 2 with framed layers.
+- The aggregate journal digest format is marked explicitly, so an in-flight nested journal fails closed with forwardFixRequired.
+
+Evidence: the blueprint requires bounded memory (:11716, :11822) and forward-migratable shipped schemas (:11323), and says new framed forms get a new version or domain and never reinterpret released bytes (:394, :514). The registry `semanticDigestPolicy` doesn't mandate a nested form.
+
+Format impact: no shipped store. S10 is V1 and has no digests; V2–V52 never shipped. Development V53 stores with schema-1 manifests stay readable, because V53 open doesn't re-hash them.
+
+Proof required:
+- the real V1 openForStartup (1 site and 40+ sites) completes both launches under a time and memory budget;
+- V10_01 v4/v9 aggregates;
+- framed layer, tamper and count tests;
+- rejection of old-format journals;
+- schema-2 manifest validation.
+
+This is a restricted migration change: independent review and all five gates.
+
+Separate item: S3_4 `testOriginalRecoveryThroughActiveUpgrade…` fails in 3.3 s before migration, with route maintenance(eraseInconsistent).
+
+## Batch M: tooling, diagnostics, decisions, C13, export deadlock, setup family (2026-09-25, cloud Mac)
+
+Parts, each by a separate helper; commits squashed from local worktree branches:
+- **CI tooling (owner decision 16).**
+  - `v23_run_kind` dispatch input; a per-head concurrency term for development runs of the dev-batch and shared-coverage routes only; parallel-dispatch rules in the dispatcher. Gate runs are unchanged.
+  - D90S solo tier: 5,400 s test budget for exactly one selector, schema v2 partitions, tier admission in the jq filter and worker.
+  - Template budget 5,663,121 bytes (5.40 MiB).
+- **DEBUG diagnostics (owner decision 15).** `ProtectedFileSimulatorDiagnosticSummaryV1`: the first event per kind is durable and byte-identical; repeats become per-kind summary frames (flushed every 4,096 calls, every 10 s, and at exit); a transport failure is named and poisons the stream. The collector accepts summaries only after an exact first event. Release is unchanged (#if DEBUG && simulator). The source SHA is re-pinned to 831C0FB8…; the old value moves to the historical tuple. Microbenchmark: 66 µs → 0.58 µs per call. The hosted iOS 26.2 gain is still to be measured.
+- **Decisions D1–D5** (recorded above): the D1 product constant; D2 C38/C40 immutable-history expectations; D3 frozen-contract fixture traces; D4 the baseline registry cap; D5:
+  - V9_93 reads 7 CI bindings from `docs/design/v23/integration/v23-card-history/`, blob-pinned at 5f17cdcd;
+  - V9_93 A01 uses the corpus key `logicalAcceptanceLanes`;
+  - V9_35 and V9_77 expect the sorted order;
+  - V9_50 pins its exact findings; the V9_68 harness uses the canonical codec;
+  - the V9_77 harness retains its ModelContainer, which was causing SwiftData traps.
+- **C13 (product).** Command validation requires the canonical expected revision, with the target row at revision 0 for a new target (frozen exact-revision rule). New first-commit test. Remaining: the receipt digest mismatch (VERIFICATION_DUE).
+- **Backup export deadlock (product).** The identity check runs through `StoreSessionCoordinator.currentWorkspaceIdentityWithinPublication`, using the retained registry so the lock re-enters. New completion test and S6_2 stall watchdog.
+- **Setup family (product plus harness).**
+  - Product: the C19 series finalization uncertainty guard compares provenance uncertainty exactly; `FinalizationCanonicalBindingV1.sameRecord/samePacket/sameIssue` for replay/recheck bindings.
+  - Harness: S5_3/S5_4 pass the sole writer; the C14 fixture keeps its policyID; hex digests; V9_64 workspace; crash guards on unchecked subscripts.
+  - New tests: V23FinalizationCanonicalBindingTests (4) and V23MeasurementSeriesFinalizationTests (1).
+- **Partitions** regenerated with `--repack`: schema v2, 34 partitions, 3,453 methods.
+
+Local results (development only, iOS 26.5): build-for-testing SUCCEEDED. The confirmation run executed 232 tests with no process restarts.
+- Fully passing: S5_3, S5_4, V9_35, V9_46, V9_50, V9_68, V9_93, V23PhaseGate, V23FinalizationCanonicalBinding, V23MeasurementSeriesFinalization.
+- Remaining failures are recorded families: V9_77 (4, C13 receipt digest); V9_02 (3, iOS 26.5 reports complete protection); V9_03 migration; S6_6 C13/C33/C42; V9_13 C39; V9_33 G01 calibration; V10_03 C39. S6_2's new export test completes but still finds 0 of 6 photo-history children (data-safety item in progress).
+- Python under 3.14 with TMPDIR resolved: the native-ci suite passes apart from the 2 known Mac-only real-git tests.
+
+Review:
+- Verdict: one independent reviewer (Claude Opus 5.5, read-only, not an author) returned APPROVE WITH CHANGES; compile risk LOW; no test weakening found.
+- R1 (D2) and R2 (D5 V9_93) are explicit owner delegations made in chat ("pick best answer", "pick best answers please"), not decision-14 inferences. Per the reviewer, both go on the owner's pre-gate confirmation checklist (VERIFICATION_DUE).
+- Recommendations, not blocking:
+  - a millisecond-boundary case in V23FinalizationCanonicalBindingTests;
+  - the writer should call the shared C13 concurrency-target function;
+  - a named stderr line when the exit flush's try-lock drops pending counts.
+

@@ -13,10 +13,10 @@ require_route() {
   test "${CI_NATIVE_ACCEPTANCE_CONTRACT:-}" = v23.integration.current-native.v1
   test "${NATIVE_SELECTION_ID:-}" = v23-shared-coverage-d50x
   test "${DISPATCH_NATIVE_SELECTION_ID:-}" = "$NATIVE_SELECTION_ID"
-  case "${V23_SHARED_ROLE:-}:${V23_PARTITION_ID:-}" in
-    producer:) ;;
-    consumer:S[0-9][0-9]) ;;
-    *) printf 'invalid V23 shared coverage role or partition\n' >&2; exit 65 ;;
+  case "${V23_SHARED_ROLE:-}:${V23_PARTITION_ID:-}:${V23_PARTITION_TIER:-}" in
+    producer::) ;;
+    consumer:S[0-9][0-9]:D50C | consumer:S[0-9][0-9]:D90S) ;;
+    *) printf 'invalid V23 shared coverage role, partition or tier\n' >&2; exit 65 ;;
   esac
   test -n "${CI_ARTIFACT_DIR:-}"
   test -n "${GITHUB_ENV:-}"
@@ -41,8 +41,9 @@ admit() {
   test "$DISPATCH_RUN_UI_SMOKE" = "$run_ui"
   test "$run_ui" = false
   tier="$(jq -r '.tier' "$selection")"
-  case "$V23_SHARED_ROLE:$tier" in
-    producer:D40P | consumer:D50C) ;;
+  # The caller's tier set this job's timeout; it must be the partition's own tier.
+  case "$V23_SHARED_ROLE:$tier:$V23_PARTITION_TIER" in
+    producer:D40P: | consumer:D50C:D50C | consumer:D90S:D90S) ;;
     *) exit 65 ;;
   esac
   {

@@ -17,8 +17,16 @@ final class V9_77EntityIdentityResolutionTests: XCTestCase {
         XCTAssertEqual(link.alias.identity, f.source.identity)
         XCTAssertEqual(link.canonicalEntity.identity, f.survivor.identity)
         XCTAssertTrue(link.aliasSHA256.allSatisfy(\.isHexDigit))
-        XCTAssertEqual(receipt.inventory.items.map(\.family), EntityConsolidationInventoryFamilyV1.allCases)
-        XCTAssertTrue(receipt.inventory.items.first { $0.family == .relationship }!.relationshipIsEvidenceOnly)
+        // Owner-delegated decision (2026-09-25): by design the product orders inventory items by
+        // stableKey ("<family rawValue>|..."; EntityConsolidationInventoryBuilderV1.manifestItems and
+        // EntityConsolidationInventoryV1.validate), not declaration order; exactly one item per family.
+        XCTAssertEqual(receipt.inventory.items.map(\.family), [.content, .evidence, .history, .mutationReceipt, .relationship, .tombstone])
+        XCTAssertEqual(
+            receipt.inventory.items.map(\.family),
+            EntityConsolidationInventoryFamilyV1.allCases.sorted { $0.rawValue < $1.rawValue }
+        )
+        // Owner-delegated decision (2026-09-25): named failures instead of process traps.
+        XCTAssertTrue(try XCTUnwrap(receipt.inventory.items.first { $0.family == .relationship }, "relationship item").relationshipIsEvidenceOnly)
         XCTAssertEqual(receipt.source, f.source)
         XCTAssertEqual(receipt.survivor, f.survivor)
         XCTAssertFalse(EntityIdentityResolutionLifecycleV1.plansAndPreviewsArePersistent)
@@ -52,6 +60,31 @@ final class V9_77EntityIdentityResolutionTests: XCTestCase {
         XCTAssertEqual(try h.context.fetch(FetchDescriptor<EntityConsolidationReceiptRowV1>()).count, 2)
     }
 
+    // Owner-delegated decision (2026-09-25, owner decision 14): focused regression for the C13
+    // first-commit fix. A first commit to a new target succeeds; a second first commit for the same
+    // target is stale in both the command validation and the canonical writer, with no new effect.
+    func testV23P04C13FirstCommitToNewTargetSucceedsAndRepeatFirstCommitIsStale() throws {
+        let f = try Fixture()
+        let h = try C13Harness(f)
+        let first = try f.alias(revision: 1, mutation: 23)
+        let firstCommand = try h.command(payload: .alias(first, nil))
+        XCTAssertEqual(try h.writer.commitEntityIdentityResolution(firstCommand).resultingWorkspaceRevision, 1)
+        let afterFirst = try h.writer.currentRevision()
+        let target = try WorkspaceEntityIdentityV1(kind: .entityAliasLink, id: f.source.identity.id)
+        XCTAssertEqual(afterFirst.entityRevisions.filter { $0.identity == target }.map(\.revision), [1])
+
+        let repeatFirst = try f.alias(revision: 1, mutation: 24)
+        let repeatCommand = try h.command(payload: .alias(repeatFirst, nil), targetRevision: 0)
+        XCTAssertThrowsError(try repeatCommand.validate(currentRevision: afterFirst, resolver: h.authority)) {
+            XCTAssertEqual($0 as? EntityIdentityResolutionFailureV1, .staleRevision)
+        }
+        XCTAssertThrowsError(try h.writer.commitEntityIdentityResolution(repeatCommand)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .staleWorkspaceRevision)
+        }
+        XCTAssertEqual(try h.writer.currentRevision(), afterFirst)
+        XCTAssertEqual(try h.context.fetch(FetchDescriptor<EntityAliasLinkRowV1>()).count, 1)
+    }
+
     func testV23P04C13H01CrossWorkspaceReuseStalePlanHistoryRewriteAndAutomaticMutationFailClosed() throws {
         let f = try Fixture()
         let other = WorkspaceID(rawValue: f.id(90))
@@ -60,14 +93,24 @@ final class V9_77EntityIdentityResolutionTests: XCTestCase {
             canonicalEntity: f.survivor, revision: 1, reason: .verifiedPriorAlias, policyVersion: 1,
             policySHA256: f.hash(91), recordedBy: f.actor, recordedAt: f.date, mutationID: try f.mutation(91)))
         let first = try f.alias(revision: 1)
-        XCTAssertThrowsError(try EntityAliasLinkV1(linkEventID: f.id(92), workspaceID: f.workspaceID, alias: f.source,
-            canonicalEntity: f.survivor, revision: 2, predecessor: first, reason: .verifiedPriorAlias, policyVersion: 1,
-            policySHA256: f.hash(92), recordedBy: f.actor, recordedAt: f.date, mutationID: try f.mutation(92)))
+        // Owner-delegated decision (2026-09-25): a fresh event at exactly predecessor.revision + 1 is the valid
+        // successor that A01 and the frozen C13 contract require (V23P04C13EntityIdentityResolutionContractV1.json
+        // semantics.durableFamilies "..._WITH_SUCCESSOR_REVERSALS", testSelectors[1] "...UseExactRevision"), so it
+        // cannot be the history rewrite. A rewrite re-records an existing revision or skips one; both fail closed.
+        for rewrittenRevision: UInt64 in [1, 3] {
+            XCTAssertThrowsError(try EntityAliasLinkV1(linkEventID: f.id(92), workspaceID: f.workspaceID, alias: f.source,
+                canonicalEntity: f.survivor, revision: rewrittenRevision, predecessor: first, reason: .verifiedPriorAlias, policyVersion: 1,
+                policySHA256: f.hash(92), recordedBy: f.actor, recordedAt: f.date, mutationID: try f.mutation(92)), "revision \(rewrittenRevision)") {
+                XCTAssertEqual($0 as? EntityIdentityResolutionFailureV1, .staleRevision)
+            }
+        }
         var mismatchedBases = try EntityConsolidationInventoryFamilyV1.allCases.map {
             try EntityConsolidationInventoryFamilyManifestBasisV1(workspaceID: f.workspaceID, source: f.source, survivor: f.survivor,
                 family: $0, atoms: f.atomsByFamily[$0] ?? [])
         }
-        mismatchedBases[1] = try EntityConsolidationInventoryFamilyManifestBasisV1(workspaceID: f.workspaceID, source: f.source, survivor: f.survivor,
+        // Owner-delegated decision (2026-09-25): guarded index instead of a process trap.
+        let evidenceIndex = try XCTUnwrap(mismatchedBases.firstIndex { $0.family == .evidence }, "evidence basis")
+        mismatchedBases[evidenceIndex] = try EntityConsolidationInventoryFamilyManifestBasisV1(workspaceID: f.workspaceID, source: f.source, survivor: f.survivor,
             family: .evidence, atoms: [try .init(kind: "evidence", itemID: "forged-evidence", revision: 1, itemSHA256: f.hash(94), associationRole: "evidence-only")])
         XCTAssertThrowsError(try f.inventory.validate(against: mismatchedBases))
         XCTAssertFalse(EntityIdentityResolutionLifecycleV1.automaticMutation)
@@ -115,7 +158,9 @@ final class V9_77EntityIdentityResolutionTests: XCTestCase {
         XCTAssertEqual(replayed, snapshot)
         XCTAssertEqual(replayed.aliasLinks.count, 1)
         XCTAssertEqual(replayed.consolidationReceipts.count, 1)
-        XCTAssertTrue(replayed.consolidationReceipts[0].inventory.items.first { $0.family == .relationship }!.relationshipIsEvidenceOnly)
+        // Owner-delegated decision (2026-09-25): named failures instead of process traps.
+        let replayedReceipt = try XCTUnwrap(replayed.consolidationReceipts.first, "replayed consolidation receipt")
+        XCTAssertTrue(try XCTUnwrap(replayedReceipt.inventory.items.first { $0.family == .relationship }, "relationship item").relationshipIsEvidenceOnly)
         XCTAssertEqual(Set(replayed.mutationReceipts.map(\.mutationID)), Set([alias.mutationID, consolidation.mutationID]))
         let aliasCommand = try h.command(payload: .alias(alias, nil))
         _ = try h.writer.commitEntityIdentityResolution(aliasCommand)
@@ -199,8 +244,11 @@ private struct Fixture {
             EntityIdentityResolutionCandidateV1(snapshot: source, reasons: [.verifiedPriorAlias]),
             EntityIdentityResolutionCandidateV1(snapshot: survivor, reasons: [.verifiedSerialOrTag])
         ].sorted { $0.snapshot.stableKey < $1.snapshot.stableKey }
-        let selected: EntityIdentitySnapshotV1? = (action == .linkAlias || action == .consolidate) ? candidates[0].snapshot : nil
-        return try .init(planID: id(UInt8(80 + action.allCasesIndex)), workspaceID: workspaceID,
+        let selected: EntityIdentitySnapshotV1? = (action == .linkAlias || action == .consolidate) ? candidates.first?.snapshot : nil
+        guard let index = action.allCasesIndex, let slot = UInt8(exactly: 80 + index) else {
+            throw EntityIdentityResolutionFailureV1.incompleteInventory
+        }
+        return try .init(planID: id(slot), workspaceID: workspaceID,
             source: .init(workspaceID: workspaceID, sourceBatchID: id(81), artifactID: id(82), artifactRevision: 1, artifactSHA256: hash(82)),
             expectedWorkspaceRevision: 1, policyVersion: 1, policySHA256: hash(83), candidates: candidates, action: action,
             selectedCandidate: selected, reasons: [.explicitOperatorDecision], createdBy: actor, createdAt: date, expiresAt: date.addingTimeInterval(60))
@@ -208,7 +256,7 @@ private struct Fixture {
 }
 
 private extension EntityIdentityResolutionActionV1 {
-    var allCasesIndex: Int { EntityIdentityResolutionActionV1.allCases.firstIndex(of: self)! }
+    var allCasesIndex: Int? { EntityIdentityResolutionActionV1.allCases.firstIndex(of: self) }
 }
 
 private struct C13Clock: ApplicationClock { func now() -> Date { Date(timeIntervalSinceReferenceDate: 1_000) } }
@@ -248,28 +296,50 @@ private final class C13Authority: EntityIdentityResolutionCanonicalSourceResolvi
 
 @MainActor
 private final class C13Harness {
+    // Owner-delegated decision (2026-09-25): harness fix. ModelContext does not retain its
+    // ModelContainer; the container was a local in init, so the first fetch after init
+    // (MutationJournalStoreV1.requireState via C13Harness.command) hit a SwiftData trap
+    // (EXC_BREAKPOINT) and killed A01, I01 and R01. The harness now owns the container.
+    let container: ModelContainer
     let context: ModelContext
     let writer: WorkspaceWriterV1
     let journal: MutationJournalStoreV1
     let lifecycle: EntityIdentityResolutionLifecycleAdapterV1
+    let authority: C13Authority
     let fixture: Fixture
     init(_ fixture: Fixture, failure: MutationJournalFaultBoundaryV1? = nil) throws {
         let schema = Schema(PersistentSchemaV50.models, version: PersistentSchemaV50.versionIdentifier)
         let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [ModelConfiguration("C13", schema: schema, isStoredInMemoryOnly: true, allowsSave: true, cloudKitDatabase: .none)])
+        self.container = container
         let context = container.mainContext; context.autosaveEnabled = false
         let replica = try WorkspaceReplicaIdentityV1(workspaceID: fixture.workspaceID, replicaID: ReplicaID(rawValue: fixture.id(101)))
         let journal = try MutationJournalStoreV1(modelContext: context, identity: replica, generationID: fixture.generationID,
             failureInjection: failure.map { .init(failOnceAt: $0) })
         self.context = context; self.journal = journal; self.fixture = fixture
         let authority = try C13Authority(fixture)
+        self.authority = authority
         let canonicalWriter = try WorkspaceWriterV1(identity: replica, generationID: fixture.generationID,
             initialRevision: journal.currentRevision(writerInstanceID: fixture.id(102)), clock: C13Clock(), idSource: C13IDs(), fileAuthority: C13Files(),
             adapter: WorkspaceWriterAdapterV1(modelContext: context, entityIdentityCanonicalResolver: authority), journalStore: journal)
         writer = canonicalWriter
         lifecycle = EntityIdentityResolutionLifecycleAdapterV1(modelContext: context, workspaceID: fixture.workspaceID, resolver: authority, workspaceWriter: canonicalWriter)
     }
-    func command(payload: EntityIdentityResolutionMutationPayloadV1) throws -> EntityIdentityResolutionMutationCommandV1 {
-        let mutation = payload.mutationID
-        return try .init(commandID: UUID(), workspaceID: fixture.workspaceID, expectedRevision: .init(snapshot: try writer.currentRevision()), mutationID: mutation, payload: payload, submittedAt: fixture.date)
+    // Owner-delegated decision (2026-09-25): commands name their C13 concurrency target at its
+    // current revision (0 when new), the exact expected revision both the command validation and the
+    // writer lineage require (see EntityIdentityResolutionMutationCommandV1.canonicalExpectedRevision).
+    func command(payload: EntityIdentityResolutionMutationPayloadV1,
+                 targetRevision override: UInt64? = nil) throws -> EntityIdentityResolutionMutationCommandV1 {
+        let target: WorkspaceEntityIdentityV1
+        switch payload {
+        case let .alias(value, _): target = try .init(kind: .entityAliasLink, id: value.alias.identity.id)
+        case let .consolidation(value, _): target = try .init(kind: .entityConsolidationReceipt, id: value.source.identity.id)
+        }
+        let current = try writer.currentRevision()
+        let targetRevision = override ?? current.entityRevisions.first { $0.identity == target }?.revision ?? 0
+        let expected = try WorkspaceExpectedRevisionV1(workspaceID: current.workspaceID, generationID: current.generationID,
+            writerInstanceID: current.writerInstanceID, workspaceRevision: current.revision,
+            entityRevisions: current.entityRevisions.filter { $0.identity != target } + [.init(identity: target, revision: targetRevision)])
+        return try .init(commandID: UUID(), workspaceID: fixture.workspaceID, expectedRevision: expected,
+            mutationID: payload.mutationID, payload: payload, submittedAt: fixture.date)
     }
 }

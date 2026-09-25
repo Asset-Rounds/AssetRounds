@@ -745,6 +745,36 @@ enum FinalizationCanonicalBindingV1 {
         return left.data == right.data
     }
 
+    /// Persisted workflow-record, packet and issue rows are compared through
+    /// the same canonical member encoding the finalization contract persists.
+    /// Every member is encoded, so only sub-millisecond instant drift is
+    /// normalized; exact equality always matches.
+    static func sameRecord(_ lhs: WorkflowRecordPayloadV1, _ rhs: WorkflowRecordPayloadV1) -> Bool {
+        if lhs == rhs { return true }
+        guard let left = try? CanonicalJSONV1.encode(CanonicalJSONV1.workflowRecord(lhs)),
+              let right = try? CanonicalJSONV1.encode(CanonicalJSONV1.workflowRecord(rhs)) else { return false }
+        return left == right
+    }
+
+    static func samePacket(_ lhs: PacketPayloadV1, _ rhs: PacketPayloadV1) -> Bool {
+        if lhs == rhs { return true }
+        guard let left = try? CanonicalJSONV1.encode(CanonicalJSONV1.packet(lhs)),
+              let right = try? CanonicalJSONV1.encode(CanonicalJSONV1.packet(rhs)) else { return false }
+        return left == right
+    }
+
+    static func sameIssue(_ lhs: IssuePayloadV1?, _ rhs: IssuePayloadV1?) -> Bool {
+        switch (lhs, rhs) {
+        case (.none, .none): return true
+        case let (.some(left), .some(right)):
+            if left == right { return true }
+            guard let leftData = try? CanonicalJSONV1.encode(CanonicalJSONV1.issue(left)),
+                  let rightData = try? CanonicalJSONV1.encode(CanonicalJSONV1.issue(right)) else { return false }
+            return leftData == rightData
+        default: return false
+        }
+    }
+
     static func sameInstant(_ lhs: Date?, _ rhs: Date?) -> Bool {
         switch (lhs, rhs) {
         case (.none, .none): return true
@@ -939,7 +969,7 @@ enum CanonicalJSONV1 {
         ])
     }
 
-    private static func workflowRecord(_ value: WorkflowRecordPayloadV1) -> CanonicalJSONValueV1 {
+    fileprivate static func workflowRecord(_ value: WorkflowRecordPayloadV1) -> CanonicalJSONValueV1 {
         var object: [String: CanonicalJSONValueV1] = [
             "afterDarkAcknowledgementAccepted": optionalBool(value.afterDarkAcknowledgementAccepted),
             "afterDarkAcknowledgementCopy": optionalString(value.afterDarkAcknowledgementCopy),
@@ -995,7 +1025,7 @@ enum CanonicalJSONV1 {
         return .object(object)
     }
 
-    private static func issue(_ value: IssuePayloadV1) -> CanonicalJSONValueV1 {
+    fileprivate static func issue(_ value: IssuePayloadV1) -> CanonicalJSONValueV1 {
         .object([
             "assetID": uuid(value.assetID),
             "createdAt": date(value.createdAt),
@@ -1010,7 +1040,7 @@ enum CanonicalJSONV1 {
         ])
     }
 
-    private static func packet(_ value: PacketPayloadV1) -> CanonicalJSONValueV1 {
+    fileprivate static func packet(_ value: PacketPayloadV1) -> CanonicalJSONValueV1 {
         .object([
             "contentDeletedAt": optionalDate(value.contentDeletedAt),
             "createdAt": date(value.createdAt),

@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "document_id": "v23-card-history-v1",
+  "document_status": "frozen_historical_copies",
+  "owner_decision": "2026-09-25 owner-delegated decision (by analogy with owner decision 7): V23 card-time tests prove committed history, not live CI state.",
+  "authority": "Release/V23P05C01ExactCodeCandidateGateV1.json readOnlyBindings (receipt-bound, never edited); this index adds no product, acceptance or release authority.",
+  "copy_rule": "Each copy is the exact git blob of path at commit, stored as blobs/<first 16 hex digits of SHA-256><extension>. Verify any row with: git rev-parse <commit>:<path> (expect git_blob_oid) and git show <commit>:<path> | shasum -a 256 (expect sha256).",
+  "consumers": {
+    "V23-P05-C01": "FieldEvidenceAppTests/V9_93ExactCodeCandidateGateTests.swift"
+  },
+  "entries": [
+    {
+      "card_id": "V23-P05-C01",
+      "path": "Scripts/ci-selection.json",
+      "commit": "5f17cdcd63a4ee7cbdfe50c73c0b0265bdbc1ef3",
+      "commit_note": "Prepare V23 P05 C01 exact candidate gate; the commit that wrote Release/V23P05C01ExactCodeCandidateGateV1.json",
+      "binding_role": "ciSelector",
+      "byte_count": 340,
+      "sha256": "03C23506919733DDE0174448E446D26DF4753C505BE242587886F142D281314F",
+      "git_blob_oid": "2e8d194fbb52f0bdcc1bd420af4c254638eb9a49",
+      "copy": "blobs/03C23506919733DD.json"
+    },
+    {
+      "card_id": "V23-P05-C01",
+      "path": ".github/workflows/ios-ci.yml",
+      "commit": "5f17cdcd63a4ee7cbdfe50c73c0b0265bdbc1ef3",
+      "commit_note": "Prepare V23 P05 C01 exact candidate gate; the commit that wrote Release/V23P05C01ExactCodeCandidateGateV1.json",
+      "binding_role": "ciWorkflow",
+      "byte_count": 23068,
+      "sha256": "BCD64E2A42752D28844435241B5ABFCA911D04190375CBBDBFC10B45ACBA97D7",
+      "git_blob_oid": "bade6a6442bd77a6c15eaefa70726b1efc1b3c73",
+      "copy": "blobs/BCD64E2A42752D28.yml"
+    },
+    {
+      "card_id": "V23-P05-C01",
+      "path": ".github/workflows/v23-controller.yml",
+      "commit": "5f17cdcd63a4ee7cbdfe50c73c0b0265bdbc1ef3",
+      "commit_note": "Prepare V23 P05 C01 exact candidate gate; the commit that wrote Release/V23P05C01ExactCodeCandidateGateV1.json",
+      "binding_role": "controllerWorkflow",
+      "byte_count": 1009,
+      "sha256": "9191E22EF1485AF2DC3DD6A1F0201FE16FE2E6F884BED89FC701F1B4EB4B817B",
+      "git_blob_oid": "41ddf4caef03d8ac0041eb2d7a9da96266dfa19d",
+      "copy": "blobs/9191E22EF1485AF2.yml"
+    },
+    {
+      "card_id": "V23-P05-C01",
+      "path": ".github/workflows/v23-worker.yml",
+      "commit": "5f17cdcd63a4ee7cbdfe50c73c0b0265bdbc1ef3",
+      "commit_note": "Prepare V23 P05 C01 exact candidate gate; the commit that wrote Release/V23P05C01ExactCodeCandidateGateV1.json",
+      "binding_role": "workerWorkflow",
+      "byte_count": 5758,
+      "sha256": "EE00DD9C894CFDC353B53E52813498C81A7A6D5486920931EEC2CBE1CACA2F51",
+      "git_blob_oid": "d0a1b108b9b11e7c3d31cb65ff9a718587e7dc33",
+      "copy": "blobs/EE00DD9C894CFDC3.yml"
+    },
+    {
+      "card_id": "V23-P05-C01",
+      "path": "Scripts/v23/controller.py",
+      "commit": "5f17cdcd63a4ee7cbdfe50c73c0b0265bdbc1ef3",
+      "commit_note": "Prepare V23 P05 C01 exact candidate gate; the commit that wrote Release/V23P05C01ExactCodeCandidateGateV1.json",
+      "binding_role": "controller",
+      "byte_count": 3060,
+      "sha256": "F5634CF788AFE80911DB6DBEDFF53464B23556EFF5EEF4037A7F625343738B35",
+      "git_blob_oid": "b5b49853485fbbfc35878f926db5d7eb499a965c",
+      "copy": "blobs/F5634CF788AFE809.py"
+    },
+    {
+      "card_id": "V23-P05-C01",
+      "path": "Scripts/v23/controller_contracts.py",
+      "commit": "5f17cdcd63a4ee7cbdfe50c73c0b0265bdbc1ef3",
+      "commit_note": "Prepare V23 P05 C01 exact candidate gate; the commit that wrote Release/V23P05C01ExactCodeCandidateGateV1.json",
+      "binding_role": "capacityContracts",
+      "byte_count": 47899,
+      "sha256": "64F2A2D6975AE17CDAB96CA1DDAA78FEB5EEB8990325EE632C01F1CD79CCB977",
+      "git_blob_oid": "d24d453bb0c4460ad2090b73157e673486d83659",
+      "copy": "blobs/64F2A2D6975AE17C.py"
+    },
+    {
+      "card_id": "V23-P05-C01",
+      "path": "TestPlans/V23-ReleaseCandidate.xctestplan",
+      "commit": "5f17cdcd63a4ee7cbdfe50c73c0b0265bdbc1ef3",
+      "commit_note": "Prepare V23 P05 C01 exact candidate gate; the commit that wrote Release/V23P05C01ExactCodeCandidateGateV1.json",
+      "binding_role": "releasePlan",
+      "byte_count": 781,
+      "sha256": "0539566B34917618F575650D256A2AE125FEA6E8C31365C07871C52556F4B606",
+      "git_blob_oid": "213268188de10f7e5b919272410c9cb501f09e09",
+      "copy": "blobs/0539566B34917618.xctestplan"
+    }
+  ]
+}

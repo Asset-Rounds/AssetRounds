@@ -369,9 +369,62 @@ final class S6_2BackupExportTests: XCTestCase {
         }
     }
 
+    /// A complete export of the mixed fixture (six check-runner photos) must
+    /// return. Its commit validation runs while the generation mutation lock
+    /// is held; resolving identity through a fresh factory there self-deadlocked
+    /// on flock, so the named watchdog reports the stage instead of hanging.
+    @MainActor
+    func testMixedExportWithCheckRunnerPhotosCompletesUnderPublicationLock() async throws {
+        let watchdog = S6_2StallWatchdogV1(test: #function,
+            seconds: S6_2StallWatchdogV1.mixedExportDeadlineSeconds, stage: "fixture")
+        defer { watchdog.finish() }
+        let harness = try await makeMixedHarness("complete-export", sharedRaw: true)
+        watchdog.enter("content-access")
+        let authorized = try await makeAuthorizedExportHarness(harness)
+        defer { authorized.close() }
+        let destination = harness.applicationSupportURL.appendingPathComponent(
+            "complete-export", isDirectory: true)
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: false)
+        let service = makeService(authorized, capacity: .max)
+        watchdog.enter("prepare-preview")
+        let preview = try authorized.contentAccess.withRead { try service.prepare() }
+        XCTAssertEqual(preview.photoCount, 6)
+        let before = try treeFacts(harness.session.generationRootURL)
+        watchdog.enter("export")
+        let package = try await service.export(previewID: preview.id, to: destination,
+            contentAccess: authorized.contentAccess)
+        watchdog.enter("import-validation")
+        XCTAssertEqual(package.lastPathComponent, "AssetRounds.fieldrecordbackup")
+        XCTAssertEqual(try package.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile, true)
+        XCTAssertEqual(try treeFacts(harness.session.generationRootURL), before)
+        let importer = try BackupImportService(
+            generationRootURL: harness.session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+            makeUUID: { UUID(uuidString: "62000000-0000-0000-0000-000000000097")! },
+            scopedAccess: .alreadyAuthorized
+        )
+        let validated = try importer.stageAndValidate(selectedPackageURL: package)
+        defer { try? importer.discard(validated) }
+        XCTAssertEqual(validated.manifest.source.workspaceID, harness.session.workspaceID.rawValue)
+        let photoHistory = try CheckRunnerPhotoBackupHistoryV1.project(
+            source: validated.manifest.source, records: validated.records)
+        XCTAssertEqual(photoHistory.children.count, 6)
+        // The exporter consumed its frozen preview: a repeated export is stale.
+        do {
+            _ = try await service.export(previewID: preview.id, to: destination,
+                contentAccess: authorized.contentAccess)
+            XCTFail("A consumed preview must not export twice")
+        } catch {
+            XCTAssertEqual(error as? BackupExportServiceError, .stalePreview)
+        }
+    }
+
     @MainActor
     func testMixedExportFreezesAllAuthorityAndRecomputesManifestIndependently() async throws {
-        var diagnosticStage = "fixture"
+        let watchdog = S6_2StallWatchdogV1(test: #function,
+            seconds: S6_2StallWatchdogV1.mixedExportDeadlineSeconds, stage: "fixture")
+        defer { watchdog.finish() }
+        var diagnosticStage = "fixture" { didSet { watchdog.enter(diagnosticStage) } }
         do {
             let harness = try await makeMixedHarness("golden", sharedRaw: true)
             diagnosticStage = "content-access"
@@ -1803,6 +1856,34 @@ private actor BackupExportTestAuthentication: LocalAuthenticationClient {
     }
 
     func cancel(attemptID: UUID) {}
+}
+
+/// Named stall deadline for export paths that hold the generation mutation
+/// lock on the main actor. A self-deadlock there cannot be interrupted by
+/// XCTest, so after the deadline the host terminates naming the test and stage
+/// instead of silently consuming the partition budget.
+final class S6_2StallWatchdogV1: @unchecked Sendable {
+    /// Generous: the whole mixed export completes in minutes on hosted runners.
+    static let mixedExportDeadlineSeconds: TimeInterval = 1_200
+    private let lock = NSLock()
+    private var stage: String
+    private var finished = false
+
+    init(test: String, seconds: TimeInterval, stage: String) {
+        self.stage = stage
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + seconds) { [self] in
+            lock.lock()
+            let done = finished, current = self.stage
+            lock.unlock()
+            guard !done else { return }
+            let message = "S6_2StallWatchdogV1 deadline test=\(test) seconds=\(Int(seconds)) stage=\(current)"
+            print(message)
+            fatalError(message)
+        }
+    }
+
+    func enter(_ stage: String) { lock.lock(); self.stage = stage; lock.unlock() }
+    func finish() { lock.lock(); finished = true; lock.unlock() }
 }
 
 private final class BackupExportCancellationGate: @unchecked Sendable {

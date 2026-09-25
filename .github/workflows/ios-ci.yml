@@ -213,12 +213,20 @@ on:
           - s10.4.minimum.tall
           - s10.4.minimum.accented
           - s10.4.minimum.bounded
+      v23_run_kind:
+        description: V23 run kind; development gives the dev-batch and shared-coverage routes per-head concurrency groups
+        required: false
+        default: gate
+        type: choice
+        options:
+          - gate
+          - development
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-acceptance' && 'v23-bitrise-' || '' }}${{ startsWith(inputs.execution_lane, 's10-4-shared-') || inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance' }}-${{ inputs.s10_4_shared_segment_id }}-${{ inputs.s10_4_shared_payload_run_id }}-ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}${{ (inputs.execution_lane == 'github-xcode-26.6-acceptance' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-acceptance') && format('-{0}', inputs.native_selection_id) || '' }}${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-unit-development-only' && format('-unit-{0}', github.sha) || ((inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-segmented-development-only') && format('-{0}', github.sha) || '') }}
+  group: ${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-acceptance' && 'v23-bitrise-' || '' }}${{ startsWith(inputs.execution_lane, 's10-4-shared-') || inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance' }}-${{ inputs.s10_4_shared_segment_id }}-${{ inputs.s10_4_shared_payload_run_id }}-ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}${{ (inputs.execution_lane == 'github-xcode-26.6-acceptance' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-acceptance') && format('-{0}', inputs.native_selection_id) || '' }}${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-unit-development-only' && format('-unit-{0}', github.sha) || ((inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-segmented-development-only') && format('-{0}', github.sha) || '') }}${{ github.event.inputs.v23_run_kind == 'development' && (github.event.inputs.native_selection_id == 'v23-dev-batch-no-index-d50' || github.event.inputs.native_selection_id == 'v23-shared-coverage-d50x') && format('-development-{0}', github.sha) || '' }}
   cancel-in-progress: false
 
 jobs:
@@ -236,6 +244,7 @@ jobs:
       native_selection_sha256: ${{ steps.native_selection.outputs.native_selection_sha256 }}
       native_selection_map_sha256: ${{ steps.native_selection.outputs.native_selection_map_sha256 }}
       native_shared_partitions: ${{ steps.native_selection.outputs.native_shared_partitions }}
+      native_shared_partition_tiers: ${{ steps.native_selection.outputs.native_shared_partition_tiers }}
     steps:
       - name: Check out the exact revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -487,6 +496,7 @@ jobs:
       native_selection_map_sha256: ${{ needs.shared-selection.outputs.native_selection_map_sha256 }}
       v23_shared_role: consumer
       v23_partition_id: ${{ matrix.partition_id }}
+      v23_partition_tier: ${{ fromJSON(needs.shared-selection.outputs.native_shared_partition_tiers || '{}')[matrix.partition_id] }}
       v23_payload_artifact_name: v23-shared-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
 
   getmac-shard:

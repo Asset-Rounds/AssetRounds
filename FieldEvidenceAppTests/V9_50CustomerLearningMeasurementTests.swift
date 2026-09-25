@@ -492,9 +492,22 @@ final class V9_50CustomerLearningMeasurementTests: XCTestCase {
             """
         )
         let scan = try ZeroCollectionConformanceScannerV1.scan(documents: [hostileDocument])
+        // Owner-delegated decision (2026-09-25): the hash-bound C43 scanner reports one finding
+        // per (kind, path, line, rule) by design, and the hostile document carries two distinct
+        // identity-join lines (advertisingIdentifier, hashedEmail). Every kind is still required
+        // and the complete finding list is pinned exactly, including both identity-join lines.
+        XCTAssertEqual(
+            Set(scan.findings.map(\.kind)),
+            Set(ZeroCollectionStaticFindingKindV1.allCases)
+        )
         XCTAssertEqual(
             scan.findings.map(\.kind.rawValue).sorted(),
-            ZeroCollectionStaticFindingKindV1.allCases.map(\.rawValue).sorted()
+            (ZeroCollectionStaticFindingKindV1.allCases.map(\.rawValue)
+                + [ZeroCollectionStaticFindingKindV1.trackingOrIdentityJoin.rawValue]).sorted()
+        )
+        XCTAssertEqual(
+            scan.findings.filter { $0.kind == .trackingOrIdentityJoin }.map { "\($0.line)|\($0.matchedRuleID)" },
+            ["6|ADVERTISING_IDENTIFIER", "7|HASHED_EMAIL"]
         )
         XCTAssertFalse(scan.isStaticSourceConformant)
         XCTAssertThrowsError(try scan.conformanceEvidence()) { error in

@@ -34,6 +34,11 @@ on:
         required: false
         default: ""
         type: string
+      v23_partition_tier:
+        description: The consumer partition's tier (D50C, or D90S for one known-slow method); empty for the producer
+        required: false
+        default: ""
+        type: string
       v23_payload_artifact_name:
         description: Exact V23 shared payload artifact name
         required: true
@@ -46,7 +51,8 @@ concurrency:
 jobs:
   verify:
     runs-on: macos-26
-    timeout-minutes: 90
+    # D90S (6,000 s total budget) runs one known-slow method; every other role keeps 90.
+    timeout-minutes: ${{ inputs.v23_partition_tier == 'D90S' && 120 || 90 }}
     env:
       CI_NATIVE_ACCEPTANCE_CONTRACT: ${{ inputs.native_acceptance_contract }}
       NATIVE_SELECTION_ID: ${{ inputs.native_selection_id }}
@@ -55,6 +61,7 @@ jobs:
       DISPATCH_NATIVE_SELECTION_MAP_SHA256: ${{ inputs.native_selection_map_sha256 }}
       V23_SHARED_ROLE: ${{ inputs.v23_shared_role }}
       V23_PARTITION_ID: ${{ inputs.v23_partition_id }}
+      V23_PARTITION_TIER: ${{ inputs.v23_partition_tier }}
       V23_PAYLOAD_ARTIFACT_NAME: ${{ inputs.v23_payload_artifact_name }}
       # This worker has no UI, S10.4, pilot or Bitrise inputs; the unchanged
       # admission requires each at its closed ordinary value.

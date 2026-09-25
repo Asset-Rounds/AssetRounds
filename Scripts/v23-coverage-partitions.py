@@ -5,7 +5,8 @@
       [--repack] [--target SECONDS] [--checkout ROOT] --output Scripts/v23-coverage-partitions.json
 
 SOURCE is either the coverage census (schema v23-coverage-partitions-shared.v1) or a
-previous checked-in partitions file (schema v23-coverage-partitions.v1). TIMINGS is
+previous checked-in partitions file (schema v23-coverage-partitions.v2, or the earlier
+v23-coverage-partitions.v1 without tiers). TIMINGS is
 optional: {"schema": "v23-coverage-timings.v1", "defaultSeconds": N,
 "seconds": {"FieldEvidenceAppTests/Class/testMethod": N}, "provenance": {...}} where
 provenance is optional and, when it names a "head", records the measured commit
@@ -23,7 +24,8 @@ the checkout are dropped (and empty partitions removed). A new method joins the
 partition that already owns its class; a new class joins the least-loaded
 partition that stays within the packing target, otherwise it opens a new
 partition. A new class whose estimate exceeds the target is split into chunks
-that each fit it.
+that each fit it. A new method never joins a known-slow solo partition of its
+class; it is placed like a new class.
 
 With --repack, every runnable method is packed afresh: a class that fits the
 target stays whole, a heavier class is split method by method into chunks that
@@ -34,7 +36,15 @@ sweep order follow estimated load, largest first. With timings whose provenance
 names a head, that head becomes sourceCensusHead. More than the admitted
 partition count fails closed; raise --target rather than exceed it. The result is
 validated by the same admission code the workflow runs (disjoint, at most 60
-partitions, union equal to every runnable method) before it is written.
+partitions, union equal to every runnable method, each estimate within its tier)
+before it is written.
+
+Tiers (owner decision 16, 2026-09-25): every partition names its consumer tier. A
+partition of exactly ONE method whose estimate exceeds the packing target is a
+known-slow solo and gets D90S (test budget 5,400 s); every other partition is D50C
+(3,000 s). The tier follows from the written estimate and the target alone, so a
+file regenerates to itself. A solo estimate above 5,400 s, or a multi-method
+estimate above 3,000 s, fails closed.
 No network, dispatch or Git mutation.
 """
 import argparse
@@ -50,6 +60,7 @@ import sys
 TARGET_SECONDS = 1500.0
 DEFAULT_SECONDS = 60.0
 CENSUS_SCHEMA = "v23-coverage-partitions-shared.v1"
+LEGACY_PARTITIONS_SCHEMA = "v23-coverage-partitions.v1"
 TIMINGS_SCHEMA = "v23-coverage-timings.v1"
 
 
@@ -86,7 +97,7 @@ def source_partitions(native, value):
         partitions = [(item["id"], list(item["selectors"]), number(item["estimatedSeconds"], item["id"]))
                       for item in value["partitions"]]
         order = [item["id"] for item in sorted(value["sweepOrder"], key=lambda row: row["rank"])]
-    elif value.get("schema") == native.SHARED_PARTITIONS_SCHEMA:
+    elif value.get("schema") in (native.SHARED_PARTITIONS_SCHEMA, LEGACY_PARTITIONS_SCHEMA):
         head = value.get("sourceCensusHead")
         partitions = [(item["id"], list(item["selectors"]), number(item["estimatedSeconds"], item["id"]))
                       for item in value["partitions"]]
@@ -202,7 +213,7 @@ def regenerate(native, root, source, generated_at_head, timings=None, repack_all
             estimate.setdefault(selector, known.get(selector, default))
         rows = repack(native, discovered, estimate.__getitem__, float(target))
         return finish(native, rows, [row["id"] for row in rows], estimate, timings_head or head,
-                      generated_at_head, discovered)
+                      generated_at_head, discovered, target)
     rows = []
     owner_by_class = {}
     for identifier, selectors, _ in partitions:
@@ -226,7 +237,9 @@ def regenerate(native, root, source, generated_at_head, timings=None, repack_all
         for selector in new_classes[class_name]:
             estimate[selector] = known.get(selector, default)
         owner = owner_by_class.get(class_name)
-        if owner is not None:
+        # A known-slow solo keeps its method alone (and its D90S budget); new methods of
+        # its class are placed like a new class instead.
+        if owner is not None and not (len(by_id[owner]["selectors"]) == 1 and load(by_id[owner]) > target):
             by_id[owner]["selectors"].extend(new_classes[class_name])
             continue
         for members in class_units(native, new_classes[class_name], estimate.__getitem__, float(target)):
@@ -247,15 +260,21 @@ def regenerate(native, root, source, generated_at_head, timings=None, repack_all
                 order.append(owner)
             owner_by_class.setdefault(class_name, owner)
             by_id[owner]["selectors"].extend(members)
-    return finish(native, rows, order, estimate, head, generated_at_head, discovered)
+    return finish(native, rows, order, estimate, head, generated_at_head, discovered, target)
 
 
-def finish(native, rows, order, estimate, head, generated_at_head, discovered):
+def partition_tier(native, selectors, seconds, target):
+    """D90S for one known-slow method (its written estimate exceeds the packing target), else D50C."""
+    return native.SHARED_SOLO_TIER if len(selectors) == 1 and seconds > target else native.SHARED_CONSUMER_TIER
+
+
+def finish(native, rows, order, estimate, head, generated_at_head, discovered, target=TARGET_SECONDS):
     partitions_out = []
     for row in sorted(rows, key=lambda item: item["id"]):
         selectors = sorted(row["selectors"], key=method_key)
         seconds = round(max(sum(estimate[selector] for selector in selectors), 0.1), 1)
-        partitions_out.append({"id": row["id"], "estimatedSeconds": seconds, "selectors": selectors})
+        partitions_out.append({"id": row["id"], "tier": partition_tier(native, selectors, seconds, target),
+                               "estimatedSeconds": seconds, "selectors": selectors})
     value = {"schema": native.SHARED_PARTITIONS_SCHEMA, "sourceCensusHead": head,
              "generatedAtHead": generated_at_head, "sweepOrder": order, "partitions": partitions_out}
     try:

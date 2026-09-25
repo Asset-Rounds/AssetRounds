@@ -193,6 +193,120 @@ final class ProtectedFileSimulatorDiagnosticJournalV1: @unchecked Sendable {
     }
 }
 
+/// Owner decision 15 (2026-09-25) summarizes the per-call journal to cut DEBUG test time.
+/// An unsupported disposition payload is a pure function of its file kind. The first one of
+/// each kind is written and synchronized before its call returns, exactly as before. Later
+/// ones are counted and written as one summary frame per kind: once `flushOccurrences` calls
+/// are pending or `flushIntervalNanoseconds` has passed, from a repeating timer, and at exit.
+/// Diagnostic transport only. A transport failure fails the call that meets it and is named
+/// on the policy writer; every later unsupported result then fails, so a failed write still
+/// never authorizes one.
+final class ProtectedFileSimulatorDiagnosticSummaryV1: @unchecked Sendable {
+    static let marker = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_SUMMARY_V1"
+    private let lock = NSLock()
+    private let journal: ProtectedFileSimulatorDiagnosticJournalV1
+    private let report: @Sendable (String) -> Void
+    private let flushOccurrences: Int
+    private let flushIntervalNanoseconds: UInt64
+    private let startsTimer: Bool
+    private let now: @Sendable () -> UInt64
+    private var exactPayloads: [OwnedFileKindV1: Data] = [:]
+    private var pending: [OwnedFileKindV1: Int] = [:]
+    private var pendingTotal = 0
+    private var lastFlushNanoseconds: UInt64
+    private var poisoned = false
+    private var timer: DispatchSourceTimer?
+
+    init(
+        journal: ProtectedFileSimulatorDiagnosticJournalV1,
+        report: @escaping @Sendable (String) -> Void,
+        flushOccurrences: Int = 4_096,
+        flushIntervalNanoseconds: UInt64 = 10_000_000_000,
+        startsTimer: Bool = false,
+        now: @escaping @Sendable () -> UInt64 = { DispatchTime.now().uptimeNanoseconds }
+    ) {
+        self.journal = journal
+        self.report = report
+        self.flushOccurrences = max(1, flushOccurrences)
+        self.flushIntervalNanoseconds = max(1, flushIntervalNanoseconds)
+        self.startsTimer = startsTimer
+        self.now = now
+        lastFlushNanoseconds = now()
+    }
+
+    deinit { timer?.cancel() }
+
+    func record(_ kind: OwnedFileKindV1, payload: () -> Data) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !poisoned else { throw ProtectedFileDiagnosticTransportErrorV1.poisonedStream }
+        do {
+            guard exactPayloads[kind] != nil else {
+                let exact = payload()
+                try journal.write(exact)
+                exactPayloads[kind] = exact
+                return
+            }
+            pending[kind, default: 0] += 1
+            pendingTotal += 1
+            if startsTimer && timer == nil { startTimer() }
+            if pendingTotal >= flushOccurrences
+                || now() &- lastFlushNanoseconds >= flushIntervalNanoseconds {
+                try flushLocked()
+            }
+        } catch {
+            fail(error, phase: "record")
+            throw error
+        }
+    }
+
+    /// A flush that no caller waits on (the timer and process exit). Its failure is named on
+    /// the writer, and the next unsupported result fails with `poisonedStream`.
+    func flush(phase: String, waitsForLock: Bool = true) {
+        if waitsForLock { lock.lock() } else if !lock.try() { return }
+        defer { lock.unlock() }
+        guard !poisoned else { return }
+        do { try flushLocked() } catch { fail(error, phase: phase) }
+    }
+
+    private func flushLocked() throws {
+        lastFlushNanoseconds = now()
+        for kind in OwnedFileKindV1.allCases {
+            guard let count = pending[kind], count > 0, let exact = exactPayloads[kind] else { continue }
+            try journal.write(Self.summaryPayload(exact, occurrences: count))
+            pending[kind] = nil
+            pendingTotal -= count
+        }
+    }
+
+    /// The exact payload's fields in their order, under the summary marker, plus the count.
+    static func summaryPayload(_ exact: Data, occurrences: Int) throws -> Data {
+        guard occurrences > 0, exact.last == 10, let space = exact.firstIndex(of: 32) else {
+            throw ProtectedFileDiagnosticTransportErrorV1.invalidPayload
+        }
+        var summary = Data(marker.utf8)
+        summary.append(exact[space..<exact.index(before: exact.endIndex)])
+        summary.append(Data(" occurrences=\(occurrences)\n".utf8))
+        return summary
+    }
+
+    private func fail(_ error: Error, phase: String) {
+        poisoned = true
+        timer?.cancel()
+        report("V23_PROTECTED_FILE_DIAGNOSTIC_JOURNAL_FAILURE phase=\(phase) error=\(error)"
+            + " unjournaledOccurrences=\(pendingTotal)\n")
+    }
+
+    private func startTimer() {
+        let source = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+        source.schedule(deadline: .now() + .nanoseconds(Int(flushIntervalNanoseconds)),
+                        repeating: .nanoseconds(Int(flushIntervalNanoseconds)))
+        source.setEventHandler { [weak self] in self?.flush(phase: "timer") }
+        timer = source
+        source.resume()
+    }
+}
+
 /// Development timing only. It aggregates the cost of the Simulator fallback
 /// path and never participates in a verification or evidence decision.
 final class ProtectedFileSimulatorTimingV1: @unchecked Sendable {
@@ -374,6 +488,17 @@ enum ProtectedFilePolicyV1 {
     #if DEBUG && os(iOS) && targetEnvironment(simulator)
     private static let diagnosticJournal = ProtectedFileSimulatorDiagnosticJournalV1()
     private static let simulatorTiming = ProtectedFileSimulatorTimingV1(writer: diagnosticWriter)
+    private static let diagnosticSummary: ProtectedFileSimulatorDiagnosticSummaryV1 = {
+        let summary = ProtectedFileSimulatorDiagnosticSummaryV1(journal: diagnosticJournal,
+            report: { diagnosticWriter.write($0) }, startsTimer: true)
+        atexit { ProtectedFilePolicyV1.flushDiagnosticSummaryAtExit() }
+        return summary
+    }()
+
+    /// Never waits at exit: a lock held by another thread leaves its counts unjournaled.
+    private static func flushDiagnosticSummaryAtExit() {
+        diagnosticSummary.flush(phase: "exit", waitsForLock: false)
+    }
     #endif
 
     /// C27 adds database rows only. Locator representations are references,
@@ -971,17 +1096,19 @@ enum ProtectedFilePolicyV1 {
     ) throws {
         #if DEBUG && os(iOS) && targetEnvironment(simulator)
         guard result == .simulatorFileProtectionUnsupported else { return }
-        let disposition = disposition(for: kind)
-        let facts = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V2"
-            + " policyID=V23-SIMULATOR-FILE-PROTECTION-DIAGNOSTIC-20260915"
-            + " disposition=SIMULATOR_FILE_PROTECTION_UNSUPPORTED"
-            + " kind=\(kind.rawValue) request=complete capabilityBefore=false capabilityAfter=false"
-            + " urlProtection=completeUntilFirstUserAuthentication"
-            + " backupExcluded=\(disposition.isExcludedFromBackup)"
-            + " expectsDirectory=\(disposition.expectsDirectory) identityUnchanged=true\n"
         let journalStart = DispatchTime.now().uptimeNanoseconds
         defer { simulatorTiming.recordJournal(startedAt: journalStart) }
-        try diagnosticJournal.write(Data(facts.utf8))
+        try diagnosticSummary.record(kind) {
+            let disposition = disposition(for: kind)
+            let facts = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V2"
+                + " policyID=V23-SIMULATOR-FILE-PROTECTION-DIAGNOSTIC-20260915"
+                + " disposition=SIMULATOR_FILE_PROTECTION_UNSUPPORTED"
+                + " kind=\(kind.rawValue) request=complete capabilityBefore=false capabilityAfter=false"
+                + " urlProtection=completeUntilFirstUserAuthentication"
+                + " backupExcluded=\(disposition.isExcludedFromBackup)"
+                + " expectsDirectory=\(disposition.expectsDirectory) identityUnchanged=true\n"
+            return Data(facts.utf8)
+        }
         #endif
     }
 

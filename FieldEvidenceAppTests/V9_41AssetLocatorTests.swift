@@ -183,9 +183,12 @@ final class V9_41AssetLocatorTests: XCTestCase {
             mutationSlot: 20
         )
 
+        // Owner-delegated decision (2026-09-25): SEARCH joined the closed source set with scan to
+        // work; frozen docs/design/v23/tooling/V23P04C21ScanToWorkContractV1.json testSelectors[0]
+        // (testV23P04C21G01ScanManualSearchResolveIdentically...) requires search resolution.
         XCTAssertEqual(
             Set(LocatorInputSourceV1.allCases),
-            [.camera, .manual, .imported]
+            [.camera, .manual, .imported, .search]
         )
         XCTAssertEqual(
             Set(AssetLocatorStateV1.allCases),

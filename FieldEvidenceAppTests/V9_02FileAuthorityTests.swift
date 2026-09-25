@@ -372,6 +372,7 @@ final class V9_02FileAuthorityTests: XCTestCase {
                 XCTAssertEqual($0 as? ProtectedFileDiagnosticTransportErrorV1, .invalidPayload)
             }
         }
+        try assertSimulatorDiagnosticSummaryKeepsFirstEventsExactAndCountsEveryRepeat()
     }
 
     func testSimulatorUnsupportedFileAndDirectoryRemainExplicitAcrossVerification() throws {
@@ -403,6 +404,135 @@ final class V9_02FileAuthorityTests: XCTestCase {
         }
         try ProtectedFilePolicyV1.verifyIfPresent(.databaseWAL, at: root.appendingPathComponent("absent"))
         XCTAssertFalse(fileManager.fileExists(atPath: root.appendingPathComponent("absent").path))
+    }
+
+    /// Owner decision 15: repeats of a kind are summarized, first events stay exact and durable,
+    /// and a transport failure still fails the call that meets it and every later one. Called
+    /// from the classifier test so the partitioned unit-method set is unchanged.
+    private func assertSimulatorDiagnosticSummaryKeepsFirstEventsExactAndCountsEveryRepeat() throws {
+        let root = try makeTemporaryRoot("diagnostic-summary")
+        defer { try? fileManager.removeItem(at: root) }
+        let directory = root.appendingPathComponent("AssetRoundsNativeDiagnostics", isDirectory: true)
+        func exact(_ kind: OwnedFileKindV1) -> Data {
+            let disposition = ProtectedFilePolicyV1.disposition(for: kind)
+            return Data(("V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V2"
+                + " policyID=V23-SIMULATOR-FILE-PROTECTION-DIAGNOSTIC-20260915"
+                + " disposition=SIMULATOR_FILE_PROTECTION_UNSUPPORTED"
+                + " kind=\(kind.rawValue) request=complete capabilityBefore=false capabilityAfter=false"
+                + " urlProtection=completeUntilFirstUserAuthentication"
+                + " backupExcluded=\(disposition.isExcludedFromBackup)"
+                + " expectsDirectory=\(disposition.expectsDirectory) identityUnchanged=true\n").utf8)
+        }
+        func summary(_ kind: OwnedFileKindV1, _ occurrences: Int) -> Data {
+            let fields = String(decoding: exact(kind), as: UTF8.self)
+                .split(separator: " ", maxSplits: 1)[1].dropLast()
+            return Data(("V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_SUMMARY_V1 " + fields
+                + " occurrences=\(occurrences)\n").utf8)
+        }
+        func payloads(_ streamID: UUID) throws -> [Data] {
+            let url = directory.appendingPathComponent(streamID.uuidString.lowercased() + ".jsonl")
+            guard fileManager.fileExists(atPath: url.path) else { return [] }
+            return try Data(contentsOf: url).split(separator: 10).enumerated().map { offset, row in
+                let value = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(row)) as? [String: Any])
+                XCTAssertEqual(value["sequence"] as? Int, offset + 1)
+                let payload = try XCTUnwrap(Data(base64Encoded: try XCTUnwrap(value["payloadBase64"] as? String)))
+                XCTAssertEqual(value["payloadSHA256"] as? String, KernelCanonicalHashV1.sha256(payload).uppercased())
+                return payload
+            }
+        }
+        let unexpected: () -> Data = { XCTFail("A repeat must not rebuild its payload"); return Data() }
+
+        // The first event of each kind is written and synchronized before record returns.
+        let clock = V9_02LockedBox<UInt64>(0)
+        let reports = V9_02LockedBox<[String]>([])
+        let streamID = UUID()
+        let counted = ProtectedFileSimulatorDiagnosticSummaryV1(
+            journal: ProtectedFileSimulatorDiagnosticJournalV1(cachesURL: root, streamID: streamID),
+            report: { reports.value.append($0) }, flushOccurrences: 5, flushIntervalNanoseconds: 1_000,
+            now: { clock.value })
+        try counted.record(.scratch) { exact(.scratch) }
+        XCTAssertEqual(try payloads(streamID), [exact(.scratch)])
+        for _ in 0..<3 { try counted.record(.scratch, payload: unexpected) }
+        try counted.record(.database) { exact(.database) }
+        XCTAssertEqual(try payloads(streamID), [exact(.scratch), exact(.database)])
+
+        // The count bound writes one summary per pending kind, in the closed kind order.
+        try counted.record(.database, payload: unexpected)
+        XCTAssertEqual(try payloads(streamID), [exact(.scratch), exact(.database)])
+        try counted.record(.scratch, payload: unexpected)
+        XCTAssertEqual(try payloads(streamID), [exact(.scratch), exact(.database),
+                                                summary(.database, 1), summary(.scratch, 4)])
+
+        // The interval bound, and a flush no caller waits on, write what is pending.
+        try counted.record(.database, payload: unexpected)
+        clock.value = 1_000
+        try counted.record(.database, payload: unexpected)
+        try counted.record(.scratch, payload: unexpected)
+        counted.flush(phase: "exit")
+        counted.flush(phase: "exit")
+        XCTAssertEqual(Array(try payloads(streamID).dropFirst(4)), [summary(.database, 2), summary(.scratch, 1)])
+        XCTAssertEqual(reports.value, [])
+        XCTAssertThrowsError(try ProtectedFileSimulatorDiagnosticSummaryV1.summaryPayload(exact(.scratch),
+                                                                                           occurrences: 0))
+
+        // The repeating timer flushes pending counts without another call.
+        let timedID = UUID()
+        let timed = ProtectedFileSimulatorDiagnosticSummaryV1(
+            journal: ProtectedFileSimulatorDiagnosticJournalV1(cachesURL: root, streamID: timedID),
+            report: { reports.value.append($0) }, flushIntervalNanoseconds: 50_000_000, startsTimer: true)
+        try timed.record(.journal) { exact(.journal) }
+        try timed.record(.journal, payload: unexpected)
+        let deadline = Date().addingTimeInterval(10)
+        while try payloads(timedID).count < 2, Date() < deadline { usleep(20_000) }
+        XCTAssertEqual(try payloads(timedID), [exact(.journal), summary(.journal, 1)])
+
+        // A failed flush fails its call, is named, and poisons every later unsupported result.
+        for phase in ["record", "timer"] {
+            let failing = V9_02LockedBox(false)
+            let failedID = UUID()
+            let failed = ProtectedFileSimulatorDiagnosticSummaryV1(
+                journal: ProtectedFileSimulatorDiagnosticJournalV1(cachesURL: root, streamID: failedID,
+                    synchronize: { descriptor in
+                        guard !failing.value, Darwin.fsync(descriptor) == 0 else {
+                            throw ProtectedFileDiagnosticTransportErrorV1.synchronizeFailed
+                        }
+                    }),
+                report: { reports.value.append($0) }, flushOccurrences: 2)
+            try failed.record(.database) { exact(.database) }
+            try failed.record(.database, payload: unexpected)
+            failing.value = true
+            if phase == "record" {
+                XCTAssertThrowsError(try failed.record(.database, payload: unexpected)) {
+                    XCTAssertEqual($0 as? ProtectedFileDiagnosticTransportErrorV1, .synchronizeFailed)
+                }
+            } else {
+                failed.flush(phase: "timer")
+            }
+            XCTAssertEqual(reports.value.last, "V23_PROTECTED_FILE_DIAGNOSTIC_JOURNAL_FAILURE phase=\(phase)"
+                + " error=synchronizeFailed unjournaledOccurrences=\(phase == "record" ? 2 : 1)\n")
+            failing.value = false
+            for kind in [OwnedFileKindV1.database, .scratch] {
+                XCTAssertThrowsError(try failed.record(kind) { exact(kind) }) {
+                    XCTAssertEqual($0 as? ProtectedFileDiagnosticTransportErrorV1, .poisonedStream)
+                }
+            }
+            failed.flush(phase: "exit")
+            XCTAssertEqual(try payloads(failedID).first, exact(.database))
+        }
+        let refusedID = UUID()
+        let refused = ProtectedFileSimulatorDiagnosticSummaryV1(
+            journal: ProtectedFileSimulatorDiagnosticJournalV1(cachesURL: root, streamID: refusedID,
+                append: { _, _ in throw ProtectedFileDiagnosticTransportErrorV1.appendFailed }),
+            report: { reports.value.append($0) })
+        XCTAssertThrowsError(try refused.record(.database) { exact(.database) }) {
+            XCTAssertEqual($0 as? ProtectedFileDiagnosticTransportErrorV1, .appendFailed)
+        }
+        XCTAssertEqual(reports.value.last, "V23_PROTECTED_FILE_DIAGNOSTIC_JOURNAL_FAILURE phase=record"
+            + " error=appendFailed unjournaledOccurrences=0\n")
+        XCTAssertThrowsError(try refused.record(.database) { exact(.database) }) {
+            XCTAssertEqual($0 as? ProtectedFileDiagnosticTransportErrorV1, .poisonedStream)
+        }
+        XCTAssertEqual(try payloads(refusedID), [])
     }
     #endif
 
@@ -1529,3 +1659,15 @@ final class C50IncumbentFileExchangeFileAuthorityBoundaryTests: XCTestCase {
         XCTAssertTrue(C50IncumbentFileExchangeOrphanCleanupBoundaryV1.externalSourceAndExportFilesAreNeverCleanupTargets)
     }
 }
+
+#if DEBUG && os(iOS) && targetEnvironment(simulator)
+private final class V9_02LockedBox<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: Value
+    init(_ value: Value) { stored = value }
+    var value: Value {
+        get { lock.lock(); defer { lock.unlock() }; return stored }
+        set { lock.lock(); defer { lock.unlock() }; stored = newValue }
+    }
+}
+#endif

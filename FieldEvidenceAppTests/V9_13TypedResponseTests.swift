@@ -13,7 +13,17 @@ final class V9_13TypedResponseTests: XCTestCase {
         XCTAssertTrue(fixture.testOnly)
         XCTAssertEqual(fixture.schema, "V21P03C03TypedResponseCorpusV1")
         XCTAssertEqual(fixture.responseKinds, ResponseValueKindV1.allCases.map(\.rawValue).sorted())
-        XCTAssertEqual(fixture.unitIDs, KernelUnitRegistryV1.definitions.map(\.unitID))
+        // Owner-delegated decision (2026-09-25): the C03 fixture stays byte-identical (its SHA-256
+        // 9db90786... is bound by the frozen V23P03C03* contracts and receipt). The registry grew by
+        // exactly the units later frozen cards require: C19 V23P03C19MeasurementIntegrityContractV1.json
+        // requiredSemantics.measurementUnits VOLT/AMPERE/OHM -> "V"/"A"/"Ohm", and C40
+        // V23P03C40AuthorityCriterionContractV1.json evidenceCases[C40-S05] psi/kPa -> "psi"/"kPa".
+        let laterCardUnitIDs = ["A", "Ohm", "V", "kPa", "psi"]
+        XCTAssertTrue(Set(fixture.unitIDs).isDisjoint(with: laterCardUnitIDs))
+        XCTAssertEqual(
+            (fixture.unitIDs + laterCardUnitIDs).sorted(),
+            KernelUnitRegistryV1.definitions.map(\.unitID)
+        )
         XCTAssertEqual(fixture.lifecycle.schema, KernelResponseLifecycleV1.schema)
         XCTAssertFalse(fixture.lifecycle.persistent)
 

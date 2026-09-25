@@ -285,8 +285,20 @@ final class V10_03ReplicationConflictRegistryTests: XCTestCase {
             XCTAssertEqual(registration.classification, .replicated, name)
             XCTAssertEqual(registration.replicationPolicy.authority, .workspaceWriter, name)
             XCTAssertEqual(registration.replicationPolicy.persistence, .swiftDataRecord, name)
-            XCTAssertEqual(registration.replicationPolicy.backup, .includeCanonical, name)
-            XCTAssertEqual(registration.replicationPolicy.export, .portableCanonical, name)
+            // Owner-delegated decision (2026-09-25): the product catalog keeps the mutable
+            // ServicePartyRow as canonical replicated content and the append-only C38 snapshot/event
+            // rows as replicated mutation history (immutable-history backup and export); pinned per row.
+            let immutableHistory = name != "ServicePartyRow"
+            XCTAssertEqual(
+                registration.replicationPolicy.backup,
+                immutableHistory ? .includeImmutableHistory : .includeCanonical,
+                name
+            )
+            XCTAssertEqual(
+                registration.replicationPolicy.export,
+                immutableHistory ? .portableImmutableHistory : .portableCanonical,
+                name
+            )
         }
         for name in [
             "ServicePartyReferenceV1", "SitePartyRoleEventV1", "ActorSnapshotV1",
@@ -611,10 +623,15 @@ final class V10_03ReplicationConflictRegistryTests: XCTestCase {
         )) {
             XCTAssertEqual($0 as? ReplicationPolicyFailureV1, .invalidDependencies)
         }
-        XCTAssertLessThan(
-            currentCatalog.registrations.count,
+        // Owner-delegated decision (2026-09-25): maximumRegistrationCount caps the frozen baseline
+        // SyncClassificationRegistryV1.registrations, which validate() enforces; the current catalog
+        // is not bound by it and stays pinned to its exact count (455) in
+        // testV10_03G01CatalogCompletenessAndLifecycleRouting.
+        XCTAssertLessThanOrEqual(
+            try SyncClassificationRegistryV1.registrations.count,
             SyncClassificationRegistryV1.maximumRegistrationCount
         )
+        XCTAssertNoThrow(try SyncClassificationRegistryV1.validate())
         XCTAssertEqual(ConflictCompetitorV1.maximumCount, 64)
     }
 

@@ -450,8 +450,13 @@ final class V9_68IlluminatedSignPlaybookTests: XCTestCase {
 
         // Independently assemble the historical nested shape from canonical
         // field encodings, without invoking the production private hash wire.
+        // Owner-delegated decision (2026-09-25): harness fix. The recovery hash has hashed the
+        // WorkspaceMutationCanonicalV1 wire (IlluminatedSignPlaybookCanonicalCodecV1.sha256, since
+        // f3cb7ef2: sorted keys, unescaped slashes, millisecondsSince1970 dates), but this assembly
+        // used the display codec's default Date strategy, so the payload's
+        // TimeContextSnapshotV1.observedAtUTC encoded differently. Fields now use the hash wire.
         func json<T: Encodable>(_ value: T) throws -> String {
-            String(decoding: try IlluminatedSignPlaybookCanonicalCodecV1.encode(value), as: UTF8.self)
+            String(decoding: try WorkspaceMutationCanonicalV1.data(value), as: UTF8.self)
         }
         let nested = try "{\"checkpointDraftRevision\":\(json(projection.checkpointDraftRevision)),"
             + "\"checkpointSHA256\":\(json(projection.checkpointSHA256)),"

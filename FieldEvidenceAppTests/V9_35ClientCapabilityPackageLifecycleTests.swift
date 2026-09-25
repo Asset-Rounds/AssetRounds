@@ -316,10 +316,18 @@ final class V9_35ClientCapabilityPackageLifecycleTests: XCTestCase {
         XCTAssertEqual(first.policy, second.policy)
         XCTAssertEqual(first.disposition, second.disposition)
         XCTAssertTrue(first.profile.supports(first.policy.requiredCapabilities))
-        XCTAssertEqual(
-            first.ranges.map(\.stableKey),
-            first.ranges.map(\.stableKey).sorted()
-        )
+        // Owner-delegated decision (2026-09-25): the helper declares ranges in
+        // PortableCapabilityDomainV1.allCases order; by design the product canonicalizes
+        // profile and policy ranges into stableKey order (ClientCapabilityProfileV1 and
+        // PackageLifecyclePolicyV1 sort; ClientCapabilityValidationV1.ranges requires it), so the
+        // sorted order is pinned on the product values with exact membership and count.
+        let sortedRangeKeys = [
+            "CANONICALIZATION|c21.canonicalization", "CONTRACT|c21.contract", "DIGEST|c21.digest",
+            "MEDIA|c21.media", "PACKAGE|c21.package", "SCHEMA|c21.schema",
+        ]
+        XCTAssertEqual(first.ranges.map(\.stableKey).sorted(), sortedRangeKeys)
+        XCTAssertEqual(first.profile.semanticRanges.map(\.stableKey), sortedRangeKeys)
+        XCTAssertEqual(first.policy.requiredCapabilities.map(\.stableKey), sortedRangeKeys)
         XCTAssertEqual(Set(first.ranges.map(\.domain)), Set(PortableCapabilityDomainV1.allCases))
 
         let profileData = try ClientCapabilityCanonicalCodecV1.encode(first.profile)

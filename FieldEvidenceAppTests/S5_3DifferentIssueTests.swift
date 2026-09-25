@@ -36,7 +36,7 @@ final class S5_3DifferentIssueTests: XCTestCase {
         let original = try onlyIssue(id: harness.issueID, context: harness.context)
         XCTAssertEqual(original.status, IssueStatus.resolved.rawValue)
         XCTAssertEqual(original.resolvedByRecordID, result.recordID)
-        XCTAssertEqual(original.updatedAt, harness.completedAt)
+        assertSameInstantAtPersistedPrecision(original.updatedAt, harness.completedAt)
         let newIssueID = try XCTUnwrap(result.newIssueID)
         let inserted = try onlyIssue(id: newIssueID, context: harness.context)
         XCTAssertEqual(inserted.assetID, harness.assetID)
@@ -45,8 +45,8 @@ final class S5_3DifferentIssueTests: XCTestCase {
         XCTAssertEqual(inserted.labelDisplaySnapshot, "Visible physical damage")
         XCTAssertEqual(inserted.status, IssueStatus.open.rawValue)
         XCTAssertNil(inserted.resolvedByRecordID)
-        XCTAssertEqual(inserted.createdAt, harness.completedAt)
-        XCTAssertEqual(inserted.updatedAt, harness.completedAt)
+        assertSameInstantAtPersistedPrecision(inserted.createdAt, harness.completedAt)
+        assertSameInstantAtPersistedPrecision(inserted.updatedAt, harness.completedAt)
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Issue>()), 2)
         let workCoordinator = try WorkCoordinator(
             modelContext: harness.context,
@@ -80,6 +80,10 @@ final class S5_3DifferentIssueTests: XCTestCase {
         XCTAssertEqual(snapshot.history.map(\.recordID), [harness.openingRecordID, harness.workRecordID])
         XCTAssertEqual(snapshot.evidence.prefix(2).map(\.recordID), [result.recordID, result.recordID])
         XCTAssertEqual(snapshot.issues.count, 2)
+        guard snapshot.issues.count == 2 else {
+            XCTFail("snapshot.issues has \(snapshot.issues.count) entries; expected 2")
+            return
+        }
         XCTAssertEqual(snapshot.issues[0].status, IssueStatus.resolved.rawValue)
         XCTAssertEqual(snapshot.issues[0].resolvedByRecordID, result.recordID)
         XCTAssertEqual(snapshot.issues[1].issueID, newIssueID)
@@ -372,11 +376,19 @@ final class S5_3DifferentIssueTests: XCTestCase {
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Packet>()), 2)
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Report>()), 2)
 
+        // V23 schema-2 finalization intents recover only through the sole
+        // workspace writer, as production startup does (StartupRouter).
         let summary = try await FinalizationRecoveryService(
             modelContext: harness.context,
-            generationRootURL: harness.generationRootURL
+            generationRootURL: harness.generationRootURL,
+            workspaceWriter: harness.fixture.lifecycleDependencies.writer,
+            lifecycleProfileRegistry: harness.fixture.storeCoordinator.lifecycleProfileRegistry
         ).reconcile()
         XCTAssertEqual(summary.completedRecordIDs.count, 1)
+        guard summary.completedRecordIDs.count == 1 else {
+            XCTFail("summary.completedRecordIDs has \(summary.completedRecordIDs.count) entries; expected 1")
+            return
+        }
         XCTAssertTrue(summary.recoveredDraftRecordIDs.isEmpty)
         let issue = try onlyIssue(id: harness.issueID, context: harness.context)
         XCTAssertEqual(issue.status, IssueStatus.resolved.rawValue)
@@ -500,6 +512,22 @@ final class S5_3DifferentIssueTests: XCTestCase {
             thumbnailRelativePath: promoted.thumbnailRelativePath,
             thumbnailByteCount: promoted.thumbnailByteCount,
             thumbnailSHA256: promoted.thumbnailSHA256
+        )
+    }
+
+    /// Finalized rows are written back through the sole canonical writer, whose
+    /// finalization contract persists UTC-millisecond instants; the
+    /// completion instant is asserted at that persisted precision.
+    private func assertSameInstantAtPersistedPrecision(
+        _ actual: Date,
+        _ expected: Date,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertTrue(
+            FinalizationCanonicalBindingV1.sameInstant(actual, expected),
+            "\(actual.timeIntervalSince1970) != \(expected.timeIntervalSince1970) at persisted precision",
+            file: file, line: line
         )
     }
 

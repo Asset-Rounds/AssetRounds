@@ -39,8 +39,11 @@ TIERS = {"N8": (300, 1200, 900, 0, 2400), "P12": (300, 600, 900, 900, 3300),
          "D50": (300, 1800, 3000, 0, 5100),
          # Development-only shared coverage: one build-only producer, then test-only consumers.
          # Each total adds 300 s for the payload seal/upload or the fingerprints and evidence.
-         "D40P": (300, 2400, 0, 0, 3000), "D50C": (300, 0, 3000, 0, 3600)}
-NO_UI_TIERS = ("N8", "D30", "D50", "D40P", "D50C")
+         "D40P": (300, 2400, 0, 0, 3000), "D50C": (300, 0, 3000, 0, 3600),
+         # Owner decision 16 (2026-09-25): a consumer partition of exactly ONE known-slow
+         # method may test for up to 5,400 s until the performance fix lands.
+         "D90S": (300, 0, 5400, 0, 6000)}
+NO_UI_TIERS = ("N8", "D30", "D50", "D40P", "D50C", "D90S")
 BUILD_WATCHDOG_SELECTION_ID = "c36-parent-finalization-check-no-issue-build30m"
 BUILD_WATCHDOG_PARENT = "6289befddaf75036c7fb7a4d971ba7cc171ec003"
 BUILD_ORDER_SELECTION_ID = "c36-destination-discard-build-before-boot"
@@ -461,10 +464,14 @@ DEV_BATCH_BINDING_KEYS = {"path", "schema", "sha256", "question", "developmentOn
 # direct runnable XCTest method at the checkout. Never acceptance or merge credit.
 SHARED_SELECTION_ID = "v23-shared-coverage-d50x"
 SHARED_PARTITIONS_PATH = "Scripts/v23-coverage-partitions.json"
-SHARED_PARTITIONS_SCHEMA = "v23-coverage-partitions.v1"
+SHARED_PARTITIONS_SCHEMA = "v23-coverage-partitions.v2"
 SHARED_KEY = "sharedCoverage"
 SHARED_PRODUCER_TIER = "D40P"
 SHARED_CONSUMER_TIER = "D50C"
+# A solo consumer partition (exactly one selector) of a known-slow method; every other
+# consumer partition keeps the D50C test budget. Each partition names its tier.
+SHARED_SOLO_TIER = "D90S"
+SHARED_CONSUMER_TIERS = (SHARED_CONSUMER_TIER, SHARED_SOLO_TIER)
 SHARED_ROLES = ("producer", "consumer")
 SHARED_MAX_PARTITIONS = 60
 SHARED_MAX_PARTITION_METHODS = 500
@@ -777,14 +784,23 @@ SIMULATOR_DIAGNOSTIC_OWNER_POLICY_SHA256 = "FDCAF78EEAEDDFC9A2661CB283A16810B88F
 SIMULATOR_DIAGNOSTIC_POLICY_SHA256 = "4CE71CA43D961CF8A1318DA882BBA8989179700AB5202E5CE191185CFC0E44E0"
 SIMULATOR_DIAGNOSTIC_POLICY_ID = "V23-SIMULATOR-FILE-PROTECTION-DIAGNOSTIC-20260915"
 SIMULATOR_DIAGNOSTIC_SOURCE_PATH = "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift"
-SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "D18D48D5DB47DD61AD7D979414BD62A1A6798639EDA00B537DB5D6F1D517700E"
+SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "831C0FB85219183E7CA694F4F260BBB4765FFD929EBCCAE814CE7CC3D231C5B7"
 # The original owner-approved allowance source remains admissible for historical replays;
 # the current source adds only development timing aggregates (2026-09-24).
 # 2026-09-25: the Simulator strict pre-check no longer throws, catches and logs the expected
 # mismatch on every call; the fallback predicate, journal and evidence are unchanged.
+# 2026-09-25 (owner decision 15): repeats of a kind are journaled as per-kind summaries after
+# its exact first event; the fallback predicate and every verification are unchanged. The pin
+# is SHA-256 over the committed ProtectedFilePolicy.swift bytes; D18D48D5... joins the history.
 SIMULATOR_DIAGNOSTIC_HISTORICAL_SOURCE_SHA256S = ("FCFF658FCE118760EAC50B13A3941470EA86ED6FB40E78D17E6A573A10DFA5DB",
-                                                 "A8B18FFF49DE387183EA9B8B2377669BF1EE9E73A6DB11992178503070EDE139")
+                                                 "A8B18FFF49DE387183EA9B8B2377669BF1EE9E73A6DB11992178503070EDE139",
+                                                 "D18D48D5DB47DD61AD7D979414BD62A1A6798639EDA00B537DB5D6F1D517700E")
 SIMULATOR_DIAGNOSTIC_PREFIX = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V2"
+# Owner decision 15 (2026-09-25): after the first exact event of a kind in a process, later
+# identical events of that kind are journaled as bounded per-kind summaries carrying a count.
+# The V2 payload is a pure function of the kind, so a summary loses only call order and time.
+SIMULATOR_DIAGNOSTIC_SUMMARY_PREFIX = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_SUMMARY_V1"
+SIMULATOR_DIAGNOSTIC_MAX_SUMMARY_OCCURRENCES = 1_000_000_000
 SIMULATOR_DIAGNOSTIC_MARKER_STEM = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_"
 SIMULATOR_DIAGNOSTIC_OUTPUT = "simulator-file-protection-diagnostics.json"
 SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS = "simulator-file-protection-transport-status.json"
@@ -926,13 +942,28 @@ def simulator_diagnostic_policy_binding(root):
 
 
 def parse_simulator_diagnostic_line(line):
+    return _parse_simulator_diagnostic(line, SIMULATOR_DIAGNOSTIC_PREFIX, SIMULATOR_DIAGNOSTIC_FIELDS)[0]
+
+
+def parse_simulator_diagnostic_summary_line(line):
+    """One per-kind summary: the exact V2 facts of that kind plus how many more calls had them."""
+    event, values = _parse_simulator_diagnostic(
+        line, SIMULATOR_DIAGNOSTIC_SUMMARY_PREFIX, SIMULATOR_DIAGNOSTIC_FIELDS + ("occurrences",))
+    count = values["occurrences"]
+    require(re.fullmatch(r"[1-9][0-9]{0,9}", count) is not None
+            and int(count) <= SIMULATOR_DIAGNOSTIC_MAX_SUMMARY_OCCURRENCES,
+            "simulator diagnostic summary occurrences")
+    return event, int(count)
+
+
+def _parse_simulator_diagnostic(line, prefix, fields):
     stripped = line.strip()
-    require(stripped.startswith(SIMULATOR_DIAGNOSTIC_PREFIX + " "),
+    require(stripped.startswith(prefix + " "),
             "malformed simulator diagnostic marker")
-    require(stripped.count(SIMULATOR_DIAGNOSTIC_PREFIX) == 1,
+    require(stripped.count(prefix) == 1 and stripped.count(SIMULATOR_DIAGNOSTIC_MARKER_STEM) == 1,
             "duplicate simulator diagnostic marker")
     tokens = stripped.split()
-    require(tokens[0] == SIMULATOR_DIAGNOSTIC_PREFIX and len(tokens) == 1 + len(SIMULATOR_DIAGNOSTIC_FIELDS),
+    require(tokens[0] == prefix and len(tokens) == 1 + len(fields),
             "simulator diagnostic field count")
     pairs = []
     for token in tokens[1:]:
@@ -940,7 +971,7 @@ def parse_simulator_diagnostic_line(line):
         require(bool(separator) and bool(key) and bool(value), "simulator diagnostic field")
         pairs.append((key, value))
     values = unique_pairs(pairs)
-    require(tuple(values) == SIMULATOR_DIAGNOSTIC_FIELDS, "simulator diagnostic field order")
+    require(tuple(values) == fields, "simulator diagnostic field order")
     require(values["policyID"] == SIMULATOR_DIAGNOSTIC_POLICY_ID
             and values["disposition"] == SIMULATOR_DIAGNOSTIC_DISPOSITION
             and values["request"] == "complete",
@@ -967,7 +998,7 @@ def parse_simulator_diagnostic_line(line):
         "backupExcluded": expected_backup,
         "expectsDirectory": expected_directory,
         "identityUnchanged": True,
-    }
+    }, values
 
 
 def _transport_status_path(artifact):
@@ -1220,8 +1251,11 @@ def _strict_frame(line):
             and sha256(payload) == value["payloadSHA256"], "diagnostic payload binding")
     require(payload.endswith(b"\n") and b"\n" not in payload[:-1] and b"\r" not in payload,
             "diagnostic payload delimiter")
-    event = parse_simulator_diagnostic_line(payload.decode("utf-8"))
-    return value, payload, event
+    text = payload.decode("utf-8")
+    if text.startswith(SIMULATOR_DIAGNOSTIC_SUMMARY_PREFIX + " "):
+        event, occurrences = parse_simulator_diagnostic_summary_line(text)
+        return value, payload, event, occurrences
+    return value, payload, parse_simulator_diagnostic_line(text), None
 
 
 def simulator_diagnostic_observations(root, artifact, record):
@@ -1245,6 +1279,8 @@ def simulator_diagnostic_observations(root, artifact, record):
         "parseStatus": "UNAVAILABLE",
         "events": [],
         "eventCount": 0,
+        "summaries": [],
+        "occurrenceCount": 0,
         "zeroUseObserved": False,
         "countsAsPerKindProtectionSuccess": False,
         "diagnosticOnly": True,
@@ -1341,13 +1377,14 @@ def simulator_diagnostic_observations(root, artifact, record):
                 transport_dir.is_dir() and not transport_dir.is_symlink()
                 and list(transport_dir.iterdir()) == []), "diagnostic zero-use directory")
             events = []
+            summaries = []
             raw_records = []
         else:
             require(files and transport_dir.is_dir() and not transport_dir.is_symlink(),
                     "diagnostic transport directory")
             require(sorted(value.name for value in transport_dir.iterdir())
                     == [value["name"] for value in files], "diagnostic transport members")
-            events, raw_records, seen_streams = [], [], set()
+            events, summaries, raw_records, seen_streams = [], [], [], set()
             expected_names = []
             for item in files:
                 name = item["name"]
@@ -1361,33 +1398,46 @@ def simulator_diagnostic_observations(root, artifact, record):
                         "diagnostic transport member binding")
                 lines = raw.splitlines(keepends=True)
                 require(lines and len(lines) <= SIMULATOR_DIAGNOSTIC_MAX_EVENTS
-                        and len(events) + len(lines) <= SIMULATOR_DIAGNOSTIC_MAX_TOTAL_EVENTS,
+                        and len(raw_records) + len(lines) <= SIMULATOR_DIAGNOSTIC_MAX_TOTAL_EVENTS,
                         "diagnostic event count")
                 stream_id = name[:-6]
                 require(stream_id not in seen_streams, "duplicate diagnostic stream")
                 seen_streams.add(stream_id)
                 for expected_sequence, line in enumerate(lines, 1):
-                    frame, payload, event = _strict_frame(line)
+                    frame, payload, event, occurrences = _strict_frame(line)
                     require(frame["streamID"] == stream_id
                             and frame["sequence"] == expected_sequence,
                             "diagnostic stream sequence")
-                    events.append(event)
+                    if occurrences is None:
+                        events.append(event)
+                    else:
+                        summaries.append({**event, "occurrences": occurrences})
                     raw_records.append({
                         "streamID": stream_id, "sequence": expected_sequence,
                         "payloadByteCount": len(payload), "payloadSHA256": sha256(payload),
                     })
                 expected_names.append(name)
             require(expected_names == sorted(expected_names), "diagnostic inventory order")
+            # A summary only counts further calls of a kind whose first exact event was journaled
+            # durably. Streams are named by random identifiers, so this binding is order-free.
+            exact_kinds = {event["kind"] for event in events}
+            require(all(summary["kind"] in exact_kinds for summary in summaries),
+                    "diagnostic summary without exact first event")
         evidence["parseStatus"] = "PASS"
         evidence["events"] = events
         evidence["rawRecords"] = raw_records
         evidence["eventCount"] = len(events)
+        evidence["summaries"] = summaries
+        evidence["occurrenceCount"] = len(events) + sum(value["occurrences"] for value in summaries)
         evidence["zeroUseObserved"] = status["status"] == "ZERO_USE"
     except (UnicodeDecodeError, json.JSONDecodeError, OSError, TypeError, ValueError) as error:
         evidence["parseStatus"] = "INVALID"
         evidence["events"] = events if "events" in locals() else []
         evidence["rawRecords"] = raw_records if "raw_records" in locals() else []
         evidence["eventCount"] = len(evidence["events"])
+        evidence["summaries"] = summaries if "summaries" in locals() else []
+        evidence["occurrenceCount"] = len(evidence["events"]) + sum(
+            value["occurrences"] for value in evidence["summaries"])
         evidence["parseError"] = str(error)
         parse_error = error
     return evidence, parse_error
@@ -1438,9 +1488,11 @@ def validate_shared_binding(selection):
     if selection["tier"] == SHARED_PRODUCER_TIER:
         require(binding["partitionID"] is None, "shared coverage producer has no partition")
     else:
-        require(selection["tier"] == SHARED_CONSUMER_TIER and binding["partitionID"] in identifiers
+        require(selection["tier"] in SHARED_CONSUMER_TIERS and binding["partitionID"] in identifiers
                 and 1 <= len(selection["unitTestSelectors"]) <= SHARED_MAX_PARTITION_METHODS,
                 "shared coverage consumer partition")
+        require(selection["tier"] != SHARED_SOLO_TIER or len(selection["unitTestSelectors"]) == 1,
+                "shared coverage solo tier needs exactly one method")
 
 
 def validate_selection(selection):
@@ -1477,7 +1529,7 @@ def validate_selection(selection):
         require(tuple(selection["unitTestSelectors"]) in (LIVE_HOST_RUNTIME_SELECTORS,
                 ROUND_ITEM_MOUNT_SELECTORS, STARTUP_RETIREMENT_SELECTORS),
                 "development D50 exact closed methods")
-    require(shared or selection["tier"] not in (SHARED_PRODUCER_TIER, SHARED_CONSUMER_TIER),
+    require(shared or selection["tier"] not in (SHARED_PRODUCER_TIER,) + SHARED_CONSUMER_TIERS,
             "shared coverage tier outside the shared route")
     if selection["tier"] == "D30":
         require(tuple(selection["unitTestSelectors"]) in (
@@ -2296,7 +2348,9 @@ def validate_coverage_partitions(value, discovered):
 
     sourceCensusHead is the commit whose timing census seeded the assignments and
     estimates; generatedAtHead is the checkout HEAD the file was last regenerated at.
-    Coverage itself is always proven against the checkout being admitted."""
+    Each partition names its consumer tier: D50C, or D90S for exactly one method, and
+    its estimate must fit that tier's test budget. Coverage itself is always proven
+    against the checkout being admitted."""
     require(type(value) is dict
             and set(value) == {"schema", "sourceCensusHead", "generatedAtHead", "partitions", "sweepOrder"},
             "coverage partitions keys")
@@ -2310,19 +2364,23 @@ def validate_coverage_partitions(value, discovered):
     identifiers = []
     owner = {}
     for partition in partitions:
-        require(type(partition) is dict and set(partition) == {"id", "estimatedSeconds", "selectors"},
+        require(type(partition) is dict and set(partition) == {"id", "tier", "estimatedSeconds", "selectors"},
                 "coverage partition keys")
         identifier = partition["id"]
         require(isinstance(identifier, str) and SHARED_PARTITION_ID.fullmatch(identifier) is not None
                 and identifier not in identifiers, "coverage partition ID")
         identifiers.append(identifier)
+        tier = partition["tier"]
+        require(isinstance(tier, str) and tier in SHARED_CONSUMER_TIERS, "coverage partition tier: " + identifier)
         estimate = partition["estimatedSeconds"]
         require(type(estimate) in (int, float) and math.isfinite(estimate)
-                and 0 < estimate <= TIERS[SHARED_CONSUMER_TIER][2],
+                and 0 < estimate <= TIERS[tier][2],
                 "coverage partition estimate must fit the test budget: " + identifier)
         selectors = partition["selectors"]
         require(type(selectors) is list and 1 <= len(selectors) <= SHARED_MAX_PARTITION_METHODS,
                 "coverage partition method count: " + identifier)
+        require(tier != SHARED_SOLO_TIER or len(selectors) == 1,
+                "coverage partition solo tier needs exactly one method: " + identifier)
         for selector in selectors:
             require(isinstance(selector, str) and UNIT_SELECTOR.fullmatch(selector) is not None,
                     "coverage partition selector: " + identifier)
@@ -2363,7 +2421,7 @@ def shared_selection(root, partition_id=None):
         selectors = [selector for identifier in order for selector in by_id[identifier]["selectors"]]
     else:
         require(partition_id in by_id, "unknown coverage partition: " + str(partition_id))
-        tier = SHARED_CONSUMER_TIER
+        tier = by_id[partition_id]["tier"]
         selectors = list(by_id[partition_id]["selectors"])
     selection = {
         "schemaVersion": 1, "taskID": TASK, "tier": tier, "runUISmoke": False,
@@ -2374,6 +2432,13 @@ def shared_selection(root, partition_id=None):
     }
     validate_selection(selection)
     return selection
+
+
+def shared_partition_tiers(root):
+    """{partition ID: consumer tier} in sweep order, for the dispatch matrix outputs."""
+    value, _ = load_coverage_partitions(root)
+    by_id = {partition["id"]: partition["tier"] for partition in value["partitions"]}
+    return {identifier: by_id[identifier] for identifier in value["sweepOrder"]}
 
 
 def shared_route_environment(environment):
@@ -3465,6 +3530,12 @@ def main():
                     # The ordered consumer matrix; each entry is one closed partition.
                     stream.write("native_shared_partitions=" + json.dumps(
                         selection[SHARED_KEY]["partitionIDs"], separators=(",", ":")) + "\n")
+                    # Each consumer's tier sets its job timeout; the worker admission
+                    # refuses a tier that differs from its partition's.
+                    tiers = shared_partition_tiers(root)
+                    require(list(tiers) == selection[SHARED_KEY]["partitionIDs"], "shared coverage tier matrix")
+                    stream.write("native_shared_partition_tiers=" + json.dumps(
+                        tiers, separators=(",", ":")) + "\n")
         return
     if args.command in ("observe-build-before-boot", "record-no-index-build",
                         "shared-seal", "shared-restore", "shared-fingerprint"):

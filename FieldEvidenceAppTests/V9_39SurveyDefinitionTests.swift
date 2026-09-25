@@ -432,7 +432,10 @@ final class V9_39SurveyDefinitionTests: XCTestCase {
         XCTAssertEqual(SurveyDefinitionLifecycleV1.writer, corpus.writer)
         XCTAssertEqual(PersistentSchemaV24.models.count, corpus.persistentModelCount)
         XCTAssertEqual(PersistentSchemaV24.models.count, PersistentSchemaV23.models.count + 2)
-        XCTAssertEqual(CurrentSyncClassificationCatalogV1.activePersistentModelNames.count, corpus.currentSyncPersistentModelCount)
+        // Owner-delegated decision (2026-09-25): the C25 corpus count (87) is the historical V24-era
+        // fact and stays pinned; the live catalog follows frozen docs/design/v23/tooling/V23P04C38AdvancedRecurrenceWorkflowContractV1.json requirements.persistentSchema = "V53" and requirements.totalModelCount = 168.
+        XCTAssertEqual(corpus.currentSyncPersistentModelCount, 87)
+        XCTAssertEqual(CurrentSyncClassificationCatalogV1.activePersistentModelNames.count, 168)
     }
 
     func testV23P03C25A01ExplicitDraftAdoptionAndQuarantinedExchangeRemainTyped() async throws {
@@ -1384,14 +1387,16 @@ final class V9_39SurveyDefinitionTests: XCTestCase {
         XCTAssertEqual(SurveyDefinitionDeviceMemoryV1.favoriteKey, "device.surveyDefinition.favoriteIDs")
         XCTAssertEqual(SurveyDefinitionDeviceMemoryV1.recentsKey, "device.surveyDefinition.recentIDs")
         XCTAssertEqual(SurveyDefinitionDeviceMemoryV1.backupDisposition, "EXCLUDED_DEVICE_LOCAL")
-        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v24)
+        // Owner-delegated decision (2026-09-25): current state follows frozen docs/design/v23/tooling/V23P04C38AdvancedRecurrenceWorkflowContractV1.json requirements.persistentSchema = "V53" and requirements.totalModelCount = 168
+        // (was .v24 / 87 at C25); the V23 migration plan and V24 import boundary stay historical pins.
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v53)
         XCTAssertEqual(PersistentSchemaMigrationPlanV23.schemas.count, 2)
         XCTAssertEqual(PersistentSchemaMigrationPlanV23.stages.count, 1)
         XCTAssertNoThrow(try V24SurveyDefinitionImportBoundaryV1.validate(persistent: 24, records: 23))
-        XCTAssertEqual(CurrentSyncClassificationCatalogV1.activePersistentModelNames.count, 87)
+        XCTAssertEqual(CurrentSyncClassificationCatalogV1.activePersistentModelNames.count, 168)
         let currentSync = try CurrentSyncClassificationCatalogV1.current
         XCTAssertNoThrow(try currentSync.validate())
-        XCTAssertEqual(currentSync.persistentModelSubjects.count, 87)
+        XCTAssertEqual(currentSync.persistentModelSubjects.count, 168)
         XCTAssertTrue(currentSync.persistentModelSubjects.map(\.stableName).contains("SurveyDefinitionIdentityRow"))
         XCTAssertTrue(currentSync.persistentModelSubjects.map(\.stableName).contains("SurveyDefinitionReleaseRow"))
         XCTAssertEqual(SurveyTemplateArchiveManifestV1.fileExtension, corpus.exchangeExtension)

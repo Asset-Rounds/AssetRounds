@@ -600,6 +600,19 @@ class SharedCollectionTests(unittest.TestCase):
         self.assertIn("artifacts/S40/v23-shared-restore.json", manifest["files"])
         self.assertNotIn("summary.json", manifest["files"])
 
+    def test_mixed_consumer_tiers_are_named_with_their_budgets(self):
+        # Owner decision 16: a known-slow solo partition runs as D90S beside D50C partitions.
+        scenario = SharedScenario()
+        solo = dict(consumer_selection(IDS[0]), tier="D90S", testTimeoutSeconds=5400, totalBudgetSeconds=6000)
+        scenario.files[IDS[0]]["ci-selection.selected.json"] = canonical(solo)
+        summary, _, error, _ = scenario.collect(self)
+        self.assertIsNone(error)
+        self.assertEqual(summary["tier"], {"producer": "D40P", "consumer": ["D50C", "D90S"]})
+        self.assertEqual(summary["budgets"]["consumer"]["D90S"]["testTimeoutSeconds"], 5400)
+        self.assertEqual(summary["budgets"]["consumer"]["D50C"]["testTimeoutSeconds"], 3000)
+        uniform, _, _, _ = SharedScenario().collect(self)
+        self.assertEqual(uniform["tier"], {"producer": "D40P", "consumer": "D50C"})
+
     def test_payload_is_recorded_but_never_downloaded(self):
         summary, fake, error, directory = SharedScenario().collect(self)
         self.assertEqual(summary["payloadArtifact"], {
@@ -861,8 +874,11 @@ class SharedCollectionTests(unittest.TestCase):
 # Dispatch.
 # --------------------------------------------------------------------------
 
+# The run-kind input a development dispatch passes (choice, default gate).
+KIND_INPUT_TEXT = ("      v23_run_kind:\n        description: kind\n        required: false\n        default: gate\n"
+                   "        type: choice\n        options:\n          - gate\n          - development\n")
 WORKFLOW_TEXT = ("          - v23-dev-batch-no-index-d50\n          - v23-shared-coverage-d50x\n"
-                 "          - c36-round-item-completion-no-index-build30m\n")
+                 "          - c36-round-item-completion-no-index-build30m\n" + KIND_INPUT_TEXT)
 DEV = "v23-dev-batch-no-index-d50"
 ORDINARY_D30 = "c36-round-item-completion-no-index-build30m"
 WORKER_PATH = ".github/workflows/ios-ci-worker.yml"
@@ -871,7 +887,12 @@ FIXTURE_RUN = json.loads((FIXTURE / "run.json").read_text(encoding="utf-8"))
 DEV_HEAD, DEV_PARENT = FIXTURE_DISPATCH["head"], FIXTURE_DISPATCH["parent"]
 DEV_PLAN = FIXTURE_DISPATCH["resolvedSelection"]
 OTHER_HEAD = "e" * 40
-TERM = "${{ inputs.native_selection_id == 'v23-dev-batch-no-index-d50' && format('-{0}', github.sha) || '' }}"
+TERM = ("${{ github.event.inputs.v23_run_kind == 'development' && "
+        "(github.event.inputs.native_selection_id == 'v23-dev-batch-no-index-d50' || "
+        "github.event.inputs.native_selection_id == 'v23-shared-coverage-d50x') && "
+        "format('-development-{0}', github.sha) || '' }}")
+SHARED_WORKER_PATH = ".github/workflows/ios-ci-shared-worker.yml"
+PER_RUN = "${{ github.run_id }}"
 REASON = "setup failure on the runner, not the source"
 ORDINARY_PLAN = {"tier": "D30", "unitTestSelectors": ["x"]}
 
@@ -891,6 +912,10 @@ def caller_text(per_head=True, worker="./.github/workflows/ios-ci-worker.yml", g
             "    if: ${{ inputs.execution_lane == 'github-xcode-26.6-acceptance' && "
             "inputs.native_selection_id == 'v23-shared-coverage-d50x' }}\n"
             "    uses: ./.github/workflows/ios-ci-shared-worker.yml\n"
+            "  v23-shared-consumer:\n    needs: [shared-selection, v23-shared-producer]\n"
+            "    if: ${{ inputs.execution_lane == 'github-xcode-26.6-acceptance' && "
+            "inputs.native_selection_id == 'v23-shared-coverage-d50x' }}\n"
+            "    uses: ./.github/workflows/ios-ci-shared-worker.yml\n"
             "  getmac-shard:\n    if: ${{ inputs.execution_lane == 'getmac-xcode-26.6-development-only' }}\n"
             "    uses: ./.github/workflows/ios-ci-worker.yml\n")
 
@@ -900,6 +925,11 @@ def worker_text(per_head=True, group=None, job_group=None):
     job_concurrency = "" if job_group is None else f"    concurrency:\n      group: {job_group}\n"
     return (f"name: worker\non:\n  workflow_call:\n\nconcurrency:\n  group: {group}\n  cancel-in-progress: false\n\n"
             "jobs:\n  verify:\n    runs-on: macos-26\n" + job_concurrency)
+
+
+def shared_worker_text(group="v23-github-${{ inputs.native_selection_id }}-" + "${{ github.run_id }}"):
+    return (f"name: shared\non:\n  workflow_call:\n\nconcurrency:\n  group: {group}\n  cancel-in-progress: false\n\n"
+            "jobs:\n  verify:\n    runs-on: macos-26\n")
 
 
 class DispatchHarness:
@@ -1060,14 +1090,16 @@ class DispatchTests(unittest.TestCase):
     def test_shared_refuses_while_any_other_run_is_active(self):
         self.write_ledger([{"runID": 11, "selection": "v23-dev-batch-no-index-d50"}])
         for status in ("queued", "in_progress", "waiting", "pending", "requested"):
-            with self.subTest(status):
-                harness = DispatchHarness(NEW, self.root, NEW.SHARED_SELECTION_ID,
-                                          active=[{"id": 11, "status": status}])
-                with self.assertRaises(SystemExit) as caught:
-                    harness.dispatch(kind="development")
-                self.assertIn("requires zero other active runs", str(caught.exception))
-                self.assertFalse(harness.dispatched)
-                self.assertFalse((self.root / "v23-original-attempts").exists())
+            for kind, expected in (("gate", "requires zero other active runs"),
+                                   ("development", "are not ledgered development runs")):
+                with self.subTest(status=status, kind=kind):
+                    harness = DispatchHarness(NEW, self.root, NEW.SHARED_SELECTION_ID,
+                                              active=[{"id": 11, "status": status}])
+                    with self.assertRaises(SystemExit) as caught:
+                        harness.dispatch(kind=kind)
+                    self.assertIn(expected, str(caught.exception))
+                    self.assertFalse(harness.dispatched)
+                    self.assertFalse((self.root / "v23-original-attempts").exists())
 
     def test_shared_dispatch_with_zero_active_records_the_partitions(self):
         harness = DispatchHarness(NEW, self.root, NEW.SHARED_SELECTION_ID)
@@ -1772,7 +1804,7 @@ class ParallelDevBatchTests(unittest.TestCase):
         if active_head is not None:
             active["head_sha"] = active_head
         kwargs.setdefault("workflow", caller_text())
-        kwargs.setdefault("workers", {WORKER_PATH: worker_text()})
+        kwargs.setdefault("workers", {WORKER_PATH: worker_text(), SHARED_WORKER_PATH: shared_worker_text()})
         return DispatchHarness(NEW, self.root, kwargs.pop("selection", DEV), head=head,
                                resolved=kwargs.pop("resolved", DEV_PLAN), active=[active], **kwargs)
 
@@ -1791,6 +1823,38 @@ class ParallelDevBatchTests(unittest.TestCase):
         self.assertIn(("git_bytes", ("show", f"{OTHER_HEAD}:{WORKER_PATH}")), harness.calls)
         self.assertEqual([x["runID"] for x in ledger_lines(self.root)], [11, RUN])
         self.assertTrue((self.root / "v23-original-attempts" / f"{OTHER_HEAD}-{DEV}.json").is_file())
+
+    def test_development_passes_the_kind_input_and_gate_argv_is_unchanged(self):
+        def argv(harness):
+            return next(call[1] for call in harness.calls if call[0] == "subprocess" and call[1][:2] == ("gh", "workflow"))
+        harness = DispatchHarness(NEW, self.root, DEV, head=OTHER_HEAD, resolved=DEV_PLAN)
+        harness.dispatch(kind="development")
+        self.assertEqual(argv(harness)[-2:], ("-f", "v23_run_kind=development"))
+        self.fresh_root()
+        harness = DispatchHarness(NEW, self.root, DEV, head=OTHER_HEAD, resolved=DEV_PLAN)
+        harness.dispatch(kind="gate")
+        self.assertFalse(any("v23_run_kind" in item for item in argv(harness)))
+        self.assertEqual(argv(harness)[-2:], ("-f", "s10_4_shared_segment_id=none"))
+
+    def test_development_needs_the_declared_kind_input_at_the_head(self):
+        declared = caller_text()
+        for label, workflow in {
+                "absent": declared.replace(KIND_INPUT_TEXT, ""),
+                "default development": declared.replace("default: gate", "default: development"),
+                "not a choice": declared.replace("        type: choice\n        options:\n          - gate\n"
+                                                 "          - development\n", "        type: string\n"),
+                "extra option": declared.replace("          - development\n", "          - development\n          - other\n"),
+                "commented": declared.replace("      v23_run_kind:", "      # v23_run_kind:")}.items():
+            with self.subTest(label):
+                self.fresh_root()
+                harness = self.harness(workflow=workflow)
+                self.assert_parallel_refused(harness, "does not declare that choice input")
+                self.assertNotIn("resolve", [call[0] for call in harness.calls])
+        self.fresh_root()
+        harness = self.harness(workflow=declared.replace(KIND_INPUT_TEXT, ""))
+        harness.active = []
+        harness.dispatch(kind="gate")  # a gate passes nothing and needs no kind input
+        self.assertTrue(harness.dispatched)
 
     def test_worker_is_read_from_the_dev_batch_job(self):
         other = ".github/workflows/ios-ci-worker-next.yml"
@@ -1842,35 +1906,53 @@ class ParallelDevBatchTests(unittest.TestCase):
         for label, kwargs in {
                 "caller": {"workflow": caller_text(group=commented)},
                 "worker": {"workers": {WORKER_PATH: worker_text(group="v23-github # " + TERM)}},
-                "caller job": {"workflow": caller_text(job_group="dev-${{ github.run_id }} # " + TERM)},
+                "caller job": {"workflow": caller_text(job_group="dev-x # " + TERM)},
                 "worker job": {"workers": {WORKER_PATH: worker_text(job_group="verify-x #" + TERM)}},
+                "per-run comment": {"workers": {WORKER_PATH: worker_text(group="v23-github # " + PER_RUN)}},
                 "comment line": {"workflow": caller_text(per_head=False).replace(
                     "\nconcurrency:\n", "\nconcurrency:\n  # group: x" + TERM + "\n")}}.items():
             with self.subTest(label):
                 self.assert_parallel_refused(self.harness(**kwargs), "does not include github.sha")
 
-    def test_quoted_and_job_level_groups_with_the_term_are_accepted(self):
+    def test_quoted_job_level_and_per_run_groups_are_accepted(self):
         harness = self.harness(workflow=caller_text(group='"v23-${{ inputs.native_selection_id }}' + TERM + '"',
                                                     job_group="dev-" + TERM + "  # per head"),
                                workers={WORKER_PATH: worker_text(job_group="verify-" + TERM)})
         harness.dispatch(kind="development")
         self.assertTrue(harness.dispatched)
+        # A group naming the run is unique per run, so it separates heads too.
+        self.fresh_root()
+        harness = self.harness(workflow=caller_text(job_group="dev-" + PER_RUN),
+                               workers={WORKER_PATH: worker_text(group="v23-github-" + PER_RUN)})
+        harness.dispatch(kind="development")
+        self.assertTrue(harness.dispatched)
 
-    def test_committed_workflows_decide_whether_dev_batches_may_overlap(self):
+    def test_committed_workflows_give_development_originals_per_head_groups(self):
         caller = read_workflow(NEW.WORKFLOW_PATH)
-        jobs = NEW.dev_batch_jobs(caller)
-        self.assertEqual({job: worker for job, (_, worker) in jobs.items() if worker}, {"github-shard": WORKER_PATH})
+        self.assertTrue(NEW.run_kind_input_declared(caller))
+        self.assertEqual(NEW.DEVELOPMENT_PER_HEAD_GROUP_TERM, TERM)
+        routes = {DEV: {"github-shard": WORKER_PATH},
+                  NEW.SHARED_SELECTION_ID: {"v23-shared-producer": SHARED_WORKER_PATH,
+                                            "v23-shared-consumer": SHARED_WORKER_PATH}}
+        for selection, workers in routes.items():
+            with self.subTest(selection):
+                jobs = NEW.route_jobs(caller, selection)
+                self.assertEqual({job: worker for job, (_, worker) in jobs.items() if worker}, workers)
+                harness = DispatchHarness(NEW, self.root, selection, workflow=caller,
+                                          workers={path: read_workflow(path) for path in set(workers.values())})
+                with mock.patch.object(NEW, "git_bytes", harness.git_bytes):
+                    self.assertEqual(NEW.per_head_concurrency_problems(HEAD, caller, selection), [])
+        # The caller and ordinary worker carry the exact term once; the slim worker names the run.
         worker = read_workflow(WORKER_PATH)
-        groups = [NEW.concurrency_group(text) for text in (caller, worker)]
-        for group in groups:
-            self.assertIsNotNone(group)
+        for text in (caller, worker):
+            group = NEW.concurrency_group(text)
             self.assertIn("native_selection_id", group)
+            self.assertTrue(group.endswith(TERM), group)
+            self.assertEqual(text.count(TERM), 1)
+        self.assertIn(PER_RUN, NEW.concurrency_group(read_workflow(SHARED_WORKER_PATH)))
         harness = self.harness(workflow=caller, workers={WORKER_PATH: worker})
-        if all(TERM in group for group in groups):
-            harness.dispatch(kind="development")
-            self.assertTrue(harness.dispatched)
-        else:
-            self.assert_parallel_refused(harness, "needs per-head concurrency groups")
+        harness.dispatch(kind="development")
+        self.assertTrue(harness.dispatched)
 
     def test_other_selections_keep_the_any_head_refusal(self):
         write_ledger(self.root, [{"runID": 12, "head": DEV_HEAD, "selection": ORDINARY_D30, "kind": "development"}])
@@ -1888,7 +1970,101 @@ class ParallelDevBatchTests(unittest.TestCase):
         self.assertEqual(NEW.concurrency_group("concurrency: 'a''b' # c\n"), "a'b")
         self.assertEqual(NEW.concurrency_group("concurrency:  # c\n  # group: no\n  group: yes # no\n"), "yes")
         self.assertEqual(NEW.concurrency_groups(worker_text(job_group="j"), 4), ["j"])
-        self.assertEqual(NEW.DEV_BATCH_PER_HEAD_GROUP_TERM, TERM)
+        self.assertEqual(NEW.DEVELOPMENT_PER_HEAD_GROUP_TERM, TERM)
+        self.assertEqual(NEW.PER_HEAD_SELECTIONS, (DEV, NEW.SHARED_SELECTION_ID))
+
+
+class ParallelSharedSweepTests(unittest.TestCase):
+    """Development shared sweeps: beside development runs at other heads only; gates unchanged."""
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+
+    def harness(self, selection, active, head=OTHER_HEAD, **kwargs):
+        kwargs.setdefault("workflow", caller_text())
+        kwargs.setdefault("workers", {WORKER_PATH: worker_text(), SHARED_WORKER_PATH: shared_worker_text()})
+        resolved = kwargs.pop("resolved", None if selection == NEW.SHARED_SELECTION_ID else DEV_PLAN)
+        return DispatchHarness(NEW, self.root, selection, head=head, resolved=resolved,
+                               active=[dict(status="in_progress", **run) for run in active], **kwargs)
+
+    def refused(self, harness, expected, kind="development"):
+        with self.assertRaises(SystemExit) as caught:
+            harness.dispatch(kind=kind)
+        self.assertIn(expected, str(caught.exception))
+        self.assertFalse(harness.dispatched)
+        self.assertFalse((self.root / "v23-original-attempts").exists())
+
+    def test_development_sweep_runs_beside_development_runs_at_other_heads(self):
+        write_ledger(self.root, [{"runID": 11, "head": DEV_HEAD, "selection": DEV, "kind": "development"},
+                                 {"runID": 12, "head": DEV_HEAD, "selection": NEW.SHARED_SELECTION_ID,
+                                  "kind": "development"}])
+        harness = self.harness(NEW.SHARED_SELECTION_ID, [{"id": 11, "head_sha": DEV_HEAD},
+                                                         {"id": 12, "head_sha": DEV_HEAD}])
+        harness.dispatch(kind="development")
+        self.assertTrue(harness.dispatched)
+        # The other active sweep made the per-head check read the slim worker at this head.
+        self.assertIn(("git_bytes", ("show", f"{OTHER_HEAD}:{SHARED_WORKER_PATH}")), harness.calls)
+        record = json.loads((self.root / str(RUN) / "dispatch.json").read_text(encoding="utf-8"))
+        self.assertEqual((record["kind"], record["argv"][-1]), ("development", "v23_run_kind=development"))
+
+    def test_development_sweep_refusals(self):
+        for label, (ledger, active, expected) in {
+                "gate run": ([{"runID": 11, "head": DEV_HEAD, "selection": DEV, "kind": "gate"}],
+                             [{"id": 11, "head_sha": DEV_HEAD}], "are not ledgered development runs"),
+                "unmarked run": ([{"runID": 11, "head": DEV_HEAD, "selection": DEV}],
+                                 [{"id": 11, "head_sha": DEV_HEAD}], "are not ledgered development runs"),
+                "unknown run": ([], [{"id": 99, "head_sha": DEV_HEAD}], "are not ledgered development runs"),
+                "gate sweep": ([{"runID": 11, "head": DEV_HEAD, "selection": NEW.SHARED_SELECTION_ID, "kind": "gate"}],
+                               [{"id": 11, "head_sha": DEV_HEAD}], "are not ledgered development runs"),
+                "same head": ([{"runID": 11, "head": OTHER_HEAD, "selection": DEV, "kind": "development"}],
+                              [{"id": 11, "head_sha": OTHER_HEAD}], "never overlaps another run of its head"),
+                "unknown head": ([{"runID": 11, "selection": DEV, "kind": "development"}],
+                                 [{"id": 11}], "never overlaps another run of its head")}.items():
+            with self.subTest(label):
+                (self.root / "v23-original-ledger.jsonl").unlink(missing_ok=True)
+                write_ledger(self.root, ledger)
+                self.refused(self.harness(NEW.SHARED_SELECTION_ID, active), expected)
+
+    def test_parallel_sweeps_need_per_head_groups(self):
+        write_ledger(self.root, [{"runID": 12, "head": DEV_HEAD, "selection": NEW.SHARED_SELECTION_ID,
+                                  "kind": "development"}])
+        harness = self.harness(NEW.SHARED_SELECTION_ID, [{"id": 12, "head_sha": DEV_HEAD}],
+                               workflow=caller_text(per_head=False))
+        self.refused(harness, "needs per-head concurrency groups")
+        harness = self.harness(NEW.SHARED_SELECTION_ID, [{"id": 12, "head_sha": DEV_HEAD}],
+                               workers={WORKER_PATH: worker_text(), SHARED_WORKER_PATH: shared_worker_text("v23-x")})
+        self.refused(harness, f"{SHARED_WORKER_PATH} concurrency group does not include")
+
+    def test_gate_sweep_keeps_zero_active_and_blocks_everything(self):
+        write_ledger(self.root, [{"runID": 11, "head": DEV_HEAD, "selection": DEV, "kind": "development"}])
+        self.refused(self.harness(NEW.SHARED_SELECTION_ID, [{"id": 11, "head_sha": DEV_HEAD}]),
+                     "requires zero other active runs", kind="gate")
+        (self.root / "v23-original-ledger.jsonl").unlink()
+        for kind in ("gate", None):
+            with self.subTest(kind=kind):
+                (self.root / "v23-original-ledger.jsonl").unlink(missing_ok=True)
+                entry = {"runID": 11, "head": DEV_HEAD, "selection": NEW.SHARED_SELECTION_ID}
+                if kind:
+                    entry["kind"] = kind
+                write_ledger(self.root, [entry])
+                for dispatch_kind in ("development", "gate"):
+                    self.refused(self.harness(DEV, [{"id": 11, "head_sha": DEV_HEAD}]),
+                                 "v23-shared-coverage-d50x is active; no other selection", kind=dispatch_kind)
+
+    def test_beside_a_development_sweep_only_development_at_other_heads(self):
+        write_ledger(self.root, [{"runID": 11, "head": DEV_HEAD, "selection": NEW.SHARED_SELECTION_ID,
+                                  "kind": "development"}])
+        self.refused(self.harness(DEV, [{"id": 11, "head_sha": DEV_HEAD}]),
+                     "v23-shared-coverage-d50x is active; no other selection", kind="gate")
+        self.refused(self.harness(DEV, [{"id": 11, "head_sha": OTHER_HEAD}]),
+                     "is active at this head (or at an unknown head)")
+        harness = self.harness(DEV, [{"id": 11, "head_sha": DEV_HEAD}])
+        harness.dispatch(kind="development")
+        self.assertTrue(harness.dispatched)
+        # Different selections never share a group, so no per-head read was needed.
+        self.assertNotIn("git_bytes", [call[0] for call in harness.calls])
 
 
 if __name__ == "__main__":

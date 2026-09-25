@@ -1031,8 +1031,8 @@ final class FinalizationService {
               records.count == 1, packets.count == 1, reports.count == 1,
               payload.workflowRecordAfter.id == recordID,
               payload.reportInsert?.id == reportID,
-              recordPayload(records[0]) == payload.workflowRecordAfter,
-              packetPayload(packets[0]) == payload.packetAfter,
+              FinalizationCanonicalBindingV1.sameRecord(recordPayload(records[0]), payload.workflowRecordAfter),
+              FinalizationCanonicalBindingV1.samePacket(packetPayload(packets[0]), payload.packetAfter),
               let expectedReport = payload.reportInsert,
               immutableReportPayload(reports[0], matches: expectedReport),
               validDeliveredState(reports[0]),
@@ -1045,7 +1045,8 @@ final class FinalizationService {
         }
         for expected in [payload.issueInsert, payload.issueTransition?.after].compactMap({ $0 }) {
             let matches = issues.filter { $0.id == expected.id }
-            guard matches.count == 1, issuePayload(matches[0]) == expected else {
+            guard matches.count == 1,
+                  FinalizationCanonicalBindingV1.sameIssue(issuePayload(matches[0]), expected) else {
                 throw FinalizationServiceError.preconditionFailed
             }
         }
@@ -1281,7 +1282,7 @@ final class FinalizationService {
               record.evidenceSourceRecordID == nil,
               record.state == WorkflowState.completed.rawValue,
               record.draftStepKey == nil,
-              record.completedAt == input.completedAt,
+              FinalizationCanonicalBindingV1.sameInstant(record.completedAt, input.completedAt),
               record.outcomeKey == input.outcomeKey,
               record.couldNotVerifyKey == input.couldNotVerify?.key,
               record.couldNotVerifyDisplaySnapshot == input.couldNotVerify?.display,
@@ -1311,7 +1312,7 @@ final class FinalizationService {
               packet.currentRecordID == record.id,
               packet.evaluationCounted,
               packet.contentDeletedAt == nil,
-              packet.createdAt == input.completedAt,
+              FinalizationCanonicalBindingV1.sameInstant(packet.createdAt, input.completedAt),
               report.id == input.identifiers.reportID,
               report.packetID == packet.id,
               report.sourceRecordID == record.id,
@@ -1319,7 +1320,7 @@ final class FinalizationService {
               report.snapshotRelativePath
                 == "snapshots/\(report.id.uuidString.lowercased()).json",
               validDeliveredState(report),
-              report.createdAt == input.snapshotCreatedAt,
+              FinalizationCanonicalBindingV1.sameInstant(report.createdAt, input.snapshotCreatedAt),
               report.replacesReportID == nil,
               replayIssueMatches(issue, input: input) else {
             throw FinalizationServiceError.preconditionFailed
@@ -1352,7 +1353,7 @@ final class FinalizationService {
               record.assetID == input.asset.id,
               record.outcomeKey == input.outcomeKey,
               record.note == input.note,
-              record.completedAt == input.completedAt,
+              FinalizationCanonicalBindingV1.sameInstant(record.completedAt, input.completedAt),
               record.finalizationMutationID == input.identifiers.mutationID,
               record.packetID == input.identifiers.packetID,
               record.issueID == input.identifiers.issueID,
@@ -1531,11 +1532,11 @@ final class FinalizationService {
         }
         let packet = packets[0]
         let report = reports[0]
-        guard recordPayload(record) == plan.recordAfter,
-              issueAfter == plan.issueAfter,
+        guard FinalizationCanonicalBindingV1.sameRecord(recordPayload(record), plan.recordAfter),
+              FinalizationCanonicalBindingV1.sameIssue(issueAfter, plan.issueAfter),
               (plan.issueInsert.map { expected in
                   insertedIssues.count == 1
-                    && issuePayload(insertedIssues[0]) == expected
+                    && FinalizationCanonicalBindingV1.sameIssue(issuePayload(insertedIssues[0]), expected)
               } ?? insertedIssues.isEmpty),
               packet.stableRootID == input.identifiers.stableRootID,
               packet.currentRecordID == record.id,
@@ -1547,7 +1548,7 @@ final class FinalizationService {
               report.snapshotSchemaVersion == 1,
               report.snapshotRelativePath
                 == "snapshots/\(report.id.uuidString.lowercased()).json",
-              report.createdAt == input.snapshotCreatedAt,
+              FinalizationCanonicalBindingV1.sameInstant(report.createdAt, input.snapshotCreatedAt),
               report.replacesReportID == nil,
               validDeliveredState(report),
               let snapshotData = try? anchoredSnapshotData(report.snapshotRelativePath),
@@ -1629,8 +1630,8 @@ final class FinalizationService {
             && issue.labelDisplaySnapshot == label.display
             && issue.status == IssueStatus.open.rawValue
             && issue.resolvedByRecordID == nil
-            && issue.createdAt == input.completedAt
-            && issue.updatedAt == input.completedAt
+            && FinalizationCanonicalBindingV1.sameInstant(issue.createdAt, input.completedAt)
+            && FinalizationCanonicalBindingV1.sameInstant(issue.updatedAt, input.completedAt)
     }
 
     private func readFinalSnapshot(_ relativePath: String) throws -> Data {

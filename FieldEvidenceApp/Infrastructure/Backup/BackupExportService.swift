@@ -499,6 +499,8 @@ final class BackupExportService {
     private var prepared: PreparedV4BackupV1?
     private var streamingPrepared: StreamingPrepared?
     private var retainedEraseValidation: EraseRetainedSourceValidationV1?
+    /// Set only for the synchronous body of `validateFrozenCanonical`.
+    private var lockedPublicationStore: StoreSessionCoordinator?
 #if DEBUG
     var afterArchivePublicationForTesting: (@MainActor () throws -> Void)?
 #endif
@@ -846,7 +848,7 @@ final class BackupExportService {
                             guard try store.workspaceWriter.currentRevision() == freeze.revision else {
                                 throw BackupExportServiceError.stalePreview
                             }
-                            try validateFrozenCanonical(freeze.prepared)
+                            try validateFrozenCanonical(freeze.prepared, publicationStore: store)
                             for source in freeze.observedSources {
                                 try StreamingArchiveCancellationV1.task.checkpoint()
                                 try cancellation.checkpoint()
@@ -1314,7 +1316,14 @@ private extension BackupExportService {
         return result
     }
 
-    private func validateFrozenCanonical(_ prepared: StreamingPrepared) throws {
+    /// Runs only inside `withCheckRunnerPhotoPublication`. Every nested
+    /// identity read (including fetchRows/makeRecords) is resolved through
+    /// that same coordinator's registry, never a fresh one.
+    private func validateFrozenCanonical(_ prepared: StreamingPrepared,
+        publicationStore: StoreSessionCoordinator) throws {
+        guard lockedPublicationStore == nil else { throw BackupExportServiceError.stalePreview }
+        lockedPublicationStore = publicationStore
+        defer { lockedPublicationStore = nil }
         guard !modelContext.hasChanges,
               try currentStreamingWorkspaceIdentity() == prepared.checkpointBasis.workspaceIdentity,
               try currentStreamingGenerationID() == prepared.checkpointBasis.generationID else {
@@ -1897,6 +1906,10 @@ private extension BackupExportService {
         return (sources.values.sorted { Self.utf8Less($0.path, $1.path) }, generated)
     }
 
+    /// While `lockedPublicationStore` is set (only inside
+    /// `withCheckRunnerPhotoPublication`, which holds the generation mutation
+    /// lock), the identity is resolved through that coordinator's retained
+    /// registry. A fresh factory there self-deadlocks on the lock's flock.
     func currentStreamingWorkspaceIdentity() throws -> WorkspaceReplicaIdentityV1 {
         if let validation = retainedEraseValidation {
             try validation.revalidate(modelContext: modelContext)
@@ -1911,6 +1924,11 @@ private extension BackupExportService {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         do {
+            if let publicationStore = lockedPublicationStore {
+                return try publicationStore.currentWorkspaceIdentityWithinPublication(
+                    applicationSupportURL: applicationSupportURL,
+                    expectedGenerationID: generationID)
+            }
             return try StoreGenerationFactory(
                 applicationSupportURL: applicationSupportURL,
                 fileManager: fileManager

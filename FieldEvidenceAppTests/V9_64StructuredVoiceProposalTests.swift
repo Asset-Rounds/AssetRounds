@@ -662,9 +662,12 @@ private final class C56VoiceDraftHarness {
         let payload = try FieldDraftCanonicalCodecV1.encode(
             C56VoiceDraftPayloadV1(fields: ["seed": "initial"])
         )
+        // The draft under review belongs to the proposal's workspace. The
+        // shared C36 fixture uses its own workspace, which the trusted
+        // snapshot correctly rejects as a cross-workspace frontier.
         let checkpoint = try FieldDraftCheckpointV1(
             draftID: fixture.activeCheckpoint.draftID,
-            workspaceID: fixture.activeCheckpoint.workspaceID,
+            workspaceID: C56VoiceTestSupport.workspace(),
             scope: fixture.activeCheckpoint.scope,
             purpose: fixture.activeCheckpoint.purpose,
             codec: fixture.activeCheckpoint.codec,
@@ -933,6 +936,10 @@ final class V9_64StructuredVoiceProposalTests: XCTestCase {
         XCTAssertEqual(persisted.fields["duration"], "DURATION|7200")
         XCTAssertNil(persisted.fields["material.descriptionAndQuantity"])
         XCTAssertEqual(scratch.calls.count, 1)
+        guard scratch.calls.count == 1 else {
+            XCTFail("scratch.calls has \(scratch.calls.count) entries; expected 1")
+            return
+        }
         let expectedSources = C56VoiceTestSupport.sortedSources(
             [context.source, try XCTUnwrap(authority.audioScratch?.source)]
         )
@@ -1047,6 +1054,12 @@ final class V9_64StructuredVoiceProposalTests: XCTestCase {
         )
         let proposal = try service.structure(transcript: transcript, context: context)
         XCTAssertEqual(proposal.fields.count, 1)
+        // Fail rather than trap: an out-of-bounds subscript would kill the
+        // whole XCTest process and lose every later test in the partition.
+        guard proposal.fields.count == 1 else {
+            XCTFail("Ambiguous transcript produced \(proposal.fields.count) fields; expected exactly 1")
+            return
+        }
         XCTAssertEqual(proposal.fields[0].fieldID, "material.descriptionAndQuantity")
         XCTAssertEqual(proposal.fields[0].resolution, .ambiguous)
         XCTAssertNil(proposal.fields[0].proposedValue)
@@ -1107,6 +1120,10 @@ final class V9_64StructuredVoiceProposalTests: XCTestCase {
         )
         XCTAssertTrue(unsupported.fields.isEmpty)
         XCTAssertEqual(unsupported.unmatchedClauses.count, 1)
+        guard unsupported.unmatchedClauses.count == 1 else {
+            XCTFail("unsupported.unmatchedClauses has \(unsupported.unmatchedClauses.count) entries; expected 1")
+            return
+        }
         XCTAssertEqual(unsupported.unmatchedClauses[0].resolution, .unsupported)
         XCTAssertEqual(unsupported.unmatchedClauses[0].reason.rawValue, VoiceUnmatchedClauseReasonV1.rejectedByFieldValidation.rawValue)
 
@@ -1344,6 +1361,10 @@ final class V9_64StructuredVoiceProposalTests: XCTestCase {
         )
         XCTAssertTrue(forbiddenCommand.fields.isEmpty)
         XCTAssertEqual(forbiddenCommand.unmatchedClauses.count, 1)
+        guard forbiddenCommand.unmatchedClauses.count == 1 else {
+            XCTFail("forbiddenCommand.unmatchedClauses has \(forbiddenCommand.unmatchedClauses.count) entries; expected 1")
+            return
+        }
         XCTAssertEqual(
             forbiddenCommand.unmatchedClauses[0].reason.rawValue,
             VoiceUnmatchedClauseReasonV1.noExplicitGrammarMatch.rawValue
@@ -1672,6 +1693,10 @@ final class V9_64StructuredVoiceProposalTests: XCTestCase {
         XCTAssertTrue(targetHarness.writer.receipts.isEmpty)
         XCTAssertTrue(targetHarness.payloadApplying.applications.isEmpty)
         XCTAssertEqual(targetScratch.calls.count, 1)
+        guard targetScratch.calls.count == 1 else {
+            XCTFail("targetScratch.calls has \(targetScratch.calls.count) entries; expected 1")
+            return
+        }
         XCTAssertEqual(targetScratch.calls[0].0, targetProposal.proposalID)
         XCTAssertEqual(targetScratch.calls[0].1, [targetContext.source])
         let targetPlan = try await targetCoordinator.reviewPlan(proposalID: targetProposal.proposalID)
@@ -1775,6 +1800,10 @@ final class V9_64StructuredVoiceProposalTests: XCTestCase {
         XCTAssertTrue(admissionFailureHarness.writer.receipts.isEmpty)
         XCTAssertTrue(admissionFailureHarness.payloadApplying.applications.isEmpty)
         XCTAssertEqual(admissionFailureScratch.calls.count, 1)
+        guard admissionFailureScratch.calls.count == 1 else {
+            XCTFail("admissionFailureScratch.calls has \(admissionFailureScratch.calls.count) entries; expected 1")
+            return
+        }
         XCTAssertEqual(admissionFailureScratch.calls[0].0, admissionFailureProposal.proposalID)
         XCTAssertEqual(admissionFailureScratch.calls[0].1, [admissionFailureContext.source])
         try await admissionFailureAdapter.present(
@@ -1794,6 +1823,10 @@ final class V9_64StructuredVoiceProposalTests: XCTestCase {
             )
         )
         XCTAssertEqual(admissionFailureScratch.calls.count, 2)
+        guard admissionFailureScratch.calls.count == 2 else {
+            XCTFail("admissionFailureScratch.calls has \(admissionFailureScratch.calls.count) entries; expected 2")
+            return
+        }
         XCTAssertTrue(admissionFailureHarness.writer.receipts.isEmpty)
         XCTAssertEqual(admissionFailureScratch.calls[1].0, admissionFailureProposal.proposalID)
         XCTAssertEqual(admissionFailureScratch.calls[1].1, [admissionFailureContext.source])
@@ -1857,6 +1890,10 @@ final class V9_64StructuredVoiceProposalTests: XCTestCase {
         XCTAssertTrue(authenticatorFailureHarness.writer.receipts.isEmpty)
         XCTAssertTrue(authenticatorFailureHarness.payloadApplying.applications.isEmpty)
         XCTAssertEqual(authenticatorFailureScratch.calls.count, 1)
+        guard authenticatorFailureScratch.calls.count == 1 else {
+            XCTFail("authenticatorFailureScratch.calls has \(authenticatorFailureScratch.calls.count) entries; expected 1")
+            return
+        }
         XCTAssertEqual(
             authenticatorFailureScratch.calls[0].0,
             authenticatorFailureCandidate.proposalID
@@ -1882,6 +1919,10 @@ final class V9_64StructuredVoiceProposalTests: XCTestCase {
             )
         )
         XCTAssertEqual(authenticatorFailureScratch.calls.count, 2)
+        guard authenticatorFailureScratch.calls.count == 2 else {
+            XCTFail("authenticatorFailureScratch.calls has \(authenticatorFailureScratch.calls.count) entries; expected 2")
+            return
+        }
         XCTAssertEqual(
             authenticatorFailureScratch.calls[1].0,
             authenticatorFailureProposal.proposalID
@@ -1984,6 +2025,10 @@ final class V9_64StructuredVoiceProposalTests: XCTestCase {
         })
         XCTAssertTrue(raceResetResult.errors.isEmpty)
         XCTAssertEqual(raceScratch.calls.count, 1)
+        guard raceScratch.calls.count == 1 else {
+            XCTFail("raceScratch.calls has \(raceScratch.calls.count) entries; expected 1")
+            return
+        }
         XCTAssertEqual(raceScratch.calls[0].0, raceProposal.proposalID)
         XCTAssertEqual(raceScratch.calls[0].1, [raceContext.source])
         XCTAssertEqual(raceHarness.writer.receipts.count, 1)
@@ -2234,6 +2279,10 @@ final class V9_64StructuredVoiceProposalTests: XCTestCase {
         let persisted = try harness.payloadApplying.decoded(harness.writer.checkpoint)
         XCTAssertEqual(persisted.fields["note"], "TEXT|Stable")
         XCTAssertEqual(scratch.calls.count, 1)
+        guard scratch.calls.count == 1 else {
+            XCTFail("scratch.calls has \(scratch.calls.count) entries; expected 1")
+            return
+        }
         XCTAssertEqual(scratch.calls[0].1, [context.source])
     }
 }
