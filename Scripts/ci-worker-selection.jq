@@ -1,6 +1,9 @@
 
+            # Only the reusable development batch route carries its file binding.
+            def dev_batch_route:
+              ($ENV.NATIVE_SELECTION_ID // "") == "v23-dev-batch-no-index-d50";
             def exact_keys:
-              ([
+              (([
                 "schemaVersion",
                 "taskID",
                 "tier",
@@ -12,7 +15,22 @@
                 "totalBudgetSeconds",
                 "unitTestSelectors",
                 "uiTestSelectors"
-              ] | sort) == (keys | sort);
+              ] + (if dev_batch_route then ["devBatch"] else [] end)) | sort) == (keys | sort);
+            def dev_batch_values:
+              (.unitTestSelectors | length) as $count
+              | ($count >= 1 and $count <= 150)
+                and all(.unitTestSelectors[];
+                  type == "string"
+                  and test("\\AFieldEvidenceAppTests/[A-Za-z_][A-Za-z0-9_]*/test[A-Za-z0-9_]+\\z"))
+                and (.devBatch | type == "object")
+                and ((.devBatch | keys) == ["acceptance", "developmentOnly", "path", "question", "schema", "sha256"])
+                and .devBatch.path == "Scripts/v23-dev-batch.json"
+                and .devBatch.schema == "v23-dev-batch.v1"
+                and (.devBatch.sha256 | type == "string" and test("\\A[0-9A-F]{64}\\z"))
+                and (.devBatch.question | type == "string" and test("\\S") and length <= 500
+                     and all(explode[]; . >= 32 and . != 127))
+                and .devBatch.developmentOnly == true
+                and .devBatch.acceptance == false;
             def nonempty_string:
               type == "string" and test("\\S");
             def selectors($prefix; $minimum):
@@ -41,7 +59,7 @@
                 and [.setupArtifactTimeoutSeconds, .buildTimeoutSeconds,
                      .testTimeoutSeconds, .uiTimeoutSeconds, .totalBudgetSeconds]
                     == [300, 1800, 3000, 0, 5100]
-                and (.unitTestSelectors == [
+                and (if dev_batch_route then dev_batch_values else (.unitTestSelectors == [
     "FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldOperationAuthoritySurvivesSuspensionAndRecoversOriginalReceipt",
     "FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testPhotoDiscardPreparationReopensOriginalPendingReceipt",
     "FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testPhotoDiscardValuesRetainOriginalStagesAndRejectCommit",
@@ -68,7 +86,7 @@
     "FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementPreservesCanonicalNamesAndRejectsStaleOrReplacedPlans",
     "FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementRejectsMalformedNamesAndUnsafeFileKinds",
     "FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementPreservesInterruptedFinalizationAndReachesEraseAdmission"
-                ])
+                ]) end)
               elif .tier == "D30" then
                 .taskID == "V23-INTEGRATION-20260910"
                 and [.setupArtifactTimeoutSeconds, .buildTimeoutSeconds,
@@ -457,6 +475,7 @@
             and (.schemaVersion == 1)
             and (.taskID | nonempty_string)
             and (.tier | type == "string" and IN("N8", "D30", "D50", "P12", "F25"))
+            and (if dev_batch_route then .tier == "D50" else true end)
             and (.runUISmoke | type == "boolean")
             and tier_values_match
             and (.unitTestSelectors | selectors("FieldEvidenceAppTests/"; 1))

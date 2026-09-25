@@ -1,0 +1,21 @@
+{
+  "schema": "v23-dev-batch.v1",
+  "question": "C57-1 My Day cross-workspace replacement projection (11) plus the C43 signoff baseline (4); first qualifying original of the reusable development route",
+  "tests": [
+    "FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testReplacementCommandsRetainEverySavePredecessorAndExistingTargetCarryover",
+    "FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testReplacementCommandsRejectAlteredOriginalAndForeignOrIncompleteExpectedRevision",
+    "FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testReplacementCommandsPreserveSameWorkspaceBytesAndEmptyProjection",
+    "FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testReplacementLifecyclePreparationUsesCompleteProjectedHistory",
+    "FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testReplacementLifecyclePreservesSameWorkspaceAndEmptyTargetSemantics",
+    "FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testCrossWorkspaceMaterializationPersistsExactProjectionAndRejectionsHaveNoEffect",
+    "FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testSameWorkspaceReplacementIsByteExactAndRejectsBindings",
+    "FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testEmptyCrossWorkspaceReplacementBuildsCanonicalTargetEmptySnapshot",
+    "FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testCrossWorkspaceReplacementPreservesAllHistoryAndCarryoverPredecessor",
+    "FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testCrossWorkspaceReplacementRejectsHostileAndUnusedBindings",
+    "FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testSourceValidationRejectsPartialCarryoverAndNonactiveClosure",
+    "FieldEvidenceAppTests/V9_106SignoffEnrollmentTests/testV23P04C43G01TypedLocalResponseUsesExistingWriterAndFixedDisclosure",
+    "FieldEvidenceAppTests/V9_106SignoffEnrollmentTests/testV23P04C43A01OptionalMarkOnlyChangesMethodAndNeverDurablyStoresMarkMaterial",
+    "FieldEvidenceAppTests/V9_106SignoffEnrollmentTests/testV23P04C43H01ActorWorkspaceStalenessReceiptAndManifestHostilityReject",
+    "FieldEvidenceAppTests/V9_106SignoffEnrollmentTests/testV23P04C43I01AndR01ReplayReceiptFirstAndKeepAcknowledgementBytesUnmigrated"
+  ]
+}

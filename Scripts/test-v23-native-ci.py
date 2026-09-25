@@ -30,10 +30,14 @@ UNIT = "FieldEvidenceAppTests/NativeFixtureTests/testActualMethod"
 UI = "FieldEvidenceAppUITests/NativeJourneyTests/testContinuousJourney"
 
 
+D50_JOB_CAP_EXPRESSION = "${{ (inputs.native_selection_id == 'c36-live-host-no-index-build30m' || inputs.native_selection_id == 'c36-round-item-mount-no-index-build30m' || inputs.native_selection_id == 'c36-startup-retirement-no-index-build30m' || inputs.native_selection_id == 'v23-dev-batch-no-index-d50') && 120 || 90 }}"
+
+
 def worker_before_live_host_d50(test_case, raw):
-    # Reverse only the owner-approved live-host D50 job cap; every other
-    # worker byte must still match its historical boundary.
-    changed = b"    timeout-minutes: ${{ (inputs.native_selection_id == 'c36-live-host-no-index-build30m' || inputs.native_selection_id == 'c36-round-item-mount-no-index-build30m' || inputs.native_selection_id == 'c36-startup-retirement-no-index-build30m') && 120 || 90 }}\n"
+    # Reverse only the owner-approved D50 job cap (live-host, its two rebound
+    # questions and the reusable development batch); every other worker byte
+    # must still match its historical boundary.
+    changed = b"    timeout-minutes: " + D50_JOB_CAP_EXPRESSION.encode() + b"\n"
     test_case.assertEqual(raw.count(changed), 1)
     return raw.replace(changed, b"    timeout-minutes: 90\n")
 
@@ -796,6 +800,9 @@ def frozen_begin_suite_source():
         'V23CheckRunnerFrozenBeginPreparationTests','V23CheckRunnerFrozenBeginWriterTests','V23CheckRunnerDurableInitialBeginTests'))
 
 def prepartition_workflow(workflow):
+    choice = '          - ' + CI.DEV_BATCH_SELECTION_ID + '\n'
+    if workflow.count(choice) != 1: raise AssertionError('missing exact development batch choice')
+    workflow = workflow.replace(choice, '')
     choice = '          - ' + CI.NOTIFICATION_INTERRUPTION_SELECTION_ID + '\n'
     if workflow.count(choice) != 1: raise AssertionError('missing exact notification interruption choice')
     workflow = workflow.replace(choice, '')
@@ -1599,7 +1606,7 @@ class ReportPartitionTests(unittest.TestCase):
         expected.remove('c36-live-host')
         expected.remove('c36-round-item-mount')
         expected.remove('c36-round-item-completion')
-        expected[expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1:expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1] = [CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-live-host', 'c36-round-item-mount', 'c36-round-item-completion', CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit']
+        expected[expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1:expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1] = [CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-live-host', 'c36-round-item-mount', 'c36-round-item-completion', CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit']
         expected.insert(expected.index('c36-restore-review') + 1, CI.NO_INDEX_SELECTION_ID)
         expected.insert(expected.index(CI.NO_INDEX_SELECTION_ID) + 1, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID)
         expected.insert(expected.index('notification-schedule-erase') + 1, CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID)
@@ -2998,8 +3005,7 @@ class LiveHostBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
         finally:
             self.record = original
         worker = (ROOT / '.github/workflows/ios-ci-worker.yml').read_text(encoding='utf-8')
-        self.assertEqual(re.findall(r'^    timeout-minutes: (.+)$', worker, re.M),
-                         ["${{ (inputs.native_selection_id == 'c36-live-host-no-index-build30m' || inputs.native_selection_id == 'c36-round-item-mount-no-index-build30m' || inputs.native_selection_id == 'c36-startup-retirement-no-index-build30m') && 120 || 90 }}"])
+        self.assertEqual(re.findall(r'^    timeout-minutes: (.+)$', worker, re.M), [D50_JOB_CAP_EXPRESSION])
 
     def test_collection_requires_each_original_result_once_and_passed(self):
         methods = EXPECTED_LIVE_HOST_RUNTIME
@@ -3218,7 +3224,7 @@ class FieldAutosaveBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
             (ROOT / '.github/workflows/ios-ci.yml').read_text()).group(1), re.M)
         previous, previous_map = prelive_host_values(self.default, self.mapping)
         for identifier in identifiers:
-            if identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, 'c36-live-host'):
+            if identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, 'c36-live-host'):
                 continue
             self.assertEqual(CI.resolve_selection(previous, previous_map, identifier),
                              old['resolve_selection'](previous, previous_map, identifier), identifier)
@@ -3284,7 +3290,7 @@ class SavedReviewFieldsBuild30DiagnosticTests(ReplacementPartitionDiagnosticTest
         block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
         choices = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
         for identifier in choices:
-            if identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.DEFAULT_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
+            if identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.DEFAULT_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
                 continue
             previous = CI.resolve_selection(old_pool, old_map, identifier)
             additions = [s for s in EXPECTED_LIVE_HOST_RUNTIME if CI.selection_class(s) in next((g['classes'] for g in self.mapping['groups'] if g['id'] == identifier), [])]
@@ -3534,7 +3540,7 @@ class NotificationScheduleEraseBuild30DiagnosticTests(ReplacementPartitionDiagno
         saved_review_choice = ('          - ' + CI.SAVED_REVIEW_SELECTION_ID + '\n').encode()
         self.assertEqual(current_workflow.count(saved_review_choice), 1)
         current_workflow = current_workflow.replace(saved_review_choice, b'')
-        for identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
+        for identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
             choice = ('          - ' + identifier + '\n').encode()
             self.assertEqual(current_workflow.count(choice), 1)
             current_workflow = current_workflow.replace(choice, b'')
@@ -3759,7 +3765,7 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
         choice = ('          - ' + self.record['selectionID'] + '\n').encode()
         current = (ROOT / '.github/workflows/ios-ci.yml').read_bytes()
         self.assertEqual(current.count(choice), 1)
-        for added in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
+        for added in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
             added_choice = ('          - ' + added + '\n').encode()
             self.assertEqual(current.count(added_choice), 1)
             current = current.replace(added_choice, b'')
@@ -6979,6 +6985,574 @@ class SetupFailureEvidenceTests(unittest.TestCase):
                 self.assertEqual(int(accounting["setup_artifact_elapsed_seconds"]), 17 + int(accounting["artifact_elapsed_seconds"]))
                 self.assertEqual(int(accounting["setup_artifact_budget_seconds"]), budget)
 
+
+# The reusable development batch route was added on this exact incumbent head.
+DEV_BATCH_BASE_COMMIT = 'fca18b79379363e6f70f0d4fc5c73d9ff8cd2f0a'
+DEV_BATCH_FIXTURE = 'FieldEvidenceAppTests/DevBatchFixtureTests/'
+DEV_BATCH_FIXTURE_SOURCES = {
+    'FieldEvidenceAppTests/DevBatchFixtureTests.swift': '''import XCTest
+
+final class DevBatchFixtureTests: XCTestCase {
+    let note = "XCUIApplication is only text here; func testInString() {}"
+    func testRunnable() throws {}
+    @MainActor func testSecondRunnable() async throws {}
+    // func testLineComment() {}
+    /* func testBlockComment() {} */
+    struct Nested {
+        func testNestedType() {}
+    }
+    func testWithArgument(_ value: Int) {}
+    private func testPrivate() {}
+    static func testStatic() {}
+    func helper() {
+        func testLocal() {}
+    }
+#if false
+    func testInactive() {}
+#endif
+}
+
+final class DevBatchOtherTests: XCTestCase {
+    func testElsewhere() {}
+}
+
+extension DevBatchFixtureTests {
+    func testInExtension() {}
+}
+''',
+    'FieldEvidenceAppTests/DevBatchWideTests.swift': 'import XCTest\n\nfinal class DevBatchWideTests: XCTestCase {\n'
+        + ''.join('    func testM%03d() {}\n' % index for index in range(151)) + '}\n',
+    'FieldEvidenceAppTests/DevBatchPlainTests.swift': 'final class DevBatchPlainTests {\n    func testPlain() {}\n}\n',
+    'FieldEvidenceAppTests/DevBatchObjectTests.swift':
+        'import Foundation\n\nfinal class DevBatchObjectTests: NSObject {\n    func testObject() {}\n}\n',
+    'FieldEvidenceAppTests/DevBatchInterfaceTests.swift':
+        'import XCTest\n\nfinal class DevBatchInterfaceTests: XCTestCase {\n    func testLaunch() {\n'
+        '        XCUIApplication().launch()\n    }\n}\n',
+    'FieldEvidenceAppTests/DevBatchCollisionTests.swift':
+        'import XCTest\n\nfinal class DevBatchCollisionTests: XCTestCase {\n    func testCollision() {}\n}\n',
+    'FieldEvidenceAppUITests/DevBatchCollisionTests.swift':
+        'import XCTest\n\nfinal class DevBatchCollisionTests: XCTestCase {\n    func testCollision() {}\n}\n',
+}
+
+
+class DevelopmentBatchRouteTests(unittest.TestCase):
+    """The reusable D50 route takes its exact ordered list only from the committed file."""
+    bound_environment = NoIndexBuildDiagnosticTests.bound_environment
+    run_mock_build = NoIndexBuildDiagnosticTests.run_mock_build
+
+    @classmethod
+    def setUpClass(cls):
+        cls.temp = tempfile.TemporaryDirectory(prefix='v23-dev-batch-')
+        cls.addClassCleanup(cls.temp.cleanup)
+        cls.root = Path(cls.temp.name).resolve()
+        cls.original = (ROOT / CI.DEV_BATCH_PATH).read_bytes()
+        manifest = CI.read_json(ROOT / 'Scripts/v23-selection-manifest.json')
+        classes = {CI.selection_class(s) for s in manifest['selectorPool']}
+        classes |= {CI.selection_class(s) for s in json.loads(cls.original)['tests']}
+        paths = ['Scripts/v23-selection-manifest.json', 'Scripts/v23-selection-generator.py',
+                 'Scripts/ci-selection.json', CI.SELECTION_MAP_PATH, CI.DEV_BATCH_PATH, 'Scripts/build-smoke.sh',
+                 CI.SIMULATOR_DIAGNOSTIC_POLICY_PATH, CI.SIMULATOR_DIAGNOSTIC_SOURCE_PATH,
+                 'FieldEvidenceAppUITests/S0LaunchUITests.swift']
+        paths += ['FieldEvidenceAppTests/' + name + '.swift' for name in sorted(classes)]
+        for relative in paths:
+            target = cls.root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / relative, target)
+        for relative, text in DEV_BATCH_FIXTURE_SOURCES.items():
+            (cls.root / relative).write_bytes(text.encode('utf-8'))
+        (cls.root / 'FieldEvidenceAppTests/DevBatchLatinTests.swift').write_bytes(
+            b'import XCTest\n// caf\xe9\nfinal class DevBatchLatinTests: XCTestCase {\n    func testLatin() {}\n}\n')
+        (cls.root / 'FieldEvidenceAppTests/DevBatchDirectoryTests.swift').mkdir()
+
+    def setUp(self):
+        path = self.root / CI.DEV_BATCH_PATH
+        path.write_bytes(self.original)
+        self.addCleanup(path.write_bytes, self.original)
+        self.selected = CI.development_batch_selection(self.root)
+        self.record = {'selectionID': CI.DEV_BATCH_SELECTION_ID,
+                       'selectionSHA256': CI.sha256(CI.canonical(self.selected)),
+                       'selectionMapSHA256': CI.sha256((self.root / CI.SELECTION_MAP_PATH).read_bytes()),
+                       'head': HEAD, 'runID': '123', 'runAttempt': '1'}
+
+    def batch(self, tests, **changes):
+        return dict({'schema': CI.DEV_BATCH_SCHEMA, 'question': 'Protocol fixture question',
+                     'tests': list(tests)}, **changes)
+
+    def write_batch(self, value):
+        raw = value if isinstance(value, bytes) else (json.dumps(value, indent=2) + '\n').encode('utf-8')
+        (self.root / CI.DEV_BATCH_PATH).write_bytes(raw)
+        return raw
+
+    def jq(self, value, selection_id=CI.DEV_BATCH_SELECTION_ID):
+        e = dict(os.environ)
+        e.pop('NATIVE_SELECTION_ID', None)
+        if selection_id is not None:
+            e['NATIVE_SELECTION_ID'] = selection_id
+        return subprocess.run(['jq', '-e', '-f', str(ROOT / 'Scripts/ci-worker-selection.jq')],
+                              input=CI.canonical(value), capture_output=True, env=e).returncode
+
+    def test_committed_batch_resolves_exact_ordered_d50_no_index_selection(self):
+        committed = json.loads(self.original)
+        e = dict(environment(), NATIVE_SELECTION_ID=CI.DEV_BATCH_SELECTION_ID)
+        selected, record = CI.selected_input(self.root, e)
+        self.assertEqual(selected, self.selected)
+        self.assertEqual(selected['unitTestSelectors'], committed['tests'])
+        self.assertEqual((selected['tier'], selected['runUISmoke'], selected['uiTestSelectors']), ('D50', False, []))
+        self.assertEqual(tuple(selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 3000, 0, 5100))
+        self.assertEqual(selected['devBatch'], {
+            'path': 'Scripts/v23-dev-batch.json', 'schema': 'v23-dev-batch.v1',
+            'sha256': CI.sha256(self.original), 'question': committed['question'],
+            'developmentOnly': True, 'acceptance': False})
+        self.assertEqual(record, {'selectionID': CI.DEV_BATCH_SELECTION_ID,
+                                  'selectionSHA256': CI.sha256(CI.canonical(selected)),
+                                  'selectionMapSHA256': CI.sha256((self.root / CI.SELECTION_MAP_PATH).read_bytes())})
+        # The repository file itself is valid at this checkout (LF-only is enforced).
+        self.assertEqual(CI.development_batch_selection(ROOT), self.selected)
+        # The worker and the local dispatcher resolve through the same select command.
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'selected.json'
+            result = subprocess.run([sys.executable, str(Path(CI.__file__)), 'select', '--output', str(output)],
+                                    env=dict(os.environ, **e, GITHUB_WORKSPACE=str(self.root)), capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(output.read_bytes(), CI.canonical(selected))
+        # Any order is kept exactly; a later question needs only a file edit.
+        tests = [DEV_BATCH_FIXTURE + 'testInExtension', *reversed(committed['tests']),
+                 DEV_BATCH_FIXTURE + 'testSecondRunnable', DEV_BATCH_FIXTURE + 'testRunnable']
+        raw = self.write_batch(self.batch(tests, question='C57-1 café — later question'))
+        changed = CI.development_batch_selection(self.root)
+        self.assertEqual(changed['unitTestSelectors'], tests)
+        self.assertEqual(changed['devBatch']['sha256'], CI.sha256(raw))
+        self.assertEqual(changed['devBatch']['question'], 'C57-1 café — later question')
+        self.assertEqual(self.jq(changed), 0)
+        # The maximum of 150 direct methods is accepted by both gates.
+        wide = ['FieldEvidenceAppTests/DevBatchWideTests/testM%03d' % index for index in range(150)]
+        self.write_batch(self.batch(wide))
+        self.assertEqual(CI.development_batch_selection(self.root)['unitTestSelectors'], wide)
+        self.assertEqual(self.jq(CI.development_batch_selection(self.root)), 0)
+        # The route is not a map group: only the committed file can name its methods.
+        with self.assertRaisesRegex(ValueError, 'unknown selection ID'):
+            CI.resolve_selection(CI.read_json(ROOT / 'Scripts/ci-selection.json'),
+                                 CI.read_json(ROOT / CI.SELECTION_MAP_PATH), CI.DEV_BATCH_SELECTION_ID)
+
+    def test_hostile_batch_files_and_methods_are_rejected(self):
+        runnable = DEV_BATCH_FIXTURE + 'testRunnable'
+        valid = self.batch([runnable])
+        self.write_batch(valid)
+        self.assertEqual(CI.development_batch_selection(self.root)['unitTestSelectors'], [runnable])
+        cases = {
+            'extra key': dict(valid, extra=1),
+            'missing question': {k: v for k, v in valid.items() if k != 'question'},
+            'wrong schema': dict(valid, schema='v23-dev-batch.v2'),
+            'schema type': dict(valid, schema=1),
+            'empty question': dict(valid, question=''),
+            'blank question': dict(valid, question='   '),
+            'too-long question': dict(valid, question='q' * 501),
+            'control question': dict(valid, question='line\nbreak'),
+            'question type': dict(valid, question=['q']),
+            'zero tests': dict(valid, tests=[]),
+            '151 tests': dict(valid, tests=['FieldEvidenceAppTests/DevBatchWideTests/testM%03d' % i for i in range(151)]),
+            'tests type': dict(valid, tests=runnable),
+            'duplicate test': dict(valid, tests=[runnable, runnable]),
+            'non-string test': dict(valid, tests=[1]),
+            'UI bundle': dict(valid, tests=['FieldEvidenceAppUITests/S0LaunchUITests/testLaunch']),
+            'no test prefix': dict(valid, tests=[DEV_BATCH_FIXTURE + 'checkRunnable']),
+            'bare test': dict(valid, tests=[DEV_BATCH_FIXTURE + 'test']),
+            'trailing newline': dict(valid, tests=[runnable + '\n']),
+            'extra segment': dict(valid, tests=[DEV_BATCH_FIXTURE + 'Nested/testNestedType']),
+            'traversal': dict(valid, tests=['FieldEvidenceAppTests/../FieldEvidenceAppUITests/testLaunch']),
+            'encoded traversal': dict(valid, tests=['FieldEvidenceAppTests/..%2FScripts/testRunnable']),
+            'missing class file': dict(valid, tests=['FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testPlaceholder']),
+            'class in another file': dict(valid, tests=['FieldEvidenceAppTests/DevBatchOtherTests/testElsewhere']),
+            'directory class file': dict(valid, tests=['FieldEvidenceAppTests/DevBatchDirectoryTests/testRunnable']),
+            'method absent': dict(valid, tests=[DEV_BATCH_FIXTURE + 'testAbsent']),
+            'line comment': dict(valid, tests=[DEV_BATCH_FIXTURE + 'testLineComment']),
+            'block comment': dict(valid, tests=[DEV_BATCH_FIXTURE + 'testBlockComment']),
+            'string literal': dict(valid, tests=[DEV_BATCH_FIXTURE + 'testInString']),
+            'nested type': dict(valid, tests=[DEV_BATCH_FIXTURE + 'testNestedType']),
+            'argument': dict(valid, tests=[DEV_BATCH_FIXTURE + 'testWithArgument']),
+            'private': dict(valid, tests=[DEV_BATCH_FIXTURE + 'testPrivate']),
+            'static': dict(valid, tests=[DEV_BATCH_FIXTURE + 'testStatic']),
+            'local function': dict(valid, tests=[DEV_BATCH_FIXTURE + 'testLocal']),
+            'inactive branch': dict(valid, tests=[DEV_BATCH_FIXTURE + 'testInactive']),
+            'not XCTest': dict(valid, tests=['FieldEvidenceAppTests/DevBatchPlainTests/testPlain']),
+            'foreign superclass': dict(valid, tests=['FieldEvidenceAppTests/DevBatchObjectTests/testObject']),
+            'UI automation class': dict(valid, tests=['FieldEvidenceAppTests/DevBatchInterfaceTests/testLaunch']),
+            'UI target class name': dict(valid, tests=['FieldEvidenceAppTests/DevBatchCollisionTests/testCollision']),
+            'non-UTF-8 source': dict(valid, tests=['FieldEvidenceAppTests/DevBatchLatinTests/testLatin']),
+            'one hostile member': dict(valid, tests=[runnable, DEV_BATCH_FIXTURE + 'testNestedType']),
+        }
+        good = (json.dumps(valid, indent=2) + '\n').encode('utf-8')
+        raw_cases = {
+            'empty file': b'',
+            'non-UTF-8 file': b'\xff\xfe' + good,
+            'non-UTF-8 question': good.replace(b'Protocol fixture question', b'caf\xe9'),
+            'byte order mark': b'\xef\xbb\xbf' + good,
+            'CRLF': good.replace(b'\n', b'\r\n'),
+            'duplicate JSON key': good[:-2] + b',\n  "tests": ["' + runnable.encode() + b'"]\n}\n',
+            'not an object': b'[]\n',
+            'invalid JSON': b'{\n',
+            'oversize': good + b' ' * CI.DEV_BATCH_MAX_BYTES,
+        }
+        for name, value in [*cases.items(), *raw_cases.items()]:
+            with self.subTest(name=name):
+                self.write_batch(value)
+                with self.assertRaises(ValueError):
+                    CI.development_batch_selection(self.root)
+        path = self.root / CI.DEV_BATCH_PATH
+        path.unlink()
+        with self.assertRaisesRegex(ValueError, 'development batch file'):
+            CI.development_batch_selection(self.root)
+        try:
+            os.symlink(self.root / 'Scripts/ci-selection.json', path)
+        except (OSError, NotImplementedError):
+            pass
+        else:
+            with self.assertRaisesRegex(ValueError, 'development batch file'):
+                CI.development_batch_selection(self.root)
+            path.unlink()
+        # The placeholder for a class that has not landed denies the actual select command.
+        self.write_batch(dict(valid, tests=[runnable, 'FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testPlaceholder']))
+        e = dict(environment(), NATIVE_SELECTION_ID=CI.DEV_BATCH_SELECTION_ID)
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'selected.json'
+            result = subprocess.run([sys.executable, str(Path(CI.__file__)), 'select', '--output', str(output)],
+                                    env=dict(os.environ, **e, GITHUB_WORKSPACE=str(self.root)), capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(b'V23MyDayReplacementProjectionTests', result.stderr)
+            self.assertFalse(output.exists())
+
+    def test_admission_binds_committed_list_without_pins_and_is_never_acceptance_eligible(self):
+        e = self.bound_environment()
+        for stage in ('dispatch', 'worker'):
+            with mock.patch.object(CI.subprocess, 'check_output') as git:
+                admitted = CI.admission(self.selected, e, HEAD, stage, self.record, self.root)
+            git.assert_not_called()
+            self.assertEqual((admitted['selectionID'], admitted['selectionSHA256']),
+                             (CI.DEV_BATCH_SELECTION_ID, self.record['selectionSHA256']))
+            self.assertEqual((admitted['diagnosticOnly'], admitted['providerQualification'],
+                              admitted['acceptance'], admitted['releaseReady']), (True, False, False, False))
+            for changed in (self.bound_environment('bitrise'), dict(e, GITHUB_RUN_ATTEMPT='2')):
+                with self.assertRaises(ValueError):
+                    CI.admission(self.selected, changed, HEAD, stage, self.record, self.root)
+        self.assertEqual((self.selected['devBatch']['developmentOnly'], self.selected['devBatch']['acceptance']),
+                         (True, False))
+        self.assertNotIn(CI.DEV_BATCH_SELECTION_ID, CI.NO_INDEX_ROUTES)
+        self.assertNotIn(CI.DEV_BATCH_SELECTION_ID, CI.D50_SELECTION_IDS)
+        mount = CI.resolve_selection(CI.read_json(ROOT / 'Scripts/ci-selection.json'),
+                                     CI.read_json(ROOT / CI.SELECTION_MAP_PATH), CI.ROUND_ITEM_MOUNT_SELECTION_ID)
+        units = self.selected['unitTestSelectors']
+        binding = self.selected['devBatch']
+        substitutions = [
+            (CI.DEV_BATCH_SELECTION_ID, dict(self.selected, unitTestSelectors=units[::-1])),
+            (CI.DEV_BATCH_SELECTION_ID, dict(self.selected, unitTestSelectors=units + [DEV_BATCH_FIXTURE + 'testRunnable'])),
+            (CI.DEV_BATCH_SELECTION_ID, dict(self.selected, devBatch=dict(binding, sha256='0' * 64))),
+            (CI.DEV_BATCH_SELECTION_ID, dict(self.selected, devBatch=dict(binding, question='another question'))),
+            (CI.DEV_BATCH_SELECTION_ID, mount),
+            (CI.ROUND_ITEM_MOUNT_SELECTION_ID, self.selected),
+            (CI.DEFAULT_SELECTION_ID, self.selected),
+        ]
+        if len(units) > 1:
+            substitutions.append((CI.DEV_BATCH_SELECTION_ID, dict(self.selected, unitTestSelectors=units[:-1])))
+        for identifier, value in substitutions:
+            record = dict(self.record, selectionID=identifier, selectionSHA256=CI.sha256(CI.canonical(value)))
+            # The environment carries the substituted digest, so only the binding can deny.
+            changed = dict(e, DISPATCH_NATIVE_SELECTION_ID=identifier,
+                           DISPATCH_NATIVE_SELECTION_SHA256=record['selectionSHA256'])
+            for stage in ('dispatch', 'worker'):
+                with self.subTest(identifier=identifier, stage=stage), \
+                        mock.patch.object(CI.subprocess, 'check_output', return_value=b''), \
+                        self.assertRaises(ValueError):
+                    CI.admission(value, changed, HEAD, stage, record, self.root)
+        for fields in ({'tier': 'D30', **dict(zip(CI.BUDGET_KEYS, CI.TIERS['D30']))}, {'testTimeoutSeconds': 3001},
+                       {'runUISmoke': True}, {'devBatch': dict(binding, acceptance=True)},
+                       {'devBatch': dict(binding, developmentOnly=False)}):
+            with self.subTest(fields=fields), self.assertRaises(ValueError):
+                CI.validate_selection(dict(self.selected, **fields))
+        # A different committed list at the worker checkout denies the dispatched selection.
+        self.write_batch(self.batch([DEV_BATCH_FIXTURE + 'testRunnable']))
+        with self.assertRaisesRegex(ValueError, 'development batch selector/committed list binding'):
+            CI.admission(self.selected, e, HEAD, 'worker', self.record, self.root)
+
+    def checkpoint_fixture(self, artifact, methods):
+        for name in (CI.SIMULATOR_DIAGNOSTIC_OUTPUT, CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS):
+            if (artifact / name).exists():
+                (artifact / name).unlink()
+        e = dict(self.bound_environment(), PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp',
+                 CONFIGURATION='Debug', CODE_SIGNING_ALLOWED='NO', CI_SIMULATOR_UDID=UDID,
+                 CI_DESTINATION='platform=iOS Simulator,id=' + UDID, CI_ARTIFACT_DIR=str(artifact),
+                 RUNNER_TEMP=str(artifact.parent / 'runner temp'))
+        record = CI.admission(self.selected, e, HEAD, 'worker', self.record, self.root)
+        (artifact / 'native-admission.json').write_bytes(CI.canonical(record))
+        (artifact / 'ci-selection.selected.json').write_bytes(CI.canonical(self.selected))
+        shutil.copyfile(self.root / CI.SELECTION_MAP_PATH, artifact / 'ci-selection-map.json')
+        (artifact / 'runner-provider.txt').write_text(
+            'provider=github\nlabel=macos-26\nrunner_architecture=ARM64\nuname_architecture=arm64\n'
+            'developer_dir=/Applications/Xcode_26.6.app/Contents/Developer\n')
+        (artifact / 'xcode-version.txt').write_text('Xcode 26.6\nBuild version 17F113\n')
+        (artifact / 'native-sdk.txt').write_text('sdk=iphonesimulator\nversion=26.5\nbuild=23F81a\n')
+        (artifact / 'simulator-selection.txt').write_text(
+            f'runtime=iOS 26.2\nruntime_build=23C54\nname=iPhone 17\nudid={UDID}\ninitial_state=Shutdown\n')
+        tree = native_tree(methods[0])
+        tree['testNodes'][0]['children'][0]['children'][0]['children'] = [
+            copy.deepcopy(leaf(native_tree(method))) for method in methods]
+        (artifact / 'unit-test-results.json').write_bytes(CI.canonical(tree))
+        (artifact / 'test-smoke.log').write_text('native fixture completed\n', encoding='utf-8')
+        diagnostic_transport(artifact)
+        receipt = CI.no_index_build_receipt(self.root, artifact, record, e)
+        (artifact / CI.NO_INDEX_RECEIPT).write_bytes(CI.canonical(receipt))
+        argv = ['/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild'] + receipt['argv'][1:]
+        (artifact / 'build-smoke.log').write_text(
+            'Command line invocation:\n    ' + shlex.join(argv) + '\nbuiltin-SwiftDriver -- /swiftc -module-name '
+            'FieldEvidenceApp\n** TEST BUILD SUCCEEDED **\n', encoding='utf-8')
+        return e, record, receipt
+
+    def test_checkpoint_requires_no_index_build_and_each_listed_result_exactly_once(self):
+        units = self.selected['unitTestSelectors']
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory) / 'artifact'
+            artifact.mkdir()
+            e, record, receipt = self.checkpoint_fixture(artifact, units)
+            self.assertEqual((receipt['parent'], receipt['sourceTrees']), (None, None))
+            self.assertEqual(receipt['argv'][-2:], ['COMPILER_INDEX_STORE_ENABLE=NO', 'build-for-testing'])
+            self.assertEqual(receipt['admissionSHA256'], CI.sha256(CI.canonical(record)))
+            result = CI.verify_checkpoint(self.root, artifact, record, self.selected, e)
+            self.assertEqual(result['executedUnitMethods'], sorted(units))
+            self.assertIsNone(result['noIndexBuildDiagnostic']['unchangedSourceTrees'])
+            self.assertTrue(result['noIndexBuildDiagnostic']['compilerIndexEmissionDisabled'])
+            self.assertEqual((result['acceptance'], result['wholeAppAcceptance'], result['providerQualification'],
+                              result['releaseReady'], result['diagnosticOnly']), (False, False, False, False, True))
+            for methods in (units[:-1], units + units[:1], units + [DEV_BATCH_FIXTURE + 'testRunnable'], [UNIT]):
+                with self.subTest(methods=methods):
+                    e, record, _ = self.checkpoint_fixture(artifact, methods)
+                    with self.assertRaises(ValueError):
+                        CI.verify_checkpoint(self.root, artifact, record, self.selected, e)
+            e, record, _ = self.checkpoint_fixture(artifact, units)
+            results = CI.read_json(artifact / 'unit-test-results.json')
+            leaf(results)['result'] = 'Failed'
+            (artifact / 'unit-test-results.json').write_bytes(CI.canonical(results))
+            with self.assertRaises(ValueError):
+                CI.verify_checkpoint(self.root, artifact, record, self.selected, e)
+            e, record, _ = self.checkpoint_fixture(artifact, units)
+            (artifact / 'build-smoke.log').write_text('** TEST BUILD SUCCEEDED **\n', encoding='utf-8')
+            with self.assertRaises(ValueError):
+                CI.verify_checkpoint(self.root, artifact, record, self.selected, e)
+
+    def test_build_shell_job_cap_choice_and_worker_filter_accept_exactly_the_new_id(self):
+        source = (ROOT / 'Scripts/build-smoke.sh').read_text(encoding='utf-8')
+        self.assertEqual(source.count('[ "${NATIVE_SELECTION_ID:-none}" = v23-dev-batch-no-index-d50 ]'), 1)
+        for identifier, indexed in ((CI.DEV_BATCH_SELECTION_ID, True), (CI.DEV_BATCH_SELECTION_ID + '-retry', False),
+                                    ('v23-dev-batch', False)):
+            with tempfile.TemporaryDirectory() as directory:
+                result, e, events, args = self.run_mock_build(directory, identifier)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(events, ['receipt', 'build'] if indexed else ['build'])
+                self.assertEqual('COMPILER_INDEX_STORE_ENABLE=NO' in args, indexed)
+                self.assertEqual(args[-1], 'build-for-testing')
+                if indexed:
+                    self.assertEqual((Path(directory) / 'receipt-args').read_text().splitlines(),
+                                     ['Scripts/v23-native-ci.py', 'record-no-index-build'])
+        worker = (ROOT / '.github/workflows/ios-ci-worker.yml').read_text(encoding='utf-8')
+        caps = re.findall(r'^    timeout-minutes: (.+)$', worker, re.M)
+        self.assertEqual(caps, [D50_JOB_CAP_EXPRESSION])
+        self.assertEqual(sorted(re.findall(r"inputs\.native_selection_id == '([^']+)'", caps[0])),
+                         sorted(CI.D50_SELECTION_IDS + (CI.DEV_BATCH_SELECTION_ID,)))
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        self.assertEqual(options.count(CI.DEV_BATCH_SELECTION_ID), 1)
+        self.assertEqual(len(options), len(set(options)))
+        # The worker filter accepts the file-bound shape only under this exact route ID.
+        self.assertEqual(self.jq(self.selected), 0)
+        for other in (None, '', CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID + '-retry'):
+            self.assertNotEqual(self.jq(self.selected, other), 0, other)
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        for identifier in CI.D50_SELECTION_IDS:
+            closed = CI.resolve_selection(default, mapping, identifier)
+            self.assertEqual((self.jq(closed, identifier), self.jq(closed, None)), (0, 0))
+            self.assertNotEqual(self.jq(closed), 0)
+            self.assertNotEqual(self.jq(dict(closed, devBatch=self.selected['devBatch']), identifier), 0)
+        units = self.selected['unitTestSelectors']
+        binding = self.selected['devBatch']
+        hostile = [dict(self.selected, extra=1), {k: v for k, v in self.selected.items() if k != 'devBatch'},
+                   dict(self.selected, devBatch=dict(binding, extra=1)),
+                   dict(self.selected, devBatch=dict(binding, sha256=binding['sha256'].lower())),
+                   dict(self.selected, devBatch=dict(binding, sha256=binding['sha256'] + '\n')),
+                   dict(self.selected, devBatch=dict(binding, acceptance=True)),
+                   dict(self.selected, devBatch=dict(binding, developmentOnly=False)),
+                   dict(self.selected, devBatch=dict(binding, path='Scripts/other.json')),
+                   dict(self.selected, devBatch=dict(binding, schema='v23-dev-batch.v2')),
+                   dict(self.selected, devBatch=dict(binding, question='')),
+                   dict(self.selected, devBatch=dict(binding, question='q' * 501)),
+                   dict(self.selected, devBatch=dict(binding, question='a\nb')),
+                   dict(self.selected, devBatch=dict(binding, question=1)),
+                   dict(self.selected, unitTestSelectors=[]),
+                   dict(self.selected, unitTestSelectors=['FieldEvidenceAppTests/DevBatchWideTests/testM%03d' % i
+                                                          for i in range(151)]),
+                   dict(self.selected, unitTestSelectors=['FieldEvidenceAppUITests/S0LaunchUITests/testLaunch']),
+                   dict(self.selected, unitTestSelectors=[units[0] + '\n']),
+                   dict(self.selected, unitTestSelectors=units + units[:1]),
+                   dict(self.selected, tier='D30', **dict(zip(CI.BUDGET_KEYS, CI.TIERS['D30']))),
+                   dict(self.selected, testTimeoutSeconds=3001), dict(self.selected, runUISmoke=True),
+                   dict(self.selected, taskID='S10.4')]
+        for value in hostile:
+            with self.subTest(value={k: v for k, v in value.items() if k != 'unitTestSelectors'}):
+                self.assertNotEqual(self.jq(value), 0)
+        wide = dict(self.selected, unitTestSelectors=['FieldEvidenceAppTests/DevBatchWideTests/testM%03d' % i
+                                                      for i in range(150)])
+        self.assertEqual(self.jq(wide), 0)
+        # The exact worker command, executed by Bash with the job's route variable.
+        command = 'jq -e -f Scripts/ci-worker-selection.jq "$CI_SELECTION_PATH" > /dev/null'
+        self.assertEqual(worker.count(command), 1)
+        bash = (Path(shutil.which('git')).resolve().parents[1] / 'bin/bash.exe') if os.name == 'nt' else Path(shutil.which('bash'))
+        with tempfile.TemporaryDirectory() as directory:
+            selected = Path(directory) / 'selected.json'
+            selected.write_bytes(CI.canonical(self.selected))
+            selected_path = str(selected)
+            if os.name == 'nt':
+                selected_path = subprocess.check_output([str(bash), '-c', 'cygpath -u "$1"', '_', selected_path], text=True).strip()
+            for identifier, expected in ((CI.DEV_BATCH_SELECTION_ID, 0), (CI.ROUND_ITEM_MOUNT_SELECTION_ID, 1)):
+                result = subprocess.run([str(bash), '-c', command], cwd=ROOT, text=True, capture_output=True,
+                                        env=dict(os.environ, CI_SELECTION_PATH=selected_path, NATIVE_SELECTION_ID=identifier))
+                self.assertEqual(result.returncode == 0, expected == 0, result.stderr)
+
+    def test_real_test_shell_passes_the_exact_file_order(self):
+        bash = (Path(shutil.which('git')).resolve().parents[1] / 'bin/bash.exe') if os.name == 'nt' else Path(shutil.which('bash'))
+        def shell_path(path):
+            if os.name != 'nt': return str(path)
+            return subprocess.check_output([str(bash), '-c', 'cygpath -u "$1"', '_', str(path)], text=True).strip()
+        tests = [DEV_BATCH_FIXTURE + 'testSecondRunnable', *json.loads(self.original)['tests'],
+                 DEV_BATCH_FIXTURE + 'testInExtension', DEV_BATCH_FIXTURE + 'testRunnable']
+        self.write_batch(self.batch(tests))
+        selection_value = CI.development_batch_selection(self.root)
+        for test_exit in (0, 83):
+            with tempfile.TemporaryDirectory() as directory:
+                base = Path(directory); binary = base / 'bin'; binary.mkdir()
+                artifact = base / 'artifact'; artifact.mkdir()
+                selected = artifact / 'ci-selection.selected.json'
+                selected.write_bytes(CI.canonical(selection_value))
+                executable = binary / 'xcodebuild'
+                executable.write_text('#!/bin/bash\nprintf "%s\\n" "$@" > "$MOCK_TEST_ARGS"\nmkdir -p "$CI_ARTIFACT_DIR/UnitTests.xcresult"\ntouch "$CI_ARTIFACT_DIR/UnitTests.xcresult/result"\nexit "$MOCK_TEST_EXIT"\n', newline='\n')
+                executable.chmod(0o755)
+                e = dict(os.environ, PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp',
+                         CONFIGURATION='Debug', CODE_SIGNING_ALLOWED='NO', CI_SIMULATOR_UDID=UDID,
+                         CI_DESTINATION='platform=iOS Simulator,id=' + UDID, CI_ARTIFACT_DIR=shell_path(artifact),
+                         CI_SELECTION_PATH=shell_path(selected), RUNNER_TEMP=shell_path(base / 'runner'),
+                         CI_S10_4_SHARED_BUILD_MODE='none', CI_NATIVE_ACCEPTANCE_CONTRACT='none',
+                         MOCK_TEST_ARGS=shell_path(base / 'args'), MOCK_TEST_EXIT=str(test_exit))
+                result = subprocess.run([str(bash), '-c', 'export PATH="$1:$PATH"; exec bash "$2"', '_',
+                                         shell_path(binary), shell_path(ROOT / 'Scripts/test-smoke.sh')],
+                                        env=e, capture_output=True, text=True)
+                self.assertEqual(result.returncode, test_exit, result.stderr)
+                args = (base / 'args').read_text().splitlines()
+                self.assertEqual([arg for arg in args if arg.startswith('-only-testing:')],
+                                 ['-only-testing:' + member for member in tests])
+                self.assertEqual(args[-2:], ['CODE_SIGNING_ALLOWED=NO', 'test-without-building'])
+
+    def test_existing_selections_resolve_admit_and_record_identically_to_the_base_head(self):
+        source = subprocess.check_output(['git', 'show', DEV_BATCH_BASE_COMMIT + ':Scripts/v23-native-ci.py'], cwd=ROOT)
+        base_workflow = subprocess.check_output(['git', 'show', DEV_BATCH_BASE_COMMIT + ':.github/workflows/ios-ci.yml'],
+                                                cwd=ROOT).decode('utf-8')
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'base.py'
+            path.write_bytes(source)
+            spec = importlib.util.spec_from_file_location('predev_batch_ci', path)
+            base = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(base)
+        self.assertFalse(hasattr(base, 'DEV_BATCH_SELECTION_ID'))
+
+        def choices(text):
+            block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', text)
+            return re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        current_choices = choices((ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8'))
+        base_choices = choices(base_workflow)
+        self.assertEqual([item for item in current_choices if item != CI.DEV_BATCH_SELECTION_ID], base_choices)
+        # Each shell/workflow file differs from the base head only by the new route ID.
+        def base_bytes(relative):
+            return subprocess.check_output(['git', 'show', DEV_BATCH_BASE_COMMIT + ':' + relative], cwd=ROOT)
+        startup = b'c36-startup-retirement-no-index-build30m'
+        for relative, before, after in (
+                ('.github/workflows/ios-ci.yml', b'          - ' + startup + b'\n',
+                 b'          - ' + startup + b'\n          - v23-dev-batch-no-index-d50\n'),
+                ('.github/workflows/ios-ci-worker.yml',
+                 b"inputs.native_selection_id == '" + startup + b"') && 120",
+                 b"inputs.native_selection_id == '" + startup
+                 + b"' || inputs.native_selection_id == 'v23-dev-batch-no-index-d50') && 120"),
+                ('Scripts/build-smoke.sh', b'   [ "${NATIVE_SELECTION_ID:-none}" = ' + startup + b' ] || \\\n',
+                 b'   [ "${NATIVE_SELECTION_ID:-none}" = ' + startup + b' ] || \\\n'
+                 b'   [ "${NATIVE_SELECTION_ID:-none}" = v23-dev-batch-no-index-d50 ] || \\\n')):
+            with self.subTest(relative=relative):
+                previous = base_bytes(relative)
+                self.assertEqual(previous.count(before), 1)
+                self.assertEqual((ROOT / relative).read_bytes(), previous.replace(before, after))
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+
+        def outcome(module, call):
+            try:
+                return 'ok', module.canonical(call(module))
+            except ValueError as error:
+                return 'error', str(error)
+
+        def git_facts(identifier):
+            parent = {CI.BUILD_ORDER_SELECTION_ID: CI.BUILD_ORDER_PARENT,
+                      CI.BUILD_WATCHDOG_SELECTION_ID: CI.BUILD_WATCHDOG_PARENT}.get(
+                identifier, CI.NO_INDEX_ROUTES.get(identifier, ('f' * 40,))[0])
+            trees = (CI.BUILD_ORDER_TREES if identifier == CI.BUILD_ORDER_SELECTION_ID else
+                     CI.no_index_source_trees(identifier) if identifier in CI.NO_INDEX_ROUTES else {})
+            header = ('tree ' + 'a' * 40 + '\nparent ' + parent + '\n\nmessage\n').encode()
+
+            def check_output(command, **kwargs):
+                if command[1:3] == ['cat-file', 'commit']:
+                    return header
+                return trees.get(command[-1].split(':', 1)[1], 'f' * 40) + '\n'
+            return check_output
+        admitted = 0
+        for identifier in base_choices:
+            with self.subTest(identifier=identifier):
+                resolved = outcome(CI, lambda m: m.resolve_selection(default, mapping, identifier))
+                self.assertEqual(resolved, outcome(base, lambda m: m.resolve_selection(default, mapping, identifier)))
+                self.assertEqual(resolved[0], 'ok')
+                value = json.loads(resolved[1])
+                record = {'selectionID': identifier, 'selectionSHA256': CI.sha256(resolved[1]),
+                          'selectionMapSHA256': CI.sha256((ROOT / CI.SELECTION_MAP_PATH).read_bytes())}
+                e = dict(environment(), DISPATCH_NATIVE_SELECTION_ID=identifier,
+                         DISPATCH_NATIVE_SELECTION_SHA256=record['selectionSHA256'],
+                         DISPATCH_NATIVE_SELECTION_MAP_SHA256=record['selectionMapSHA256'])
+                for stage in ('dispatch', 'worker'):
+                    with mock.patch.object(subprocess, 'check_output', side_effect=git_facts(identifier)):
+                        current = outcome(CI, lambda m: m.admission(value, e, HEAD, stage, record, ROOT))
+                        previous = outcome(base, lambda m: m.admission(value, e, HEAD, stage, record, ROOT))
+                    self.assertEqual(current, previous)
+                    admitted += current[0] == 'ok'
+        self.assertEqual(admitted, 2 * len(base_choices))
+        for identifier in (CI.DEFAULT_SELECTION_ID, CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.NO_INDEX_SELECTION_ID):
+            e = dict(environment(), NATIVE_SELECTION_ID=identifier)
+            self.assertEqual(outcome(CI, lambda m: m.selected_input(ROOT, e)),
+                             outcome(base, lambda m: m.selected_input(ROOT, e)))
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory)
+            for identifier in CI.NO_INDEX_ROUTES:
+                with self.subTest(receipt=identifier):
+                    record = {'selectionID': identifier, 'head': HEAD, 'runID': '123', 'runAttempt': '1'}
+                    (artifact / 'native-admission.json').write_bytes(CI.canonical(record))
+                    e = dict(environment(), PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp',
+                             CONFIGURATION='Debug', CODE_SIGNING_ALLOWED='NO', CI_SIMULATOR_UDID=UDID,
+                             CI_DESTINATION='platform=iOS Simulator,id=' + UDID, CI_ARTIFACT_DIR=str(artifact),
+                             RUNNER_TEMP=str(artifact / 'runner temp'))
+                    receipt = outcome(CI, lambda m: m.no_index_build_receipt(ROOT, artifact, record, e))
+                    self.assertEqual(receipt, outcome(base, lambda m: m.no_index_build_receipt(ROOT, artifact, record, e)))
+                    self.assertEqual(receipt[0], 'ok')
+                    (artifact / CI.NO_INDEX_RECEIPT).write_bytes(receipt[1])
+                    argv = ['/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild'] + json.loads(receipt[1])['argv'][1:]
+                    (artifact / 'build-smoke.log').write_text(
+                        'Command line invocation:\n    ' + shlex.join(argv) + '\nbuiltin-SwiftDriver -- /swiftc\n'
+                        '** TEST BUILD SUCCEEDED **\n', encoding='utf-8')
+                    verified = outcome(CI, lambda m: m.verify_no_index_build(ROOT, artifact, record, e))
+                    self.assertEqual(verified, outcome(base, lambda m: m.verify_no_index_build(ROOT, artifact, record, e)))
+                    self.assertEqual(verified[0], 'ok')
+            with self.assertRaises(ValueError):
+                base.no_index_build_receipt(ROOT, artifact, dict(record, selectionID=CI.DEV_BATCH_SELECTION_ID), e)
 
 
 if __name__ == "__main__":

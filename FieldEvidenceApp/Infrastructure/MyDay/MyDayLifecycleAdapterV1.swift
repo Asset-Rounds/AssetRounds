@@ -33,7 +33,8 @@ struct MyDayBackupSnapshotV1: Codable, Equatable, Sendable, MyDayCanonicalValida
         targetWorkspaceID: WorkspaceID,
         disposition: MyDayRestoreDispositionV1,
         operationID: UUID,
-        targetReferences: [MyDayEligibleReferenceV1] = []
+        targetReferences: [MyDayEligibleReferenceV1] = [],
+        replacementBindings: MyDayReplacementValueProjectionV1.Bindings? = nil
     ) throws -> MyDayBackupSnapshotV1 {
         try snapshot.validate()
         let exactSourceNonactive = try C57MyDayBackupEnrollmentV1
@@ -46,22 +47,41 @@ struct MyDayBackupSnapshotV1: Codable, Equatable, Sendable, MyDayCanonicalValida
             guard targetReferences.isEmpty else {
                 throw MyDayFailureV1.wrongWorkspace
             }
-            if snapshot.workspaceID == targetWorkspaceID { return snapshot }
-            guard snapshot.plans.isEmpty, snapshot.carryoverReceipts.isEmpty,
-                  snapshot.nonactivePlanReferences.isEmpty else {
+            if snapshot.workspaceID == targetWorkspaceID {
+                guard replacementBindings == nil else { throw MyDayFailureV1.invalidValue }
+                return snapshot
+            }
+            // Populated cross-workspace replacement requires the root's exact
+            // reference and mutation correspondences; only canonical empty
+            // truth may be replaced without them.
+            let bindings: MyDayReplacementValueProjectionV1.Bindings
+            if let replacementBindings {
+                bindings = replacementBindings
+            } else {
+                guard snapshot.plans.isEmpty, snapshot.carryoverReceipts.isEmpty,
+                      snapshot.nonactivePlanReferences.isEmpty else {
+                    throw MyDayFailureV1.wrongWorkspace
+                }
+                bindings = MyDayReplacementValueProjectionV1.Bindings(
+                    targetWorkspaceID: targetWorkspaceID
+                )
+            }
+            guard bindings.targetWorkspaceID == targetWorkspaceID else {
                 throw MyDayFailureV1.wrongWorkspace
+            }
+            return try MyDayReplacementValueProjectionV1.project(
+                .init(snapshot: snapshot), bindings: bindings
+            ).targetSnapshot
+        case .configurationCloneOmit:
+            guard targetReferences.isEmpty, replacementBindings == nil else {
+                throw MyDayFailureV1.invalidValue
             }
             return try MyDayBackupSnapshotV1(
                 workspaceID: targetWorkspaceID, plans: [], carryoverReceipts: [],
                 nonactivePlanReferences: []
             )
-        case .configurationCloneOmit:
-            guard targetReferences.isEmpty else { throw MyDayFailureV1.invalidValue }
-            return try MyDayBackupSnapshotV1(
-                workspaceID: targetWorkspaceID, plans: [], carryoverReceipts: [],
-                nonactivePlanReferences: []
-            )
         case .workspaceForkNonactiveHistory:
+            guard replacementBindings == nil else { throw MyDayFailureV1.invalidValue }
             guard snapshot.workspaceID != targetWorkspaceID else { throw MyDayFailureV1.wrongWorkspace }
             let context = try MyDayRebindContextV1(
                 sourceWorkspaceID: snapshot.workspaceID,
@@ -118,13 +138,14 @@ struct MyDayBackupSnapshotV1: Codable, Equatable, Sendable, MyDayCanonicalValida
             )
         }
     }
-    func materializeRestoreStaging(_ snapshot:MyDayBackupSnapshotV1,targetWorkspaceID:WorkspaceID,disposition:MyDayRestoreDispositionV1,operationID:UUID,targetReferences:[MyDayEligibleReferenceV1]=[])throws {
+    func materializeRestoreStaging(_ snapshot:MyDayBackupSnapshotV1,targetWorkspaceID:WorkspaceID,disposition:MyDayRestoreDispositionV1,operationID:UUID,targetReferences:[MyDayEligibleReferenceV1]=[],replacementBindings:MyDayReplacementValueProjectionV1.Bindings?=nil)throws {
         guard try planRows(targetWorkspaceID).isEmpty && receiptRows(targetWorkspaceID).isEmpty else {
             throw MyDayFailureV1.divergentMutation
         }
         let prepared = try Self.preparedRestoreSnapshot(
             snapshot, targetWorkspaceID: targetWorkspaceID, disposition: disposition,
-            operationID: operationID, targetReferences: targetReferences
+            operationID: operationID, targetReferences: targetReferences,
+            replacementBindings: replacementBindings
         )
         for value in prepared.plans { modelContext.insert(try MyDayPlanRowV1(value)) }
         for value in prepared.carryoverReceipts {

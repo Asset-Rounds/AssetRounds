@@ -51,6 +51,7 @@ v23_index_setting=""
 if [ "${NATIVE_SELECTION_ID:-none}" = c36-live-host-no-index-build30m ] || \
    [ "${NATIVE_SELECTION_ID:-none}" = c36-round-item-mount-no-index-build30m ] || \
    [ "${NATIVE_SELECTION_ID:-none}" = c36-startup-retirement-no-index-build30m ] || \
+   [ "${NATIVE_SELECTION_ID:-none}" = v23-dev-batch-no-index-d50 ] || \
    [ "${NATIVE_SELECTION_ID:-none}" = c36-round-item-completion-no-index-build30m ] || \
    [ "${NATIVE_SELECTION_ID:-none}" = c36-field-autosave-no-index-build30m ] || \
    [ "${NATIVE_SELECTION_ID:-none}" = c36-saved-review-fields-no-index-build30m ] || \

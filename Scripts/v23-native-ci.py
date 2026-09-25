@@ -431,6 +431,21 @@ NO_INDEX_ROUTES = {
     RESTORE_BUILD_WATCHDOG_SELECTION_ID: (RESTORE_BUILD_WATCHDOG_PARENT, "D30"),
     REMINDER_BUILD_WATCHDOG_SELECTION_ID: (REMINDER_BUILD_WATCHDOG_PARENT, "D30"),
 }
+# Reusable development-only D50 no-index route. Its exact ordered unit methods come
+# only from one committed file at the dispatched head, so a new development question
+# needs no selector, parent/tree pin or manifest change. It pins no parent or trees:
+# the selected evidence binds the file digest and ordered list, and the admission
+# binds the head. Never acceptance, provider qualification, coverage or merge credit.
+DEV_BATCH_SELECTION_ID = "v23-dev-batch-no-index-d50"
+DEV_BATCH_PATH = "Scripts/v23-dev-batch.json"
+DEV_BATCH_SCHEMA = "v23-dev-batch.v1"
+DEV_BATCH_KEY = "devBatch"
+DEV_BATCH_TIER = "D50"
+DEV_BATCH_MAX_TESTS = 150
+DEV_BATCH_MAX_QUESTION = 500
+DEV_BATCH_MAX_BYTES = 128 * 1024
+DEV_BATCH_TEST = re.compile(r"FieldEvidenceAppTests/([A-Za-z_][A-Za-z0-9_]*)/(test[A-Za-z0-9_]*)")
+DEV_BATCH_BINDING_KEYS = {"path", "schema", "sha256", "question", "developmentOnly", "acceptance"}
 
 
 def no_index_source_trees(selection_id):
@@ -1327,10 +1342,30 @@ def persist_simulator_diagnostic_observations(root, artifact, record):
     return evidence
 
 
+def development_batch_question(value):
+    return (type(value) is str and bool(value.strip()) and len(value) <= DEV_BATCH_MAX_QUESTION
+            and re.search(r"[\x00-\x1f\x7f]", value) is None)
+
+
+def validate_development_batch_binding(binding, selectors):
+    require(type(binding) is dict and set(binding) == DEV_BATCH_BINDING_KEYS,
+            "development batch binding keys")
+    require(binding["path"] == DEV_BATCH_PATH and binding["schema"] == DEV_BATCH_SCHEMA,
+            "development batch binding identity")
+    require(isinstance(binding["sha256"], str) and re.fullmatch(r"[0-9A-F]{64}", binding["sha256"]),
+            "development batch file digest")
+    require(development_batch_question(binding["question"]), "development batch question")
+    require(binding["developmentOnly"] is True and binding["acceptance"] is False,
+            "development batch classification")
+    require(1 <= len(selectors) <= DEV_BATCH_MAX_TESTS, "development batch test count")
+
+
 def validate_selection(selection):
     require(isinstance(selection, dict), "selection object")
-    require(set(selection) == {"schemaVersion", "taskID", "tier", "runUISmoke",
-                              "unitTestSelectors", "uiTestSelectors", *BUDGET_KEYS}, "selection keys")
+    development_batch = DEV_BATCH_KEY in selection
+    keys = {"schemaVersion", "taskID", "tier", "runUISmoke",
+            "unitTestSelectors", "uiTestSelectors", *BUDGET_KEYS}
+    require(set(selection) == ((keys | {DEV_BATCH_KEY}) if development_batch else keys), "selection keys")
     require(type(selection["schemaVersion"]) is int and selection["schemaVersion"] == 1, "schema")
     require(selection["taskID"] == TASK and selection["tier"] in TIERS, "task/tier")
     require(all(type(selection[key]) is int for key in BUDGET_KEYS), "integer budgets")
@@ -1346,7 +1381,11 @@ def validate_selection(selection):
                     for x in selectors), "exact native method selectors")
     require(bool(selection["unitTestSelectors"]), "no unit methods")
     require(len(selection["uiTestSelectors"]) == int(ui), "UI method count")
-    if selection["tier"] == "D50":
+    if development_batch:
+        # Shape only; admission binds this list to the committed file at the head.
+        require(selection["tier"] == DEV_BATCH_TIER, "development batch tier")
+        validate_development_batch_binding(selection[DEV_BATCH_KEY], selection["unitTestSelectors"])
+    elif selection["tier"] == "D50":
         require(tuple(selection["unitTestSelectors"]) in (LIVE_HOST_RUNTIME_SELECTORS,
                 ROUND_ITEM_MOUNT_SELECTORS, STARTUP_RETIREMENT_SELECTORS),
                 "development D50 exact closed methods")
@@ -1801,14 +1840,19 @@ def resolve_selection(default, selection_map, selection_id):
     return resolved[selection_id]
 
 
-def verify_generated_selection(root, default, selection_map):
-    """The current pinned output must still equal its closed manifest/source."""
+def load_selection_generator(root):
     source = root / "Scripts/v23-selection-generator.py"
     require(source.is_file() and not source.is_symlink(), "selection generator source")
     spec = importlib.util.spec_from_file_location("v23_selection_generator", source)
     require(spec is not None and spec.loader is not None, "selection generator module")
     generator = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(generator)
+    return generator
+
+
+def verify_generated_selection(root, default, selection_map):
+    """The current pinned output must still equal its closed manifest/source."""
+    generator = load_selection_generator(root)
     manifest = generator.load_json(root / "Scripts/v23-selection-manifest.json")
     pool_digest = sha256(canonical(default))
     require(pool_digest in GENERATED_PROFILE_PINS, "generated selection known profile digest")
@@ -1836,6 +1880,64 @@ def verify_generated_selection(root, default, selection_map):
     return report
 
 
+def development_batch_selection(root):
+    """Return the D50 selection named by the committed development batch at root.
+
+    The file supplies only the question and exact ordered methods. Every method must
+    be a direct runnable XCTest instance method of its unit class file, verified by
+    the same parser that admits the generated selector pool. Nothing is inferred.
+    """
+    path = root / DEV_BATCH_PATH
+    require(path.is_file() and not path.is_symlink(), "development batch file")
+    raw = path.read_bytes()
+    require(0 < len(raw) <= DEV_BATCH_MAX_BYTES, "development batch size")
+    # Git stores JSON with LF; a CR would give one list two platform digests.
+    require(b"\r" not in raw, "development batch LF line endings")
+    try:
+        value = json.loads(raw.decode("utf-8"), object_pairs_hook=unique_pairs)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError("invalid V23 native evidence: development batch UTF-8 JSON") from error
+    require(type(value) is dict and set(value) == {"schema", "question", "tests"},
+            "development batch keys")
+    require(value["schema"] == DEV_BATCH_SCHEMA, "development batch schema")
+    require(development_batch_question(value["question"]), "development batch question")
+    tests = value["tests"]
+    require(type(tests) is list and 1 <= len(tests) <= DEV_BATCH_MAX_TESTS,
+            "development batch test count")
+    require(all(type(item) is str and DEV_BATCH_TEST.fullmatch(item) is not None for item in tests),
+            "development batch test selector")
+    require(len(set(tests)) == len(tests), "duplicate development batch test")
+    unit_root = root / "FieldEvidenceAppTests"
+    require(unit_root.is_dir() and not unit_root.is_symlink(), "development batch unit test source root")
+    generator = load_selection_generator(root)
+    try:
+        for class_name in dict.fromkeys(selection_class(item) for item in tests):
+            source = unit_root / (class_name + ".swift")
+            require(source.is_file() and not source.is_symlink()
+                    and source.resolve().parent == unit_root.resolve(),
+                    "development batch unit class file: " + class_name)
+            require(not (root / "FieldEvidenceAppUITests" / (class_name + ".swift")).exists(),
+                    "development batch UI test class: " + class_name)
+            code = generator._active_swift(generator._mask_swift_noncode(source.read_text(encoding="utf-8")))
+            require(re.search(r"\bXCUI[A-Za-z]*\b", code) is None,
+                    "development batch UI test class: " + class_name)
+        verified = generator.verify_source_declarations(
+            {"sourceRoot": "FieldEvidenceAppTests", "selectorPool": list(tests)}, root)
+    except (generator.ManifestError, UnicodeDecodeError) as error:
+        raise ValueError("invalid V23 native evidence: development batch runnable method: "
+                         + str(error)) from error
+    require(verified == len(tests), "development batch runnable method count")
+    selection = {
+        "schemaVersion": 1, "taskID": TASK, "tier": DEV_BATCH_TIER, "runUISmoke": False,
+        **dict(zip(BUDGET_KEYS, TIERS[DEV_BATCH_TIER])),
+        "unitTestSelectors": list(tests), "uiTestSelectors": [],
+        DEV_BATCH_KEY: {"path": DEV_BATCH_PATH, "schema": DEV_BATCH_SCHEMA, "sha256": sha256(raw),
+                        "question": value["question"], "developmentOnly": True, "acceptance": False},
+    }
+    validate_selection(selection)
+    return selection
+
+
 def selected_input(root, environment):
     """Return the exact default or closed mapped selection for this execution."""
     default = read_json(root / "Scripts/ci-selection.json")
@@ -1847,7 +1949,13 @@ def selected_input(root, environment):
         return default, {"selectionID": DEFAULT_SELECTION_ID,
                          "selectionSHA256": sha256(canonical(default)), "selectionMapSHA256": ""}
     selection_map = read_json(root / SELECTION_MAP_PATH)
-    selected = resolve_selection(default, selection_map, selection_id)
+    if selection_id == DEV_BATCH_SELECTION_ID:
+        # The checked-in pool and map keep every existing check; only the exact
+        # ordered methods come from the committed development batch at this head.
+        resolve_selection(default, selection_map, DEFAULT_SELECTION_ID)
+        selected = development_batch_selection(root)
+    else:
+        selected = resolve_selection(default, selection_map, selection_id)
     if sha256(canonical(default)) in GENERATED_PROFILE_PINS:
         verify_generated_selection(root, default, selection_map)
     return selected, {"selectionID": selection_id, "selectionSHA256": sha256(canonical(selected)),
@@ -1940,7 +2048,17 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
         **{key: (ERASE_PARTITION_PARENT, members)
            for key, members in ERASE_DIAGNOSTIC_PARTITIONS},
     }
-    if selection["tier"] in ("D30", "D50") or selection_record["selectionID"] in watchdog_routes:
+    development_batch = (selection_record["selectionID"] == DEV_BATCH_SELECTION_ID
+                         or DEV_BATCH_KEY in selection)
+    if development_batch:
+        # No parent/tree pin: the exact list is recomputed from the committed file
+        # at this checkout and must equal the dispatched selection byte for byte.
+        require(selection_record["selectionID"] == DEV_BATCH_SELECTION_ID
+                and selection == development_batch_selection(root),
+                "development batch selector/committed list binding")
+        require(provider == "github" and label == "macos-26", "development batch GitHub route only")
+        require(e["GITHUB_RUN_ATTEMPT"] == "1", "development batch original attempt only")
+    elif selection["tier"] in ("D30", "D50") or selection_record["selectionID"] in watchdog_routes:
         require(selection["tier"] == ("D50" if selection_record["selectionID"] in D50_SELECTION_IDS else "D30")
                 and selection_record["selectionID"] in watchdog_routes,
                 "build watchdog selector/tier binding")
@@ -2200,7 +2318,8 @@ def build_order_observations(artifact, record, selected_udid):
 
 
 def no_index_build_receipt(root, artifact, record, environment):
-    require(record["selectionID"] in NO_INDEX_ROUTES, "no-index admitted selection")
+    development_batch = record["selectionID"] == DEV_BATCH_SELECTION_ID
+    require(record["selectionID"] in NO_INDEX_ROUTES or development_batch, "no-index admitted selection")
     require(read_json(artifact / "native-admission.json") == record, "no-index admission changed")
     e = environment
     require(e.get("PROJECT_PATH") == "FieldEvidenceApp.xcodeproj"
@@ -2214,12 +2333,16 @@ def no_index_build_receipt(root, artifact, record, environment):
                  "-derivedDataPath", str(Path(e["RUNNER_TEMP"]) / "FieldEvidenceDerivedData"),
                  "-resultBundlePath", str(artifact / "Build.xcresult"),
                  "CODE_SIGNING_ALLOWED=NO", "COMPILER_INDEX_STORE_ENABLE=NO", "build-for-testing"]
+    # The development batch pins no parent or trees; its admission record (bound by
+    # admissionSHA256) carries the exact head, head tree and selected-list digest.
     return {"schemaVersion": 1, "selectionID": record["selectionID"],
-            "head": record["head"], "parent": NO_INDEX_ROUTES[record["selectionID"]][0], "runID": record["runID"],
+            "head": record["head"],
+            "parent": None if development_batch else NO_INDEX_ROUTES[record["selectionID"]][0],
+            "runID": record["runID"],
             "runAttempt": record["runAttempt"], "admissionSHA256": sha256(canonical(record)),
             "buildScriptSHA256": sha256((root / "Scripts/build-smoke.sh").read_bytes()),
-            "sourceTrees": no_index_source_trees(record["selectionID"]), "argv": arguments,
-            "diagnosticOnly": True, "acceptance": False}
+            "sourceTrees": None if development_batch else no_index_source_trees(record["selectionID"]),
+            "argv": arguments, "diagnosticOnly": True, "acceptance": False}
 
 
 def verify_no_index_build(root, artifact, record, environment):
@@ -2241,7 +2364,7 @@ def verify_no_index_build(root, artifact, record, environment):
             "no-index complete test build required")
     return {"commandReceiptSHA256": sha256(canonical(expected)),
             "executedCommandExact": True, "compilerDriverCommands": len(compiler_lines),
-            "compilerIndexEmissionDisabled": True, "unchangedSourceTrees": no_index_source_trees(record["selectionID"]),
+            "compilerIndexEmissionDisabled": True, "unchangedSourceTrees": expected["sourceTrees"],
             "speedupEstablished": False, "acceptance": False}
 
 
@@ -2280,7 +2403,7 @@ def verify_checkpoint(root, artifact, record, selection, environment):
             and simulator.get("udid") == environment.get("CI_NATIVE_CREATED_SIMULATOR_UDID"),
             "fresh owned Simulator")
     build_order = {}
-    if record["selectionID"] in NO_INDEX_ROUTES:
+    if record["selectionID"] in NO_INDEX_ROUTES or record["selectionID"] == DEV_BATCH_SELECTION_ID:
         build_order["noIndexBuildDiagnostic"] = verify_no_index_build(root, artifact, record, environment)
     if record["selectionID"] in (BUILD_ORDER_SELECTION_ID, NOTIFICATION_INTERRUPTION_SELECTION_ID):
         build_order["buildOrderDiagnostic"] = build_order_observations(artifact, record, simulator["udid"])

@@ -1817,7 +1817,7 @@ Qualified GitHub evidence alone can satisfy merge when it covers every required 
 
 Use existing GitHub and Bitrise capacity only for distinct dependency-ready questions. Keep original-attempt deduplication, one collector, all watchdogs and source/environment/artifact bindings. Bitrise still requires exact-runtime availability and qualification before use. This amendment grants no new environment, service, secret, paid pool or native budget.
 
-Freeze the complete candidate after all production adoption and corrections are complete. Before main advances, require successful compilation, complete retained same-head functional/compatibility evidence, all required production journeys, independent integration semantic review, critical affected-state S10 UI/accessibility checks and genuine human review of those critical journeys. Backup, restore, erase, AppLock/privacy and other data-integrity failures remain blockers. No partial V23 merge or omitted requirement.
+Freeze the complete candidate after all production adoption and corrections are complete. Before main advances, require successful compilation, complete retained same-head functional/compatibility evidence, all required production journeys, independent integration semantic review, critical affected-state S10 UI/accessibility checks and genuine human review of those critical journeys. Backup, restore, erase, AppLock/privacy and other data-integrity failures remain blockers. No omitted requirement. Since the owner decision of 2026-09-25, main may advance by complete, verified phases (unfinished features unreachable and listed in MERGE_READINESS), and each phase meets every gate above; release still requires the full V23 scope.
 
 Only noncritical visual polish may remain after merge, with each item explicitly recorded in VERIFICATION_DUE and completed with genuine human review before release. A navigation/action error, inaccessible critical control, incorrect data, misleading state, privacy exposure or unusable journey is functional/critical and cannot be relabeled polish. Broad cosmetic completeness can move to the release gate; native tests and critical human review cannot.
 
@@ -3714,9 +3714,9 @@ All three sole-collected originals at 2abaa1d failed compilation identically, wi
 All three compiled with 0 Swift errors.
 - Completion question: 7/12 pass. All six Round readiness methods pass, including the nil-revision frontier method that previously failed at storage publication, so the storage-verdict correction is confirmed natively, as is the storage predicate test. The five completion journeys stop at Continue: `confirmCapture` returns false in the shared open helper.
 - Mount exact7: 1/7 as before. The foreign-draft denial passes; the Continue launches fail. The denial method throws `resourceValueMismatch` from its direct launch loop, with no `initial-fallback-shape` or `final-fallback-predicate` source line in the log, only the normal strict readbacks that the Simulator fallback handles.
-- Startup exact3: 2/3. Canonical names and malformed/unsafe kinds pass, confirming the generation-deferral correction natively. The interrupted-finalization method's location listing shows that a thrown failure before the database commit leaves the finalization, staging and snapshot directories empty (`rollbackUncommitted`), so its uncommitted-case roll-forward expectation contradicted the implemented design. The test now asserts the rollback (no journal, snapshot, receipt or report; parent still PREPARED) for the uncommitted case and keeps the full roll-forward assertions for the committed case.
+- Startup exact3: 2/3. Canonical names and malformed/unsafe kinds pass, confirming the generation-deferral correction natively. The interrupted-finalization method (committed=false first) found no journal: its diagnostic listed the live finalization directory as present but empty, with empty staging and final snapshots. Review of candidate D1 rejected asserting an in-process rollback, because `prepareLive`/`promoteSnapshotLive` publish the journal and snapshot before the injected `advanceLive` failure and `rollbackUncommitted` is reachable only from the database-commit catch. The empty directory therefore indicates that `resumeFinalization` threw before `prepareLive`, and the test catch swallowed it. D2 keeps every 31126e9 assertion and prints that error (`V23_PRIVATE_RECOVERY_ERROR`). A crash-like uncommitted case (prepared journal and promoted snapshot surviving into startup) remains a due regression.
 
-Next discriminating evidence for Continue: a DEBUG-only `lastCaptureFailureForTesting` (the error value of the last failed Continue) is added to every Continue assertion message, plus test-only step labels in the denial method. No product predicate changes. A parallel read-only static diagnosis of the throwing path is running.
+Next discriminating evidence (D2): DEBUG-only `lastCaptureFailureForTesting` records `step=<label> error=<value>` for every failed Continue, including the entry guard; every Continue assertion carries it; the denial method labels its steps; the startup test prints its swallowed error. A read-only diagnosis showed the reported `resourceValueMismatch` is XCTest attributing the last caught Swift throw (lease-teardown strict readbacks handled by the Simulator fallback), not the Continue cause. No product predicate changes.
 
 ### Owner decisions and B3 design disposition (2026-09-25)
 
@@ -3741,3 +3741,34 @@ Root disposition on the authority questions:
 - Clearing only the discarded child's parent slot is within "discards or supersedes only the staged item".
 
 B3 starts after the Continue failure is fixed and stage A/B pass natively.
+
+### Audited originals36093018041/36093046826/36093079109 (fca18b7, D2)
+
+All three compiled with 0 Swift errors (498 warnings) and were sole-collected with the named-diagnostic summary.
+- Mount exact7: 2/7. The acknowledgement-loss recovery journey now passes, and so does the foreign-draft denial. Four Continue failures are named `step=launch-prepare` or `step=entry-prepare` with `ScanToWorkFailureV1.notReady`, thrown by `prepareRepetitiveCaptureLaunch`/`prepareRepetitiveCaptureStep` after `rebuildReadiness` succeeded. The denial method's direct launch prints `V23_ROUND_STEP_FAILURE step=prepare-launch-0 … notReady`; its reported `resourceValueMismatch` is the XCTest misattribution. The revision-pinned method fails separately (`XCTAssertNil` on a UUID, then no `ProductionRepetitiveCaptureReadV2`).
+- Completion exact12: 7/12. The six readiness methods and the storage predicate pass. All five journeys fail at the same `launch-prepare`/`entry-prepare` `notReady`.
+- Startup exact3: 2/3. The swallowed error is `FinalizationServiceError.journalFailed` (committed=false). The injected advance failure fires, yet the live finalization, staging and final snapshot directories are empty.
+
+Next: two read-only causal diagnoses, one for the `notReady` guard and fixture condition, and one for where the prepared journal and promoted snapshot go. The fix follows the evidence; no product predicate changes before then.
+
+### Delivery method, coverage route and Phase 1 scope (2026-09-25)
+
+Measured bottlenecks: native originals 25–37 min (build 803–1661 s on the same head, tests 5–8 min, 1–2 min simulator-boot wait before build); local protocol/generator suites 21/28 min single-threaded on a 20-core host; about 11 CI files per new development question; 3 originals lost to one post-approval compile error; repeated XCTest error misattribution; two helper worktrees created at main instead of the integration head; one long-lived reviewer context exhausted.
+
+Adopted:
+- Local suites run through a parallel unittest runner (scratch `prun.py`: each discovered test exactly once in isolated worker processes, aggregated totals, nonzero exit on any failure or missing result). Candidate gates still require both complete suites.
+- A reusable development route `v23-dev-batch-no-index-d50` takes its exact ordered list from a committed `Scripts/v23-dev-batch.json` (implementation in progress; separate review and a cold qualifying original before use).
+- Large new Swift dispatches one question first; small reviewed diagnostics may run in parallel.
+- Failure diagnostics are built into flows and tests before dispatch.
+- Root creates helper worktrees at the exact head; each consequential batch gets a fresh reviewer with a compact handoff.
+
+Owner decisions (2026-09-25): shared-build coverage (one build per head with a 2,400 s build limit; test-only partitions of up to 3,000 s via `test-without-building`, five at a time), replacing 900 s partition sizing; one early development-only full sweep to surface failures before the final same-head pass. Signoff: `WORK_DETAIL_COMPLETED_RESPONSE_V1` permanently means approval response; actor responsibility `ACKNOWLEDGED_BY`.
+
+Census at 31126e9: 3,397 unit methods in 710 classes (pool 1,091), 153 UI methods (98 always skip); 952 methods have native timings; conservative method time about 77,300 s. Four single methods exceed 900 s and two never finished under the 900 s watchdog; 2 of 83 recent builds exceeded 1,800 s with 0 Swift errors. 12 methods fail at HEAD; 139 were last seen failing at older commits.
+
+Phase 1 (root decision under the owner's merge-scope delegation): platform and shell at persistence format V53, detailed in MERGE_READINESS. No production code yet creates a Round or publishes an inspection package, so C36 capture is Phase 2 work.
+
+Workstream status:
+- C57-1 My Day cross-workspace replacement projection: implemented in an isolated worktree, independently APPROVED (three Low findings; test strengthening in progress), not compiled. The production caller still passes no bindings, so a populated cross-workspace Replace remains fail-closed.
+- C55-1 restore Clone/Fork report test: no test-only correction exists. Production re-encodes legacy report snapshots with temporal/assurance content on Clone/Fork (`BackupRestoreService` rebinding), and no production producer writes such snapshots through the finalizer. Requires a producer and an owner-level immutability decision; stale schema pins 33/32 noted.
+- P03-C43 signoff batch 1: design complete (no new persistence, no writer edits); implementation in an isolated worktree.
