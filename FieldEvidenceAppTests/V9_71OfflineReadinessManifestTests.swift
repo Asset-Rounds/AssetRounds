@@ -351,4 +351,55 @@ final class V9_71OfflineReadinessManifestTests: XCTestCase {
         XCTAssertTrue(corpus.claims.sourceDriftIsStaleWithoutPartialSuccess); XCTAssertTrue(corpus.statusFlags.values.allSatisfy { !$0 })
         XCTAssertTrue(corpus.claims.optionalOnlyWarningMayStartFieldWork); XCTAssertTrue(corpus.claims.mandatorySatisfactionRemainsExplicit)
     }
+
+    /// Live free space moves between the two reads of one rebuild. Only a change in
+    /// the storage verdict, capacity state or reservations is source drift.
+    func testStorageFreeByteDriftIsNotSourceDriftButEveryVerdictChangeIs() throws {
+        func storage(_ available: Int64?, reserved: Int64 = 6_000,
+                     state: OfflineReadinessCapacityStateV1 = .checked) throws -> OfflineReadinessStorageObservationV1 {
+            try OfflineReadinessStorageObservationV1(capacityState: state, availableBytes: available,
+                                                     reservedBytes: reserved)
+        }
+        let first = try OfflineReadinessManifestBuilderV1.build(
+            snapshot: try C06OfflineReadinessTestSupportV1.snapshot(storage: try storage(10_000)))
+        XCTAssertEqual(first.status, .ready)
+        XCTAssertTrue(first.mayStartFieldWork)
+
+        // Bytes move both ways while the work still fits: same source, still ready.
+        for available: Int64 in [9_996, 6_000, 10_324_000] {
+            let drifted = try OfflineReadinessManifestBuilderV1.build(
+                snapshot: try C06OfflineReadinessTestSupportV1.snapshot(storage: try storage(available)),
+                previous: first)
+            XCTAssertEqual(drifted.sourceSnapshotSHA256, first.sourceSnapshotSHA256, "\(available)")
+            XCTAssertFalse(drifted.sourceBindingDrift, "\(available)")
+            XCTAssertEqual(drifted.status, .ready, "\(available)")
+            XCTAssertTrue(drifted.mayStartFieldWork, "\(available)")
+            XCTAssertEqual(drifted.availableBytes, available)
+            XCTAssertNotEqual(drifted.manifestSHA256, first.manifestSHA256, "the manifest still records the bytes it saw")
+        }
+
+        // The same reservations no longer fit: a verdict change is drift and cannot start.
+        let insufficient = try OfflineReadinessManifestBuilderV1.build(
+            snapshot: try C06OfflineReadinessTestSupportV1.snapshot(storage: try storage(5_999)), previous: first)
+        XCTAssertNotEqual(insufficient.sourceSnapshotSHA256, first.sourceSnapshotSHA256)
+        XCTAssertTrue(insufficient.sourceBindingDrift)
+        XCTAssertFalse(insufficient.mayStartFieldWork)
+
+        // A reservation change with the same verdict is still drift.
+        let reservationChanged = try OfflineReadinessManifestBuilderV1.build(
+            snapshot: try C06OfflineReadinessTestSupportV1.snapshot(storage: try storage(10_000, reserved: 5_000)),
+            previous: first)
+        XCTAssertNotEqual(reservationChanged.sourceSnapshotSHA256, first.sourceSnapshotSHA256)
+        XCTAssertTrue(reservationChanged.sourceBindingDrift)
+        XCTAssertEqual(reservationChanged.status, .stale)
+        XCTAssertFalse(reservationChanged.mayStartFieldWork)
+
+        // Capacity that can no longer be checked is drift and cannot start.
+        let unchecked = try OfflineReadinessManifestBuilderV1.build(
+            snapshot: try C06OfflineReadinessTestSupportV1.snapshot(storage: try storage(nil, state: .unavailable)),
+            previous: first)
+        XCTAssertNotEqual(unchecked.sourceSnapshotSHA256, first.sourceSnapshotSHA256)
+        XCTAssertTrue(unchecked.sourceBindingDrift)
+        XCTAssertFalse(unchecked.mayStartFieldWork)
+    }
 }

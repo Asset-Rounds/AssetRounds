@@ -1,38 +1,33 @@
 import SwiftUI
 
 /// Route facts for the contained C43 enrollment surface. The model carries
-/// only stable identifiers and the frozen purpose; it does not restore or
-/// persist a navigation path.
+/// the stable subject key, the frozen purpose and the frozen subject display;
+/// it does not restore or persist a navigation path. The editor is a local
+/// push, and the history route exists only after a durable receipt.
 struct SignoffEnrollmentRouteMetadataV1: Equatable, Hashable, Sendable {
     let workspaceID: WorkspaceID
-    let signoffID: UUID
     let subjectID: UUID
     let subjectRevision: UInt64
     let purpose: String
+    let subject: CompletedWorkSubjectDisplayV1
 
     init(
         workspaceID: WorkspaceID,
         subjectID: UUID,
         subjectRevision: UInt64,
-        signoffID: UUID = UUID()
+        subject: CompletedWorkSubjectDisplayV1
     ) {
         self.workspaceID = workspaceID
-        self.signoffID = signoffID
         self.subjectID = subjectID
         self.subjectRevision = subjectRevision
+        self.subject = subject
         purpose = SignoffEnrollmentManifestV1.workDetailCompletedResponseV1.purpose
     }
 
-    var editorRoute: SignoffEditorRouteV1 {
-        SignoffEditorRouteV1(
-            workspaceID: workspaceID,
-            signoffID: signoffID,
-            expectedRevision: subjectRevision
-        )
-    }
-
-    var historyRoute: SignoffHistoryRouteV1 {
-        SignoffHistoryRouteV1(workspaceID: workspaceID, signoffID: signoffID)
+    /// The history route names the durable snapshot from the receipt; no
+    /// identifier is invented before the write is acknowledged.
+    func historyRoute(for receipt: SignoffEnrollmentReceiptV1) -> SignoffHistoryRouteV1 {
+        SignoffHistoryRouteV1(workspaceID: workspaceID, signoffID: receipt.snapshotID)
     }
 
     var routeChain: SignoffEnrollmentRouteChainTruthV1 {
@@ -74,6 +69,16 @@ enum SignoffEnrollmentRevisionStateV1: String, Equatable, Sendable {
     case unavailable
 }
 
+/// The owner's real result for one Record or Try again action.
+enum SignoffEnrollmentRecordResultV1: Equatable, Sendable {
+    case saved
+    case stale
+    case unavailable
+    case accessDenied
+    case uncertain
+    case notRecorded
+}
+
 /// Shared, iPhone-native C43 response editor. It owns no canonical writer,
 /// identity resolution, biometric operation, or route transition. The owner
 /// receives a typed submission and decides whether the existing canonical
@@ -107,11 +112,17 @@ struct SignoffEnrollmentView: View {
     static let recordApprovalResponseAccessibilityIdentifier = confirmAccessibilityIdentifier
     static let cancelAccessibilityIdentifier = "v23.p04.c43.signoff-enrollment.cancel"
     static let boundariesAccessibilityIdentifier = "v23.p04.c43.signoff-enrollment.boundaries"
+    static let retryAccessibilityIdentifier = "v23.p04.c43.signoff-enrollment.retry"
 
     let route: SignoffEnrollmentRouteMetadataV1
     let revisionState: SignoffEnrollmentRevisionStateV1
-    let onRecordResponse: @MainActor (SignoffEnrollmentSubmissionV1) -> Void
+    let onRecordResponse: @MainActor (SignoffEnrollmentSubmissionV1) -> SignoffEnrollmentRecordResultV1
+    let onRetry: @MainActor () -> SignoffEnrollmentRecordResultV1
     let onCancel: @MainActor () -> Void
+    /// The editor reopened on an earlier attempt that may be durable. Its
+    /// retained entries are shown read-only and only Try again is offered.
+    let resumesRetainedAttempt: Bool
+    let retainedAttemptHasDrawnMark: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -127,6 +138,8 @@ struct SignoffEnrollmentView: View {
     @State private var failureMessage: String?
     @State private var statusMessage: String?
     @State private var isSubmitting = false
+    @State private var isBlockedByNewerVersion = false
+    @State private var awaitingRetry = false
 
     private enum FocusTarget: Hashable {
         case heading
@@ -153,16 +166,26 @@ struct SignoffEnrollmentView: View {
         initialTypedName: String = "",
         initialClaimedRole: String = "",
         initialClaimedRelationship: SitePartyRoleV1? = nil,
-        onRecordResponse: @escaping @MainActor (SignoffEnrollmentSubmissionV1) -> Void,
+        resumesRetainedAttempt: Bool = false,
+        retainedAttemptHasDrawnMark: Bool = false,
+        onRecordResponse: @escaping @MainActor (SignoffEnrollmentSubmissionV1) -> SignoffEnrollmentRecordResultV1,
+        onRetry: @escaping @MainActor () -> SignoffEnrollmentRecordResultV1,
         onCancel: @escaping @MainActor () -> Void
     ) {
         self.route = route
         self.revisionState = revisionState
         self.onRecordResponse = onRecordResponse
+        self.onRetry = onRetry
         self.onCancel = onCancel
+        self.resumesRetainedAttempt = resumesRetainedAttempt
+        self.retainedAttemptHasDrawnMark = retainedAttemptHasDrawnMark
         _typedName = State(initialValue: initialTypedName)
         _claimedRole = State(initialValue: initialClaimedRole)
         _claimedRelationship = State(initialValue: initialClaimedRelationship)
+        _awaitingRetry = State(initialValue: resumesRetainedAttempt)
+        _failureMessage = State(
+            initialValue: resumesRetainedAttempt ? Self.retainedAttemptMessage : nil
+        )
     }
 
     var body: some View {
@@ -207,6 +230,13 @@ struct SignoffEnrollmentView: View {
             .padding(DesignTokens.Spacing.medium)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier(Self.editorAccessibilityIdentifier)
+            #if DEBUG
+            .background {
+                NativeScreenObservationAnchorV1(identifier: Self.screenAccessibilityIdentifier)
+                    .frame(width: 0, height: 0)
+                    .allowsHitTesting(false)
+            }
+            #endif
         }
         .navigationTitle("Record response")
         .navigationBarTitleDisplayMode(.inline)
@@ -248,16 +278,20 @@ struct SignoffEnrollmentView: View {
 
     private var subjectContext: some View {
         WorklightCard {
-            sectionHeading("Completed work", identifier: Self.immutableDetailAccessibilityIdentifier)
-            valueRow("Subject", route.subjectID.uuidString)
-            valueRow("Purpose", route.purpose)
+            sectionHeading("Completed work", identifier: Self.subjectAccessibilityIdentifier)
+            valueRow("Asset", route.subject.assetLabel)
+            valueRow("Site", route.subject.siteLabel)
+            valueRow("Stage", route.subject.stage)
+            valueRow("Outcome", route.subject.outcome)
+            valueRow("Completed", route.subject.whenText)
+            valueRow("Response type", "Approval response")
                 .accessibilityIdentifier(Self.purposeAccessibilityIdentifier)
-            valueRow("Completed-work revision", "\(route.subjectRevision)")
+            valueRow("Version", route.subject.versionText)
                 .accessibilityIdentifier(Self.revisionAccessibilityIdentifier)
 
-            if revisionState == .current {
+            if revisionState == .current && !isBlockedByNewerVersion {
                 Text(
-                    "This response is bound to the supplied immutable completed-work revision. Review the detail again if the revision becomes stale."
+                    "This response is bound to this version of the completed work. It does not change the work record."
                 )
                 .font(.footnote)
                 .foregroundStyle(DesignTokens.Colors.secondaryText)
@@ -269,12 +303,6 @@ struct SignoffEnrollmentView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityFocused($accessibilityFocus, equals: .revisionWarning)
             }
-
-            Text("The owner supplies the SignoffHistoryRouteV1 destination after a response action is accepted.")
-                .font(.footnote)
-                .foregroundStyle(DesignTokens.Colors.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier(Self.historyAccessibilityIdentifier)
         }
         .accessibilityElement(children: .contain)
     }
@@ -320,6 +348,7 @@ struct SignoffEnrollmentView: View {
                     }
                 }
                 .pickerStyle(.menu)
+                .disabled(awaitingRetry)
                 .frame(minHeight: DesignTokens.Control.minimumHitSize, alignment: .leading)
                 .accessibilityLabel("Claimed relationship")
                 .accessibilityHint(
@@ -386,11 +415,7 @@ struct SignoffEnrollmentView: View {
             )
             .accessibilityHidden(true)
 
-            Text(
-                markStrokes.isEmpty
-                    ? "No drawn mark is present."
-                    : "A temporary drawn mark is present for this screen only."
-            )
+            Text(drawnMarkStatusText)
             .font(.footnote)
             .foregroundStyle(DesignTokens.Colors.secondaryText)
             .fixedSize(horizontal: false, vertical: true)
@@ -402,7 +427,7 @@ struct SignoffEnrollmentView: View {
                     activeStrokeID = nil
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
-                .disabled(markStrokes.isEmpty || isSubmitting)
+                .disabled(markStrokes.isEmpty || isSubmitting || awaitingRetry)
                 .accessibilityHint("Removes the temporary mark from this screen.")
                 .accessibilityIdentifier(Self.clearDrawnMarkAccessibilityIdentifier)
 
@@ -411,7 +436,7 @@ struct SignoffEnrollmentView: View {
                     activeStrokeID = nil
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
-                .disabled(isSubmitting)
+                .disabled(isSubmitting || awaitingRetry)
                 .accessibilityHint("Continues without a drawn mark. Typed entry remains available.")
                 .accessibilityIdentifier(Self.skipDrawnMarkAccessibilityIdentifier)
             }
@@ -423,11 +448,21 @@ struct SignoffEnrollmentView: View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
             Button("Record approval response", action: submit)
                 .buttonStyle(WorklightPrimaryButtonStyle())
-                .disabled(isSubmitting)
+                .disabled(isSubmitting || isBlockedByNewerVersion || awaitingRetry)
                 .accessibilityHint(
                     "Records your self-asserted response after required fields are valid. It does not verify identity or approval."
                 )
                 .accessibilityIdentifier(Self.confirmAccessibilityIdentifier)
+
+            if awaitingRetry {
+                Button("Try again", action: retry)
+                    .buttonStyle(WorklightSecondaryButtonStyle())
+                    .disabled(isSubmitting)
+                    .accessibilityHint(
+                        "Checks whether your response was recorded. It is never recorded twice."
+                    )
+                    .accessibilityIdentifier(Self.retryAccessibilityIdentifier)
+            }
 
             Button("Cancel", action: cancel)
                 .buttonStyle(WorklightSecondaryButtonStyle())
@@ -460,14 +495,32 @@ struct SignoffEnrollmentView: View {
     }
 
     private var revisionMessage: String {
+        if isBlockedByNewerVersion {
+            return Self.reviewCurrentVersionMessage
+        }
         switch revisionState {
         case .current:
             return ""
         case .stale:
-            return "This completed-work revision is stale. Return to the detail and review the current immutable revision before recording a response."
+            return Self.reviewCurrentVersionMessage
         case .unavailable:
-            return "This completed-work revision is unavailable. Return to the detail and review the completed work before recording a response."
+            return "This completed work is unavailable. Return to the detail before recording a response."
         }
+    }
+
+    private static let reviewCurrentVersionMessage =
+        "Review the current version. This completed work changed after you opened it, so a response cannot be recorded here. Your typed entries are kept."
+
+    private static let retainedAttemptMessage =
+        "AssetRounds could not confirm whether your earlier response was recorded. Its entries are shown below. Use Try again to check. It is never recorded twice."
+
+    private var drawnMarkStatusText: String {
+        if awaitingRetry && retainedAttemptHasDrawnMark && markStrokes.isEmpty {
+            return "The earlier attempt included a drawn mark. The mark itself is not stored."
+        }
+        return markStrokes.isEmpty
+            ? "No drawn mark is present."
+            : "A temporary drawn mark is present for this screen only."
     }
 
     private func sectionHeading(_ title: String, identifier: String) -> some View {
@@ -526,6 +579,7 @@ struct SignoffEnrollmentView: View {
                             lineWidth: validationMessage == nil ? 1 : 2
                         )
                 }
+                .disabled(awaitingRetry)
                 .accessibilityLabel(title)
                 .accessibilityHint(hint)
                 .accessibilityIdentifier(identifier)
@@ -553,8 +607,10 @@ struct SignoffEnrollmentView: View {
         failureMessage = nil
         statusMessage = nil
 
-        guard revisionState == .current else {
-            validationMessage = revisionMessage
+        guard revisionState == .current, !isBlockedByNewerVersion, !awaitingRetry else {
+            validationMessage = awaitingRetry
+                ? "Use Try again to check the earlier attempt before recording another response."
+                : revisionMessage
             moveAccessibilityFocus(to: .errorSummary)
             return
         }
@@ -597,12 +653,52 @@ struct SignoffEnrollmentView: View {
         )
 
         isSubmitting = true
-        onRecordResponse(submission)
+        let result = onRecordResponse(submission)
         isSubmitting = false
-        markStrokes.removeAll()
-        activeStrokeID = nil
-        statusMessage = "Record approval response action invoked. This surface does not claim a saved, final, or verified result."
-        moveAccessibilityFocus(to: .status)
+        apply(result)
+    }
+
+    private func retry() {
+        validationMessage = nil
+        failureMessage = nil
+        statusMessage = nil
+        isSubmitting = true
+        let result = onRetry()
+        isSubmitting = false
+        apply(result)
+    }
+
+    /// Shows the owner's real result. Only `.saved` clears the temporary
+    /// mark; every other result keeps the typed fields on screen.
+    private func apply(_ result: SignoffEnrollmentRecordResultV1) {
+        switch result {
+        case .saved:
+            awaitingRetry = false
+            markStrokes.removeAll()
+            activeStrokeID = nil
+            statusMessage = "Response recorded. Not verified by AssetRounds."
+            moveAccessibilityFocus(to: .status)
+        case .stale:
+            awaitingRetry = false
+            isBlockedByNewerVersion = true
+            failureMessage = Self.reviewCurrentVersionMessage
+            moveAccessibilityFocus(to: .errorSummary)
+        case .unavailable:
+            awaitingRetry = false
+            failureMessage = "Your response was not recorded. This completed work is unavailable right now."
+            moveAccessibilityFocus(to: .errorSummary)
+        case .accessDenied:
+            failureMessage = "Your response was not recorded because AssetRounds is locked. Unlock AssetRounds and try again."
+            moveAccessibilityFocus(to: .errorSummary)
+        case .uncertain:
+            awaitingRetry = true
+            failureMessage = "AssetRounds could not confirm whether your response was recorded. Use Try again to check. It is never recorded twice."
+            moveAccessibilityFocus(to: .errorSummary)
+        case .notRecorded:
+            awaitingRetry = true
+            failureMessage = "Your response was not recorded. Use Try again to record it with the same entries."
+            moveAccessibilityFocus(to: .errorSummary)
+        }
     }
 
     private func cancel() {
@@ -612,7 +708,7 @@ struct SignoffEnrollmentView: View {
     }
 
     private func appendMarkPoint(_ value: DragGesture.Value) {
-        guard !isSubmitting else { return }
+        guard !isSubmitting, !awaitingRetry else { return }
         if let activeStrokeID,
            let index = markStrokes.firstIndex(where: { $0.id == activeStrokeID }) {
             markStrokes[index].points.append(value.location)

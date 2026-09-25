@@ -118,7 +118,28 @@ final class V9_106SignoffEnrollmentTests: XCTestCase {
         XCTAssertEqual(plan.method, .explicitLocalAcknowledgement); XCTAssertTrue(C43SignoffEnrollmentBoundaryV1.drawnMarkIsNonDurable)
         let receipt = try bundle.coordinator.commit(plan); let encoded = try JSONEncoder().encode(receipt)
         let text = try XCTUnwrap(String(data: encoded, encoding: .utf8))
-        XCTAssertFalse(text.localizedCaseInsensitiveContains("stroke")); XCTAssertFalse(text.localizedCaseInsensitiveContains("image")); XCTAssertFalse(text.localizedCaseInsensitiveContains("biometric"))
+        // No mark material in any stored value or field name. The only structural key
+        // that contains a forbidden word is the mutation receipt's `postImages` list of
+        // entity post-states (`MutationReceiptV1`), whose values are still scanned.
+        let tree = try JSONSerialization.jsonObject(with: encoded)
+        var keys: [String] = []
+        var values: [String] = []
+        func collect(_ node: Any) {
+            if let object = node as? [String: Any] {
+                for (key, value) in object { keys.append(key); collect(value) }
+            } else if let array = node as? [Any] {
+                for element in array { collect(element) }
+            } else if let string = node as? String {
+                values.append(string)
+            }
+        }
+        collect(tree)
+        for forbidden in ["stroke", "image", "biometric"] {
+            let value = values.first { $0.localizedCaseInsensitiveContains(forbidden) }
+            XCTAssertNil(value, "stored value contains \(forbidden)")
+            let key = keys.first { $0.localizedCaseInsensitiveContains(forbidden) && $0 != "postImages" }
+            XCTAssertNil(key, "field name contains \(forbidden)")
+        }
     }
 
     @MainActor func testV23P04C43H01ActorWorkspaceStalenessReceiptAndManifestHostilityReject() throws {

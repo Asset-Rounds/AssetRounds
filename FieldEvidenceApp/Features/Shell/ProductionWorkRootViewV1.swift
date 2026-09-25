@@ -9,6 +9,9 @@ struct ProductionWorkRootViewV1: View {
     var openRound: ((MyDayEligibleReferenceV1) -> Void)? = nil
     var reviewAccess: AppAccessPresentationV1.RoundAccess? = nil
     var openSavedReview: ((MyDayEligibleReferenceV1) -> Void)? = nil
+    /// SIG-1 Completed work section. Opening a row is a local Work-stack push
+    /// owned by this presentation, never a saved navigation route.
+    var completedWork: CompletedWorkPresentationV1? = nil
 
     var body: some View {
         List {
@@ -42,9 +45,13 @@ struct ProductionWorkRootViewV1: View {
             } else {
                 ProgressView("Opening work")
             }
+            if let completedWork {
+                CompletedWorkSectionV1(presentation: completedWork)
+            }
             Section {
                 Button(source.couldNotLoad ? "Try again" : "Refresh work") {
                     Task { await source.refresh() }
+                    completedWork?.refresh()
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
                 .disabled(source.isLoading)
@@ -65,6 +72,9 @@ struct ProductionWorkRootViewV1: View {
         .navigationTitle("Work")
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
         .task { await source.refresh() }
+        // The Completed work listing loads once per Work-root appearance and
+        // is served from the service's revision-keyed cache when unchanged.
+        .task { completedWork?.refresh() }
     }
 
     private func sourceRow(_ item: MyDayLiveSourceV1,
@@ -72,5 +82,101 @@ struct ProductionWorkRootViewV1: View {
         AssetRoundsEvidenceCard {
             ProductionWorkSourceRowV1(source: item, readiness: readiness)
         }
+    }
+}
+
+/// SIG-1 "Completed work" section: current-tip completed work, newest first,
+/// capped by the resolver, each with its bound response count.
+@MainActor
+struct CompletedWorkSectionV1: View {
+    @ObservedObject var presentation: CompletedWorkPresentationV1
+
+    var body: some View {
+        Section {
+            rows
+        } header: {
+            header
+        }
+    }
+
+    private var header: some View {
+        Text("Completed work")
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityIdentifier(SignoffEnrollmentView.workRootAccessibilityIdentifier)
+            #if DEBUG
+            .background {
+                NativeScreenObservationAnchorV1(
+                    identifier: SignoffEnrollmentView.workRootAccessibilityIdentifier
+                )
+                    .frame(width: 0, height: 0)
+                    .allowsHitTesting(false)
+            }
+            #endif
+    }
+
+    @ViewBuilder
+    private var rows: some View {
+        switch presentation.list {
+        case .loading:
+            ProgressView("Opening completed work")
+        case .unavailable:
+            Text("Completed work could not be opened. Try again.")
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+        case let .loaded(items):
+            if items.isEmpty {
+                Text("Completed reports will appear here.")
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+            } else {
+                ForEach(items) { item in
+                    row(item)
+                }
+            }
+        }
+    }
+
+    private func row(_ item: CompletedWorkSubjectListingV1) -> some View {
+        Button {
+            presentation.open(item)
+        } label: {
+            CompletedWorkRowV1(item: item)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(
+            "v23.work.completed." + item.key.subjectID.uuidString.lowercased()
+        )
+    }
+}
+
+@MainActor
+private struct CompletedWorkRowV1: View {
+    let item: CompletedWorkSubjectListingV1
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+            if let display = item.display {
+                Text(display.assetLabel)
+                    .font(.headline)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+                Text(display.siteLabel)
+                    .font(.subheadline)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+                Text(verbatim: "\(display.stage) · \(display.outcome)")
+                    .font(.subheadline)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+                Text(verbatim: "\(display.whenText) · \(display.versionText)")
+                    .font(.footnote)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+            } else {
+                Text("Completed work unavailable")
+                    .font(.headline)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+            }
+            Text(CompletedWorkDetailViewV1.responseCountText(item.responseCount))
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
     }
 }

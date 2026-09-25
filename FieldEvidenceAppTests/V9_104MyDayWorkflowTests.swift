@@ -765,40 +765,54 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
     }
 
     @MainActor
-    func testProductionMyDayReadinessPreservesExactCapacityDriftSemantics() async throws {
+    func testProductionMyDayReadinessUsesCapacityVerdictDriftSemantics() async throws {
         let h = try C41ProductionSourceHarness()
         let fixture = try await h.readinessRound(seed: 3400, withContent: false)
         let plan = try h.plan(items: [.init(membershipID: C41.id(3410), reference: fixture.reference,
             manualOrder: 0, estimate: nil)], seed: 3411)
         try await h.coordinator.awaitSearchIndexLifecycle()
         let baseline = try h.baseline()
-        // Both observations have ample capacity. The incumbent full-source
-        // hash nevertheless marks their difference stale; later stable reads
-        // may publish that stale result, never silently upgrade it to ready.
-        let settles = C41CapacitySequence([1_000_000_000, 999_999_000, 999_999_000, 999_999_000])
-        let settledLedger = try OwnedStorageLedgerV1(applicationSupportURL: h.root, capacityProvider: { _ in settles.read() })
-        let settledBaseline = settledLedger.snapshot()
-        let stale = try await h.assessedProvider(ledger: settledLedger).snapshot(for: plan, evaluatedAt: C41.now)
-        guard case let .roundManifest(manifest)? = stale.readinessAssessments.first?.assessment else {
+        // Free space that moves while the work still fits above the 64 MiB
+        // operation reserve keeps the same storage verdict: no source drift,
+        // and the final publication sample is accepted.
+        let ample = C41CapacitySequence([1_000_000_000, 999_999_000, 999_998_000, 999_997_000])
+        let ampleLedger = try OwnedStorageLedgerV1(applicationSupportURL: h.root, capacityProvider: { _ in ample.read() })
+        let ampleBaseline = ampleLedger.snapshot()
+        let settled = try await h.assessedProvider(ledger: ampleLedger).snapshot(for: plan, evaluatedAt: C41.now)
+        guard case let .roundManifest(manifest)? = settled.readinessAssessments.first?.assessment else {
             return XCTFail("Missing capacity-drift manifest")
         }
-        XCTAssertEqual(manifest.status, .stale)
-        XCTAssertEqual(stale.frontiers.first?.readiness, .notReady)
-        XCTAssertEqual(settles.count, 4)
-        XCTAssertEqual(settledLedger.snapshot(), settledBaseline)
+        XCTAssertEqual(manifest.status, .ready)
+        XCTAssertFalse(manifest.sourceBindingDrift)
+        XCTAssertEqual(settled.frontiers.first?.readiness, .ready)
+        XCTAssertEqual(ample.count, 4)
+        XCTAssertEqual(ampleLedger.snapshot(), ampleBaseline)
         XCTAssertEqual(try h.baseline(), baseline)
-        // A healthy-but-different last publication sample is rejected by the
-        // added freshness check. No rounding or constant-capacity substitution
-        // is permitted; usable live behavior still requires native evidence.
-        let drifts = C41CapacitySequence([1_000_000_000, 1_000_000_000, 1_000_000_000, 999_999_000])
-        let driftingLedger = try OwnedStorageLedgerV1(applicationSupportURL: h.root, capacityProvider: { _ in drifts.read() })
-        let driftingBaseline = driftingLedger.snapshot()
+        // Capacity that falls below the operation reserve between the two
+        // source reads changes the verdict: drift, never silently ready.
+        let flips = C41CapacitySequence([1_000_000_000, 60_000_000, 60_000_000, 60_000_000])
+        let flipsLedger = try OwnedStorageLedgerV1(applicationSupportURL: h.root, capacityProvider: { _ in flips.read() })
+        let flipsBaseline = flipsLedger.snapshot()
+        let flipped = try await h.assessedProvider(ledger: flipsLedger).snapshot(for: plan, evaluatedAt: C41.now)
+        guard case let .roundManifest(flippedManifest)? = flipped.readinessAssessments.first?.assessment else {
+            return XCTFail("Missing verdict-flip manifest")
+        }
+        XCTAssertTrue(flippedManifest.sourceBindingDrift)
+        XCTAssertFalse(flippedManifest.mayStartFieldWork)
+        XCTAssertNotEqual(flipped.frontiers.first?.readiness, .ready)
+        XCTAssertEqual(flips.count, 4)
+        XCTAssertEqual(flipsLedger.snapshot(), flipsBaseline)
+        XCTAssertEqual(try h.baseline(), baseline)
+        // A final publication sample whose verdict differs is still rejected.
+        let lateFlip = C41CapacitySequence([1_000_000_000, 1_000_000_000, 1_000_000_000, 60_000_000])
+        let lateLedger = try OwnedStorageLedgerV1(applicationSupportURL: h.root, capacityProvider: { _ in lateFlip.read() })
+        let lateBaseline = lateLedger.snapshot()
         do {
-            _ = try await h.assessedProvider(ledger: driftingLedger).snapshot(for: plan, evaluatedAt: C41.now)
-            XCTFail("Changed publication capacity was accepted")
+            _ = try await h.assessedProvider(ledger: lateLedger).snapshot(for: plan, evaluatedAt: C41.now)
+            XCTFail("Changed publication verdict was accepted")
         } catch { XCTAssertEqual(error as? MyDaySourceReadFailureV1, .sourcesChanged) }
-        XCTAssertEqual(drifts.count, 4)
-        XCTAssertEqual(driftingLedger.snapshot(), driftingBaseline)
+        XCTAssertEqual(lateFlip.count, 4)
+        XCTAssertEqual(lateLedger.snapshot(), lateBaseline)
         XCTAssertEqual(try h.baseline(), baseline)
     }
 

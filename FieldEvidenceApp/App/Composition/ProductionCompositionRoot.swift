@@ -10,6 +10,8 @@ struct ProductionSignWorkflow {
     let reportHistory: ReportHistoryCoordinator
     let work: WorkCoordinator
     let deletion: WholeSignDeletionService
+    /// SIG-1 completed-work approval responses over the existing writer.
+    let completedWorkResponses: CompletedWorkResponseServiceV1
 }
 
 /// Production C30 adoption of the existing C45 label pipeline. The lifecycle
@@ -391,6 +393,16 @@ final class ProductionCompositionRoot {
             packageLifecycleProfile: profile,
             accessState: accessState
         )
+        let completedWorkResponses = CompletedWorkResponseServiceV1(
+            modelContext: modelContext,
+            writer: lifecycle.writer,
+            workspaceID: lifecycle.workspaceID,
+            generationID: lifecycle.generationID,
+            generationRootURL: lifecycle.generationRootURL,
+            clock: lifecycle.clock,
+            idSource: lifecycle.idSource,
+            signPack: signPack
+        )
         return ProductionSignWorkflow(
             lifecycle: lifecycle,
             firstSign: firstSign,
@@ -398,7 +410,8 @@ final class ProductionCompositionRoot {
             reportDelivery: reportDelivery,
             reportHistory: reportHistory,
             work: work,
-            deletion: deletion
+            deletion: deletion,
+            completedWorkResponses: completedWorkResponses
         )
     }
 

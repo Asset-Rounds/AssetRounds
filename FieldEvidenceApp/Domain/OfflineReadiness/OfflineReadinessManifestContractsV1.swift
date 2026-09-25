@@ -600,10 +600,44 @@ enum OfflineReadinessManifestSourceProofV1 {
         let contentObservations: [OfflineReadinessContentObservationV1]
         let expectedFieldReferences: [OfflineReadinessFieldReferenceRequirementV1]
         let referenceObservations: [OfflineReadinessReferenceObservationV1]
-        let storage: OfflineReadinessStorageObservationV1
+        let storage: StorageVerdict
         let access: OfflineReadinessAccessObservationV1
         let timeZoneIdentifier: String
         let clockState: OfflineReadinessClockStateV1
+
+        /// Storage binds its verdict, not the live free-byte count: free space moves
+        /// between two reads of one rebuild without changing whether the work fits.
+        /// This follows `supportsPublication(ofRecorded:requiredBytes:)`, except that an
+        /// overflowing requirement binds no byte count here; that manifest is blocked.
+        struct StorageVerdict: Codable {
+            let capacityState: OfflineReadinessCapacityStateV1
+            let reservedBytes: Int64
+            let operationReserveBytes: Int64
+            /// Whether checked capacity covers every mandatory requirement plus both
+            /// reservations; nil when capacity is unchecked or the sum overflows.
+            let coversRequirements: Bool?
+
+            init(_ storage: OfflineReadinessStorageObservationV1,
+                 requirements: [OfflineReadinessContentRequirementV1]) {
+                capacityState = storage.capacityState
+                reservedBytes = storage.reservedBytes
+                operationReserveBytes = storage.operationReserveBytes
+                var required: Int64? = 0
+                let additions = requirements.filter(\.mandatory).map(\.reference.byteLength)
+                    + [storage.reservedBytes, storage.operationReserveBytes]
+                for addition in additions {
+                    guard let current = required else { break }
+                    let (next, overflow) = current.addingReportingOverflow(addition)
+                    required = overflow ? nil : next
+                }
+                if storage.capacityState == .checked, let available = storage.availableBytes,
+                   let required {
+                    coversRequirements = available >= required
+                } else {
+                    coversRequirements = nil
+                }
+            }
+        }
 
         init(input: OfflineReadinessManifestReductionInputV1) {
             session = input.session
@@ -617,7 +651,7 @@ enum OfflineReadinessManifestSourceProofV1 {
             contentObservations = input.contentObservations
             expectedFieldReferences = input.expectedFieldReferences
             referenceObservations = input.referenceObservations
-            storage = input.storage
+            storage = StorageVerdict(input.storage, requirements: input.contentRequirements)
             access = input.access
             timeZoneIdentifier = input.timeZoneIdentifier
             clockState = input.clockState

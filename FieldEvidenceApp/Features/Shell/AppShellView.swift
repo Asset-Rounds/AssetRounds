@@ -51,6 +51,7 @@ private struct ProductionShellComposition {
     let workflow: ProductionSignWorkflow
     let scene: AppShellSceneStateV1
     let myDaySources: ProductionMyDaySourceStateV1
+    let completedWork: CompletedWorkPresentationV1
 }
 
 @MainActor
@@ -233,8 +234,10 @@ struct ReportsNavigationPresentationV1: Equatable {
         snapshotID: UUID?
     ) -> [ReportHistoryRoute] {
         let canonical: [ReportHistoryRoute] = Array(routes.prefix { route in
-            if case .report(_) = route { return true }
-            return false
+            switch route {
+            case .report, .signoffHistory: return true
+            case .comparison: return false
+            }
         })
         transientAnchor = canonical
         transientRoutes = Array(routes.dropFirst(canonical.count))
@@ -426,7 +429,8 @@ struct AppShellView: View {
                     Group {
                         if scene.snapshot != nil {
                             availableTabs(pack: pack, workflow: productionComposition.workflow,
-                                scene: scene, sources: productionComposition.myDaySources)
+                                scene: scene, sources: productionComposition.myDaySources,
+                                completedWork: productionComposition.completedWork)
                         } else {
                             ProductionWorkflowUnavailableView(
                                 message: "Navigation could not be restored safely.",
@@ -457,7 +461,8 @@ struct AppShellView: View {
         pack: SignPack,
         workflow: ProductionSignWorkflow,
         scene: AppShellSceneStateV1,
-        sources: ProductionMyDaySourceStateV1
+        sources: ProductionMyDaySourceStateV1,
+        completedWork: CompletedWorkPresentationV1
     ) -> some View {
         TabView(selection: rootSelection(scene)) {
             SwiftUI.Tab(value: AppRootV1.today) {
@@ -472,11 +477,7 @@ struct AppShellView: View {
 
             SwiftUI.Tab(value: AppRootV1.work) {
                 NavigationStack(path: workPath(scene)) {
-                    ProductionWorkRootViewV1(source: sources, openRound: roundAccess.map { _ in
-                        { reference in openRound(reference, in: scene) }
-                    }, reviewAccess: roundAccess, openSavedReview: roundAccess.map { _ in
-                        { reference in openSavedReview(reference, in: scene) }
-                    })
+                    workRoot(scene: scene, sources: sources, completedWork: completedWork)
                         .sheet(item: Binding(get: { savedReview.route },
                             set: { if $0 == nil { savedReview.dismiss() } })) { route in
                             if let roundAccess {
@@ -564,7 +565,8 @@ struct AppShellView: View {
             SwiftUI.Tab(value: AppRootV1.reports) {
                 NavigationStack(path: reportHistoryPath(scene)) {
                     ReportsRootView(
-                        workflow: workflow
+                        workflow: workflow,
+                        loadSignoffHistory: signoffHistoryLoader(workflow)
                     )
                     .toolbar {
                         settingsToolbar
@@ -592,6 +594,81 @@ struct AppShellView: View {
         .environment(\.appLockSettingsSection, appLockSettingsSection)
         .environment(\.reminderSettingsSection, reminderSettingsSection)
         .environment(\.appContentAccess, contentAccess)
+    }
+
+    /// The Work root with the SIG-1 Completed work section. Its detail and
+    /// editor are local pushes; they never enter the saved Work path.
+    private func workRoot(
+        scene: AppShellSceneStateV1,
+        sources: ProductionMyDaySourceStateV1,
+        completedWork: CompletedWorkPresentationV1
+    ) -> some View {
+        let openRoundAction: ((MyDayEligibleReferenceV1) -> Void)? = roundAccess.map { _ in
+            { reference in openRound(reference, in: scene) }
+        }
+        let openReviewAction: ((MyDayEligibleReferenceV1) -> Void)? = roundAccess.map { _ in
+            { reference in openSavedReview(reference, in: scene) }
+        }
+        return ProductionWorkRootViewV1(
+            source: sources,
+            openRound: openRoundAction,
+            reviewAccess: roundAccess,
+            openSavedReview: openReviewAction,
+            completedWork: completedWork
+        )
+        .completedWorkNavigation(completedWork)
+    }
+
+    /// Every service call runs inside the current content-access read.
+    private func signoffHistoryLoader(
+        _ workflow: ProductionSignWorkflow
+    ) -> CompletedWorkHistoryLoaderV1 {
+        let access = contentAccess
+        let service = workflow.completedWorkResponses
+        return { signoffID in
+            try access.withRead {
+                try service.history(focusedSignoffID: signoffID)
+            }
+        }
+    }
+
+    /// Composes the SIG-1 presentation over the one workflow service. Each
+    /// service call runs inside the current content-access read; the history
+    /// scene transition runs outside it, as its own scene operation.
+    private func makeCompletedWorkPresentation(
+        workflow: ProductionSignWorkflow,
+        scene: AppShellSceneStateV1
+    ) -> CompletedWorkPresentationV1 {
+        let access = contentAccess
+        let service = workflow.completedWorkResponses
+        let list: CompletedWorkListOperationV1 = {
+            try access.withRead { try service.completedWork() }
+        }
+        let detail: CompletedWorkDetailOperationV1 = { key in
+            try access.withRead { try service.subjectDetail(key) }
+        }
+        let prepare: CompletedWorkPrepareOperationV1 = { submission, proof in
+            try access.withRead {
+                try service.prepare(submission: submission, expectedProof: proof)
+            }
+        }
+        let record: CompletedWorkRecordOperationV1 = { prepared in
+            try access.withRead { service.record(prepared) }
+        }
+        let openHistory: CompletedWorkOpenHistoryOperationV1 = { route in
+            do {
+                try scene.open(try route.reportsTarget)
+            } catch {
+                productionCompositionErrorMessage = "Navigation could not be restored safely."
+            }
+        }
+        return CompletedWorkPresentationV1(operations: CompletedWorkPresentationV1.Operations(
+            list: list,
+            detail: detail,
+            prepare: prepare,
+            record: record,
+            openHistory: openHistory
+        ))
     }
 
     private func nativeTabIdentifierBinder() -> NativeTabAccessibilityIdentifierBinder {
@@ -730,11 +807,14 @@ struct AppShellView: View {
         guard let targets = scene.snapshot?.path(for: .reports)?.targets else {
             return []
         }
-        return targets.compactMap { target in
-            guard target.destination == .reports,
-                  target.requestedMode == .read,
-                  let reportID = target.stableEntityID else { return nil }
-            return .report(reportID)
+        return targets.compactMap { target -> ReportHistoryRoute? in
+            guard target.requestedMode == .read,
+                  let entityID = target.stableEntityID else { return nil }
+            switch target.destination {
+            case .reports: return .report(entityID)
+            case .signoffHistory: return .signoffHistory(entityID)
+            default: return nil
+            }
         }
     }
 
@@ -781,25 +861,42 @@ struct AppShellView: View {
         let existing = scene.snapshot?.path(for: .reports)?.targets ?? []
         var targets: [NavigationTargetV1] = []
         for route in routes {
-            guard case let .report(reportID) = route else { return nil }
-            if let target = existing.first(where: {
-                $0.destination == .reports
-                    && $0.requestedMode == .read
-                    && $0.stableEntityID == reportID
-            }) {
-                targets.append(target)
-            } else if let target = try? NavigationTargetV1(
-                workspaceID: storeSession.workspaceID,
-                destination: .reports,
-                stableEntityID: reportID,
-                requestedMode: .read,
-                fallback: try NavigationFallbackV1(
-                    root: .reports,
-                    destination: .reports
-                )
-            ) {
-                targets.append(target)
-            } else { return nil }
+            switch route {
+            case let .report(reportID):
+                if let target = existing.first(where: {
+                    $0.destination == .reports
+                        && $0.requestedMode == .read
+                        && $0.stableEntityID == reportID
+                }) {
+                    targets.append(target)
+                } else if let target = try? NavigationTargetV1(
+                    workspaceID: storeSession.workspaceID,
+                    destination: .reports,
+                    stableEntityID: reportID,
+                    requestedMode: .read,
+                    fallback: try NavigationFallbackV1(
+                        root: .reports,
+                        destination: .reports
+                    )
+                ) {
+                    targets.append(target)
+                } else { return nil }
+            case let .signoffHistory(signoffID):
+                if let target = existing.first(where: {
+                    $0.destination == .signoffHistory
+                        && $0.requestedMode == .read
+                        && $0.stableEntityID == signoffID
+                }) {
+                    targets.append(target)
+                } else if let target = try? SignoffHistoryRouteV1(
+                    workspaceID: storeSession.workspaceID,
+                    signoffID: signoffID
+                ).reportsTarget {
+                    targets.append(target)
+                } else { return nil }
+            case .comparison:
+                return nil
+            }
         }
         return targets
     }
@@ -856,9 +953,12 @@ struct AppShellView: View {
             try scene.restore()
             let sources = ProductionMyDaySourceStateV1(workspaceID: storeSession.workspaceID,
                 access: myDayAccess)
+            let completedWork = makeCompletedWorkPresentation(workflow: composed.workflow,
+                scene: scene)
             try contentAccess.withRead {
                 productionComposition = ProductionShellComposition(root: composed.root,
-                    workflow: composed.workflow, scene: scene, myDaySources: sources)
+                    workflow: composed.workflow, scene: scene, myDaySources: sources,
+                    completedWork: completedWork)
             }
             #if DEBUG
             onProductionSceneBoundForTesting?(scene)

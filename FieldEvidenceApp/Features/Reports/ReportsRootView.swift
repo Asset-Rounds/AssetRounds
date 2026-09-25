@@ -14,6 +14,7 @@ struct ReportsRootView: View {
 
     private let deliveryCoordinator: ReportDeliveryCoordinator
     private let historyCoordinator: ReportHistoryCoordinator
+    private let loadSignoffHistory: CompletedWorkHistoryLoaderV1?
 
     @State private var indexValue: ReportHistoryIndexValue?
     @State private var siteOptions: [ReportHistoryFilterOption] = []
@@ -30,9 +31,13 @@ struct ReportsRootView: View {
         case signFilter
     }
 
-    init(workflow: ProductionSignWorkflow) {
+    init(
+        workflow: ProductionSignWorkflow,
+        loadSignoffHistory: CompletedWorkHistoryLoaderV1? = nil
+    ) {
         deliveryCoordinator = workflow.reportDelivery
         historyCoordinator = workflow.reportHistory
+        self.loadSignoffHistory = loadSignoffHistory
     }
 
     var body: some View {
@@ -198,6 +203,17 @@ struct ReportsRootView: View {
                 stableRootID: stableRootID,
                 historyCoordinator: historyCoordinator
             )
+        case let .signoffHistory(signoffID):
+            signoffHistoryDestination(signoffID)
+        }
+    }
+
+    @ViewBuilder
+    private func signoffHistoryDestination(_ signoffID: UUID) -> some View {
+        if let loadSignoffHistory {
+            SignoffResponseHistoryViewV1(signoffID: signoffID, load: loadSignoffHistory)
+        } else {
+            ReportHistoryUnavailableView(message: "These responses are unavailable here.")
         }
     }
 
@@ -379,6 +395,10 @@ struct SignReportHistoryView: View {
                 stableRootID: stableRootID,
                 historyCoordinator: historyCoordinator
             )
+        case .signoffHistory:
+            // Response history is a Reports-root route only; this sign history
+            // never offers or restores it.
+            ReportHistoryUnavailableView(message: "These responses are unavailable here.")
         }
     }
 
@@ -414,11 +434,13 @@ struct SignReportHistoryView: View {
     }
 }
 
-// The shell binds only the canonical report case to its device-local scene
-// path. Comparison remains an incumbent, transient Reports presentation.
+// The shell binds the canonical report and signoff-history read cases to its
+// device-local scene path. Comparison remains an incumbent, transient Reports
+// presentation.
 enum ReportHistoryRoute: Hashable {
     case report(UUID)
     case comparison(UUID)
+    case signoffHistory(UUID)
 }
 
 private struct ReportVisitList: View {
