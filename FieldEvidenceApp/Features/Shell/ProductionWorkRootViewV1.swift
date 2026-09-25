@@ -186,7 +186,7 @@ private struct CompletedWorkRowV1: View {
     let item: CompletedWorkSubjectListingV1
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
             if let display = item.display {
                 Text(display.assetLabel)
                     .font(.headline)

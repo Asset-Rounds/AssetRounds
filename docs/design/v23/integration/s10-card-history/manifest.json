@@ -1,0 +1,521 @@
+{
+  "schema_version": 1,
+  "document_id": "v23-s10-card-history-v1",
+  "document_status": "frozen_historical_copies",
+  "owner_decision": "2026-09-25 decision A: S10 card-time state tests check the committed S10 history instead of live CI and record files.",
+  "authority": "docs/design/s10/s10-stage-checkpoints.json (five accepted receipts); this index adds no product, acceptance or release authority.",
+  "copy_rule": "Each copy is the exact git blob of path at commit, stored as blobs/<first 16 hex digits of SHA-256><extension>. Verify any row with: git rev-parse <commit>:<path> (expect git_blob_oid) and git show <commit>:<path> | sha256sum (expect sha256).",
+  "commit_roles": {
+    "E": "card product head recorded as product_head in the stage checkpoint (where the card's unit tests ran)",
+    "K": "card evidence head recorded as evidence_head/blob_commit in the stage checkpoint",
+    "C": "card receipt commit that appended the stage checkpoint row"
+  },
+  "consumers": {
+    "S10.1": "FieldEvidenceAppTests/S10_1BrandInventoryTests.swift",
+    "S10.2": "FieldEvidenceAppTests/S10_2BrandComponentTests.swift",
+    "S10.3": "FieldEvidenceAppTests/S10_3BrandMigrationTests.swift",
+    "S10.4": "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift"
+  },
+  "verifier": "FieldEvidenceAppTests/S10CardHistoryV1.swift",
+  "entries": [
+    {
+      "card_id": "S10.1",
+      "gate_id": "s10.1-inventory",
+      "path": "docs/design/s10/s10-stage-checkpoints.json",
+      "commit": "fc26103d120eff3a632d353cce4f0d9168a35040",
+      "commit_role": "C",
+      "byte_count": 2669,
+      "sha256": "4EB92CA3DF6D9EF0DC49450A88F921191D8D78C87E0B02026A19EA007C26D1AA",
+      "git_blob_oid": "e06a4a0c8a5c7f8431795af1cdfb3ea6cee8ab2d",
+      "copy": "blobs/4EB92CA3DF6D9EF0.json",
+      "bindings": [
+        {
+          "kind": "checkpoint_row",
+          "gate_id": "s10.1-inventory"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.1",
+      "gate_id": "s10.1-inventory",
+      "path": "docs/design/s10/s10-screen-state-inventory.json",
+      "commit": "29a49d0145980bf1cb3c1f6ec260a6af579902d4",
+      "commit_role": "K",
+      "byte_count": 173645,
+      "sha256": "40CF1DC0BD5BA1373CEBADE6956FFCDB100B34279764173BBBB2DBE01D524B71",
+      "git_blob_oid": "2a3f525c097008d16c341ac541d55da9ad92fd65",
+      "copy": "blobs/40CF1DC0BD5BA137.json",
+      "bindings": [
+        {
+          "kind": "checkpoint_document",
+          "gate_id": "s10.1-inventory",
+          "document_type": "screen_state_inventory"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.1",
+      "gate_id": "s10.1-inventory",
+      "path": "docs/design/s10/s10-accessibility-common-tasks.json",
+      "commit": "29a49d0145980bf1cb3c1f6ec260a6af579902d4",
+      "commit_role": "K",
+      "byte_count": 58904,
+      "sha256": "B7EDB1DD18BAB6DEE1884DA52C15F63AD5AD06045F58444C61442957558999F0",
+      "git_blob_oid": "e4bae1d13d1bc879d4efc5d5052b755b8f71f33c",
+      "copy": "blobs/B7EDB1DD18BAB6DE.json",
+      "bindings": [
+        {
+          "kind": "checkpoint_document",
+          "gate_id": "s10.1-inventory",
+          "document_type": "accessibility_common_tasks"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.1",
+      "gate_id": "s10.1-inventory",
+      "path": "docs/design/s10/s10-token-coverage.json",
+      "commit": "29a49d0145980bf1cb3c1f6ec260a6af579902d4",
+      "commit_role": "K",
+      "byte_count": 70212,
+      "sha256": "7F6310CD68E1EEA01EC4AB47D0AB56BDF5C15644794FD7360C36AB498BD2A428",
+      "git_blob_oid": "7bce6000101fb8e44b051d4336c204b49129b9dd",
+      "copy": "blobs/7F6310CD68E1EEA0.json",
+      "bindings": [
+        {
+          "kind": "checkpoint_document",
+          "gate_id": "s10.1-inventory",
+          "document_type": "token_coverage"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.1",
+      "gate_id": "s10.1-inventory",
+      "path": "docs/design/s10/s10-visual-regression.json",
+      "commit": "29a49d0145980bf1cb3c1f6ec260a6af579902d4",
+      "commit_role": "K",
+      "byte_count": 145044,
+      "sha256": "C111BB31056801C996049E94B3B1ACEFCDAAC6BBABD80576644F751799319AB1",
+      "git_blob_oid": "52a6e8bf2678a421b0ecddfb5af057f14fc1277e",
+      "copy": "blobs/C111BB31056801C9.json",
+      "bindings": [
+        {
+          "kind": "checkpoint_document",
+          "gate_id": "s10.1-inventory",
+          "document_type": "visual_regression"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.1",
+      "gate_id": "s10.1-inventory",
+      "path": "docs/design/s10/s10-experience-validation.json",
+      "commit": "29a49d0145980bf1cb3c1f6ec260a6af579902d4",
+      "commit_role": "K",
+      "byte_count": 7128,
+      "sha256": "804341D6E9E287EE19954576B1E9FB38B887163B6C5C255D94FCCC1EB279F69F",
+      "git_blob_oid": "0689172951f8529ce876419a37324bb4dd51e322",
+      "copy": "blobs/804341D6E9E287EE.json",
+      "bindings": [
+        {
+          "kind": "checkpoint_document",
+          "gate_id": "s10.1-inventory",
+          "document_type": "experience_validation"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.1",
+      "gate_id": "s10.1-inventory",
+      "path": "docs/design/s10/s10-store-readiness.json",
+      "commit": "29a49d0145980bf1cb3c1f6ec260a6af579902d4",
+      "commit_role": "K",
+      "byte_count": 8649,
+      "sha256": "D8AB503B5864C812E4E808DC214D9351E95BA58DC496D6505905E69408DAEABA",
+      "git_blob_oid": "7a72ccd5c8270ec335f0aa805d606a5be184a534",
+      "copy": "blobs/D8AB503B5864C812.json",
+      "bindings": [
+        {
+          "kind": "checkpoint_document",
+          "gate_id": "s10.1-inventory",
+          "document_type": "store_readiness"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.1",
+      "gate_id": "s10.1-inventory",
+      "path": "Scripts/ci-selection.json",
+      "commit": "44e9f9471f8ced9ecdd85f241a79c3750c38412d",
+      "commit_role": "E",
+      "byte_count": 348,
+      "sha256": "2845C608EE15C2B53990C613D19981FFA713F02BD034CF2E007B7514573BF012",
+      "git_blob_oid": "4cc7d79942d42b7e649cadfa3bb38a03676c2593",
+      "copy": "blobs/2845C608EE15C2B5.json",
+      "bindings": [
+        {
+          "kind": "git_blob_only"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.2",
+      "gate_id": "s10.2-component-system",
+      "path": "docs/design/s10/s10-token-coverage.json",
+      "commit": "28c5851a432db026251012de1e396a5896c9f91f",
+      "commit_role": "E",
+      "byte_count": 70212,
+      "sha256": "7F6310CD68E1EEA01EC4AB47D0AB56BDF5C15644794FD7360C36AB498BD2A428",
+      "git_blob_oid": "7bce6000101fb8e44b051d4336c204b49129b9dd",
+      "copy": "blobs/7F6310CD68E1EEA0.json",
+      "bindings": [
+        {
+          "kind": "checkpoint_document",
+          "gate_id": "s10.1-inventory",
+          "document_type": "token_coverage"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.2",
+      "gate_id": "s10.2-component-system",
+      "path": "Scripts/ci-selection.json",
+      "commit": "28c5851a432db026251012de1e396a5896c9f91f",
+      "commit_role": "E",
+      "byte_count": 346,
+      "sha256": "55236E8C1FD515B5517BC1813CD6B065320DEDD0380CC51257426696969BBD88",
+      "git_blob_oid": "933598e9f8e7817466b5a9d84f2f03a395134738",
+      "copy": "blobs/55236E8C1FD515B5.json",
+      "bindings": [
+        {
+          "kind": "git_blob_only"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.3",
+      "gate_id": "s10.3-migration",
+      "path": "docs/design/s10/s10-token-coverage.json",
+      "commit": "e1004c9cfeff932e904046e0ad1aa31d2bb2c139",
+      "commit_role": "E",
+      "byte_count": 70817,
+      "sha256": "D52B72B86D40AB93EE58BD467A0B83834D7F58ABAB39C08096DFBF094719B476",
+      "git_blob_oid": "30197325f25445b588802e20acf41cc63b3af29e",
+      "copy": "blobs/D52B72B86D40AB93.json",
+      "bindings": [
+        {
+          "kind": "checkpoint_document",
+          "gate_id": "s10.2-component-system",
+          "document_type": "token_coverage"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.3",
+      "gate_id": "s10.3-migration",
+      "path": "Scripts/ci-selection.json",
+      "commit": "e1004c9cfeff932e904046e0ad1aa31d2bb2c139",
+      "commit_role": "E",
+      "byte_count": 348,
+      "sha256": "5EFEF5082CD41316FF7FFA13663B4F6A641A536B8D93DF3DCCAB8C0196F217B5",
+      "git_blob_oid": "3e4f27a298ee37ffc6ff65fb21528c619ea9e715",
+      "copy": "blobs/5EFEF5082CD41316.json",
+      "bindings": [
+        {
+          "kind": "git_blob_only"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.3",
+      "gate_id": "s10.3-migration",
+      "path": "FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift",
+      "commit": "e1004c9cfeff932e904046e0ad1aa31d2bb2c139",
+      "commit_role": "E",
+      "byte_count": 69419,
+      "sha256": "E23F458F7E23A1721069C25C97AE4BDCAD02A45DC37D24C7F5EB38840C1FF818",
+      "git_blob_oid": "ab2bdcd84f3432a5a1fe2b8ee501b4cddb0128d1",
+      "copy": "blobs/E23F458F7E23A172.swift",
+      "bindings": [
+        {
+          "kind": "git_blob_only"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.4",
+      "gate_id": "s10.4-automated-lab",
+      "path": ".github/workflows/ios-ci-worker.yml",
+      "commit": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+      "commit_role": "E",
+      "byte_count": 358152,
+      "sha256": "DA888041E1743303935415DD6BEE50D185E892784FC9570C123B888290E4EE25",
+      "git_blob_oid": "139526a9bc66ee142fda234087124214e33efeb9",
+      "copy": "blobs/DA888041E1743303.yml",
+      "bindings": [
+        {
+          "kind": "validator_line"
+        },
+        {
+          "kind": "manifest_field",
+          "field": "github_environment_contract.worker_source_sha256"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.4",
+      "gate_id": "s10.4-automated-lab",
+      "path": ".github/workflows/ios-ci.yml",
+      "commit": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+      "commit_role": "E",
+      "byte_count": 111753,
+      "sha256": "64BEB60B465EB71B708FB19FEC2061E6F05FFA74A3D93955A88BB3CADC9D3A85",
+      "git_blob_oid": "b99960edae5ee7a103dd274ea321a9fbfd519331",
+      "copy": "blobs/64BEB60B465EB71B.yml",
+      "bindings": [
+        {
+          "kind": "validator_line"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.4",
+      "gate_id": "s10.4-automated-lab",
+      "path": "Scripts/build-smoke.sh",
+      "commit": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+      "commit_role": "E",
+      "byte_count": 2439,
+      "sha256": "1FBA2AF708AC653E61B7B3F63D22202D80AE3A116E3201958A232C59CCF3A419",
+      "git_blob_oid": "1b501459c45212ac2a8cc6ff3f2f9b8aaffa3e28",
+      "copy": "blobs/1FBA2AF708AC653E.sh",
+      "bindings": [
+        {
+          "kind": "manifest_head_row",
+          "path": "Scripts/build-smoke.sh"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.4",
+      "gate_id": "s10.4-automated-lab",
+      "path": "Scripts/ci-selection.json",
+      "commit": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+      "commit_role": "E",
+      "byte_count": 354,
+      "sha256": "692DD6F7DBCF771170191E7839C6B6281FB0A72603475FF2D0D81E35078330E2",
+      "git_blob_oid": "c45e329467d06f01a1bcdfcc2e6d34da54bfc541",
+      "copy": "blobs/692DD6F7DBCF7711.json",
+      "bindings": [
+        {
+          "kind": "git_blob_only"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.4",
+      "gate_id": "s10.4-automated-lab",
+      "path": "Scripts/s10-4-ci.py",
+      "commit": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+      "commit_role": "E",
+      "byte_count": 125982,
+      "sha256": "58BFD7988C9A4DDD847D96532BBE5A9BB617ADDC5C3B1521F9FEE06F28228354",
+      "git_blob_oid": "120a4f2e357b231a9189c7c5c1317db1deaad4c0",
+      "copy": "blobs/58BFD7988C9A4DDD.py",
+      "bindings": [
+        {
+          "kind": "validator_line"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.4",
+      "gate_id": "s10.4-automated-lab",
+      "path": "Scripts/test-s10-4-ci.py",
+      "commit": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+      "commit_role": "E",
+      "byte_count": 105462,
+      "sha256": "857AA47537D225FE2DF7AFAAD0C0EF4DB60509CCCE910E334920927571FB74B0",
+      "git_blob_oid": "a4ab774fae0d9a2effa14a043b332035268d4628",
+      "copy": "blobs/857AA47537D225FE.py",
+      "bindings": [
+        {
+          "kind": "validator_line"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.4",
+      "gate_id": "s10.4-automated-lab",
+      "path": "Scripts/test-smoke.sh",
+      "commit": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+      "commit_role": "E",
+      "byte_count": 21721,
+      "sha256": "B867B89806AD6864E2F7569226C3DD0FF00A5559B75DB7ECECAE46198BEDECD7",
+      "git_blob_oid": "93ea7e6b26d59ec558bf982b2d0fae1c2e01bbfc",
+      "copy": "blobs/B867B89806AD6864.sh",
+      "bindings": [
+        {
+          "kind": "manifest_head_row",
+          "path": "Scripts/test-smoke.sh"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.4",
+      "gate_id": "s10.4-automated-lab",
+      "path": "docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json",
+      "commit": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+      "commit_role": "E",
+      "byte_count": 26259,
+      "sha256": "F29BB5F29C0876BEAE1C32C7D6A418BC29AB43C8882CCDC0F622922FD042238C",
+      "git_blob_oid": "f9dd3c74eeaec8ecd9b44431ef194a11d6d9b415",
+      "copy": "blobs/F29BB5F29C0876BE.json",
+      "bindings": [
+        {
+          "kind": "validator_line"
+        },
+        {
+          "kind": "manifest_field",
+          "field": "required_profile_acceptance_policy.native_manifest_sha256"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.4",
+      "gate_id": "s10.4-automated-lab",
+      "path": "docs/design/s10/authority/s10.4-automation-amendment-v1/s10-visual-regression.schema.json",
+      "commit": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+      "commit_role": "E",
+      "byte_count": 54103,
+      "sha256": "46C2DE3BE87CCA26CDFFA4F952E248732C7827134828B4BB9E5EE36943DC9B0A",
+      "git_blob_oid": "fc5b3a56e34bf14892449ae8cee47f4d43cbed6c",
+      "copy": "blobs/46C2DE3BE87CCA26.json",
+      "bindings": [
+        {
+          "kind": "historical_manifest_overlay"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.4",
+      "gate_id": "s10.4-automated-lab",
+      "path": "docs/design/s10/authority/s10.4-automation-amendment-v1/s10-accessibility-common-tasks.schema.json",
+      "commit": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+      "commit_role": "E",
+      "byte_count": 7108,
+      "sha256": "E0893E86636F9F558103FED7173432998F18A459613EECAAB9A4B0CD65CEA0E3",
+      "git_blob_oid": "65d86819526388ef9d763de995b1be0fbf5bfade",
+      "copy": "blobs/E0893E86636F9F55.json",
+      "bindings": [
+        {
+          "kind": "historical_manifest_overlay"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.4",
+      "gate_id": "s10.4-automated-lab",
+      "path": "docs/design/s10/authority/s10.4-automation-amendment-v1/validate-s10-contracts.ps1",
+      "commit": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+      "commit_role": "E",
+      "byte_count": 109768,
+      "sha256": "9C8F3ED23CCE2A8C2517A9B3E46DAE5AFD40DC5EF4857FF5164AD84228043678",
+      "git_blob_oid": "15c7581d9af158c7b78cce4b339ce1170539c7fc",
+      "copy": "blobs/9C8F3ED23CCE2A8C.ps1",
+      "bindings": [
+        {
+          "kind": "historical_manifest_overlay"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.4",
+      "gate_id": "s10.4-automated-lab",
+      "path": "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
+      "commit": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+      "commit_role": "E",
+      "byte_count": 118381,
+      "sha256": "4AEB0D438DCF1D3F82C25F2D343D3D5A69FBEB66F056AB5762BF010AB634DB69",
+      "git_blob_oid": "29dff475d3634e751e2627b082d4695cc19aba83",
+      "copy": "blobs/4AEB0D438DCF1D3F.md",
+      "bindings": [
+        {
+          "kind": "historical_manifest_base",
+          "field": "runbook_sha256"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.4",
+      "gate_id": "s10.4-automated-lab",
+      "path": "docs/design/s10/s10-activation.json",
+      "commit": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+      "commit_role": "E",
+      "byte_count": 16969,
+      "sha256": "804DD9E6D6DC87E358F16CB9A9C5DAAE0727D192067836C6687B5890485CD184",
+      "git_blob_oid": "535f71e479f6d047b8de64f1b9e24cd9d0226c7a",
+      "copy": "blobs/804DD9E6D6DC87E3.json",
+      "bindings": [
+        {
+          "kind": "historical_manifest_base",
+          "field": "activation_sha256"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.4",
+      "gate_id": "s10.4-automated-lab",
+      "path": "docs/design/s10/s10-accessibility-common-tasks.json",
+      "commit": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+      "commit_role": "E",
+      "byte_count": 58904,
+      "sha256": "B7EDB1DD18BAB6DEE1884DA52C15F63AD5AD06045F58444C61442957558999F0",
+      "git_blob_oid": "e4bae1d13d1bc879d4efc5d5052b755b8f71f33c",
+      "copy": "blobs/B7EDB1DD18BAB6DE.json",
+      "bindings": [
+        {
+          "kind": "checkpoint_document",
+          "gate_id": "s10.1-inventory",
+          "document_type": "accessibility_common_tasks"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.4",
+      "gate_id": "s10.4-automated-lab",
+      "path": "docs/design/s10/s10-token-coverage.json",
+      "commit": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+      "commit_role": "E",
+      "byte_count": 75169,
+      "sha256": "904BFF5904E25C43C3101038AA3836BDD9C66CE0E83E342A36F563D54988BBEE",
+      "git_blob_oid": "a323bbc2ddfae709dd23d7aa7d2db48d30a27aa4",
+      "copy": "blobs/904BFF5904E25C43.json",
+      "bindings": [
+        {
+          "kind": "checkpoint_document",
+          "gate_id": "s10.3-migration",
+          "document_type": "token_coverage"
+        }
+      ]
+    },
+    {
+      "card_id": "S10.4",
+      "gate_id": "s10.4-automated-lab",
+      "path": "docs/design/s10/s10-visual-regression.json",
+      "commit": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+      "commit_role": "E",
+      "byte_count": 145044,
+      "sha256": "C111BB31056801C996049E94B3B1ACEFCDAAC6BBABD80576644F751799319AB1",
+      "git_blob_oid": "52a6e8bf2678a421b0ecddfb5af057f14fc1277e",
+      "copy": "blobs/C111BB31056801C9.json",
+      "bindings": [
+        {
+          "kind": "checkpoint_document",
+          "gate_id": "s10.1-inventory",
+          "document_type": "visual_regression"
+        }
+      ]
+    }
+  ]
+}

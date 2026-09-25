@@ -8,11 +8,20 @@ Only C:\AssetRounds-v23-s10-integration, codex/v23-s10-integration-20260910, tas
 
 ## Current critical path
 
-Phase 1 is platform and shell at V53 (MERGE_READINESS). Its critical path is full same-head unit coverage through the owner-approved shared-build partition route: implement and qualify one build per head plus 40 test-only partitions of up to 3,000 s (census `coverage-census/partitions-shared.json`, 3,397 methods), run one early development sweep in the recorded failure-first order, fix failures by family in parallel, then hide unfinished entry points, RUI1 UI evidence, independent integration review, human review and the fast-forward.
+Owner decisions 8 to 11 (2026-09-25): development moves to a persistent cloud Mac running Claude Code (see MAC_HANDOFF); development-run rules are relaxed (infrastructure reruns, cancelling known-broken runs, parallel development batches; merge and release gates stay strict); trunk-based on main after Phase 1; Bitrise Build Hub may add development capacity.
 
-In flight: reusable development route `v23-dev-batch-no-index-d50` (implementation helper; separate review and a cold qualifying original before use); shared-build design research; batch E (C57-1 My Day replacement projection, APPROVED with strengthened tests; owner decisions and Phase 1 records); P03-C43 signoff batch 1 implementation.
+Phase 1 is platform and shell at V53 behind `V23PhaseGateV1` (MERGE_READINESS). Pushed head `5eb2f5f`: the shared-build coverage route passed live qualification (one build sealed, consumers restored without rebuilding), and the early full sweep, original 36133511753, is running; all seven Round mount journeys pass. Batch J (Phase 1 UI tests, S10 reconciliation, signoff editor S10 styling, S-class UI launch fix, regenerated partitions) is reviewed and ready to push.
 
-Phase 2 C36 Round capture: every Continue failure at fca18b7 was readiness source drift on free-byte movement (`notReady`). Batch F3 binds the storage verdict (reviewed APPROVED) and adds P03-C43 signoff batch 1 (reviewed APPROVED after one correction). Its single development batch runs 57 methods: V9_71, V9_104 drift, a four-root My Day read, mount 7, completion 6, six readiness methods, the V9_106 baseline with its corrected forbidden-word test, and the 23 signoff methods. Batch E `c614b8d` qualified the development route natively (36104533833: exact 15, D50, 0 Swift errors; C57-1 11/11). The startup interrupted-finalization test needs a live-path rewrite. Due: B3 Retake/Remove, the EvidenceBundleStore crash gap, stage A items, a production Round creator and package-release source, RUI1 and human review.
+Next steps:
+1. Collect and triage the sweep.
+2. Push J.
+3. Add the RUI1 UI route.
+4. Fix sweep failure families in parallel.
+5. Run the Phase 1 UI evidence and the owner's human review.
+6. Run the final same-head sweep and the independent integration review.
+7. Fast-forward main.
+
+Phase 2 C36 Round capture: Continue works, the full finish journey passed once natively, and the mount journeys pass. Due: lost-acknowledgement finalization, the defer and two-photo journeys, B3, the startup live-path test rewrite, a production Round creator, and journey performance.
 
 ## Retained evidence and remaining gates
 
@@ -22,6 +31,6 @@ C36 saved-review/fields are committed; compiler correction392e407 passed256proto
 
 ## Cadence
 
-Root honors the session model/effort/speed (owner set Extra for the session and Claude subagents on 2026-09-25). Claude Code may use as many bounded helpers as speed delivery (owner 2026-09-25): disjoint files or read-only scope, root-created worktrees at the exact head, a fresh independent reviewer per consequential batch; root alone integrates, commits, pushes and dispatches. No standing monitors. Use scripts, compact checkpoints and relevant High context; retain fresh mutation-boundary checks. One semantic reviewer owns each changed contract; qualified automation binds matching index/commit bytes. Cost policy is committed on c1c1b3a; successful recovery original35923229533 is audited. Checkpoint updates fold into the next causal commit. Owner requested continued work rather than the earlier Sol pause. REVIEW_EFFICIENCY separates required gates from rework; token savings remain UNKNOWN.
+Root honors the session model/effort/speed (owner set Extra for the session and Claude subagents on 2026-09-25; development moves to the cloud Mac per decision 8). Claude Code may use as many bounded helpers as speed delivery (owner 2026-09-25): disjoint files or read-only scope, root-created worktrees at the exact head, a fresh independent reviewer per consequential batch; root alone integrates, commits, pushes and dispatches. No standing monitors. Use scripts, compact checkpoints and relevant High context; retain fresh mutation-boundary checks. One semantic reviewer owns each changed contract; qualified automation binds matching index/commit bytes. Cost policy is committed on c1c1b3a; successful recovery original35923229533 is audited. Checkpoint updates fold into the next causal commit. Owner requested continued work rather than the earlier Sol pause. REVIEW_EFFICIENCY separates required gates from rework; token savings remain UNKNOWN.
 
 Windows checks are not Swift execution. Before non-force main integration and exact-main verification, complete same-head functionality/compatibility, qualified required execution kinds, critical S10 journeys and independent/genuine human review. GitHub may suffice without Bitrise; only explicit noncritical polish can remain until release. Main advances only by complete verified phases (owner decision 2026-09-25, see MERGE_READINESS); no development-run acceptance.

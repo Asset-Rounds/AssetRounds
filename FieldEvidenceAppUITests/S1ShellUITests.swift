@@ -20,7 +20,11 @@ final class S1ShellUITests: XCTestCase {
 
         let shell = element(in: lightApp, identifier: "s1.shell.screen")
         let tabBar = lightApp.tabBars.firstMatch
-        let signsTab = tabBar.buttons["Signs"]
+        // V23 four-tab shell: Today, Work, Assets (formerly Signs) and Reports. Launch
+        // selects Today; the S1 shell container and pack sample live on Assets.
+        let todayTab = tabBar.buttons["Today"]
+        let workTab = tabBar.buttons["Work"]
+        let assetsTab = tabBar.buttons["Assets"]
         let reportsTab = tabBar.buttons["Reports"]
         let settingsButton = lightApp.buttons
             .matching(identifier: "s1.settings.button")
@@ -30,14 +34,19 @@ final class S1ShellUITests: XCTestCase {
             .firstMatch
 
         XCTAssertTrue(lightApp.windows.firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 10))
+        for tab in [todayTab, workTab, assetsTab, reportsTab] {
+            XCTAssertTrue(tab.waitForExistence(timeout: 10))
+        }
+        XCTAssertEqual(tabBar.buttons.count, 4)
+        XCTAssertEqual(todayTab.label, "Today")
+        XCTAssertEqual(workTab.label, "Work")
+        XCTAssertEqual(assetsTab.label, "Assets")
+        XCTAssertEqual(reportsTab.label, "Reports")
+        XCTAssertFalse(tabBar.buttons["Signs"].exists)
+        assetsTab.tap()
         XCTAssertTrue(shell.waitForExistence(timeout: 10))
         XCTAssertEqual(shell.value as? String, "Light")
-        XCTAssertTrue(tabBar.waitForExistence(timeout: 10))
-        XCTAssertTrue(signsTab.waitForExistence(timeout: 10))
-        XCTAssertTrue(reportsTab.waitForExistence(timeout: 10))
-        XCTAssertEqual(tabBar.buttons.count, 2)
-        XCTAssertEqual(signsTab.label, "Signs")
-        XCTAssertEqual(reportsTab.label, "Reports")
         XCTAssertTrue(settingsButton.waitForExistence(timeout: 10))
         XCTAssertEqual(settingsButton.label, "Settings")
         XCTAssertFalse(tabBar.buttons["Settings"].exists)
@@ -137,7 +146,7 @@ final class S1ShellUITests: XCTestCase {
         )
         XCTAssertTrue(reportsPlaceholder.waitForExistence(timeout: 10))
         XCTAssertTrue(lightApp.staticTexts["Saved reports will appear here."].exists)
-        XCTAssertEqual(tabBar.buttons.count, 2)
+        XCTAssertEqual(tabBar.buttons.count, 4)
 
         let reportsSettingsButton = lightApp.buttons
             .matching(identifier: "s1.settings.button")
@@ -149,10 +158,11 @@ final class S1ShellUITests: XCTestCase {
         reportsSettingsButton.tap()
         let settingsScreen = element(in: lightApp, identifier: "s1.settings.screen")
         XCTAssertTrue(settingsScreen.waitForExistence(timeout: 10))
-        XCTAssertTrue(
-            lightApp.staticTexts["Settings are not available in this sample."]
-                .waitForExistence(timeout: 10)
-        )
+        // S6.2 (e38f495) replaced the S1 sample notice with real Settings entries;
+        // its accepted backup entry proves Settings is live from the shell.
+        let backupEntry = element(in: lightApp, identifier: "s6.2.backup.settings-entry")
+        XCTAssertTrue(backupEntry.waitForExistence(timeout: 10))
+        XCTAssertEqual(backupEntry.label, "Back up current data")
         lightApp.terminate()
 
         XCUIDevice.shared.appearance = .dark
@@ -181,15 +191,16 @@ final class S1ShellUITests: XCTestCase {
         )
         let darkShell = element(in: darkApp, identifier: "s1.shell.screen")
         let darkTabBar = darkApp.tabBars.firstMatch
-        let darkSignsTab = darkTabBar.buttons["Signs"]
+        let darkAssetsTab = darkTabBar.buttons["Assets"]
         let darkReportsTab = darkTabBar.buttons["Reports"]
-        XCTAssertTrue(darkShell.waitForExistence(timeout: 10))
-        XCTAssertEqual(darkShell.value as? String, "Dark")
-        XCTAssertTrue(darkSignsTab.waitForExistence(timeout: 10))
-        XCTAssertTrue(darkSignsTab.isHittable)
+        XCTAssertTrue(darkAssetsTab.waitForExistence(timeout: 10))
+        XCTAssertTrue(darkAssetsTab.isHittable)
         XCTAssertTrue(darkReportsTab.waitForExistence(timeout: 10))
         XCTAssertTrue(darkReportsTab.isHittable)
-        XCTAssertEqual(darkTabBar.buttons.count, 2)
+        XCTAssertEqual(darkTabBar.buttons.count, 4)
+        darkAssetsTab.tap()
+        XCTAssertTrue(darkShell.waitForExistence(timeout: 10))
+        XCTAssertEqual(darkShell.value as? String, "Dark")
         XCTAssertTrue(
             darkApp.staticTexts["Illuminated sign pack"]
                 .waitForExistence(timeout: 10)
@@ -207,7 +218,7 @@ final class S1ShellUITests: XCTestCase {
             element(in: darkApp, identifier: "s1.reports.placeholder")
                 .waitForExistence(timeout: 10)
         )
-        darkSignsTab.tap()
+        darkAssetsTab.tap()
         XCTAssertTrue(
             darkApp.staticTexts["Illuminated sign pack"]
                 .waitForExistence(timeout: 10)

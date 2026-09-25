@@ -1496,7 +1496,15 @@ private final class C50IncumbentFileExchangeFileAuthorityBoundaryTests: XCTestCa
             Bundle.main.object(forInfoDictionaryKey: "UTExportedTypeDeclarations") as? [[String: Any]]
         )
         let identifiers = Set(declarations.compactMap { $0["UTTypeIdentifier"] as? String })
-        XCTAssertEqual(identifiers.count, 3)
+        // C54 legitimately added the encrypted envelope type; the exact closed set replaces the
+        // earlier count-only check so any further exported type is a deliberate test change.
+        XCTAssertEqual(declarations.count, 4)
+        XCTAssertEqual(identifiers, [
+            "com.palatis3.fieldrecordbackup",
+            "com.assetrounds.review-request",
+            "com.assetrounds.review-response",
+            "com.assetrounds.encrypted-envelope",
+        ])
         XCTAssertFalse(identifiers.contains { $0.localizedCaseInsensitiveContains("incumbent") })
     }
 

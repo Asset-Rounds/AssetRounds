@@ -116,6 +116,7 @@ final class S8_4FeedbackUITests: XCTestCase {
             feedbackFlag,
         ]
         app.launch()
+        app.selectAssetsRootForS10Journey()
         XCTAssertTrue(
             element("s2.welcome.screen", in: app)
                 .waitForExistence(timeout: 30)

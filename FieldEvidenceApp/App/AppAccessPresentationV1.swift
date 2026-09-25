@@ -1296,10 +1296,14 @@ final class AppAccessPresentationV1: ObservableObject {
     private var pendingAuthorizedStartup: PendingAuthorizedStartup?
     private var pendingErase: PendingErase?
 
+    /// `authenticationClient` is nil in production, which composes the system
+    /// Local Authentication client. Only the DEBUG UI-test launch hook in
+    /// `FieldEvidenceAppApp` supplies one; the composition path is unchanged.
     init(
         startupRouter: StartupRouter,
         applicationSupportURL: URL,
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        authenticationClient: (any LocalAuthenticationClient)? = nil
     ) {
         self.startupRouter = startupRouter
         roundReadinessLedger = nil
@@ -1314,7 +1318,8 @@ final class AppAccessPresentationV1: ObservableObject {
             try await ProductionCompositionRoot.makeAppAccessSession(
                 applicationSupportURL: applicationSupportURL,
                 startupRouter: startupRouter,
-                defaults: defaults
+                defaults: defaults,
+                authenticationClient: authenticationClient
             )
         }
     }

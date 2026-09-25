@@ -14,6 +14,7 @@ final class S10_6BrandReleaseUITests: XCTestCase {
         XCUIDevice.shared.appearance = .light
         let app = try configuredApplication()
         app.launch()
+        app.selectAssetsRootForS10Journey()
 
         let welcome = element("s2.welcome.screen", in: app)
         XCTAssertTrue(welcome.waitForExistence(timeout: 30))

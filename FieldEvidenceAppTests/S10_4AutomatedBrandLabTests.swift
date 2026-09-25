@@ -78,6 +78,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
     ]
 
     func testPinnedOverlaySelectorAndExactSevenPlusSevenShardContract() throws {
+        // Owner decision A: every harness byte pinned below is read from the committed S10.4
+        // history at product head 0adebd7; prove that history before using it.
+        try S10CardHistoryV1.assertBoundToCommittedHistory(
+            card: .automatedLab,
+            repositoryRoot: resolvedRepositoryRoot()
+        )
         try assertSegmentedAXAcceptanceHarnessIsFixedIndependentAndFailClosed()
         let manifestPath = "\(overlayRoot)/manifest.json"
         let visualSchemaPath = "\(overlayRoot)/s10-visual-regression.schema.json"
@@ -87,6 +93,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         let testSmokePath = "Scripts/test-smoke.sh"
         let uiSmokePath = "Scripts/ui-smoke.sh"
 
+        // Historical S10.4 E bytes (git blob 93ea7e6b); the checkpoint-bound S10.4 manifest
+        // records the same head SHA-256. Live V23 CI owns today's test-smoke.sh.
         try assertFile(
             testSmokePath,
             byteCount: 21_721,
@@ -759,6 +767,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             }
         }
 
+        // The overlay manifest and schemas are the S10.4 E versions; the S10.4 evidence head
+        // appended to them (checkpoint manifest A931F6DF…), so the E bytes come from history.
         try assertFile(
             manifestPath,
             byteCount: 26_259,
@@ -780,6 +790,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             sha256: "C023ADE99CAB0F9ED2984C90BCC0E03B0D05A05643DF7185201CC00772E3C8E4"
         )
         let dispatcherPath = ".github/workflows/ios-ci.yml"
+        // Historical S10.4 E dispatcher (git blob b99960ed), recorded by the S10.4 validator.
         try assertFile(
             dispatcherPath,
             byteCount: 111_753,
@@ -810,6 +821,8 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
         let bitriseProbeSource = try text(bitriseProbePath)
         let workflowPath = ".github/workflows/ios-ci-worker.yml"
+        // Historical S10.4 E worker (git blob 139526a9), recorded by the S10.4 validator and
+        // the checkpoint-bound manifest worker_source_sha256.
         try assertFile(
             workflowPath,
             byteCount: 358_152,
@@ -3485,6 +3498,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         )
 
         let selector = #"{"schemaVersion":1,"taskID":"S10.4","tier":"F25","runUISmoke":true,"setupArtifactTimeoutSeconds":420,"buildTimeoutSeconds":900,"testTimeoutSeconds":1200,"uiTimeoutSeconds":2520,"totalBudgetSeconds":4500,"unitTestSelectors":["FieldEvidenceAppTests/S10_4AutomatedBrandLabTests"],"uiTestSelectors":["FieldEvidenceAppUITests/S10_4AutomatedBrandLabUITests"]}"# + "\n"
+        // Historical S10.4 E selector (git blob c45e3294); V23 owns the live selector.
         let selectorData = try data("Scripts/ci-selection.json")
         XCTAssertEqual(selectorData, Data(selector.utf8))
         XCTAssertEqual(selectorData.count, 354)
@@ -3667,7 +3681,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             in: uiSource
         )
         let legacyUISource = minimumCoreSmokeProjectionResult.source
-        XCTAssertEqual(legacyUISource.utf8.count, 1_156_205)
+        XCTAssertEqual(legacyUISource.utf8.count, 1_156_770)
         XCTAssertEqual(minimumCoreSmokeProjectionResult.blocks.count, 8)
         let minimumCoreSmokeContractSource = try boundedSource(
             uiSource,
@@ -17199,10 +17213,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
         let captureSourcePath =
             "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift"
+        // Re-pinned to the V23 Phase 1 candidate bytes (S10.4 E: 17_370 / B4A7FDD0…0782).
+        // V23 added the durable Round capture backend: one more "Use Photo" primary owner and
+        // a durable branch inside the unchanged "Cannot complete" owner.
         try assertFile(
             captureSourcePath,
-            byteCount: 17_370,
-            sha256: "B4A7FDD087CCBE4B0644EA81184209CDEADC960176D5C61CE851A5145FDA0782"
+            byteCount: 22_164,
+            sha256: "E92F4587B143FAA8139FD8318871B6B59E0D8BBEACBA2C5C8608F76A7D61DDAC"
         )
         let captureSource = try text(captureSourcePath)
         let capturePrimaryOwners = [
@@ -17234,7 +17251,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "            }\n" +
                 "            .accessibilityIdentifier(Self.openSettingsAccessibilityIdentifier)",
             "AssetRoundsSecondaryAction(\"Cannot complete\") {\n" +
-                "            showsCouldNotVerify = true\n" +
+                "            if case let .durable(actions) = backend {\n" +
+                "                do { try actions.cannotComplete() }\n" +
+                "                catch { errorMessage = \"Your changes could not be saved. Try again.\" }\n" +
+                "            } else {\n" +
+                "                showsCouldNotVerify = true\n" +
+                "            }\n" +
                 "        }\n" +
                 "        .disabled(isWorking)\n" +
                 "        .accessibilityHint(\"Opens the reason flow to save this check as incomplete\")\n" +
@@ -17256,9 +17278,10 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 owner
             )
         }
+        // S10.4 E had 2; V23 adds the durable "Use Photo" primary owner (3).
         XCTAssertEqual(
             captureSource.components(separatedBy: "AssetRoundsPrimaryAction").count - 1,
-            2
+            3
         )
         XCTAssertEqual(
             captureSource.components(separatedBy: "AssetRoundsSecondaryAction").count - 1,
@@ -17303,9 +17326,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             primaryTintCount: Int
         )] = [
             (
+                // V23 Phase 1 re-pin (S10.4 E: 22_926 / 82E2AA1A…697A); V23 adds the
+                // "Take photos instead" secondary owner and durable failure copy.
                 "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
-                22_926,
-                "82E2AA1A52DBE6A2D0FA8F61B6983F369B87325E0542E2385774F988F2F7697A",
+                24_908,
+                "D85D9DE9024999C1985E58884F765E218F22292CA648D2B05572ABD90AAB41A8",
                 [
                     "AssetRoundsPrimaryAction(\"Continue\") {\n" +
                         "                prepareReview()\n" +
@@ -17331,7 +17356,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                         "        .accessibilityValue(isSelected ? \"Selected\" : \"Not selected\")\n" +
                         "        .accessibilityIdentifier(identifier)",
                 ],
-                [2, 2, 0, 0, 0],
+                [2, 3, 0, 0, 0],
                 0
             ),
             (
@@ -17407,9 +17432,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 0
             ),
             (
+                // V23 Phase 1 re-pin (S10.4 E: 17_900 / 09B2B7B3…C64F); DEBUG-only screen
+                // observation anchor, owners and counts unchanged.
                 "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
-                17_900,
-                "09B2B7B3A747A4D8FACD20735B53B5B63FEDEE788613EFA3F26FC622D12FC64F",
+                18_170,
+                "71565B5D9FC4EC0F07A7CE946A89DBFA3CD6238E69168A2A808217EEF46C5175",
                 [
                     "AssetRoundsPrimaryAction(\"Share PDF\") {\n" +
                         "                        showsShareSheet = true\n" +
@@ -17439,9 +17466,11 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 0
             ),
             (
+                // V23 Phase 1 re-pin (S10.4 E: 33_294 / 63023BB6…58BA); shared workflow
+                // coordinators, signoff history and startup diagnostics; owners unchanged.
                 "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
-                33_294,
-                "63023BB6107A62F0450304F856B8E7CE796B74D4A08E912380C79DF0D75D58BA",
+                33_749,
+                "97B3A4E17CC0BA6DC90B98D14EB69248FCAD7A814381AE0663F410A8EC5D0879",
                 [
                     "Label(siteFilterLabel, systemImage: \"building.2\")\n" +
                         "        }\n" +
@@ -17466,9 +17495,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 0
             ),
             (
+                // V23 Phase 1 re-pin (S10.4 E: 25_864 / E6324CBF…9C43): the four-tab shell
+                // (Today, Work, Assets, Reports; commit aa0dc10, BLUEPRINT:9654) and its one
+                // AssetRoundsPrimaryAction ("Retry" when the production workflow is unavailable).
                 "FieldEvidenceApp/Features/Shell/AppShellView.swift",
-                25_864,
-                "E6324CBF7BC93564FC05CD9307E01BBC15F161B1970E4B3F231D4EC71F6F9C43",
+                61_892,
+                "09604BDFD25A19D7269FA70A6FE6EDBEE16FC8A48C522357918EB83B88A2CD54",
                 [
                     #"AssetRoundsPrimaryNavigationLink("Back up current data") {"#,
                     #"AssetRoundsSecondaryAction("Restore data backup", action: restoreDataBackup)"#,
@@ -17482,7 +17514,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                         "                    FeedbackView(",
                     "FeedbackView.settingsEntryAccessibilityIdentifier",
                 ],
-                [0, 4, 1, 0, 2],
+                [1, 4, 1, 0, 2],
                 1
             ),
         ]
@@ -22853,10 +22885,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             from: "                if let shard = automationShard,\n                   shard.shardID == \"s10.4.minimum.rtl-string\" {\n                    let rtlNoteHeadings",
             before: "            }\n        }\n        if automationShard?.shardID == \"s10.4.minimum.minimum-os\" {\n            try dismissMinimumWorkValidationKeyboardAccessory(in: app)"
         )
-        XCTAssertEqual(uiSource.utf8.count, 1_187_702)
+        // V23 Phase 1 re-pin of the live UI source (S10.4 E: 1_187_702 / C19ED97A…6D46, still
+        // recorded by the S10.4 validator): the first-sign journey now selects Assets
+        // (Today is the V23 launch root), and each post-launch or post-Erase welcome wait
+        // first selects Assets through the shared UI-test helper, including the one
+        // added line in the minimum-core-smoke run block.
+        XCTAssertEqual(uiSource.utf8.count, 1_188_311)
         XCTAssertEqual(
             Data(uiSource.utf8).sha256,
-            "C19ED97AAB748D6CB6115A742BB555E4841B21B24E7CEE94C2341C2827308D46"
+            "64561F4195628A8D7CDCD17A7CEE462305618864BB609A21703BA91CD3647C8A"
         )
         let signsRootSource = try text(signsRootPath)
         let observerProjection = try recheckNavigationObserverProjection(
@@ -27827,9 +27864,13 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             }
             canonical += path + "\n" + literals.joined(separator: "\n") + "\n"
         }
+        // Re-pinned for the V23 Phase 1 candidate. S10.4 E and accepted main held
+        // 1FC7F5B8…2D26; the V23 literal additions/removals are listed per file in
+        // docs/design/v23/integration/s10-3-copy-freeze-delta-v23.json (projected_literal_changes).
+        // DA743BA5…937E before the Phase 1 DEBUG local-auth UI-test hook in FieldEvidenceAppApp.
         XCTAssertEqual(
             Data(canonical.utf8).sha256,
-            "1FC7F5B8D24E0B2F0A1111A4F21495C40CA3A306A708EB3CA0CAE0760A562D26"
+            "62C727B0A93E2B9361706420AAA4389C7747B4603013D0E1ABD606546BFF31EA"
         )
     }
 
@@ -28278,6 +28319,17 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
 
     private func data(_ relativePath: String) throws -> Data {
         let root = try resolvedRepositoryRoot()
+        // Owner decision A (2026-09-25): the S10.4 CI harness, authority overlay, selector
+        // and predecessor S10 records are card-time state. Later receipts and V23 changed
+        // them, so these paths resolve to the committed S10.4 product-head history
+        // (S10CardHistoryV1, bound to the receipt chain). Product and UI sources stay live.
+        if let historical = try S10CardHistoryV1.data(
+            card: .automatedLab,
+            path: relativePath,
+            repositoryRoot: root
+        ) {
+            return historical
+        }
         return try Data(contentsOf: root.appendingPathComponent(relativePath))
     }
 
@@ -28370,9 +28422,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             file: file,
             line: line
         )
+        // The five DEBUG observer blocks are unchanged (B48ED929…287E). The remaining source
+        // is re-pinned for V23 (S10.4 E: A70196AB…52A6): SignsRootView now receives its
+        // coordinators from ProductionSignWorkflow instead of constructing them.
         XCTAssertEqual(
             Data(projected.utf8).sha256,
-            "A70196AB513C3F7B4C461E811DA7555718458E6038FA5D03A24A889D7AF952A6",
+            "A7AFDE18DDFE78430D773C0416AB88047D70A66176EF786D76AF5DAEA7523891",
             file: file,
             line: line
         )
@@ -28384,10 +28439,16 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws -> (source: String, blocks: [String]) {
-        XCTAssertEqual(source.utf8.count, 1_187_702, file: file, line: line)
+        // V23 Phase 1 re-pin of the live UI source (S10.4 E: 1_187_702 / C19ED97A…6D46, still
+        // recorded by the S10.4 validator): the first-sign journey now selects Assets
+        // (Today is the V23 launch root), and each post-launch or post-Erase welcome wait
+        // first selects Assets through the shared UI-test helper. Seven minimum-core-smoke
+        // blocks are unchanged; the run block (index 6) gains only that one helper line
+        // after its fresh launch (S10.4 E: 27_539 / 89240F1C…A75A2).
+        XCTAssertEqual(source.utf8.count, 1_188_311, file: file, line: line)
         XCTAssertEqual(
             Data(source.utf8).sha256,
-            "C19ED97AAB748D6CB6115A742BB555E4841B21B24E7CEE94C2341C2827308D46",
+            "64561F4195628A8D7CDCD17A7CEE462305618864BB609A21703BA91CD3647C8A",
             file: file,
             line: line
         )
@@ -28425,7 +28486,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 "        try runAllFrozenReleasedStatesUseTheBrandSystemWithoutBehaviorDrift()\n"
             ),
         ]
-        let expectedBlockBytes = [743, 107, 304, 2_047, 536, 112, 27_539, 109]
+        let expectedBlockBytes = [743, 107, 304, 2_047, 536, 112, 27_583, 109]
         let expectedBlockSHA256 = [
             "8FCFC4DA33D77CB019A42A1DBB37AF1AE490355D115B276839E4C2FA1CD44E7C",
             "45AB22227885D2BE29C1F1FA0FE7E49047B2E75697B2428E134AF432609BA75C",
@@ -28433,7 +28494,7 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
             "9D94B8360F878ACE04641571E19F19C7CD25D50F3A19781B902F467F1A866931",
             "31EEF3C54080D775F2AE5A2F16EA54DF6AB1F0E77F2CF4D5ED885B7BDBC44B88",
             "0E5AFAB4430BA0CECEA5B441706A78C1F9DF7CDBB9D8625F81AA03308E04DB57",
-            "89240F1C84ACF99202827ABC9D1A95DE6E2D8E24A15F6C0EF14A37DBD1DA75A2",
+            "79477D36374829BD22C6007C9720A1AC1B811C6E1C2F8F99BDC9D063018FDBFB",
             "02CFC266E3667587D21AFAAF7120178630E0D49B0DFA91207CE2E2EA3A9F6C2F",
         ]
         var projected = source
@@ -28478,14 +28539,15 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         XCTAssertEqual(blocks.count, 8, file: file, line: line)
         XCTAssertEqual(
             Data(blocks.joined().utf8).sha256,
-            "A4B7BF561DD708A52EB426D7D16CEAF410A0E206AC9BE9B58C4770C79559539D",
+            "90C45CBE233BA4D0BC58F5BA9B234C3531E62E55FDB0FFE3484F661F7530E312",
             file: file,
             line: line
         )
-        XCTAssertEqual(projected.utf8.count, 1_156_205, file: file, line: line)
+        // V23 re-pin (S10.4 E: 1_156_205 / 5B5DB6CE…4E46); see the whole-source note above.
+        XCTAssertEqual(projected.utf8.count, 1_156_770, file: file, line: line)
         XCTAssertEqual(
             Data(projected.utf8).sha256,
-            "5B5DB6CED7E85AD60BCB851C02E017E88BD14CCB2A3D8B9DAE8D5D63E4E54E46",
+            "64795A0B4CAD649327E65B8EBF08B9942FA8D2BCF385AD0A7015A77C3DA0CFE7",
             file: file,
             line: line
         )

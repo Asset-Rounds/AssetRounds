@@ -105,6 +105,7 @@ final class S10_2BrandComponentUITests: XCTestCase {
             ]
         }
         app.launch()
+        app.selectAssetsRootForS10Journey(timeout: 60)
         return app
     }
 

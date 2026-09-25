@@ -56,6 +56,7 @@ final class S6_6EraseAllUITests: XCTestCase {
         confirm.tap()
 
         let welcome = element("s2.welcome.screen", in: app)
+        app.selectAssetsRootForS10Journey(awaiting: welcome, timeout: 90)
         XCTAssertTrue(welcome.waitForExistence(timeout: 90))
         XCTAssertFalse(element("s2.sign-detail.screen", in: app).exists)
         XCTAssertFalse(element("s4.4.history.screen", in: app).exists)
@@ -63,6 +64,7 @@ final class S6_6EraseAllUITests: XCTestCase {
 
         app.terminate()
         app.launch()
+        app.selectAssetsRootForS10Journey(awaiting: welcome, timeout: 45)
         XCTAssertTrue(welcome.waitForExistence(timeout: 45))
         tap("s2.welcome.add-first-sign", in: app)
         enter("Fresh Campus", into: "s2.new-sign.site-label", in: app)
@@ -86,6 +88,7 @@ final class S6_6EraseAllUITests: XCTestCase {
 private extension S6_6EraseAllUITests {
     @MainActor
     func createOneCountedReport(in app: XCUIApplication) {
+        app.selectAssetsRootForS10Journey()
         XCTAssertTrue(element("s2.welcome.screen", in: app)
             .waitForExistence(timeout: 25))
         tap("s2.welcome.add-first-sign", in: app)

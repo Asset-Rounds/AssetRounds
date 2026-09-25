@@ -123,12 +123,61 @@ final class S10_6BrandReleaseTests: XCTestCase {
         XCTAssertEqual(sourceFiles.count, 36)
         let paths = try sourceFiles.map { try string($0, "path") }
         XCTAssertEqual(Set(paths).count, 36)
+
+        // Owner decision B (2026-09-25): the S10 review stays unchanged as history. The V23
+        // successor review lists the current hash of every S10 row plus V23 additions. An S10
+        // row whose file changed is exempt from the S10 hash only when the successor lists it
+        // with its current hash, and every successor hash must match this checkout.
+        let successorPath = "docs/design/v23/integration/privacy-supply-chain-review-v23.json"
+        let successor = try json(successorPath)
+        XCTAssertEqual(successor["status"] as? String, "drafted-for-owner-review")
+        XCTAssertEqual(successor["owner_signoff"] as? String, "PENDING")
+        XCTAssertEqual(successor["release_ready"] as? Bool, false)
+        let predecessor = try object(successor, "predecessor")
+        let s10ReviewPath = "docs/design/s10/evidence/s10.6/privacy-supply-chain-review.json"
+        XCTAssertEqual(predecessor["path"] as? String, s10ReviewPath)
+        XCTAssertEqual(predecessor["sha256"] as? String, try data(s10ReviewPath).sha256)
+        XCTAssertEqual(predecessor["checkpoint_gate_id"] as? String, "s10.6-release-phase-evidence")
+        var successorHashes = [String: String]()
+        var successorS10Hashes = [String: String]()
+        for row in try rows(successor, "source_files") + rows(successor, "v23_additions") {
+            let path = try string(row, "path")
+            let hash = try string(row, "sha256")
+            XCTAssertNil(successorHashes[path], "Duplicate successor row: \(path)")
+            successorHashes[path] = hash
+            XCTAssertTrue(isSHA256(hash), path)
+            XCTAssertEqual(try data(path).sha256, hash, "Stale V23 successor hash: \(path)")
+            if let s10Hash = row["s10_sha256"] as? String {
+                successorS10Hashes[path] = s10Hash
+                // The declared change flag must equal the hash comparison it summarizes.
+                XCTAssertEqual(
+                    row["changed_since_s10"] as? Bool,
+                    hash != s10Hash,
+                    "changed_since_s10 disagrees with the recorded hashes: \(path)"
+                )
+            }
+            if row["changed_since_s10"] as? Bool == true || row["s10_sha256"] == nil {
+                let note = try object(row, "privacy_note")
+                for key in ["data_handled", "storage", "network", "permissions", "reachability"] {
+                    XCTAssertFalse(try string(note, key).isEmpty, "\(path) \(key)")
+                }
+            }
+        }
+        XCTAssertEqual(try rows(successor, "source_files").count, 36)
+
         for row in sourceFiles {
             let path = try string(row, "path")
             let recordedHash = try string(row, "sha256")
             XCTAssertTrue(isSHA256(recordedHash), path)
+            XCTAssertEqual(successorS10Hashes[path], recordedHash, "Successor must carry the S10 row: \(path)")
             guard !historicalMutableSourcePaths.contains(path) else { continue }
-            XCTAssertEqual(try data(path).sha256, recordedHash, path)
+            let currentHash = try data(path).sha256
+            if currentHash != recordedHash {
+                XCTAssertEqual(
+                    successorHashes[path], currentHash,
+                    "Changed S10 privacy row lacks a current V23 successor entry: \(path)"
+                )
+            }
         }
 
         let privacy = try object(review, "privacy_manifest")

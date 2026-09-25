@@ -230,6 +230,7 @@ final class S4_5CorrectionUITests: XCTestCase {
 
     @MainActor
     private func createCompletedReport(in app: XCUIApplication) {
+        app.selectAssetsRootForS10Journey()
         XCTAssertTrue(element(in: app, identifier: "s2.welcome.screen")
             .waitForExistence(timeout: 15))
         let addSign = element(in: app, identifier: "s2.welcome.add-first-sign")

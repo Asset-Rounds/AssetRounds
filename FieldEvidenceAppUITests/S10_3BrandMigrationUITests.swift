@@ -1329,6 +1329,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         )
         try prepareMinimumCoreSmokeLaunch(app, expectsInjectedFailures: true)
         app.launch()
+        app.selectAssetsRootForS10Journey()
 
         let welcome = element("s2.welcome.screen", in: app)
         guard welcome.waitForExistence(timeout: 30),
@@ -2060,6 +2061,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         ]
         let coldLaunchStartedAt = Date()
         app.launch()
+        app.selectAssetsRootForS10Journey()
         XCTAssertTrue(element("s2.welcome.screen", in: app)
             .waitForExistence(timeout: 30))
         recordMetric("cold_launch_to_welcome", since: coldLaunchStartedAt)
@@ -2148,6 +2150,7 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
             "--s3-6-ui-test-camera-denied-once",
         ]
         app.launch()
+        app.selectAssetsRootForS10Journey()
         XCTAssertTrue(element("s2.welcome.screen", in: app)
             .waitForExistence(timeout: 30))
 
@@ -2177,6 +2180,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
     private func assertLightFirstSignValidationAndCreation(
         in app: XCUIApplication
     ) throws {
+        // V23 four-tab shell: Today, Work, Assets and Reports; launch selects Today.
+        // The released welcome content and its s1.shell.screen container now live on
+        // Assets, which keeps the incumbent s1.tab.signs automation identity.
+        let assetsTab = element("s1.tab.signs", in: app)
+        assertControl(assetsTab, label: "Assets")
+        assetsTab.tap()
         let shell = element("s1.shell.screen", in: app)
         XCTAssertTrue(shell.waitForExistence(timeout: 30))
         XCTAssertEqual(shell.value as? String, effectiveAppearanceName(fallback: "Light"))
@@ -2196,9 +2205,8 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         XCTAssertTrue(element("s1.reports.placeholder", in: app)
             .waitForExistence(timeout: 10))
         captureBaseline("state.reports-index.empty", in: app)
-        let signsTab = element("s1.tab.signs", in: app)
-        assertControl(signsTab, label: "Signs")
-        signsTab.tap()
+        assertControl(assetsTab, label: "Assets")
+        assetsTab.tap()
         XCTAssertTrue(element("s2.welcome.screen", in: app)
             .waitForExistence(timeout: 20))
 
@@ -13979,10 +13987,12 @@ class S10BrandMigrationRouteUITestCase: XCTestCase {
         confirm.tap()
 
         let welcome = element("s2.welcome.screen", in: app)
+        app.selectAssetsRootForS10Journey(awaiting: welcome, timeout: 90)
         XCTAssertTrue(welcome.waitForExistence(timeout: 90))
         XCTAssertFalse(element("s2.sign-detail.screen", in: app).exists)
         app.terminate()
         app.launch()
+        app.selectAssetsRootForS10Journey(awaiting: welcome, timeout: 45)
         XCTAssertTrue(welcome.waitForExistence(timeout: 45))
 
         let restore = element("s2.welcome.restore-purchases", in: app)

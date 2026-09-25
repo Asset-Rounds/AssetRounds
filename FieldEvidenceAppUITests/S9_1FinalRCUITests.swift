@@ -38,6 +38,7 @@ final class S9_1FinalRCUITests: XCTestCase {
 
     @MainActor
     private func createReadyReport(in app: XCUIApplication) {
+        app.selectAssetsRootForS10Journey()
         XCTAssertTrue(
             element("s2.welcome.screen", in: app)
                 .waitForExistence(timeout: 30)

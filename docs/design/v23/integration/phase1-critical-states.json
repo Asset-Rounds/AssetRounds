@@ -1,0 +1,490 @@
+{
+  "schema": "V23Phase1CriticalStatesV1",
+  "schemaVersion": 1,
+  "status": "PROVISIONAL_NOT_RUN",
+  "acceptanceCredit": false,
+  "humanReviewRequired": true,
+  "testFile": "FieldEvidenceAppUITests/V23Phase1CriticalStatesUITests.swift",
+  "testClass": "V23Phase1CriticalStatesUITests",
+  "attachments": {
+    "state": {
+      "name": "P1 state <id>",
+      "uniformTypeIdentifier": "public.png",
+      "lifetime": "keepAlways"
+    },
+    "audit": {
+      "name": "P1 ax <id>",
+      "uniformTypeIdentifier": "public.json",
+      "lifetime": "keepAlways",
+      "auditTypes": [
+        "contrast",
+        "dynamicType",
+        "textClipped"
+      ],
+      "issuesFailTestByDefault": false,
+      "strictModeTestRunnerEnvironment": "V23_P1_AX_AUDIT_STRICT=1",
+      "auditThatCannotRunFailsTest": true
+    }
+  },
+  "reviewCheckMarkers": {
+    "(asserted by test, not visible)": "The test asserts this fact, but the one screenshot may not show it. Judge it from the test result, not the image."
+  },
+  "variants": {
+    "light": {
+      "launchArguments": [
+        "-AppleInterfaceStyle",
+        "Light",
+        "--s1-ui-test-light-mode"
+      ],
+      "deviceAppearance": "light",
+      "contentSizeCategory": "system default"
+    },
+    "dark-axxxl": {
+      "launchArguments": [
+        "-AppleInterfaceStyle",
+        "Dark",
+        "--s1-ui-test-dark-mode",
+        "-UIPreferredContentSizeCategoryName",
+        "UICTContentSizeCategoryAccessibilityXXXL"
+      ],
+      "deviceAppearance": "dark",
+      "contentSizeCategory": "UICTContentSizeCategoryAccessibilityXXXL"
+    }
+  },
+  "methods": [
+    {
+      "order": 1,
+      "name": "test1MigratedS10StoreOpensFourTabShell",
+      "seed": "DEBUG --v23-ui-test-legacy-migration with a fresh lowercase V23_MIGRATION_TEST_ID: an isolated, empty S10-format V1 store. First launch stops at migration validation; a real cold relaunch completes it. The dark-axxxl states relaunch the same store.",
+      "launchArguments": [
+        "--v23-ui-test-legacy-migration"
+      ]
+    },
+    {
+      "order": 2,
+      "name": "test2SignReportAndApprovalResponseInShell",
+      "seed": "Same isolated-store hook with its own fresh id, migrated by a cold relaunch, plus the imported photo fixtures (S3_2WideInput.png, S3_2CloseInput.png). The test creates North Campus / Monument Sign, saves one No visible issue check, then records one approval response as Pat Rivera, Site supervisor. The dark-axxxl states relaunch the same store.",
+      "launchArguments": [
+        "--v23-ui-test-legacy-migration",
+        "--s3-2-ui-test-imported-fixtures"
+      ]
+    },
+    {
+      "order": 3,
+      "name": "test3SettingsAppLockAndCover",
+      "seed": "Same isolated-store hook with its own fresh id, migrated by a cold relaunch, plus the DEBUG-only --v23-ui-test-local-auth-success Local Authentication stub (honoured only with an accepted isolated store; reports available, every valid attempt succeeds). App Lock must start off and is turned off again at the end; a teardown relaunch turns it off after a failure. The real biometric prompt is not exercised on the Simulator.",
+      "launchArguments": [
+        "--v23-ui-test-legacy-migration",
+        "--v23-ui-test-local-auth-success"
+      ]
+    }
+  ],
+  "states": [
+    {
+      "id": "p1.migration.pending.light",
+      "order": 1,
+      "method": "test1MigratedS10StoreOpensFourTabShell",
+      "orderInMethod": 1,
+      "variant": "light",
+      "title": "S10 store awaiting restart",
+      "expectedBehavior": "An existing S10 store stops at migration validation on first launch. No shell, welcome or maintenance action is offered; only Retry checks.",
+      "reviewChecks": [
+        "Title reads exactly \"Restart to finish updating local data\".",
+        "Body says local data has been preserved and asks to close and reopen AssetRounds.",
+        "Only one action, Retry checks, is shown; no tab bar and no Restore or Erase actions.",
+        "S10 background, card and heading colors; text is not clipped."
+      ]
+    },
+    {
+      "id": "p1.today.empty.light",
+      "order": 2,
+      "method": "test1MigratedS10StoreOpensFourTabShell",
+      "orderInMethod": 2,
+      "variant": "light",
+      "title": "Today after migration",
+      "expectedBehavior": "The cold relaunch opens the four-tab shell on Today with the Phase 1 empty state and no planning entry.",
+      "reviewChecks": [
+        "Tab bar shows Today, Work, Assets, Reports in that order, in S10 styling, with Today selected.",
+        "Empty state reads exactly \"Nothing planned\" and \"Signs you inspect appear in Assets and Reports.\"",
+        "No Plan button and no My Day list.",
+        "Navigation title is Today and the Settings gear is at the top right."
+      ]
+    },
+    {
+      "id": "p1.work.empty.light",
+      "order": 3,
+      "method": "test1MigratedS10StoreOpensFourTabShell",
+      "orderInMethod": 3,
+      "variant": "light",
+      "title": "Work with no completed work",
+      "expectedBehavior": "Work shows only the Completed work section with its empty message and Refresh work; the gated current-work list is absent.",
+      "reviewChecks": [
+        "Completed work section header is shown.",
+        "Message reads exactly \"Completed reports will appear here.\"",
+        "No \"No current work\" message, Round rows or saved-draft rows.",
+        "Refresh work button uses the S10 secondary style; Work tab is selected."
+      ]
+    },
+    {
+      "id": "p1.assets.welcome.light",
+      "order": 4,
+      "method": "test1MigratedS10StoreOpensFourTabShell",
+      "orderInMethod": 4,
+      "variant": "light",
+      "title": "Assets welcome",
+      "expectedBehavior": "The accepted S10 welcome lives in the Assets tab of the migrated, empty store.",
+      "reviewChecks": [
+        "Title reads exactly \"Turn tonight's sign check into a clear report.\"",
+        "Brand symbol, Add first sign (primary) and View sample are shown.",
+        "Colors and typography match the accepted S10 welcome.",
+        "Assets tab is selected; no fifth tab and no Signs tab.",
+        "If a navigation title is visible, note whether it still reads the incumbent \"Signs\" under the Assets tab."
+      ]
+    },
+    {
+      "id": "p1.reports.empty.light",
+      "order": 5,
+      "method": "test1MigratedS10StoreOpensFourTabShell",
+      "orderInMethod": 5,
+      "variant": "light",
+      "title": "Reports with no reports",
+      "expectedBehavior": "Reports shows the filter card and the empty placeholder.",
+      "reviewChecks": [
+        "Filter reports card shows All sites and All signs.",
+        "Empty state reads exactly \"Saved reports will appear here.\"",
+        "No report rows; Reports tab is selected.",
+        "Settings gear is at the top right."
+      ]
+    },
+    {
+      "id": "p1.today.empty.dark-axxxl",
+      "order": 6,
+      "method": "test1MigratedS10StoreOpensFourTabShell",
+      "orderInMethod": 6,
+      "variant": "dark-axxxl",
+      "title": "Today, dark, AX XXXL",
+      "expectedBehavior": "After a relaunch in Dark mode at Accessibility XXXL, Today keeps the same Phase 1 empty state.",
+      "reviewChecks": [
+        "Dark S10 palette with readable contrast.",
+        "\"Nothing planned\" and its message wrap without truncation or clipping.",
+        "Tab bar is usable at the largest size and still has exactly four tabs.",
+        "No Plan button."
+      ]
+    },
+    {
+      "id": "p1.assets.welcome.dark-axxxl",
+      "order": 7,
+      "method": "test1MigratedS10StoreOpensFourTabShell",
+      "orderInMethod": 7,
+      "variant": "dark-axxxl",
+      "title": "Assets welcome, dark, AX XXXL",
+      "expectedBehavior": "The welcome remains readable in Dark mode at Accessibility XXXL; its actions may continue below the fold.",
+      "reviewChecks": [
+        "Brand symbol and title wrap fully without clipping or overlap.",
+        "Dark S10 colors match the accepted dark welcome.",
+        "Assets tab is selected in a usable tab bar.",
+        "Add first sign exists (asserted by test, not visible)"
+      ]
+    },
+    {
+      "id": "p1.check.receipt.light",
+      "order": 8,
+      "method": "test2SignReportAndApprovalResponseInShell",
+      "orderInMethod": 1,
+      "variant": "light",
+      "title": "Check receipt",
+      "expectedBehavior": "Saving a No visible issue check from the Assets tab shows the S10 value receipt once the PDF is ready.",
+      "reviewChecks": [
+        "Reads exactly \"Report saved on this device.\"",
+        "View report is enabled and Share PDF is shown.",
+        "Done is shown.",
+        "S10 receipt styling; no V23 banner or extra action."
+      ]
+    },
+    {
+      "id": "p1.assets.sign-detail.light",
+      "order": 9,
+      "method": "test2SignReportAndApprovalResponseInShell",
+      "orderInMethod": 2,
+      "variant": "light",
+      "title": "Sign detail after the report",
+      "expectedBehavior": "Done returns to the Monument Sign detail in the Assets tab, now with report history.",
+      "reviewChecks": [
+        "Identity card shows Monument Sign at North Campus.",
+        "Assets tab is selected in the four-tab bar.",
+        "S10 sign-detail layout is unchanged.",
+        "Report history and Start Check exist (asserted by test, not visible)"
+      ]
+    },
+    {
+      "id": "p1.reports.report-detail.light",
+      "order": 10,
+      "method": "test2SignReportAndApprovalResponseInShell",
+      "orderInMethod": 3,
+      "variant": "light",
+      "title": "Report detail",
+      "expectedBehavior": "Reports lists the one saved visit, and View report opens its report card and PDF preview.",
+      "reviewChecks": [
+        "Report card shows Report ready and the report title.",
+        "The top of the PDF preview is visible below the card and is not blank.",
+        "Share PDF, Save to Files and Close are pinned at the bottom of the screen.",
+        "Reports tab stays selected."
+      ]
+    },
+    {
+      "id": "p1.work.completed-list.light",
+      "order": 11,
+      "method": "test2SignReportAndApprovalResponseInShell",
+      "orderInMethod": 4,
+      "variant": "light",
+      "title": "Completed work list",
+      "expectedBehavior": "Work lists the saved report as one completed-work row with no responses yet.",
+      "reviewChecks": [
+        "One row: Monument Sign, North Campus, the check stage and No visible issue outcome.",
+        "Row shows a date and time and a Version label.",
+        "Row reads \"No responses recorded\".",
+        "No current-work, Round or saved-draft rows."
+      ]
+    },
+    {
+      "id": "p1.work.completed-detail.light",
+      "order": 12,
+      "method": "test2SignReportAndApprovalResponseInShell",
+      "orderInMethod": 5,
+      "variant": "light",
+      "title": "Completed work detail",
+      "expectedBehavior": "The row opens the read-only completed-work detail; the capture is scrolled so More is on screen.",
+      "reviewChecks": [
+        "Navigation title is Completed work.",
+        "Facts show Site, Stage, Outcome, Completed, Version and Responses (No responses recorded).",
+        "More is shown and no ineligibility reason is shown.",
+        "Nothing on the screen is editable."
+      ]
+    },
+    {
+      "id": "p1.signoff.editor.light",
+      "order": 13,
+      "method": "test2SignReportAndApprovalResponseInShell",
+      "orderInMethod": 6,
+      "variant": "light",
+      "title": "Record approval response editor",
+      "expectedBehavior": "More, then Record approval response, opens the response editor bound to this version, at its top.",
+      "reviewChecks": [
+        "Heading reads exactly \"Record approval response\"; navigation title is Record response.",
+        "Intro says the response is a local assertion and does not change the work record.",
+        "Completed work card repeats the subject and says Response type Approval response.",
+        "Typed name and Claimed role are empty (asserted by test, not visible)"
+      ]
+    },
+    {
+      "id": "p1.signoff.editor-fields.light",
+      "order": 14,
+      "method": "test2SignReportAndApprovalResponseInShell",
+      "orderInMethod": 7,
+      "variant": "light",
+      "title": "Response editor fields",
+      "expectedBehavior": "The same editor scrolled to its response fields before anything is typed.",
+      "reviewChecks": [
+        "Your response card shows empty Typed name and Claimed role fields with their prompts.",
+        "Claimed relationship reads Not specified.",
+        "Field labels and outlines are visible and not clipped.",
+        "The drawn mark is optional and not required (asserted by test, not visible)"
+      ]
+    },
+    {
+      "id": "p1.reports.signoff-history.light",
+      "order": 15,
+      "method": "test2SignReportAndApprovalResponseInShell",
+      "orderInMethod": 8,
+      "variant": "light",
+      "title": "Focused response history",
+      "expectedBehavior": "Recording the response switches to Reports and opens the focused, read-only response history.",
+      "reviewChecks": [
+        "Reports tab is selected and the navigation title is Responses.",
+        "Current version lists one response: Pat Rivera, Site supervisor.",
+        "No Record or edit action on this screen.",
+        "\"Not verified by AssetRounds\" is shown (asserted by test, not visible)"
+      ]
+    },
+    {
+      "id": "p1.reports.signoff-history.dark-axxxl",
+      "order": 16,
+      "method": "test2SignReportAndApprovalResponseInShell",
+      "orderInMethod": 9,
+      "variant": "dark-axxxl",
+      "title": "Response history restored, dark, AX XXXL",
+      "expectedBehavior": "A relaunch in Dark mode at Accessibility XXXL restores Reports on the same focused response history, scrolled to the typed name.",
+      "reviewChecks": [
+        "Typed name Pat Rivera is shown in the restored history.",
+        "Labels and values wrap without truncation or clipping.",
+        "Dark palette keeps secondary text readable.",
+        "\"Not verified by AssetRounds\" is shown (asserted by test, not visible)"
+      ]
+    },
+    {
+      "id": "p1.work.completed-list.dark-axxxl",
+      "order": 17,
+      "method": "test2SignReportAndApprovalResponseInShell",
+      "orderInMethod": 10,
+      "variant": "dark-axxxl",
+      "title": "Completed work list, dark, AX XXXL",
+      "expectedBehavior": "The completed-work row now counts the recorded response.",
+      "reviewChecks": [
+        "Row text wraps fully and stays inside its row.",
+        "Row remains a single full-width tap target.",
+        "Work tab is selected in a usable tab bar.",
+        "Row reads \"1 response recorded\" (asserted by test, not visible)"
+      ]
+    },
+    {
+      "id": "p1.work.completed-detail.dark-axxxl",
+      "order": 18,
+      "method": "test2SignReportAndApprovalResponseInShell",
+      "orderInMethod": 11,
+      "variant": "dark-axxxl",
+      "title": "Completed work detail, dark, AX XXXL",
+      "expectedBehavior": "The detail, scrolled to More, shows the response count at the largest size.",
+      "reviewChecks": [
+        "Responses reads \"1 response recorded\" directly above More.",
+        "Fact labels and values wrap without clipping.",
+        "More is visible and keeps a full-size tap target.",
+        "Dark palette contrast is readable."
+      ]
+    },
+    {
+      "id": "p1.signoff.editor.dark-axxxl",
+      "order": 19,
+      "method": "test2SignReportAndApprovalResponseInShell",
+      "orderInMethod": 12,
+      "variant": "dark-axxxl",
+      "title": "Response editor, dark, AX XXXL",
+      "expectedBehavior": "The editor opens again for the current version in Dark mode at Accessibility XXXL, at its top.",
+      "reviewChecks": [
+        "Heading and intro copy wrap fully without clipping.",
+        "Visible subject card values are readable and not truncated.",
+        "Dark palette keeps the heading and secondary text readable.",
+        "Typed name and Claimed role are empty; no earlier entries are prefilled (asserted by test, not visible)"
+      ]
+    },
+    {
+      "id": "p1.settings.app-lock-off.light",
+      "order": 20,
+      "method": "test3SettingsAppLockAndCover",
+      "orderInMethod": 1,
+      "variant": "light",
+      "title": "Settings, App Lock off",
+      "expectedBehavior": "Settings shows the App Lock section off with Lock Now disabled, and no Reminders row in Phase 1.",
+      "reviewChecks": [
+        "App Lock heading, the setting text and the disclosure are shown.",
+        "Toggle is off and Lock Now is disabled.",
+        "Back up current data follows Lock Now with no Reminders section between them.",
+        "S10 card and button styling."
+      ]
+    },
+    {
+      "id": "p1.settings.app-lock-on.light",
+      "order": 21,
+      "method": "test3SettingsAppLockAndCover",
+      "orderInMethod": 2,
+      "variant": "light",
+      "title": "Settings, App Lock on",
+      "expectedBehavior": "Turning App Lock on authenticates, locks at once, and after Unlock Settings shows it on.",
+      "reviewChecks": [
+        "Toggle is on.",
+        "Lock Now is enabled.",
+        "Back up current data follows Lock Now with no Reminders section between them.",
+        "No error or Unavailable label."
+      ]
+    },
+    {
+      "id": "p1.app-lock.lock-now-cover.light",
+      "order": 22,
+      "method": "test3SettingsAppLockAndCover",
+      "orderInMethod": 3,
+      "variant": "light",
+      "title": "Lock Now cover",
+      "expectedBehavior": "Lock Now replaces all content with the App Lock cover.",
+      "reviewChecks": [
+        "Title App Lock and the locked message are shown.",
+        "Unlock button is shown and enabled.",
+        "No tab bar, Settings or record content is visible.",
+        "No Unavailable label."
+      ]
+    },
+    {
+      "id": "p1.app-lock.background-cover.light",
+      "order": 23,
+      "method": "test3SettingsAppLockAndCover",
+      "orderInMethod": 4,
+      "variant": "light",
+      "title": "Cover after returning from background",
+      "expectedBehavior": "Returning from the background with App Lock on shows the cover, not the earlier content.",
+      "reviewChecks": [
+        "The App Lock cover is shown, not the Today screen.",
+        "Unlock is enabled.",
+        "No record content is visible behind the cover.",
+        "No Unavailable label."
+      ]
+    },
+    {
+      "id": "p1.app-lock.launch-cover.dark-axxxl",
+      "order": 24,
+      "method": "test3SettingsAppLockAndCover",
+      "orderInMethod": 5,
+      "variant": "dark-axxxl",
+      "title": "Cold-launch cover, dark, AX XXXL",
+      "expectedBehavior": "A cold launch with App Lock on stays on the cover until Unlock.",
+      "reviewChecks": [
+        "Cover stays up; no tab bar or content.",
+        "Title and locked message wrap without clipping.",
+        "Dark S10 palette contrast is readable.",
+        "Unlock exists and is enabled (asserted by test, not visible)"
+      ]
+    },
+    {
+      "id": "p1.settings.app-lock-on.dark-axxxl",
+      "order": 25,
+      "method": "test3SettingsAppLockAndCover",
+      "orderInMethod": 6,
+      "variant": "dark-axxxl",
+      "title": "Settings, App Lock on, dark, AX XXXL",
+      "expectedBehavior": "After Unlock, Settings shows App Lock still on at the largest size, at its top.",
+      "reviewChecks": [
+        "Toggle is on and its switch is visible next to or below the wrapped label.",
+        "Setting text wraps without clipping.",
+        "Dark palette contrast is readable.",
+        "No Reminders section or row (asserted by test, not visible)"
+      ]
+    },
+    {
+      "id": "p1.settings.app-lock-on-lock-now.dark-axxxl",
+      "order": 26,
+      "method": "test3SettingsAppLockAndCover",
+      "orderInMethod": 7,
+      "variant": "dark-axxxl",
+      "title": "Settings, App Lock on, Lock Now, dark, AX XXXL",
+      "expectedBehavior": "The same Settings screen scrolled to Lock Now.",
+      "reviewChecks": [
+        "Disclosure text wraps without clipping.",
+        "Lock Now is enabled and keeps a full-size tap target.",
+        "Back up current data follows Lock Now with no Reminders section between them.",
+        "Dark palette contrast is readable."
+      ]
+    },
+    {
+      "id": "p1.settings.app-lock-off.dark-axxxl",
+      "order": 27,
+      "method": "test3SettingsAppLockAndCover",
+      "orderInMethod": 8,
+      "variant": "dark-axxxl",
+      "title": "Settings, App Lock off again, dark, AX XXXL",
+      "expectedBehavior": "Turning App Lock off authenticates and leaves the setting off, with content shown.",
+      "reviewChecks": [
+        "Toggle is off.",
+        "No cover and no Unavailable label.",
+        "Setting text wraps without clipping.",
+        "Lock Now is disabled and no Reminders section is shown (asserted by test, not visible)"
+      ]
+    }
+  ]
+}

@@ -47,6 +47,7 @@ final class S6_3BackupValidationUITests: XCTestCase {
 
     @MainActor
     private func createVisibleIssueReport(in app: XCUIApplication) {
+        app.selectAssetsRootForS10Journey()
         XCTAssertTrue(element("s2.welcome.screen", in: app).waitForExistence(timeout: 25))
         tap("s2.welcome.add-first-sign", in: app)
         enter("North Campus", into: "s2.new-sign.site-label", in: app)

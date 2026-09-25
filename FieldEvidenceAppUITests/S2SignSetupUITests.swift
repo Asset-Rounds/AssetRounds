@@ -8,6 +8,7 @@ final class S2SignSetupUITests: XCTestCase {
     @MainActor
     func testWelcomeCreateDetailAndRelaunchTheExactFirstSign() {
         let app = launch()
+        app.selectAssetsRootForS10Journey()
 
         let welcome = element(in: app, identifier: "s2.welcome.screen")
         XCTAssertTrue(welcome.waitForExistence(timeout: 15))

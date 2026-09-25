@@ -53,6 +53,7 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         ]
         let coldLaunchStartedAt = Date()
         app.launch()
+        app.selectAssetsRootForS10Journey()
         XCTAssertTrue(element("s2.welcome.screen", in: app)
             .waitForExistence(timeout: 30))
         recordMetric("cold_launch_to_welcome", since: coldLaunchStartedAt)
@@ -107,8 +108,9 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         XCTAssertTrue(element("s1.reports.placeholder", in: app)
             .waitForExistence(timeout: 10))
         captureBaseline("state.reports-index.empty", in: app)
+        // V23 four-tab shell: the S10 Signs tab is Assets (same s1.tab.signs identity).
         let signsTab = element("s1.tab.signs", in: app)
-        assertControl(signsTab, label: "Signs")
+        assertControl(signsTab, label: "Assets")
         signsTab.tap()
         XCTAssertTrue(element("s2.welcome.screen", in: app)
             .waitForExistence(timeout: 20))
@@ -1186,10 +1188,12 @@ final class S10_1BrandInventoryUITests: XCTestCase {
         confirm.tap()
 
         let welcome = element("s2.welcome.screen", in: app)
+        app.selectAssetsRootForS10Journey(awaiting: welcome, timeout: 90)
         XCTAssertTrue(welcome.waitForExistence(timeout: 90))
         XCTAssertFalse(element("s2.sign-detail.screen", in: app).exists)
         app.terminate()
         app.launch()
+        app.selectAssetsRootForS10Journey(awaiting: welcome, timeout: 45)
         XCTAssertTrue(welcome.waitForExistence(timeout: 45))
 
         let restore = element("s2.welcome.restore-purchases", in: app)

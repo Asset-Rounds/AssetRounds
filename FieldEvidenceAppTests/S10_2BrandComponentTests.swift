@@ -291,6 +291,7 @@ final class S10_2BrandComponentTests: XCTestCase {
             "original", "template",
         ])
 
+        // Historical: the token document at the S10.2 product head (receipt-bound S10.1 blob).
         let tokenDocument = try json("docs/design/s10/s10-token-coverage.json")
         let componentRows = try rows(tokenDocument, "components")
         XCTAssertEqual(
@@ -341,7 +342,15 @@ final class S10_2BrandComponentTests: XCTestCase {
         }
     }
 
+    func testCardTimeRecordsAreTheCommittedS10History() throws {
+        try S10CardHistoryV1.assertBoundToCommittedHistory(
+            card: .componentSystem,
+            repositoryRoot: repositoryRoot
+        )
+    }
+
     func testExactSelectorEnvelopeAndApprovedBaselinesRemainFrozen() throws {
+        // Historical: the S10.2 product-head selector (git blob 933598e9).
         let selector = #"{"schemaVersion":1,"taskID":"S10.2","tier":"P12","runUISmoke":true,"setupArtifactTimeoutSeconds":300,"buildTimeoutSeconds":600,"testTimeoutSeconds":900,"uiTimeoutSeconds":900,"totalBudgetSeconds":3300,"unitTestSelectors":["FieldEvidenceAppTests/S10_2BrandComponentTests"],"uiTestSelectors":["FieldEvidenceAppUITests/S10_2BrandComponentUITests"]}"# + "\n"
         XCTAssertEqual(try data("Scripts/ci-selection.json"), Data(selector.utf8))
 
@@ -385,8 +394,19 @@ final class S10_2BrandComponentTests: XCTestCase {
             .deletingLastPathComponent()
     }
 
+    // Owner decision A (2026-09-25): the component-row NOT_RUN state and the CI selector are
+    // S10.2 card-time state. S10.2 evidence promoted the token rows and V23 owns the live
+    // selector, so those two paths resolve to the committed history at the S10.2 product head
+    // (S10CardHistoryV1). Assets, activation, visual baselines and sources stay live.
     private func data(_ relativePath: String) throws -> Data {
-        try Data(contentsOf: repositoryRoot.appendingPathComponent(relativePath))
+        if let historical = try S10CardHistoryV1.data(
+            card: .componentSystem,
+            path: relativePath,
+            repositoryRoot: repositoryRoot
+        ) {
+            return historical
+        }
+        return try Data(contentsOf: repositoryRoot.appendingPathComponent(relativePath))
     }
 
     private func text(_ relativePath: String) throws -> String {

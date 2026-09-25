@@ -114,6 +114,7 @@ final class S4_3ValueReceiptUITests: XCTestCase {
 
     @MainActor
     private func createCompletedReport(in app: XCUIApplication) {
+        app.selectAssetsRootForS10Journey()
         XCTAssertTrue(
             element(in: app, identifier: "s2.welcome.screen")
                 .waitForExistence(timeout: 15)

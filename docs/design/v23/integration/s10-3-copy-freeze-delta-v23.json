@@ -1,0 +1,428 @@
+{
+  "schema_version": 1,
+  "document_id": "v23-s10-3-copy-freeze-delta-v1",
+  "purpose": "Reviewer evidence for re-pinning the S10.3 copy/import freeze and the S10.4 maintained copy freeze to the V23 Phase 1 candidate bytes.",
+  "consumers": [
+    "FieldEvidenceAppTests/S10_3BrandMigrationTests.swift testCopyIdentifiersImportsAndNativeBehaviorAuthorityStayFrozen",
+    "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift testMigratedProductAndTokenCoverageRemainBoundToFrozenInventory"
+  ],
+  "algorithm": {
+    "sources": "The 26 S10.3-migrated FieldEvidenceApp sources in S10_3BrandMigrationTests.productionPaths order.",
+    "import_values": "Lines of each source that start with 'import '.",
+    "literal_values": "Every match of the Swift string-literal pattern \"(?:\\\\.|[^\"\\\\])*\" in each source, in order.",
+    "canonical": "For each path: path + LF + values joined by LF + LF; SHA-256 of the UTF-8 concatenation, uppercase hex.",
+    "s10_4_projection": "The S10.4 maintained copy freeze first removes the five DEBUG recheck-navigation observer blocks from SignsRootView.swift (unchanged since S10.4 E)."
+  },
+  "digests": {
+    "s10_3_imports": {
+      "historical_pin": {
+        "commit": "4ade197b1200a2fbf1acad00db95339971a945db",
+        "sha256": "22CBACD7A96A1F16BD28263D4F7C9F33AE72C03AA116B0AC0B8A2C4CA86E2535"
+      },
+      "accepted_main": {
+        "commit": "b1d04ae5e684aa9c6807af655089efa1df8a7ed6",
+        "sha256": "22CBACD7A96A1F16BD28263D4F7C9F33AE72C03AA116B0AC0B8A2C4CA86E2535"
+      },
+      "candidate": {
+        "base_commit": "826be4f5a4a94339257c6450ea7d3d84f441a231",
+        "sha256": "F718F0601EE8B4D441A27519075934F787DF868D435FFD7ED167C654C8C116F5"
+      }
+    },
+    "s10_3_literals": {
+      "historical_pin": {
+        "commit": "4ade197b1200a2fbf1acad00db95339971a945db",
+        "sha256": "1FC7F5B8D24E0B2F0A1111A4F21495C40CA3A306A708EB3CA0CAE0760A562D26"
+      },
+      "accepted_main": {
+        "commit": "b1d04ae5e684aa9c6807af655089efa1df8a7ed6",
+        "sha256": "5CDFCFAA51AF9289B1D97B78B2B1A35668B3F1DDA5EA0D6CB0D66D34DD8D2E44"
+      },
+      "candidate": {
+        "base_commit": "826be4f5a4a94339257c6450ea7d3d84f441a231",
+        "sha256": "F776F6B2EC6C76D70F141D72D3C30D34FDFF63270BF3ECBDFDD2B1F17AB452EF"
+      }
+    },
+    "s10_4_projected_literals": {
+      "historical_pin": {
+        "commit": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+        "sha256": "1FC7F5B8D24E0B2F0A1111A4F21495C40CA3A306A708EB3CA0CAE0760A562D26"
+      },
+      "accepted_main": {
+        "commit": "b1d04ae5e684aa9c6807af655089efa1df8a7ed6",
+        "sha256": "1FC7F5B8D24E0B2F0A1111A4F21495C40CA3A306A708EB3CA0CAE0760A562D26"
+      },
+      "candidate": {
+        "base_commit": "826be4f5a4a94339257c6450ea7d3d84f441a231",
+        "sha256": "62C727B0A93E2B9361706420AAA4389C7747B4603013D0E1ABD606546BFF31EA"
+      }
+    }
+  },
+  "segments": [
+    {
+      "from": "4ade197b1200a2fbf1acad00db95339971a945db",
+      "to": "b1d04ae5e684aa9c6807af655089efa1df8a7ed6",
+      "cause": "Accepted S10.4 work after the pin commit: the DEBUG-only SignsRootView recheck-navigation observer (H414). The S10.3 literal pin was already stale at accepted main; the S10.4 projection removes these blocks.",
+      "import_changes": [],
+      "literal_changes": [
+        {
+          "path": "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+          "added": [
+            "\"S10_4_RECHECK_NAV_OBSERVATION \\(line)\"",
+            "\"S10_4_RECHECK_NAV_OBSERVATION\"",
+            "\"activeIssuePresent\"",
+            "\"activeIssueRecheckDue\"",
+            "\"current-rt-v1\"",
+            "\"currentCount\"",
+            "\"diagnosticOnly\"",
+            "\"event\"",
+            "\"finalAcceptanceEligible\"",
+            "\"iphone-17-ios-26.2-current\"",
+            "\"issue_appear\"",
+            "\"issue_disappear\"",
+            "\"newCount\"",
+            "\"oldCount\"",
+            "\"path_changed\"",
+            "\"pid\"",
+            "\"profile\"",
+            "\"s10.4.current.reduce-transparency/recheck-due-native-back\"",
+            "\"seam\"",
+            "\"timestampUnixSeconds\"",
+            "\"token\"",
+            "\"uptimeSeconds\"",
+            "\"version\""
+          ],
+          "removed": []
+        }
+      ],
+      "projected_literal_changes": []
+    },
+    {
+      "from": "b1d04ae5e684aa9c6807af655089efa1df8a7ed6",
+      "to": "candidate (base 826be4f5a4a94339257c6450ea7d3d84f441a231 plus this batch)",
+      "cause": "V23 integration: four-tab shell (Signs renamed Assets; Today and Work added, commit aa0dc10, BLUEPRINT:9654), import UIKit in FieldEvidenceAppApp, durable capture/outcome/preflight failure copy, C43 completed-work response menu, Reports startup diagnostics and recovery copy, erase/startup maintenance copy, and the Phase 1 DEBUG-only UI-test launch argument --v23-ui-test-local-auth-success.",
+      "import_changes": [
+        {
+          "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+          "added": [
+            "import UIKit"
+          ],
+          "removed": []
+        }
+      ],
+      "literal_changes": [
+        {
+          "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+          "added": [
+            "\"--v23-ui-test-legacy-migration\"",
+            "\"--v23-ui-test-local-auth-success\"",
+            "\"Erase incomplete\"",
+            "\"Secure cleanup is still pending.\"",
+            "\"Secure cleanup pending\"",
+            "\"Unavailable\"",
+            "\"V23MigrationUITests\"",
+            "\"V23_MIGRATION_TEST_ID\""
+          ],
+          "removed": [
+            "\"Close and reopen the app to finish secure cleanup.\"",
+            "\"Finishing erase\"",
+            "\"Local data erased\""
+          ]
+        },
+        {
+          "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+          "added": [
+            "\"Backup unavailable\""
+          ],
+          "removed": []
+        },
+        {
+          "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+          "added": [
+            "\"A photo is selected for this step and saved on this iPhone.\"",
+            "\"Selected photo preview\"",
+            "\"The photo could not be saved. Try again.\"",
+            "\"This photo could not be finished on this iPhone.\"",
+            "\"Use Photo\"",
+            "\"Your changes could not be saved. Try again.\""
+          ],
+          "removed": []
+        },
+        {
+          "path": "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+          "added": [
+            "\"Take photos instead\"",
+            "\"The check could not be prepared for review. Try again.\"",
+            "\"The report could not be saved. Your check is still available to retry.\"",
+            "\"Your changes could not be saved. Try again.\"",
+            "\"Your changes could not be saved. Try again.\"",
+            "\"v23.outcome.return-to-photos\""
+          ],
+          "removed": [
+            "\"\"",
+            "\"\""
+          ]
+        },
+        {
+          "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+          "added": [
+            "\"The check could not be started. Try again.\"",
+            "\"Your changes could not be saved. Try again.\"",
+            "\"Your changes could not be saved. Try again.\""
+          ],
+          "removed": []
+        },
+        {
+          "path": "FieldEvidenceApp/Features/Issues/IssueDetailView.swift",
+          "added": [
+            "\"More actions for this completed work, including Record response.\"",
+            "\"More\"",
+            "\"More\"",
+            "\"Opens the response editor for this completed work.\"",
+            "\"Record response\"",
+            "\"ellipsis.circle\"",
+            "\"v23.p04.c43.signoff-enrollment.immutable-work-detail\"",
+            "\"v23.p04.c43.signoff-enrollment.more\"",
+            "\"v23.p04.c43.signoff-enrollment.record-approval-response\"",
+            "\"v23.p04.c43.signoff-enrollment.work-root\""
+          ],
+          "removed": []
+        },
+        {
+          "path": "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+          "added": [
+            "\"ReportsStartupDiagnostic destination_load_failed type=\\(String(reflecting: type(of: error))) code=\\((error as NSError).code)\"",
+            "\"ReportsStartupDiagnostic destination_load_ready\"",
+            "\"ReportsStartupDiagnostic destination_load_started\"",
+            "\"ReportsStartupDiagnostic ready_child_appeared\"",
+            "\"These responses are unavailable here.\"",
+            "\"These responses are unavailable here.\""
+          ],
+          "removed": [
+            "\"Saved reports could not be opened.\"",
+            "\"Saved reports could not be opened.\"",
+            "\"The saved report could not be opened.\"",
+            "\"This comparison is unavailable.\""
+          ]
+        },
+        {
+          "path": "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+          "added": [
+            "\"Erase could not be completed\""
+          ],
+          "removed": []
+        },
+        {
+          "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+          "added": [
+            "\"Assets\"",
+            "\"Blocked: Unavailable\"",
+            "\"Navigation could not be restored safely.\"",
+            "\"Navigation could not be restored safely.\"",
+            "\"Navigation could not be restored safely.\"",
+            "\"Navigation could not be restored safely.\"",
+            "\"Navigation could not be restored safely.\"",
+            "\"Navigation could not be restored safely.\"",
+            "\"Navigation could not be restored safely.\"",
+            "\"OK\"",
+            "\"Opening work\"",
+            "\"Opening your workspace\"",
+            "\"Opening your workspace\"",
+            "\"Refresh Work and try again.\"",
+            "\"Retry\"",
+            "\"Saved draft unavailable\"",
+            "\"Signs and reports unavailable\"",
+            "\"Today\"",
+            "\"Unavailable\"",
+            "\"Work unavailable\"",
+            "\"Work unavailable\"",
+            "\"Work\"",
+            "\"WorkStartupDiagnostic load_failed type=\\(String(reflecting: type(of: error))) code=\\((error as NSError).code)\"",
+            "\"WorkStartupDiagnostic load_ready selected_asset_matches=\\(displayedSnapshot?.assetID == admission.target.stableEntityID)\"",
+            "\"WorkStartupDiagnostic preflight_appeared active=\\(admission.isActiveWorkRoute()) selected_asset_matches=\\(displayedSnapshot.assetID == admission.target.stableEntityID)\"",
+            "\"WorkStartupDiagnostic root_appeared\"",
+            "\"WorkStartupDiagnostic task_started work_selected=\\(scene.snapshot?.selectedRoot == .work) active=\\(admission.isActiveWorkRoute())\"",
+            "\"Your current work could not be opened. Try again.\"",
+            "\"Your current work could not be opened. Try again.\"",
+            "\"Your workspace could not be opened safely.\"",
+            "\"checklist\"",
+            "\"sun.max\"",
+            "\"v23.tab.today\"",
+            "\"v23.tab.work\""
+          ],
+          "removed": [
+            "\"Signs\""
+          ]
+        },
+        {
+          "path": "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+          "added": [
+            "\"Restart to finish updating local data\"",
+            "\"Retry checks\"",
+            "\"Your local data has been preserved. Close AssetRounds completely, then reopen it to finish validation. Retry checks cannot replace a restart.\"",
+            "\"arrow.clockwise\"",
+            "\"v23.migration.awaiting-validation.retry\"",
+            "\"v23.migration.awaiting-validation.screen\""
+          ],
+          "removed": []
+        }
+      ],
+      "projected_literal_changes": [
+        {
+          "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+          "added": [
+            "\"--v23-ui-test-legacy-migration\"",
+            "\"--v23-ui-test-local-auth-success\"",
+            "\"Erase incomplete\"",
+            "\"Secure cleanup is still pending.\"",
+            "\"Secure cleanup pending\"",
+            "\"Unavailable\"",
+            "\"V23MigrationUITests\"",
+            "\"V23_MIGRATION_TEST_ID\""
+          ],
+          "removed": [
+            "\"Close and reopen the app to finish secure cleanup.\"",
+            "\"Finishing erase\"",
+            "\"Local data erased\""
+          ]
+        },
+        {
+          "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+          "added": [
+            "\"Backup unavailable\""
+          ],
+          "removed": []
+        },
+        {
+          "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+          "added": [
+            "\"A photo is selected for this step and saved on this iPhone.\"",
+            "\"Selected photo preview\"",
+            "\"The photo could not be saved. Try again.\"",
+            "\"This photo could not be finished on this iPhone.\"",
+            "\"Use Photo\"",
+            "\"Your changes could not be saved. Try again.\""
+          ],
+          "removed": []
+        },
+        {
+          "path": "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+          "added": [
+            "\"Take photos instead\"",
+            "\"The check could not be prepared for review. Try again.\"",
+            "\"The report could not be saved. Your check is still available to retry.\"",
+            "\"Your changes could not be saved. Try again.\"",
+            "\"Your changes could not be saved. Try again.\"",
+            "\"v23.outcome.return-to-photos\""
+          ],
+          "removed": [
+            "\"\"",
+            "\"\""
+          ]
+        },
+        {
+          "path": "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+          "added": [
+            "\"The check could not be started. Try again.\"",
+            "\"Your changes could not be saved. Try again.\"",
+            "\"Your changes could not be saved. Try again.\""
+          ],
+          "removed": []
+        },
+        {
+          "path": "FieldEvidenceApp/Features/Issues/IssueDetailView.swift",
+          "added": [
+            "\"More actions for this completed work, including Record response.\"",
+            "\"More\"",
+            "\"More\"",
+            "\"Opens the response editor for this completed work.\"",
+            "\"Record response\"",
+            "\"ellipsis.circle\"",
+            "\"v23.p04.c43.signoff-enrollment.immutable-work-detail\"",
+            "\"v23.p04.c43.signoff-enrollment.more\"",
+            "\"v23.p04.c43.signoff-enrollment.record-approval-response\"",
+            "\"v23.p04.c43.signoff-enrollment.work-root\""
+          ],
+          "removed": []
+        },
+        {
+          "path": "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+          "added": [
+            "\"ReportsStartupDiagnostic destination_load_failed type=\\(String(reflecting: type(of: error))) code=\\((error as NSError).code)\"",
+            "\"ReportsStartupDiagnostic destination_load_ready\"",
+            "\"ReportsStartupDiagnostic destination_load_started\"",
+            "\"ReportsStartupDiagnostic ready_child_appeared\"",
+            "\"These responses are unavailable here.\"",
+            "\"These responses are unavailable here.\""
+          ],
+          "removed": [
+            "\"Saved reports could not be opened.\"",
+            "\"Saved reports could not be opened.\"",
+            "\"The saved report could not be opened.\"",
+            "\"This comparison is unavailable.\""
+          ]
+        },
+        {
+          "path": "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+          "added": [
+            "\"Erase could not be completed\""
+          ],
+          "removed": []
+        },
+        {
+          "path": "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+          "added": [
+            "\"Assets\"",
+            "\"Blocked: Unavailable\"",
+            "\"Navigation could not be restored safely.\"",
+            "\"Navigation could not be restored safely.\"",
+            "\"Navigation could not be restored safely.\"",
+            "\"Navigation could not be restored safely.\"",
+            "\"Navigation could not be restored safely.\"",
+            "\"Navigation could not be restored safely.\"",
+            "\"Navigation could not be restored safely.\"",
+            "\"OK\"",
+            "\"Opening work\"",
+            "\"Opening your workspace\"",
+            "\"Opening your workspace\"",
+            "\"Refresh Work and try again.\"",
+            "\"Retry\"",
+            "\"Saved draft unavailable\"",
+            "\"Signs and reports unavailable\"",
+            "\"Today\"",
+            "\"Unavailable\"",
+            "\"Work unavailable\"",
+            "\"Work unavailable\"",
+            "\"Work\"",
+            "\"WorkStartupDiagnostic load_failed type=\\(String(reflecting: type(of: error))) code=\\((error as NSError).code)\"",
+            "\"WorkStartupDiagnostic load_ready selected_asset_matches=\\(displayedSnapshot?.assetID == admission.target.stableEntityID)\"",
+            "\"WorkStartupDiagnostic preflight_appeared active=\\(admission.isActiveWorkRoute()) selected_asset_matches=\\(displayedSnapshot.assetID == admission.target.stableEntityID)\"",
+            "\"WorkStartupDiagnostic root_appeared\"",
+            "\"WorkStartupDiagnostic task_started work_selected=\\(scene.snapshot?.selectedRoot == .work) active=\\(admission.isActiveWorkRoute())\"",
+            "\"Your current work could not be opened. Try again.\"",
+            "\"Your current work could not be opened. Try again.\"",
+            "\"Your workspace could not be opened safely.\"",
+            "\"checklist\"",
+            "\"sun.max\"",
+            "\"v23.tab.today\"",
+            "\"v23.tab.work\""
+          ],
+          "removed": [
+            "\"Signs\""
+          ]
+        },
+        {
+          "path": "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+          "added": [
+            "\"Restart to finish updating local data\"",
+            "\"Retry checks\"",
+            "\"Your local data has been preserved. Close AssetRounds completely, then reopen it to finish validation. Retry checks cannot replace a restart.\"",
+            "\"arrow.clockwise\"",
+            "\"v23.migration.awaiting-validation.retry\"",
+            "\"v23.migration.awaiting-validation.screen\""
+          ],
+          "removed": []
+        }
+      ]
+    }
+  ]
+}

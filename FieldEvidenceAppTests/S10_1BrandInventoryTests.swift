@@ -84,6 +84,25 @@ final class S10_1BrandInventoryTests: XCTestCase {
         "report_comprehension",
     ]
 
+    func testCardTimeRecordsAreTheCommittedS10History() throws {
+        try S10CardHistoryV1.assertBoundToCommittedHistory(
+            card: .inventory,
+            repositoryRoot: repositoryRoot
+        )
+        // The live S10 records must still carry the receipted S10.1 row unchanged.
+        let liveStages = try object(
+            from: Data(contentsOf: repositoryRoot.appendingPathComponent(
+                "docs/design/s10/s10-stage-checkpoints.json"
+            ))
+        )
+        let liveInventory = try XCTUnwrap(try rows(liveStages, "checkpoints").first)
+        XCTAssertEqual(liveInventory["gate_id"] as? String, "s10.1-inventory")
+        XCTAssertEqual(
+            liveInventory["product_head"] as? String,
+            "44e9f9471f8ced9ecdd85f241a79c3750c38412d"
+        )
+    }
+
     func testFrozenContractsHaveOneUniqueReferentiallyCompleteGraph() throws {
         let stages = try json("docs/design/s10/s10-stage-checkpoints.json")
         let inventory = try json("docs/design/s10/s10-screen-state-inventory.json")
@@ -412,6 +431,7 @@ final class S10_1BrandInventoryTests: XCTestCase {
             XCTAssertEqual(try object(store, key)["status"] as? String, "NOT_RUN", key)
         }
 
+        // Historical: the S10.1 product-head selector (git blob 4cc7d799), not today's V23 selector.
         let selectorData = try data("Scripts/ci-selection.json")
         XCTAssertEqual(selectorData.last, UInt8(0x0A))
         XCTAssertFalse(selectorData.starts(with: [0xEF, 0xBB, 0xBF]))
@@ -453,8 +473,20 @@ final class S10_1BrandInventoryTests: XCTestCase {
             .deletingLastPathComponent()
     }
 
+    // Owner decision A (2026-09-25): every S10 record and the CI selector this card reads
+    // are card-time state. Later cards promoted those records (S10.2-S10.6) and V23 owns the
+    // live selector, so these reads resolve to the committed S10.1 history: the receipt-bound
+    // documents at evidence head K, the checkpoint file at receipt C and the selector at
+    // product head E (S10CardHistoryV1). The UI source and repository paths stay live.
     private func data(_ relativePath: String) throws -> Data {
-        try Data(contentsOf: repositoryRoot.appendingPathComponent(relativePath))
+        if let historical = try S10CardHistoryV1.data(
+            card: .inventory,
+            path: relativePath,
+            repositoryRoot: repositoryRoot
+        ) {
+            return historical
+        }
+        return try Data(contentsOf: repositoryRoot.appendingPathComponent(relativePath))
     }
 
     private func json(_ relativePath: String) throws -> [String: Any] {

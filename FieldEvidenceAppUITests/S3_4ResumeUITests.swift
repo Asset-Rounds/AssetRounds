@@ -24,6 +24,7 @@ final class S3_4ResumeUITests: XCTestCase {
         app.terminate()
         XCTAssertEqual(app.state, .notRunning)
         app.launch()
+        app.selectAssetsRootForS10Journey(timeout: 60)
         let welcome = element(in: app, identifier: "s2.welcome.screen")
         XCTAssertTrue(welcome.waitForExistence(timeout: 60))
         XCTAssertFalse(pending.exists)
@@ -113,6 +114,7 @@ final class S3_4ResumeUITests: XCTestCase {
 
     @MainActor
     private func createDraft(in app: XCUIApplication) {
+        app.selectAssetsRootForS10Journey()
         XCTAssertTrue(
             element(in: app, identifier: "s2.welcome.screen")
                 .waitForExistence(timeout: 15)

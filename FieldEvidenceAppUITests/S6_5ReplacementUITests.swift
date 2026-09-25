@@ -88,6 +88,10 @@ final class S6_5ReplacementUITests: XCTestCase {
             "This report was saved, but its PDF is not available."
         )
         tap("s4.pdf-failure.retry", in: app)
+        app.selectAssetsRootForS10Journey(
+            awaiting: element("s2.sign-detail.screen", in: app),
+            timeout: 240
+        )
         XCTAssertTrue(element("s2.sign-detail.screen", in: app)
             .waitForExistence(timeout: 240))
         XCTAssertEqual(
@@ -185,6 +189,7 @@ private extension S6_5ReplacementUITests {
 
     @MainActor
     func createVisibleIssueReport(in app: XCUIApplication) {
+        app.selectAssetsRootForS10Journey()
         XCTAssertTrue(element("s2.welcome.screen", in: app)
             .waitForExistence(timeout: 25))
         tap("s2.welcome.add-first-sign", in: app)
@@ -300,6 +305,7 @@ private extension S6_5ReplacementUITests {
 
     @MainActor
     func createCurrentNoVisibleReport(in app: XCUIApplication) {
+        app.selectAssetsRootForS10Journey(timeout: 40)
         XCTAssertTrue(element("s2.welcome.screen", in: app)
             .waitForExistence(timeout: 40))
         tap("s2.welcome.add-first-sign", in: app)

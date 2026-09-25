@@ -92,6 +92,7 @@ final class S3_5FailureRecoveryUITests: XCTestCase {
 
     @MainActor
     private func createDraft(in app: XCUIApplication) {
+        app.selectAssetsRootForS10Journey()
         XCTAssertTrue(
             element(in: app, identifier: "s2.welcome.screen")
                 .waitForExistence(timeout: 15)

@@ -101,6 +101,7 @@ final class S5_2RecheckUITests: XCTestCase {
 
     @MainActor
     private func createVisibleIssueReport(in app: XCUIApplication) {
+        app.selectAssetsRootForS10Journey()
         XCTAssertTrue(element(in: app, identifier: "s2.welcome.screen")
             .waitForExistence(timeout: 25))
         let addSign = element(in: app, identifier: "s2.welcome.add-first-sign")

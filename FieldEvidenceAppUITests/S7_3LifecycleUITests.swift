@@ -28,6 +28,7 @@ final class S7_3LifecycleUITests: XCTestCase {
             "--s7-2-ui-test-paywall",
         ]
         app.launch()
+        app.selectAssetsRootForS10Journey()
 
         XCTAssertTrue(element("s2.welcome.screen", in: app)
             .waitForExistence(timeout: 30))
@@ -70,6 +71,7 @@ final class S7_3LifecycleUITests: XCTestCase {
         // without an automatic Restore Purchases call.
         app.terminate()
         app.launch()
+        app.selectAssetsRootForS10Journey()
         XCTAssertTrue(element("s2.welcome.screen", in: app)
             .waitForExistence(timeout: 30))
 

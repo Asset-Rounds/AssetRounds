@@ -297,10 +297,10 @@ struct CompletedWorkDetailViewV1: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
                 content
             }
-            .padding(DesignTokens.Spacing.medium)
+            .padding(DesignTokens.Spacing.space16)
             #if DEBUG
             .background {
                 NativeScreenObservationAnchorV1(
@@ -314,7 +314,7 @@ struct CompletedWorkDetailViewV1: View {
         .navigationTitle("Completed work")
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
+        .background(DesignTokens.SemanticColors.workBackground)
         .accessibilityIdentifier(SignoffEnrollmentView.immutableDetailAccessibilityIdentifier)
         .navigationDestination(item: $presentation.editorRoute) { route in
             editor(route)
@@ -346,7 +346,7 @@ struct CompletedWorkDetailViewV1: View {
             moreMenu
         } else if presentation.detail == .loading {
             ProgressView("Opening completed work")
-                .frame(maxWidth: .infinity, minHeight: DesignTokens.Control.minimumHitSize)
+                .frame(maxWidth: .infinity, minHeight: DesignTokens.Target.minimumInteractiveHeight)
         } else {
             unavailableCard
         }
@@ -356,10 +356,10 @@ struct CompletedWorkDetailViewV1: View {
         _ display: CompletedWorkSubjectDisplayV1,
         responseCount: Int
     ) -> some View {
-        WorklightCard {
+        AssetRoundsEvidenceCard {
             Text(display.assetLabel)
                 .font(.title2.weight(.bold))
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
             factRow(label: "Site", value: display.siteLabel)
@@ -373,10 +373,10 @@ struct CompletedWorkDetailViewV1: View {
     }
 
     private var unavailableCard: some View {
-        WorklightCard {
+        AssetRoundsEvidenceCard {
             Text("Completed work unavailable")
                 .font(.title3.weight(.semibold))
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
         }
@@ -385,19 +385,19 @@ struct CompletedWorkDetailViewV1: View {
     private func reasonText(_ reason: String) -> some View {
         Text(reason)
             .font(.body.weight(.semibold))
-            .foregroundStyle(DesignTokens.Colors.attentionText)
+            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityIdentifier(Self.reasonAccessibilityIdentifier)
     }
 
     private func factRow(label: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
             Text(label)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(DesignTokens.Colors.secondaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
             Text(value)
                 .font(.body)
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)
@@ -416,7 +416,7 @@ struct CompletedWorkDetailViewV1: View {
             .accessibilityIdentifier(SignoffEnrollmentView.recordResponseAccessibilityIdentifier)
         } label: {
             Label("More", systemImage: "ellipsis.circle")
-                .frame(minHeight: DesignTokens.Control.minimumHitSize)
+                .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
         }
         .accessibilityHint("Shows actions for this completed work.")
         .accessibilityIdentifier(SignoffEnrollmentView.moreAccessibilityIdentifier)

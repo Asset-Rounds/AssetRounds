@@ -202,7 +202,8 @@ struct SignoffEnrollmentView: View {
                         text: validationMessage,
                         identifier: Self.validationAccessibilityIdentifier,
                         focus: .errorSummary,
-                        systemImage: "exclamationmark.circle.fill"
+                        systemImage: "exclamationmark.circle.fill",
+                        isInformation: false
                     )
                 }
 
@@ -211,7 +212,8 @@ struct SignoffEnrollmentView: View {
                         text: failureMessage,
                         identifier: Self.failureAccessibilityIdentifier,
                         focus: .errorSummary,
-                        systemImage: "exclamationmark.triangle.fill"
+                        systemImage: "exclamationmark.triangle.fill",
+                        isInformation: false
                     )
                 }
 
@@ -220,14 +222,15 @@ struct SignoffEnrollmentView: View {
                         text: statusMessage,
                         identifier: Self.statusAccessibilityIdentifier,
                         focus: .status,
-                        systemImage: "info.circle.fill"
+                        systemImage: "info.circle.fill",
+                        isInformation: true
                     )
                 }
 
                 actions
                 boundaries
             }
-            .padding(DesignTokens.Spacing.medium)
+            .padding(DesignTokens.Spacing.space16)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier(Self.editorAccessibilityIdentifier)
             #if DEBUG
@@ -241,7 +244,7 @@ struct SignoffEnrollmentView: View {
         .navigationTitle("Record response")
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
+        .background(DesignTokens.SemanticColors.workBackground)
         .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
         .transaction { transaction in
             if reduceMotion { transaction.animation = nil }
@@ -258,10 +261,10 @@ struct SignoffEnrollmentView: View {
     }
 
     private var heading: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
             Text("Record approval response")
                 .font(.title2.weight(.bold))
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityIdentifier(Self.headerAccessibilityIdentifier)
@@ -271,13 +274,13 @@ struct SignoffEnrollmentView: View {
                 "Add your typed response about this completed work. The response is your own local assertion and does not change the work record."
             )
             .font(.body)
-            .foregroundStyle(DesignTokens.Colors.secondaryText)
+            .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
             .fixedSize(horizontal: false, vertical: true)
         }
     }
 
     private var subjectContext: some View {
-        WorklightCard {
+        AssetRoundsEvidenceCard {
             sectionHeading("Completed work", identifier: Self.subjectAccessibilityIdentifier)
             valueRow("Asset", route.subject.assetLabel)
             valueRow("Site", route.subject.siteLabel)
@@ -294,12 +297,12 @@ struct SignoffEnrollmentView: View {
                     "This response is bound to this version of the completed work. It does not change the work record."
                 )
                 .font(.footnote)
-                .foregroundStyle(DesignTokens.Colors.secondaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
             } else {
                 Text(revisionMessage)
                     .font(.body.weight(.semibold))
-                    .foregroundStyle(DesignTokens.Colors.attentionText)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityFocused($accessibilityFocus, equals: .revisionWarning)
             }
@@ -308,7 +311,7 @@ struct SignoffEnrollmentView: View {
     }
 
     private var responseFields: some View {
-        WorklightCard {
+        AssetRoundsEvidenceCard {
             sectionHeading("Your response", identifier: "\(Self.screenAccessibilityIdentifier).fields")
             requiredTextField(
                 title: "Typed name",
@@ -335,10 +338,10 @@ struct SignoffEnrollmentView: View {
                 focusedField = nil
             }
 
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
                 Text("Claimed relationship")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(DesignTokens.Colors.secondaryText)
+                    .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                 Picker("Claimed relationship", selection: $claimedRelationship) {
                     Text("Not specified")
                         .tag(nil as SitePartyRoleV1?)
@@ -349,7 +352,7 @@ struct SignoffEnrollmentView: View {
                 }
                 .pickerStyle(.menu)
                 .disabled(awaitingRetry)
-                .frame(minHeight: DesignTokens.Control.minimumHitSize, alignment: .leading)
+                .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight, alignment: .leading)
                 .accessibilityLabel("Claimed relationship")
                 .accessibilityHint(
                     "Optional. This is a self-entered relationship and is not verified."
@@ -361,14 +364,14 @@ struct SignoffEnrollmentView: View {
     }
 
     private var disclosure: some View {
-        WorklightCard {
+        AssetRoundsEvidenceCard {
             sectionHeading(
                 "What this records",
                 identifier: Self.disclosureSectionAccessibilityIdentifier
             )
             Text(SignoffEnrollmentDisclosureV1.disclosureText)
                 .font(.body)
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier(Self.disclosureAccessibilityIdentifier)
         }
@@ -376,13 +379,13 @@ struct SignoffEnrollmentView: View {
     }
 
     private var optionalDrawnMark: some View {
-        WorklightCard {
+        AssetRoundsEvidenceCard {
             sectionHeading("Optional drawn mark", identifier: Self.drawnMarkAccessibilityIdentifier)
             Text(
                 "You may leave this blank. A drawn mark is not required, is not biometric, is not identity proof, and is not stored as a copy."
             )
             .font(.body)
-            .foregroundStyle(DesignTokens.Colors.primaryText)
+            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
             .fixedSize(horizontal: false, vertical: true)
 
             Canvas { context, size in
@@ -394,18 +397,19 @@ struct SignoffEnrollmentView: View {
                         path.addLine(to: point)
                     }
                 }
+                let markStyle: StrokeStyle = StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round)
                 context.stroke(
                     path,
-                    with: .color(DesignTokens.Colors.primaryText),
-                    style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round)
+                    with: GraphicsContext.Shading.color(DesignTokens.SemanticColors.primaryText),
+                    style: markStyle
                 )
             }
             .frame(maxWidth: .infinity, minHeight: 140)
-            .background(DesignTokens.Colors.raisedSurface)
+            .background(DesignTokens.SemanticColors.elevatedSurface)
             .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.standard))
             .overlay {
                 RoundedRectangle(cornerRadius: DesignTokens.Radius.standard)
-                    .stroke(DesignTokens.Colors.essentialControlStroke, lineWidth: 1)
+                    .stroke(DesignTokens.SemanticColors.separator, lineWidth: DesignTokens.Stroke.standard)
             }
             .contentShape(Rectangle())
             .gesture(
@@ -417,37 +421,28 @@ struct SignoffEnrollmentView: View {
 
             Text(drawnMarkStatusText)
             .font(.footnote)
-            .foregroundStyle(DesignTokens.Colors.secondaryText)
+            .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityIdentifier(Self.drawnMarkStatusAccessibilityIdentifier)
 
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-                Button("Clear drawn mark") {
-                    markStrokes.removeAll()
-                    activeStrokeID = nil
-                }
-                .buttonStyle(WorklightSecondaryButtonStyle())
-                .disabled(markStrokes.isEmpty || isSubmitting || awaitingRetry)
-                .accessibilityHint("Removes the temporary mark from this screen.")
-                .accessibilityIdentifier(Self.clearDrawnMarkAccessibilityIdentifier)
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
+                AssetRoundsSecondaryAction("Clear drawn mark", action: discardDrawnMark)
+                    .disabled(markStrokes.isEmpty || isSubmitting || awaitingRetry)
+                    .accessibilityHint("Removes the temporary mark from this screen.")
+                    .accessibilityIdentifier(Self.clearDrawnMarkAccessibilityIdentifier)
 
-                Button("Skip drawn mark") {
-                    markStrokes.removeAll()
-                    activeStrokeID = nil
-                }
-                .buttonStyle(WorklightSecondaryButtonStyle())
-                .disabled(isSubmitting || awaitingRetry)
-                .accessibilityHint("Continues without a drawn mark. Typed entry remains available.")
-                .accessibilityIdentifier(Self.skipDrawnMarkAccessibilityIdentifier)
+                AssetRoundsSecondaryAction("Skip drawn mark", action: discardDrawnMark)
+                    .disabled(isSubmitting || awaitingRetry)
+                    .accessibilityHint("Continues without a drawn mark. Typed entry remains available.")
+                    .accessibilityIdentifier(Self.skipDrawnMarkAccessibilityIdentifier)
             }
         }
         .accessibilityElement(children: .contain)
     }
 
     private var actions: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
-            Button("Record approval response", action: submit)
-                .buttonStyle(WorklightPrimaryButtonStyle())
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
+            AssetRoundsPrimaryAction("Record approval response", action: submit)
                 .disabled(isSubmitting || isBlockedByNewerVersion || awaitingRetry)
                 .accessibilityHint(
                     "Records your self-asserted response after required fields are valid. It does not verify identity or approval."
@@ -455,8 +450,7 @@ struct SignoffEnrollmentView: View {
                 .accessibilityIdentifier(Self.confirmAccessibilityIdentifier)
 
             if awaitingRetry {
-                Button("Try again", action: retry)
-                    .buttonStyle(WorklightSecondaryButtonStyle())
+                AssetRoundsSecondaryAction("Try again", action: retry)
                     .disabled(isSubmitting)
                     .accessibilityHint(
                         "Checks whether your response was recorded. It is never recorded twice."
@@ -464,34 +458,37 @@ struct SignoffEnrollmentView: View {
                     .accessibilityIdentifier(Self.retryAccessibilityIdentifier)
             }
 
-            Button("Cancel", action: cancel)
-                .buttonStyle(WorklightSecondaryButtonStyle())
+            AssetRoundsSecondaryAction("Cancel", action: cancel)
                 .disabled(isSubmitting)
                 .accessibilityHint("Returns to the completed-work detail without recording a response.")
                 .accessibilityIdentifier(Self.cancelAccessibilityIdentifier)
         }
     }
 
+    /// The evidence card sets its own body font and primary text colour, so the
+    /// footnote secondary style is applied to each boundary line directly.
     private var boundaries: some View {
-        WorklightCard {
+        AssetRoundsEvidenceCard {
             sectionHeading("Accessibility and boundaries", identifier: Self.boundariesAccessibilityIdentifier)
             Text(
                 "Typed entry is complete for VoiceOver, Voice Control, Switch Control, keyboard, and motor access. The drawn mark is optional and has accessible Clear and Skip controls."
             )
+            .font(.footnote)
+            .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
             Text(
                 "This local response does not claim verified identity or authority, final approval, acceptance for another person, a workflow transition, a legal signature or effect, or nonrepudiation."
             )
+            .font(.footnote)
+            .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
         }
-        .font(.footnote)
-        .foregroundStyle(DesignTokens.Colors.secondaryText)
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityElement(children: .contain)
     }
 
     private var contentSpacing: CGFloat {
         dynamicTypeSize.isAccessibilitySize
-            ? DesignTokens.Spacing.large
-            : DesignTokens.Spacing.medium
+            ? DesignTokens.Spacing.space24
+            : DesignTokens.Spacing.space16
     }
 
     private var revisionMessage: String {
@@ -526,20 +523,20 @@ struct SignoffEnrollmentView: View {
     private func sectionHeading(_ title: String, identifier: String) -> some View {
         Text(title)
             .font(.title3.weight(.semibold))
-            .foregroundStyle(DesignTokens.Colors.primaryText)
+            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier(identifier)
     }
 
     private func valueRow(_ label: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
             Text(label)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(DesignTokens.Colors.secondaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
             Text(value)
                 .font(.body)
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)
@@ -556,27 +553,29 @@ struct SignoffEnrollmentView: View {
         submitLabel: SubmitLabel,
         onSubmit: @escaping () -> Void
     ) -> some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
             Text(title)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(DesignTokens.Colors.secondaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
 
             TextField(prompt, text: text, axis: .vertical)
                 .lineLimit(1 ... 4)
                 .focused($focusedField, equals: field)
                 .submitLabel(submitLabel)
                 .onSubmit(onSubmit)
-                .padding(DesignTokens.Spacing.medium)
-                .frame(minHeight: DesignTokens.Control.minimumHitSize, alignment: .topLeading)
-                .background(DesignTokens.Colors.raisedSurface)
+                .padding(DesignTokens.Spacing.space16)
+                .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight, alignment: .topLeading)
+                .background(DesignTokens.SemanticColors.elevatedSurface)
                 .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.standard))
                 .overlay {
                     RoundedRectangle(cornerRadius: DesignTokens.Radius.standard)
                         .stroke(
                             validationMessage == nil
-                                ? DesignTokens.Colors.essentialControlStroke
-                                : DesignTokens.Colors.attentionText,
-                            lineWidth: validationMessage == nil ? 1 : 2
+                                ? DesignTokens.SemanticColors.separator
+                                : DesignTokens.SemanticColors.warning,
+                            lineWidth: validationMessage == nil
+                                ? DesignTokens.Stroke.standard
+                                : DesignTokens.Stroke.selected
                         )
                 }
                 .disabled(awaitingRetry)
@@ -587,19 +586,39 @@ struct SignoffEnrollmentView: View {
         }
     }
 
+    /// S10 state text: the message reads in primary text for contrast; only the
+    /// symbol carries the warning (or, for status, brand information) colour.
+    /// `Label(text, systemImage:)` is this same title/icon pair, so the combined
+    /// accessibility element and its label are unchanged.
     private func messageCard(
         text: String,
         identifier: String,
         focus: FocusTarget,
-        systemImage: String
+        systemImage: String,
+        isInformation: Bool
     ) -> some View {
-        Label(text, systemImage: systemImage)
-            .font(.body.weight(.semibold))
-            .foregroundStyle(DesignTokens.Colors.attentionText)
-            .fixedSize(horizontal: false, vertical: true)
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier(identifier)
-            .accessibilityFocused($accessibilityFocus, equals: focus)
+        Label {
+            Text(text)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+        } icon: {
+            Image(systemName: systemImage)
+                .foregroundStyle(
+                    isInformation
+                        ? DesignTokens.SemanticColors.brandHeading
+                        : DesignTokens.SemanticColors.warning
+                )
+        }
+        .font(.body.weight(.semibold))
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier(identifier)
+        .accessibilityFocused($accessibilityFocus, equals: focus)
+    }
+
+    /// Clear and Skip both discard the temporary on-screen mark only.
+    private func discardDrawnMark() {
+        markStrokes.removeAll()
+        activeStrokeID = nil
     }
 
     private func submit() {

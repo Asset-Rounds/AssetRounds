@@ -66,6 +66,7 @@ final class S7_5LapseRightsUITests: XCTestCase {
 private extension S7_5LapseRightsUITests {
     @MainActor
     func createSign(in app: XCUIApplication) {
+        app.selectAssetsRootForS10Journey()
         XCTAssertTrue(element("s2.welcome.screen", in: app)
             .waitForExistence(timeout: 30))
         tap("s2.welcome.add-first-sign", in: app)

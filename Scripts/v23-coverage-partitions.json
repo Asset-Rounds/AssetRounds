@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v1",
   "sourceCensusHead": "31126e929bd87545719fd58d355a4d719dcf52ba",
-  "generatedAtHead": "d38b50e8d3526228f25059722cb50b50ac7cc3b8",
+  "generatedAtHead": "91ac8bd6d8fd079471811feee4e67c0999726c20",
   "sweepOrder": [
     "S41",
     "S43",
@@ -260,7 +260,7 @@
     },
     {
       "id": "S02",
-      "estimatedSeconds": 2324.6,
+      "estimatedSeconds": 2384.6,
       "selectors": [
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorV937FieldReferencePack/testC33V937FieldReferencePackCompatibilityBindsTypedTemporalEvidenceToItsOwner",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorV939SurveyDefinition/testC33V939SurveyDefinitionCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -539,19 +539,22 @@
         "FieldEvidenceAppTests/C57MyDaySnapshotProjectionTests/testC57ProjectionAndOpenJSONAreDeterministicSourceBoundAndPrivacyBounded",
         "FieldEvidenceAppTests/S0LaunchTests/testLaunchViewUsesExactBaselineContract",
         "FieldEvidenceAppTests/S10_1BrandInventoryTests/testAccessibilityExperienceAndVisualPlansAreCompleteButUnrun",
+        "FieldEvidenceAppTests/S10_1BrandInventoryTests/testCardTimeRecordsAreTheCommittedS10History",
         "FieldEvidenceAppTests/S10_1BrandInventoryTests/testFrozenContractsHaveOneUniqueReferentiallyCompleteGraph",
         "FieldEvidenceAppTests/S10_1BrandInventoryTests/testStorePlanAndCISelectorAreExact"
       ]
     },
     {
       "id": "S03",
-      "estimatedSeconds": 1952.0,
+      "estimatedSeconds": 2072.0,
       "selectors": [
+        "FieldEvidenceAppTests/S10_2BrandComponentTests/testCardTimeRecordsAreTheCommittedS10History",
         "FieldEvidenceAppTests/S10_2BrandComponentTests/testCatalogMetadataPixelsColorsAndPrimaryIconSettingAreExact",
         "FieldEvidenceAppTests/S10_2BrandComponentTests/testClosedTokenAndNineComponentSystemRendersAcrossEnvironments",
         "FieldEvidenceAppTests/S10_2BrandComponentTests/testExactSelectorEnvelopeAndApprovedBaselinesRemainFrozen",
         "FieldEvidenceAppTests/S10_2BrandComponentTests/testFrozenPackageAndExactTwelveRuntimeAssetsMatch",
         "FieldEvidenceAppTests/S10_3BrandMigrationTests/testAllReleasedSourcesUseTheClosedBrandSystemWithoutVisualForks",
+        "FieldEvidenceAppTests/S10_3BrandMigrationTests/testCardTimeRecordsAreTheCommittedS10History",
         "FieldEvidenceAppTests/S10_3BrandMigrationTests/testCopyIdentifiersImportsAndNativeBehaviorAuthorityStayFrozen",
         "FieldEvidenceAppTests/S10_3BrandMigrationTests/testExactFrozenInventoryMapsAllSixtySevenStatesToTheMigrationEnvelope",
         "FieldEvidenceAppTests/S10_3BrandMigrationTests/testSelectorAndPredecessorEvidenceRemainExactAndUnpromoted",
@@ -874,8 +877,10 @@
     },
     {
       "id": "S09",
-      "estimatedSeconds": 1063.3,
+      "estimatedSeconds": 1183.3,
       "selectors": [
+        "FieldEvidenceAppTests/S10BrandClosedVocabularyTests/testClosedVocabularyRejectsTheC43LegacyTokenAndOtherForks",
+        "FieldEvidenceAppTests/S10BrandClosedVocabularyTests/testScopedSourcesUseOnlyTheClosedS10StylingVocabulary",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testConfigurationCloneAcceptsEveryAuthenticPhotoPhaseAndOmitsOperationalFamily",
         "FieldEvidenceAppTests/V23CompletedWorkResponseBackupRestoreTests/testEraseRemovesResponsesAndActorSnapshots",
         "FieldEvidenceAppTests/V23CompletedWorkResponseBackupRestoreTests/testForkRebindsResponseWorkspaceAndResolvesSameReportIdentityWithoutByteClaim",

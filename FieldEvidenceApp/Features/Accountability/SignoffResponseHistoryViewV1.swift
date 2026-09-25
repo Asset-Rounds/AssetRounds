@@ -29,10 +29,10 @@ struct SignoffResponseHistoryViewV1: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.medium) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
                 content
             }
-            .padding(DesignTokens.Spacing.medium)
+            .padding(DesignTokens.Spacing.space16)
             #if DEBUG
             .background {
                 NativeScreenObservationAnchorV1(
@@ -46,7 +46,7 @@ struct SignoffResponseHistoryViewV1: View {
         .navigationTitle("Responses")
         .navigationBarTitleDisplayMode(.inline)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.canvas)
+        .background(DesignTokens.SemanticColors.workBackground)
         .accessibilityIdentifier(SignoffEnrollmentView.historyAccessibilityIdentifier)
         .task(id: signoffID) {
             reload()
@@ -66,16 +66,16 @@ struct SignoffResponseHistoryViewV1: View {
         switch state {
         case .loading:
             ProgressView("Opening responses")
-                .frame(maxWidth: .infinity, minHeight: DesignTokens.Control.minimumHitSize)
+                .frame(maxWidth: .infinity, minHeight: DesignTokens.Target.minimumInteractiveHeight)
         case .unavailable:
-            WorklightCard {
+            AssetRoundsEvidenceCard {
                 Text("Responses unavailable")
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                     .accessibilityAddTraits(.isHeader)
                 Text("This response history could not be opened.")
                     .font(.body)
-                    .foregroundStyle(DesignTokens.Colors.secondaryText)
+                    .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
         case let .loaded(history):
@@ -88,10 +88,10 @@ struct SignoffResponseHistoryViewV1: View {
     @ViewBuilder
     private func subjectHeader(_ history: CompletedWorkResponseHistoryV1) -> some View {
         if let subject = history.subject {
-            WorklightCard {
+            AssetRoundsEvidenceCard {
                 Text(subject.assetLabel)
                     .font(.title2.weight(.bold))
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
                 fact(label: "Site", value: subject.siteLabel)
@@ -102,15 +102,15 @@ struct SignoffResponseHistoryViewV1: View {
             }
             .accessibilityElement(children: .contain)
         } else if let reason = history.unavailableReason {
-            WorklightCard {
+            AssetRoundsEvidenceCard {
                 Text("Completed work unavailable")
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(DesignTokens.Colors.primaryText)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
                 Text(reason.displayText)
                     .font(.body)
-                    .foregroundStyle(DesignTokens.Colors.secondaryText)
+                    .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .accessibilityElement(children: .contain)
@@ -126,7 +126,7 @@ struct SignoffResponseHistoryViewV1: View {
         if !entries.isEmpty {
             Text(title)
                 .font(.title3.weight(.semibold))
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .accessibilityAddTraits(.isHeader)
             ForEach(entries) { entry in
                 entryCard(entry)
@@ -140,14 +140,14 @@ struct SignoffResponseHistoryViewV1: View {
             responseCard(facts, version: entry.version)
                 .accessibilityIdentifier(Self.entryAccessibilityIdentifier)
         } else {
-            WorklightCard {
+            AssetRoundsEvidenceCard {
                 Text("Unsupported response record")
                     .font(.body.weight(.semibold))
-                    .foregroundStyle(DesignTokens.Colors.attentionText)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 Text("This record cannot be shown as a completed-work response.")
                     .font(.footnote)
-                    .foregroundStyle(DesignTokens.Colors.secondaryText)
+                    .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .accessibilityElement(children: .combine)
@@ -159,10 +159,10 @@ struct SignoffResponseHistoryViewV1: View {
         _ facts: CompletedWorkResponseFactsV1,
         version: UInt64?
     ) -> some View {
-        WorklightCard {
+        AssetRoundsEvidenceCard {
             Text("Response recorded")
                 .font(.body.weight(.semibold))
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
             fact(label: "Typed name", value: facts.typedName)
             fact(label: "Claimed role", value: facts.claimedRole)
             if let relationship = facts.relationshipText {
@@ -180,25 +180,25 @@ struct SignoffResponseHistoryViewV1: View {
     }
 
     private func disclosure(_ text: String) -> some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
             Text(text)
                 .font(.footnote)
-                .foregroundStyle(DesignTokens.Colors.secondaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
             Text(Self.notVerifiedText)
                 .font(.footnote.weight(.semibold))
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
         }
     }
 
     private func fact(label: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.small) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
             Text(label)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(DesignTokens.Colors.secondaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
             Text(value)
                 .font(.body)
-                .foregroundStyle(DesignTokens.Colors.primaryText)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)

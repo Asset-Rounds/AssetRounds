@@ -3815,6 +3815,18 @@ Read-only analysis at d2c1c4b: the S10 brand is intact (design system, colours, 
 
 UI evidence: no V23 route can run UI tests yet, and the S10 UI tests still expect the two-tab shell. The plan adds `V23Phase1CriticalStatesUITests` (three methods capturing named `.keepAlways` states with accessibility audits in light, dark and AX XXXL), a DEBUG-only local-authentication stub for App Lock, a committed state catalogue, a file-bound RUI1 route `v23-ui-batch-rui1` with in-CI screenshot export checked against the catalogue, and a collector-generated review package for the owner's genuine review. The tests and hook are in an isolated helper; the route follows after the slim-worker batch.
 
+### Batch J: Phase 1 UI tests, S10 reconciliation, signoff styling, UI launch fix (2026-09-25)
+
+Combined from independently approved commits on 5eb2f5f:
+- S10 reconciliation per owner decisions 6 and 7. Card-time checks now read 26 exact committed history blobs bound to the S10 receipt chain; whole-file pins are re-pinned with provenance; V9_02 expects the four exported types; the C43 IssueDetailView token drift is fixed; a closed-vocabulary brand test is added; CompletedWork detail and history move to S10 tokens (warning text in `primaryText` after a contrast finding); a V23 privacy successor review is drafted for owner sign-off.
+- `SignoffEnrollmentView` migrated to S10 tokens and components (closed vocabulary 31 files, 0 violations).
+- The S-class UI tests reach the Assets root through one helper (49 sites in 34 files); two tab-label assertions become "Assets"; the stale S1 Settings copy check is anchored to the accepted S6.2 backup entry; the S10_4 pins of the S10_3 UI file are re-pinned.
+- `V23Phase1CriticalStatesUITests` (27 captured states with accessibility audits, a failure-safe App Lock teardown, and a catalogue at `phase1-critical-states.json`) with a DEBUG-only local-authentication stub limited to isolated UI-test stores.
+- Combined-tree re-pin: the S10_3 literal digest and S10_4 copy freeze follow the one new DEBUG literal; privacy successor rows for `FieldEvidenceAppApp.swift` and `AppAccessPresentationV1.swift`.
+- Coverage partitions regenerated for the five new unit methods (44 partitions, 3,445 methods).
+
+Each part had one independent reviewer; findings were corrected and closed by the same reviewer. `docs/design/s10/**` and `Release/**` are untouched. Nothing is compiled yet; UI tests run only once the RUI1 route exists.
+
 ### Delivery method, coverage route and Phase 1 scope (2026-09-25)
 
 Measured bottlenecks: native originals 25–37 min (build 803–1661 s on the same head, tests 5–8 min, 1–2 min simulator-boot wait before build); local protocol/generator suites 21/28 min single-threaded on a 20-core host; about 11 CI files per new development question; 3 originals lost to one post-approval compile error; repeated XCTest error misattribution; two helper worktrees created at main instead of the integration head; one long-lived reviewer context exhausted.

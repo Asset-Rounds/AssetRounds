@@ -29,6 +29,7 @@ final class S8_2GoldenAccessibilityUITests: XCTestCase {
             usesAccessibilityXXXL: false
         )
         app.launch()
+        app.selectAssetsRootForS10Journey()
 
         assertLightFirstSignValidationAndCreation(in: app)
         completeVisibleIssueCheck(in: app)

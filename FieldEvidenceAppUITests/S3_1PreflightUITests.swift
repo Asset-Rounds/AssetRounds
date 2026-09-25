@@ -80,6 +80,7 @@ final class S3_1PreflightUITests: XCTestCase {
 
     @MainActor
     private func createFirstSignWithoutTimeZone(in app: XCUIApplication) {
+        app.selectAssetsRootForS10Journey()
         let welcome = element(in: app, identifier: "s2.welcome.screen")
         XCTAssertTrue(welcome.waitForExistence(timeout: 15))
         element(in: app, identifier: "s2.welcome.add-first-sign").tap()

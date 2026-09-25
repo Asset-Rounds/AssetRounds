@@ -144,6 +144,7 @@ final class S5_4RecheckCNVUITests: XCTestCase {
 
     @MainActor
     private func createVisibleIssueReport(in app: XCUIApplication) {
+        app.selectAssetsRootForS10Journey()
         XCTAssertTrue(element(in: app, identifier: "s2.welcome.screen")
             .waitForExistence(timeout: 25))
         tap("s2.welcome.add-first-sign", in: app)

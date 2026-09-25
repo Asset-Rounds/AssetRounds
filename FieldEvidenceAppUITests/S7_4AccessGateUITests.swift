@@ -30,6 +30,7 @@ final class S7_4AccessGateUITests: XCTestCase {
             "--s7-2-ui-test-paywall",
         ]
         app.launch()
+        app.selectAssetsRootForS10Journey()
 
         XCTAssertTrue(element("s2.welcome.screen", in: app)
             .waitForExistence(timeout: 30))

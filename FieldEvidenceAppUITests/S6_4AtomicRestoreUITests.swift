@@ -37,6 +37,7 @@ final class S6_4AtomicRestoreUITests: XCTestCase {
             "--s6-4-ui-test-empty-restore",
         ]
         app.launch()
+        app.selectAssetsRootForS10Journey(timeout: 40)
 
         XCTAssertTrue(element("s2.welcome.screen", in: app)
             .waitForExistence(timeout: 40))
@@ -68,6 +69,12 @@ final class S6_4AtomicRestoreUITests: XCTestCase {
             "This report was saved, but its PDF is not available."
         )
         tap("s4.pdf-failure.retry", in: app)
+        // The empty-install restore adopts the backup workspace, so the rebuilt V23
+        // shell opens Today until Assets is selected.
+        app.selectAssetsRootForS10Journey(
+            awaiting: element("s2.sign-detail.screen", in: app),
+            timeout: 180
+        )
         XCTAssertTrue(element("s2.sign-detail.screen", in: app)
             .waitForExistence(timeout: 180))
         XCTAssertEqual(
@@ -99,6 +106,7 @@ final class S6_4AtomicRestoreUITests: XCTestCase {
 private extension S6_4AtomicRestoreUITests {
     @MainActor
     func createVisibleIssueReport(in app: XCUIApplication) {
+        app.selectAssetsRootForS10Journey()
         XCTAssertTrue(element("s2.welcome.screen", in: app)
             .waitForExistence(timeout: 25))
         tap("s2.welcome.add-first-sign", in: app)

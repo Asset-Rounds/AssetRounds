@@ -16,6 +16,7 @@ final class S8_3DiagnosticExportUITests: XCTestCase {
             "UICTContentSizeCategoryAccessibilityXXXL",
         ]
         app.launch()
+        app.selectAssetsRootForS10Journey()
 
         XCTAssertTrue(element("s2.welcome.screen", in: app)
             .waitForExistence(timeout: 30))
@@ -64,6 +65,7 @@ final class S8_3DiagnosticExportUITests: XCTestCase {
         XCTAssertTrue(cancel.waitForExistence(timeout: 20))
         app.terminate()
         app.launch()
+        app.selectAssetsRootForS10Journey()
         XCTAssertTrue(element("s2.welcome.screen", in: app)
             .waitForExistence(timeout: 30))
         tap("s1.settings.button", in: app)

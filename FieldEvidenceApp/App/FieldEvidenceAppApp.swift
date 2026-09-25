@@ -93,12 +93,16 @@ struct FieldEvidenceAppApp: App {
             startupPreparationFailure = .dataPointerInvalid
         }
 #if DEBUG
+        // Set only when the isolated-store hook accepts a valid test ID, so
+        // test-only collaborators can never reach the ordinary store.
+        var usesIsolatedUITestStore = false
         if arguments.contains("--v23-ui-test-legacy-migration") {
             if let rawID = ProcessInfo.processInfo.environment["V23_MIGRATION_TEST_ID"],
                let id = UUID(uuidString: rawID), id.uuidString.lowercased() == rawID,
                !arguments.contains(Self.emptyRestoreUITestLaunchArgument),
                !arguments.contains(Self.replacementRestoreUITestLaunchArgument) {
                 applicationSupportURL = applicationSupportURL.appendingPathComponent("V23MigrationUITests").appendingPathComponent(rawID)
+                usesIsolatedUITestStore = true
                 do { try StoreGenerationFactory(applicationSupportURL: applicationSupportURL).seedIsolatedLegacyStartupUITestIfEmpty() }
                 catch { startupPreparationFailure = .dataPointerInvalid }
             } else {
@@ -151,10 +155,23 @@ struct FieldEvidenceAppApp: App {
             startupPreparationFailure: startupPreparationFailure
         )
         _startupRouter = StateObject(wrappedValue: router)
+        let authenticationClient: (any LocalAuthenticationClient)?
+#if DEBUG
+        // Honoured only with an accepted isolated test store.
+        if usesIsolatedUITestStore,
+           arguments.contains("--v23-ui-test-local-auth-success") {
+            authenticationClient = LocalAuthenticationSuccessUITestClientV1()
+        } else {
+            authenticationClient = nil
+        }
+#else
+        authenticationClient = nil
+#endif
         _appAccessPresentation = StateObject(
             wrappedValue: AppAccessPresentationV1(
                 startupRouter: router,
-                applicationSupportURL: applicationSupportURL
+                applicationSupportURL: applicationSupportURL,
+                authenticationClient: authenticationClient
             )
         )
 
@@ -548,6 +565,32 @@ private struct MaintenanceRestoreHost: View {
         }
     }
 }
+
+#if DEBUG
+/// DEBUG UI-test hook for `--v23-ui-test-local-auth-success`. Local
+/// Authentication reports available and every valid attempt succeeds, so
+/// Simulator UI tests can drive App Lock through the production gate and
+/// lifecycle. Active only with an accepted isolated test store; compiled
+/// only in DEBUG. Release always composes `SystemLocalAuthenticationClient`.
+private actor LocalAuthenticationSuccessUITestClientV1: LocalAuthenticationClient {
+    func availability() -> LocalAuthenticationAvailabilityV1 {
+        .systemValue(status: .available, biometry: .none)
+    }
+
+    func authenticate(
+        _ attempt: LocalAuthenticationAttemptV1
+    ) -> LocalAuthenticationOutcomeV1 {
+        do {
+            try attempt.validate()
+        } catch {
+            return .unavailable
+        }
+        return .authenticated
+    }
+
+    func cancel(attemptID: UUID) {}
+}
+#endif
 
 private struct EraseCleanupPendingView: View {
     var body: some View {

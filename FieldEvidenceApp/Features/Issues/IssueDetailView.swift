@@ -65,7 +65,7 @@ struct IssueDetailView: View {
                             Label("More", systemImage: "ellipsis.circle")
                                 .frame(
                                     maxWidth: .infinity,
-                                    minHeight: DesignTokens.Control.minimumHitSize
+                                    minHeight: DesignTokens.Target.minimumInteractiveHeight
                                 )
                         }
                         .buttonStyle(WorklightSecondaryButtonStyle())

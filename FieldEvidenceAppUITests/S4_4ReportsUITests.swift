@@ -73,8 +73,9 @@ final class S4_4ReportsUITests: XCTestCase {
         close.tap()
         XCTAssertTrue(reportsScreen.waitForExistence(timeout: 15))
 
+        // V23 four-tab shell: the S10 Signs tab is Assets (same s1.tab.signs identity).
         let signsTab = element(in: app, identifier: "s1.tab.signs")
-        assertPrimaryControl(signsTab, label: "Signs")
+        assertPrimaryControl(signsTab, label: "Assets")
         signsTab.tap()
         XCTAssertTrue(signDetail.waitForExistence(timeout: 15))
         let startSecond = element(in: app, identifier: "s2.sign-detail.start-check")
@@ -228,6 +229,7 @@ final class S4_4ReportsUITests: XCTestCase {
 
     @MainActor
     private func createSign(in app: XCUIApplication) {
+        app.selectAssetsRootForS10Journey()
         XCTAssertTrue(
             element(in: app, identifier: "s2.welcome.screen")
                 .waitForExistence(timeout: 15)
