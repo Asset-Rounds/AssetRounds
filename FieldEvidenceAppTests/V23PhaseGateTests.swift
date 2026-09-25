@@ -38,8 +38,12 @@ private final class V23PhaseGateMountedHostV1 {
 /// Phase 1 reachability gate. The shipping gate hides every later-phase V23
 /// entry point; `.allFeatures` (DEBUG only) keeps them reachable for tests.
 final class V23PhaseGateTests: V23ProductionFourRootShellTestSupport {
-    private static let reminderEnabledIdentifier = "v23.reminders.enabled"
-    private static let reminderDetailsIdentifier = "v23.reminders.details"
+    /// DEBUG witnesses on the gated reminder section and each of its rows.
+    private static let reminderWitnessIdentifiers = [
+        ReminderSettingsSectionV1.sectionAccessibilityIdentifier,
+        ReminderSettingsSectionV1.enabledAccessibilityIdentifier,
+        ReminderSettingsSectionV1.detailsAccessibilityIdentifier,
+    ]
     private static let acceptedS10CameraPurpose =
         "Use the camera to add sign photos to reports stored on this iPhone."
 
@@ -169,17 +173,25 @@ final class V23PhaseGateTests: V23ProductionFourRootShellTestSupport {
         shell.unmount()
 
         // Settings is reached only through a toolbar link, so it is hosted
-        // directly with the same reminder section the app composes.
+        // directly with the same reminder section the app composes. SwiftUI
+        // rows inside its ScrollView have no UIKit or accessibility backing in
+        // the unit-test host, so presence and absence are observed through the
+        // DEBUG witnesses attached to the screen and to the rows themselves.
         let settings = try mountPhaseGateSettings(fixture, gate: nil)
         defer { settings.unmount() }
-        let settingsVisible = await waitForAccessibilityIdentifier(
-            BackupRestoreProgressView.settingsEntryAccessibilityIdentifier, in: settings.window)
-        XCTAssertTrue(settingsVisible, "Settings renders its S10 rows")
-        XCTAssertFalse(containsAccessibilityIdentifier(
-            identifiedBy: Self.reminderEnabledIdentifier, in: settings.window),
-            "Settings has no Reminders row")
-        XCTAssertFalse(containsAccessibilityIdentifier(
-            identifiedBy: Self.reminderDetailsIdentifier, in: settings.window))
+        let settingsMounted = await waitForMountedScreen(
+            AppShellView.settingsScreenAccessibilityIdentifier, from: settings.host)
+        XCTAssertTrue(settingsMounted, "The Settings screen loads")
+        let restoreMounted = await waitForMountedScreen(
+            BackupRestoreProgressView.settingsEntryAccessibilityIdentifier, from: settings.host)
+        XCTAssertTrue(restoreMounted, "Settings renders its S10 rows")
+        // The reminder section precedes the restore row in the same card, so
+        // a rendered restore row means a composed reminder section would be
+        // rendered too; the all-features test observes these same witnesses.
+        for identifier in Self.reminderWitnessIdentifiers {
+            XCTAssertFalse(nativeScreenObservation(identifier, from: settings.host).found,
+                "Settings has no Reminders row: \(identifier)")
+        }
         #else
         throw XCTSkip("Native hosted gate observation is DEBUG-only")
         #endif
@@ -217,9 +229,13 @@ final class V23PhaseGateTests: V23ProductionFourRootShellTestSupport {
 
         let settings = try mountPhaseGateSettings(fixture, gate: .allFeatures)
         defer { settings.unmount() }
-        let remindersVisible = await waitForAccessibilityIdentifier(
-            Self.reminderEnabledIdentifier, in: settings.window)
-        XCTAssertTrue(remindersVisible, "Injected tests still reach the Reminders row")
+        let restoreMounted = await waitForMountedScreen(
+            BackupRestoreProgressView.settingsEntryAccessibilityIdentifier, from: settings.host)
+        XCTAssertTrue(restoreMounted, "Settings renders its S10 rows")
+        for identifier in Self.reminderWitnessIdentifiers {
+            let reminderMounted = await waitForMountedScreen(identifier, from: settings.host)
+            XCTAssertTrue(reminderMounted, "Injected tests still reach the Reminders row: \(identifier)")
+        }
         #else
         throw XCTSkip("Native hosted gate observation is DEBUG-only")
         #endif

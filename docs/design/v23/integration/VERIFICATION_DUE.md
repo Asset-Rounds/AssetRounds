@@ -190,4 +190,7 @@ The production photo journey takes priority over another isolated foundation. So
 - The Windows-bound P04/P05 contract verifiers read `C:\AssetRounds-v23-coordination` at import and can't run on the Mac.
 - On macOS, two real-git fixture tests fail on file-mode-only diffs, and GeneratorTests need a resolved TMPDIR (`/var` symlink); `python3` there is 3.9 (use Homebrew 3.14).
 - Confirm the S2 duplicate-key outcome on the pinned iOS 26.2 route.
+- V10_03:614 asserts the current catalog (455 entries) is below `SyncClassificationRegistryV1.maximumRegistrationCount` (128). That cap applies to the frozen baseline registry (`validate()`, SyncClassificationRegistryV1.swift:134), not to `CurrentSyncClassificationCatalogV1`. This is most likely a stale test premise. Owner decision pending: change the expectation, or add a current-catalog cap.
+- `ReleasedDataCompatibilityPolicyV1` exact-head writers stop at store 16.0.0 and persistent16-records15 while the schema is at V53. Tests are pinned to the real values; intent is unconfirmed.
+- Seen at e37ea967: S10_4 `testPinnedOverlaySelectorAndExactSevenPlusSevenShardContract` :5396 (PreflightView action fragment, 0 vs 1); V23ProductionFourRootShell `testPhysicalRestoredReviewDiscard…` (invalidIdentity).
 

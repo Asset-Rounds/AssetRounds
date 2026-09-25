@@ -3,6 +3,10 @@ import UIKit
 
 @MainActor
 struct ReminderSettingsSectionV1: View {
+    static let sectionAccessibilityIdentifier = "v23.reminders.settings"
+    static let enabledAccessibilityIdentifier = "v23.reminders.enabled"
+    static let detailsAccessibilityIdentifier = "v23.reminders.details"
+
     let access: AppAccessPresentationV1.ReminderSettingsAccess
     @Environment(\.openURL) private var openURL
     @State private var snapshot: AppAccessPresentationV1.ReminderSettingsSnapshot?
@@ -26,7 +30,10 @@ struct ReminderSettingsSectionV1: View {
                 }))
                 .tint(DesignTokens.SemanticColors.primaryAction)
                 .disabled(snapshot == nil || isBusy)
-                .accessibilityIdentifier("v23.reminders.enabled")
+                .accessibilityIdentifier(Self.enabledAccessibilityIdentifier)
+                #if DEBUG
+                .nativeScreenObservationWitnessV1(Self.enabledAccessibilityIdentifier)
+                #endif
 
             Toggle("Show reminder details", isOn: Binding(
                 get: { snapshot?.policy.detail == .details },
@@ -36,7 +43,10 @@ struct ReminderSettingsSectionV1: View {
                 }))
                 .tint(DesignTokens.SemanticColors.primaryAction)
                 .disabled(snapshot == nil || isBusy)
-                .accessibilityIdentifier("v23.reminders.details")
+                .accessibilityIdentifier(Self.detailsAccessibilityIdentifier)
+                #if DEBUG
+                .nativeScreenObservationWitnessV1(Self.detailsAccessibilityIdentifier)
+                #endif
 
             Text(snapshot?.appLockEnabled == true
                 ? "App Lock keeps notification text private. Your detail preference applies when App Lock is off."
@@ -80,7 +90,10 @@ struct ReminderSettingsSectionV1: View {
         .font(DesignTokens.Typography.primaryBody)
         .foregroundStyle(DesignTokens.SemanticColors.primaryText)
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("v23.reminders.settings")
+        .accessibilityIdentifier(Self.sectionAccessibilityIdentifier)
+        #if DEBUG
+        .nativeScreenObservationWitnessV1(Self.sectionAccessibilityIdentifier)
+        #endif
         .task(id: access.id) { await refresh() }
     }
 

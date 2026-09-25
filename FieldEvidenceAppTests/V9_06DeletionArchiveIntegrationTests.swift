@@ -587,7 +587,18 @@ extension V9_06DeletionArchiveIntegrationTests {
 extension V9_06DeletionArchiveIntegrationTests {
     func testC25SurveyDefinitionTypedAnchor() throws {
         XCTAssertEqual(SurveyTemplateArchiveManifestV1.fileExtension, "arsurveytemplate")
-        XCTAssertEqual(SurveyTemplateArchiveManifestV1.maximumEntries, 64)
+        // Expectation change (2026-09-25): this pin said 64, but the frozen
+        // design contract docs/design/v23/tooling/
+        // V23P03C25SurveyDefinitionContractV1.json (templatePolicy
+        // "..._MAX_ENTRIES_128_...") and the C25 corpus
+        // (archiveMaximumEntries 128) both specify 128, and production has
+        // been 128 since the introducing commit 885cb747. The pin now follows
+        // the frozen contract and the shared hostile-archive admission limit.
+        XCTAssertEqual(SurveyTemplateArchiveManifestV1.maximumEntries, 128)
+        XCTAssertEqual(
+            SurveyTemplateArchiveManifestV1.maximumEntries,
+            SurveyTemplateArchiveAdmissionV1.maximumEntries
+        )
         XCTAssertEqual(SurveyDefinitionLifecycleV1.quarantinePersistence, "DERIVED_ONLY")
     }
 }

@@ -1933,10 +1933,24 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
     @MainActor
     func testV10_02R01MigrationLifecycleAndReplicaIdentityMatrix() throws {
         let corpus = try Self.loadCorpus()
-        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v11)
+        // Expectation change (2026-09-25): R01 is a HISTORICAL V1..V11
+        // migration-lifecycle matrix, written when V11 was active. The
+        // registry has since grown to V53 (active). The V1..V11 chain is now
+        // pinned as the exact ordered prefix, and the active release must lie
+        // at or after V11, instead of equating the whole registry with V1..V11.
         XCTAssertEqual(
-            PersistentSchemaReleaseRegistryV1.releases,
+            Array(PersistentSchemaReleaseRegistryV1.releases.prefix(11)),
             [.v1, .v2, .v3, .v4, .v5, .v6, .v7, .v8, .v9, .v10, .v11]
+        )
+        XCTAssertGreaterThanOrEqual(
+            try XCTUnwrap(PersistentSchemaReleaseRegistryV1.releases.firstIndex(
+                of: PersistentSchemaReleaseRegistryV1.activeRelease
+            )),
+            10
+        )
+        XCTAssertEqual(
+            PersistentSchemaReleaseRegistryV1.releases.last,
+            PersistentSchemaReleaseRegistryV1.activeRelease
         )
         XCTAssertEqual(PersistentSchemaV4.models.count, PersistentSchemaV3.models.count + 4)
         XCTAssertEqual(PersistentSchemaV5.models.count, PersistentSchemaV4.models.count + 1)

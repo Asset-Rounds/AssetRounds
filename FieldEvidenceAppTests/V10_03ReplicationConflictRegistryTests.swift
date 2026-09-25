@@ -105,12 +105,35 @@ final class V10_03ReplicationConflictRegistryTests: XCTestCase {
         // The current catalog is the complete post-C38 inventory. The older
         // fixture remains a compatibility baseline, while these counts bind
         // the active registry to its closed category declarations.
-        XCTAssertEqual(registrations.count, 130)
-        XCTAssertEqual(catalog.persistentModelSubjects.count, 27)
-        XCTAssertEqual(catalog.ownedFileClassSubjects.count, 25)
-        XCTAssertEqual(catalog.portableContentProjectionSubjects.count, 26)
-        XCTAssertEqual(catalog.derivedIndexProjectionSubjects.count, 18)
-        XCTAssertEqual(catalog.journalRecoverySubjects.count, 21)
+        //
+        // Expectation change (2026-09-25): these counts were written against
+        // the post-C38 catalog (V17 era: 130 registrations, 27 persistent
+        // kinds). The active catalog now covers persistent schema V53, and the
+        // numbers below were recomputed from the live
+        // CurrentSyncClassificationCatalogV1.current at e37ea967 (455 total).
+        // They stay exact so any unreviewed catalog drift still fails, and
+        // the persistent/file slices are additionally bound to their source
+        // inventories. The former `SECRET: 0` dictionary entry could never
+        // match `counts(_:)`, which only emits present keys; the empty secret
+        // inventory is still asserted by `secretSubjects.isEmpty` below.
+        XCTAssertEqual(registrations.count, 455)
+        XCTAssertEqual(catalog.persistentModelSubjects.count, 168)
+        XCTAssertEqual(
+            catalog.persistentModelSubjects.count,
+            CurrentSyncClassificationCatalogV1.activePersistentModelNames.count
+        )
+        XCTAssertEqual(
+            catalog.persistentModelSubjects.count,
+            PersistentSchemaReleaseRegistryV1.activeRelease.models.count
+        )
+        XCTAssertEqual(catalog.ownedFileClassSubjects.count, 31)
+        XCTAssertEqual(
+            catalog.ownedFileClassSubjects.count,
+            CurrentSyncClassificationCatalogV1.ownedFileClassNames.count
+        )
+        XCTAssertEqual(catalog.portableContentProjectionSubjects.count, 117)
+        XCTAssertEqual(catalog.derivedIndexProjectionSubjects.count, 102)
+        XCTAssertEqual(catalog.journalRecoverySubjects.count, 24)
         XCTAssertEqual(catalog.diagnosticSubjects.count, 13)
         XCTAssertTrue(catalog.secretSubjects.isEmpty)
         XCTAssertTrue(catalog.searchImplementationPresent)
@@ -118,12 +141,16 @@ final class V10_03ReplicationConflictRegistryTests: XCTestCase {
         let expectedCategoryCounts = [
             SyncSubjectCategoryV1.diagnostic.rawValue: 13,
             SyncSubjectCategoryV1.index.rawValue: 3,
-            SyncSubjectCategoryV1.journal.rawValue: 21,
-            SyncSubjectCategoryV1.ownedFileClass.rawValue: 25,
-            SyncSubjectCategoryV1.persistentModel.rawValue: 27,
-            SyncSubjectCategoryV1.projection.rawValue: 26,
-            SyncSubjectCategoryV1.secret.rawValue: 0,
+            SyncSubjectCategoryV1.journal.rawValue: 24,
+            SyncSubjectCategoryV1.ownedFileClass.rawValue: 31,
+            SyncSubjectCategoryV1.persistentModel.rawValue: 168,
+            SyncSubjectCategoryV1.projection.rawValue: 216,
         ]
+        XCTAssertNil(
+            Self.counts(registrations.map { $0.subject.category.rawValue })[
+                SyncSubjectCategoryV1.secret.rawValue
+            ]
+        )
         XCTAssertEqual(
             Self.counts(registrations.map { $0.subject.category.rawValue }),
             expectedCategoryCounts
@@ -359,7 +386,15 @@ final class V10_03ReplicationConflictRegistryTests: XCTestCase {
         let registeredModelNames = currentCatalog.registrations
             .filter { $0.subject.category == .persistentModel }
             .map(\.subject.stableName)
-        XCTAssertEqual(registeredModelNames.count, 22)
+        // Expectation change (2026-09-25): 22 was the V8-era persistent kind
+        // count; the active catalog now registers every V53 kind (168,
+        // recomputed from the live catalog at e37ea967). The exact-set
+        // equality with activePersistentModelNames below is unchanged.
+        XCTAssertEqual(registeredModelNames.count, 168)
+        XCTAssertEqual(
+            registeredModelNames.count,
+            PersistentSchemaReleaseRegistryV1.activeRelease.models.count
+        )
         XCTAssertEqual(Set(registeredModelNames).count, registeredModelNames.count)
         XCTAssertEqual(
             registeredModelNames.sorted(),
@@ -405,7 +440,10 @@ final class V10_03ReplicationConflictRegistryTests: XCTestCase {
         let registeredFileNames = currentCatalog.registrations
             .filter { $0.subject.category == .ownedFileClass }
             .map(\.subject.stableName)
-        XCTAssertEqual(registeredFileNames.count, 21)
+        // Expectation change (2026-09-25): 21 was the V8-era owned-file class
+        // count; the live catalog now has 31 (recomputed at e37ea967). Exact
+        // set equality with ownedFileClassNames below is unchanged.
+        XCTAssertEqual(registeredFileNames.count, 31)
         XCTAssertTrue(registeredFileNames.contains("searchIndex"))
         XCTAssertEqual(Set(registeredFileNames).count, registeredFileNames.count)
         XCTAssertEqual(

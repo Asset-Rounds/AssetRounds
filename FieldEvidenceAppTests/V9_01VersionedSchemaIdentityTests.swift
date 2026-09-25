@@ -379,16 +379,28 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
         )
         XCTAssertEqual(
             PersistentSchemaReleaseRegistryV1.releases,
-            [.v1, .v2, .v3, .v4, .v5, .v6, .v7, .v8, .v9, .v10, .v11, .v12, .v13, .v14, .v15, .v16, .v17, .v18, .v19, .v20, .v21, .v22, .v23, .v24, .v25, .v26, .v27, .v28, .v29, .v30, .v31, .v32, .v33, .v34, .v35, .v36, .v37, .v38, .v39, .v40, .v41, .v42]
+            [.v1, .v2, .v3, .v4, .v5, .v6, .v7, .v8, .v9, .v10, .v11, .v12, .v13, .v14, .v15, .v16, .v17, .v18, .v19, .v20, .v21, .v22, .v23, .v24, .v25, .v26, .v27, .v28, .v29, .v30, .v31, .v32, .v33, .v34, .v35, .v36, .v37, .v38, .v39, .v40, .v41, .v42, .v43, .v44, .v45, .v46, .v47, .v48, .v49, .v50, .v51, .v52, .v53]
         )
-        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v42)
+        // Expectation change (2026-09-25, V23-on-S10 integration): this pin
+        // asserts the CURRENT active release. It was last written when V42
+        // (MY_DAY_PLAN_V1) was active; V43..V53 have since landed, and V53
+        // (LIGHTING_NIGHT_WORKFLOW_V1, commit e2278831) is the active release
+        // in PersistentSchemaReleaseRegistryV1. Adding V54 must update this
+        // exact list and the active pins below.
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v53)
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease.compatibilityID, "LIGHTING_NIGHT_WORKFLOW_V1")
         XCTAssertEqual(
             PersistentSchemaReleaseRegistryV1.activeVersionIdentifier,
-            PersistentSchemaV42.versionIdentifier
+            PersistentSchemaV53.versionIdentifier
         )
+        XCTAssertEqual(PersistentSchemaV53.versionIdentifier, Schema.Version(53, 0, 0))
         XCTAssertEqual(
             PersistentSchemaReleaseRegistryV1.activeCompatibilityID,
-            PersistentSchemaReleaseRegistryV1.v42CompatibilityID
+            PersistentSchemaReleaseRegistryV1.v53CompatibilityID
+        )
+        XCTAssertEqual(
+            ObjectIdentifier(PersistentSchemaReleaseRegistryV1.activeMigrationPlan),
+            ObjectIdentifier(PersistentSchemaMigrationPlanV52.self)
         )
         XCTAssertNoThrow(try PersistentSchemaReleaseRegistryV1.validate())
         XCTAssertEqual(
@@ -499,13 +511,33 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
         XCTAssertTrue(factorySource.contains("PersistentSchemaMigrationPlanV10.self"))
         XCTAssertTrue(factorySource.contains("PersistentSchemaReleaseMarker"))
         XCTAssertTrue(factorySource.contains("migrationPlan: PersistentSchemaMigrationPlanV1.self"))
-        XCTAssertTrue(factorySource.contains("migrationPlan: PersistentSchemaMigrationPlanV4.self"))
-        XCTAssertTrue(factorySource.contains("migrationPlan: PersistentSchemaMigrationPlanV5.self"))
-        XCTAssertTrue(factorySource.contains("migrationPlan: PersistentSchemaMigrationPlanV6.self"))
-        XCTAssertTrue(factorySource.contains("migrationPlan: PersistentSchemaMigrationPlanV7.self"))
+        // Expectation change (2026-09-25): StoreGenerationFactory now opens
+        // V4+ stores with `migrationPlan: migrate ? PlanN.self : nil` (the
+        // migrate flag distinguishes bootstrap from forward migration), so the
+        // unconditional spelling no longer exists. The pins below are the
+        // real current source text. The CloudKit pin previously counted 11
+        // spaced `cloudKitDatabase: .none` configurations; the factory now
+        // declares one configuration per release (V1..V53) plus bootstrap and
+        // recovery helpers, in both spaced and compact spelling. The
+        // invariant it protects is that EVERY ModelConfiguration is local
+        // only, so it is now asserted as an equality with the real count.
+        XCTAssertTrue(factorySource.contains("migrationPlan: migrate ? PersistentSchemaMigrationPlanV4.self : nil"))
+        XCTAssertTrue(factorySource.contains("migrationPlan: migrate ? PersistentSchemaMigrationPlanV5.self : nil"))
+        XCTAssertTrue(factorySource.contains("migrationPlan: migrate ? PersistentSchemaMigrationPlanV6.self : nil"))
+        XCTAssertTrue(factorySource.contains("migrationPlan: migrate ? PersistentSchemaMigrationPlanV7.self : nil"))
+        let factoryConfigurationCount =
+            factorySource.components(separatedBy: "ModelConfiguration(").count - 1
+        let factoryLocalOnlyCount =
+            (factorySource.components(separatedBy: "cloudKitDatabase: .none").count - 1)
+            + (factorySource.components(separatedBy: "cloudKitDatabase:.none").count - 1)
+        XCTAssertGreaterThanOrEqual(
+            factoryConfigurationCount,
+            PersistentSchemaReleaseRegistryV1.releases.count
+        )
+        XCTAssertEqual(factoryLocalOnlyCount, factoryConfigurationCount)
         XCTAssertEqual(
-            factorySource.components(separatedBy: "cloudKitDatabase: .none").count - 1,
-            11
+            factorySource.components(separatedBy: "cloudKitDatabase").count - 1,
+            factoryLocalOnlyCount
         )
         XCTAssertFalse(factorySource.contains("cloudKitDatabase: .automatic"))
         XCTAssertFalse(factorySource.contains("NSPersistentCloudKitContainer"))
@@ -708,7 +740,13 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
         let pointer = try CurrentGenerationPointerV3.decodeCanonical(from: pointerData)
         XCTAssertEqual(pointer.generationID, generationID.uuidString.lowercased())
         XCTAssertEqual(pointer.schemaVersion, 3)
-        XCTAssertEqual(pointer.storeSchemaVersion, 8)
+        // Expectation change (2026-09-25): a fresh bootstrap writes the
+        // ACTIVE store release. This pin was written when V8 was active; the
+        // active release is now V53 (LIGHTING_NIGHT_WORKFLOW_V1, e2278831),
+        // whose predecessor is V52. The exact values are pinned so any
+        // accidental drift of the bootstrap release still fails here.
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v53)
+        XCTAssertEqual(pointer.storeSchemaVersion, 53)
         XCTAssertEqual(
             pointer.workspaceID,
             workspaceID.rawValue.uuidString.lowercased()
@@ -725,7 +763,7 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
             targetGenerationID: generationID,
             expectedDigest: pointer.generationManifestSHA256
         )
-        XCTAssertEqual(manifest.storeSchemaRelease, .v8)
+        XCTAssertEqual(manifest.storeSchemaRelease, .v53)
         XCTAssertEqual(manifest.generationID, generationID)
         XCTAssertTrue(manifest.files.contains { $0.relativePath == "model.sqlite" })
 
@@ -735,14 +773,14 @@ final class V9_01VersionedSchemaIdentityTests: XCTestCase {
         let marker = try XCTUnwrap(markers.first)
         XCTAssertEqual(markers.count, 1)
         XCTAssertEqual(marker.id, PersistentSchemaReleaseRegistryV1.v2MarkerID)
-        XCTAssertEqual(marker.schemaVersion, 8)
+        XCTAssertEqual(marker.schemaVersion, 53)
         XCTAssertEqual(
             marker.releaseID,
-            PersistentSchemaReleaseRegistryV1.v8CompatibilityID
+            PersistentSchemaReleaseRegistryV1.v53CompatibilityID
         )
         XCTAssertEqual(
             marker.predecessorReleaseID,
-            PersistentSchemaReleaseRegistryV1.v7CompatibilityID
+            PersistentSchemaReleaseRegistryV1.v52CompatibilityID
         )
         XCTAssertNotNil(marker.migrationID)
         let markerMigrationID = marker.migrationID
@@ -1132,7 +1170,29 @@ extension V9_01VersionedSchemaIdentityTests {
         XCTAssertEqual(PersistentSchemaV24.versionIdentifier, Schema.Version(24, 0, 0))
         XCTAssertEqual(PersistentSchemaV24.models.count, 87)
         XCTAssertEqual(PersistentSchemaV24.models.count, PersistentSchemaV23.models.count + 2)
-        XCTAssertEqual(CurrentSyncClassificationCatalogV1.activePersistentModelNames.count, 87)
+        // Expectation change (2026-09-25): C25 proved the V24 inventory had
+        // 87 persistent kinds. It compared that historical count with the
+        // growing `activePersistentModelNames`, which now spans V1..V53 (168).
+        // The historical fact is now pinned against the V1..V24 name slices,
+        // and the active inventory is bound to the active release's models.
+        let c25Catalog = CurrentSyncClassificationCatalogV1.self
+        let throughV24Names: [String] = c25Catalog.persistentModelNames
+            + c25Catalog.v6PersistentModelNames + c25Catalog.v7PersistentModelNames
+            + c25Catalog.v8PersistentModelNames + c25Catalog.v9PersistentModelNames
+            + c25Catalog.v10PersistentModelNames + c25Catalog.v11PersistentModelNames
+            + c25Catalog.v12PersistentModelNames + c25Catalog.v13PersistentModelNames
+            + c25Catalog.v14PersistentModelNames + c25Catalog.v15PersistentModelNames
+            + c25Catalog.v16PersistentModelNames + c25Catalog.v17PersistentModelNames
+            + c25Catalog.v18PersistentModelNames + c25Catalog.v19PersistentModelNames
+            + c25Catalog.v20PersistentModelNames + c25Catalog.v21PersistentModelNames
+            + c25Catalog.v22PersistentModelNames + c25Catalog.v23PersistentModelNames
+            + c25Catalog.v24PersistentModelNames
+        XCTAssertEqual(throughV24Names.count, 87)
+        XCTAssertEqual(Set(throughV24Names).count, 87)
+        XCTAssertEqual(
+            CurrentSyncClassificationCatalogV1.activePersistentModelNames.count,
+            PersistentSchemaReleaseRegistryV1.activeRelease.models.count
+        )
         let currentSync = try CurrentSyncClassificationCatalogV1.current
         XCTAssertNoThrow(try currentSync.validate())
     }
@@ -1284,14 +1344,22 @@ extension V9_01VersionedSchemaIdentityTests {
             PersistentSchemaV43.models.suffix(2).map { ObjectIdentifier($0) },
             [ObjectIdentifier(EvidenceAssociationEventRowV1.self), ObjectIdentifier(EvidenceSequenceRevisionRowV1.self)]
         )
-        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v43)
-        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.releases.count, 43)
-        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeVersionIdentifier,
+        // Expectation change (2026-09-25): this is a HISTORICAL C05 fact
+        // ("C05 introduced V43"). It used to compare V43 with the active
+        // release, which has since advanced to V53. The V43 release is now
+        // pinned explicitly (position, identity, predecessor, plan) instead.
+        let releases = PersistentSchemaReleaseRegistryV1.releases
+        XCTAssertEqual(releases.firstIndex(of: .v43), 42)
+        XCTAssertEqual(releases[41], .v42)
+        XCTAssertEqual(PersistentSchemaReleaseV1.v43.compatibilityID, "EVIDENCE_CURATION_V1")
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.v43CompatibilityID, "EVIDENCE_CURATION_V1")
+        XCTAssertEqual(PersistentSchemaReleaseV1.v43.versionIdentifier,
                        PersistentSchemaV43.versionIdentifier)
-        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeCompatibilityID,
-                       PersistentSchemaReleaseRegistryV1.v43CompatibilityID)
-        XCTAssertEqual(ObjectIdentifier(PersistentSchemaReleaseRegistryV1.activeMigrationPlan),
-                       ObjectIdentifier(PersistentSchemaMigrationPlanV42.self))
+        XCTAssertEqual(PersistentSchemaReleaseV1.v43.models.map { ObjectIdentifier($0) },
+                       PersistentSchemaV43.models.map { ObjectIdentifier($0) })
+        XCTAssertEqual(PersistentSchemaReleaseV1.v43.predecessorVersionIdentifier,
+                       PersistentSchemaV42.versionIdentifier)
+        XCTAssertNotEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v43)
         XCTAssertEqual(PersistentSchemaMigrationPlanV42.schemas.map { ObjectIdentifier($0) },
                        [ObjectIdentifier(PersistentSchemaV42.self), ObjectIdentifier(PersistentSchemaV43.self)])
         XCTAssertNoThrow(try PersistentSchemaReleaseRegistryV1.validate())

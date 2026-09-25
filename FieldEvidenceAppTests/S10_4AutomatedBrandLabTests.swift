@@ -17498,9 +17498,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
                 // V23 Phase 1 re-pin (S10.4 E: 25_864 / E6324CBF…9C43): the four-tab shell
                 // (Today, Work, Assets, Reports; commit aa0dc10, BLUEPRINT:9654) and its one
                 // AssetRoundsPrimaryAction ("Retry" when the production workflow is unavailable).
+                // Phase-gate re-pin (prior 61_892 / 09604BDF…CD54): DEBUG-only native
+                // observation witnesses on the Settings screen and its restore row; recomputed
+                // from the real bytes with SHA-256; no Release, owner or styling change.
                 "FieldEvidenceApp/Features/Shell/AppShellView.swift",
-                61_892,
-                "09604BDFD25A19D7269FA70A6FE6EDBEE16FC8A48C522357918EB83B88A2CD54",
+                62_240,
+                "8355FDC161413C8EA80D680D01A12879D35B1D658EC0FAFADBC75B3AE3E4FCB9",
                 [
                     #"AssetRoundsPrimaryNavigationLink("Back up current data") {"#,
                     #"AssetRoundsSecondaryAction("Restore data backup", action: restoreDataBackup)"#,

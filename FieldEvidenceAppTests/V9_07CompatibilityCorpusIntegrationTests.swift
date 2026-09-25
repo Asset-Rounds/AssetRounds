@@ -76,7 +76,10 @@ final class V9_07CompatibilityCorpusIntegrationTests: XCTestCase {
             policy.canonicalData()
         )
         let path = try restored.dataManifest.path(for: .reportOpenJSON)
-        XCTAssertEqual(path.currentWriterVersion, "snapshot2")
+        // Expectation change (2026-09-25): the writer was snapshot2 at C40;
+        // C14 (cf425681) made snapshot4 the reportOpenJSON writer. The C40
+        // boundary under test (snapshot3 readable, never written) is unchanged.
+        XCTAssertEqual(path.currentWriterVersion, "snapshot4")
         XCTAssertTrue(path.readableVersions.contains("snapshot3"))
         XCTAssertThrowsError(
             try restored.dataManifest.validateWriterVersion("snapshot3", for: .reportOpenJSON)

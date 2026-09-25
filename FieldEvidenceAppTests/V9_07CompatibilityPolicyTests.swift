@@ -156,9 +156,19 @@ final class V9_07CompatibilityPolicyTests: XCTestCase {
             candidateHead: String(repeating: "4", count: 40)
         )
         let path = try policy.dataManifest.path(for: .reportOpenJSON)
-        XCTAssertEqual(path.readableVersions, ["snapshot1", "snapshot2", "snapshot3"])
-        XCTAssertEqual(path.currentWriterVersion, "snapshot2")
+        // Expectation change (2026-09-25): C40 established snapshot3 as a
+        // readable, never-written provisional version while snapshot2 was the
+        // writer. C14 (cf425681, review and corrective action) later appended
+        // snapshot4 and made it the reportOpenJSON writer in
+        // ReleasedDataCompatibilityPolicyV1. The C40 guarantee that survives is
+        // "snapshot3 stays readable and is never a writer"; the current writer
+        // and reader list are pinned to their exact present values.
+        XCTAssertEqual(path.readableVersions, ["snapshot1", "snapshot2", "snapshot3", "snapshot4"])
+        XCTAssertEqual(path.currentWriterVersion, "snapshot4")
         XCTAssertNoThrow(try path.validateReadableVersion("snapshot3"))
+        XCTAssertThrowsError(try path.validateWriterVersion("snapshot2")) {
+            XCTAssertEqual($0 as? CompatibilityContractErrorV1, .noncurrentWriterVersion)
+        }
         XCTAssertThrowsError(try path.validateWriterVersion("snapshot3")) {
             XCTAssertEqual($0 as? CompatibilityContractErrorV1, .noncurrentWriterVersion)
         }
@@ -462,8 +472,14 @@ extension V9_07CompatibilityPolicyTests {
         XCTAssertNoThrow(try V16FieldDraftImportBoundaryV1.validate(persistent: 16, records: 15))
         XCTAssertThrowsError(try V16FieldDraftImportBoundaryV1.validate(persistent: 15, records: 15))
         XCTAssertThrowsError(try V16FieldDraftImportBoundaryV1.validate(persistent: 16, records: 14))
-        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeVersionIdentifier, PersistentSchemaV16.versionIdentifier)
-        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeCompatibilityID, PersistentSchemaReleaseV1.v16.compatibilityID)
+        // Expectation change (2026-09-25): C36 introduced persistent schema
+        // V16 (field draft resilience). The test compared V16 with the ACTIVE
+        // release, which has since advanced to V53. The historical V16 release
+        // is now pinned explicitly (identity, position, predecessor) instead.
+        XCTAssertEqual(PersistentSchemaReleaseV1.v16.versionIdentifier, PersistentSchemaV16.versionIdentifier)
+        XCTAssertEqual(PersistentSchemaReleaseV1.v16.compatibilityID, "PERSISTENT_SCHEMA_V16_FIELD_DRAFT_RESILIENCE")
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.releases.firstIndex(of: .v16), 15)
+        XCTAssertEqual(PersistentSchemaReleaseV1.v16.predecessorVersionIdentifier, PersistentSchemaV15.versionIdentifier)
         XCTAssertEqual(PersistentSchemaReleaseV1.v16.models.count, 64)
     }
 }

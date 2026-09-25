@@ -1786,7 +1786,15 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
         try exactHeadCompatibility.validate()
         let liveStore = try exactHeadCompatibility.dataManifest
             .path(for: .liveStore)
-        XCTAssertEqual(liveStore.currentWriterVersion, "6.0.0")
+        // Expectation change (2026-09-25): R01 was written when the
+        // exact-head live-store writer was 6.0.0 and the backup writer was
+        // persistent6-records5. C36 (f2eeb472, field draft resilience)
+        // advanced the exact-head compatibility writers in
+        // ReleasedDataCompatibilityPolicyV1 to 16.0.0 and
+        // archive1-backup4-persistent16-records15. The 4/5/6 readability
+        // guarantees below are unchanged; the writers are pinned to their
+        // exact present values.
+        XCTAssertEqual(liveStore.currentWriterVersion, "16.0.0")
         XCTAssertTrue(liveStore.readableVersions.contains("4.0.0"))
         XCTAssertTrue(liveStore.readableVersions.contains("5.0.0"))
         XCTAssertTrue(liveStore.readableVersions.contains("6.0.0"))
@@ -1798,7 +1806,8 @@ final class V9_13PersistentKindLifecycleCoverageTests: XCTestCase {
             XCTAssertEqual($0 as? CompatibilityContractErrorV1, .unsupportedVersion)
         }
         let backup = try exactHeadCompatibility.dataManifest.path(for: .backupPackage)
-        XCTAssertEqual(backup.currentWriterVersion, "archive1-backup4-persistent6-records5")
+        XCTAssertEqual(backup.currentWriterVersion, "archive1-backup4-persistent16-records15")
+        XCTAssertTrue(backup.readableVersions.contains("archive1-backup4-persistent6-records5"))
         XCTAssertTrue(backup.readableVersions.contains("archive1-backup4-persistent5-records4"))
 
         XCTAssertEqual(corpus.fixtureIdentity, "V21-P02-C09-PERSISTENT-KIND-LIFECYCLE-COVERAGE-CORPUS-V1")

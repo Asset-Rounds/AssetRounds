@@ -3878,3 +3878,23 @@ Local results (development only; Xcode 26.6, iOS 26.5 Simulator because the 26.2
 - Deeper failures remain in V9_45/46/64, LocationHierarchy, S3_4, V10_02 (9 tests, unchanged) and the V9_09 R01 memory budget (541 MB vs 128 MB).
 - Python under 3.14 with TMPDIR resolved: selection generator 38/38; native CI 314/316. Two real-git fixture tests fail on file-mode-only diffs on macOS, and the same two fail at clean e9cc843 (310/312).
 - Native result: pending the development sweep at this head.
+
+## Batch L: Phase 1 gate witnesses and persistence expectation drift (2026-09-25, cloud Mac)
+
+Requirement: close the Phase 1 gate-evidence gap in V23PhaseGateTests and fix test-only expectation drift left from the active schema's move to v53.
+
+- **V23PhaseGateTests** (author: helper "phasegate").
+  - Cause, confirmed natively: the unit-host accessibility walk stops at `SwiftUI.HostingScrollView.PlatformGroupContainer`, so it never saw the Settings rows. The positive probes failed and the "no Reminders row" checks were vacuous.
+  - Fix: DEBUG-only, zero-size, non-accessible NativeScreenObservation witnesses (`nativeScreenObservationWitnessV1`) on the Settings screen, the S10 restore row and the three reminder rows (NativeScreenObservationAnchorV1, ReminderSettingsSectionV1, AppShellView). The tests assert presence and absence through them.
+  - The product gate is unchanged (`phaseGate.allows(.reminders)`). A mutation that forced the gate open failed all three negative checks.
+  - The S10_4 pin of AppShellView.swift was re-pinned from the real bytes: 61,892/09604BDF… became 62,240/8355FDC1…. The only change is the DEBUG witness lines. Release output is byte-identical.
+- **Expectation drift** (author: helper "pins"; test-only, and each hunk records its reason).
+  - V9_01 pins V1..V53 exactly and active V53 (LIGHTING_NIGHT_WORKFLOW_V1). C05 and C25 facts are pinned to their historical releases. The CloudKit check now requires every ModelConfiguration to be local-only.
+  - V9_07 (both): writer snapshot4; V16 pinned historically.
+  - V10_02 R01: exact V1..V11 prefix.
+  - V9_13 R01: persistent16.
+  - V9_06 C25: 128, per the frozen contract `V23P03C25SurveyDefinitionContractV1.json`; this test was wrong since it was authored.
+  - V10_03: exact live catalog counts (455), and an explicit no-secret check replaces an unreachable `SECRET: 0` key.
+  - Deliberately untouched, pending owner decisions: the forward-fix wording and the `.immutable`/`.supported` expectations. V10_03:614 is left failing (see VERIFICATION_DUE).
+- **Review:** one independent reviewer (Claude Opus 5.5, read-only, not the author) returned APPROVE WITH CHANGES; the required changes were records only and are done here. The reviewer independently recomputed the AppShellView pin and judged compile risk LOW.
+- **Local results** (development only; iOS 26.5): build-for-testing SUCCEEDED and V23PhaseGateTests passes 8/8. Pin classes: failures went from 103 to 64, and every remaining failure belongs to another family. Also seen at unmodified e37ea967: V23ProductionFourRootShell `testPhysicalRestoredReviewDiscard…` fails with invalidIdentity, and S10_4 `testPinnedOverlaySelectorAndExactSevenPlusSevenShardContract` fails at :5396 (PreflightView fragment, 0 vs 1).

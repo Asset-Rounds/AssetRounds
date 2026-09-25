@@ -61,4 +61,16 @@ final class NativeScreenObservationViewV1: UIView {
 
     override var intrinsicContentSize: CGSize { .zero }
 }
+
+extension View {
+    /// Attaches a zero-size, non-interactive witness behind this view. It
+    /// exists only while this view renders and has no layout effect.
+    func nativeScreenObservationWitnessV1(_ identifier: String) -> some View {
+        background {
+            NativeScreenObservationAnchorV1(identifier: identifier)
+                .frame(width: 0, height: 0)
+                .allowsHitTesting(false)
+        }
+    }
+}
 #endif

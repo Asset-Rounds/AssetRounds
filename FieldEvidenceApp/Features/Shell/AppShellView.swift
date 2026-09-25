@@ -1241,6 +1241,11 @@ struct SettingsPlaceholderView: View {
                     .accessibilityIdentifier(
                         BackupRestoreProgressView.settingsEntryAccessibilityIdentifier
                     )
+                    #if DEBUG
+                    .nativeScreenObservationWitnessV1(
+                        BackupRestoreProgressView.settingsEntryAccessibilityIdentifier
+                    )
+                    #endif
 
                 AssetRoundsSecondaryAction("View subscription") {
                     paywallPresentation = PaywallPresentation()
@@ -1318,6 +1323,9 @@ struct SettingsPlaceholderView: View {
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier(AppShellView.settingsScreenAccessibilityIdentifier)
+        #if DEBUG
+        .nativeScreenObservationWitnessV1(AppShellView.settingsScreenAccessibilityIdentifier)
+        #endif
         .sheet(item: $paywallPresentation) { presentation in
             PaywallView(
                 coordinator: purchaseCoordinator,
