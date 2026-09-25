@@ -1,0 +1,325 @@
+{
+  "acceptance": false,
+  "artifactMissing": false,
+  "atUTC": "2026-09-25T07:13:59.831431+00:00",
+  "budgets": {
+    "buildTimeoutSeconds": 1800,
+    "setupArtifactTimeoutSeconds": 300,
+    "testTimeoutSeconds": 3000,
+    "totalBudgetSeconds": 5100,
+    "uiTimeoutSeconds": 0
+  },
+  "build": {
+    "succeeded": true,
+    "swiftErrors": 0,
+    "swiftWarnings": 498
+  },
+  "conclusion": "failure",
+  "counts": {
+    "Failed": 1,
+    "Passed": 14
+  },
+  "devBatch": {
+    "acceptance": false,
+    "developmentOnly": true,
+    "path": "Scripts/v23-dev-batch.json",
+    "question": "C57-1 My Day cross-workspace replacement projection (11) plus the C43 signoff baseline (4); first qualifying original of the reusable development route",
+    "schema": "v23-dev-batch.v1",
+    "sha256": "00D2AA2770EFB5E2FF8A46D6B4751811358A993CC84C5E8732B9736300EDAF37"
+  },
+  "duplicatedTestLines": [],
+  "head": "c614b8d1a5c1f6635eb270d1339a7c190511f7e5",
+  "namedDiagnostics": [],
+  "parent": "fca18b79379363e6f70f0d4fc5c73d9ff8cd2f0a",
+  "protectedFileTiming": [],
+  "releaseReady": false,
+  "resultsFromJobLog": false,
+  "runID": 36104533833,
+  "selection": "v23-dev-batch-no-index-d50",
+  "selectionMatchesDispatch": true,
+  "selectionSource": "artifact",
+  "steps": [
+    {
+      "completedAt": "2026-09-25T06:48:22Z",
+      "conclusion": "success",
+      "job": "Validate shared build selection and dependencies",
+      "startedAt": "2026-09-25T06:48:21Z",
+      "step": "Set up job"
+    },
+    {
+      "completedAt": "2026-09-25T06:48:26Z",
+      "conclusion": "success",
+      "job": "Validate shared build selection and dependencies",
+      "startedAt": "2026-09-25T06:48:22Z",
+      "step": "Check out the exact revision"
+    },
+    {
+      "completedAt": "2026-09-25T06:48:34Z",
+      "conclusion": "success",
+      "job": "Validate shared build selection and dependencies",
+      "startedAt": "2026-09-25T06:48:26Z",
+      "step": "Validate ordinary V23 native acceptance selection"
+    },
+    {
+      "completedAt": "2026-09-25T06:48:34Z",
+      "conclusion": "success",
+      "job": "Validate shared build selection and dependencies",
+      "startedAt": "2026-09-25T06:48:34Z",
+      "step": "Validate closed shared selection and original dependencies"
+    },
+    {
+      "completedAt": "2026-09-25T06:48:34Z",
+      "conclusion": "success",
+      "job": "Validate shared build selection and dependencies",
+      "startedAt": "2026-09-25T06:48:34Z",
+      "step": "Post Check out the exact revision"
+    },
+    {
+      "completedAt": "2026-09-25T06:48:34Z",
+      "conclusion": "success",
+      "job": "Validate shared build selection and dependencies",
+      "startedAt": "2026-09-25T06:48:34Z",
+      "step": "Complete job"
+    },
+    {
+      "completedAt": "2026-09-25T06:48:48Z",
+      "conclusion": "success",
+      "job": "GitHub Xcode 26.6 acceptance \u00b7 none \u00b7 none / verify",
+      "startedAt": "2026-09-25T06:48:47Z",
+      "step": "Set up job"
+    },
+    {
+      "completedAt": "2026-09-25T06:48:48Z",
+      "conclusion": "success",
+      "job": "GitHub Xcode 26.6 acceptance \u00b7 none \u00b7 none / verify",
+      "startedAt": "2026-09-25T06:48:48Z",
+      "step": "Prepare evidence directory"
+    },
+    {
+      "completedAt": "2026-09-25T06:48:54Z",
+      "conclusion": "success",
+      "job": "GitHub Xcode 26.6 acceptance \u00b7 none \u00b7 none / verify",
+      "startedAt": "2026-09-25T06:48:48Z",
+      "step": "Check out the exact revision"
+    },
+    {
+      "completedAt": "2026-09-25T06:49:08Z",
+      "conclusion": "success",
+      "job": "GitHub Xcode 26.6 acceptance \u00b7 none \u00b7 none / verify",
+      "startedAt": "2026-09-25T06:48:54Z",
+      "step": "Validate task selection and timeout tier"
+    },
+    {
+      "completedAt": "2026-09-25T06:49:56Z",
+      "conclusion": "success",
+      "job": "GitHub Xcode 26.6 acceptance \u00b7 none \u00b7 none / verify",
+      "startedAt": "2026-09-25T06:49:08Z",
+      "step": "Verify pinned toolchain, shared scheme, and simulator"
+    },
+    {
+      "completedAt": "2026-09-25T06:49:56Z",
+      "conclusion": "success",
+      "job": "GitHub Xcode 26.6 acceptance \u00b7 none \u00b7 none / verify",
+      "startedAt": "2026-09-25T06:49:56Z",
+      "step": "Verify setup budget before build"
+    },
+    {
+      "completedAt": "2026-09-25T06:51:38Z",
+      "conclusion": "success",
+      "job": "GitHub Xcode 26.6 acceptance \u00b7 none \u00b7 none / verify",
+      "startedAt": "2026-09-25T06:49:56Z",
+      "step": "Boot selected Simulator"
+    },
+    {
+      "completedAt": "2026-09-25T06:51:40Z",
+      "conclusion": "success",
+      "job": "GitHub Xcode 26.6 acceptance \u00b7 none \u00b7 none / verify",
+      "startedAt": "2026-09-25T06:49:56Z",
+      "step": "Await selected Simulator boot"
+    },
+    {
+      "completedAt": "2026-09-25T07:10:35Z",
+      "conclusion": "success",
+      "job": "GitHub Xcode 26.6 acceptance \u00b7 none \u00b7 none / verify",
+      "startedAt": "2026-09-25T06:51:40Z",
+      "step": "Build unsigned simulator app"
+    },
+    {
+      "completedAt": "2026-09-25T07:11:58Z",
+      "conclusion": "failure",
+      "job": "GitHub Xcode 26.6 acceptance \u00b7 none \u00b7 none / verify",
+      "startedAt": "2026-09-25T07:10:35Z",
+      "step": "Run targeted tests"
+    },
+    {
+      "completedAt": "2026-09-25T07:11:58Z",
+      "conclusion": "success",
+      "job": "GitHub Xcode 26.6 acceptance \u00b7 none \u00b7 none / verify",
+      "startedAt": "2026-09-25T07:11:58Z",
+      "step": "Begin evidence-finalization budget"
+    },
+    {
+      "completedAt": "2026-09-25T07:12:01Z",
+      "conclusion": "success",
+      "job": "GitHub Xcode 26.6 acceptance \u00b7 none \u00b7 none / verify",
+      "startedAt": "2026-09-25T07:11:58Z",
+      "step": "Validate required build and test evidence"
+    },
+    {
+      "completedAt": "2026-09-25T07:12:16Z",
+      "conclusion": "failure",
+      "job": "GitHub Xcode 26.6 acceptance \u00b7 none \u00b7 none / verify",
+      "startedAt": "2026-09-25T07:12:01Z",
+      "step": "Validate exact ordinary integration native checkpoint"
+    },
+    {
+      "completedAt": "2026-09-25T07:12:21Z",
+      "conclusion": "success",
+      "job": "GitHub Xcode 26.6 acceptance \u00b7 none \u00b7 none / verify",
+      "startedAt": "2026-09-25T07:12:16Z",
+      "step": "Remove owned isolated Simulator"
+    },
+    {
+      "completedAt": "2026-09-25T07:12:54Z",
+      "conclusion": "success",
+      "job": "GitHub Xcode 26.6 acceptance \u00b7 none \u00b7 none / verify",
+      "startedAt": "2026-09-25T07:12:21Z",
+      "step": "Hash collected evidence"
+    },
+    {
+      "completedAt": "2026-09-25T07:12:54Z",
+      "conclusion": "success",
+      "job": "GitHub Xcode 26.6 acceptance \u00b7 none \u00b7 none / verify",
+      "startedAt": "2026-09-25T07:12:54Z",
+      "step": "Recheck evidence-finalization budget"
+    },
+    {
+      "completedAt": "2026-09-25T07:12:54Z",
+      "conclusion": "success",
+      "job": "GitHub Xcode 26.6 acceptance \u00b7 none \u00b7 none / verify",
+      "startedAt": "2026-09-25T07:12:54Z",
+      "step": "Verify selected total budget before upload"
+    },
+    {
+      "completedAt": "2026-09-25T07:12:58Z",
+      "conclusion": "success",
+      "job": "GitHub Xcode 26.6 acceptance \u00b7 none \u00b7 none / verify",
+      "startedAt": "2026-09-25T07:12:54Z",
+      "step": "Upload build evidence"
+    },
+    {
+      "completedAt": "2026-09-25T07:12:59Z",
+      "conclusion": "success",
+      "job": "GitHub Xcode 26.6 acceptance \u00b7 none \u00b7 none / verify",
+      "startedAt": "2026-09-25T07:12:58Z",
+      "step": "Post Check out the exact revision"
+    },
+    {
+      "completedAt": "2026-09-25T07:13:03Z",
+      "conclusion": "success",
+      "job": "GitHub Xcode 26.6 acceptance \u00b7 none \u00b7 none / verify",
+      "startedAt": "2026-09-25T07:12:59Z",
+      "step": "Complete job"
+    }
+  ],
+  "structuredResults": {
+    "available": true,
+    "bytes": 8574
+  },
+  "tests": {
+    "FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testCrossWorkspaceMaterializationPersistsExactProjectionAndRejectionsHaveNoEffect": {
+      "failures": [],
+      "lines": 2,
+      "result": "Passed",
+      "seconds": 2.38
+    },
+    "FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testCrossWorkspaceReplacementPreservesAllHistoryAndCarryoverPredecessor": {
+      "failures": [],
+      "lines": 2,
+      "result": "Passed",
+      "seconds": 0.148
+    },
+    "FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testCrossWorkspaceReplacementRejectsHostileAndUnusedBindings": {
+      "failures": [],
+      "lines": 2,
+      "result": "Passed",
+      "seconds": 0.253
+    },
+    "FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testEmptyCrossWorkspaceReplacementBuildsCanonicalTargetEmptySnapshot": {
+      "failures": [],
+      "lines": 2,
+      "result": "Passed",
+      "seconds": 0.001
+    },
+    "FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testReplacementCommandsPreserveSameWorkspaceBytesAndEmptyProjection": {
+      "failures": [],
+      "lines": 2,
+      "result": "Passed",
+      "seconds": 0.107
+    },
+    "FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testReplacementCommandsRejectAlteredOriginalAndForeignOrIncompleteExpectedRevision": {
+      "failures": [],
+      "lines": 2,
+      "result": "Passed",
+      "seconds": 0.109
+    },
+    "FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testReplacementCommandsRetainEverySavePredecessorAndExistingTargetCarryover": {
+      "failures": [],
+      "lines": 2,
+      "result": "Passed",
+      "seconds": 0.14
+    },
+    "FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testReplacementLifecyclePreparationUsesCompleteProjectedHistory": {
+      "failures": [],
+      "lines": 2,
+      "result": "Passed",
+      "seconds": 0.17
+    },
+    "FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testReplacementLifecyclePreservesSameWorkspaceAndEmptyTargetSemantics": {
+      "failures": [],
+      "lines": 2,
+      "result": "Passed",
+      "seconds": 0.099
+    },
+    "FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testSameWorkspaceReplacementIsByteExactAndRejectsBindings": {
+      "failures": [],
+      "lines": 2,
+      "result": "Passed",
+      "seconds": 0.082
+    },
+    "FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testSourceValidationRejectsPartialCarryoverAndNonactiveClosure": {
+      "failures": [],
+      "lines": 2,
+      "result": "Passed",
+      "seconds": 0.148
+    },
+    "FieldEvidenceAppTests/V9_106SignoffEnrollmentTests/testV23P04C43A01OptionalMarkOnlyChangesMethodAndNeverDurablyStoresMarkMaterial": {
+      "failures": [
+        "XCTAssertFalse failed"
+      ],
+      "lines": 2,
+      "result": "Failed",
+      "seconds": 1.931
+    },
+    "FieldEvidenceAppTests/V9_106SignoffEnrollmentTests/testV23P04C43G01TypedLocalResponseUsesExistingWriterAndFixedDisclosure": {
+      "failures": [],
+      "lines": 2,
+      "result": "Passed",
+      "seconds": 2.78
+    },
+    "FieldEvidenceAppTests/V9_106SignoffEnrollmentTests/testV23P04C43H01ActorWorkspaceStalenessReceiptAndManifestHostilityReject": {
+      "failures": [],
+      "lines": 2,
+      "result": "Passed",
+      "seconds": 0.706
+    },
+    "FieldEvidenceAppTests/V9_106SignoffEnrollmentTests/testV23P04C43I01AndR01ReplayReceiptFirstAndKeepAcknowledgementBytesUnmigrated": {
+      "failures": [],
+      "lines": 2,
+      "result": "Passed",
+      "seconds": 0.551
+    }
+  },
+  "tier": "D50",
+  "unselectedTestLines": []
+}

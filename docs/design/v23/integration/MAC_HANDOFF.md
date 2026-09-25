@@ -1,6 +1,6 @@
 # Mac development handoff
 
-Owner decisions of 2026-09-25 (AGENTS.md): development moves to a persistent cloud Mac (rentamac.io: Mac mini M4, 16 GB RAM, 256 GB SSD, macOS Tahoe 26.4+) running Claude Code. Local builds and tests are for development feedback; official merge and release evidence still comes only from the hosted GitHub route.
+Owner decisions of 2026-09-25 (AGENTS.md): development moves to a persistent cloud Mac running Claude Code: a dedicated Apple-silicon Mac mini (for example from myremotemac.com or rentamac.io) with 16 GB+ RAM and a 512 GB SSD, on a macOS that runs Xcode 26.6 and the iOS 26.2 Simulator. Local builds and tests are for development feedback; official merge and release evidence still comes only from the hosted GitHub route.
 
 ## 1. One-time setup (owner, on the Mac)
 
@@ -51,27 +51,30 @@ Keep the Windows PC folder `C:\AssetRounds-v23-s10-integration`. It holds about 
   ```
   If `iPhone 17` isn't present, list the devices with `xcrun simctl list devices available` and use any iOS 26.2 iPhone.
 - **Targeted tests.** Use the same command with `test-without-building -only-testing:FieldEvidenceAppTests/<Class>/<method>`. Add more `-only-testing` flags as needed.
-- **Disk hygiene** (256 GB). To reclaim space, run `xcrun simctl delete unavailable`, then remove `~/DD` and rebuild. Don't keep many runtimes.
-- **Memory.** With 16 GB, avoid running several heavy builds at once.
+- **Disk hygiene.** To reclaim space, run `xcrun simctl delete unavailable`, then remove `~/DD` and rebuild. Don't keep many runtimes.
+- **Memory.** With 16 GB, avoid running several heavy builds at once. If a clean build thrashes, add `-jobs 4`.
 
 ## 4. Hosted runs (development and gates)
 
-- **The tool.** `python3 Scripts/dev/v23-original.py dispatch --selection <id>` starts a run, and `… collect --run <id>` collects it.
-  - Development routes also accept `--infra-retry-of <run> --reason "<why>"` (after infrastructure failures only) and `cancel --run <id> --reason "<why>"`.
-  - Gate runs never rerun or cancel.
+- **The tool.** `python3 Scripts/dev/v23-original.py dispatch --selection <id> --kind development|gate` starts a run, and `… collect --run <id>` collects it.
+  - `--kind` is required for the two routes below. Use `development` for everyday runs and `gate` only for the frozen candidate's gate evidence.
+  - Always pass `--kind` explicitly. Other selections default to `gate`, which is only a strictness label; a run counts as gate evidence only on the frozen candidate head, as AGENTS.md says.
+  - Development runs only: `--infra-retry-of <run> --reason "<why>"` allows one rerun after a genuine runner, setup or artifact failure, and never after test failures. `cancel --run <id> --reason "<why>"` stops a run already known to be broken.
+  - Gate runs never rerun or cancel, and a gate is refused if its head and selection already have an original.
+  - Parallel development batches are refused until the workflow concurrency groups include the head; that is a small follow-up batch.
 - **Development batch.**
   1. Edit `Scripts/v23-dev-batch.json` with the exact ordered tests, up to 150. If a test class subclasses a support class, also include one method from the file that defines it.
   2. Commit and push.
-  3. Dispatch `v23-dev-batch-no-index-d50`.
+  3. Dispatch `v23-dev-batch-no-index-d50` with `--kind development`.
 - **Full coverage (shared build).**
   1. After any test-method change, run `python3 Scripts/v23-coverage-partitions.py --source Scripts/v23-coverage-partitions.json --output Scripts/v23-coverage-partitions.json`.
   2. Commit and push.
-  3. Dispatch `v23-shared-coverage-d50x`. It needs zero other active runs, and it builds once then runs 44 test-only partitions, five at a time.
+  3. Dispatch `v23-shared-coverage-d50x` with `--kind development` for sweeps, or `--kind gate` for the frozen phase candidate. It needs zero other active runs, and it builds once then runs 44 test-only partitions, five at a time.
 - **Workflow size.** Keep the template-budget guard test passing. GitHub rejects about 6 MiB of called-workflow content per parse.
 
 ## 5. State at handoff (keep ACTIVE_BRIEF current after this)
 
-**Pushed head `b16e965` (batch J):**
+**Pushed branch head: see `git log`.** Batch J (`b16e965`) added:
 - the Phase 1 gate;
 - the shared-build route;
 - the quiet Simulator protected-file check;
@@ -85,11 +88,11 @@ Keep the Windows PC folder `C:\AssetRounds-v23-s10-integration`. It holds about 
 - The shared route qualified live, and all seven Round mount journeys passed.
 - If the Windows session hasn't collected it, collect it here after copying the ledger. Then triage failures by family.
 
-**In progress on Windows when this was written:**
-- `Scripts/dev` tools with the relaxed development-run commands, plus parallel development batches;
-- the policy review.
+**Also pushed:**
+- the concise policy (`AGENTS.md`), `CLAUDE.md` and this handoff (`35eefd8`);
+- the `Scripts/dev` tools with run kinds and the relaxed development commands (the commit after `35eefd8`).
 
-Check `git log` for their commits.
+Still due: the workflow change that allows parallel development batches, a per-head concurrency term reviewed with the template-budget guard.
 
 **Next steps**
 1. Collect and triage the sweep, then fix failure families (helpers can work in parallel).

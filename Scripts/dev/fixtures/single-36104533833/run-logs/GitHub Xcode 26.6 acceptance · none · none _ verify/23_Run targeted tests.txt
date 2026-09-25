@@ -1,0 +1,31 @@
+﻿2026-09-25T07:11:07.5285370Z Test Case '-[FieldEvidenceAppTests.V23MyDayReplacementProjectionTests testCrossWorkspaceMaterializationPersistsExactProjectionAndRejectionsHaveNoEffect]' started.
+2026-09-25T07:11:09.7524960Z Test Case '-[FieldEvidenceAppTests.V23MyDayReplacementProjectionTests testCrossWorkspaceMaterializationPersistsExactProjectionAndRejectionsHaveNoEffect]' passed (2.380 seconds).
+2026-09-25T07:11:09.7532850Z Test Case '-[FieldEvidenceAppTests.V23MyDayReplacementProjectionTests testCrossWorkspaceReplacementPreservesAllHistoryAndCarryoverPredecessor]' started.
+2026-09-25T07:11:09.9100250Z Test Case '-[FieldEvidenceAppTests.V23MyDayReplacementProjectionTests testCrossWorkspaceReplacementPreservesAllHistoryAndCarryoverPredecessor]' passed (0.148 seconds).
+2026-09-25T07:11:09.9125410Z Test Case '-[FieldEvidenceAppTests.V23MyDayReplacementProjectionTests testCrossWorkspaceReplacementRejectsHostileAndUnusedBindings]' started.
+2026-09-25T07:11:10.1552010Z Test Case '-[FieldEvidenceAppTests.V23MyDayReplacementProjectionTests testCrossWorkspaceReplacementRejectsHostileAndUnusedBindings]' passed (0.253 seconds).
+2026-09-25T07:11:10.1553840Z Test Case '-[FieldEvidenceAppTests.V23MyDayReplacementProjectionTests testEmptyCrossWorkspaceReplacementBuildsCanonicalTargetEmptySnapshot]' started.
+2026-09-25T07:11:10.1567510Z Test Case '-[FieldEvidenceAppTests.V23MyDayReplacementProjectionTests testEmptyCrossWorkspaceReplacementBuildsCanonicalTargetEmptySnapshot]' passed (0.001 seconds).
+2026-09-25T07:11:10.1569850Z Test Case '-[FieldEvidenceAppTests.V23MyDayReplacementProjectionTests testReplacementCommandsPreserveSameWorkspaceBytesAndEmptyProjection]' started.
+2026-09-25T07:11:10.2645430Z Test Case '-[FieldEvidenceAppTests.V23MyDayReplacementProjectionTests testReplacementCommandsPreserveSameWorkspaceBytesAndEmptyProjection]' passed (0.107 seconds).
+2026-09-25T07:11:10.2648160Z Test Case '-[FieldEvidenceAppTests.V23MyDayReplacementProjectionTests testReplacementCommandsRejectAlteredOriginalAndForeignOrIncompleteExpectedRevision]' started.
+2026-09-25T07:11:10.3732790Z Test Case '-[FieldEvidenceAppTests.V23MyDayReplacementProjectionTests testReplacementCommandsRejectAlteredOriginalAndForeignOrIncompleteExpectedRevision]' passed (0.109 seconds).
+2026-09-25T07:11:10.3736740Z Test Case '-[FieldEvidenceAppTests.V23MyDayReplacementProjectionTests testReplacementCommandsRetainEverySavePredecessorAndExistingTargetCarryover]' started.
+2026-09-25T07:11:10.5139870Z Test Case '-[FieldEvidenceAppTests.V23MyDayReplacementProjectionTests testReplacementCommandsRetainEverySavePredecessorAndExistingTargetCarryover]' passed (0.140 seconds).
+2026-09-25T07:11:10.5241820Z Test Case '-[FieldEvidenceAppTests.V23MyDayReplacementProjectionTests testReplacementLifecyclePreparationUsesCompleteProjectedHistory]' started.
+2026-09-25T07:11:10.6837410Z Test Case '-[FieldEvidenceAppTests.V23MyDayReplacementProjectionTests testReplacementLifecyclePreparationUsesCompleteProjectedHistory]' passed (0.170 seconds).
+2026-09-25T07:11:10.6852480Z Test Case '-[FieldEvidenceAppTests.V23MyDayReplacementProjectionTests testReplacementLifecyclePreservesSameWorkspaceAndEmptyTargetSemantics]' started.
+2026-09-25T07:11:10.7904860Z Test Case '-[FieldEvidenceAppTests.V23MyDayReplacementProjectionTests testReplacementLifecyclePreservesSameWorkspaceAndEmptyTargetSemantics]' passed (0.099 seconds).
+2026-09-25T07:11:10.7909580Z Test Case '-[FieldEvidenceAppTests.V23MyDayReplacementProjectionTests testSameWorkspaceReplacementIsByteExactAndRejectsBindings]' started.
+2026-09-25T07:11:10.8660930Z Test Case '-[FieldEvidenceAppTests.V23MyDayReplacementProjectionTests testSameWorkspaceReplacementIsByteExactAndRejectsBindings]' passed (0.082 seconds).
+2026-09-25T07:11:10.8678700Z Test Case '-[FieldEvidenceAppTests.V23MyDayReplacementProjectionTests testSourceValidationRejectsPartialCarryoverAndNonactiveClosure]' started.
+2026-09-25T07:11:11.0134060Z Test Case '-[FieldEvidenceAppTests.V23MyDayReplacementProjectionTests testSourceValidationRejectsPartialCarryoverAndNonactiveClosure]' passed (0.148 seconds).
+2026-09-25T07:11:11.0148860Z Test Case '-[FieldEvidenceAppTests.V9_106SignoffEnrollmentTests testV23P04C43A01OptionalMarkOnlyChangesMethodAndNeverDurablyStoresMarkMaterial]' started.
+2026-09-25T07:11:12.9257620Z /Users/runner/work/AssetRounds/AssetRounds/FieldEvidenceAppTests/V9_106SignoffEnrollmentTests.swift:121: error: -[FieldEvidenceAppTests.V9_106SignoffEnrollmentTests testV23P04C43A01OptionalMarkOnlyChangesMethodAndNeverDurablyStoresMarkMaterial] : XCTAssertFalse failed
+2026-09-25T07:11:12.9465840Z Test Case '-[FieldEvidenceAppTests.V9_106SignoffEnrollmentTests testV23P04C43A01OptionalMarkOnlyChangesMethodAndNeverDurablyStoresMarkMaterial]' failed (1.931 seconds).
+2026-09-25T07:11:12.9467620Z Test Case '-[FieldEvidenceAppTests.V9_106SignoffEnrollmentTests testV23P04C43G01TypedLocalResponseUsesExistingWriterAndFixedDisclosure]' started.
+2026-09-25T07:11:15.7255160Z Test Case '-[FieldEvidenceAppTests.V9_106SignoffEnrollmentTests testV23P04C43G01TypedLocalResponseUsesExistingWriterAndFixedDisclosure]' passed (2.780 seconds).
+2026-09-25T07:11:15.7256230Z Test Case '-[FieldEvidenceAppTests.V9_106SignoffEnrollmentTests testV23P04C43H01ActorWorkspaceStalenessReceiptAndManifestHostilityReject]' started.
+2026-09-25T07:11:16.4645230Z Test Case '-[FieldEvidenceAppTests.V9_106SignoffEnrollmentTests testV23P04C43H01ActorWorkspaceStalenessReceiptAndManifestHostilityReject]' passed (0.706 seconds).
+2026-09-25T07:11:16.4650530Z Test Case '-[FieldEvidenceAppTests.V9_106SignoffEnrollmentTests testV23P04C43I01AndR01ReplayReceiptFirstAndKeepAcknowledgementBytesUnmigrated]' started.
+2026-09-25T07:11:17.7362600Z Test Case '-[FieldEvidenceAppTests.V9_106SignoffEnrollmentTests testV23P04C43I01AndR01ReplayReceiptFirstAndKeepAcknowledgementBytesUnmigrated]' passed (0.551 seconds).
