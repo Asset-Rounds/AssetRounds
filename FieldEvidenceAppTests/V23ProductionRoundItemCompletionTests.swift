@@ -264,7 +264,7 @@ final class V23ProductionRoundItemCompletionTests: V23ProductionFourRootShellTes
         await reopened.refresh()
         reopened.requestCapture(itemID: ordered[0].itemID)
         let reopenedOpen = await reopened.confirmCapture(recordedByName: "Photo recorder")
-        XCTAssertTrue(reopenedOpen)
+        XCTAssertTrue(reopenedOpen, reopened.lastCaptureFailureForTesting ?? "")
         let resumed = try XCTUnwrap(reopened.captureHost)
         XCTAssertEqual(try context.work.store.workspaceWriter.currentRevision(), afterStage)
         XCTAssertEqual(resumed.stage, .pendingPhoto(.close))
@@ -338,7 +338,7 @@ final class V23ProductionRoundItemCompletionTests: V23ProductionFourRootShellTes
         }
         state.requestCapture(itemID: itemID)
         let opened = await state.confirmCapture(recordedByName: "Completion recorder")
-        XCTAssertTrue(opened)
+        XCTAssertTrue(opened, state.lastCaptureFailureForTesting ?? "")
         let host = try XCTUnwrap(state.captureHost)
         let editor = try XCTUnwrap(host.editor)
         var preflight = editor.values.preflight

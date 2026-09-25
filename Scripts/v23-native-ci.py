@@ -404,8 +404,8 @@ STARTUP_RETIREMENT_SELECTORS = (
     'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementRejectsMalformedNamesAndUnsafeFileKinds',
     'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementPreservesInterruptedFinalizationAndReachesEraseAdmission',
 )
-ROUND_ITEM_MOUNT_PARENT = '2abaa1d6fe42136d6d040a3cf16e636d6bf0f9b8'
-ROUND_ITEM_MOUNT_TREES = {'FieldEvidenceApp': '40ee0cfc942283dcab78648307f6bd421db4aa64', 'FieldEvidenceAppTests': 'b912905b6783b9727d23acca144cf007ba9b6a1d', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+ROUND_ITEM_MOUNT_PARENT = '31126e929bd87545719fd58d355a4d719dcf52ba'
+ROUND_ITEM_MOUNT_TREES = {'FieldEvidenceApp': '4b793df000270c23e7392ccd72b99eaef356011a', 'FieldEvidenceAppTests': 'b14500156edef141f1e82242afec7cb65c33f63b', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
 ROUND_ITEM_COMPLETION_SELECTION_ID = 'c36-round-item-completion-no-index-build30m'
 D50_SELECTION_IDS = (LIVE_HOST_SELECTION_ID, ROUND_ITEM_MOUNT_SELECTION_ID, STARTUP_RETIREMENT_SELECTION_ID)
 NO_INDEX_ROUTES = {

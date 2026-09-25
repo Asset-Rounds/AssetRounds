@@ -462,6 +462,8 @@ final class V23ProductionCheckRunnerItemHostTests: XCTestCase {
                 } catch {
                     // The durable journal and receipt assertions below identify
                     // the exact interruption; unrelated earlier failures cannot pass.
+                    // Diagnostic only: name the swallowed error. No assertion changes.
+                    print("V23_PRIVATE_RECOVERY_ERROR committed=\(committed) error=\(String(reflecting: error))")
                 }
                 let generationRoot = h.coordinator.generationRootURL
                 let journal = h.root.appendingPathComponent(

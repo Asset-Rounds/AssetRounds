@@ -65,6 +65,9 @@ final class ProductionRoundSessionPresentationV1: ObservableObject {
         var summary: String { "stage=\(stage) type=\(errorType) code=\(errorCode)" }
     }
     private(set) var lastReadinessFailureForTesting: ReadinessFailureObservationForTesting?
+    /// Diagnostic only: the step and error value of the last failed explicit Continue.
+    private(set) var lastCaptureFailureForTesting: String?
+    private var captureStepForTesting = ""
     var afterSessionReadForTesting: (@MainActor () throws -> Void)?
     var afterReadinessReadForTesting: (@MainActor () throws -> Void)?
     static var didCreateForTesting: (@MainActor (ProductionRoundSessionPresentationV1) -> Void)?
@@ -418,7 +421,14 @@ final class ProductionRoundSessionPresentationV1: ObservableObject {
     @discardableResult
     func confirmCapture(recordedByName: String) async -> Bool {
         guard !isOpeningCapture, captureHost == nil, let itemID = captureIntent,
-              let displayed = session, displayed.state == .active, isActiveRoute else { return false }
+              let displayed = session, displayed.state == .active, isActiveRoute else {
+#if DEBUG
+            let sessionState: String = session.map { String(describing: $0.state) } ?? "nil"
+            lastCaptureFailureForTesting = "step=guard opening=\(isOpeningCapture) host=\(captureHost != nil) intent=\(captureIntent != nil) session=\(sessionState) activeRoute=\(isActiveRoute)"
+#endif
+            return false
+        }
+        markCaptureStep("precheck")
         isOpeningCapture = true
         couldNotOpenCapture = false
         captureOutOfOrder = false
@@ -435,6 +445,7 @@ final class ProductionRoundSessionPresentationV1: ObservableObject {
                 }
                 try self.scene.validatePersistedIntent(self.target, expectedSnapshot: capturedScene)
             }
+            markCaptureStep("read-sources")
             let sources = try access.readRepetitiveCaptureSources(round: displayed)
             guard sources.count <= 1 else { throw ScanToWorkFailureV1.duplicate }
             var read: ProductionRepetitiveCaptureReadV2
@@ -447,10 +458,14 @@ final class ProductionRoundSessionPresentationV1: ObservableObject {
                     captureOutOfOrder = true
                     throw ScanToWorkFailureV1.authorityMismatch
                 }
+                markCaptureStep("launch-entry-validation")
                 try access.validateCheckRunnerItemEntry(round: displayed, itemID: itemID)
+                markCaptureStep("launch-readiness")
                 let readiness = try await access.rebuildReadiness(for: displayed, previous: nil)
                 try validateIntent()
+                markCaptureStep("launch-prepare")
                 let launch = try access.prepareRepetitiveCaptureLaunch(round: displayed, readiness: readiness)
+                markCaptureStep("launch-persist")
                 read = try access.persistRepetitiveCaptureLaunch(launch, validateIntent: validateIntent)
             }
             // Settling a stored Round effect never changes its navigation item, so
@@ -463,6 +478,7 @@ final class ProductionRoundSessionPresentationV1: ObservableObject {
             }
             if let tip = read.chain.nodes.last, tip.isPendingRoundEffect {
                 // Settle the one stored Round effect before any new step.
+                markCaptureStep("settle-pending-effect")
                 read = try await access.resumeRepetitiveCaptureProgress(
                     sourceDraftID: read.chain.sourceCheckpoint.draftID,
                     stepDraftID: tip.checkpoint.draftID, validateIntent: validateIntent).progress
@@ -473,11 +489,15 @@ final class ProductionRoundSessionPresentationV1: ObservableObject {
             if let tip = read.chain.nodes.last, tip.step.action == .enter, tip.step.itemID == itemID {
                 // The original ENTRY is reused; reopening performs no Round write.
             } else {
+                markCaptureStep("entry-validation")
                 try access.validateCheckRunnerItemEntry(round: read.chain.currentRound, itemID: itemID)
+                markCaptureStep("entry-readiness")
                 let readiness = try await access.rebuildReadiness(for: read.chain.currentRound, previous: nil)
                 try validateIntent()
+                markCaptureStep("entry-prepare")
                 let step = try access.prepareRepetitiveCaptureStep(read: read, readiness: readiness,
                     action: .enter, focus: .facts, recordedByName: recordedByName)
+                markCaptureStep("entry-execute")
                 read = try await access.executeRepetitiveCaptureStep(step, validateIntent: validateIntent).progress
             }
             let round = read.chain.currentRound
@@ -496,12 +516,15 @@ final class ProductionRoundSessionPresentationV1: ObservableObject {
                 return false
             }
             session = round
+            markCaptureStep("capture-source")
             let source = try access.captureCheckRunnerItemSource(read: read, itemID: itemID)
             try validateIntent()
+            markCaptureStep("host-create")
             let host = try ProductionCheckRunnerItemCapturePresentationV1(source: source,
                 target: target, scene: scene, access: access)
             createdHost = host
             if host.checkpoint == nil, let snapshot = host.preflight?.snapshot {
+                markCaptureStep("start-editing")
                 try host.startEditing(preflight: .init(timeZoneID: snapshot.timeZoneID ?? "",
                     isTimeZoneConfirmed: snapshot.timeZoneID != nil,
                     confirmedTimeZoneID: snapshot.timeZoneID))
@@ -516,6 +539,9 @@ final class ProductionRoundSessionPresentationV1: ObservableObject {
             captureHost = host
             return true
         } catch {
+            #if DEBUG
+            lastCaptureFailureForTesting = "step=\(captureStepForTesting) error=\(String(reflecting: error))"
+            #endif
             if let createdHost, captureHost !== createdHost {
                 Task { await createdHost.retire() }
             }
@@ -527,6 +553,13 @@ final class ProductionRoundSessionPresentationV1: ObservableObject {
             }
             return false
         }
+    }
+
+    /// DEBUG diagnostic only; a no-op in release builds.
+    private func markCaptureStep(_ step: String) {
+        #if DEBUG
+        captureStepForTesting = step
+        #endif
     }
 
     /// Called after the host's own forced flush. The durable parent stays

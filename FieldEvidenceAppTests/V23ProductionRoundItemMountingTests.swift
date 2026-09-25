@@ -41,7 +41,7 @@ final class V23ProductionRoundItemMountingTests: V23ProductionFourRootShellTestS
 
         state.requestCapture(itemID: first.itemID)
         let opened = await state.confirmCapture(recordedByName: "Mount recorder")
-        XCTAssertTrue(opened)
+        XCTAssertTrue(opened, state.lastCaptureFailureForTesting ?? "")
         let host = try XCTUnwrap(state.captureHost)
         XCTAssertNil(state.captureIntent)
         XCTAssertEqual(host.source.originalItem.itemID, first.itemID)
@@ -74,7 +74,7 @@ final class V23ProductionRoundItemMountingTests: V23ProductionFourRootShellTestS
         XCTAssertEqual(reopened.session, chain.currentRound)
         reopened.requestCapture(itemID: first.itemID)
         let resumedOpen = await reopened.confirmCapture(recordedByName: "Another recorder")
-        XCTAssertTrue(resumedOpen)
+        XCTAssertTrue(resumedOpen, reopened.lastCaptureFailureForTesting ?? "")
         let resumed = try XCTUnwrap(reopened.captureHost)
         XCTAssertEqual(resumed.checkpoint?.draftID, parent.draftID)
         XCTAssertEqual(resumed.source, host.source)
@@ -103,10 +103,12 @@ final class V23ProductionRoundItemMountingTests: V23ProductionFourRootShellTestS
         let draftOpened = await draftState.confirmCapture(recordedByName: "Draft recorder")
         XCTAssertFalse(draftOpened)
 
-        let active = try await startActualRound(in: context, recorder: "Denial start")
-        let pause = try context.access.prepareSessionTransition(expected: active, transition: .pause,
-            recordedByName: "Denial pause")
-        _ = try await context.access.executeSessionTransition(pause) {}
+        let active = try await step("start") { try await startActualRound(in: context, recorder: "Denial start") }
+        let pause = try await step("prepare-pause") {
+            try context.access.prepareSessionTransition(expected: active, transition: .pause,
+                recordedByName: "Denial pause")
+        }
+        _ = try await step("execute-pause") { try await context.access.executeSessionTransition(pause) {} }
         let pausedState = ProductionRoundSessionPresentationV1(target: target,
             scene: context.work.scene, access: context.access)
         await pausedState.refresh()
@@ -114,16 +116,24 @@ final class V23ProductionRoundItemMountingTests: V23ProductionFourRootShellTestS
         XCTAssertFalse(pausedState.permitsCapture)
         pausedState.requestCapture(itemID: item.itemID)
         XCTAssertNil(pausedState.captureIntent)
-        let resume = try context.access.prepareSessionTransition(expected: pause.proposedSession,
-            transition: .resume, recordedByName: "Denial resume")
-        _ = try await context.access.executeSessionTransition(resume) {}
+        let resume = try await step("prepare-resume") {
+            try context.access.prepareSessionTransition(expected: pause.proposedSession,
+                transition: .resume, recordedByName: "Denial resume")
+        }
+        _ = try await step("execute-resume") { try await context.access.executeSessionTransition(resume) {} }
         let resumedRound = resume.proposedSession
 
         // The writer admits a second plan-scoped source; the Round surface must not choose.
-        for _ in 0..<2 {
-            let readiness = try await context.access.rebuildReadiness(for: resumedRound, previous: nil)
-            let launch = try context.access.prepareRepetitiveCaptureLaunch(round: resumedRound, readiness: readiness)
-            _ = try context.access.persistRepetitiveCaptureLaunch(launch) {}
+        for index in 0..<2 {
+            let readiness = try await step("readiness-\(index)") {
+                try await context.access.rebuildReadiness(for: resumedRound, previous: nil)
+            }
+            let launch = try await step("prepare-launch-\(index)") {
+                try context.access.prepareRepetitiveCaptureLaunch(round: resumedRound, readiness: readiness)
+            }
+            _ = try await step("persist-launch-\(index)") {
+                try context.access.persistRepetitiveCaptureLaunch(launch) {}
+            }
         }
         XCTAssertEqual(try context.access.readRepetitiveCaptureSources(round: resumedRound).count, 2)
         let state = ProductionRoundSessionPresentationV1(target: target,
@@ -203,7 +213,7 @@ final class V23ProductionRoundItemMountingTests: V23ProductionFourRootShellTestS
 
         state.requestCapture(itemID: item.itemID)
         let recovered = await state.confirmCapture(recordedByName: "Ack recorder")
-        XCTAssertTrue(recovered)
+        XCTAssertTrue(recovered, state.lastCaptureFailureForTesting ?? "")
         let host = try XCTUnwrap(state.captureHost)
         let sources = try context.access.readRepetitiveCaptureSources(round: active)
         XCTAssertEqual(sources.count, 1)
@@ -233,7 +243,7 @@ final class V23ProductionRoundItemMountingTests: V23ProductionFourRootShellTestS
         await state.refresh()
         state.requestCapture(itemID: first.itemID)
         let opened = await state.confirmCapture(recordedByName: "Pending recorder")
-        XCTAssertTrue(opened)
+        XCTAssertTrue(opened, state.lastCaptureFailureForTesting ?? "")
         let host = try XCTUnwrap(state.captureHost)
         state.dismissCapture()
         await host.retire()
@@ -305,7 +315,7 @@ final class V23ProductionRoundItemMountingTests: V23ProductionFourRootShellTestS
         await next.refresh()
         next.requestCapture(itemID: item.itemID)
         let opened = await next.confirmCapture(recordedByName: "Pinned recorder")
-        XCTAssertTrue(opened)
+        XCTAssertTrue(opened, next.lastCaptureFailureForTesting ?? "")
         let host = try XCTUnwrap(next.captureHost)
         // ENTRY is reused; only the parent draft is created.
         XCTAssertEqual(try context.access.readRepetitiveCaptureSources(round: active).first?.chain, entered)
@@ -336,7 +346,7 @@ final class V23ProductionRoundItemMountingTests: V23ProductionFourRootShellTestS
         await reopened.refresh()
         reopened.requestCapture(itemID: item.itemID)
         let begunOpen = await reopened.confirmCapture(recordedByName: "Pinned recorder")
-        XCTAssertTrue(begunOpen)
+        XCTAssertTrue(begunOpen, reopened.lastCaptureFailureForTesting ?? "")
         let begunHost = try XCTUnwrap(reopened.captureHost)
         XCTAssertTrue(begunHost.hasBoundBegin)
         XCTAssertEqual(begunHost.checkpoint?.draftID, begun.draftID)
@@ -360,7 +370,7 @@ final class V23ProductionRoundItemMountingTests: V23ProductionFourRootShellTestS
         await state.refresh()
         state.requestCapture(itemID: item.itemID)
         let opened = await state.confirmCapture(recordedByName: "Prepared recorder")
-        XCTAssertTrue(opened)
+        XCTAssertTrue(opened, state.lastCaptureFailureForTesting ?? "")
         let host = try XCTUnwrap(state.captureHost)
         let editor = try XCTUnwrap(host.editor)
         var preflight = editor.values.preflight
@@ -401,7 +411,7 @@ final class V23ProductionRoundItemMountingTests: V23ProductionFourRootShellTestS
         await reopened.refresh()
         reopened.requestCapture(itemID: item.itemID)
         let reopenedOpen = await reopened.confirmCapture(recordedByName: "Prepared recorder")
-        XCTAssertTrue(reopenedOpen)
+        XCTAssertTrue(reopenedOpen, reopened.lastCaptureFailureForTesting ?? "")
         let resumed = try XCTUnwrap(reopened.captureHost)
         XCTAssertEqual(try context.work.store.workspaceWriter.currentRevision(), afterPrepare)
         XCTAssertEqual(resumed.checkpoint, prepared)
@@ -433,5 +443,16 @@ final class V23ProductionRoundItemMountingTests: V23ProductionFourRootShellTestS
         reopened.dismissCapture()
         await resumed.retire()
         XCTAssertNoThrow(try reopened.validateForLeaving())
+    }
+
+    /// Diagnostic only: names the step that threw, then rethrows unchanged.
+    @MainActor
+    private func step<T>(_ name: String, _ body: () async throws -> T) async throws -> T {
+        do {
+            return try await body()
+        } catch {
+            print("V23_ROUND_STEP_FAILURE step=\(name) error=\(String(reflecting: error))")
+            throw error
+        }
     }
 }

@@ -6,6 +6,12 @@ Source/index/route reviews do not establish hosted functional acceptance. Comple
 
 Current navigation checkpoint, 2026-09-23. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls scope and acceptance; [VERIFICATION_DUE](VERIFICATION_DUE.md) retains detailed obligations. Historical S10 is the accepted base, not a new workstream.
 
+## Phased merge (owner decision 2026-09-25)
+
+Main advances in phases. Each phase contains only journeys that are fully wired and verified, with every gate for that phase: same-head full unit coverage in timed partitions, qualified UI evidence (RUI1), one independent integration review, genuine human review of critical states, a non-force fast-forward and exact-main verification. No incomplete schema, persistence, backup or restore change may merge. Unfinished features stay unreachable and are listed below with their remaining work. Release still requires the full V23 scope.
+
+Phase ledger: to be filled from the P04 entry-point inventory, which is in progress. Phase 1 candidates are the C36 Round capture journey (Continue → Begin → photos → outcome → finish, with B3 Retake/Remove) plus the already-verified foundations that it depends on.
+
 ## Destination and present state
 
 - `main` and `phase/s10-brand-refresh` both remain at accepted S10 `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`.

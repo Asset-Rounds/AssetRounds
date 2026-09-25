@@ -3708,3 +3708,36 @@ Review (same Claude reviewer, candidate cd8e635): APPROVED with one medium and f
 ### Audited originals36081945660/36081972469/36081999117 (2abaa1d)
 
 All three sole-collected originals at 2abaa1d failed compilation identically, with 2 Swift errors and all methods NotStarted (completion 12, mount 7, startup 3), in ProductionRoundSessionDestinationV1.swift. Line 829 was a type-checker failure (`failed to produce diagnostic`) on the large durable-outcome initializer literal with an optional-closure ternary. Line 867 passed a `String` where `AssetRoundsPrimaryAction` takes a `LocalizedStringKey`. Correction (same reviewer, APPROVED): a plain `outcomeActions(photosIncomplete:)` helper builds explicitly typed closures, `actionScreen` takes a `LocalizedStringKey` title, and CaptureStepView's durable init is `@MainActor`, which removes the new isolation warning. Behavior is unchanged. The three questions are re-dispatched at the corrected head.
+
+### Audited originals36084478112/36084507435/36084534463 (31126e9)
+
+All three compiled with 0 Swift errors.
+- Completion question: 7/12 pass. All six Round readiness methods pass, including the nil-revision frontier method that previously failed at storage publication, so the storage-verdict correction is confirmed natively, as is the storage predicate test. The five completion journeys stop at Continue: `confirmCapture` returns false in the shared open helper.
+- Mount exact7: 1/7 as before. The foreign-draft denial passes; the Continue launches fail. The denial method throws `resourceValueMismatch` from its direct launch loop, with no `initial-fallback-shape` or `final-fallback-predicate` source line in the log, only the normal strict readbacks that the Simulator fallback handles.
+- Startup exact3: 2/3. Canonical names and malformed/unsafe kinds pass, confirming the generation-deferral correction natively. The interrupted-finalization method's location listing shows that a thrown failure before the database commit leaves the finalization, staging and snapshot directories empty (`rollbackUncommitted`), so its uncommitted-case roll-forward expectation contradicted the implemented design. The test now asserts the rollback (no journal, snapshot, receipt or report; parent still PREPARED) for the uncommitted case and keeps the full roll-forward assertions for the committed case.
+
+Next discriminating evidence for Continue: a DEBUG-only `lastCaptureFailureForTesting` (the error value of the last failed Continue) is added to every Continue assertion message, plus test-only step labels in the denial method. No product predicate changes. A parallel read-only static diagnosis of the throwing path is running.
+
+### Owner decisions and B3 design disposition (2026-09-25)
+
+The owner decisions are recorded in AGENTS.md: My Day fork amendment approved, UI budget RUI1 approved, full coverage by timed partitions, phased merge, and unlimited helpers with root-only integration.
+
+B3 design (read-only planning agent, grounded at 31126e9):
+- `CheckRunnerPhotoDiscardV1` gains a derived `parentClearMutationID`.
+- `readPendingPhoto` branches on the saved state (DISCARD_PENDING/DISCARDED) before the phase.
+- `resumePhotoDiscard` completes a saved request in four idempotent, receipt-checked effects:
+  - E0: the existing DISCARD_PENDING CAS;
+  - E1: fenced disposal of the exact staged pair and raw stage;
+  - E2: the discard terminal through `FieldDraftCoordinatorV1.discard`;
+  - E3: a parent CAS clearing only that slot.
+- The live parent history, adoption evidence and preparation frontier already accept a cleared pending slot followed by a second child for the same step.
+- Post-clear reads of a discarded child need new historical evidence (`CheckRunnerPhotoDiscardedChildEvidenceV1`).
+- Backup must ship in the same batch, otherwise a Retake blocks export and replace-restore: the photo backup history and its maps, the media census, and the export/restore physical stage checks through `retainedPhysicalStages`/`physicalRaw`. BackupExportService and BackupRestoreService are owner drafts, so they change through committed-source overlays.
+- Tests: new `V23ProductionRoundItemPhotoDiscardTests` (6).
+
+Root disposition on the authority questions:
+- Retake from a previewed pair keeps S10 parity: one explicit tap, no extra confirmation.
+- "Remove photo" for an awaiting-raw child with no preview asks for confirmation first.
+- Clearing only the discarded child's parent slot is within "discards or supersedes only the staged item".
+
+B3 starts after the Continue failure is fixed and stage A/B pass natively.
