@@ -7,18 +7,23 @@ This module has no API client and never dispatches, retries or promotes a run.
 import argparse
 import base64
 import contextlib
+import gzip
 import hashlib
 import importlib.util
 import json
 import math
 import os
 from pathlib import Path
+import platform
 import re
+import runpy
 import signal
 import shlex
 import stat
 import subprocess
+import tarfile
 import time
+import zlib
 
 
 CONTRACT = "v23.integration.current-native.v1"
@@ -31,7 +36,11 @@ LANES = {
 }
 TIERS = {"N8": (300, 1200, 900, 0, 2400), "P12": (300, 600, 900, 900, 3300),
          "F25": (300, 900, 1200, 1800, 4500), "D30": (300, 1800, 900, 0, 3000),
-         "D50": (300, 1800, 3000, 0, 5100)}
+         "D50": (300, 1800, 3000, 0, 5100),
+         # Development-only shared coverage: one build-only producer, then test-only consumers.
+         # Each total adds 300 s for the payload seal/upload or the fingerprints and evidence.
+         "D40P": (300, 2400, 0, 0, 3000), "D50C": (300, 0, 3000, 0, 3600)}
+NO_UI_TIERS = ("N8", "D30", "D50", "D40P", "D50C")
 BUILD_WATCHDOG_SELECTION_ID = "c36-parent-finalization-check-no-issue-build30m"
 BUILD_WATCHDOG_PARENT = "6289befddaf75036c7fb7a4d971ba7cc171ec003"
 BUILD_ORDER_SELECTION_ID = "c36-destination-discard-build-before-boot"
@@ -446,6 +455,53 @@ DEV_BATCH_MAX_QUESTION = 500
 DEV_BATCH_MAX_BYTES = 128 * 1024
 DEV_BATCH_TEST = re.compile(r"FieldEvidenceAppTests/([A-Za-z_][A-Za-z0-9_]*)/(test[A-Za-z0-9_]*)")
 DEV_BATCH_BINDING_KEYS = {"path", "schema", "sha256", "question", "developmentOnly", "acceptance"}
+# Owner-approved development-only shared coverage route (2026-09-25): one no-index
+# build-for-testing producer seals its products once; test-only consumers restore the
+# exact bytes and run one closed partition each. The partitions file must cover every
+# direct runnable XCTest method at the checkout. Never acceptance or merge credit.
+SHARED_SELECTION_ID = "v23-shared-coverage-d50x"
+SHARED_PARTITIONS_PATH = "Scripts/v23-coverage-partitions.json"
+SHARED_PARTITIONS_SCHEMA = "v23-coverage-partitions.v1"
+SHARED_KEY = "sharedCoverage"
+SHARED_PRODUCER_TIER = "D40P"
+SHARED_CONSUMER_TIER = "D50C"
+SHARED_ROLES = ("producer", "consumer")
+SHARED_MAX_PARTITIONS = 60
+SHARED_MAX_PARTITION_METHODS = 500
+SHARED_MAX_PARTITIONS_BYTES = 4 * 1024 * 1024
+SHARED_PARTITION_ID = re.compile(r"S[0-9]{2}")
+SHARED_BINDING_KEYS = {"partitionsPath", "partitionsSHA256", "partitionIDs", "partitionID",
+                       "developmentOnly", "acceptance"}
+SHARED_PAYLOAD_KERNEL = "Scripts/s10-4-build-payload.py"
+SHARED_PAYLOAD_SCHEMA = "v23-shared-payload.v1"
+SHARED_PAYLOAD_METADATA = "v23-shared-payload.json"
+SHARED_PAYLOAD_RECEIPT = "v23-shared-payload-receipt.json"
+SHARED_RESTORE_RECEIPT = "v23-shared-restore.json"
+SHARED_FINGERPRINT_PHASES = ("before", "after")
+SHARED_PAYLOAD_DIRECTORY = "V23SharedPayload"
+SHARED_TRANSPORT_DIRECTORY = "V23SharedPayloadTransport"
+SHARED_DOWNLOAD_DIRECTORY = "V23SharedPayloadDownload"
+SHARED_EXTRACTED_DIRECTORY = "V23SharedPayloadExtracted"
+SHARED_TAR = "FieldEvidencePayload.tar"
+SHARED_TAR_DIGEST = "FieldEvidencePayload.tar.sha256"
+# After tests, the scheme command may leave build bookkeeping (Logs, XCBuildData, PIFCache)
+# in DerivedData without compiling; only compiler or linker evidence fails a consumer, and
+# every other new DerivedData entry is listed in the delta record.
+SHARED_DERIVED_DATA_DELTA = "v23-shared-deriveddata-delta.json"
+SHARED_COMPILE_OUTPUT_SUFFIXES = (".o", ".swiftmodule", ".swiftdeps", ".dia")
+SHARED_COMPILE_STEPS = ("CompileSwift", "CompileSwiftSources", "SwiftCompile", "SwiftDriver",
+                        "SwiftDriverJobDiscovery", "SwiftEmitModule", "CompileC", "Ld", "Libtool")
+# An .xcactivitylog is gzip-compressed SLF text whose step signatures are plain strings.
+SHARED_ACTIVITY_COMPILE_STEP = re.compile(
+    rb"(?<![A-Za-z0-9_])(" + b"|".join(step.encode() for step in SHARED_COMPILE_STEPS) + rb") ")
+SHARED_LOG_COMPILE_STEP = re.compile(r"(?:" + "|".join(SHARED_COMPILE_STEPS) + r") ")
+SHARED_LOG_BUILD_RESULT = re.compile(r"\*\* (?:TEST )?BUILD (?:SUCCEEDED|FAILED|INTERRUPTED) \*\*")
+SHARED_LOG_BUILTINS = ("builtin-SwiftDriver", "builtin-swiftTaskExecution")
+SHARED_LOG_TOOLS = ("swiftc", "swift-frontend", "clang", "clang++", "ld", "libtool")
+SHARED_MAX_ACTIVITY_LOG_BYTES = 1024 * 1024 * 1024
+SHARED_MAX_TEST_LOG_BYTES = 256 * 1024 * 1024
+SHARED_MAX_LISTED_EVIDENCE = 20
+SHARED_MAX_DELTA_ENTRIES = 20000
 
 
 def no_index_source_trees(selection_id):
@@ -718,10 +774,13 @@ SIMULATOR_DIAGNOSTIC_OWNER_POLICY_SHA256 = "FDCAF78EEAEDDFC9A2661CB283A16810B88F
 SIMULATOR_DIAGNOSTIC_POLICY_SHA256 = "4CE71CA43D961CF8A1318DA882BBA8989179700AB5202E5CE191185CFC0E44E0"
 SIMULATOR_DIAGNOSTIC_POLICY_ID = "V23-SIMULATOR-FILE-PROTECTION-DIAGNOSTIC-20260915"
 SIMULATOR_DIAGNOSTIC_SOURCE_PATH = "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift"
-SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "A8B18FFF49DE387183EA9B8B2377669BF1EE9E73A6DB11992178503070EDE139"
+SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "D18D48D5DB47DD61AD7D979414BD62A1A6798639EDA00B537DB5D6F1D517700E"
 # The original owner-approved allowance source remains admissible for historical replays;
 # the current source adds only development timing aggregates (2026-09-24).
-SIMULATOR_DIAGNOSTIC_HISTORICAL_SOURCE_SHA256S = ("FCFF658FCE118760EAC50B13A3941470EA86ED6FB40E78D17E6A573A10DFA5DB",)
+# 2026-09-25: the Simulator strict pre-check no longer throws, catches and logs the expected
+# mismatch on every call; the fallback predicate, journal and evidence are unchanged.
+SIMULATOR_DIAGNOSTIC_HISTORICAL_SOURCE_SHA256S = ("FCFF658FCE118760EAC50B13A3941470EA86ED6FB40E78D17E6A573A10DFA5DB",
+                                                 "A8B18FFF49DE387183EA9B8B2377669BF1EE9E73A6DB11992178503070EDE139")
 SIMULATOR_DIAGNOSTIC_PREFIX = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V2"
 SIMULATOR_DIAGNOSTIC_MARKER_STEM = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_"
 SIMULATOR_DIAGNOSTIC_OUTPUT = "simulator-file-protection-diagnostics.json"
@@ -1360,17 +1419,40 @@ def validate_development_batch_binding(binding, selectors):
     require(1 <= len(selectors) <= DEV_BATCH_MAX_TESTS, "development batch test count")
 
 
+def validate_shared_binding(selection):
+    binding = selection[SHARED_KEY]
+    require(type(binding) is dict and set(binding) == SHARED_BINDING_KEYS, "shared coverage binding keys")
+    require(binding["partitionsPath"] == SHARED_PARTITIONS_PATH
+            and isinstance(binding["partitionsSHA256"], str)
+            and re.fullmatch(r"[0-9A-F]{64}", binding["partitionsSHA256"]),
+            "shared coverage partitions identity")
+    identifiers = binding["partitionIDs"]
+    require(type(identifiers) is list and 1 <= len(identifiers) <= SHARED_MAX_PARTITIONS
+            and all(isinstance(item, str) and SHARED_PARTITION_ID.fullmatch(item) for item in identifiers)
+            and len(set(identifiers)) == len(identifiers), "shared coverage partition IDs")
+    require(binding["developmentOnly"] is True and binding["acceptance"] is False,
+            "shared coverage classification")
+    if selection["tier"] == SHARED_PRODUCER_TIER:
+        require(binding["partitionID"] is None, "shared coverage producer has no partition")
+    else:
+        require(selection["tier"] == SHARED_CONSUMER_TIER and binding["partitionID"] in identifiers
+                and 1 <= len(selection["unitTestSelectors"]) <= SHARED_MAX_PARTITION_METHODS,
+                "shared coverage consumer partition")
+
+
 def validate_selection(selection):
     require(isinstance(selection, dict), "selection object")
     development_batch = DEV_BATCH_KEY in selection
+    shared = SHARED_KEY in selection
     keys = {"schemaVersion", "taskID", "tier", "runUISmoke",
             "unitTestSelectors", "uiTestSelectors", *BUDGET_KEYS}
-    require(set(selection) == ((keys | {DEV_BATCH_KEY}) if development_batch else keys), "selection keys")
+    require(set(selection) == ((keys | {DEV_BATCH_KEY}) if development_batch
+                               else (keys | {SHARED_KEY}) if shared else keys), "selection keys")
     require(type(selection["schemaVersion"]) is int and selection["schemaVersion"] == 1, "schema")
     require(selection["taskID"] == TASK and selection["tier"] in TIERS, "task/tier")
     require(all(type(selection[key]) is int for key in BUDGET_KEYS), "integer budgets")
     require(tuple(selection[key] for key in BUDGET_KEYS) == TIERS[selection["tier"]], "budgets")
-    ui = selection["tier"] not in ("N8", "D30", "D50")
+    ui = selection["tier"] not in NO_UI_TIERS
     require(type(selection["runUISmoke"]) is bool and selection["runUISmoke"] == ui, "UI/tier")
     for key, bundle in (("unitTestSelectors", "FieldEvidenceAppTests"),
                         ("uiTestSelectors", "FieldEvidenceAppUITests")):
@@ -1385,10 +1467,15 @@ def validate_selection(selection):
         # Shape only; admission binds this list to the committed file at the head.
         require(selection["tier"] == DEV_BATCH_TIER, "development batch tier")
         validate_development_batch_binding(selection[DEV_BATCH_KEY], selection["unitTestSelectors"])
+    elif shared:
+        # Shape only; admission binds the plan or partition to the checked-in file.
+        validate_shared_binding(selection)
     elif selection["tier"] == "D50":
         require(tuple(selection["unitTestSelectors"]) in (LIVE_HOST_RUNTIME_SELECTORS,
                 ROUND_ITEM_MOUNT_SELECTORS, STARTUP_RETIREMENT_SELECTORS),
                 "development D50 exact closed methods")
+    require(shared or selection["tier"] not in (SHARED_PRODUCER_TIER, SHARED_CONSUMER_TIER),
+            "shared coverage tier outside the shared route")
     if selection["tier"] == "D30":
         require(tuple(selection["unitTestSelectors"]) in (
             PARENT_FINALIZATION_METHOD_PARTITIONS[0][1], RESTORE_BUILD_WATCHDOG_SELECTORS,
@@ -1938,6 +2025,363 @@ def development_batch_selection(root):
     return selection
 
 
+_UNIT_DISCOVERY_CACHE = {}
+UNIT_SELECTOR = re.compile(r"FieldEvidenceAppTests/[A-Za-z_][A-Za-z0-9_]*/test[A-Za-z0-9_]+")
+UNIT_PROJECT_PATH = "FieldEvidenceApp.xcodeproj/project.pbxproj"
+UNIT_PROJECT_MAX_BYTES = 4 * 1024 * 1024
+OPENSTEP_TOKEN = re.compile(r"[A-Za-z0-9_$+/:.\-]+")
+
+
+def parse_openstep_plist(text):
+    """Minimal old-style property list parser for project.pbxproj; anything unusual fails closed."""
+    position = 0
+    length = len(text)
+
+    def skip():
+        nonlocal position
+        while position < length:
+            if text[position].isspace():
+                position += 1
+            elif text.startswith("/*", position):
+                end = text.find("*/", position + 2)
+                require(end >= 0, "unit test project comment")
+                position = end + 2
+            elif text.startswith("//", position):
+                end = text.find("\n", position)
+                position = length if end < 0 else end + 1
+            else:
+                return
+
+    def expect(character):
+        nonlocal position
+        skip()
+        require(text.startswith(character, position), "unit test project syntax near offset %d" % position)
+        position += 1
+
+    def value():
+        nonlocal position
+        skip()
+        require(position < length, "unit test project value")
+        character = text[position]
+        if character == "{":
+            position += 1
+            result = {}
+            while True:
+                skip()
+                if text.startswith("}", position):
+                    position += 1
+                    return result
+                key = value()
+                require(isinstance(key, str) and key not in result, "unit test project dictionary key")
+                expect("=")
+                result[key] = value()
+                expect(";")
+        if character == "(":
+            position += 1
+            result = []
+            while True:
+                skip()
+                if text.startswith(")", position):
+                    position += 1
+                    return result
+                result.append(value())
+                skip()
+                if text.startswith(",", position):
+                    position += 1
+                else:
+                    require(text.startswith(")", position), "unit test project array")
+        if character == '"':
+            position += 1
+            characters = []
+            while True:
+                require(position < length, "unit test project string")
+                if text[position] == "\\":
+                    require(position + 1 < length, "unit test project string escape")
+                    characters.append(text[position:position + 2])
+                    position += 2
+                elif text[position] == '"':
+                    position += 1
+                    return "".join(characters)
+                else:
+                    characters.append(text[position])
+                    position += 1
+        match = OPENSTEP_TOKEN.match(text, position)
+        require(match is not None, "unit test project token near offset %d" % position)
+        position = match.end()
+        return match.group(0)
+
+    result = value()
+    skip()
+    require(position == length and isinstance(result, dict), "unit test project trailing content")
+    return result
+
+
+def require_plain_unit_test_membership(root):
+    """Discovery reads every Swift file under FieldEvidenceAppTests, so the unit target must
+    compile exactly that one synchronized folder: no membership exception set (on any group)
+    and no explicit source file may add or remove a unit test file."""
+    path = root / UNIT_PROJECT_PATH
+    require(path.is_file() and not path.is_symlink() and path.stat().st_size <= UNIT_PROJECT_MAX_BYTES,
+            "unit test target project file")
+    try:
+        text = path.read_bytes().decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise ValueError("invalid V23 native evidence: unit test target project UTF-8") from error
+    objects = parse_openstep_plist(text).get("objects")
+    require(isinstance(objects, dict) and all(isinstance(item, dict) for item in objects.values()),
+            "unit test target project objects")
+    targets = [key for key, item in objects.items()
+               if item.get("isa") == "PBXNativeTarget" and item.get("name") == "FieldEvidenceAppTests"]
+    require(len(targets) == 1, "unit test target")
+    target = objects[targets[0]]
+    groups = target.get("fileSystemSynchronizedGroups")
+    require(isinstance(groups, list) and len(groups) == 1, "unit test target synchronized groups")
+    group = objects.get(groups[0])
+    require(isinstance(group, dict) and group.get("isa") == "PBXFileSystemSynchronizedRootGroup"
+            and group.get("path") == "FieldEvidenceAppTests" and group.get("sourceTree") == "<group>",
+            "unit test synchronized root group")
+    require(group.get("exceptions", []) == [], "unit test synchronized group has membership exceptions")
+    phases = target.get("buildPhases")
+    require(isinstance(phases, list) and all(phase in objects for phase in phases), "unit test target build phases")
+    for key, item in objects.items():
+        if "ExceptionSet" in str(item.get("isa")):
+            require(item.get("target") != targets[0] and item.get("buildPhase") not in phases,
+                    "membership exception set applies to the unit test target: " + key)
+    for phase in phases:
+        if objects[phase].get("isa") == "PBXSourcesBuildPhase":
+            require(objects[phase].get("files") == [], "unit test target has explicit source files")
+
+
+def unit_test_source_files(root):
+    """Every Swift file the file-system-synchronized unit target compiles."""
+    require_plain_unit_test_membership(root)
+    unit_root = root / "FieldEvidenceAppTests"
+    require(unit_root.is_dir() and not unit_root.is_symlink(), "unit test source root")
+    files = []
+    for directory, directories, names in os.walk(unit_root, followlinks=False):
+        directories.sort()
+        names.sort()
+        for name in directories:
+            require(not (Path(directory) / name).is_symlink(), "symlinked unit test source directory")
+        for name in names:
+            path = Path(directory) / name
+            if name.endswith(".swift"):
+                require(path.is_file() and not path.is_symlink(), "unsafe unit test source file")
+                files.append(path)
+    require(bool(files), "no unit test source files")
+    return sorted(files, key=lambda item: item.relative_to(unit_root).as_posix())
+
+
+def method_modifiers(body, start):
+    """Same-line modifiers plus directly preceding attribute/modifier-only lines."""
+    beginning = body.rfind("\n", 0, start) + 1
+    prefix = body[beginning:start]
+    word = r"(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^\n]*\))?|private|fileprivate|static|class|final|public|internal|override|nonisolated|open)"
+    while beginning > 0:
+        previous = body.rfind("\n", 0, beginning - 1) + 1
+        line = body[previous:beginning].strip()
+        if not line or re.fullmatch(word + r"(?:\s+" + word + r")*", line) is None:
+            break
+        prefix = line + " " + prefix
+        beginning = previous
+    return prefix
+
+
+def discover_unit_test_methods(root):
+    """Return every direct runnable XCTest instance method in FieldEvidenceAppTests.
+
+    Uses the selection generator's closed Debug-Simulator parser (comments, strings
+    and inactive branches are masked). A method counts when it is a depth-0
+    `func test*()` without private/fileprivate/static/class in the body or a
+    top-level extension of an XCTestCase-descendant class; inherited test methods
+    run for each subclass. Every counted method is then held to the generator's
+    strict runnable-declaration rules, so an unusual declaration fails closed.
+    """
+    generator = load_selection_generator(root)
+    files = unit_test_source_files(root)
+    digest = hashlib.sha256((root / "Scripts/v23-selection-generator.py").read_bytes())
+    sources = []
+    for path in files:
+        raw = path.read_bytes()
+        relative = path.relative_to(root).as_posix()
+        digest.update(relative.encode("utf-8") + b"\0" + raw + b"\0")
+        sources.append((relative, raw))
+    key = (str(root), digest.hexdigest())
+    if key in _UNIT_DISCOVERY_CACHE:
+        return list(_UNIT_DISCOVERY_CACHE[key])
+    declarations = []
+    nested = []
+    classes = {}
+    try:
+        for relative, raw in sources:
+            masked = generator._active_swift(generator._mask_swift_noncode(raw.decode("utf-8")))
+            depths = generator._brace_depths(masked)
+            for match in re.finditer(r"\b(class|extension)\s+([A-Za-z_][A-Za-z0-9_]*)\b([^{};]{0,1000})\{", masked):
+                kind, name, header = match.group(1), match.group(2), match.group(3)
+                superclass = re.match(r"\s*:\s*([A-Za-z_][A-Za-z0-9_.]*)", header)
+                superclass = superclass.group(1) if superclass else None
+                if depths[match.start()] != 0:
+                    if kind == "class" and superclass is not None:
+                        nested.append((relative, name, superclass))
+                    continue
+                entry = {"kind": kind, "name": name, "superclass": superclass, "file": relative,
+                         "masked": masked, "match": match,
+                         "body": generator._body_at(masked, match.end() - 1, name)}
+                declarations.append(entry)
+                if kind == "class":
+                    require(name not in classes, "duplicate unit test class declaration: " + name)
+                    classes[name] = entry
+
+        def xctest(name, seen=()):
+            if name in ("XCTestCase", "XCTest.XCTestCase"):
+                return True
+            require(name not in seen, "cyclic unit test class inheritance: " + name)
+            entry = classes.get(name)
+            return bool(entry and entry["superclass"]) and xctest(entry["superclass"], seen + (name,))
+
+        for relative, name, superclass in nested:
+            require(not xctest(superclass), "nested XCTestCase subclass is not supported: " + relative + "/" + name)
+        direct = {}
+        for entry in declarations:
+            if entry["name"] not in classes or not xctest(entry["name"]):
+                continue
+            body = entry["body"]
+            body_depths = generator._brace_depths(body)
+            found = []
+            for method in re.finditer(r"\bfunc\s+(test[A-Za-z0-9_]*)\s*\(\s*\)", body):
+                if body_depths[method.start()] != 0:
+                    continue
+                if re.search(r"\b(?:private|fileprivate|static|class)\b", method_modifiers(body, method.start())):
+                    continue
+                found.append(method.group(1))
+            if not found:
+                continue
+            record = direct.setdefault(entry["name"], {"bodies": [], "methods": []})
+            record["bodies"].append(body)
+            record["methods"].extend(found)
+        for name, record in direct.items():
+            methods = sorted(set(record["methods"]))
+            generator._verify_methods(record["bodies"], name, methods)
+            record["methods"] = methods
+        selectors = set()
+        for name in classes:
+            if not xctest(name):
+                continue
+            ancestor = name
+            while ancestor in classes:
+                for method in direct.get(ancestor, {}).get("methods", []):
+                    selectors.add("FieldEvidenceAppTests/" + name + "/" + method)
+                ancestor = classes[ancestor]["superclass"]
+    except (generator.ManifestError, UnicodeDecodeError) as error:
+        raise ValueError("invalid V23 native evidence: unit test discovery: " + str(error)) from error
+    require(all(UNIT_SELECTOR.fullmatch(item) for item in selectors), "unit test selector grammar")
+    result = sorted(selectors, key=lambda item: tuple(item.split("/")[1:]))
+    _UNIT_DISCOVERY_CACHE[key] = tuple(result)
+    return result
+
+
+def validate_coverage_partitions(value, discovered):
+    """Closed partition file: disjoint, bounded, and exactly every discovered method.
+
+    sourceCensusHead is the commit whose timing census seeded the assignments and
+    estimates; generatedAtHead is the checkout HEAD the file was last regenerated at.
+    Coverage itself is always proven against the checkout being admitted."""
+    require(type(value) is dict
+            and set(value) == {"schema", "sourceCensusHead", "generatedAtHead", "partitions", "sweepOrder"},
+            "coverage partitions keys")
+    require(value["schema"] == SHARED_PARTITIONS_SCHEMA, "coverage partitions schema")
+    for key in ("sourceCensusHead", "generatedAtHead"):
+        require(isinstance(value[key], str) and re.fullmatch(r"[0-9a-f]{40}", value[key]),
+                "coverage partitions head: " + key)
+    partitions = value["partitions"]
+    require(type(partitions) is list and 1 <= len(partitions) <= SHARED_MAX_PARTITIONS,
+            "coverage partition count must be 1-%d" % SHARED_MAX_PARTITIONS)
+    identifiers = []
+    owner = {}
+    for partition in partitions:
+        require(type(partition) is dict and set(partition) == {"id", "estimatedSeconds", "selectors"},
+                "coverage partition keys")
+        identifier = partition["id"]
+        require(isinstance(identifier, str) and SHARED_PARTITION_ID.fullmatch(identifier) is not None
+                and identifier not in identifiers, "coverage partition ID")
+        identifiers.append(identifier)
+        estimate = partition["estimatedSeconds"]
+        require(type(estimate) in (int, float) and math.isfinite(estimate)
+                and 0 < estimate <= TIERS[SHARED_CONSUMER_TIER][2],
+                "coverage partition estimate must fit the test budget: " + identifier)
+        selectors = partition["selectors"]
+        require(type(selectors) is list and 1 <= len(selectors) <= SHARED_MAX_PARTITION_METHODS,
+                "coverage partition method count: " + identifier)
+        for selector in selectors:
+            require(isinstance(selector, str) and UNIT_SELECTOR.fullmatch(selector) is not None,
+                    "coverage partition selector: " + identifier)
+            require(selector not in owner, "coverage partitions overlap: %s in %s and %s"
+                    % (selector, owner.get(selector), identifier))
+            owner[selector] = identifier
+    order = value["sweepOrder"]
+    require(type(order) is list and len(order) == len(identifiers) and set(order) == set(identifiers),
+            "coverage sweep order must list every partition once")
+    missing = sorted(set(discovered) - set(owner))
+    extra = sorted(set(owner) - set(discovered))
+    require(not missing and not extra,
+            "coverage partitions are stale for this checkout: %d missing %s; %d extra %s"
+            % (len(missing), missing[:10], len(extra), extra[:10]))
+    return value
+
+
+def load_coverage_partitions(root):
+    path = root / SHARED_PARTITIONS_PATH
+    require(path.is_file() and not path.is_symlink(), "coverage partitions file")
+    raw = path.read_bytes()
+    require(0 < len(raw) <= SHARED_MAX_PARTITIONS_BYTES, "coverage partitions size")
+    require(b"\r" not in raw, "coverage partitions LF line endings")
+    try:
+        value = json.loads(raw.decode("utf-8"), object_pairs_hook=unique_pairs)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError("invalid V23 native evidence: coverage partitions UTF-8 JSON") from error
+    return validate_coverage_partitions(value, discover_unit_test_methods(root)), sha256(raw)
+
+
+def shared_selection(root, partition_id=None):
+    """The producer plan (every method, sweep order) or one consumer partition."""
+    value, digest = load_coverage_partitions(root)
+    by_id = {partition["id"]: partition for partition in value["partitions"]}
+    order = list(value["sweepOrder"])
+    if partition_id is None:
+        tier = SHARED_PRODUCER_TIER
+        selectors = [selector for identifier in order for selector in by_id[identifier]["selectors"]]
+    else:
+        require(partition_id in by_id, "unknown coverage partition: " + str(partition_id))
+        tier = SHARED_CONSUMER_TIER
+        selectors = list(by_id[partition_id]["selectors"])
+    selection = {
+        "schemaVersion": 1, "taskID": TASK, "tier": tier, "runUISmoke": False,
+        **dict(zip(BUDGET_KEYS, TIERS[tier])), "unitTestSelectors": selectors, "uiTestSelectors": [],
+        SHARED_KEY: {"partitionsPath": SHARED_PARTITIONS_PATH, "partitionsSHA256": digest,
+                     "partitionIDs": order, "partitionID": partition_id,
+                     "developmentOnly": True, "acceptance": False},
+    }
+    validate_selection(selection)
+    return selection
+
+
+def shared_route_environment(environment):
+    return (environment.get("V23_SHARED_ROLE", "none"), environment.get("V23_PARTITION_ID", ""),
+            environment.get("V23_PAYLOAD_ARTIFACT_NAME", ""))
+
+
+def shared_payload_artifact_name(environment, head):
+    return "v23-shared-payload-%s-%s-%s" % (environment.get("GITHUB_RUN_ID", ""),
+                                             environment.get("GITHUB_RUN_ATTEMPT", ""), head)
+
+
+def shared_record_binding(root, environment, plan=None):
+    role, partition, payload = shared_route_environment(environment)
+    plan = shared_selection(root) if plan is None else plan
+    return {"role": role, "partitionID": partition or None, "payloadArtifactName": payload or None,
+            "planSHA256": sha256(canonical(plan)), "partitionsSHA256": plan[SHARED_KEY]["partitionsSHA256"]}
+
+
 def selected_input(root, environment):
     """Return the exact default or closed mapped selection for this execution."""
     default = read_json(root / "Scripts/ci-selection.json")
@@ -1949,17 +2393,34 @@ def selected_input(root, environment):
         return default, {"selectionID": DEFAULT_SELECTION_ID,
                          "selectionSHA256": sha256(canonical(default)), "selectionMapSHA256": ""}
     selection_map = read_json(root / SELECTION_MAP_PATH)
+    role, partition, payload = shared_route_environment(environment)
+    shared_binding = None
     if selection_id == DEV_BATCH_SELECTION_ID:
         # The checked-in pool and map keep every existing check; only the exact
         # ordered methods come from the committed development batch at this head.
+        require((role, partition, payload) == ("none", "", ""), "V23 shared inputs outside the shared route")
         resolve_selection(default, selection_map, DEFAULT_SELECTION_ID)
         selected = development_batch_selection(root)
+    elif selection_id == SHARED_SELECTION_ID:
+        # One plan per head: the producer builds for it; each consumer runs one
+        # closed partition of it. Dispatch (no role) resolves the plan itself.
+        resolve_selection(default, selection_map, DEFAULT_SELECTION_ID)
+        require(role in ("none",) + SHARED_ROLES, "shared coverage role")
+        require((role == "consumer") == bool(partition), "shared coverage role/partition")
+        require((role == "none") == (payload == ""), "shared coverage payload input")
+        plan = shared_selection(root)
+        selected = shared_selection(root, partition) if role == "consumer" else plan
+        shared_binding = shared_record_binding(root, environment, plan)
     else:
+        require((role, partition, payload) == ("none", "", ""), "V23 shared inputs outside the shared route")
         selected = resolve_selection(default, selection_map, selection_id)
     if sha256(canonical(default)) in GENERATED_PROFILE_PINS:
         verify_generated_selection(root, default, selection_map)
-    return selected, {"selectionID": selection_id, "selectionSHA256": sha256(canonical(selected)),
-                      "selectionMapSHA256": sha256((root / SELECTION_MAP_PATH).read_bytes())}
+    record = {"selectionID": selection_id, "selectionSHA256": sha256(canonical(selected)),
+              "selectionMapSHA256": sha256((root / SELECTION_MAP_PATH).read_bytes())}
+    if shared_binding is not None:
+        record[SHARED_KEY] = shared_binding
+    return selected, record
 
 
 def admission(selection, environment, checkout_head, stage, selection_record=None, root=None):
@@ -2011,7 +2472,12 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
     if stage == "worker" and e.get("CI_NATIVE_ACCEPTANCE_CONTRACT") == CONTRACT:
         require(e.get("DISPATCH_NATIVE_SELECTION_ID") == selection_record["selectionID"],
                 "dispatcher selection ID")
-        require(e.get("DISPATCH_NATIVE_SELECTION_SHA256") == selection_record["selectionSHA256"],
+        dispatched_selection_sha256 = selection_record["selectionSHA256"]
+        if selection_record["selectionID"] == SHARED_SELECTION_ID:
+            # Dispatch binds the one plan; each worker's own selection derives from it.
+            require(isinstance(selection_record.get(SHARED_KEY), dict), "shared coverage record binding")
+            dispatched_selection_sha256 = selection_record[SHARED_KEY].get("planSHA256")
+        require(e.get("DISPATCH_NATIVE_SELECTION_SHA256") == dispatched_selection_sha256,
                 "dispatcher selection digest")
         require(e.get("DISPATCH_NATIVE_SELECTION_MAP_SHA256") == selection_record["selectionMapSHA256"],
                 "dispatcher selection map digest")
@@ -2050,6 +2516,10 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
     }
     development_batch = (selection_record["selectionID"] == DEV_BATCH_SELECTION_ID
                          or DEV_BATCH_KEY in selection)
+    shared = (selection_record["selectionID"] == SHARED_SELECTION_ID or SHARED_KEY in selection
+              or SHARED_KEY in selection_record)
+    if not shared:
+        require(shared_route_environment(e) == ("none", "", ""), "V23 shared inputs outside the shared route")
     if development_batch:
         # No parent/tree pin: the exact list is recomputed from the committed file
         # at this checkout and must equal the dispatched selection byte for byte.
@@ -2058,6 +2528,24 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
                 "development batch selector/committed list binding")
         require(provider == "github" and label == "macos-26", "development batch GitHub route only")
         require(e["GITHUB_RUN_ATTEMPT"] == "1", "development batch original attempt only")
+    elif shared:
+        # No parent/tree pin: the plan and partition are recomputed from the checked-in
+        # partition file, whose union must equal every runnable method at this checkout.
+        require(selection_record["selectionID"] == SHARED_SELECTION_ID, "shared coverage selector binding")
+        role, partition, payload = shared_route_environment(e)
+        plan = shared_selection(root)
+        require(selection_record.get(SHARED_KEY) == shared_record_binding(root, e, plan),
+                "shared coverage record binding")
+        if stage == "dispatch":
+            require((role, partition, payload) == ("none", "", "") and selection == plan,
+                    "shared coverage dispatch plan")
+        else:
+            require(role in SHARED_ROLES, "shared coverage worker role")
+            require(selection == (plan if role == "producer" else shared_selection(root, partition)),
+                    "shared coverage role/partition selection binding")
+            require(payload == shared_payload_artifact_name(e, head), "shared coverage payload artifact name")
+        require(provider == "github" and label == "macos-26", "shared coverage GitHub route only")
+        require(e["GITHUB_RUN_ATTEMPT"] == "1", "shared coverage original attempt only")
     elif selection["tier"] in ("D30", "D50") or selection_record["selectionID"] in watchdog_routes:
         require(selection["tier"] == ("D50" if selection_record["selectionID"] in D50_SELECTION_IDS else "D30")
                 and selection_record["selectionID"] in watchdog_routes,
@@ -2319,7 +2807,11 @@ def build_order_observations(artifact, record, selected_udid):
 
 def no_index_build_receipt(root, artifact, record, environment):
     development_batch = record["selectionID"] == DEV_BATCH_SELECTION_ID
-    require(record["selectionID"] in NO_INDEX_ROUTES or development_batch, "no-index admitted selection")
+    shared = record["selectionID"] == SHARED_SELECTION_ID
+    if shared:
+        require(shared_role(record) == "producer", "shared coverage build is producer-only")
+    unpinned = development_batch or shared
+    require(record["selectionID"] in NO_INDEX_ROUTES or unpinned, "no-index admitted selection")
     require(read_json(artifact / "native-admission.json") == record, "no-index admission changed")
     e = environment
     require(e.get("PROJECT_PATH") == "FieldEvidenceApp.xcodeproj"
@@ -2333,15 +2825,15 @@ def no_index_build_receipt(root, artifact, record, environment):
                  "-derivedDataPath", str(Path(e["RUNNER_TEMP"]) / "FieldEvidenceDerivedData"),
                  "-resultBundlePath", str(artifact / "Build.xcresult"),
                  "CODE_SIGNING_ALLOWED=NO", "COMPILER_INDEX_STORE_ENABLE=NO", "build-for-testing"]
-    # The development batch pins no parent or trees; its admission record (bound by
-    # admissionSHA256) carries the exact head, head tree and selected-list digest.
+    # The development batch and shared producer pin no parent or trees; their admission
+    # record (bound by admissionSHA256) carries the exact head, head tree and list digest.
     return {"schemaVersion": 1, "selectionID": record["selectionID"],
             "head": record["head"],
-            "parent": None if development_batch else NO_INDEX_ROUTES[record["selectionID"]][0],
+            "parent": None if unpinned else NO_INDEX_ROUTES[record["selectionID"]][0],
             "runID": record["runID"],
             "runAttempt": record["runAttempt"], "admissionSHA256": sha256(canonical(record)),
             "buildScriptSHA256": sha256((root / "Scripts/build-smoke.sh").read_bytes()),
-            "sourceTrees": None if development_batch else no_index_source_trees(record["selectionID"]),
+            "sourceTrees": None if unpinned else no_index_source_trees(record["selectionID"]),
             "argv": arguments, "diagnosticOnly": True, "acceptance": False}
 
 
@@ -2368,12 +2860,478 @@ def verify_no_index_build(root, artifact, record, environment):
             "speedupEstablished": False, "acceptance": False}
 
 
+def shared_role(record):
+    binding = record.get(SHARED_KEY) if record.get("selectionID") == SHARED_SELECTION_ID else None
+    require(isinstance(binding, dict) and binding.get("role") in SHARED_ROLES, "shared coverage admitted role")
+    return binding["role"]
+
+
+def load_payload_kernel(root):
+    """The tested S10.4 product-tree helpers, loaded the way that file's own driver loads them."""
+    source = root / SHARED_PAYLOAD_KERNEL
+    require(source.is_file() and not source.is_symlink(), "shared payload kernel source")
+    return runpy.run_path(str(source))
+
+
+def shared_products_binding(kernel, payload_root):
+    """One exact product closure: tree digest, single relocatable .xctestrun, arm64/SDK facts."""
+    products = payload_root / kernel["ROOT_LABEL"]
+    entries, relative = kernel["collect"](products)
+    require(entries == kernel["inventory"](products), "shared payload product inventory disagreement")
+    xctestrun = products / relative
+    return {"treeSHA256": kernel["object_sha"](entries), "entryCount": len(entries),
+            "fileBytes": sum(entry.get("size", 0) for entry in entries),
+            "xctestrunPath": relative, "xctestrunSHA256": kernel["sha256_file"](xctestrun),
+            "compatibility": kernel["product_compatibility"](products, xctestrun)}
+
+
+def shared_toolchain(artifact, environment):
+    require((artifact / "xcode-version.txt").read_text(encoding="utf-8").splitlines()
+            == ["Xcode 26.6", "Build version 17F113"], "shared coverage Xcode")
+    require(key_values(artifact / "native-sdk.txt") == {"sdk": "iphonesimulator", "version": "26.5", "build": "23F81a"},
+            "shared coverage SDK")
+    require(environment.get("CONFIGURATION") == "Debug", "shared coverage Debug configuration")
+    architecture = platform.machine()
+    require(architecture == "arm64", "shared coverage arm64 runner")
+    return {"xcodeVersion": "Xcode 26.6", "xcodeBuild": "17F113", "sdkName": "iphonesimulator26.5",
+            "sdkBuild": "23F81a", "architecture": architecture, "configuration": "Debug"}
+
+
+def shared_payload_archive(kernel, payload_root, path):
+    """Deterministic tar (sorted members, zero mtime/owners) that the kernel extractor admits."""
+    entries = kernel["inventory"](payload_root)
+    with tarfile.open(path, "x", format=tarfile.PAX_FORMAT) as archive:
+        for entry in entries:
+            info = tarfile.TarInfo("FieldEvidencePayload/" + entry["path"])
+            info.mode = entry["mode"]
+            info.mtime = 0
+            info.uid = info.gid = 0
+            info.uname = info.gname = ""
+            if entry["type"] == "directory":
+                info.type = tarfile.DIRTYPE
+                archive.addfile(info)
+            else:
+                info.type = tarfile.REGTYPE
+                info.size = entry["size"]
+                with (payload_root / entry["path"]).open("rb") as stream:
+                    archive.addfile(info, stream)
+    require(kernel["inventory"](payload_root) == entries, "shared payload changed while archiving")
+    size = path.stat().st_size
+    require(0 < size <= kernel["MAX_ARCHIVE_BYTES"], "shared payload archive exceeds the kernel bound")
+    return {"name": SHARED_TAR, "bytes": size, "sha256": kernel["sha256_file"](path)}
+
+
+def shared_local_build_artifacts(artifact):
+    return [name for name in ("Build.xcresult", "build-smoke.log", NO_INDEX_RECEIPT)
+            if (artifact / name).exists() or (artifact / name).is_symlink()]
+
+
+def shared_build_evidence(artifact, temp):
+    """Before tests: a consumer holds only restored products, with no build tree at all."""
+    present = shared_local_build_artifacts(artifact)
+    derived = temp / "FieldEvidenceDerivedData"
+    present += ["DerivedData/" + name for name in ("Logs/Build", "Build/Intermediates.noindex")
+                if (derived / name).exists() or (derived / name).is_symlink()]
+    return present
+
+
+def bounded_evidence(found):
+    if len(found) <= SHARED_MAX_LISTED_EVIDENCE:
+        return found
+    return found[:SHARED_MAX_LISTED_EVIDENCE] + ["... %d more" % (len(found) - SHARED_MAX_LISTED_EVIDENCE)]
+
+
+def walk_entries(top, skip=None):
+    """(path, is_directory) for every entry below top, sorted, never following a symbolic
+    link; the one directory `skip` (if given) is neither listed nor entered."""
+    for directory, directories, names in os.walk(top, followlinks=False):
+        directories[:] = sorted(name for name in directories if Path(directory) / name != skip)
+        names.sort()
+        for name in directories + names:
+            path = Path(directory) / name
+            yield path, name in directories and not path.is_symlink()
+
+
+def shared_activity_log_compile_step(path):
+    """The first compile or link step signature in one gunzipped build activity log, if any."""
+    try:
+        with gzip.open(path, "rb") as stream:
+            tail = b""
+            total = 0
+            while True:
+                chunk = stream.read(1024 * 1024)
+                if not chunk:
+                    return None
+                total += len(chunk)
+                if total > SHARED_MAX_ACTIVITY_LOG_BYTES:
+                    return "oversized activity log"
+                window = tail + chunk
+                match = SHARED_ACTIVITY_COMPILE_STEP.search(window)
+                if match is not None:
+                    return match.group(1).decode("ascii") + " step"
+                tail = window[-64:]
+    except (OSError, EOFError, zlib.error) as error:
+        return "unreadable activity log (%s)" % type(error).__name__
+
+
+def shared_test_log_compile_lines(path):
+    """Compile or link task lines, compiler/linker command lines or a build result in the test log."""
+    if not path.is_file() or path.is_symlink() or path.stat().st_size > SHARED_MAX_TEST_LOG_BYTES:
+        return [path.name + ": unavailable for the compile scan"]
+    found = []
+    for number, line in enumerate(path.read_bytes().decode("utf-8", "replace").splitlines(), 1):
+        stripped = line.strip()
+        words = stripped.split()
+        tool = words[0] if words else ""
+        if (SHARED_LOG_COMPILE_STEP.match(line) or SHARED_LOG_BUILD_RESULT.fullmatch(stripped)
+                or tool in SHARED_LOG_BUILTINS
+                or ("/" in tool and tool.rsplit("/", 1)[1] in SHARED_LOG_TOOLS)):
+            found.append("%s:%d: %s" % (path.name, number, stripped[:200]))
+    return found
+
+
+def shared_compile_evidence(artifact, temp):
+    """After tests: only real compile or link evidence fails; build bookkeeping may exist.
+
+    Fails on local build artifacts; object, module, dependency or diagnostic files under
+    Build/Intermediates*; a compile or link step in any Logs/Build activity log (gunzipped
+    and scanned, unreadable fails closed); or a compile/link line or build result in the
+    consumer's test log."""
+    found = shared_local_build_artifacts(artifact)
+    derived = temp / "FieldEvidenceDerivedData"
+    build = derived / "Build"
+    if build.is_dir() and not build.is_symlink():
+        for child in sorted(build.iterdir()):
+            if not child.name.startswith("Intermediates"):
+                continue
+            relative = "DerivedData/Build/" + child.name
+            if child.is_symlink():
+                found.append(relative + ": symbolic link")
+                continue
+            if child.is_dir():
+                found += ["DerivedData/" + path.relative_to(derived).as_posix()
+                          for path, _ in walk_entries(child) if path.name.endswith(SHARED_COMPILE_OUTPUT_SUFFIXES)]
+    logs = derived / "Logs" / "Build"
+    if logs.is_symlink():
+        found.append("DerivedData/Logs/Build: symbolic link")
+    elif logs.is_dir():
+        for path, is_directory in walk_entries(logs):
+            if is_directory or not path.name.endswith(".xcactivitylog"):
+                continue
+            relative = "DerivedData/" + path.relative_to(derived).as_posix()
+            if path.is_symlink() or not path.is_file():
+                found.append(relative + ": not a regular file")
+                continue
+            step = shared_activity_log_compile_step(path)
+            if step is not None:
+                found.append(relative + ": " + step)
+    found += shared_test_log_compile_lines(artifact / "test-smoke.log")
+    return bounded_evidence(found)
+
+
+def shared_derived_inventory(derived):
+    """Every DerivedData entry outside Build/Products, which the products fingerprint covers."""
+    entries = {}
+    if not derived.is_dir() or derived.is_symlink():
+        return entries
+    for path, is_directory in walk_entries(derived, skip=derived / "Build" / "Products"):
+        relative = path.relative_to(derived).as_posix()
+        if path.is_symlink():
+            entries[relative] = {"type": "symlink", "target": os.readlink(path)}
+        elif is_directory:
+            entries[relative] = {"type": "directory"}
+        elif path.is_file():
+            entries[relative] = {"type": "file", "size": path.stat().st_size, "sha256": sha256_path(path)}
+        else:
+            entries[relative] = {"type": "other"}
+    return entries
+
+
+def shared_derived_delta(before, after):
+    """Added, changed and removed DerivedData entries; each list bounded, with exact counts."""
+    added = [dict(after[path], path=path) for path in sorted(set(after) - set(before))]
+    removed = [dict(before[path], path=path) for path in sorted(set(before) - set(after))]
+    changed = [{"path": path, "before": before[path], "after": after[path]}
+               for path in sorted(set(before) & set(after)) if before[path] != after[path]]
+    return {"added": added[:SHARED_MAX_DELTA_ENTRIES], "addedCount": len(added),
+            "changed": changed[:SHARED_MAX_DELTA_ENTRIES], "changedCount": len(changed),
+            "removed": removed[:SHARED_MAX_DELTA_ENTRIES], "removedCount": len(removed)}
+
+
+def shared_metadata_identity(root, record, artifact, environment):
+    binding = record[SHARED_KEY]
+    return {"schema": SHARED_PAYLOAD_SCHEMA, "routeID": SHARED_SELECTION_ID,
+            "repository": record["repository"], "ref": record["ref"], "head": record["head"],
+            "gitTree": record["gitTree"], "workspace": str(root),
+            "runID": record["runID"], "runAttempt": record["runAttempt"],
+            "payloadArtifactName": binding["payloadArtifactName"], "planSHA256": binding["planSHA256"],
+            "partitionsSHA256": binding["partitionsSHA256"],
+            "toolchain": shared_toolchain(artifact, environment),
+            "developmentOnly": True, "acceptance": False}
+
+
+def write_new_evidence(path, raw):
+    with path.open("xb") as stream:
+        stream.write(raw)
+
+
+def shared_seal(root, artifact, record, environment, kernel=None):
+    """Producer only: seal the exact no-index build products once; it never runs tests."""
+    require(shared_role(record) == "producer", "shared seal is producer-only")
+    require(read_json(artifact / "native-admission.json") == record, "shared seal admission changed")
+    kernel = load_payload_kernel(root) if kernel is None else kernel
+    build = verify_no_index_build(root, artifact, record, environment)
+    require(not any((artifact / name).exists() for name in ("UnitTests.xcresult", "test-smoke.log",
+                                                             "unit-test-results.json")),
+            "shared producer has no test evidence")
+    temp = Path(environment["RUNNER_TEMP"])
+    source_products = temp / "FieldEvidenceDerivedData" / "Build" / "Products"
+    payload_root = temp / SHARED_PAYLOAD_DIRECTORY
+    transport = temp / SHARED_TRANSPORT_DIRECTORY
+    require(not any(path.exists() or path.is_symlink() for path in (payload_root, transport)),
+            "shared payload directories must be new")
+    staged = payload_root / kernel["ROOT_LABEL"]
+    staged.parent.mkdir(parents=True)
+    kernel["copy_tree"](source_products, staged)
+    kernel["normalize_xctestrun"](staged, source_products)
+    products = shared_products_binding(kernel, payload_root)
+    metadata = dict(shared_metadata_identity(root, record, artifact, environment),
+                    buildCommandReceiptSHA256=build["commandReceiptSHA256"],
+                    buildLogSHA256=sha256((artifact / "build-smoke.log").read_bytes()), products=products)
+    metadata_bytes = canonical(metadata)
+    (payload_root / SHARED_PAYLOAD_METADATA).write_bytes(metadata_bytes)
+    transport.mkdir(mode=0o700)
+    archive = shared_payload_archive(kernel, payload_root, transport / SHARED_TAR)
+    (transport / SHARED_TAR_DIGEST).write_bytes(
+        ("%s %d %s\n" % (archive["sha256"], archive["bytes"], SHARED_TAR)).encode("ascii"))
+    receipt = {"schema": "v23-shared-payload-receipt.v1", "role": "producer",
+               "payloadArtifactName": metadata["payloadArtifactName"], "archive": archive,
+               "metadataSHA256": sha256(metadata_bytes), "productsTreeSHA256": products["treeSHA256"],
+               "xctestrunSHA256": products["xctestrunSHA256"], "head": record["head"],
+               "gitTree": record["gitTree"], "workspace": str(root), "runID": record["runID"],
+               "runAttempt": record["runAttempt"], "developmentOnly": True, "acceptance": False}
+    write_new_evidence(artifact / SHARED_PAYLOAD_METADATA, metadata_bytes)
+    write_new_evidence(artifact / SHARED_PAYLOAD_RECEIPT, canonical(receipt))
+    return receipt
+
+
+def shared_restore(root, artifact, record, environment, kernel=None):
+    """Consumer only: verify, safely extract and restore the producer's exact products."""
+    require(shared_role(record) == "consumer", "shared restore is consumer-only")
+    require(read_json(artifact / "native-admission.json") == record, "shared restore admission changed")
+    kernel = load_payload_kernel(root) if kernel is None else kernel
+    started = time.monotonic()
+    temp = Path(environment["RUNNER_TEMP"])
+    derived = temp / "FieldEvidenceDerivedData"
+    require(shared_build_evidence(artifact, temp) == [] and not derived.exists() and not derived.is_symlink(),
+            "shared consumer products must be restored, never built")
+    download = temp / SHARED_DOWNLOAD_DIRECTORY
+    require(download.is_dir() and not download.is_symlink()
+            and sorted(item.name for item in download.iterdir()) == sorted([SHARED_TAR, SHARED_TAR_DIGEST]),
+            "shared payload download members")
+    tar, digest_path = download / SHARED_TAR, download / SHARED_TAR_DIGEST
+    require(all(path.is_file() and not path.is_symlink() for path in (tar, digest_path)), "shared payload download files")
+    match = re.fullmatch(r"([0-9A-F]{64}) ([0-9]+) FieldEvidencePayload\.tar\n",
+                         digest_path.read_bytes().decode("ascii", "replace"))
+    require(match is not None and int(match.group(2)) == tar.stat().st_size
+            and int(match.group(2)) <= kernel["MAX_ARCHIVE_BYTES"]
+            and kernel["sha256_file"](tar) == match.group(1), "shared payload archive digest or size")
+    extracted = temp / SHARED_EXTRACTED_DIRECTORY
+    kernel["extract_tar"](tar, extracted)
+    require(sorted(item.name for item in extracted.iterdir())
+            == sorted(["FieldEvidenceDerivedData", SHARED_PAYLOAD_METADATA]), "shared payload root members")
+    metadata_bytes = (extracted / SHARED_PAYLOAD_METADATA).read_bytes()
+    metadata = json.loads(metadata_bytes.decode("utf-8"), object_pairs_hook=unique_pairs)
+    require(type(metadata) is dict and metadata_bytes == canonical(metadata), "shared payload metadata bytes")
+    expected = shared_metadata_identity(root, record, artifact, environment)
+    require(set(metadata) == set(expected) | {"buildCommandReceiptSHA256", "buildLogSHA256", "products"},
+            "shared payload metadata keys")
+    for key, value in expected.items():
+        require(metadata[key] == value, "shared payload binding differs: " + key)
+    (derived / "Build").mkdir(parents=True)
+    os.rename(extracted / kernel["ROOT_LABEL"], derived / "Build" / "Products")
+    restored = shared_products_binding(kernel, temp)
+    require(restored == metadata["products"], "restored shared products differ from the producer's")
+    receipt = {"schema": "v23-shared-restore.v1", "role": "consumer",
+               "partitionID": record[SHARED_KEY]["partitionID"],
+               "payloadArtifactName": metadata["payloadArtifactName"],
+               "archive": {"name": SHARED_TAR, "bytes": int(match.group(2)), "sha256": match.group(1)},
+               "metadataSHA256": sha256(metadata_bytes), "productsTreeSHA256": restored["treeSHA256"],
+               "xctestrunSHA256": restored["xctestrunSHA256"],
+               "restoredProductsRoot": str(derived / "Build" / "Products"),
+               "restoreSeconds": round(time.monotonic() - started, 3),
+               "head": record["head"], "gitTree": record["gitTree"], "workspace": str(root),
+               "simulatorUDID": environment.get("CI_SIMULATOR_UDID"),
+               "developmentOnly": True, "acceptance": False}
+    write_new_evidence(artifact / SHARED_PAYLOAD_METADATA, metadata_bytes)
+    write_new_evidence(artifact / SHARED_RESTORE_RECEIPT, canonical(receipt))
+    return receipt
+
+
+SHARED_FINGERPRINT_PRODUCT_KEYS = ("productsTreeSHA256", "xctestrunSHA256", "entryCount")
+
+
+def shared_fingerprint(root, artifact, record, environment, phase, kernel=None):
+    """Consumer only: the tested products equal the producer's before and after the tests.
+
+    Before: no build tree may exist (restore-only DerivedData), and the DerivedData
+    inventory outside the products is recorded. After: the products fingerprint must be
+    unchanged, only compile/link evidence fails, and every DerivedData entry added,
+    changed or removed by the tests is listed in the delta record."""
+    require(shared_role(record) == "consumer", "shared fingerprint is consumer-only")
+    require(phase in SHARED_FINGERPRINT_PHASES, "shared fingerprint phase")
+    require(read_json(artifact / "native-admission.json") == record, "shared fingerprint admission changed")
+    kernel = load_payload_kernel(root) if kernel is None else kernel
+    temp = Path(environment["RUNNER_TEMP"])
+    derived = temp / "FieldEvidenceDerivedData"
+    metadata = read_json(artifact / SHARED_PAYLOAD_METADATA)
+    require((artifact / SHARED_RESTORE_RECEIPT).is_file(), "shared fingerprint requires the restore receipt")
+    output = artifact / ("v23-shared-fingerprint-%s.json" % phase)
+    require(not output.exists() and not output.is_symlink(), "shared fingerprint already recorded")
+    before = None
+    if phase == "after":
+        before = read_json(artifact / "v23-shared-fingerprint-before.json")
+        require(type(before) is dict and before.get("phase") == "before"
+                and type(before.get("derivedDataEntries")) is list, "shared fingerprint after requires the before record")
+        delta_path = artifact / SHARED_DERIVED_DATA_DELTA
+        require(not delta_path.exists() and not delta_path.is_symlink(), "shared DerivedData delta already recorded")
+    build_evidence = (shared_build_evidence if phase == "before" else shared_compile_evidence)(artifact, temp)
+    try:
+        products, error = shared_products_binding(kernel, temp), None
+    except (OSError, ValueError) as caught:
+        products, error = None, str(caught)[:2000]
+    inventory = shared_derived_inventory(derived)
+    value = {"schema": "v23-shared-fingerprint.v1", "phase": phase,
+             "partitionID": record[SHARED_KEY]["partitionID"],
+             "productsTreeSHA256": products and products["treeSHA256"],
+             "xctestrunSHA256": products and products["xctestrunSHA256"],
+             "entryCount": products and products["entryCount"],
+             "matchesProducer": products == metadata.get("products"),
+             "buildEvidence": build_evidence, "error": error}
+    if phase == "before":
+        value["derivedDataEntries"] = [dict(inventory[path], path=path) for path in sorted(inventory)]
+    else:
+        prior = {}
+        for item in before["derivedDataEntries"]:
+            require(type(item) is dict and isinstance(item.get("path"), str) and item["path"] not in prior,
+                    "shared fingerprint before inventory")
+            prior[item["path"]] = {key: entry for key, entry in item.items() if key != "path"}
+        delta = dict(shared_derived_delta(prior, inventory), schema="v23-shared-deriveddata-delta.v1",
+                     partitionID=record[SHARED_KEY]["partitionID"], derivedDataRoot=str(derived),
+                     excludedSubtree="Build/Products", beforeEntryCount=len(prior),
+                     afterEntryCount=len(inventory), compileEvidence=build_evidence,
+                     developmentOnly=True, acceptance=False)
+        delta_bytes = canonical(delta)
+        write_new_evidence(delta_path, delta_bytes)
+        value["matchesBefore"] = all(value[key] == before.get(key) for key in SHARED_FINGERPRINT_PRODUCT_KEYS)
+        value["derivedDataDelta"] = {"path": SHARED_DERIVED_DATA_DELTA, "sha256": sha256(delta_bytes),
+                                     "addedCount": delta["addedCount"], "changedCount": delta["changedCount"],
+                                     "removedCount": delta["removedCount"]}
+    write_new_evidence(output, canonical(value))
+    require(error is None, "shared products unreadable: " + str(error))
+    require(not build_evidence, "shared consumer build evidence present: " + ", ".join(build_evidence))
+    require(value["matchesProducer"], "shared products differ from the producer's")
+    require(phase == "before" or value["matchesBefore"], "shared products changed during the tests")
+    return value
+
+
+def verify_shared_producer(root, artifact, record, environment):
+    metadata_bytes = (artifact / SHARED_PAYLOAD_METADATA).read_bytes()
+    metadata = json.loads(metadata_bytes.decode("utf-8"), object_pairs_hook=unique_pairs)
+    receipt = read_json(artifact / SHARED_PAYLOAD_RECEIPT)
+    temp = Path(environment["RUNNER_TEMP"])
+    tar = temp / SHARED_TRANSPORT_DIRECTORY / SHARED_TAR
+    require((temp / SHARED_PAYLOAD_DIRECTORY / SHARED_PAYLOAD_METADATA).read_bytes() == metadata_bytes,
+            "sealed payload metadata changed")
+    expected = shared_metadata_identity(root, record, artifact, environment)
+    require(all(metadata.get(key) == value for key, value in expected.items()), "sealed payload identity")
+    require(tar.is_file() and not tar.is_symlink() and receipt["archive"]
+            == {"name": SHARED_TAR, "bytes": tar.stat().st_size, "sha256": sha256_path(tar)},
+            "sealed payload archive changed")
+    require((temp / SHARED_TRANSPORT_DIRECTORY / SHARED_TAR_DIGEST).read_bytes()
+            == ("%s %d %s\n" % (receipt["archive"]["sha256"], receipt["archive"]["bytes"], SHARED_TAR)).encode(),
+            "sealed payload digest record")
+    require(receipt["metadataSHA256"] == sha256(metadata_bytes)
+            and receipt["productsTreeSHA256"] == metadata["products"]["treeSHA256"]
+            and receipt["payloadArtifactName"] == record[SHARED_KEY]["payloadArtifactName"]
+            and (receipt["developmentOnly"], receipt["acceptance"]) == (True, False), "sealed payload receipt")
+    return {"role": "producer", "payloadArtifactName": receipt["payloadArtifactName"],
+            "archive": receipt["archive"], "metadataSHA256": receipt["metadataSHA256"],
+            "productsTreeSHA256": receipt["productsTreeSHA256"], "xctestrunSHA256": receipt["xctestrunSHA256"],
+            "planSHA256": record[SHARED_KEY]["planSHA256"], "testsExecuted": 0}
+
+
+def verify_shared_consumer(root, artifact, record, selection, environment):
+    metadata_bytes = (artifact / SHARED_PAYLOAD_METADATA).read_bytes()
+    metadata = json.loads(metadata_bytes.decode("utf-8"), object_pairs_hook=unique_pairs)
+    receipt = read_json(artifact / SHARED_RESTORE_RECEIPT)
+    temp = Path(environment["RUNNER_TEMP"])
+    binding = record[SHARED_KEY]
+    require(selection[SHARED_KEY]["partitionID"] == binding["partitionID"], "shared partition binding")
+    require(receipt["metadataSHA256"] == sha256(metadata_bytes)
+            and receipt["productsTreeSHA256"] == metadata["products"]["treeSHA256"]
+            and receipt["payloadArtifactName"] == binding["payloadArtifactName"]
+            and receipt["partitionID"] == binding["partitionID"]
+            and (receipt["head"], receipt["gitTree"], receipt["workspace"])
+            == (record["head"], record["gitTree"], str(root))
+            and receipt["simulatorUDID"] == environment.get("CI_NATIVE_CREATED_SIMULATOR_UDID")
+            and (receipt["developmentOnly"], receipt["acceptance"]) == (True, False), "shared restore receipt")
+    fingerprints = {}
+    for phase in SHARED_FINGERPRINT_PHASES:
+        value = read_json(artifact / ("v23-shared-fingerprint-%s.json" % phase))
+        require(value.get("phase") == phase and value.get("matchesProducer") is True
+                and value.get("buildEvidence") == [] and value.get("error") is None
+                and value.get("partitionID") == binding["partitionID"]
+                and value.get("productsTreeSHA256") == metadata["products"]["treeSHA256"],
+                "shared products fingerprint " + phase)
+        fingerprints[phase] = value
+    after = fingerprints["after"]
+    require(after.get("matchesBefore") is True
+            and all(after[key] == fingerprints["before"].get(key) for key in SHARED_FINGERPRINT_PRODUCT_KEYS),
+            "shared products changed during the tests")
+    delta_bytes = (artifact / SHARED_DERIVED_DATA_DELTA).read_bytes()
+    delta = json.loads(delta_bytes.decode("utf-8"), object_pairs_hook=unique_pairs)
+    summary = after.get("derivedDataDelta")
+    require(type(summary) is dict and summary.get("path") == SHARED_DERIVED_DATA_DELTA
+            and summary.get("sha256") == sha256(delta_bytes) and delta_bytes == canonical(delta)
+            and delta.get("compileEvidence") == [] and delta.get("partitionID") == binding["partitionID"]
+            and (delta.get("developmentOnly"), delta.get("acceptance")) == (True, False),
+            "shared DerivedData delta record")
+    compile_evidence = shared_compile_evidence(artifact, temp)
+    require(not compile_evidence, "shared consumer build evidence present: " + ", ".join(compile_evidence))
+    return {"role": "consumer", "partitionID": binding["partitionID"],
+            "partitionSelectorsSHA256": sha256(canonical(selection["unitTestSelectors"])),
+            "payloadArtifactName": receipt["payloadArtifactName"], "archive": receipt["archive"],
+            "metadataSHA256": receipt["metadataSHA256"], "restoreSeconds": receipt["restoreSeconds"],
+            "productsTreeSHA256Before": fingerprints["before"]["productsTreeSHA256"],
+            "productsTreeSHA256After": after["productsTreeSHA256"],
+            "derivedDataDelta": summary, "planSHA256": binding["planSHA256"], "buildEvidence": []}
+
+
+def sha256_path(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest().upper()
+
+
 def verify_checkpoint(root, artifact, record, selection, environment):
-    diagnostic_evidence = persist_simulator_diagnostic_observations(root, artifact, record)
-    require(environment.get("NATIVE_PRIOR_JOB_STATUS") == "success", "earlier job failure")
-    require(diagnostic_evidence["testLog"]["availability"] == "AVAILABLE"
-            and diagnostic_evidence["parseStatus"] == "PASS",
-            "successful units require simulator diagnostic log")
+    role = shared_role(record) if record["selectionID"] == SHARED_SELECTION_ID else None
+    if role == "producer":
+        # A build-only producer runs no tests, so it has no diagnostic stream to retain.
+        require(environment.get("NATIVE_PRIOR_JOB_STATUS") == "success", "earlier job failure")
+        require(not any((artifact / name).exists() for name in (
+                    "test-smoke.log", "UnitTests.xcresult", "unit-test-results.json",
+                    SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS, SIMULATOR_DIAGNOSTIC_OUTPUT)),
+                "shared producer test evidence")
+        diagnostic_evidence = None
+    else:
+        diagnostic_evidence = persist_simulator_diagnostic_observations(root, artifact, record)
+        require(environment.get("NATIVE_PRIOR_JOB_STATUS") == "success", "earlier job failure")
+        require(diagnostic_evidence["testLog"]["availability"] == "AVAILABLE"
+                and diagnostic_evidence["parseStatus"] == "PASS",
+                "successful units require simulator diagnostic log")
     require(read_json(artifact / "native-admission.json") == record, "admission changed")
     selected_artifact = artifact / "ci-selection.selected.json"
     require(selected_artifact.is_file() and not selected_artifact.is_symlink()
@@ -2403,12 +3361,20 @@ def verify_checkpoint(root, artifact, record, selection, environment):
             and simulator.get("udid") == environment.get("CI_NATIVE_CREATED_SIMULATOR_UDID"),
             "fresh owned Simulator")
     build_order = {}
-    if record["selectionID"] in NO_INDEX_ROUTES or record["selectionID"] == DEV_BATCH_SELECTION_ID:
+    if (record["selectionID"] in NO_INDEX_ROUTES or record["selectionID"] == DEV_BATCH_SELECTION_ID
+            or role == "producer"):
         build_order["noIndexBuildDiagnostic"] = verify_no_index_build(root, artifact, record, environment)
     if record["selectionID"] in (BUILD_ORDER_SELECTION_ID, NOTIFICATION_INTERRUPTION_SELECTION_ID):
         build_order["buildOrderDiagnostic"] = build_order_observations(artifact, record, simulator["udid"])
-    units = executed_methods(read_json(artifact / "unit-test-results.json"),
-                             selection["unitTestSelectors"], "FieldEvidenceAppTests", "Unit test bundle")
+    if role == "producer":
+        build_order["sharedCoverageEvidence"] = verify_shared_producer(root, artifact, record, environment)
+        units = []
+    else:
+        if role == "consumer":
+            build_order["sharedCoverageEvidence"] = verify_shared_consumer(
+                root, artifact, record, selection, environment)
+        units = executed_methods(read_json(artifact / "unit-test-results.json"),
+                                 selection["unitTestSelectors"], "FieldEvidenceAppTests", "Unit test bundle")
     ui = []
     if selection["runUISmoke"]:
         ui = executed_methods(read_json(artifact / "ui-test-results.json"),
@@ -2442,10 +3408,12 @@ def verify_checkpoint(root, artifact, record, selection, environment):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("admit", "verify", "select", "collect-diagnostics", "observe-build-before-boot", "record-no-index-build"))
+    parser.add_argument("command", choices=("admit", "verify", "select", "collect-diagnostics", "observe-build-before-boot", "record-no-index-build",
+                                            "shared-seal", "shared-restore", "shared-fingerprint"))
     parser.add_argument("--stage", choices=("dispatch", "worker"), default="worker")
     parser.add_argument("--output")
     parser.add_argument("--interrupted", action="store_true")
+    parser.add_argument("--phase", choices=SHARED_FINGERPRINT_PHASES)
     args = parser.parse_args()
     root = Path(os.environ["GITHUB_WORKSPACE"]).resolve()
     if args.command == "collect-diagnostics":
@@ -2471,8 +3439,13 @@ def main():
                 stream.write("native_selection_id=" + record["selectionID"] + "\n")
                 stream.write("native_selection_sha256=" + record["selectionSHA256"] + "\n")
                 stream.write("native_selection_map_sha256=" + record["selectionMapSHA256"] + "\n")
+                if record["selectionID"] == SHARED_SELECTION_ID:
+                    # The ordered consumer matrix; each entry is one closed partition.
+                    stream.write("native_shared_partitions=" + json.dumps(
+                        selection[SHARED_KEY]["partitionIDs"], separators=(",", ":")) + "\n")
         return
-    if args.command in ("observe-build-before-boot", "record-no-index-build"):
+    if args.command in ("observe-build-before-boot", "record-no-index-build",
+                        "shared-seal", "shared-restore", "shared-fingerprint"):
         require(record is not None, "diagnostic command requires admitted integration route")
     if record is None:
         return
@@ -2487,6 +3460,16 @@ def main():
         receipt = no_index_build_receipt(root, artifact, record, os.environ)
         with (artifact / NO_INDEX_RECEIPT).open("xb") as stream:
             stream.write(canonical(receipt))
+        return
+    if args.command == "shared-seal":
+        shared_seal(root, artifact, record, os.environ)
+        return
+    if args.command == "shared-restore":
+        shared_restore(root, artifact, record, os.environ)
+        return
+    if args.command == "shared-fingerprint":
+        require(args.phase is not None, "shared fingerprint phase")
+        shared_fingerprint(root, artifact, record, os.environ, args.phase)
         return
     name = "native-admission.json"
     if args.command == "verify":

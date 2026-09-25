@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>NSCameraUsageDescription</key>
-	<string>Take photos or record short video evidence only when you choose a camera action. Media stays on this iPhone unless you explicitly export or share it.</string>
+	<string>Use the camera to add sign photos to reports stored on this iPhone.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Use Face ID to unlock your locally stored inspection and service records.</string>
 	<key>NSMicrophoneUsageDescription</key>
@@ -96,29 +96,6 @@
 				<key>public.mime-type</key>
 				<string>application/vnd.assetrounds.encrypted-envelope</string>
 			</dict>
-		</dict>
-	</array>
-	<key>CFBundleDocumentTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeExtensions</key>
-			<array>
-				<string>arenvelope</string>
-			</array>
-			<key>CFBundleTypeMIMETypes</key>
-			<array>
-				<string>application/vnd.assetrounds.encrypted-envelope</string>
-			</array>
-			<key>CFBundleTypeName</key>
-			<string>AssetRounds Encrypted Envelope</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Owner</string>
-			<key>LSItemContentTypes</key>
-			<array>
-				<string>com.assetrounds.encrypted-envelope</string>
-			</array>
 		</dict>
 	</array>
 	<key>C52ServiceRequestBoundary_InfoPlist</key>

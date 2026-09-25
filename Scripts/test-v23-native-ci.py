@@ -3,6 +3,7 @@
 import copy
 import base64
 import hashlib
+import io
 import os
 import subprocess
 import sys
@@ -13,6 +14,7 @@ import re
 import shlex
 from pathlib import Path
 import shutil
+import tarfile
 import tempfile
 import unittest
 from unittest import mock
@@ -33,10 +35,162 @@ UI = "FieldEvidenceAppUITests/NativeJourneyTests/testContinuousJourney"
 D50_JOB_CAP_EXPRESSION = "${{ (inputs.native_selection_id == 'c36-live-host-no-index-build30m' || inputs.native_selection_id == 'c36-round-item-mount-no-index-build30m' || inputs.native_selection_id == 'c36-startup-retirement-no-index-build30m' || inputs.native_selection_id == 'v23-dev-batch-no-index-d50') && 120 || 90 }}"
 
 
+SHARED_ROUTE = 'v23-shared-coverage-d50x'
+SHARED_WORKER_STEPS = (
+    'Download V23 shared coverage payload', 'Verify and restore V23 shared coverage payload',
+    'Recheck setup budget after V23 shared payload restore', 'Seal V23 shared coverage payload',
+    'Upload V23 shared coverage payload', 'Fingerprint V23 shared products before tests',
+    'Fingerprint V23 shared products after tests')
+SHARED_WORKER_INPUTS = '''      v23_shared_role:
+        description: Closed V23 shared coverage role (none, producer or consumer); development only
+        required: false
+        default: none
+        type: string
+      v23_partition_id:
+        description: Exact V23 coverage partition for a consumer; empty otherwise
+        required: false
+        default: ""
+        type: string
+      v23_payload_artifact_name:
+        description: Exact V23 shared payload artifact name; empty outside the shared route
+        required: false
+        default: ""
+        type: string
+'''
+SHARED_WORKER_REPLACEMENTS = (
+    ("${{ inputs.v23_shared_role != 'none' && format('{0}-{1}-{2}-', inputs.v23_shared_role, inputs.v23_partition_id, github.run_id) || '' }}", ''),
+    ('      V23_SHARED_ROLE: ${{ inputs.v23_shared_role }}\n'
+     '      V23_PARTITION_ID: ${{ inputs.v23_partition_id }}\n'
+     '      V23_PAYLOAD_ARTIFACT_NAME: ${{ inputs.v23_payload_artifact_name }}\n', ''),
+    (" && inputs.v23_shared_role != 'consumer' && inputs.native_selection_id != 'c36-destination-discard-build-before-boot'",
+     " && inputs.native_selection_id != 'c36-destination-discard-build-before-boot'"),
+    (" && inputs.s10_4_shared_build_mode != 'consumer' && inputs.v23_shared_role != 'producer' }}",
+     " && inputs.s10_4_shared_build_mode != 'consumer' }}"),
+    ("(inputs.v23_shared_role != 'none' && format('ios-ci-native-{0}-{1}-{2}{3}-{4}-{5}', inputs.runner_provider, inputs.native_selection_id, inputs.v23_shared_role, inputs.v23_partition_id != '' && format('-{0}', inputs.v23_partition_id) || '', github.run_id, github.run_attempt) || format('ios-ci-native-{0}-{1}-{2}-{3}', inputs.runner_provider, inputs.native_selection_id, github.run_id, github.run_attempt))",
+     "format('ios-ci-native-{0}-{1}-{2}-{3}', inputs.runner_provider, inputs.native_selection_id, github.run_id, github.run_attempt)"),
+)
+SHARED_DISPATCH_REPLACEMENTS = (
+    ('          - ' + SHARED_ROUTE + '\n', ''),
+    ('      native_shared_partitions: ${{ steps.native_selection.outputs.native_shared_partitions }}\n', ''),
+    (" && inputs.native_selection_id != '" + SHARED_ROUTE + "' }}", ' }}'),
+)
+
+
+def remove_exactly_once(text, old, new=''):
+    if text.count(old) != 1:
+        raise AssertionError('expected one shared-coverage hunk: ' + old[:80])
+    return text.replace(old, new)
+
+
+def remove_workflow_step(text, name):
+    # Each added step block ends at its first blank line; removing it restores the neighbour.
+    marker = '      - name: ' + name + '\n'
+    if text.count(marker) != 1:
+        raise AssertionError('expected one shared-coverage step: ' + name)
+    start = text.index(marker)
+    return text[:start] + text[text.index('\n\n', start) + 2:]
+
+
+def worker_before_shared_coverage(raw):
+    """Reverse exactly the shared-coverage worker additions; nothing else may differ."""
+    text = raw.decode('utf-8') if isinstance(raw, bytes) else raw
+    text = remove_exactly_once(text, SHARED_WORKER_INPUTS)
+    for old, new in SHARED_WORKER_REPLACEMENTS:
+        text = remove_exactly_once(text, old, new)
+    for name in SHARED_WORKER_STEPS:
+        text = remove_workflow_step(text, name)
+    return text.encode('utf-8') if isinstance(raw, bytes) else text
+
+
+def workflow_before_shared_coverage(raw):
+    """Reverse exactly the shared-coverage dispatcher additions (choice, output, two jobs)."""
+    text = raw.decode('utf-8') if isinstance(raw, bytes) else raw
+    for old, new in SHARED_DISPATCH_REPLACEMENTS:
+        text = remove_exactly_once(text, old, new)
+    start = text.index('\n  v23-shared-producer:\n')
+    end = text.index('\n  getmac-shard:\n')
+    if text[start:end].count('\n  v23-shared-consumer:\n') != 1:
+        raise AssertionError('expected exactly the two shared-coverage jobs')
+    text = text[:start] + text[end:]
+    return text.encode('utf-8') if isinstance(raw, bytes) else text
+
+
+SHARED_TEST_SMOKE_GUARD = '''# V23 shared coverage: a consumer tests the producer's restored products unchanged
+# through the ordinary scheme command; a producer never runs tests.
+v23_shared_role="${V23_SHARED_ROLE:-none}"
+v23_require_no_local_build() {
+  test "$shared_build_mode" = none
+  test "${CI_NATIVE_ACCEPTANCE_CONTRACT:-none}" = v23.integration.current-native.v1
+  test -d "$derived_data_path/Build/Products"
+  test ! -e "$CI_ARTIFACT_DIR/build-smoke.log"
+  test ! -e "$CI_ARTIFACT_DIR/Build.xcresult"
+  test ! -e "$CI_ARTIFACT_DIR/no-index-build-command.json"
+}
+v23_require_no_build_evidence() {
+  v23_require_no_local_build
+  test ! -e "$derived_data_path/Logs/Build"
+  test ! -e "$derived_data_path/Build/Intermediates.noindex"
+}
+# After the tests the scheme command may leave build bookkeeping (Logs, XCBuildData);
+# only compiler outputs fail here. The after fingerprint applies the full rule
+# (activity logs and the test log too) and lists every new DerivedData entry.
+v23_require_no_compile_outputs() {
+  v23_require_no_local_build
+  test -z "$(find "$derived_data_path/Build" -mindepth 1 -maxdepth 1 -name 'Intermediates*' -type l -print)"
+  test -z "$(find "$derived_data_path/Build" -mindepth 1 -maxdepth 1 -name 'Intermediates*' -exec \\
+    find {} \\( -name '*.o' -o -name '*.swiftmodule' -o -name '*.swiftdeps' -o -name '*.dia' \\) -print -quit \\;)"
+}
+case "$v23_shared_role" in
+  none) ;;
+  consumer) v23_require_no_build_evidence ;;
+  *) printf 'invalid V23 shared coverage test role\\n' >&2; exit 65 ;;
+esac
+
+'''
+SHARED_TEST_SMOKE_POST = '''  if [ "$v23_shared_role" = consumer ]; then
+    v23_require_no_compile_outputs
+  fi
+'''
+
+
+def test_smoke_before_shared_coverage(raw):
+    text = remove_exactly_once(raw.decode('utf-8'), SHARED_TEST_SMOKE_GUARD)
+    return remove_exactly_once(text, SHARED_TEST_SMOKE_POST).encode('utf-8')
+
+
+def evidence_before_shared_coverage(raw):
+    text = raw.decode('utf-8')
+    start = text.index('v23_shared_role="${V23_SHARED_ROLE:-none}"\n')
+    end_marker = 'elif test "$CI_S10_4_SHARED_BUILD_MODE" = consumer; then\n'
+    end = text.index(end_marker, start) + len(end_marker)
+    block = text[start:end]
+    if block.count('if test "$v23_shared_role" = producer; then\n') != 1 or 'elif test "$v23_shared_role" = consumer; then\n' not in block:
+        raise AssertionError('expected exactly the shared-coverage evidence branches')
+    return (text[:start] + 'if test "$CI_S10_4_SHARED_BUILD_MODE" = consumer; then\n' + text[end:]).encode('utf-8')
+
+
+SHARED_BUILD_SMOKE_LINE = '   [ "${NATIVE_SELECTION_ID:-none}" = ' + SHARED_ROUTE + ' ] || \\\n'
+
+
+def before_shared_coverage_bytes(relative, raw):
+    if relative == '.github/workflows/ios-ci.yml':
+        return workflow_before_shared_coverage(raw)
+    if relative == '.github/workflows/ios-ci-worker.yml':
+        return worker_before_shared_coverage(raw)
+    if relative == 'Scripts/build-smoke.sh':
+        return remove_exactly_once(raw.decode('utf-8'), SHARED_BUILD_SMOKE_LINE).encode('utf-8')
+    if relative == 'Scripts/test-smoke.sh':
+        return test_smoke_before_shared_coverage(raw)
+    if relative == 'Scripts/validate-required-evidence.sh':
+        return evidence_before_shared_coverage(raw)
+    return raw
+
+
 def worker_before_live_host_d50(test_case, raw):
-    # Reverse only the owner-approved D50 job cap (live-host, its two rebound
-    # questions and the reusable development batch); every other worker byte
-    # must still match its historical boundary.
+    # Reverse the shared-coverage additions, then only the owner-approved D50 job cap
+    # (live-host, its two rebound questions and the reusable development batch); every
+    # other worker byte must still match its historical boundary.
+    raw = worker_before_shared_coverage(raw)
     changed = b"    timeout-minutes: " + D50_JOB_CAP_EXPRESSION.encode() + b"\n"
     test_case.assertEqual(raw.count(changed), 1)
     return raw.replace(changed, b"    timeout-minutes: 90\n")
@@ -800,6 +954,7 @@ def frozen_begin_suite_source():
         'V23CheckRunnerFrozenBeginPreparationTests','V23CheckRunnerFrozenBeginWriterTests','V23CheckRunnerDurableInitialBeginTests'))
 
 def prepartition_workflow(workflow):
+    workflow = workflow_before_shared_coverage(workflow)
     choice = '          - ' + CI.DEV_BATCH_SELECTION_ID + '\n'
     if workflow.count(choice) != 1: raise AssertionError('missing exact development batch choice')
     workflow = workflow.replace(choice, '')
@@ -1606,7 +1761,7 @@ class ReportPartitionTests(unittest.TestCase):
         expected.remove('c36-live-host')
         expected.remove('c36-round-item-mount')
         expected.remove('c36-round-item-completion')
-        expected[expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1:expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1] = [CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-live-host', 'c36-round-item-mount', 'c36-round-item-completion', CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit']
+        expected[expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1:expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1] = [CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, SHARED_ROUTE, CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-live-host', 'c36-round-item-mount', 'c36-round-item-completion', CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit']
         expected.insert(expected.index('c36-restore-review') + 1, CI.NO_INDEX_SELECTION_ID)
         expected.insert(expected.index(CI.NO_INDEX_SELECTION_ID) + 1, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID)
         expected.insert(expected.index('notification-schedule-erase') + 1, CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID)
@@ -2963,7 +3118,8 @@ class LiveHostBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
         self.assertEqual(CI.TIERS['D50'], (300, 1800, 3000, 0, 5100))
         self.assertEqual(CI.TIERS['D30'], (300, 1800, 900, 0, 3000))
         self.assertEqual(CI.SIMULATOR_DIAGNOSTIC_HISTORICAL_SOURCE_SHA256S,
-                         ('FCFF658FCE118760EAC50B13A3941470EA86ED6FB40E78D17E6A573A10DFA5DB',))
+                         ('FCFF658FCE118760EAC50B13A3941470EA86ED6FB40E78D17E6A573A10DFA5DB',
+                          'A8B18FFF49DE387183EA9B8B2377669BF1EE9E73A6DB11992178503070EDE139'))
         self.assertEqual(CI.NO_INDEX_ROUTES[CI.LIVE_HOST_SELECTION_ID], (CI.LIVE_HOST_PARENT, 'D50'))
         self.assertEqual(sorted(k for k, (_, tier) in CI.NO_INDEX_ROUTES.items() if tier == 'D50'),
                          sorted(CI.D50_SELECTION_IDS))
@@ -3217,6 +3373,8 @@ class FieldAutosaveBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
             current_bytes = (ROOT / path).read_bytes()
             if path == '.github/workflows/ios-ci-worker.yml':
                 current_bytes = worker_before_live_host_d50(self, current_bytes)
+            elif path == 'Scripts/test-smoke.sh':
+                current_bytes = test_smoke_before_shared_coverage(current_bytes)
             self.assertEqual(current_bytes, subprocess.check_output(
                 ['git', 'show', self.source_parent + ':' + path], cwd=ROOT), path)
         identifiers = re.findall(r'^          - ([a-z0-9.-]+)$', re.search(
@@ -3224,7 +3382,7 @@ class FieldAutosaveBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
             (ROOT / '.github/workflows/ios-ci.yml').read_text()).group(1), re.M)
         previous, previous_map = prelive_host_values(self.default, self.mapping)
         for identifier in identifiers:
-            if identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, 'c36-live-host'):
+            if identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, SHARED_ROUTE, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, 'c36-live-host'):
                 continue
             self.assertEqual(CI.resolve_selection(previous, previous_map, identifier),
                              old['resolve_selection'](previous, previous_map, identifier), identifier)
@@ -3290,7 +3448,7 @@ class SavedReviewFieldsBuild30DiagnosticTests(ReplacementPartitionDiagnosticTest
         block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
         choices = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
         for identifier in choices:
-            if identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.DEFAULT_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
+            if identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, SHARED_ROUTE, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.DEFAULT_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
                 continue
             previous = CI.resolve_selection(old_pool, old_map, identifier)
             additions = [s for s in EXPECTED_LIVE_HOST_RUNTIME if CI.selection_class(s) in next((g['classes'] for g in self.mapping['groups'] if g['id'] == identifier), [])]
@@ -3530,7 +3688,7 @@ class NotificationScheduleEraseBuild30DiagnosticTests(ReplacementPartitionDiagno
                 self.assertEqual(CI.NO_INDEX_ROUTES[identifier], binding)
                 self.assertEqual(CI.no_index_source_trees(identifier), old.no_index_source_trees(identifier))
         choice = ('          - ' + self.record['selectionID'] + '\n').encode()
-        current_workflow = (ROOT / '.github/workflows/ios-ci.yml').read_bytes()
+        current_workflow = workflow_before_shared_coverage((ROOT / '.github/workflows/ios-ci.yml').read_bytes())
         self.assertEqual(current_workflow.count(choice), 1)
         current_workflow = current_workflow.replace(choice, b'')
         for identifier in [g['id'] for g in FINDING_PROFILE_FIXTURES_GROUPS] + [CI.FINDING_PROFILE_FIXTURES_SELECTION_ID, CI.NOTIFICATION_INTERRUPTION_SELECTION_ID]:
@@ -3714,6 +3872,8 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
             current_bytes = (ROOT / path).read_bytes()
             if path == '.github/workflows/ios-ci-worker.yml':
                 current_bytes = worker_before_interruption_build_order(self, current_bytes)
+            elif path == 'Scripts/test-smoke.sh':
+                current_bytes = test_smoke_before_shared_coverage(current_bytes)
             elif path in ('Scripts/ci-selection.json', CI.SELECTION_MAP_PATH):
                 projected = presaved_review_values(self.default, self.mapping)
                 current_bytes = CI.canonical(projected[0 if path == 'Scripts/ci-selection.json' else 1])
@@ -3763,7 +3923,7 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
         prior_map = json.loads(frozen(CI.SELECTION_MAP_PATH))
         workflow = frozen('.github/workflows/ios-ci.yml')
         choice = ('          - ' + self.record['selectionID'] + '\n').encode()
-        current = (ROOT / '.github/workflows/ios-ci.yml').read_bytes()
+        current = workflow_before_shared_coverage((ROOT / '.github/workflows/ios-ci.yml').read_bytes())
         self.assertEqual(current.count(choice), 1)
         for added in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
             added_choice = ('          - ' + added + '\n').encode()
@@ -4185,7 +4345,7 @@ class BuildOrderDiagnosticTests(unittest.TestCase):
                 with self.assertRaises(ValueError): CI.build_order_observations(artifact, self.record, UDID)
 
     def test_workflow_diagnostic_and_ordinary_paths_preserve_commands_order_and_failure_gates(self):
-        worker = (ROOT/'.github/workflows/ios-ci-worker.yml').read_text(encoding='utf-8')
+        worker = worker_before_shared_coverage((ROOT/'.github/workflows/ios-ci-worker.yml').read_text(encoding='utf-8'))
         names = ['Build unsigned simulator app before boot (diagnostic)', 'Boot selected Simulator',
                  'Await selected Simulator boot', 'Build unsigned simulator app', 'Prepare S10.4 shared build payload']
         positions = [worker.index('      - name: '+name+'\n') for name in names]
@@ -4319,9 +4479,9 @@ class InterruptionBuildOrderTests(unittest.TestCase):
         positions=[worker.index('      - name: '+name+'\n') for name in names]
         self.assertEqual(positions,sorted(positions))
         early,boot,wait,normal=[worker[positions[i]:positions[i+1]] for i in range(4)]
-        def predicate(block,contract,selection,role=''):
+        def predicate(block,contract,selection,role='',shared_role='none'):
             expression=re.search(r'if: \$\{\{ (.*?) \}\}',block).group(1)
-            for name,value in {'native_acceptance_contract':contract,'native_selection_id':selection,'s10_4_execution_role':role}.items():
+            for name,value in {'native_acceptance_contract':contract,'native_selection_id':selection,'s10_4_execution_role':role,'v23_shared_role':shared_role}.items():
                 expression=expression.replace('inputs.'+name,json.dumps(value))
             expression=expression.replace('&&','and').replace('||','or')
             parsed=ast.parse(expression,mode='eval')
@@ -4335,6 +4495,9 @@ class InterruptionBuildOrderTests(unittest.TestCase):
         self.assertTrue(predicate(normal,CI.CONTRACT,'notification-schedule-erase-no-index-build30m'))
         self.assertFalse(predicate(early,'','ordinary'))
         self.assertFalse(predicate(normal,'','ordinary','payload-consumer'))
+        # The shared-coverage consumer never builds; its producer builds normally.
+        self.assertFalse(predicate(normal,CI.CONTRACT,SHARED_ROUTE,'independent','consumer'))
+        self.assertTrue(predicate(normal,CI.CONTRACT,SHARED_ROUTE,'independent','producer'))
         pattern=r'^\s+(DISPATCH_\w+): \$\{\{ inputs\.(\w+) \}\}$'
         self.assertEqual(dict(re.findall(pattern,early,re.M)),dict(re.findall(pattern,normal,re.M)))
         self.assertEqual(len(re.findall(pattern,early,re.M)),9)
@@ -6531,7 +6694,7 @@ class WorkflowWiringTests(unittest.TestCase):
             CI.resolve_selection(default, override, expected[-1][0])
 
     def test_required_evidence_extraction_retains_original_literal_body(self):
-        body = (ROOT / "Scripts/validate-required-evidence.sh").read_bytes()
+        body = evidence_before_shared_coverage((ROOT / "Scripts/validate-required-evidence.sh").read_bytes())
         allowed_prefix = (b'selection_path="${CI_SELECTION_PATH:-Scripts/ci-selection.json}"\n'
                           b'case "$selection_path" in\n'
                           b'  Scripts/ci-selection.json | "${CI_ARTIFACT_DIR:?}/ci-selection.selected.json") ;;\n'
@@ -7460,13 +7623,19 @@ class DevelopmentBatchRouteTests(unittest.TestCase):
             base = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(base)
         self.assertFalse(hasattr(base, 'DEV_BATCH_SELECTION_ID'))
+        # The reviewed Simulator diagnostic source digest is an allowlist that changes
+        # independently of route behaviour (2026-09-25); give the base head the same
+        # allowlist so that only route resolution, admission and records are compared.
+        base.SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = CI.SIMULATOR_DIAGNOSTIC_SOURCE_SHA256
+        base.SIMULATOR_DIAGNOSTIC_HISTORICAL_SOURCE_SHA256S = CI.SIMULATOR_DIAGNOSTIC_HISTORICAL_SOURCE_SHA256S
 
         def choices(text):
             block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', text)
             return re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
         current_choices = choices((ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8'))
         base_choices = choices(base_workflow)
-        self.assertEqual([item for item in current_choices if item != CI.DEV_BATCH_SELECTION_ID], base_choices)
+        self.assertEqual([item for item in current_choices if item not in (CI.DEV_BATCH_SELECTION_ID, SHARED_ROUTE)],
+                         base_choices)
         # Each shell/workflow file differs from the base head only by the new route ID.
         def base_bytes(relative):
             return subprocess.check_output(['git', 'show', DEV_BATCH_BASE_COMMIT + ':' + relative], cwd=ROOT)
@@ -7484,7 +7653,8 @@ class DevelopmentBatchRouteTests(unittest.TestCase):
             with self.subTest(relative=relative):
                 previous = base_bytes(relative)
                 self.assertEqual(previous.count(before), 1)
-                self.assertEqual((ROOT / relative).read_bytes(), previous.replace(before, after))
+                self.assertEqual(before_shared_coverage_bytes(relative, (ROOT / relative).read_bytes()),
+                                 previous.replace(before, after))
         default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
         mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
 
@@ -7553,6 +7723,881 @@ class DevelopmentBatchRouteTests(unittest.TestCase):
                     self.assertEqual(verified[0], 'ok')
             with self.assertRaises(ValueError):
                 base.no_index_build_receipt(ROOT, artifact, dict(record, selectionID=CI.DEV_BATCH_SELECTION_ID), e)
+
+
+SHARED_FIXTURE_SOURCE = '''import XCTest
+
+class SharedCoverageBaseTests: XCTestCase {
+    func testInheritedByEverySubclass() {}
+}
+
+final class SharedCoverageChildTests: SharedCoverageBaseTests {
+    func testChildOwn() async throws {}
+    // func testCommented() {}
+    let note = "func testInString() {}"
+    private func testPrivateHelper() {}
+    static func testStaticHelper() {}
+    func testWithArgument(_ value: Int) {}
+    struct Nested {
+        func testNestedType() {}
+    }
+}
+
+extension SharedCoverageChildTests {
+    func testFromExtension() {}
+}
+'''
+SHARED_FIXTURE_OTHER_FILE = '''import XCTest
+
+extension SharedCoverageChildTests {
+    func testFromOtherFile() {}
+}
+'''
+SHARED_FIXTURE_EXPECTED = ['FieldEvidenceAppTests/' + item for item in (
+    'SharedCoverageBaseTests/testInheritedByEverySubclass', 'SharedCoverageChildTests/testChildOwn',
+    'SharedCoverageChildTests/testFromExtension', 'SharedCoverageChildTests/testFromOtherFile',
+    'SharedCoverageChildTests/testInheritedByEverySubclass')]
+SHARED_XCTESTRUN = {'FieldEvidenceAppTests': {
+    'TestHostPath': '__TESTROOT__/Debug-iphonesimulator/FieldEvidenceApp.app',
+    'TestBundlePath': '__TESTHOST__/PlugIns/FieldEvidenceAppTests.xctest'}}
+
+
+def load_partition_script():
+    spec = importlib.util.spec_from_file_location('v23_coverage_partitions', ROOT / 'Scripts/v23-coverage-partitions.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class SharedCoverageRouteTests(unittest.TestCase):
+    """Development-only shared build: one producer plan, closed consumer partitions."""
+    run_mock_build = NoIndexBuildDiagnosticTests.run_mock_build
+
+    @classmethod
+    def setUpClass(cls):
+        cls.temp = tempfile.TemporaryDirectory(prefix='v23-shared-coverage-')
+        cls.addClassCleanup(cls.temp.cleanup)
+        cls.root = Path(cls.temp.name).resolve()
+        for relative in ('Scripts/v23-selection-generator.py', CI.SHARED_PARTITIONS_PATH, CI.UNIT_PROJECT_PATH):
+            target = cls.root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / relative, target)
+        shutil.copytree(ROOT / 'FieldEvidenceAppTests', cls.root / 'FieldEvidenceAppTests')
+        cls.partitions = (ROOT / CI.SHARED_PARTITIONS_PATH).read_bytes()
+        cls.discovered = CI.discover_unit_test_methods(ROOT)
+        cls.plan = CI.shared_selection(ROOT)
+        cls.kernel = dict(CI.load_payload_kernel(ROOT))
+        # Local fixtures are not Mach-O and Windows paths use backslashes; the real kernel
+        # helpers still collect, inventory, archive, extract and validate the .xctestrun.
+        cls.kernel['product_compatibility'] = lambda products, xctestrun: [
+            {'path': 'Debug-iphonesimulator/FieldEvidenceApp.app/FieldEvidenceApp', 'fixture': True}]
+        cls.kernel['normalize_xctestrun'] = lambda root, source: None
+
+    def setUp(self):
+        path = self.root / CI.SHARED_PARTITIONS_PATH
+        path.write_bytes(self.partitions)
+        self.addCleanup(path.write_bytes, self.partitions)
+
+    def value(self):
+        return json.loads(self.partitions)
+
+    def write_partitions(self, value):
+        raw = value if isinstance(value, bytes) else (json.dumps(value, indent=2) + '\n').encode('utf-8')
+        (self.root / CI.SHARED_PARTITIONS_PATH).write_bytes(raw)
+
+    def shared_environment(self, role='none', partition='', payload=None, provider='github'):
+        e = environment(provider)
+        if payload is None:
+            payload = '' if role == 'none' else 'v23-shared-payload-123-1-' + HEAD
+        e.update(NATIVE_SELECTION_ID=SHARED_ROUTE, V23_SHARED_ROLE=role, V23_PARTITION_ID=partition,
+                 V23_PAYLOAD_ARTIFACT_NAME=payload)
+        selection = CI.shared_selection(ROOT, partition or None) if role == 'consumer' else self.plan
+        record = {'selectionID': SHARED_ROUTE, 'selectionSHA256': CI.sha256(CI.canonical(selection)),
+                  'selectionMapSHA256': CI.sha256((ROOT / CI.SELECTION_MAP_PATH).read_bytes()),
+                  CI.SHARED_KEY: CI.shared_record_binding(ROOT, e, self.plan)}
+        e.update(DISPATCH_NATIVE_SELECTION_ID=SHARED_ROUTE,
+                 DISPATCH_NATIVE_SELECTION_SHA256=record[CI.SHARED_KEY]['planSHA256'],
+                 DISPATCH_NATIVE_SELECTION_MAP_SHA256=record['selectionMapSHA256'])
+        return e, selection, record
+
+    def jq(self, value, **environment_values):
+        e = dict(os.environ)
+        for key in ('NATIVE_SELECTION_ID', 'V23_SHARED_ROLE', 'V23_PARTITION_ID'):
+            e.pop(key, None)
+        e.update(environment_values)
+        return subprocess.run(['jq', '-e', '-f', str(ROOT / 'Scripts/ci-worker-selection.jq')],
+                              input=CI.canonical(value), capture_output=True, env=e).returncode
+
+    def test_partitions_cover_every_runnable_method_once_in_sweep_order(self):
+        value, digest = CI.load_coverage_partitions(ROOT)
+        self.assertEqual(digest, CI.sha256(self.partitions))
+        self.assertNotIn(b'\r', self.partitions)
+        owners = [selector for partition in value['partitions'] for selector in partition['selectors']]
+        self.assertEqual(len(owners), len(set(owners)))
+        self.assertEqual(sorted(owners), sorted(self.discovered))
+        self.assertLessEqual(len(value['partitions']), CI.SHARED_MAX_PARTITIONS)
+        self.assertEqual(len(self.discovered), len(set(self.discovered)))
+        by_id = {partition['id']: partition['selectors'] for partition in value['partitions']}
+        self.assertEqual(self.plan['tier'], 'D40P')
+        self.assertEqual(tuple(self.plan[key] for key in CI.BUDGET_KEYS), (300, 2400, 0, 0, 3000))
+        self.assertEqual(self.plan['unitTestSelectors'],
+                         [selector for identifier in value['sweepOrder'] for selector in by_id[identifier]])
+        self.assertEqual(self.plan[CI.SHARED_KEY], {
+            'partitionsPath': CI.SHARED_PARTITIONS_PATH, 'partitionsSHA256': digest,
+            'partitionIDs': value['sweepOrder'], 'partitionID': None,
+            'developmentOnly': True, 'acceptance': False})
+        for identifier in value['sweepOrder']:
+            consumer = CI.shared_selection(ROOT, identifier)
+            self.assertEqual((consumer['tier'], consumer['runUISmoke'], consumer['uiTestSelectors']), ('D50C', False, []))
+            self.assertEqual(tuple(consumer[key] for key in CI.BUDGET_KEYS), (300, 0, 3000, 0, 3600))
+            self.assertEqual(consumer['unitTestSelectors'], by_id[identifier])
+            self.assertEqual(consumer[CI.SHARED_KEY], dict(self.plan[CI.SHARED_KEY], partitionID=identifier))
+        with self.assertRaisesRegex(ValueError, 'unknown coverage partition'):
+            CI.shared_selection(ROOT, 'S99')
+        # The checked-in file is exactly what the deterministic script regenerates from itself,
+        # apart from generatedAtHead, which always records the checkout's current HEAD.
+        head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'partitions.json'
+            for _ in range(2):
+                result = subprocess.run([sys.executable, str(ROOT / 'Scripts/v23-coverage-partitions.py'),
+                                         '--source', str(ROOT / CI.SHARED_PARTITIONS_PATH), '--output', str(output)],
+                                        capture_output=True, cwd=ROOT)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(output.read_bytes(), load_partition_script().encode(dict(value, generatedAtHead=head)))
+        self.assertEqual(list(value)[:3], ['schema', 'sourceCensusHead', 'generatedAtHead'])
+        # Dispatch resolves the plan; each worker record binds the same plan digest.
+        e = dict(environment(), NATIVE_SELECTION_ID=SHARED_ROUTE)
+        selected, record = CI.selected_input(ROOT, e)
+        self.assertEqual(selected, self.plan)
+        self.assertEqual(record[CI.SHARED_KEY], {'role': 'none', 'partitionID': None, 'payloadArtifactName': None,
+                                                 'planSHA256': CI.sha256(CI.canonical(self.plan)),
+                                                 'partitionsSHA256': digest})
+        consumer_e = dict(e, V23_SHARED_ROLE='consumer', V23_PARTITION_ID='S27',
+                          V23_PAYLOAD_ARTIFACT_NAME='v23-shared-payload-123-1-' + HEAD)
+        selected, consumer_record = CI.selected_input(ROOT, consumer_e)
+        self.assertEqual(selected, CI.shared_selection(ROOT, 'S27'))
+        self.assertEqual(consumer_record['selectionSHA256'], CI.sha256(CI.canonical(selected)))
+        self.assertEqual(consumer_record[CI.SHARED_KEY]['planSHA256'], record['selectionSHA256'])
+        for changed in ({'V23_PARTITION_ID': ''}, {'V23_SHARED_ROLE': 'observer'},
+                        {'V23_SHARED_ROLE': 'producer'}, {'V23_PAYLOAD_ARTIFACT_NAME': ''}):
+            with self.subTest(changed=changed), self.assertRaises(ValueError):
+                CI.selected_input(ROOT, dict(consumer_e, **changed))
+
+    def test_stale_overlapping_unknown_and_oversized_partition_files_fail_closed(self):
+        CI.load_coverage_partitions(self.root)
+        base = self.value()
+        first = base['partitions'][0]['selectors'][0]
+
+        def case(mutate):
+            value = copy.deepcopy(base)
+            mutate(value)
+            return value
+        cases = [
+            ('overlap: ' + re.escape(first), case(lambda v: v['partitions'][1]['selectors'].append(first))),
+            (r'1 missing \[' + re.escape(repr(first)), case(lambda v: v['partitions'][0]['selectors'].remove(first))),
+            (r'1 extra \[.*NoSuchTests/testNothing', case(lambda v: v['partitions'][0]['selectors'].append(
+                'FieldEvidenceAppTests/NoSuchTests/testNothing'))),
+            ('coverage partition count', case(lambda v: v.update(partitions=v['partitions'] + [
+                {'id': 'S%02d' % index, 'estimatedSeconds': 1, 'selectors': []} for index in range(41, 62)]))),
+            ('coverage partition ID', case(lambda v: v['partitions'][1].update(id=v['partitions'][0]['id']))),
+            ('coverage partition ID', case(lambda v: v['partitions'][0].update(id='P01'))),
+            ('coverage sweep order', case(lambda v: v['sweepOrder'].pop())),
+            ('coverage sweep order', case(lambda v: v['sweepOrder'].append(v['sweepOrder'][0]))),
+            ('fit the test budget', case(lambda v: v['partitions'][0].update(estimatedSeconds=3001))),
+            ('fit the test budget', case(lambda v: v['partitions'][0].update(estimatedSeconds=0))),
+            ('coverage partition method count', case(lambda v: v['partitions'][0].update(selectors=[]))),
+            ('coverage partition method count', case(lambda v: (
+                v['partitions'][1]['selectors'].extend(v['partitions'][38]['selectors'] + v['partitions'][34]['selectors']),
+                v['partitions'][38]['selectors'].clear()))),
+            ('coverage partition selector', case(lambda v: v['partitions'][0]['selectors'].append(
+                'FieldEvidenceAppUITests/S0LaunchUITests/testLaunch'))),
+            ('coverage partition selector', case(lambda v: v['partitions'][0]['selectors'].append(first + '\n'))),
+            ('coverage partitions keys', case(lambda v: v.update(extra=1))),
+            ('coverage partitions keys', case(lambda v: v.pop('sourceCensusHead'))),
+            ('coverage partitions keys', case(lambda v: v.pop('generatedAtHead'))),
+            ('coverage partitions keys', case(lambda v: v.update(censusHead=v['sourceCensusHead']))),
+            ('coverage partitions schema', case(lambda v: v.update(schema='v23-coverage-partitions.v2'))),
+            ('coverage partitions head: sourceCensusHead', case(lambda v: v.update(sourceCensusHead='HEAD'))),
+            ('coverage partitions head: generatedAtHead', case(lambda v: v.update(generatedAtHead='A' * 40))),
+            ('coverage partition keys', case(lambda v: v['partitions'][0].update(owner='x'))),
+        ]
+        for pattern, value in cases:
+            with self.subTest(pattern=pattern):
+                self.write_partitions(value)
+                with self.assertRaisesRegex(ValueError, pattern):
+                    CI.load_coverage_partitions(self.root)
+        good = (json.dumps(base, indent=2) + '\n').encode()
+        for pattern, raw in (('LF line endings', good.replace(b'\n', b'\r\n')),
+                             ('UTF-8 JSON', b'\xff' + good), ('UTF-8 JSON', b'{'),
+                             ('duplicate JSON key', good[:-2] + b',\n  "schema": "x"\n}\n')):
+            with self.subTest(pattern=pattern):
+                self.write_partitions(raw)
+                with self.assertRaisesRegex(ValueError, pattern):
+                    CI.load_coverage_partitions(self.root)
+        # A checkout that gained or lost methods makes the unchanged file stale by name.
+        self.write_partitions(base)
+        added = self.root / 'FieldEvidenceAppTests/SharedCoverageFixtureTests.swift'
+        other = self.root / 'FieldEvidenceAppTests/SharedCoverageOtherFileTests.swift'
+        added.write_bytes(SHARED_FIXTURE_SOURCE.encode())
+        other.write_bytes(SHARED_FIXTURE_OTHER_FILE.encode())
+        try:
+            with self.assertRaisesRegex(ValueError, r'5 missing .*SharedCoverageChildTests/testChildOwn'):
+                CI.load_coverage_partitions(self.root)
+            script = load_partition_script()
+            refreshed = script.regenerate(CI, self.root, base, 'c' * 40)
+            self.assertEqual(refreshed, script.regenerate(CI, self.root, base, 'c' * 40))
+            # The census head is carried over; the generation head names this checkout.
+            self.assertEqual((refreshed['sourceCensusHead'], refreshed['generatedAtHead']),
+                             (base['sourceCensusHead'], 'c' * 40))
+            owners = {selector: partition['id'] for partition in refreshed['partitions'] for selector in partition['selectors']}
+            self.assertTrue(set(SHARED_FIXTURE_EXPECTED) <= set(owners))
+            self.write_partitions(script.encode(refreshed))
+            CI.load_coverage_partitions(self.root)
+        finally:
+            added.unlink()
+            other.unlink()
+        with self.assertRaisesRegex(ValueError, r'5 extra .*SharedCoverageChildTests/testChildOwn'):
+            CI.load_coverage_partitions(self.root)
+
+    def test_discovery_counts_extensions_and_inheritance_and_fails_closed_on_unusual_tests(self):
+        fixture = self.root / 'FieldEvidenceAppTests/SharedCoverageFixtureTests.swift'
+        other = self.root / 'FieldEvidenceAppTests/SharedCoverageOtherFileTests.swift'
+        try:
+            fixture.write_bytes(SHARED_FIXTURE_SOURCE.encode())
+            other.write_bytes(SHARED_FIXTURE_OTHER_FILE.encode())
+            found = CI.discover_unit_test_methods(self.root)
+            self.assertEqual(sorted(set(found) - set(self.discovered)), SHARED_FIXTURE_EXPECTED)
+            hostile = {
+                'nested XCTestCase subclass': SHARED_FIXTURE_SOURCE.replace(
+                    '    struct Nested {', '    final class NestedTests: XCTestCase { func testNested() {} }\n    struct Nested {'),
+                'unsupported test method signature': SHARED_FIXTURE_SOURCE.replace(
+                    'func testChildOwn() async throws {}', 'func testChildOwn() -> Int { 0 }'),
+                'duplicate unit test class declaration': SHARED_FIXTURE_SOURCE + '\nfinal class SharedCoverageBaseTests {}\n',
+            }
+            for pattern, source in hostile.items():
+                with self.subTest(pattern=pattern):
+                    fixture.write_bytes(source.encode())
+                    with self.assertRaisesRegex(ValueError, pattern):
+                        CI.discover_unit_test_methods(self.root)
+        finally:
+            fixture.unlink()
+            other.unlink()
+        self.assertEqual(CI.discover_unit_test_methods(self.root), self.discovered)
+
+    def test_discovery_requires_the_plain_synchronized_unit_test_group(self):
+        path = self.root / CI.UNIT_PROJECT_PATH
+        original = path.read_text(encoding='utf-8')
+        self.addCleanup(path.write_text, original, encoding='utf-8', newline='\n')
+        test_group = ('A00000000000000000000005 /* FieldEvidenceAppTests */ = {\n'
+                      '\t\t\tisa = PBXFileSystemSynchronizedRootGroup;\n')
+        end_exceptions = '/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */\n'
+        test_exceptions = ('\t\tA00000000000000000000045 /* Exceptions in FieldEvidenceAppTests */ = {\n'
+                           '\t\t\tisa = PBXFileSystemSynchronizedBuildFileExceptionSet;\n'
+                           '\t\t\tmembershipExceptions = (\n\t\t\t\tSharedCoverageFixtureTests.swift,\n\t\t\t);\n'
+                           '\t\t\ttarget = A00000000000000000000031 /* FieldEvidenceAppTests */;\n\t\t};\n')
+        phase_exceptions = ('\t\tA00000000000000000000046 /* Build phase exceptions */ = {\n'
+                            '\t\t\tisa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;\n'
+                            '\t\t\tbuildPhase = A00000000000000000000027 /* Sources */;\n'
+                            '\t\t\tmembershipExceptions = (\n\t\t\t\tShared.swift,\n\t\t\t);\n\t\t};\n')
+        test_sources = ('A00000000000000000000027 /* Sources */ = {\n\t\t\tisa = PBXSourcesBuildPhase;\n'
+                        '\t\t\tbuildActionMask = 2147483647;\n\t\t\tfiles = (\n')
+        test_target_groups = ('\t\t\t\tA00000000000000000000005 /* FieldEvidenceAppTests */,\n'
+                              '\t\t\t);\n\t\t\tname = FieldEvidenceAppTests;\n')
+        hostile = {
+            'unit test synchronized group has membership exceptions': remove_exactly_once(
+                remove_exactly_once(original, test_group, test_group + '\t\t\texceptions = (\n'
+                                    '\t\t\t\tA00000000000000000000045 /* Exceptions in FieldEvidenceAppTests */,\n\t\t\t);\n'),
+                end_exceptions, test_exceptions + end_exceptions),
+            'membership exception set applies to the unit test target: A00000000000000000000044': remove_exactly_once(
+                original, '\t\t\ttarget = A00000000000000000000030 /* FieldEvidenceApp */;\n\t\t};\n' + end_exceptions,
+                '\t\t\ttarget = A00000000000000000000031 /* FieldEvidenceAppTests */;\n\t\t};\n' + end_exceptions),
+            'membership exception set applies to the unit test target: A00000000000000000000046': remove_exactly_once(
+                original, end_exceptions, phase_exceptions + end_exceptions),
+            'unit test target has explicit source files': remove_exactly_once(
+                original, test_sources, test_sources + '\t\t\t\tA00000000000000000000014 /* FieldEvidence.storekit */,\n'),
+            'unit test target synchronized groups': remove_exactly_once(
+                original, test_target_groups, '\t\t\t\tA00000000000000000000004 /* FieldEvidenceApp */,\n' + test_target_groups),
+            'unit test synchronized root group': remove_exactly_once(
+                original, '\t\t\tpath = FieldEvidenceAppTests;\n', '\t\t\tpath = OtherTests;\n'),
+            'unit test project': original[:-12],
+        }
+        for pattern, text in hostile.items():
+            with self.subTest(pattern=pattern):
+                path.write_text(text, encoding='utf-8', newline='\n')
+                with self.assertRaisesRegex(ValueError, re.escape(pattern)):
+                    CI.discover_unit_test_methods(self.root)
+        # The admitted partitions path runs the same check before any selection exists.
+        path.write_text(hostile['unit test synchronized group has membership exceptions'], encoding='utf-8', newline='\n')
+        with self.assertRaisesRegex(ValueError, 'membership exceptions'):
+            CI.load_coverage_partitions(self.root)
+        path.unlink()
+        with self.assertRaisesRegex(ValueError, 'unit test target project file'):
+            CI.discover_unit_test_methods(self.root)
+        path.write_text(original, encoding='utf-8', newline='\n')
+        self.assertEqual(CI.discover_unit_test_methods(self.root), self.discovered)
+        CI.load_coverage_partitions(self.root)
+
+    def test_role_gating_budgets_and_bindings_are_closed(self):
+        for stage, role, partition in (('dispatch', 'none', ''), ('worker', 'producer', ''), ('worker', 'consumer', 'S27')):
+            e, selection, record = self.shared_environment(role, partition)
+            with mock.patch.object(CI.subprocess, 'check_output') as git:
+                admitted = CI.admission(selection, e, HEAD, stage, record, ROOT)
+            git.assert_not_called()
+            self.assertEqual(admitted[CI.SHARED_KEY]['role'], role)
+            self.assertEqual((admitted['diagnosticOnly'], admitted['providerQualification'], admitted['acceptance'],
+                              admitted['releaseReady']), (True, False, False, False))
+        e, consumer, record = self.shared_environment('consumer', 'S27')
+        s25 = CI.shared_selection(ROOT, 'S25')
+
+        def rebound(changed):
+            # A self-consistent record for the changed inputs, so only the named check can deny.
+            return dict(record, **{CI.SHARED_KEY: CI.shared_record_binding(ROOT, changed, self.plan)})
+        wrong_name = dict(e, V23_PAYLOAD_ARTIFACT_NAME='v23-shared-payload-123-2-' + HEAD)
+        second_attempt = dict(e, GITHUB_RUN_ATTEMPT='2', V23_PAYLOAD_ARTIFACT_NAME='v23-shared-payload-123-2-' + HEAD)
+        denied = [
+            ('dispatcher selection digest', consumer, record, dict(e, DISPATCH_NATIVE_SELECTION_SHA256=record['selectionSHA256'])),
+            ('shared coverage payload artifact name', consumer, rebound(wrong_name), wrong_name),
+            ('shared coverage record binding', consumer, record, dict(e, V23_PARTITION_ID='S25')),
+            ('shared coverage role/partition selection binding', s25,
+             dict(record, selectionSHA256=CI.sha256(CI.canonical(s25))), e),
+            ('shared coverage role/partition selection binding', self.plan, record, e),
+            ('shared coverage GitHub route only', consumer, record, dict(e, **{
+                key: value for key, value in environment('bitrise').items() if key.startswith(('CI_RUNNER', 'SHARED_LANE'))})),
+            ('shared coverage original attempt only', consumer, rebound(second_attempt), second_attempt),
+        ]
+        for pattern, selection, bound, changed in denied:
+            with self.subTest(pattern=pattern), self.assertRaisesRegex(ValueError, pattern):
+                CI.admission(selection, changed, HEAD, 'worker', bound, ROOT)
+        e, plan, record = self.shared_environment('producer')
+        for changed in (dict(e, V23_SHARED_ROLE='none'), dict(e, V23_PARTITION_ID='S27'), dict(e, V23_SHARED_ROLE='observer')):
+            with self.assertRaises(ValueError):
+                CI.admission(plan, changed, HEAD, 'worker', record, ROOT)
+        # Shared inputs never reach another route, and the shared shape never leaves this one.
+        mount = CI.resolve_selection(CI.read_json(ROOT / 'Scripts/ci-selection.json'),
+                                     CI.read_json(ROOT / CI.SELECTION_MAP_PATH), CI.ROUND_ITEM_MOUNT_SELECTION_ID)
+        with self.assertRaisesRegex(ValueError, 'V23 shared inputs outside the shared route'):
+            CI.selected_input(ROOT, dict(environment(), NATIVE_SELECTION_ID=CI.ROUND_ITEM_MOUNT_SELECTION_ID,
+                                         V23_SHARED_ROLE='producer'))
+        for identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.DEFAULT_SELECTION_ID):
+            with self.assertRaises(ValueError):
+                CI.admission(plan, e, HEAD, 'worker', dict(record, selectionID=identifier), ROOT)
+        with self.assertRaises(ValueError):
+            CI.admission(mount, e, HEAD, 'worker', dict(record, selectionSHA256=CI.sha256(CI.canonical(mount))), ROOT)
+        # Tiers and bindings are closed.
+        self.assertEqual((CI.TIERS['D40P'], CI.TIERS['D50C']), ((300, 2400, 0, 0, 3000), (300, 0, 3000, 0, 3600)))
+        binding = consumer[CI.SHARED_KEY]
+        for value in (dict(mount, tier='D40P', **dict(zip(CI.BUDGET_KEYS, CI.TIERS['D40P']))),
+                      dict(consumer, testTimeoutSeconds=3001), dict(consumer, runUISmoke=True),
+                      dict(consumer, **{CI.SHARED_KEY: dict(binding, acceptance=True)}),
+                      dict(consumer, **{CI.SHARED_KEY: dict(binding, developmentOnly=False)}),
+                      dict(consumer, **{CI.SHARED_KEY: dict(binding, partitionID='S99')}),
+                      dict(consumer, **{CI.SHARED_KEY: dict(binding, partitionID=None)}),
+                      dict(self.plan, **{CI.SHARED_KEY: dict(self.plan[CI.SHARED_KEY], partitionID='S27')}),
+                      dict(consumer, unitTestSelectors=self.plan['unitTestSelectors'][:501])):
+            with self.assertRaises(ValueError):
+                CI.validate_selection(value)
+        # The worker filter admits each shape only under the matching route, role and partition.
+        route = {'NATIVE_SELECTION_ID': SHARED_ROUTE}
+        self.assertEqual(self.jq(self.plan, V23_SHARED_ROLE='producer', **route), 0)
+        self.assertEqual(self.jq(consumer, V23_SHARED_ROLE='consumer', V23_PARTITION_ID='S27', **route), 0)
+        for value, env in ((self.plan, {}), (self.plan, dict(route, V23_SHARED_ROLE='consumer')),
+                           (self.plan, dict(route, V23_SHARED_ROLE='producer', V23_PARTITION_ID='S27')),
+                           (consumer, dict(route, V23_SHARED_ROLE='consumer', V23_PARTITION_ID='S25')),
+                           (consumer, dict(route, V23_SHARED_ROLE='producer')),
+                           (mount, dict(route, V23_SHARED_ROLE='producer')),
+                           (dict(consumer, testTimeoutSeconds=3001), dict(route, V23_SHARED_ROLE='consumer', V23_PARTITION_ID='S27')),
+                           (dict(consumer, **{CI.SHARED_KEY: dict(binding, acceptance=True)}),
+                            dict(route, V23_SHARED_ROLE='consumer', V23_PARTITION_ID='S27'))):
+            with self.subTest(env=env):
+                self.assertNotEqual(self.jq(value, **env), 0)
+        self.assertEqual(self.jq(mount), 0)
+
+    def producer_fixture(self, temp):
+        import plistlib
+        artifact = temp / 'FieldEvidenceCI'
+        artifact.mkdir()
+        products = temp / 'FieldEvidenceDerivedData/Build/Products'
+        app = products / 'Debug-iphonesimulator/FieldEvidenceApp.app'
+        (app / 'PlugIns/FieldEvidenceAppTests.xctest').mkdir(parents=True)
+        (app / 'FieldEvidenceApp').write_bytes(b'fixture app executable')
+        (app / 'Info.plist').write_bytes(b'fixture plist')
+        (app / 'PlugIns/FieldEvidenceAppTests.xctest/FieldEvidenceAppTests').write_bytes(b'fixture test bundle')
+        with (products / 'FieldEvidenceApp_iphonesimulator26.5-arm64.xctestrun').open('wb') as stream:
+            plistlib.dump(SHARED_XCTESTRUN, stream)
+        e, selection, record = self.shared_environment('producer')
+        e.update(PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp', CONFIGURATION='Debug',
+                 CODE_SIGNING_ALLOWED='NO', CI_SIMULATOR_UDID=UDID, CI_DESTINATION='platform=iOS Simulator,id=' + UDID,
+                 CI_ARTIFACT_DIR=str(artifact), RUNNER_TEMP=str(temp))
+        with mock.patch.object(CI.subprocess, 'check_output'):
+            record = CI.admission(selection, e, HEAD, 'worker', record, ROOT)
+        record['gitTree'] = 'a' * 40
+        (artifact / 'native-admission.json').write_bytes(CI.canonical(record))
+        (artifact / 'xcode-version.txt').write_text('Xcode 26.6\nBuild version 17F113\n')
+        (artifact / 'native-sdk.txt').write_text('sdk=iphonesimulator\nversion=26.5\nbuild=23F81a\n')
+        receipt = CI.no_index_build_receipt(ROOT, artifact, record, e)
+        (artifact / CI.NO_INDEX_RECEIPT).write_bytes(CI.canonical(receipt))
+        argv = ['/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild'] + receipt['argv'][1:]
+        (artifact / 'build-smoke.log').write_text('Command line invocation:\n    ' + shlex.join(argv)
+                                                   + '\nbuiltin-SwiftDriver -- /swiftc\n** TEST BUILD SUCCEEDED **\n')
+        (artifact / 'Build.xcresult').mkdir()
+        (artifact / 'Build.xcresult/result').write_bytes(b'fixture')
+        return e, selection, record, artifact
+
+    def consumer_fixture(self, temp, transport, partition='S09', **record_changes):
+        artifact = temp / 'FieldEvidenceCI'
+        artifact.mkdir()
+        download = temp / CI.SHARED_DOWNLOAD_DIRECTORY
+        download.mkdir()
+        for name in (CI.SHARED_TAR, CI.SHARED_TAR_DIGEST):
+            shutil.copyfile(transport / name, download / name)
+        e, selection, record = self.shared_environment('consumer', partition)
+        e.update(RUNNER_TEMP=str(temp), CI_ARTIFACT_DIR=str(artifact), CI_SIMULATOR_UDID=UDID, CONFIGURATION='Debug')
+        with mock.patch.object(CI.subprocess, 'check_output'):
+            record = CI.admission(selection, e, HEAD, 'worker', record, ROOT)
+        record.update({'gitTree': 'a' * 40, **record_changes})
+        (artifact / 'native-admission.json').write_bytes(CI.canonical(record))
+        (artifact / 'xcode-version.txt').write_text('Xcode 26.6\nBuild version 17F113\n')
+        (artifact / 'native-sdk.txt').write_text('sdk=iphonesimulator\nversion=26.5\nbuild=23F81a\n')
+        return e, selection, record, artifact
+
+    def test_seal_restore_and_fingerprints_bind_one_exact_payload(self):
+        self.assertTrue(all(callable(self.kernel[name]) for name in (
+            'collect', 'inventory', 'copy_tree', 'extract_tar', 'sha256_file', 'object_sha')))
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(CI.platform, 'machine', return_value='arm64'):
+            base = Path(directory).resolve()
+            temp = base / 'producer'
+            temp.mkdir()
+            e, _, record, artifact = self.producer_fixture(temp)
+            receipt = CI.shared_seal(ROOT, artifact, record, e, self.kernel)
+            self.assertEqual(CI.verify_shared_producer(ROOT, artifact, record, e)['archive'], receipt['archive'])
+            # The archive is deterministic: the same payload root yields identical bytes.
+            again = CI.shared_payload_archive(self.kernel, temp / CI.SHARED_PAYLOAD_DIRECTORY, base / 'again.tar')
+            self.assertEqual(again['sha256'], receipt['archive']['sha256'])
+            transport = temp / CI.SHARED_TRANSPORT_DIRECTORY
+            with open(transport / CI.SHARED_TAR, 'ab') as stream:
+                stream.write(b'x')
+            with self.assertRaisesRegex(ValueError, 'sealed payload archive changed'):
+                CI.verify_shared_producer(ROOT, artifact, record, e)
+            with open(transport / CI.SHARED_TAR, 'rb+') as stream:
+                stream.truncate(receipt['archive']['bytes'])
+            CI.verify_shared_producer(ROOT, artifact, record, e)
+            self.assertEqual(sorted(item.name for item in transport.iterdir()), [CI.SHARED_TAR, CI.SHARED_TAR_DIGEST])
+            metadata = CI.read_json(artifact / CI.SHARED_PAYLOAD_METADATA)
+            self.assertEqual((metadata['head'], metadata['workspace'], metadata['payloadArtifactName'],
+                              metadata['developmentOnly'], metadata['acceptance']),
+                             (HEAD, str(ROOT), 'v23-shared-payload-123-1-' + HEAD, True, False))
+            with self.assertRaisesRegex(ValueError, 'shared seal is producer-only'):
+                CI.shared_seal(ROOT, artifact, dict(record, **{CI.SHARED_KEY: dict(record[CI.SHARED_KEY], role='consumer')}),
+                               e, self.kernel)
+            # Consumer: exact restore, then unchanged products before and after tests.
+            consumer = base / 'consumer'
+            consumer.mkdir()
+            e, selection, record, artifact = self.consumer_fixture(consumer, transport)
+            restore = CI.shared_restore(ROOT, artifact, record, e, self.kernel)
+            self.assertEqual(restore['productsTreeSHA256'], metadata['products']['treeSHA256'])
+            self.assertTrue((consumer / 'FieldEvidenceDerivedData/Build/Products').is_dir())
+            (artifact / 'test-smoke.log').write_text('** TEST EXECUTE SUCCEEDED **\n', encoding='utf-8')
+            for phase in ('before', 'after'):
+                self.assertTrue(CI.shared_fingerprint(ROOT, artifact, record, e, phase, self.kernel)['matchesProducer'])
+            self.assertEqual(CI.verify_shared_consumer(ROOT, artifact, record, selection, dict(
+                e, CI_NATIVE_CREATED_SIMULATOR_UDID=UDID))['partitionID'], 'S09')
+            # A rebuild or a changed product after tests is retained, then fails closed.
+            objects = consumer / 'FieldEvidenceDerivedData/Build/Intermediates.noindex/FieldEvidenceAppTests.build/arm64'
+            objects.mkdir(parents=True)
+            (objects / 'SharedCoverage.o').write_bytes(b'object')
+            for name in ('v23-shared-fingerprint-after.json', CI.SHARED_DERIVED_DATA_DELTA):
+                (artifact / name).unlink()
+            with self.assertRaisesRegex(ValueError, 'build evidence present'):
+                CI.shared_fingerprint(ROOT, artifact, record, e, 'after', self.kernel)
+            self.assertEqual(CI.read_json(artifact / 'v23-shared-fingerprint-after.json')['buildEvidence'],
+                             ['DerivedData/Build/Intermediates.noindex/FieldEvidenceAppTests.build/arm64/SharedCoverage.o'])
+            shutil.rmtree(consumer / 'FieldEvidenceDerivedData/Build/Intermediates.noindex')
+            for name in ('v23-shared-fingerprint-after.json', CI.SHARED_DERIVED_DATA_DELTA):
+                (artifact / name).unlink()
+            (consumer / 'FieldEvidenceDerivedData/Build/Products/Debug-iphonesimulator/FieldEvidenceApp.app/Info.plist').write_bytes(b'changed')
+            with self.assertRaisesRegex(ValueError, "differ from the producer's"):
+                CI.shared_fingerprint(ROOT, artifact, record, e, 'after', self.kernel)
+            # Hostile downloads and bindings are refused before any product is restored.
+            hostile = {
+                'digest or size': lambda t, a: (t / CI.SHARED_DOWNLOAD_DIRECTORY / CI.SHARED_TAR_DIGEST).write_bytes(
+                    b'0' * 64 + b' 1 FieldEvidencePayload.tar\n'),
+                'download members': lambda t, a: (t / CI.SHARED_DOWNLOAD_DIRECTORY / 'extra').write_bytes(b''),
+                'restored, never built': lambda t, a: (a / 'build-smoke.log').write_text('built\n'),
+            }
+            for index, (pattern, mutate) in enumerate(hostile.items()):
+                temp = base / ('hostile-%d' % index)
+                temp.mkdir()
+                e, _, record, artifact = self.consumer_fixture(temp, transport)
+                mutate(temp, artifact)
+                with self.subTest(pattern=pattern), self.assertRaisesRegex(ValueError, pattern):
+                    CI.shared_restore(ROOT, artifact, record, e, self.kernel)
+                self.assertFalse((temp / 'FieldEvidenceDerivedData').exists())
+            for index, (pattern, changes) in enumerate((('binding differs: gitTree', {'gitTree': 'b' * 40}),
+                                                        ('binding differs: runID', {'runID': '124'}))):
+                temp = base / ('binding-%d' % index)
+                temp.mkdir()
+                e, _, record, artifact = self.consumer_fixture(temp, transport, **changes)
+                with self.subTest(pattern=pattern), self.assertRaisesRegex(ValueError, pattern):
+                    CI.shared_restore(ROOT, artifact, record, e, self.kernel)
+            # A traversal member is refused by the kernel extractor even with a matching digest.
+            temp = base / 'traversal'
+            temp.mkdir()
+            e, _, record, artifact = self.consumer_fixture(temp, transport)
+            tar = temp / CI.SHARED_DOWNLOAD_DIRECTORY / CI.SHARED_TAR
+            tar.unlink()
+            with tarfile.open(tar, 'x', format=tarfile.PAX_FORMAT) as archive:
+                info = tarfile.TarInfo('FieldEvidencePayload/../escape')
+                info.size = 1
+                archive.addfile(info, io.BytesIO(b'x'))
+            (temp / CI.SHARED_DOWNLOAD_DIRECTORY / CI.SHARED_TAR_DIGEST).write_bytes(
+                ('%s %d %s\n' % (CI.sha256(tar.read_bytes()), tar.stat().st_size, CI.SHARED_TAR)).encode())
+            with self.assertRaises(ValueError):
+                CI.shared_restore(ROOT, artifact, record, e, self.kernel)
+            self.assertFalse((temp / 'escape').exists())
+
+    def test_after_tests_only_compile_or_link_evidence_fails_and_new_entries_are_listed(self):
+        import gzip
+
+        def activity(*strings):
+            # SLF-style body: each string is its decimal length, a quote, then its bytes.
+            return gzip.compress(b'SLF010#' + b''.join(b'%d"%s' % (len(item), item) for item in strings), mtime=0)
+        passing_log = ('Command line invocation:\n    /Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild'
+                       ' -project FieldEvidenceApp.xcodeproj test-without-building\n'
+                       "Test Case '-[FieldEvidenceAppTests.SharedCoverageTests testLdAndCompileSwiftNames]' passed.\n"
+                       '    note: no clang or swiftc invocation\n** TEST EXECUTE SUCCEEDED **\n')
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(CI.platform, 'machine', return_value='arm64'):
+            base = Path(directory).resolve()
+            producer = base / 'producer'
+            producer.mkdir()
+            e, _, record, artifact = self.producer_fixture(producer)
+            CI.shared_seal(ROOT, artifact, record, e, self.kernel)
+            consumer = base / 'consumer'
+            consumer.mkdir()
+            e, selection, record, artifact = self.consumer_fixture(consumer, producer / CI.SHARED_TRANSPORT_DIRECTORY)
+            derived = consumer / 'FieldEvidenceDerivedData'
+            CI.shared_restore(ROOT, artifact, record, e, self.kernel)
+            before = CI.shared_fingerprint(ROOT, artifact, record, e, 'before', self.kernel)
+            self.assertEqual(before['derivedDataEntries'], [{'path': 'Build', 'type': 'directory'}])
+
+            def after(files, log=passing_log):
+                for name in ('v23-shared-fingerprint-after.json', CI.SHARED_DERIVED_DATA_DELTA, 'test-smoke.log'):
+                    if (artifact / name).exists():
+                        (artifact / name).unlink()
+                for name in ('Logs', 'Build/Intermediates.noindex', 'info.plist'):
+                    if (derived / name).is_dir():
+                        shutil.rmtree(derived / name)
+                    elif (derived / name).exists():
+                        (derived / name).unlink()
+                for relative, data in files.items():
+                    (derived / relative).parent.mkdir(parents=True, exist_ok=True)
+                    (derived / relative).write_bytes(data)
+                if log is not None:
+                    (artifact / 'test-smoke.log').write_text(log, encoding='utf-8')
+                return lambda: CI.shared_fingerprint(ROOT, artifact, record, e, 'after', self.kernel)
+            # Bookkeeping the scheme command may write passes and every new entry is listed.
+            bookkeeping = {
+                'Logs/Build/LogStoreManifest.plist': b'<plist/>',
+                'Logs/Build/0A1B.xcactivitylog': activity(b'Prepare build', b'Computing target dependency graph'),
+                'Logs/Test/LogStoreManifest.plist': b'<plist/>',
+                'Build/Intermediates.noindex/XCBuildData/build.db': b'database',
+                'Build/Intermediates.noindex/XCBuildData/PIFCache/project/PROJECT@v11.json': b'{}',
+                'info.plist': b'<plist/>',
+            }
+            value = after(bookkeeping)()
+            self.assertEqual((value['buildEvidence'], value['matchesBefore'], value['matchesProducer']), ([], True, True))
+            raw = (artifact / CI.SHARED_DERIVED_DATA_DELTA).read_bytes()
+            delta = CI.read_json(artifact / CI.SHARED_DERIVED_DATA_DELTA)
+            self.assertEqual({item['path']: item for item in delta['added'] if item['type'] == 'file'}, {
+                relative: {'path': relative, 'type': 'file', 'size': len(data), 'sha256': CI.sha256(data)}
+                for relative, data in bookkeeping.items()})
+            self.assertEqual(sorted(item['path'] for item in delta['added'] if item['type'] == 'directory'), [
+                'Build/Intermediates.noindex', 'Build/Intermediates.noindex/XCBuildData',
+                'Build/Intermediates.noindex/XCBuildData/PIFCache', 'Build/Intermediates.noindex/XCBuildData/PIFCache/project',
+                'Logs', 'Logs/Build', 'Logs/Test'])
+            self.assertEqual((delta['addedCount'], delta['changedCount'], delta['removedCount'], delta['compileEvidence'],
+                              delta['excludedSubtree'], delta['developmentOnly'], delta['acceptance']),
+                             (13, 0, 0, [], 'Build/Products', True, False))
+            self.assertEqual(value['derivedDataDelta'], {'path': CI.SHARED_DERIVED_DATA_DELTA, 'sha256': CI.sha256(raw),
+                                                         'addedCount': 13, 'changedCount': 0, 'removedCount': 0})
+            verified = CI.verify_shared_consumer(ROOT, artifact, record, selection, dict(e, CI_NATIVE_CREATED_SIMULATOR_UDID=UDID))
+            self.assertEqual(verified['derivedDataDelta'], value['derivedDataDelta'])
+            (artifact / CI.SHARED_DERIVED_DATA_DELTA).write_bytes(raw.replace(b'"addedCount":13', b'"addedCount":12'))
+            with self.assertRaisesRegex(ValueError, 'shared DerivedData delta record'):
+                CI.verify_shared_consumer(ROOT, artifact, record, selection, dict(e, CI_NATIVE_CREATED_SIMULATOR_UDID=UDID))
+            # Compiler outputs, compile/link steps in activity logs and compile/link lines in
+            # the test log fail closed, and the evidence is retained in both records.
+            objects = 'Build/Intermediates.noindex/FieldEvidenceApp.build/Debug-iphonesimulator/FieldEvidenceAppTests.build/arm64/'
+            failing = [(dict(bookkeeping, **{objects + name: b'x'}), passing_log, 'DerivedData/' + objects + name)
+                       for name in ('SharedCoverage.o', 'FieldEvidenceAppTests.swiftmodule',
+                                    'SharedCoverage.swiftdeps', 'SharedCoverage.dia')]
+            failing += [
+                ({'Logs/Build/0A1C.xcactivitylog': activity(b'SwiftCompile normal arm64 /w/A.swift')}, passing_log,
+                 'DerivedData/Logs/Build/0A1C.xcactivitylog: SwiftCompile step'),
+                ({'Logs/Build/0A1C.xcactivitylog': activity(b'Ld /w/FieldEvidenceApp.debug.dylib normal')}, passing_log,
+                 'DerivedData/Logs/Build/0A1C.xcactivitylog: Ld step'),
+                ({'Logs/Build/0A1C.xcactivitylog': b'not gzip'}, passing_log,
+                 'DerivedData/Logs/Build/0A1C.xcactivitylog: unreadable activity log'),
+                ({}, passing_log + "SwiftCompile normal arm64 /w/A.swift (in target 'FieldEvidenceAppTests')\n",
+                 'test-smoke.log:6: SwiftCompile normal arm64'),
+                ({}, passing_log + 'Ld /w/FieldEvidenceApp.debug.dylib normal (in target)\n', 'test-smoke.log:6: Ld '),
+                ({}, passing_log + '    builtin-swiftTaskExecution -- /x/swift-frontend -frontend -c\n',
+                 'test-smoke.log:6: builtin-swiftTaskExecution'),
+                ({}, passing_log + '    /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain'
+                     '/usr/bin/clang -Xlinker -dynamiclib\n', 'test-smoke.log:6: /Applications/'),
+                ({}, passing_log + '** TEST BUILD SUCCEEDED **\n', 'test-smoke.log:6: ** TEST BUILD SUCCEEDED **'),
+                ({}, None, 'test-smoke.log: unavailable for the compile scan'),
+            ]
+            for files, log, expected in failing:
+                with self.subTest(expected=expected):
+                    run = after(files, log)
+                    with self.assertRaisesRegex(ValueError, 'build evidence present'):
+                        run()
+                    evidence = CI.read_json(artifact / 'v23-shared-fingerprint-after.json')['buildEvidence']
+                    self.assertTrue(any(item.startswith(expected) for item in evidence), evidence)
+                    self.assertEqual(CI.read_json(artifact / CI.SHARED_DERIVED_DATA_DELTA)['compileEvidence'], evidence)
+            # Any change to the products fingerprint fails, even with no compile evidence.
+            app = derived / 'Build/Products/Debug-iphonesimulator/FieldEvidenceApp.app'
+            plist = (app / 'Info.plist').read_bytes()
+            for mutate, undo in ((lambda: (app / 'Info.plist').write_bytes(b'changed'),
+                                  lambda: (app / 'Info.plist').write_bytes(plist)),
+                                 (lambda: (app / 'Added.txt').write_bytes(b'new'), lambda: (app / 'Added.txt').unlink())):
+                run = after(bookkeeping)
+                mutate()
+                try:
+                    with self.assertRaisesRegex(ValueError, "differ from the producer's"):
+                        run()
+                    value = CI.read_json(artifact / 'v23-shared-fingerprint-after.json')
+                    self.assertEqual((value['buildEvidence'], value['matchesProducer'], value['matchesBefore']), ([], False, False))
+                finally:
+                    undo()
+            after(bookkeeping)()
+
+    def facts(self, artifact):
+        (artifact / 'runner-provider.txt').write_text(
+            'provider=github\nlabel=macos-26\nrunner_architecture=ARM64\nuname_architecture=arm64\n'
+            'developer_dir=/Applications/Xcode_26.6.app/Contents/Developer\n')
+        (artifact / 'simulator-selection.txt').write_text(
+            f'runtime=iOS 26.2\nruntime_build=23C54\nname=iPhone 17\nudid={UDID}\ninitial_state=Shutdown\n')
+
+    def test_checkpoints_are_role_exact_and_never_acceptance(self):
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(CI.platform, 'machine', return_value='arm64'):
+            base = Path(directory).resolve()
+            producer = base / 'producer'
+            producer.mkdir()
+            e, plan, record, artifact = self.producer_fixture(producer)
+            CI.shared_seal(ROOT, artifact, record, e, self.kernel)
+            (artifact / 'ci-selection.selected.json').write_bytes(CI.canonical(plan))
+            shutil.copyfile(ROOT / CI.SELECTION_MAP_PATH, artifact / 'ci-selection-map.json')
+            self.facts(artifact)
+            result = CI.verify_checkpoint(ROOT, artifact, record, plan, e)
+            self.assertEqual((result['executedUnitMethods'], result['simulatorFileProtectionDiagnostics']), ([], None))
+            self.assertEqual(result['sharedCoverageEvidence']['testsExecuted'], 0)
+            self.assertEqual((result['acceptance'], result['providerQualification'], result['diagnosticOnly']),
+                             (False, False, True))
+            (artifact / 'test-smoke.log').write_text('unexpected\n')
+            with self.assertRaisesRegex(ValueError, 'shared producer test evidence'):
+                CI.verify_checkpoint(ROOT, artifact, record, plan, e)
+            consumer = base / 'consumer'
+            consumer.mkdir()
+            e, selection, record, artifact = self.consumer_fixture(consumer, producer / CI.SHARED_TRANSPORT_DIRECTORY)
+            e['CI_NATIVE_CREATED_SIMULATOR_UDID'] = UDID
+            CI.shared_restore(ROOT, artifact, record, e, self.kernel)
+            (artifact / 'test-smoke.log').write_text('native fixture completed\n', encoding='utf-8')
+            for phase in ('before', 'after'):
+                CI.shared_fingerprint(ROOT, artifact, record, e, phase, self.kernel)
+            (artifact / 'ci-selection.selected.json').write_bytes(CI.canonical(selection))
+            shutil.copyfile(ROOT / CI.SELECTION_MAP_PATH, artifact / 'ci-selection-map.json')
+            self.facts(artifact)
+            diagnostic_transport(artifact)
+            methods = selection['unitTestSelectors']
+            for executed, accepted in ((methods, True), (methods + [UNIT], False), ([UNIT], False)):
+                if (artifact / CI.SIMULATOR_DIAGNOSTIC_OUTPUT).exists():
+                    (artifact / CI.SIMULATOR_DIAGNOSTIC_OUTPUT).unlink()
+                tree = native_tree(executed[0])
+                tree['testNodes'][0]['children'][0]['children'][0]['children'] = [
+                    copy.deepcopy(leaf(native_tree(method))) for method in executed]
+                (artifact / 'unit-test-results.json').write_bytes(CI.canonical(tree))
+                with self.subTest(executed=len(executed)):
+                    if accepted:
+                        result = CI.verify_checkpoint(ROOT, artifact, record, selection, e)
+                        self.assertEqual(result['executedUnitMethods'], sorted(methods))
+                        self.assertEqual(result['sharedCoverageEvidence']['partitionID'], 'S09')
+                        self.assertFalse(result['acceptance'])
+                    else:
+                        with self.assertRaises(ValueError):
+                            CI.verify_checkpoint(ROOT, artifact, record, selection, e)
+            (artifact / CI.SIMULATOR_DIAGNOSTIC_OUTPUT).unlink()
+            (artifact / 'build-smoke.log').write_text('built\n')
+            with self.assertRaises(ValueError):
+                CI.verify_checkpoint(ROOT, artifact, record, selection, e)
+
+    def test_workflow_jobs_concurrency_and_artifact_names_are_role_and_partition_exact(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        self.assertEqual(options.count(SHARED_ROUTE), 1)
+        self.assertEqual(len(options), len(set(options)))
+        self.assertIn('      native_shared_partitions: ${{ steps.native_selection.outputs.native_shared_partitions }}\n', workflow)
+        jobs = workflow.split('\n  v23-shared-producer:\n', 1)[1].split('\n  getmac-shard:\n', 1)[0]
+        producer, consumer = jobs.split('\n  v23-shared-consumer:\n')
+        for text in (producer, consumer):
+            self.assertIn("inputs.execution_lane == 'github-xcode-26.6-acceptance' && inputs.native_selection_id == '" + SHARED_ROUTE + "'", text)
+            self.assertIn('uses: ./.github/workflows/ios-ci-worker.yml', text)
+            self.assertIn('runner_label: macos-26\n      runner_provider: github\n', text)
+            self.assertIn('run_ui_smoke: false\n', text)
+            self.assertIn('v23_payload_artifact_name: v23-shared-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}\n', text)
+        self.assertIn('    needs: shared-selection\n', producer)
+        self.assertIn('      v23_shared_role: producer\n', producer)
+        self.assertNotIn('v23_partition_id', producer)
+        self.assertIn('    needs: [shared-selection, v23-shared-producer]\n', consumer)
+        self.assertIn("needs.v23-shared-producer.result == 'success'", consumer)
+        self.assertIn('    strategy:\n      fail-fast: false\n      max-parallel: 5\n      matrix:\n'
+                      "        partition_id: ${{ fromJSON(needs.shared-selection.outputs.native_shared_partitions || '[\"none\"]') }}\n",
+                      consumer)
+        self.assertIn('      v23_shared_role: consumer\n      v23_partition_id: ${{ matrix.partition_id }}\n', consumer)
+        shard = workflow.split('\n  github-shard:\n', 1)[1].split('\n  v23-shared-producer:\n', 1)[0]
+        self.assertIn("&& inputs.native_selection_id != '" + SHARED_ROUTE + "' }}", shard)
+        # Dispatch publishes the ordered matrix from the committed partition file.
+        head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'github-output'
+            output.write_text('')
+            e = dict(os.environ, **environment())
+            e.update(NATIVE_SELECTION_ID=SHARED_ROUTE, GITHUB_SHA=head, GITHUB_WORKSPACE=str(ROOT), GITHUB_OUTPUT=str(output))
+            for key in ('V23_SHARED_ROLE', 'V23_PARTITION_ID', 'V23_PAYLOAD_ARTIFACT_NAME', 'CI_NATIVE_ACCEPTANCE_CONTRACT'):
+                e.pop(key, None)
+            result = subprocess.run([sys.executable, str(ROOT / 'Scripts/v23-native-ci.py'), 'admit', '--stage', 'dispatch'],
+                                    env=e, capture_output=True, cwd=ROOT)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            outputs = dict(line.split('=', 1) for line in output.read_text().splitlines())
+        self.assertEqual(json.loads(outputs['native_shared_partitions']), self.plan[CI.SHARED_KEY]['partitionIDs'])
+        self.assertEqual(outputs['native_selection_sha256'], CI.sha256(CI.canonical(self.plan)))
+        worker = (ROOT / '.github/workflows/ios-ci-worker.yml').read_text(encoding='utf-8')
+        self.assertIn(SHARED_WORKER_INPUTS, worker)
+        group = re.search(r'(?m)^  group: (.+)$', worker).group(1)
+        self.assertIn("${{ inputs.v23_shared_role != 'none' && format('{0}-{1}-{2}-', inputs.v23_shared_role, inputs.v23_partition_id, github.run_id) || '' }}", group)
+        self.assertIn("format('ios-ci-native-{0}-{1}-{2}{3}-{4}-{5}', inputs.runner_provider, inputs.native_selection_id, inputs.v23_shared_role, inputs.v23_partition_id != '' && format('-{0}', inputs.v23_partition_id) || '', github.run_id, github.run_attempt)", worker)
+        names = {role + ('-' + partition if partition else ''): 'ios-ci-native-{0}-{1}-{2}{3}-{4}-{5}'.format(
+                    'github', SHARED_ROUTE, role, '-' + partition if partition else '', '123', '1')
+                 for role, partition in (('producer', ''), ('consumer', 'S27'), ('consumer', 'S01'))}
+        self.assertEqual(len(set(names.values())), 3)
+        self.assertEqual(names['consumer-S27'], 'ios-ci-native-github-' + SHARED_ROUTE + '-consumer-S27-123-1')
+        for name in SHARED_WORKER_STEPS:
+            self.assertEqual(worker.count('      - name: ' + name + '\n'), 1, name)
+        download = step(worker, 'Download V23 shared coverage payload')
+        self.assertIn("if: ${{ inputs.v23_shared_role == 'consumer' }}", download)
+        self.assertIn('name: ${{ inputs.v23_payload_artifact_name }}\n          path: ${{ runner.temp }}/V23SharedPayloadDownload', download)
+        upload = step(worker, 'Upload V23 shared coverage payload')
+        self.assertIn("if: ${{ inputs.v23_shared_role == 'producer' }}", upload)
+        self.assertIn('path: ${{ runner.temp }}/V23SharedPayloadTransport\n          if-no-files-found: error\n'
+                      '          retention-days: 3', upload)
+        self.assertIn("always() && inputs.v23_shared_role == 'consumer'", step(worker, 'Fingerprint V23 shared products after tests'))
+        self.assertIn("inputs.v23_shared_role != 'consumer'", step(worker, 'Build unsigned simulator app'))
+        self.assertIn("inputs.v23_shared_role != 'producer'", step(worker, 'Run targeted tests'))
+        order = [worker.index('      - name: ' + name + '\n') for name in (
+            'Verify and restore V23 shared coverage payload', 'Boot selected Simulator', 'Build unsigned simulator app',
+            'Seal V23 shared coverage payload', 'Upload V23 shared coverage payload',
+            'Fingerprint V23 shared products before tests', 'Run targeted tests',
+            'Fingerprint V23 shared products after tests', 'Validate exact ordinary integration native checkpoint')]
+        self.assertEqual(order, sorted(order))
+
+        def inputs(name):
+            body = step(worker, name).split('        run:', 1)[0]
+            return dict(re.findall(r'^          (DISPATCH_[A-Z0-9_]+): (.+)$', body, re.M))
+        admitted = inputs('Validate task selection and timeout tier')
+        for name in ('Verify and restore V23 shared coverage payload', 'Seal V23 shared coverage payload',
+                     'Fingerprint V23 shared products before tests', 'Fingerprint V23 shared products after tests'):
+            self.assertEqual(inputs(name), admitted, name)
+        source = (ROOT / 'Scripts/build-smoke.sh').read_text(encoding='utf-8')
+        self.assertEqual(source.count('[ "${NATIVE_SELECTION_ID:-none}" = ' + SHARED_ROUTE + ' ]'), 1)
+        with tempfile.TemporaryDirectory() as directory:
+            result, _, events, args = self.run_mock_build(directory, SHARED_ROUTE)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(events, ['receipt', 'build'])
+            self.assertEqual(args[-2:], ['COMPILER_INDEX_STORE_ENABLE=NO', 'build-for-testing'])
+
+    def test_consumer_shell_tests_restored_products_and_evidence_is_role_exact(self):
+        bash = (Path(shutil.which('git')).resolve().parents[1] / 'bin/bash.exe') if os.name == 'nt' else Path(shutil.which('bash'))
+
+        def shell_path(path):
+            if os.name != 'nt':
+                return str(path)
+            return subprocess.check_output([str(bash), '-c', 'cygpath -u "$1"', '_', str(path)], text=True).strip()
+        consumer = CI.shared_selection(ROOT, 'S27')
+        objects = 'Build/Intermediates.noindex/FieldEvidenceAppTests.build/arm64/'
+        bookkeeping = 'Logs/Build/LogStoreManifest.plist Logs/Build/0A1B.xcactivitylog Build/Intermediates.noindex/XCBuildData/build.db'
+        # (role, prepared before tests, written by the test command, exit status, command ran)
+        for role, prepare, written, expected, ran_expected in (
+                ('consumer', None, '', 0, True), ('consumer', None, bookkeeping, 0, True),
+                ('consumer', None, bookkeeping + ' ' + objects + 'SharedCoverage.o', 1, True),
+                ('consumer', None, objects + 'FieldEvidenceAppTests.swiftmodule', 1, True),
+                ('consumer', None, 'Build/Intermediates.noindex/x/SharedCoverage.swiftdeps', 1, True),
+                ('consumer', None, 'Build/Intermediates.noindex/x/SharedCoverage.dia', 1, True),
+                ('consumer', 'Build/Intermediates.noindex', '', 1, False),
+                ('consumer', 'artifact:build-smoke.log', '', 1, False), ('producer', None, '', 65, False)):
+            with self.subTest(role=role, prepare=prepare, written=written), tempfile.TemporaryDirectory() as directory:
+                base = Path(directory)
+                binary = base / 'bin'
+                binary.mkdir()
+                artifact = base / 'artifact'
+                artifact.mkdir()
+                derived = base / 'runner/FieldEvidenceDerivedData'
+                (derived / 'Build/Products').mkdir(parents=True)
+                selected = artifact / 'ci-selection.selected.json'
+                selected.write_bytes(CI.canonical(consumer))
+                if prepare == 'Build/Intermediates.noindex':
+                    (derived / prepare).mkdir()
+                elif prepare:
+                    (artifact / prepare.split(':', 1)[1]).write_text('built\n')
+                for name, body in (('xcodebuild', '#!/bin/bash\nprintf "%s\\n" "$@" > "$MOCK_TEST_ARGS"\n'
+                                    'mkdir -p "$CI_ARTIFACT_DIR/UnitTests.xcresult"\ntouch "$CI_ARTIFACT_DIR/UnitTests.xcresult/result"\n'
+                                    'for item in $MOCK_DERIVED_WRITES; do\n'
+                                    '  mkdir -p "$(dirname "$RUNNER_TEMP/FieldEvidenceDerivedData/$item")"\n'
+                                    '  touch "$RUNNER_TEMP/FieldEvidenceDerivedData/$item"\ndone\n'),
+                                   ('python3', '#!/bin/bash\nexit 0\n')):
+                    (binary / name).write_text(body, newline='\n')
+                    (binary / name).chmod(0o755)
+                e = dict(os.environ, PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp',
+                         CONFIGURATION='Debug', CODE_SIGNING_ALLOWED='NO', CI_SIMULATOR_UDID=UDID,
+                         CI_DESTINATION='platform=iOS Simulator,id=' + UDID, CI_ARTIFACT_DIR=shell_path(artifact),
+                         CI_SELECTION_PATH=shell_path(selected), RUNNER_TEMP=shell_path(base / 'runner'),
+                         CI_S10_4_SHARED_BUILD_MODE='none', CI_NATIVE_ACCEPTANCE_CONTRACT=CI.CONTRACT,
+                         V23_SHARED_ROLE=role, MOCK_TEST_ARGS=shell_path(base / 'args'), MOCK_DERIVED_WRITES=written)
+                result = subprocess.run([str(bash), '-c', 'export PATH="$1:$PATH"; exec bash "$2"', '_',
+                                         shell_path(binary), shell_path(ROOT / 'Scripts/test-smoke.sh')],
+                                        env=e, capture_output=True, text=True)
+                self.assertEqual(result.returncode, expected, result.stderr)
+                ran = (base / 'args').exists()
+                self.assertEqual(ran, ran_expected)
+                for item in written.split():
+                    self.assertTrue((derived / item).is_file(), item)
+                if ran:
+                    args = (base / 'args').read_text().splitlines()
+                    self.assertEqual([arg for arg in args if arg.startswith('-only-testing:')],
+                                     ['-only-testing:' + member for member in consumer['unitTestSelectors']])
+                    self.assertEqual(args[-2:], ['CODE_SIGNING_ALLOWED=NO', 'test-without-building'])
+                    self.assertIn('-scheme', args)
+        # The required-evidence script: producer needs build evidence and forbids tests.
+        producer_files = ('build-smoke.log', 'no-index-build-command.json', 'v23-shared-payload.json',
+                          'v23-shared-payload-receipt.json')
+        for role, files, expected in (('producer', producer_files, 0),
+                                      ('producer', producer_files + ('test-smoke.log',), 1),
+                                      ('producer', producer_files[:2], 1),
+                                      ('consumer', ('build-smoke.log',), 1), ('observer', (), 65)):
+            with self.subTest(role=role, files=files), tempfile.TemporaryDirectory() as directory:
+                artifact = Path(directory)
+                for name in ('simulator-boot-start.log', 'simulator-boot.log', 'runner-provider.txt') + files:
+                    (artifact / name).write_text('fixture\n')
+                (artifact / 'Build.xcresult').mkdir()
+                (artifact / 'Build.xcresult/result').write_text('fixture\n')
+                e = dict(os.environ, CI_ARTIFACT_DIR=shell_path(artifact), V23_SHARED_ROLE=role,
+                         CI_S10_4_SHARED_BUILD_MODE='none', CI_RUN_UI_SMOKE='false')
+                e.pop('CI_SELECTION_PATH', None)
+                result = subprocess.run([str(bash), '--noprofile', '--norc', '-e', '-o', 'pipefail',
+                                         shell_path(ROOT / 'Scripts/validate-required-evidence.sh')],
+                                        cwd=ROOT, env=e, capture_output=True, text=True)
+                self.assertEqual(result.returncode, expected, result.stderr)
 
 
 if __name__ == "__main__":

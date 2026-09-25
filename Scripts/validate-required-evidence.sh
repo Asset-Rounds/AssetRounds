@@ -90,7 +90,36 @@ verify_executed_selectors() {
 test -s "$CI_ARTIFACT_DIR/simulator-boot-start.log"
 test -s "$CI_ARTIFACT_DIR/simulator-boot.log"
 test -s "$CI_ARTIFACT_DIR/runner-provider.txt"
-if test "$CI_S10_4_SHARED_BUILD_MODE" = consumer; then
+v23_shared_role="${V23_SHARED_ROLE:-none}"
+if test "$v23_shared_role" = producer; then
+  # Build-only producer: exact build evidence and a sealed payload; no tests ran.
+  test "$CI_S10_4_SHARED_BUILD_MODE" = none
+  test -s "$CI_ARTIFACT_DIR/build-smoke.log"
+  require_nonempty_directory "$CI_ARTIFACT_DIR/Build.xcresult"
+  test -s "$CI_ARTIFACT_DIR/no-index-build-command.json"
+  test -s "$CI_ARTIFACT_DIR/v23-shared-payload.json"
+  test -s "$CI_ARTIFACT_DIR/v23-shared-payload-receipt.json"
+  test ! -e "$CI_ARTIFACT_DIR/test-smoke.log"
+  test ! -e "$CI_ARTIFACT_DIR/UnitTests.xcresult"
+  test ! -e "$CI_ARTIFACT_DIR/unit-test-results.json"
+elif test "$v23_shared_role" = consumer; then
+  # Test-only consumer: the restored producer products, no local build evidence.
+  test "$CI_S10_4_SHARED_BUILD_MODE" = none
+  test ! -e "$CI_ARTIFACT_DIR/Build.xcresult"
+  test ! -e "$CI_ARTIFACT_DIR/build-smoke.log"
+  test ! -e "$CI_ARTIFACT_DIR/no-index-build-command.json"
+  test -s "$CI_ARTIFACT_DIR/v23-shared-restore.json"
+  test -s "$CI_ARTIFACT_DIR/v23-shared-fingerprint-before.json"
+  test -s "$CI_ARTIFACT_DIR/v23-shared-fingerprint-after.json"
+  test -s "$CI_ARTIFACT_DIR/v23-shared-deriveddata-delta.json"
+  test -s "$CI_ARTIFACT_DIR/test-smoke.log"
+  require_nonempty_directory "$CI_ARTIFACT_DIR/UnitTests.xcresult"
+  verify_executed_selectors \
+    "$CI_ARTIFACT_DIR/UnitTests.xcresult" \
+    unitTestSelectors "Unit test bundle" unit
+elif test "$v23_shared_role" != none; then
+  exit 65
+elif test "$CI_S10_4_SHARED_BUILD_MODE" = consumer; then
   test ! -e "$CI_ARTIFACT_DIR/Build.xcresult"
   test ! -e "$CI_ARTIFACT_DIR/UnitTests.xcresult"
   test ! -e "$CI_ARTIFACT_DIR/build-smoke.log"

@@ -260,6 +260,37 @@ H411_SHARED_ADMISSION
 esac
 # End H411 shared execution admission.
 
+# V23 shared coverage: a consumer tests the producer's restored products unchanged
+# through the ordinary scheme command; a producer never runs tests.
+v23_shared_role="${V23_SHARED_ROLE:-none}"
+v23_require_no_local_build() {
+  test "$shared_build_mode" = none
+  test "${CI_NATIVE_ACCEPTANCE_CONTRACT:-none}" = v23.integration.current-native.v1
+  test -d "$derived_data_path/Build/Products"
+  test ! -e "$CI_ARTIFACT_DIR/build-smoke.log"
+  test ! -e "$CI_ARTIFACT_DIR/Build.xcresult"
+  test ! -e "$CI_ARTIFACT_DIR/no-index-build-command.json"
+}
+v23_require_no_build_evidence() {
+  v23_require_no_local_build
+  test ! -e "$derived_data_path/Logs/Build"
+  test ! -e "$derived_data_path/Build/Intermediates.noindex"
+}
+# After the tests the scheme command may leave build bookkeeping (Logs, XCBuildData);
+# only compiler outputs fail here. The after fingerprint applies the full rule
+# (activity logs and the test log too) and lists every new DerivedData entry.
+v23_require_no_compile_outputs() {
+  v23_require_no_local_build
+  test -z "$(find "$derived_data_path/Build" -mindepth 1 -maxdepth 1 -name 'Intermediates*' -type l -print)"
+  test -z "$(find "$derived_data_path/Build" -mindepth 1 -maxdepth 1 -name 'Intermediates*' -exec \
+    find {} \( -name '*.o' -o -name '*.swiftmodule' -o -name '*.swiftdeps' -o -name '*.dia' \) -print -quit \;)"
+}
+case "$v23_shared_role" in
+  none) ;;
+  consumer) v23_require_no_build_evidence ;;
+  *) printf 'invalid V23 shared coverage test role\n' >&2; exit 65 ;;
+esac
+
 if [ "$shared_build_mode" = producer ]; then
   shared_unit_command=(
     xcodebuild
@@ -436,6 +467,9 @@ else
     "${only_testing_args[@]}" \
     CODE_SIGNING_ALLOWED=NO \
     test-without-building
+  if [ "$v23_shared_role" = consumer ]; then
+    v23_require_no_compile_outputs
+  fi
 fi
 
 test -d "$result_bundle_path"

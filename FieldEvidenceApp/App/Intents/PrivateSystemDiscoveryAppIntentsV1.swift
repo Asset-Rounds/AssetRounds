@@ -107,6 +107,11 @@ extension PrivateSystemDiscoveryForegroundIntentV1 {
     static var isDiscoverable: Bool { false }
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
+        // Phase gate: system discovery is not in a shipping phase, so every
+        // intent returns the existing generic unavailable response unchanged.
+        guard V23PhaseGateV1.shipping.allows(.systemDiscovery) else {
+            return .result(dialog: PrivateSystemDiscoveryIntentResponseV1.dialog(for: .unavailable))
+        }
         try PrivateSystemDiscoveryAppIntentManifestV1.validate()
         let result = await PrivateSystemDiscoveryIntentRuntimeRegistryV1.shared.invoke(Self.action)
         return .result(dialog: PrivateSystemDiscoveryIntentResponseV1.dialog(for: result))
@@ -117,16 +122,22 @@ struct OpenTodayPrivateSystemDiscoveryIntentV1: PrivateSystemDiscoveryForeground
     static let title: LocalizedStringResource = "private.system.discovery.intent.open-today"
     static let description = IntentDescription("Opens the private Today destination in the foreground app.")
     static let action = PrivateSystemDiscoveryActionV1.openToday
+    // Declared on the type so static intent metadata never exposes it.
+    static let isDiscoverable: Bool = false
 }
 
 struct OpenAssetsPrivateSystemDiscoveryIntentV1: PrivateSystemDiscoveryForegroundIntentV1 {
     static let title: LocalizedStringResource = "private.system.discovery.intent.open-assets"
     static let description = IntentDescription("Opens the private Assets destination in the foreground app.")
     static let action = PrivateSystemDiscoveryActionV1.openAssets
+    // Declared on the type so static intent metadata never exposes it.
+    static let isDiscoverable: Bool = false
 }
 
 struct OpenReportsPrivateSystemDiscoveryIntentV1: PrivateSystemDiscoveryForegroundIntentV1 {
     static let title: LocalizedStringResource = "private.system.discovery.intent.open-reports"
     static let description = IntentDescription("Opens the private Reports destination in the foreground app.")
     static let action = PrivateSystemDiscoveryActionV1.openReports
+    // Declared on the type so static intent metadata never exposes it.
+    static let isDiscoverable: Bool = false
 }

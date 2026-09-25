@@ -986,6 +986,26 @@ enum ProtectedFilePolicyV1 {
     }
 
     #if DEBUG && os(iOS) && targetEnvironment(simulator)
+    /// The strict readback of `verifyResourceValues`, returning whether the values match
+    /// instead of throwing and logging on the expected Simulator mismatch.
+    private static func simulatorStrictResourceValuesMatch(
+        at url: URL,
+        disposition: OwnedFileProtectionDispositionV1
+    ) throws -> Bool {
+        do {
+            var currentURL = url
+            currentURL.removeAllCachedResourceValues()
+            let values = try currentURL.resourceValues(forKeys: [
+                .fileProtectionKey,
+                .isExcludedFromBackupKey
+            ])
+            return values.fileProtection == .complete
+                && values.isExcludedFromBackup == disposition.isExcludedFromBackup
+        } catch {
+            throw mapWriteError(error)
+        }
+    }
+
     private static func verifySimulatorResourceValues(
         _ kind: OwnedFileKindV1,
         at url: URL,
@@ -1007,14 +1027,15 @@ enum ProtectedFilePolicyV1 {
         identity: LeafIdentity,
         successfulRequestReadback: DirectoryProtectionReadback?
     ) throws -> ProtectedFileVerificationDispositionV1 {
-        do {
-            try verifyResourceValues(at: url, disposition: disposition)
+        // The strict readback is checked without throwing: on the Simulator a mismatch is the
+        // expected shape, and a thrown-and-caught error on every protected-file call made
+        // XCTest misattribute unrelated test failures to it. Only this exact mismatch can
+        // enter the separate diagnostic predicate; read failures still throw unchanged.
+        if try simulatorStrictResourceValuesMatch(at: url, disposition: disposition) {
             guard try pin(kind, at: url, disposition: disposition) == identity else {
                 throw ProtectedFilePolicyError.identityChanged
             }
             return .verifiedComplete
-        } catch let error as ProtectedFilePolicyError where error == .resourceValueMismatch {
-            // Only this exact mismatch can enter the separate diagnostic predicate.
         }
 
         let before: DirectoryProtectionReadback

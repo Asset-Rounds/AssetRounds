@@ -2,6 +2,8 @@
             # Only the reusable development batch route carries its file binding.
             def dev_batch_route:
               ($ENV.NATIVE_SELECTION_ID // "") == "v23-dev-batch-no-index-d50";
+            def shared_route:
+              ($ENV.NATIVE_SELECTION_ID // "") == "v23-shared-coverage-d50x";
             def exact_keys:
               (([
                 "schemaVersion",
@@ -15,7 +17,32 @@
                 "totalBudgetSeconds",
                 "unitTestSelectors",
                 "uiTestSelectors"
-              ] + (if dev_batch_route then ["devBatch"] else [] end)) | sort) == (keys | sort);
+              ] + (if dev_batch_route then ["devBatch"] elif shared_route then ["sharedCoverage"] else [] end)) | sort) == (keys | sort);
+            # The shared coverage route: a build-only producer plan or one consumer partition.
+            def shared_values($role):
+              (.unitTestSelectors | length) as $count
+              | ($ENV.V23_SHARED_ROLE // "") == $role
+                and all(.unitTestSelectors[];
+                  type == "string"
+                  and test("\\AFieldEvidenceAppTests/[A-Za-z_][A-Za-z0-9_]*/test[A-Za-z0-9_]+\\z"))
+                and (.sharedCoverage | type == "object")
+                and ((.sharedCoverage | keys) == ["acceptance", "developmentOnly", "partitionID", "partitionIDs", "partitionsPath", "partitionsSHA256"])
+                and .sharedCoverage.partitionsPath == "Scripts/v23-coverage-partitions.json"
+                and (.sharedCoverage.partitionsSHA256 | type == "string" and test("\\A[0-9A-F]{64}\\z"))
+                and (.sharedCoverage.partitionIDs | type == "array" and length >= 1 and length <= 60
+                     and all(.[]; type == "string" and test("\\AS[0-9]{2}\\z"))
+                     and (unique | length) == length)
+                and .sharedCoverage.developmentOnly == true
+                and .sharedCoverage.acceptance == false
+                and (if $role == "producer" then
+                       .sharedCoverage.partitionID == null
+                       and ($ENV.V23_PARTITION_ID // "") == ""
+                     else
+                       (.sharedCoverage.partitionID | type == "string")
+                       and .sharedCoverage.partitionID == ($ENV.V23_PARTITION_ID // "")
+                       and (.sharedCoverage.partitionID as $id | .sharedCoverage.partitionIDs | index($id) != null)
+                       and $count >= 1 and $count <= 500
+                     end);
             def dev_batch_values:
               (.unitTestSelectors | length) as $count
               | ($count >= 1 and $count <= 150)
@@ -469,18 +496,33 @@
                       then [420, 900, 1200, 2520, 4500]
                       else [300, 900, 1200, 1800, 4500]
                       end)
+              elif .tier == "D40P" then
+                shared_route
+                and .taskID == "V23-INTEGRATION-20260910"
+                and [.setupArtifactTimeoutSeconds, .buildTimeoutSeconds,
+                     .testTimeoutSeconds, .uiTimeoutSeconds, .totalBudgetSeconds]
+                    == [300, 2400, 0, 0, 3000]
+                and shared_values("producer")
+              elif .tier == "D50C" then
+                shared_route
+                and .taskID == "V23-INTEGRATION-20260910"
+                and [.setupArtifactTimeoutSeconds, .buildTimeoutSeconds,
+                     .testTimeoutSeconds, .uiTimeoutSeconds, .totalBudgetSeconds]
+                    == [300, 0, 3000, 0, 3600]
+                and shared_values("consumer")
               else false
               end;
             exact_keys
             and (.schemaVersion == 1)
             and (.taskID | nonempty_string)
-            and (.tier | type == "string" and IN("N8", "D30", "D50", "P12", "F25"))
+            and (.tier | type == "string" and IN("N8", "D30", "D50", "P12", "F25", "D40P", "D50C"))
             and (if dev_batch_route then .tier == "D50" else true end)
+            and (if shared_route then (.tier == "D40P" or .tier == "D50C") else true end)
             and (.runUISmoke | type == "boolean")
             and tier_values_match
             and (.unitTestSelectors | selectors("FieldEvidenceAppTests/"; 1))
             and (
-              if .tier == "N8" or .tier == "D30" or .tier == "D50" then
+              if .tier == "N8" or .tier == "D30" or .tier == "D50" or .tier == "D40P" or .tier == "D50C" then
                 (.runUISmoke == false)
                 and (.uiTestSelectors | type == "array" and length == 0)
               else

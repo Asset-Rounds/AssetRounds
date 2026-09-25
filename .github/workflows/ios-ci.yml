@@ -111,6 +111,7 @@ on:
           - c36-round-item-mount-no-index-build30m
           - c36-startup-retirement-no-index-build30m
           - v23-dev-batch-no-index-d50
+          - v23-shared-coverage-d50x
           - c36-round-item-completion-no-index-build30m
           - c36-live-host
           - c36-round-item-mount
@@ -234,6 +235,7 @@ jobs:
       native_selection_id: ${{ steps.native_selection.outputs.native_selection_id }}
       native_selection_sha256: ${{ steps.native_selection.outputs.native_selection_sha256 }}
       native_selection_map_sha256: ${{ steps.native_selection.outputs.native_selection_map_sha256 }}
+      native_shared_partitions: ${{ steps.native_selection.outputs.native_shared_partitions }}
     steps:
       - name: Check out the exact revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -426,7 +428,7 @@ jobs:
   github-shard:
     name: GitHub Xcode 26.6 acceptance · ${{ inputs.s10_4_shard_id }} · ${{ inputs.s10_4_shared_segment_id }}
     needs: shared-selection
-    if: ${{ !cancelled() && needs.shared-selection.result == 'success' && (inputs.execution_lane == 'github-xcode-26.6-acceptance' || inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance') }}
+    if: ${{ !cancelled() && needs.shared-selection.result == 'success' && (inputs.execution_lane == 'github-xcode-26.6-acceptance' || inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance') && inputs.native_selection_id != 'v23-shared-coverage-d50x' }}
     permissions:
       contents: read
       actions: read
@@ -448,6 +450,54 @@ jobs:
       s10_4_minimum_segment_id: ${{ startsWith(inputs.s10_4_shared_segment_id, 'minimum-segment-') && inputs.s10_4_shared_segment_id || 'none' }}
       s10_4_shared_matrix_id: ${{ needs.shared-selection.outputs.matrix_id }}
       s10_4_segment_source_run_ids: ${{ inputs.s10_4_segment_source_run_ids }}
+
+  v23-shared-producer:
+    name: V23 shared coverage producer · build-for-testing (development only)
+    needs: shared-selection
+    if: ${{ !cancelled() && needs.shared-selection.result == 'success' && inputs.execution_lane == 'github-xcode-26.6-acceptance' && inputs.native_selection_id == 'v23-shared-coverage-d50x' && needs.shared-selection.outputs.native_selection_id == 'v23-shared-coverage-d50x' }}
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: macos-26
+      runner_provider: github
+      native_acceptance_contract: ${{ needs.shared-selection.outputs.native_acceptance_contract }}
+      native_selection_id: ${{ needs.shared-selection.outputs.native_selection_id }}
+      native_selection_sha256: ${{ needs.shared-selection.outputs.native_selection_sha256 }}
+      native_selection_map_sha256: ${{ needs.shared-selection.outputs.native_selection_map_sha256 }}
+      run_ui_smoke: false
+      s10_4_shard_id: none
+      s10_4_segment_id: none
+      v23_shared_role: producer
+      v23_payload_artifact_name: v23-shared-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+
+  v23-shared-consumer:
+    name: V23 shared coverage consumer · ${{ matrix.partition_id }} (development only)
+    needs: [shared-selection, v23-shared-producer]
+    if: ${{ !cancelled() && needs.shared-selection.result == 'success' && needs.v23-shared-producer.result == 'success' && inputs.execution_lane == 'github-xcode-26.6-acceptance' && inputs.native_selection_id == 'v23-shared-coverage-d50x' && needs.shared-selection.outputs.native_selection_id == 'v23-shared-coverage-d50x' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        partition_id: ${{ fromJSON(needs.shared-selection.outputs.native_shared_partitions || '["none"]') }}
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/ios-ci-worker.yml
+    with:
+      runner_label: macos-26
+      runner_provider: github
+      native_acceptance_contract: ${{ needs.shared-selection.outputs.native_acceptance_contract }}
+      native_selection_id: ${{ needs.shared-selection.outputs.native_selection_id }}
+      native_selection_sha256: ${{ needs.shared-selection.outputs.native_selection_sha256 }}
+      native_selection_map_sha256: ${{ needs.shared-selection.outputs.native_selection_map_sha256 }}
+      run_ui_smoke: false
+      s10_4_shard_id: none
+      s10_4_segment_id: none
+      v23_shared_role: consumer
+      v23_partition_id: ${{ matrix.partition_id }}
+      v23_payload_artifact_name: v23-shared-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
 
   getmac-shard:
     name: GetMac Xcode 26.6 development-only · ${{ inputs.s10_4_shard_id }}

@@ -91,6 +91,56 @@ final class ProductionMyDaySourceStateV1: ObservableObject {
 @MainActor
 struct ProductionMyDayRootViewV1: View {
     static let screenAccessibilityIdentifier = "v23.shell.today.screen"
+    /// Today while My Day is not in a shipping phase.
+    static let phaseOneEmptyStateAccessibilityIdentifier = "v23.shell.today.phase-one-empty"
+    static let planningEntryAccessibilityIdentifier = "v23.my-day.open-planning"
+    #if DEBUG
+    /// Host-unit witness that the gated My Day surface is composed.
+    static let myDayObservationIdentifier = "v23.shell.today.my-day"
+    #endif
+    @ObservedObject var source: ProductionMyDaySourceStateV1
+    @Environment(\.v23PhaseGate) private var phaseGate
+
+    var body: some View {
+        Group {
+            if phaseGate.allows(.myDay) {
+                ProductionMyDayCurrentWorkRootV1(source: source)
+            } else {
+                ProductionTodayPhaseOneEmptyStateV1()
+            }
+        }
+        .navigationTitle("Today")
+        .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
+    }
+}
+
+/// Phase 1 Today. It reads no My Day source and offers no planning action.
+@MainActor
+private struct ProductionTodayPhaseOneEmptyStateV1: View {
+    var body: some View {
+        AssetRoundsScreenFoundation {
+            ScrollView {
+                AssetRoundsEmptyState(title: Text("Nothing planned"),
+                    message: Text("Signs you inspect appear in Assets and Reports."))
+                    .accessibilityIdentifier(
+                        ProductionMyDayRootViewV1.phaseOneEmptyStateAccessibilityIdentifier)
+                    #if DEBUG
+                    .background {
+                        NativeScreenObservationAnchorV1(
+                            identifier: ProductionMyDayRootViewV1.phaseOneEmptyStateAccessibilityIdentifier)
+                            .frame(width: 0, height: 0)
+                            .allowsHitTesting(false)
+                    }
+                    #endif
+            }
+        }
+    }
+}
+
+/// The gated My Day Today surface: available work, the Plan entry and its
+/// editor sheet. Reachable only while the phase gate allows `.myDay`.
+@MainActor
+private struct ProductionMyDayCurrentWorkRootV1: View {
     @ObservedObject var source: ProductionMyDaySourceStateV1
     @State private var planningEditor: ProductionMyDayPlanningEditorStateV1?
     @State private var planningCouldNotOpen = false
@@ -115,8 +165,14 @@ struct ProductionMyDayRootViewV1: View {
                 }
             }
         }
-        .navigationTitle("Today")
-        .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
+        #if DEBUG
+        .background {
+            NativeScreenObservationAnchorV1(
+                identifier: ProductionMyDayRootViewV1.myDayObservationIdentifier)
+                .frame(width: 0, height: 0)
+                .allowsHitTesting(false)
+        }
+        #endif
         .task { await source.refresh() }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -124,7 +180,7 @@ struct ProductionMyDayRootViewV1: View {
                     do { planningEditor = try source.makePlanningEditor() }
                     catch { planningCouldNotOpen = true }
                 }
-                .accessibilityIdentifier("v23.my-day.open-planning")
+                .accessibilityIdentifier(ProductionMyDayRootViewV1.planningEntryAccessibilityIdentifier)
             }
         }
         .sheet(item: $planningEditor, onDismiss: refresh) { editor in

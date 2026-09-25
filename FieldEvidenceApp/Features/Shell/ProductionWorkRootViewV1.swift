@@ -5,6 +5,10 @@ import SwiftUI
 @MainActor
 struct ProductionWorkRootViewV1: View {
     static let screenAccessibilityIdentifier = "v23.shell.work.screen"
+    #if DEBUG
+    /// Host-unit witness that the gated current-work list is composed.
+    static let currentWorkObservationIdentifier = "v23.shell.work.current-work"
+    #endif
     @ObservedObject var source: ProductionMyDaySourceStateV1
     var openRound: ((MyDayEligibleReferenceV1) -> Void)? = nil
     var reviewAccess: AppAccessPresentationV1.RoundAccess? = nil
@@ -12,49 +16,34 @@ struct ProductionWorkRootViewV1: View {
     /// SIG-1 Completed work section. Opening a row is a local Work-stack push
     /// owned by this presentation, never a saved navigation route.
     var completedWork: CompletedWorkPresentationV1? = nil
+    @Environment(\.v23PhaseGate) private var phaseGate
 
     var body: some View {
         List {
-            if let snapshot = source.snapshot {
-                if snapshot.sources.isEmpty {
-                    AssetRoundsEmptyState(title: Text("No current work"),
-                        message: Text("Work packets, rounds, scheduled work and saved drafts will appear here."))
-                } else {
-                    ForEach(snapshot.sources, id: \.reference) { item in
-                        let readiness = snapshot.readinessAssessments.first {
-                            $0.reference == item.reference
-                        }
-                        if case let .roundSession(_, sessionID, _, _) = item.reference, let openRound {
-                            Button { openRound(item.reference) } label: {
-                                sourceRow(item, readiness: readiness)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("v23.work.round." + sessionID.uuidString.lowercased())
-                        } else if case .resumableDraft = item.reference,
-                                  let reviewAccess, let openSavedReview {
-                            ProductionSavedReviewRowV1(source: item, readiness: readiness,
-                                access: reviewAccess, open: openSavedReview)
-                        } else {
-                            sourceRow(item, readiness: readiness)
-                        }
+            // Current work (packets, Rounds, schedules, saved drafts) is a
+            // later-phase surface. The source still refreshes because the Work
+            // screen witness reads it; the refresh control ignores it when gated.
+            if phaseGate.allows(.workSources) {
+                currentWork
+                    #if DEBUG
+                    // Row-level witness: it exists only where currentWork renders.
+                    .background {
+                        NativeScreenObservationAnchorV1(identifier: Self.currentWorkObservationIdentifier)
+                            .frame(width: 0, height: 0)
+                            .allowsHitTesting(false)
                     }
-                }
-            } else if source.couldNotLoad {
-                AssetRoundsEmptyState(title: Text("Work unavailable"),
-                    message: Text("Your current work could not be opened. Try again."))
-            } else {
-                ProgressView("Opening work")
+                    #endif
             }
             if let completedWork {
                 CompletedWorkSectionV1(presentation: completedWork)
             }
             Section {
-                Button(source.couldNotLoad ? "Try again" : "Refresh work") {
+                Button(refreshTitle) {
                     Task { await source.refresh() }
                     completedWork?.refresh()
                 }
                 .buttonStyle(WorklightSecondaryButtonStyle())
-                .disabled(source.isLoading)
+                .disabled(refreshWaitsForCurrentWork)
             }
         }
         .listStyle(.insetGrouped)
@@ -75,6 +64,51 @@ struct ProductionWorkRootViewV1: View {
         // The Completed work listing loads once per Work-root appearance and
         // is served from the service's revision-keyed cache when unchanged.
         .task { completedWork?.refresh() }
+    }
+
+    /// While current work is gated its source is hidden, so a hidden read
+    /// failure or load never changes the visible refresh control.
+    private var refreshTitle: LocalizedStringKey {
+        guard phaseGate.allows(.workSources) else { return "Refresh work" }
+        return source.couldNotLoad ? "Try again" : "Refresh work"
+    }
+
+    private var refreshWaitsForCurrentWork: Bool {
+        phaseGate.allows(.workSources) && source.isLoading
+    }
+
+    @ViewBuilder
+    private var currentWork: some View {
+        if let snapshot = source.snapshot {
+            if snapshot.sources.isEmpty {
+                AssetRoundsEmptyState(title: Text("No current work"),
+                    message: Text("Work packets, rounds, scheduled work and saved drafts will appear here."))
+            } else {
+                ForEach(snapshot.sources, id: \.reference) { item in
+                    let readiness = snapshot.readinessAssessments.first {
+                        $0.reference == item.reference
+                    }
+                    if case let .roundSession(_, sessionID, _, _) = item.reference, let openRound {
+                        Button { openRound(item.reference) } label: {
+                            sourceRow(item, readiness: readiness)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("v23.work.round." + sessionID.uuidString.lowercased())
+                    } else if case .resumableDraft = item.reference,
+                              let reviewAccess, let openSavedReview {
+                        ProductionSavedReviewRowV1(source: item, readiness: readiness,
+                            access: reviewAccess, open: openSavedReview)
+                    } else {
+                        sourceRow(item, readiness: readiness)
+                    }
+                }
+            }
+        } else if source.couldNotLoad {
+            AssetRoundsEmptyState(title: Text("Work unavailable"),
+                message: Text("Your current work could not be opened. Try again."))
+        } else {
+            ProgressView("Opening work")
+        }
     }
 
     private func sourceRow(_ item: MyDayLiveSourceV1,

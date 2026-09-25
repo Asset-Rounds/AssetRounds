@@ -106,13 +106,28 @@ on:
         required: false
         default: ""
         type: string
+      v23_shared_role:
+        description: Closed V23 shared coverage role (none, producer or consumer); development only
+        required: false
+        default: none
+        type: string
+      v23_partition_id:
+        description: Exact V23 coverage partition for a consumer; empty otherwise
+        required: false
+        default: ""
+        type: string
+      v23_payload_artifact_name:
+        description: Exact V23 shared payload artifact name; empty outside the shared route
+        required: false
+        default: ""
+        type: string
     secrets:
       BITRISE_BUILD_CACHE_AUTH_TOKEN:
         description: Bitrise Build Cache token used only by the closed Bitrise runner routes
         required: false
 
 concurrency:
-  group: ${{ inputs.native_acceptance_contract != 'none' && format('v23-{0}-{1}-', inputs.runner_provider, inputs.native_selection_id) || '' }}${{ inputs.s10_4_shared_build_mode }}-${{ inputs.s10_4_minimum_segment_id }}-${{ inputs.s10_4_shared_payload_run_id }}-${{ inputs.s10_4_shared_matrix_id }}-${{ inputs.s10_4_unit_only == true && format('ios-ci-s10-4-development-unit-{0}-{1}', github.ref, github.sha) || (inputs.s10_4_diagnostic_probe_id != 'none' && format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.ref, github.sha, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id) || (inputs.runner_provider == 'bitrise' && format('ios-ci-{0}-{1}-{2}-{3}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id, github.sha) || (inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id)))) }}
+  group: ${{ inputs.native_acceptance_contract != 'none' && format('v23-{0}-{1}-', inputs.runner_provider, inputs.native_selection_id) || '' }}${{ inputs.v23_shared_role != 'none' && format('{0}-{1}-{2}-', inputs.v23_shared_role, inputs.v23_partition_id, github.run_id) || '' }}${{ inputs.s10_4_shared_build_mode }}-${{ inputs.s10_4_minimum_segment_id }}-${{ inputs.s10_4_shared_payload_run_id }}-${{ inputs.s10_4_shared_matrix_id }}-${{ inputs.s10_4_unit_only == true && format('ios-ci-s10-4-development-unit-{0}-{1}', github.ref, github.sha) || (inputs.s10_4_diagnostic_probe_id != 'none' && format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.ref, github.sha, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id) || (inputs.runner_provider == 'bitrise' && format('ios-ci-{0}-{1}-{2}-{3}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id, github.sha) || (inputs.s10_4_segment_id == 'none' && format('ios-ci-{0}-{1}', github.ref, inputs.s10_4_shard_id) || format('ios-ci-{0}-{1}-{2}', github.ref, inputs.s10_4_shard_id, inputs.s10_4_segment_id)))) }}
   cancel-in-progress: false
 
 jobs:
@@ -125,6 +140,9 @@ jobs:
       DISPATCH_NATIVE_SELECTION_ID: ${{ inputs.native_selection_id }}
       DISPATCH_NATIVE_SELECTION_SHA256: ${{ inputs.native_selection_sha256 }}
       DISPATCH_NATIVE_SELECTION_MAP_SHA256: ${{ inputs.native_selection_map_sha256 }}
+      V23_SHARED_ROLE: ${{ inputs.v23_shared_role }}
+      V23_PARTITION_ID: ${{ inputs.v23_partition_id }}
+      V23_PAYLOAD_ARTIFACT_NAME: ${{ inputs.v23_payload_artifact_name }}
       CI_S10_4_SHARED_BUILD_MODE: ${{ inputs.s10_4_shared_build_mode }}
       CI_S10_4_SHARED_PAYLOAD_RUN_ID: ${{ inputs.s10_4_shared_payload_run_id }}
       WORKER_S10_4_MINIMUM_CORE_SMOKE_ID: ${{ inputs.s10_4_minimum_core_smoke_id }}
@@ -1628,6 +1646,42 @@ jobs:
           test "$setup_elapsed_seconds" -le "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS"
           printf 'CI_SETUP_ELAPSED_SECONDS=%s\n' "$setup_elapsed_seconds" >> "$GITHUB_ENV"
 
+      - name: Download V23 shared coverage payload
+        if: ${{ inputs.v23_shared_role == 'consumer' }}
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ${{ inputs.v23_payload_artifact_name }}
+          path: ${{ runner.temp }}/V23SharedPayloadDownload
+
+      - name: Verify and restore V23 shared coverage payload
+        if: ${{ inputs.v23_shared_role == 'consumer' }}
+        shell: bash
+        env:
+          DISPATCH_RUN_UI_SMOKE: ${{ inputs.run_ui_smoke }}
+          DISPATCH_S10_4_SHARD_ID: ${{ inputs.s10_4_shard_id }}
+          DISPATCH_S10_4_SEGMENT_ID: ${{ inputs.s10_4_segment_id }}
+          DISPATCH_S10_4_EXECUTION_ROLE: ${{ inputs.s10_4_execution_role }}
+          DISPATCH_S10_4_PAYLOAD_ARTIFACT_NAME: ${{ inputs.s10_4_payload_artifact_name }}
+          DISPATCH_S10_4_PILOT_MODE: ${{ inputs.s10_4_pilot_mode }}
+          DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID: ${{ inputs.s10_4_diagnostic_probe_id }}
+          DISPATCH_S10_4_DIAGNOSTIC_EXECUTION_LANE: ${{ inputs.s10_4_diagnostic_execution_lane }}
+          DISPATCH_S10_4_UNIT_ONLY: ${{ inputs.s10_4_unit_only }}
+        run: |
+          set -euo pipefail
+          python3 Scripts/v23-native-ci.py shared-restore
+
+      - name: Recheck setup budget after V23 shared payload restore
+        if: ${{ inputs.v23_shared_role == 'consumer' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          setup_elapsed_seconds="$(( $(date +%s) - CI_BUDGET_START_EPOCH ))"
+          test "$setup_elapsed_seconds" -ge 0
+          test "$setup_elapsed_seconds" -le "$CI_SETUP_ARTIFACT_TIMEOUT_SECONDS"
+          printf 'shared_restore_setup_elapsed_seconds=%s\n' "$setup_elapsed_seconds" \
+            > "$CI_ARTIFACT_DIR/v23-shared-restore-budget.txt"
+          printf 'CI_SETUP_ELAPSED_SECONDS=%s\n' "$setup_elapsed_seconds" >> "$GITHUB_ENV"
+
       # INFRA_RECOVERY_BEGIN: simulator-readiness-scheduling
       - name: Restore S10.4 qualified shared build
         if: ${{ inputs.s10_4_shared_build_mode == 'consumer' }}
@@ -1756,7 +1810,7 @@ jobs:
 
       - name: Build unsigned simulator app
         id: build_unsigned_simulator_app
-        if: ${{ inputs.s10_4_execution_role != 'payload-consumer' && inputs.native_selection_id != 'c36-destination-discard-build-before-boot' && inputs.native_selection_id != 'notification-interruption-no-index-build30m' }}
+        if: ${{ inputs.s10_4_execution_role != 'payload-consumer' && inputs.v23_shared_role != 'consumer' && inputs.native_selection_id != 'c36-destination-discard-build-before-boot' && inputs.native_selection_id != 'notification-interruption-no-index-build30m' }}
         shell: bash
         env:
           DISPATCH_RUN_UI_SMOKE: ${{ inputs.run_ui_smoke }}
@@ -1929,6 +1983,49 @@ jobs:
 
       # INFRA_RECOVERY_END: simulator-readiness-scheduling
 
+      - name: Seal V23 shared coverage payload
+        if: ${{ inputs.v23_shared_role == 'producer' }}
+        shell: bash
+        env:
+          DISPATCH_RUN_UI_SMOKE: ${{ inputs.run_ui_smoke }}
+          DISPATCH_S10_4_SHARD_ID: ${{ inputs.s10_4_shard_id }}
+          DISPATCH_S10_4_SEGMENT_ID: ${{ inputs.s10_4_segment_id }}
+          DISPATCH_S10_4_EXECUTION_ROLE: ${{ inputs.s10_4_execution_role }}
+          DISPATCH_S10_4_PAYLOAD_ARTIFACT_NAME: ${{ inputs.s10_4_payload_artifact_name }}
+          DISPATCH_S10_4_PILOT_MODE: ${{ inputs.s10_4_pilot_mode }}
+          DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID: ${{ inputs.s10_4_diagnostic_probe_id }}
+          DISPATCH_S10_4_DIAGNOSTIC_EXECUTION_LANE: ${{ inputs.s10_4_diagnostic_execution_lane }}
+          DISPATCH_S10_4_UNIT_ONLY: ${{ inputs.s10_4_unit_only }}
+        run: |
+          set -euo pipefail
+          python3 Scripts/v23-native-ci.py shared-seal
+
+      - name: Upload V23 shared coverage payload
+        if: ${{ inputs.v23_shared_role == 'producer' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ inputs.v23_payload_artifact_name }}
+          path: ${{ runner.temp }}/V23SharedPayloadTransport
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Fingerprint V23 shared products before tests
+        if: ${{ inputs.v23_shared_role == 'consumer' }}
+        shell: bash
+        env:
+          DISPATCH_RUN_UI_SMOKE: ${{ inputs.run_ui_smoke }}
+          DISPATCH_S10_4_SHARD_ID: ${{ inputs.s10_4_shard_id }}
+          DISPATCH_S10_4_SEGMENT_ID: ${{ inputs.s10_4_segment_id }}
+          DISPATCH_S10_4_EXECUTION_ROLE: ${{ inputs.s10_4_execution_role }}
+          DISPATCH_S10_4_PAYLOAD_ARTIFACT_NAME: ${{ inputs.s10_4_payload_artifact_name }}
+          DISPATCH_S10_4_PILOT_MODE: ${{ inputs.s10_4_pilot_mode }}
+          DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID: ${{ inputs.s10_4_diagnostic_probe_id }}
+          DISPATCH_S10_4_DIAGNOSTIC_EXECUTION_LANE: ${{ inputs.s10_4_diagnostic_execution_lane }}
+          DISPATCH_S10_4_UNIT_ONLY: ${{ inputs.s10_4_unit_only }}
+        run: |
+          set -euo pipefail
+          python3 Scripts/v23-native-ci.py shared-fingerprint --phase before
+
       - name: Hash pilot product tree before unit tests
         if: ${{ inputs.s10_4_shared_build_mode == 'none' && (inputs.s10_4_execution_role == 'payload-consumer') }}
         shell: bash
@@ -1940,7 +2037,7 @@ jobs:
 
       - name: Run targeted tests
         id: run_targeted_tests
-        if: ${{ inputs.s10_4_execution_role != 'payload-producer' && inputs.s10_4_shared_build_mode != 'consumer' }}
+        if: ${{ inputs.s10_4_execution_role != 'payload-producer' && inputs.s10_4_shared_build_mode != 'consumer' && inputs.v23_shared_role != 'producer' }}
         shell: bash
         env:
           BITRISE_BUILD_CACHE_AUTH_TOKEN: ${{ inputs.runner_provider == 'bitrise' && inputs.s10_4_execution_role != 'payload-consumer' && secrets.BITRISE_BUILD_CACHE_AUTH_TOKEN || '' }}
@@ -1949,6 +2046,23 @@ jobs:
           set -euo pipefail
           bash Scripts/run-with-timeout.sh "$CI_TEST_TIMEOUT_SECONDS" \
             bash Scripts/test-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/test-smoke.log"
+
+      - name: Fingerprint V23 shared products after tests
+        if: ${{ always() && inputs.v23_shared_role == 'consumer' }}
+        shell: bash
+        env:
+          DISPATCH_RUN_UI_SMOKE: ${{ inputs.run_ui_smoke }}
+          DISPATCH_S10_4_SHARD_ID: ${{ inputs.s10_4_shard_id }}
+          DISPATCH_S10_4_SEGMENT_ID: ${{ inputs.s10_4_segment_id }}
+          DISPATCH_S10_4_EXECUTION_ROLE: ${{ inputs.s10_4_execution_role }}
+          DISPATCH_S10_4_PAYLOAD_ARTIFACT_NAME: ${{ inputs.s10_4_payload_artifact_name }}
+          DISPATCH_S10_4_PILOT_MODE: ${{ inputs.s10_4_pilot_mode }}
+          DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID: ${{ inputs.s10_4_diagnostic_probe_id }}
+          DISPATCH_S10_4_DIAGNOSTIC_EXECUTION_LANE: ${{ inputs.s10_4_diagnostic_execution_lane }}
+          DISPATCH_S10_4_UNIT_ONLY: ${{ inputs.s10_4_unit_only }}
+        run: |
+          set -euo pipefail
+          python3 Scripts/v23-native-ci.py shared-fingerprint --phase after
 
       - name: Qualify S10.4 shared build payload
         if: ${{ inputs.s10_4_shared_build_mode == 'producer' }}
@@ -6093,7 +6207,7 @@ jobs:
         if: ${{ always() && inputs.s10_4_execution_role != 'payload-producer' && (inputs.runner_provider != 'bitrise' || inputs.s10_4_execution_role == 'payload-consumer' || steps.bitrise_credential_scan.outputs.safe_to_upload == 'true') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ inputs.native_acceptance_contract == 'v23.integration.current-native.v1' && format('ios-ci-native-{0}-{1}-{2}-{3}', inputs.runner_provider, inputs.native_selection_id, github.run_id, github.run_attempt) || (inputs.s10_4_shared_build_mode != 'none' && format('ios-ci-shared-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_minimum_segment_id != 'none' && inputs.s10_4_minimum_segment_id || inputs.s10_4_segment_id) || inputs.s10_4_unit_only == true && format('ios-ci-development-only-bitrise-xcode-26.6-unit-{0}-{1}-{2}', github.run_id, github.run_attempt, github.sha) || (inputs.s10_4_diagnostic_probe_id != 'none' && format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id) || (inputs.runner_provider == 'bitrise' && format('ios-ci-development-only-bitrise-xcode-26.6-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.s10_4_segment_id != 'none' && format('ios-ci-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.runner_provider == 'getmac' && format('ios-ci-development-only-getmac-xcode-26.6-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id) || (inputs.s10_4_shard_id == 'none' && format('ios-ci-{0}-{1}', github.run_id, github.run_attempt) || format('ios-ci-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id))))))) }}
+          name: ${{ inputs.native_acceptance_contract == 'v23.integration.current-native.v1' && (inputs.v23_shared_role != 'none' && format('ios-ci-native-{0}-{1}-{2}{3}-{4}-{5}', inputs.runner_provider, inputs.native_selection_id, inputs.v23_shared_role, inputs.v23_partition_id != '' && format('-{0}', inputs.v23_partition_id) || '', github.run_id, github.run_attempt) || format('ios-ci-native-{0}-{1}-{2}-{3}', inputs.runner_provider, inputs.native_selection_id, github.run_id, github.run_attempt)) || (inputs.s10_4_shared_build_mode != 'none' && format('ios-ci-shared-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_minimum_segment_id != 'none' && inputs.s10_4_minimum_segment_id || inputs.s10_4_segment_id) || inputs.s10_4_unit_only == true && format('ios-ci-development-only-bitrise-xcode-26.6-unit-{0}-{1}-{2}', github.run_id, github.run_attempt, github.sha) || (inputs.s10_4_diagnostic_probe_id != 'none' && format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id) || (inputs.runner_provider == 'bitrise' && format('ios-ci-development-only-bitrise-xcode-26.6-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.s10_4_segment_id != 'none' && format('ios-ci-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_segment_id) || (inputs.runner_provider == 'getmac' && format('ios-ci-development-only-getmac-xcode-26.6-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id) || (inputs.s10_4_shard_id == 'none' && format('ios-ci-{0}-{1}', github.run_id, github.run_attempt) || format('ios-ci-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.s10_4_shard_id))))))) }}
           path: ${{ runner.temp }}/FieldEvidenceCI
           if-no-files-found: error
           retention-days: 14

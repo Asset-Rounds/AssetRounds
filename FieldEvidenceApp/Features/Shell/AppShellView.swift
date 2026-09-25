@@ -303,6 +303,7 @@ struct AppShellView: View {
     static let unavailableAccessibilityIdentifier = "s1.pack.unavailable"
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.v23PhaseGate) private var phaseGate
 
     let packLoadResult: SignPackLoadResult
     let exposesColorSchemeForUITest: Bool
@@ -609,11 +610,13 @@ struct AppShellView: View {
         let openReviewAction: ((MyDayEligibleReferenceV1) -> Void)? = roundAccess.map { _ in
             { reference in openSavedReview(reference, in: scene) }
         }
+        // Round and saved-draft rows open nothing while current work is gated.
+        let showsWorkSources: Bool = phaseGate.allows(.workSources)
         return ProductionWorkRootViewV1(
             source: sources,
-            openRound: openRoundAction,
+            openRound: showsWorkSources ? openRoundAction : nil,
             reviewAccess: roundAccess,
-            openSavedReview: openReviewAction,
+            openSavedReview: showsWorkSources ? openReviewAction : nil,
             completedWork: completedWork
         )
         .completedWorkNavigation(completedWork)
@@ -1164,6 +1167,7 @@ struct SettingsPlaceholderView: View {
     @Environment(\.appLockSettingsSection) private var appLockSettingsSection
     @Environment(\.reminderSettingsSection) private var reminderSettingsSection
     @Environment(\.appContentAccess) private var contentAccess
+    @Environment(\.v23PhaseGate) private var phaseGate
 
     @ObservedObject var purchaseCoordinator: StoreKitPurchaseCoordinator
     @ObservedObject var lifecycleCoordinator: StoreKitLifecycleCoordinator
@@ -1213,7 +1217,9 @@ struct SettingsPlaceholderView: View {
                     if let appLockSettingsSection {
                         appLockSettingsSection
                     }
-                    if let reminderSettingsSection {
+                    // Reminder owners stay wired (Erase still clears their
+                    // notification mappings); only the Settings row is gated.
+                    if let reminderSettingsSection, phaseGate.allows(.reminders) {
                         reminderSettingsSection
                     }
 
@@ -1330,6 +1336,18 @@ struct SettingsPlaceholderView: View {
         }
     }
 }
+
+#if DEBUG
+extension SettingsPlaceholderView {
+    /// Test hosts only: supplies a reminder section through the same private
+    /// environment value the shell installs. It adds no route or state.
+    func reminderSettingsSectionForTesting(
+        _ section: ReminderSettingsSectionV1?
+    ) -> some View {
+        environment(\.reminderSettingsSection, section)
+    }
+}
+#endif
 
 private struct NativeTabAccessibilityIdentifierBinder:
     UIViewControllerRepresentable
