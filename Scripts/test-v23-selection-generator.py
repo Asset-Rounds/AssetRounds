@@ -295,6 +295,7 @@ SAVED_REVIEW_BASE_COMMIT = '8a4672e15ddf340a63f2edc3c5245de4b22cc6ce'
 
 EXPECTED_LIVE_HOST_RUNTIME = ['FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldOperationAuthoritySurvivesSuspensionAndRecoversOriginalReceipt', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testPhotoDiscardPreparationReopensOriginalPendingReceipt', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testPhotoDiscardValuesRetainOriginalStagesAndRejectCommit', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testDurablePreflightSubmitsConfirmedEnteredTimeZoneWithoutRewritingSavedInput', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementPreservesCanonicalNamesAndRejectsStaleOrReplacedPlans', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementRejectsMalformedNamesAndUnsafeFileKinds', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementPreservesInterruptedFinalizationAndReachesEraseAdmission', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testLiveFinalizationUsesOriginalReceiptAndRejectsRetiredOperation', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testLivePhotoRejectsRetiredPublicationAndRecoversOriginalCommitReceipt', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testLiveItemFactoryAndEditorKeepOriginalPublicationWithoutCreatingStaging', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testPreparedImmutableOriginalPublishesOnceAndRetainsAuthenticRetryReceipt', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testPreparedImmutableOriginalRejectsTargetAppearingAfterPreparation', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testPreparedImmutableOriginalRejectsSubstitutionAndCancellation', 'FieldEvidenceAppTests/S8_2GoldenAccessibilityTests/testGoldenFlowAccessibilitySpineAndControlMetricsAreExact']
 EXPECTED_ROUND_ITEM_MOUNT = ['FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testContinueLaunchesEntersOnceOpensDurableHostAndColdReopenAddsNoWrites', 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testContinueDeniesDraftPausedAndCompetingSourcesWithoutEffects', 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testForeignCanonicalDraftDeniesEntryBeforeAnyWrite', 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testContinueRecoversSourceAndEntryAcknowledgementLossWithOneOfEach', 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testPendingEffectForAnotherItemIsNotSettledByAnOutOfOrderTap', 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testRevisionPinnedRouteRetargetsThenReusesEntryAndBegunParentReopens', 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testInterruptedPreparedBeginReopensForExplicitRecoveryAndCompletesOnce']
+EXPECTED_ROUND_ITEM_COMPLETION = ['FieldEvidenceAppTests/V23ProductionRoundItemCompletionTests/testCouldNotVerifyFinishRecordsOneReportAndOneCompleteThenShowsNextItem', 'FieldEvidenceAppTests/V23ProductionRoundItemCompletionTests/testLostFinalizationAndCompleteAcknowledgementsResumeOriginalsOnce', 'FieldEvidenceAppTests/V23ProductionRoundItemCompletionTests/testDeferAndKeepOpenRetainParentsAndAdvanceOnce', 'FieldEvidenceAppTests/V23ProductionRoundItemCompletionTests/testRetiredSceneDeniesFinishAndAdvanceWithoutEffects', 'FieldEvidenceAppTests/V23ProductionRoundItemCompletionTests/testTwoPhotoJourneyCommitsEachSlotOnceRecoversAndFinishes', 'FieldEvidenceAppTests/V23ProductionRoundItemCompletionTests/testStoragePublicationAcceptsFreeByteDriftOnlyWithTheSameVerdict']
 
 class GeneratorTests(unittest.TestCase):
     @classmethod
@@ -303,13 +304,14 @@ class GeneratorTests(unittest.TestCase):
         # Historical reconstructions predate the round-item-mount-v1 append.
         cls.pre_mount_manifest = copy.deepcopy(cls.manifest)
         cls.pre_mount_manifest['selectorPool'] = [s for s in cls.pre_mount_manifest['selectorPool']
-                                                  if s not in EXPECTED_ROUND_ITEM_MOUNT]
+                                                  if s not in EXPECTED_ROUND_ITEM_MOUNT + EXPECTED_ROUND_ITEM_COMPLETION]
         cls.pre_mount_manifest['groups'] = [g for g in cls.pre_mount_manifest['groups']
-                                            if g['id'] != 'c36-round-item-mount']
+                                            if g['id'] not in ('c36-round-item-mount', 'c36-round-item-completion')]
         cls.pre_mount_manifest['profiles'] = [p for p in cls.pre_mount_manifest['profiles']
-                                              if p['id'] != 'round-item-mount-v1']
+                                              if p['id'] not in ('round-item-mount-v1', 'round-item-completion-v1')]
         for profile in cls.pre_mount_manifest['profiles']:
             profile['excludedGroupIDs'].remove('c36-round-item-mount')
+            profile['excludedGroupIDs'].remove('c36-round-item-completion')
         cls.temp = tempfile.TemporaryDirectory()
         cls.addClassCleanup(cls.temp.cleanup)
         cls.checkout = Path(cls.temp.name).resolve() / "checkout"
@@ -354,6 +356,7 @@ class GeneratorTests(unittest.TestCase):
                 'V23RestoreReviewAuthorityTests': REPO / 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests.swift',
                 'V23CheckRunnerItemFieldEditingTests': REPO / 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests.swift',
                 'V23ProductionRoundItemMountingTests': REPO / 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests.swift',
+                'V23ProductionRoundItemCompletionTests': REPO / 'FieldEvidenceAppTests/V23ProductionRoundItemCompletionTests.swift',
                 'V23ProductionDestinationReviewTests': REPO / 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests.swift',
                 'V23ProductionFourRootShellTests': REPO / 'FieldEvidenceAppTests/V23ProductionFourRootShellTests.swift',
                 'V23RepetitiveCaptureDestinationReviewTests': REPO / 'FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests.swift',
@@ -385,7 +388,7 @@ class GeneratorTests(unittest.TestCase):
         expected = EXPECTED_LIVE_HOST_RUNTIME
         prior, prior_map, _ = self.generate('saved-review-fields-v1')
         current, mapping, report = self.generate('live-host-v1')
-        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1078, 70, 1085))
+        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1078, 70, 1091))
         self.assertEqual(current, dict(prior, unitTestSelectors=prior['unitTestSelectors'] + expected))
         expected_map = copy.deepcopy(prior_map)
         additions = {'c36-field-edit': 1, 'media-policy': 3, 'legacy-lifecycle-recovery': 1}
@@ -413,7 +416,7 @@ class GeneratorTests(unittest.TestCase):
         fields = ['FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditsPersistIncompleteValuesAndColdReopenWithoutEffects', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditCASPreservesBeginAndPhotoSlotsAndRejectsFrozenOrForeignState', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditAcknowledgementLossRecoversOriginalBeforeNewerEdits', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldAutosaveUsesTrailingMaximumAndRetainsFailedAttempt', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldFlushDrainsEditsArrivingDuringAwaitAndAuthenticatesReadback']
         prior, prior_map, _ = self.generate('saved-review-discard-v1')
         current, mapping, report = self.generate('saved-review-fields-v1')
-        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1064, 69, 1085))
+        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1064, 69, 1091))
         self.assertEqual(current, dict(prior, unitTestSelectors=prior['unitTestSelectors'] + fields))
         self.assertEqual(mapping, dict(prior_map, groups=prior_map['groups'] + [
             {'id': 'c36-field-edit', 'classes': ['V23CheckRunnerItemFieldEditingTests'], 'methodCount': 5}]))
@@ -463,12 +466,15 @@ class GeneratorTests(unittest.TestCase):
         prior, prior_map, _ = self.generate('live-host-v1')
         current, mapping, report = self.generate('round-item-mount-v1')
         self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']),
-                         (1085, 71, 1085))
+                         (1085, 71, 1091))
         self.assertEqual(current, dict(prior, unitTestSelectors=prior['unitTestSelectors'] + EXPECTED_ROUND_ITEM_MOUNT))
         self.assertEqual(mapping, dict(prior_map, groups=prior_map['groups'] + [
             {'id': 'c36-round-item-mount', 'classes': ['V23ProductionRoundItemMountingTests'], 'methodCount': 7}]))
-        self.assertEqual(generator.canonical(current), (HERE/'ci-selection.json').read_bytes())
-        self.assertEqual(generator.canonical(mapping), (HERE/'ci-selection-map.json').read_bytes())
+        # The active files now belong to round-item-completion-v1; this profile stays pinned.
+        self.assertEqual(generator.sha256(generator.canonical(current)),
+                         'ED9EFF3F8C8EAA5EB51FF765787473A8F915F7A5D6D6020D6C851FE764921965')
+        self.assertEqual(generator.sha256(generator.canonical(mapping)),
+                         '7C9E12972AF8926C455328E1BD0DB4059220BD35A024645CDCAE51448186948C')
         self.assertEqual(len(self.pre_mount_manifest['profiles']), 24)
         for profile in self.pre_mount_manifest['profiles']:
             old = generator.generate(self.pre_mount_manifest, profile['id'], self.checkout)
@@ -478,10 +484,27 @@ class GeneratorTests(unittest.TestCase):
         self.assertFalse(report['nativeReady'])
         self.assertFalse(report['acceptance'])
 
+    def test_round_item_completion_adds_exact_class_and_active_files_match(self):
+        prior, prior_map, _ = self.generate('round-item-mount-v1')
+        current, mapping, report = self.generate('round-item-completion-v1')
+        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']),
+                         (1091, 72, 1091))
+        self.assertEqual(current, dict(prior, unitTestSelectors=prior['unitTestSelectors'] + EXPECTED_ROUND_ITEM_COMPLETION))
+        self.assertEqual(mapping, dict(prior_map, groups=prior_map['groups'] + [
+            {'id': 'c36-round-item-completion', 'classes': ['V23ProductionRoundItemCompletionTests'], 'methodCount': 6}]))
+        self.assertEqual(generator.canonical(current), (HERE/'ci-selection.json').read_bytes())
+        self.assertEqual(generator.canonical(mapping), (HERE/'ci-selection-map.json').read_bytes())
+        # Every earlier profile, including round-item-mount-v1, excludes the new group.
+        for profile in self.manifest['profiles']:
+            if profile['id'] != 'round-item-completion-v1':
+                self.assertIn('c36-round-item-completion', profile['excludedGroupIDs'], profile['id'])
+        self.assertFalse(report['nativeReady'])
+        self.assertFalse(report['acceptance'])
+
     def test_saved_review_profile_adds_exact_five_without_changing_order_or_budgets(self):
         prior, prior_map, _ = self.generate('finding-profile-fixtures-v1')
         current, mapping, report = self.generate('saved-review-discard-v1')
-        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1059, 68, 1085))
+        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1059, 68, 1091))
         self.assertEqual(current['unitTestSelectors'], prior['unitTestSelectors'] + SAVED_REVIEW_SELECTORS)
         self.assertEqual({k: v for k, v in current.items() if k != 'unitTestSelectors'},
                          {k: v for k, v in prior.items() if k != 'unitTestSelectors'})
@@ -952,7 +975,7 @@ class GeneratorTests(unittest.TestCase):
     def test_finding_profile_appends_exact_86_and_real_command_rejects_hostile_sources(self):
         prior, prior_map, _ = self.generate('activity-completed-source-v1')
         current, mapping, report = self.generate('finding-profile-fixtures-v1')
-        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1054, 68, 1085))
+        self.assertEqual((report['selectorCount'], report['groupCount'], report['manifestSourceDeclarationCount']), (1054, 68, 1091))
         self.assertNotIn('finding-owner-components-v1', [p['id'] for p in self.manifest['profiles']])
         with self.assertRaises(generator.ManifestError):
             self.generate('finding-owner-components-v1')
@@ -999,7 +1022,7 @@ class GeneratorTests(unittest.TestCase):
                 selected, mapping, report = self.generate(pin['profile'])
                 self.assertEqual(generator.sha256(generator.canonical(selected)), pin['selectionSHA256'])
                 self.assertEqual(generator.sha256(generator.canonical(mapping)), pin['mapSHA256'])
-                self.assertEqual(report['manifestSourceDeclarationCount'], 1085)
+                self.assertEqual(report['manifestSourceDeclarationCount'], 1091)
                 self.assertFalse(set(FINDING_PROFILE_FIXTURES_SELECTORS) & set(selected['unitTestSelectors']))
 
     def test_manifest_shape_membership_environment_and_path_hostiles(self):
@@ -1188,13 +1211,14 @@ class DiagnosticPartitionTests(unittest.TestCase):
         # Historical reconstructions predate the round-item-mount-v1 append.
         cls.pre_mount_manifest = copy.deepcopy(cls.manifest)
         cls.pre_mount_manifest['selectorPool'] = [s for s in cls.pre_mount_manifest['selectorPool']
-                                                  if s not in EXPECTED_ROUND_ITEM_MOUNT]
+                                                  if s not in EXPECTED_ROUND_ITEM_MOUNT + EXPECTED_ROUND_ITEM_COMPLETION]
         cls.pre_mount_manifest['groups'] = [g for g in cls.pre_mount_manifest['groups']
-                                            if g['id'] != 'c36-round-item-mount']
+                                            if g['id'] not in ('c36-round-item-mount', 'c36-round-item-completion')]
         cls.pre_mount_manifest['profiles'] = [p for p in cls.pre_mount_manifest['profiles']
-                                              if p['id'] != 'round-item-mount-v1']
+                                              if p['id'] not in ('round-item-mount-v1', 'round-item-completion-v1')]
         for profile in cls.pre_mount_manifest['profiles']:
             profile['excludedGroupIDs'].remove('c36-round-item-mount')
+            profile['excludedGroupIDs'].remove('c36-round-item-completion')
         cls.temp = tempfile.TemporaryDirectory()
         cls.addClassCleanup(cls.temp.cleanup)
         cls.checkout = Path(cls.temp.name).resolve()

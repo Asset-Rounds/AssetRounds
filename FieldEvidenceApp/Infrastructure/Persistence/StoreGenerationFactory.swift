@@ -6122,15 +6122,23 @@ final class StoreRestoreGenerationAuthority {
         private(set) var files: [String: File] = [:]
         private var children: [String: Set<String>] = [:]
         private let cancellationCheck: () throws -> Void
+        private let defersLivePrivatePreparation: Bool
         private var closed = false
 
+        /// `defersLivePrivatePreparation` is set only for protection of an
+        /// installed generation (open and after-save reproof). Reserved private
+        /// preparation leaves then stay outside this inventory: they exist while
+        /// a live photo or finalization prepares, and after a crash they belong
+        /// to startup retirement, which alone validates and disposes of them.
         init(
             parent: Int32,
             requireModel: Bool,
             partialCleanup: Bool = false,
+            defersLivePrivatePreparation: Bool = false,
             cancellationCheck: @escaping () throws -> Void = {}
         ) throws {
             self.cancellationCheck = cancellationCheck
+            self.defersLivePrivatePreparation = defersLivePrivatePreparation
             try cancellationCheck()
             let descriptor = Darwin.openat(parent, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
             guard descriptor >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
@@ -6179,9 +6187,27 @@ final class StoreRestoreGenerationAuthority {
             return value
         }
 
+        /// The two reserved locations of the live finalizer and media publisher.
+        /// Any node type is deferred; startup retirement fails closed on anything
+        /// but an exact reserved name for a regular single-link leaf.
+        static func isLivePrivatePreparation(_ name: String, directory: String) -> Bool {
+            let prefix: String
+            switch directory {
+            case "": prefix = ".immutable-"
+            case ".staging/snapshots": prefix = ".live-finalization-"
+            default: return false
+            }
+            return name.hasPrefix(prefix) && name.hasSuffix(".tmp")
+        }
+
+        private func retainedNames(_ names: [String], in directory: String) -> [String] {
+            guard defersLivePrivatePreparation else { return names }
+            return names.filter { !Self.isLivePrivatePreparation($0, directory: directory) }
+        }
+
         private func scan(directory: Directory, prefix: String) throws {
             try cancellationCheck()
-            let names = try StoreRestoreGenerationAuthority.names(in: directory.descriptor)
+            let names = try retainedNames(StoreRestoreGenerationAuthority.names(in: directory.descriptor), in: prefix)
             children[prefix] = Set(names)
             for name in names {
                 try cancellationCheck()
@@ -6233,7 +6259,7 @@ final class StoreRestoreGenerationAuthority {
                     throw StoreGenerationFailure.dataPointerInvalid
                 }
             }
-            guard try StoreRestoreGenerationAuthority.names(in: directory.descriptor) == names,
+            guard try retainedNames(StoreRestoreGenerationAuthority.names(in: directory.descriptor), in: prefix) == names,
                   try StoreRestoreGenerationAuthority.identity(directory.descriptor) == directory.identity else {
                 throw StoreGenerationFailure.dataPointerInvalid
             }
@@ -6244,7 +6270,8 @@ final class StoreRestoreGenerationAuthority {
                 try cancellationCheck()
                 guard let expected = children[path] else { throw StoreGenerationFailure.dataPointerInvalid }
                 try withDirectory(path) { chain in
-                    guard Set(try StoreRestoreGenerationAuthority.names(in: chain.descriptor)) == expected else {
+                    guard Set(try retainedNames(StoreRestoreGenerationAuthority.names(in: chain.descriptor),
+                                                in: path)) == expected else {
                         throw StoreGenerationFailure.dataPointerInvalid
                     }
                 }
@@ -12606,8 +12633,10 @@ struct StoreGenerationFactory {
         let descriptor = try openOwnedDirectory(at: root)
         defer { _ = Darwin.close(descriptor) }
         try verifyOwnedDirectory(at: root, descriptor: descriptor)
+        // Installed generations defer reserved private preparation to startup
+        // retirement; restore staging keeps its exact closed membership.
         let inventory = try StoreRestoreGenerationAuthority.GenerationInventory(
-            parent: descriptor, requireModel: requireModel
+            parent: descriptor, requireModel: requireModel, defersLivePrivatePreparation: !staging
         )
         let generationIdentity = inventory.root.identity
         try protect(staging ? .restoreStaging : .durableDirectory, at: root, authorityCheck: {

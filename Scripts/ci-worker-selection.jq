@@ -75,6 +75,19 @@
                      .testTimeoutSeconds, .uiTimeoutSeconds, .totalBudgetSeconds]
                     == [300, 1800, 900, 0, 3000]
                 and (.unitTestSelectors == [
+    "FieldEvidenceAppTests/V23ProductionRoundItemCompletionTests/testCouldNotVerifyFinishRecordsOneReportAndOneCompleteThenShowsNextItem",
+    "FieldEvidenceAppTests/V23ProductionRoundItemCompletionTests/testLostFinalizationAndCompleteAcknowledgementsResumeOriginalsOnce",
+    "FieldEvidenceAppTests/V23ProductionRoundItemCompletionTests/testDeferAndKeepOpenRetainParentsAndAdvanceOnce",
+    "FieldEvidenceAppTests/V23ProductionRoundItemCompletionTests/testRetiredSceneDeniesFinishAndAdvanceWithoutEffects",
+    "FieldEvidenceAppTests/V23ProductionRoundItemCompletionTests/testTwoPhotoJourneyCommitsEachSlotOnceRecoversAndFinishes",
+    "FieldEvidenceAppTests/V23ProductionRoundItemCompletionTests/testStoragePublicationAcceptsFreeByteDriftOnlyWithTheSameVerdict",
+    "FieldEvidenceAppTests/V23ProductionRoundReadinessTests/testActualRoundRoutesReadEveryWriterFrontierWithoutStartingOrResuming",
+    "FieldEvidenceAppTests/V23ProductionRoundReadinessTests/testActualRoundReadinessPublishesExactSessionAndRejectsWriterAndFinalCoverRaces",
+    "FieldEvidenceAppTests/V23ProductionRoundReadinessTests/testActualRoundFinalPublicationRejectsChangedNilRevisionFrontier",
+    "FieldEvidenceAppTests/V23ProductionRoundReadinessTests/testActualNativeRoundRouteAndBackPreserveReportsWithoutAutomaticWork",
+    "FieldEvidenceAppTests/V23ProductionRoundReadinessTests/testActualRoundOldPublicationCannotReadAfterFreshSceneActivation",
+    "FieldEvidenceAppTests/V23ProductionRoundReadinessTests/testReadinessPreFinalHookRejectionDoesNotCarryHookOrWriteIntoNextOperation"
+] or .unitTestSelectors == [
     "FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldOperationAuthoritySurvivesSuspensionAndRecoversOriginalReceipt",
     "FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testPhotoDiscardPreparationReopensOriginalPendingReceipt",
     "FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testPhotoDiscardValuesRetainOriginalStagesAndRejectCommit",

@@ -600,6 +600,80 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
             pack: pack)
     }
 
+    /// Outcome choices from the same incumbent resolver that review and the
+    /// finalizer use. Observational only: no draft, record or media is written.
+    func readOutcomePresentation(
+        authorizing liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess? = nil) throws
+        -> CheckRunnerItemOutcomePresentationV1 {
+        try withItemOperation(liveOperation) { _ in
+            guard case let .live(source) = serviceContext else { throw ScanToWorkFailureV1.authorityMismatch }
+            let keys = ["no_visible_issue", "visible_issue", "could_not_verify", "resolved",
+                        "issue_still_visible", "original_resolved_different_issue"]
+            var displays: [String: String] = [:]
+            for key in keys { displays[key] = coordinator.signPackOutcomeDisplay(key: key) }
+            return .init(stage: source.requestedEntry.stage, issueLabels: coordinator.signPackIssueLabels,
+                         couldNotVerifyReasons: coordinator.couldNotVerifyReasons, outcomeDisplays: displays)
+        }
+    }
+
+    /// Review of the saved outcome over the Begin record and committed evidence.
+    /// It reads only authenticated durable values; unsaved screen input is excluded.
+    func readFinalizationReview(draftID: UUID,
+        authorizing liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess? = nil) throws
+        -> FinalizationReview {
+        try withItemOperation(liveOperation) { _ in
+            let checkpoint = try read(draftID: draftID)
+            let payload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint)
+            guard checkpoint.state == .active, payload.phase == .editing,
+                  case let .bound(attempt, _, _) = payload.field.begin,
+                  let selection = payload.field.outcome.selection?.liveSelection else {
+                throw FieldDraftFailureV1.invalidValue
+            }
+            let review = try coordinator.prepareReview(assetID: payload.source.assetID, selection: selection)
+            guard review.draftID == attempt.recordCommand.recordID,
+                  try read(draftID: draftID) == checkpoint else { throw FieldDraftFailureV1.staleDraftRevision }
+            return review
+        }
+    }
+
+    /// The Begin record's current capture step and evidence purpose; no write.
+    func readCapturePreparation(
+        authorizing liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess? = nil) throws
+        -> CapturePreparation {
+        try withItemOperation(liveOperation) { _ in
+            guard case let .live(source) = serviceContext else { throw ScanToWorkFailureV1.authorityMismatch }
+            return try coordinator.prepareCapture(assetID: source.assetID)
+        }
+    }
+
+    /// A pending photo child's current checkpoint and durable phase, joined to
+    /// the authenticated parent. Observational only; every effect revalidates.
+    func readPendingPhoto(parentDraftID: UUID, childDraftID: UUID,
+        authorizing liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess? = nil) throws
+        -> (checkpoint: FieldDraftCheckpointV1, phase: CheckRunnerPhotoDurablePhaseV1) {
+        try withItemOperation(liveOperation) { current in
+            // Choose the evidence by the saved phase, as discard does; each read
+            // authenticates and throws, so an invalid continuation never falls back.
+            let adapter = try current.workspaceWriter.makeFieldDraftLifecycleAdapter(modelContext: current.modelContext)
+            guard let saved = try adapter.currentCheckpoint(workspaceID: workspaceID, draftID: childDraftID) else {
+                throw FieldDraftFailureV1.missingReceipt
+            }
+            if case .awaitingRawStage = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(saved).phase {
+                let raw = try currentRawPhotoEvidence(parentDraftID: parentDraftID, childDraftID: childDraftID)
+                guard raw.currentCheckpoint == saved else { throw FieldDraftFailureV1.staleDraftRevision }
+                return (raw.currentCheckpoint, try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(raw.currentCheckpoint).phase)
+            }
+            let continuation = try currentPhotoContinuation(parentDraftID: parentDraftID, childDraftID: childDraftID)
+            guard continuation.checkpoint == saved else { throw FieldDraftFailureV1.staleDraftRevision }
+            return (continuation.checkpoint, continuation.payload.phase)
+        }
+    }
+
+    func readReviewThumbnail(_ evidence: ReviewEvidence,
+        authorizing liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess? = nil) throws -> Data {
+        try withItemOperation(liveOperation) { _ in try coordinator.reviewThumbnailData(for: evidence) }
+    }
+
     func read(draftID: UUID) throws -> FieldDraftCheckpointV1 {
         let current = try currentSession()
         let id = draftID

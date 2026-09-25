@@ -7,6 +7,44 @@ struct CheckRunnerItemPreflightPresentationV1 {
     let pack: SignPack
 }
 
+/// Read-only outcome choices for the durable Outcome screen.
+struct CheckRunnerItemOutcomePresentationV1 {
+    let stage: WorkflowStage
+    let issueLabels: [SignPack.RegistryEntry]
+    let couldNotVerifyReasons: [SignPack.RegistryEntry]
+    let outcomeDisplays: [String: String]
+
+    var isRecheck: Bool { stage == .recheck }
+    func outcomeDisplay(_ key: String) -> String { outcomeDisplays[key] ?? key }
+}
+
+/// The durable position of one item, derived only from its validated parent.
+enum ProductionCheckRunnerItemCaptureStageV1: Equatable {
+    case unavailable
+    case preflight
+    case interruptedBegin
+    case capture(WorkflowDraftStep)
+    case pendingPhoto(WorkflowDraftStep)
+    /// `photosIncomplete` means only Could not verify can be reviewed.
+    case outcome(photosIncomplete: Bool)
+    case preparedFinalization
+    case completed
+}
+
+/// The one pending photo child of the current parent and its saved phase.
+struct ProductionCheckRunnerPendingPhotoV1: Equatable {
+    let childDraftID: UUID
+    let step: WorkflowDraftStep
+    let checkpoint: FieldDraftCheckpointV1
+    let phase: CheckRunnerPhotoDurablePhaseV1
+
+    /// Source bytes were never staged; only an explicit removal can continue.
+    var needsSourceAgain: Bool {
+        if case .awaitingRawStage = phase { return true }
+        return false
+    }
+}
+
 enum ProductionCheckRunnerItemCaptureFailureV1: Error, Equatable {
     case operationInProgress, missingEditor, retired, notPreparedBegin
 }
@@ -27,6 +65,11 @@ final class ProductionCheckRunnerItemCapturePresentationV1: ObservableObject {
     @Published private(set) var editor: CheckRunnerItemEditingSessionV1?
     @Published private(set) var isPerformingAction = false
     @Published private(set) var preflight: CheckRunnerItemPreflightPresentationV1?
+    @Published private(set) var outcomePresentation: CheckRunnerItemOutcomePresentationV1?
+    @Published private(set) var capturePreparation: CapturePreparation?
+    @Published private(set) var pendingPhoto: ProductionCheckRunnerPendingPhotoV1?
+    /// Bytes selected in this scene, for preview only; never restored or persisted.
+    @Published private(set) var selectedPhotoPreview: Data?
 
     var checkpoint: FieldDraftCheckpointV1? { editor?.acknowledgement.checkpoint ?? retainedCheckpoint }
 
@@ -48,6 +91,33 @@ final class ProductionCheckRunnerItemCapturePresentationV1: ObservableObject {
     var hasPreparedBegin: Bool {
         if case .prepared = durableBegin { return true }
         return false
+    }
+
+    /// Derived from the validated parent and the editor's current values; no
+    /// read writes, opens the camera or advances Begin/finalization.
+    var stage: ProductionCheckRunnerItemCaptureStageV1 {
+        guard let checkpoint,
+              let payload = try? CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint) else { return .unavailable }
+        if checkpoint.state == .committed { return .completed }
+        guard checkpoint.state == .active else { return .unavailable }
+        if payload.phase == .preparedFinalization { return .preparedFinalization }
+        switch payload.field.begin {
+        case .notBegun: return editor == nil ? .unavailable : .preflight
+        case .prepared: return .interruptedBegin
+        case .bound: break
+        }
+        guard let editor else { return .unavailable }
+        var photosIncomplete = false
+        for (slot, step) in [(payload.field.wideContext, WorkflowDraftStep.wide), (payload.field.closeDetail, .close)] {
+            switch slot {
+            case .committed?: continue
+            case .pending?: return .pendingPhoto(step)
+            case nil:
+                if [.outcome, .review].contains(editor.values.semanticAnchor) { photosIncomplete = true; continue }
+                return .capture(step)
+            }
+        }
+        return .outcome(photosIncomplete: photosIncomplete)
     }
 
     init(source: CheckRunnerRoundItemSourceV1, target: NavigationTargetV1,
@@ -80,6 +150,240 @@ final class ProductionCheckRunnerItemCapturePresentationV1: ObservableObject {
         try requireIdle()
         guard let editor else { throw ProductionCheckRunnerItemCaptureFailureV1.missingEditor }
         try editor.replaceEditableValues(values)
+    }
+
+    /// "Cannot complete" before both photos: the saved outcome position moves to
+    /// Could not verify. The frozen outcome-entry mode is never changed.
+    func openCouldNotVerify() throws {
+        try requireIdle()
+        guard let editor, hasBoundBegin else { throw ProductionCheckRunnerItemCaptureFailureV1.missingEditor }
+        var outcome = editor.values.outcome
+        outcome.chooseCouldNotVerify()
+        try editor.replaceEditableValues(.init(preflight: editor.values.preflight, outcome: outcome,
+                                               semanticAnchor: .outcome))
+    }
+
+    /// Leaves an incomplete Could not verify outcome for the next missing photo.
+    func returnToPhotos() throws {
+        try requireIdle()
+        guard let editor, case .outcome(photosIncomplete: true) = stage else {
+            throw ProductionCheckRunnerItemCaptureFailureV1.missingEditor
+        }
+        let payload = try checkpoint.map(CheckRunnerItemDraftCodecV1.validateCheckpoint)
+        let anchor: CheckRunnerItemSemanticAnchorV1 = payload?.field.wideContext == nil ? .wideContext : .closeDetail
+        try editor.replaceEditableValues(.init(preflight: editor.values.preflight, outcome: editor.values.outcome,
+                                               semanticAnchor: anchor))
+    }
+
+    /// Explicit selection for the current capture step: forced flush, frozen
+    /// proposal, parent selection, private staging, raw publication and the
+    /// normalized pair. Nothing commits until the separate explicit Use Photo.
+    func stagePhoto(_ data: Data, origin: OriginalContentOriginV1) async throws {
+        try requireIdle()
+        guard let editor, case let .capture(step) = stage, !data.isEmpty else {
+            throw ProductionCheckRunnerItemCaptureFailureV1.missingEditor
+        }
+        let operation = try captureOperation()
+        isPerformingAction = true
+        defer { isPerformingAction = false }
+        let proof = try await editor.forceFlushAndReadBack(reason: origin == .humanCapture ? .camera : .photos)
+        try editor.validateForPublication(proof)
+        try requireActive()
+        guard self.editor === editor else { throw CheckRunnerItemEditingSessionFailureV1.changedCheckpoint }
+        let parent = proof.parent.checkpoint
+        let proposal = try service.makeRawPhotoProposal(parentDraftID: parent.draftID,
+            expectedCheckpointSHA256: parent.checkpointSHA256, captureStep: step,
+            expectedSourceByteCount: Int64(data.count), origin: origin, authorizing: operation)
+        // A private per-selection copy is the only source the stager reads.
+        let sourceURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("round-photo-\(proposal.childDraftID.uuidString.lowercased())")
+        try data.write(to: sourceURL, options: [.atomic, .completeFileProtection])
+        defer { try? FileManager.default.removeItem(at: sourceURL) }
+        // The parent slot changes; its old acknowledgement must not write.
+        await supersede(editor)
+        do {
+            _ = try operation.withAuthorization {
+                try requireActive()
+                return try service.prepareRawPhoto(parentDraftID: parent.draftID,
+                    expectedCheckpointSHA256: parent.checkpointSHA256, proposal: proposal)
+            }
+            try service.prepareLivePhotoStaging(authorizing: operation)
+            _ = try await service.publishRawPhoto(parentDraftID: parent.draftID,
+                childDraftID: proposal.childDraftID, sourceURL: sourceURL, authorizing: operation)
+            _ = try await service.preparePhotoPair(parentDraftID: parent.draftID,
+                childDraftID: proposal.childDraftID, authorizing: operation)
+        } catch {
+            if (try? requireActive()) != nil { try? installCurrentRead(authorizing: operation) }
+            throw error
+        }
+        try requireActive()
+        try installCurrentRead(authorizing: operation)
+        selectedPhotoPreview = data
+    }
+
+    /// Explicit Use Photo, or explicit recovery of a saved selection: pair if
+    /// needed, freeze the one commit attempt, publish it and adopt the slot.
+    func usePhoto() async throws {
+        try requireIdle()
+        guard case .pendingPhoto = stage, let pending = pendingPhoto, !pending.needsSourceAgain,
+              let parentID = checkpoint?.draftID else {
+            throw ProductionCheckRunnerItemCaptureFailureV1.missingEditor
+        }
+        let operation = try captureOperation()
+        isPerformingAction = true
+        defer { isPerformingAction = false }
+        if let editor {
+            let proof = try await editor.forceFlushAndReadBack(reason: .photoPromotion)
+            try editor.validateForPublication(proof)
+            try requireActive()
+            guard self.editor === editor, proof.parent.checkpoint.draftID == parentID else {
+                throw CheckRunnerItemEditingSessionFailureV1.changedCheckpoint
+            }
+            await supersede(editor)
+        }
+        let childID = pending.childDraftID
+        do {
+            switch pending.phase {
+            case .awaitingRawStage:
+                throw FieldDraftFailureV1.missingContent
+            case .rawReady:
+                let pair = try await service.preparePhotoPair(parentDraftID: parentID,
+                    childDraftID: childID, authorizing: operation)
+                _ = try service.preparePhotoCommit(parentDraftID: parentID, childDraftID: childID,
+                    expectedCheckpointSHA256: pair.checkpointSHA256, authorizing: operation)
+            case .pairReady:
+                _ = try service.preparePhotoCommit(parentDraftID: parentID, childDraftID: childID,
+                    expectedCheckpointSHA256: pending.checkpoint.checkpointSHA256, authorizing: operation)
+            case .preparedCommit:
+                break
+            }
+            _ = try await service.resumePhotoCommit(parentDraftID: parentID, childDraftID: childID,
+                                                    authorizing: operation)
+        } catch {
+            retainedCheckpoint = nil
+            if (try? requireActive()) != nil { try? installCurrentRead(authorizing: operation) }
+            throw error
+        }
+        try requireActive()
+        try installCurrentRead(authorizing: operation)
+        selectedPhotoPreview = nil
+    }
+
+    /// Review of saved values only: the outcome is flushed and read back first.
+    func readReview() async throws -> FinalizationReview {
+        try requireIdle()
+        guard let editor, case .outcome = stage else { throw ProductionCheckRunnerItemCaptureFailureV1.missingEditor }
+        let operation = try captureOperation()
+        isPerformingAction = true
+        defer { isPerformingAction = false }
+        let proof = try await editor.forceFlushAndReadBack(reason: .complete)
+        try editor.validateForPublication(proof)
+        return try operation.withAuthorization {
+            try requireActive()
+            guard self.editor === editor else { throw CheckRunnerItemEditingSessionFailureV1.changedCheckpoint }
+            try service.validateForPublication(proof.parent)
+            return try service.readFinalizationReview(draftID: proof.parent.checkpoint.draftID,
+                                                      authorizing: operation)
+        }
+    }
+
+    func reviewThumbnail(_ evidence: ReviewEvidence) -> Data? {
+        guard let operation = try? captureOperation() else { return nil }
+        return try? operation.withAuthorization { try service.readReviewThumbnail(evidence, authorizing: operation) }
+    }
+
+    /// Explicit Save and finish. A forced flush precedes the one original
+    /// finalization; recovery of a PREPARED_FINALIZATION parent only resumes it.
+    /// The COMPLETE step is recorded from that finalization's receipt.
+    func finish(recordedByName: String, sourceApp: SourceAppSnapshotV1) async throws
+        -> AppAccessPresentationV1.RoundAccess.RepetitiveCaptureProgressResultV2 {
+        try requireIdle()
+        let operation = try captureOperation()
+        isPerformingAction = true
+        defer { isPerformingAction = false }
+        let draftID: UUID
+        if let editor {
+            guard case .outcome = stage else { throw ProductionCheckRunnerItemCaptureFailureV1.missingEditor }
+            let proof = try await editor.forceFlushAndReadBack(reason: .finalization)
+            try editor.validateForPublication(proof)
+            try requireActive()
+            guard self.editor === editor else { throw CheckRunnerItemEditingSessionFailureV1.changedCheckpoint }
+            draftID = proof.parent.checkpoint.draftID
+            // No acknowledgement may write while the parent changes phase.
+            await supersede(editor)
+            do {
+                _ = try await access.prepareCheckRunnerFinalization(service: service, draftID: draftID,
+                    expectedCheckpointSHA256: proof.parent.checkpoint.checkpointSHA256, sourceApp: sourceApp,
+                    authorizing: operation, validateIntent: { try self.requireActive() })
+            } catch {
+                if (try? requireActive()) != nil { try? installCurrentRead(authorizing: operation) }
+                throw error
+            }
+        } else {
+            // Recovery only: resume the saved finalization, or settle its one
+            // COMPLETE step when that acknowledgement was lost.
+            guard stage == .preparedFinalization || stage == .completed, let checkpoint = retainedCheckpoint else {
+                throw ProductionCheckRunnerItemCaptureFailureV1.missingEditor
+            }
+            draftID = checkpoint.draftID
+        }
+        do {
+            let result = try await access.resumeCheckRunnerFinalization(service: service, draftID: draftID,
+                focus: .facts, recordedByName: recordedByName, authorizing: operation,
+                validateIntent: { try self.requireActive() })
+            try requireActive()
+            try installCurrentRead(authorizing: operation)
+            return result
+        } catch {
+            retainedCheckpoint = nil
+            if (try? requireActive()) != nil { try? installCurrentRead(authorizing: operation) }
+            throw error
+        }
+    }
+
+    /// Explicit DEFER_AND_NEXT or KEEP_OPEN_AND_NEXT after a forced flush. The
+    /// parent draft is retained; a lost step acknowledgement resumes the original.
+    func advance(_ action: RepetitiveCaptureProgressActionV2, recordedByName: String) async throws
+        -> AppAccessPresentationV1.RoundAccess.RepetitiveCaptureProgressResultV2 {
+        guard action == .defer || action == .keepOpenAndNext else {
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+        try requireIdle()
+        switch stage {
+        case .preflight, .interruptedBegin, .capture, .pendingPhoto, .outcome: break
+        case .preparedFinalization, .completed, .unavailable:
+            // A finalizing or finished item completes through its own receipt only.
+            throw ScanToWorkFailureV1.authorityMismatch
+        }
+        let operation = try captureOperation()
+        // The scene/publication authority of this host's original operation.
+        let validateIntent: @MainActor () throws -> Void = {
+            try operation.withAuthorization { try self.requireActive() }
+        }
+        isPerformingAction = true
+        defer { isPerformingAction = false }
+        if let editor {
+            let proof = try await editor.forceFlushAndReadBack(reason: action == .defer ? .deferItem : .keepOpen)
+            try editor.validateForPublication(proof)
+        }
+        try requireActive()
+        let itemID = source.originalItem.itemID
+        let sourceDraftID = source.sourceCheckpoint.draftID
+        let read = try access.readRepetitiveCaptureProgress(sourceDraftID: sourceDraftID)
+        guard let tip = read.chain.nodes.last, tip.step.itemID == itemID else {
+            throw ScanToWorkFailureV1.stale
+        }
+        if tip.step.action == action {
+            // The original step was saved; settle or reread it without a new step.
+            return try await access.resumeRepetitiveCaptureProgress(sourceDraftID: sourceDraftID,
+                stepDraftID: tip.checkpoint.draftID, validateIntent: validateIntent)
+        }
+        guard tip.step.action == .enter, !tip.isPendingRoundEffect else { throw ScanToWorkFailureV1.stale }
+        let readiness = try await access.rebuildReadiness(for: read.chain.currentRound, previous: nil)
+        try validateIntent()
+        let step = try access.prepareRepetitiveCaptureStep(read: read, readiness: readiness, action: action,
+            focus: .facts, recordedByName: recordedByName)
+        return try await access.executeRepetitiveCaptureStep(step, validateIntent: validateIntent)
     }
 
     /// The actual synchronous navigation effect shares the original operation
@@ -228,12 +532,32 @@ final class ProductionCheckRunnerItemCapturePresentationV1: ObservableObject {
             }
             if let fieldRead { try service.validateForPublication(fieldRead) }
             let presentation = try service.readPreflightPresentation(source: source)
+            let outcome = try service.readOutcomePresentation(authorizing: operation)
+            var preparation: CapturePreparation?
+            var pending: ProductionCheckRunnerPendingPhotoV1?
+            if let current, current.state == .active {
+                let payload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(current)
+                if case .bound = payload.field.begin, payload.phase == .editing {
+                    preparation = try service.readCapturePreparation(authorizing: operation)
+                    for slot in [payload.field.wideContext, payload.field.closeDetail] {
+                        guard case let .pending(childID, step, _)? = slot else { continue }
+                        let read = try service.readPendingPhoto(parentDraftID: current.draftID,
+                            childDraftID: childID, authorizing: operation)
+                        pending = .init(childDraftID: childID, step: step, checkpoint: read.checkpoint, phase: read.phase)
+                        break
+                    }
+                }
+            }
             editorObservation = next?.objectWillChange.sink { [weak self] _ in
                 self?.objectWillChange.send()
             }
             retainedCheckpoint = current
             editor = next
             preflight = presentation
+            outcomePresentation = outcome
+            capturePreparation = preparation
+            pendingPhoto = pending
+            if pending == nil { selectedPhotoPreview = nil }
         }
     }
 

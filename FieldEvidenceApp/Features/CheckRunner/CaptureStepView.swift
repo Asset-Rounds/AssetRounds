@@ -3,6 +3,18 @@ import PhotosUI
 import SwiftUI
 import UIKit
 
+/// Explicit durable actions for a live Round item. Selection stages through
+/// the C36 pipeline; Use Photo commits; the host owns Outcome and navigation.
+@MainActor
+struct CheckRunnerDurableCaptureActionsV1 {
+    let preparation: CapturePreparation?
+    let pending: ProductionCheckRunnerPendingPhotoV1?
+    let preview: Data?
+    let stagePhoto: @MainActor (Data, OriginalContentOriginV1) async throws -> Void
+    let usePhoto: @MainActor () async throws -> Void
+    let cannotComplete: @MainActor () throws -> Void
+}
+
 struct CaptureStepView: View {
     static let legacyCaptureUnavailableAccessibilityIdentifier =
         "s3.runner.capture-unavailable"
@@ -20,7 +32,11 @@ struct CaptureStepView: View {
         "s3.runner.outcome-unavailable"
 
     let assetID: UUID
-    let coordinator: CheckRunnerCoordinator
+    private enum Backend {
+        case standalone(CheckRunnerCoordinator)
+        case durable(CheckRunnerDurableCaptureActionsV1)
+    }
+    private let backend: Backend
     let usesImportedCaptureFixturesForUITest: Bool
     let cameraAdapter: CameraAdapter
     let cannotComplete: () -> Void
@@ -36,15 +52,41 @@ struct CaptureStepView: View {
     @State private var didOpenCameraSettings = false
     @State private var showsCouldNotVerify = false
 
+    init(assetID: UUID, coordinator: CheckRunnerCoordinator,
+         usesImportedCaptureFixturesForUITest: Bool, cameraAdapter: CameraAdapter,
+         cannotComplete: @escaping () -> Void) {
+        self.assetID = assetID
+        self.backend = .standalone(coordinator)
+        self.usesImportedCaptureFixturesForUITest = usesImportedCaptureFixturesForUITest
+        self.cameraAdapter = cameraAdapter
+        self.cannotComplete = cannotComplete
+    }
+
+    /// The live parent owns selection, commit and the Outcome screen; this
+    /// backend never calls the standalone coordinator.
+    init(assetID: UUID, durable: CheckRunnerDurableCaptureActionsV1,
+         usesImportedCaptureFixturesForUITest: Bool = false, cameraAdapter: CameraAdapter = .live) {
+        self.assetID = assetID
+        self.backend = .durable(durable)
+        self.usesImportedCaptureFixturesForUITest = usesImportedCaptureFixturesForUITest
+        self.cameraAdapter = cameraAdapter
+        self.cannotComplete = {}
+    }
+
+    private var currentPreparation: CapturePreparation? {
+        if case let .durable(actions) = backend { return actions.preparation }
+        return preparation
+    }
+
     var body: some View {
         Group {
-            if showsCouldNotVerify {
+            if case let .standalone(coordinator) = backend, showsCouldNotVerify {
                 OutcomeReviewView(
                     assetID: assetID,
                     coordinator: coordinator,
                     startsWithCouldNotVerify: true
                 )
-            } else if let preparation, preparation.step == .outcome {
+            } else if case let .standalone(coordinator) = backend, let preparation, preparation.step == .outcome {
                 OutcomeReviewView(
                     assetID: assetID,
                     coordinator: coordinator
@@ -63,7 +105,7 @@ struct CaptureStepView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.SemanticColors.workBackground)
         .task {
-            guard preparation == nil, errorMessage == nil else { return }
+            guard case .standalone = backend, preparation == nil, errorMessage == nil else { return }
             loadPreparation()
         }
         .onChange(of: selectedPhotoItem) { _, item in
@@ -98,7 +140,7 @@ struct CaptureStepView: View {
     private var captureScroll: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
-                if let preparation {
+                if let preparation = currentPreparation {
                     captureContent(preparation)
                 } else if let errorMessage {
                     failure(message: errorMessage)
@@ -133,7 +175,26 @@ struct CaptureStepView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if let candidate {
+            if case let .durable(actions) = backend, let pending = actions.pending {
+                AssetRoundsPhotoCapture {
+                    durablePreview(actions.preview, pending: pending)
+
+                    if pending.needsSourceAgain {
+                        Text("This photo could not be finished on this iPhone.")
+                            .font(DesignTokens.Typography.primaryBody)
+                            .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+                    } else {
+                        AssetRoundsPrimaryAction(action: {
+                            useDurablePhoto(actions)
+                        }) {
+                            Text("Use Photo")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .disabled(isWorking)
+                        .accessibilityIdentifier(Self.usePhotoAccessibilityIdentifier)
+                    }
+                }
+            } else if let candidate {
                 AssetRoundsPhotoCapture {
                     preview(candidate)
 
@@ -221,7 +282,12 @@ struct CaptureStepView: View {
         }
 
         AssetRoundsSecondaryAction("Cannot complete") {
-            showsCouldNotVerify = true
+            if case let .durable(actions) = backend {
+                do { try actions.cannotComplete() }
+                catch { errorMessage = "Your changes could not be saved. Try again." }
+            } else {
+                showsCouldNotVerify = true
+            }
         }
         .disabled(isWorking)
         .accessibilityHint("Opens the reason flow to save this check as incomplete")
@@ -283,7 +349,50 @@ struct CaptureStepView: View {
             : "2 of 2 · \(purpose.display)"
     }
 
+    /// A preview of bytes selected in this scene, or a plain saved-state label
+    /// after reopening; staged bytes are never read back for presentation.
+    private func durablePreview(_ data: Data?, pending: ProductionCheckRunnerPendingPhotoV1) -> some View {
+        AssetRoundsEvidenceCard {
+            if let data, let image = UIImage(data: data) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.standard))
+                    .accessibilityLabel("Selected photo preview")
+                    .accessibilityIdentifier(Self.previewAccessibilityIdentifier)
+            } else {
+                Text("A photo is selected for this step and saved on this iPhone.")
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+                    .accessibilityIdentifier(Self.previewAccessibilityIdentifier)
+            }
+        }
+    }
+
+    private func useDurablePhoto(_ actions: CheckRunnerDurableCaptureActionsV1) {
+        guard !isWorking else { return }
+        isWorking = true
+        errorMessage = nil
+        Task { @MainActor in
+            defer { isWorking = false }
+            do { try await actions.usePhoto() }
+            catch { errorMessage = "The photo could not be saved. Try again." }
+        }
+    }
+
+    /// One entry for picker, camera and UI-test bytes. Durable selection stages
+    /// through the live parent; standalone creates the incumbent candidate.
+    private func acceptSelected(_ data: Data, origin: OriginalContentOriginV1) async throws {
+        switch backend {
+        case let .standalone(coordinator):
+            candidate = try await coordinator.importCandidate(assetID: assetID, sourceData: data, createdAt: Date())
+        case let .durable(actions):
+            try await actions.stagePhoto(data, origin)
+        }
+    }
+
     private func loadPreparation() {
+        guard case let .standalone(coordinator) = backend else { return }
         do {
             preparation = try coordinator.prepareCapture(assetID: assetID)
             errorMessage = nil
@@ -334,11 +443,7 @@ struct CaptureStepView: View {
                     errorMessage = "The selected photo could not be read. Choose another photo."
                     return
                 }
-                candidate = try await coordinator.importCandidate(
-                    assetID: assetID,
-                    sourceData: data,
-                    createdAt: Date()
-                )
+                try await acceptSelected(data, origin: .localImport)
             } catch CheckRunnerCoordinatorError.storageUnavailable {
                 errorMessage = "Free space is too low. Free space, then try again."
             } catch {
@@ -353,11 +458,7 @@ struct CaptureStepView: View {
         errorMessage = nil
         Task { @MainActor in
             do {
-                candidate = try await coordinator.importCandidate(
-                    assetID: assetID,
-                    sourceData: data,
-                    createdAt: Date()
-                )
+                try await acceptSelected(data, origin: .humanCapture)
             } catch CheckRunnerCoordinatorError.storageUnavailable {
                 errorMessage = "Free space is too low. Free space, then try again."
             } catch {
@@ -391,11 +492,7 @@ struct CaptureStepView: View {
 
         Task { @MainActor in
             do {
-                candidate = try await coordinator.importCandidate(
-                    assetID: assetID,
-                    sourceData: sourceData,
-                    createdAt: Date()
-                )
+                try await acceptSelected(sourceData, origin: .localImport)
             } catch CheckRunnerCoordinatorError.storageUnavailable {
                 errorMessage = "Free space is too low. Free space, then try again."
             } catch {
@@ -406,7 +503,7 @@ struct CaptureStepView: View {
     }
 
     private func retake(_ candidate: CaptureCandidate) {
-        guard !isWorking else { return }
+        guard !isWorking, case let .standalone(coordinator) = backend else { return }
         isWorking = true
         errorMessage = nil
         Task { @MainActor in
@@ -421,7 +518,7 @@ struct CaptureStepView: View {
     }
 
     private func usePhoto(_ candidate: CaptureCandidate) {
-        guard !isWorking else { return }
+        guard !isWorking, case let .standalone(coordinator) = backend else { return }
         isWorking = true
         errorMessage = nil
         Task { @MainActor in

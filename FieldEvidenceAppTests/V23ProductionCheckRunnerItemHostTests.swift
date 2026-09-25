@@ -466,6 +466,19 @@ final class V23ProductionCheckRunnerItemHostTests: XCTestCase {
                 let generationRoot = h.coordinator.generationRootURL
                 let journal = h.root.appendingPathComponent(
                     "FieldEvidenceOperations/finalization/\(attempt.identifiers.mutationID.uuidString.lowercased()).json")
+                if !FileManager.default.fileExists(atPath: journal.path) {
+                    // Test-only diagnosis of an audited missing journal: record where
+                    // the interrupted attempt's files actually are. No assertion changes.
+                    let listed = [h.root.appendingPathComponent("FieldEvidenceOperations/finalization"),
+                                  generationRoot.appendingPathComponent(".staging/snapshots"),
+                                  generationRoot.appendingPathComponent("snapshots"), generationRoot]
+                        .map { url in "\(url.lastPathComponent)=" + ((try? FileManager.default
+                            .contentsOfDirectory(atPath: url.path).sorted().joined(separator: ",")) ?? "absent") }
+                    print("V23_PRIVATE_RECOVERY_DIAGNOSIS committed=\(committed) "
+                        + "mutation=\(attempt.identifiers.mutationID.uuidString.lowercased()) "
+                        + "report=\(attempt.identifiers.reportID.uuidString.lowercased()) "
+                        + listed.joined(separator: " "))
+                }
                 let journalBytes = try Data(contentsOf: journal)
                 let intent = try FinalizationContractDecoderV1().decodeIntent(journalBytes)
                 XCTAssertEqual(intent.phase, committed ? .snapshotPromoted : .prepared)

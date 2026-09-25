@@ -2,6 +2,21 @@ import Foundation
 import SwiftUI
 import UIKit
 
+/// Explicit durable actions for a live Round item. The live parent owns the
+/// saved outcome, review and finalization; no standalone coordinator write occurs.
+@MainActor
+struct CheckRunnerDurableOutcomeActionsV1 {
+    let presentation: CheckRunnerItemOutcomePresentationV1
+    /// Photos are incomplete, so only Could not verify can be reviewed.
+    let couldNotVerifyOnly: Bool
+    let values: @MainActor () -> CheckRunnerEditableOutcomeV1
+    let update: @MainActor (CheckRunnerEditableOutcomeV1) throws -> Void
+    let review: @MainActor () async throws -> FinalizationReview
+    let thumbnail: @MainActor (ReviewEvidence) -> Data?
+    let returnToPhotos: (@MainActor () throws -> Void)?
+    let finish: @MainActor () async throws -> Void
+}
+
 struct OutcomeReviewView: View {
     static let outcomeScreenAccessibilityIdentifier = "s3.outcome.screen"
     static let noVisibleIssueAccessibilityIdentifier = "s3.outcome.no-visible-issue"
@@ -22,11 +37,33 @@ struct OutcomeReviewView: View {
     static let recheckNoteAccessibilityIdentifier = "s5.2.outcome.note"
     static let originalResolvedDifferentIssueAccessibilityIdentifier =
         "s5.3.outcome.original-resolved-different-issue"
+    static let returnToPhotosAccessibilityIdentifier = "v23.outcome.return-to-photos"
 
     let assetID: UUID
-    let coordinator: CheckRunnerCoordinator
+    private enum Backend {
+        case standalone(CheckRunnerCoordinator)
+        case durable(CheckRunnerDurableOutcomeActionsV1)
+    }
+    private let backend: Backend
     let startsWithCouldNotVerify: Bool
-    @State private var editable: CheckRunnerEditableOutcomeV1
+    @State private var standaloneEditable: CheckRunnerEditableOutcomeV1
+    private var editable: CheckRunnerEditableOutcomeV1 {
+        get {
+            if case let .durable(actions) = backend { return actions.values() }
+            return standaloneEditable
+        }
+        nonmutating set {
+            if case let .durable(actions) = backend {
+                do { try actions.update(newValue) }
+                catch { errorMessage = "Your changes could not be saved. Try again." }
+            } else {
+                standaloneEditable = newValue
+            }
+        }
+    }
+    private var editableBinding: Binding<CheckRunnerEditableOutcomeV1> {
+        Binding(get: { editable }, set: { editable = $0 })
+    }
 
     private var selection: CheckOutcomeSelection? { editable.selection?.liveSelection }
     private var isChoosingVisibleIssue: Bool { editable.choice == .visibleIssue }
@@ -46,14 +83,22 @@ struct OutcomeReviewView: View {
         startsWithCouldNotVerify: Bool = false
     ) {
         self.assetID = assetID
-        self.coordinator = coordinator
+        self.backend = .standalone(coordinator)
         self.startsWithCouldNotVerify = startsWithCouldNotVerify
-        _editable = State(initialValue: .initial(startsWithCouldNotVerify: startsWithCouldNotVerify))
+        _standaloneEditable = State(initialValue: .initial(startsWithCouldNotVerify: startsWithCouldNotVerify))
+    }
+
+    /// The live parent owns the outcome; this backend never calls the standalone coordinator.
+    init(assetID: UUID, durable: CheckRunnerDurableOutcomeActionsV1) {
+        self.assetID = assetID
+        self.backend = .durable(durable)
+        self.startsWithCouldNotVerify = durable.couldNotVerifyOnly
+        _standaloneEditable = State(initialValue: .init())
     }
 
     var body: some View {
         Group {
-            if let result {
+            if let result, case let .standalone(coordinator) = backend {
                 ValueReceiptView(result: result, coordinator: coordinator)
             } else if let review {
                 reviewScreen(review)
@@ -136,7 +181,7 @@ struct OutcomeReviewView: View {
 
             if isRecheck && !isChoosingCouldNotVerify {
                 AssetRoundsEvidenceCard {
-                    TextField("Optional note", text: $editable.recheckNote, axis: .vertical)
+                    TextField("Optional note", text: editableBinding.recheckNote, axis: .vertical)
                         .lineLimit(3...6)
                         .frame(
                             minHeight: DesignTokens.Target.minimumInteractiveHeight,
@@ -157,7 +202,7 @@ struct OutcomeReviewView: View {
                     Text("Choose one visible issue")
                         .font(DesignTokens.Typography.sectionHeading)
                         .foregroundStyle(DesignTokens.SemanticColors.primaryText)
-                    ForEach(coordinator.signPackIssueLabels) { label in
+                    ForEach(issueLabels) { label in
                         choiceButton(
                             title: label.display,
                             isSelected: selectedIssueKey == label.key,
@@ -175,7 +220,7 @@ struct OutcomeReviewView: View {
                     Text("Why could this check not be completed?")
                         .font(DesignTokens.Typography.sectionHeading)
                         .foregroundStyle(DesignTokens.SemanticColors.primaryText)
-                    ForEach(coordinator.couldNotVerifyReasons) { reason in
+                    ForEach(couldNotVerifyReasons) { reason in
                         choiceButton(
                             title: reason.display,
                             isSelected: selectedCouldNotVerifyReasonKey == reason.key,
@@ -188,7 +233,7 @@ struct OutcomeReviewView: View {
 
                     TextField(
                         "Optional note",
-                        text: $editable.couldNotVerifyNote,
+                        text: editableBinding.couldNotVerifyNote,
                         axis: .vertical
                     )
                     .lineLimit(3...6)
@@ -210,8 +255,17 @@ struct OutcomeReviewView: View {
             AssetRoundsPrimaryAction("Continue") {
                 prepareReview()
             }
-            .disabled(!canContinue)
+            .disabled(!canContinue || isSaving)
             .accessibilityIdentifier(Self.continueAccessibilityIdentifier)
+
+            if case let .durable(actions) = backend, let returnToPhotos = actions.returnToPhotos {
+                AssetRoundsSecondaryAction("Take photos instead") {
+                    do { try returnToPhotos(); errorMessage = nil }
+                    catch { errorMessage = "Your changes could not be saved. Try again." }
+                }
+                .disabled(isSaving)
+                .accessibilityIdentifier(Self.returnToPhotosAccessibilityIdentifier)
+            }
             }
             .padding(DesignTokens.Spacing.space16)
         }
@@ -336,7 +390,7 @@ struct OutcomeReviewView: View {
     ) -> some View {
         AssetRoundsPhotoCapture {
             if let evidence,
-               let data = try? coordinator.reviewThumbnailData(for: evidence),
+               let data = thumbnailData(for: evidence),
                let image = UIImage(data: data) {
                 Image(uiImage: image)
                     .resizable()
@@ -391,14 +445,14 @@ struct OutcomeReviewView: View {
         case .noVisibleIssue:
             true
         case let .visibleIssue(labelKey):
-            coordinator.signPackIssueLabels.contains { $0.key == labelKey }
+            issueLabels.contains { $0.key == labelKey }
         case let .couldNotVerify(reasonKey, note):
-            coordinator.couldNotVerifyReasons.contains { $0.key == reasonKey }
+            couldNotVerifyReasons.contains { $0.key == reasonKey }
                 && normalizedNote(note) != .invalid
         case let .resolved(note), let .issueStillVisible(note):
             normalizedNote(note) != .invalid
         case let .originalResolvedDifferentIssue(labelKey, note):
-            coordinator.signPackIssueLabels.contains { $0.key == labelKey }
+            issueLabels.contains { $0.key == labelKey }
                 && normalizedNote(note) != .invalid
         case nil:
             false
@@ -408,7 +462,31 @@ struct OutcomeReviewView: View {
     private typealias NormalizedNote = CheckRunnerEditableNoteProjectionV1
 
     private var isRecheck: Bool {
-        coordinator.activeDraftStage(assetID: assetID) == .recheck
+        switch backend {
+        case let .standalone(coordinator): coordinator.activeDraftStage(assetID: assetID) == .recheck
+        case let .durable(actions): actions.presentation.isRecheck
+        }
+    }
+
+    private var issueLabels: [SignPack.RegistryEntry] {
+        switch backend {
+        case let .standalone(coordinator): coordinator.signPackIssueLabels
+        case let .durable(actions): actions.presentation.issueLabels
+        }
+    }
+
+    private var couldNotVerifyReasons: [SignPack.RegistryEntry] {
+        switch backend {
+        case let .standalone(coordinator): coordinator.couldNotVerifyReasons
+        case let .durable(actions): actions.presentation.couldNotVerifyReasons
+        }
+    }
+
+    private func thumbnailData(for evidence: ReviewEvidence) -> Data? {
+        switch backend {
+        case let .standalone(coordinator): try? coordinator.reviewThumbnailData(for: evidence)
+        case let .durable(actions): actions.thumbnail(evidence)
+        }
     }
 
     private var isResolvedSelected: Bool {
@@ -439,16 +517,35 @@ struct OutcomeReviewView: View {
     }
 
     private func outcomeDisplay(_ key: String) -> String {
-        coordinator.signPackOutcomeDisplay(key: key) ?? key
+        switch backend {
+        case let .standalone(coordinator): coordinator.signPackOutcomeDisplay(key: key) ?? key
+        case let .durable(actions): actions.presentation.outcomeDisplay(key)
+        }
     }
 
     private func prepareReview() {
         guard let selection else { return }
-        do {
-            review = try coordinator.prepareReview(assetID: assetID, selection: selection)
-            errorMessage = nil
-        } catch {
-            errorMessage = "The check could not be prepared for review. Try again."
+        switch backend {
+        case let .standalone(coordinator):
+            do {
+                review = try coordinator.prepareReview(assetID: assetID, selection: selection)
+                errorMessage = nil
+            } catch {
+                errorMessage = "The check could not be prepared for review. Try again."
+            }
+        case let .durable(actions):
+            // Review reads only the saved outcome, after its forced flush.
+            guard !isSaving else { return }
+            isSaving = true
+            Task { @MainActor in
+                defer { isSaving = false }
+                do {
+                    review = try await actions.review()
+                    errorMessage = nil
+                } catch {
+                    errorMessage = "The check could not be prepared for review. Try again."
+                }
+            }
         }
     }
 
@@ -456,6 +553,15 @@ struct OutcomeReviewView: View {
         guard let selection, !isSaving else { return }
         isSaving = true
         errorMessage = nil
+        guard case let .standalone(coordinator) = backend else {
+            guard case let .durable(actions) = backend else { return }
+            Task { @MainActor in
+                defer { isSaving = false }
+                do { try await actions.finish() }
+                catch { errorMessage = "The report could not be saved. Your check is still available to retry." }
+            }
+            return
+        }
         let info = Bundle.main.infoDictionary ?? [:]
         let sourceApp = SourceAppSnapshotV1(
             build: info["CFBundleVersion"] as? String ?? "0",

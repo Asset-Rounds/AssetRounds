@@ -617,9 +617,13 @@ struct ProductionOfflineReadinessReadResultV1 {
         }
         let current = try ledger.observeOfflineReadiness(expectedApplicationSupportURL: applicationSupportURL)
         let protected = UIApplication.shared.isProtectedDataAvailable
-        guard manifests.allSatisfy({ $0.storage == current && $0.protectedDataAvailable == protected }) else {
+        // Free bytes drift on a live volume; only a changed storage verdict rejects.
+        guard manifests.allSatisfy({ current.supportsPublication(ofRecorded: $0.storage, requiredBytes: $0.requiredBytes)
+                && $0.protectedDataAvailable == protected }) else {
             #if DEBUG
-            let storageMatches = manifests.allSatisfy { $0.storage == current }
+            let storageMatches = manifests.allSatisfy {
+                current.supportsPublication(ofRecorded: $0.storage, requiredBytes: $0.requiredBytes)
+            }
             let protectedDataMatches = manifests.allSatisfy { $0.protectedDataAvailable == protected }
             print("ProductionOfflineReadinessAuthorityV1.publication phase=storage-protected-data storageMatches=\(storageMatches) protectedDataMatches=\(protectedDataMatches)")
             for (index, manifest) in manifests.enumerated() {

@@ -330,6 +330,19 @@ struct OfflineReadinessStorageObservationV1: Codable, Equatable, Hashable, Senda
         let c = try decoder.container(keyedBy: CodingKeys.self)
         try self.init(capacityState: c.decode(OfflineReadinessCapacityStateV1.self, forKey: .capacityState), availableBytes: try c.decodeIfPresent(Int64.self, forKey: .availableBytes), reservedBytes: c.decode(Int64.self, forKey: .reservedBytes), operationReserveBytes: c.decode(Int64.self, forKey: .operationReserveBytes))
     }
+
+    /// Publication revalidation. Free space on a live volume changes between any
+    /// two reads, so exact byte equality can never hold. The fresh observation must
+    /// keep the same capacity state and reservations and reach the same storage
+    /// verdict against the manifest's required bytes; any verdict change rejects.
+    func supportsPublication(ofRecorded recorded: Self, requiredBytes: Int64?) -> Bool {
+        guard capacityState == recorded.capacityState, reservedBytes == recorded.reservedBytes,
+              operationReserveBytes == recorded.operationReserveBytes,
+              (availableBytes == nil) == (recorded.availableBytes == nil) else { return false }
+        guard let current = availableBytes, let previous = recorded.availableBytes else { return true }
+        guard let requiredBytes else { return current == previous }
+        return (current >= requiredBytes) == (previous >= requiredBytes)
+    }
 }
 
 struct OfflineReadinessAccessObservationV1: Codable, Equatable, Hashable, Sendable {

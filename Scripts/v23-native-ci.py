@@ -404,13 +404,15 @@ STARTUP_RETIREMENT_SELECTORS = (
     'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementRejectsMalformedNamesAndUnsafeFileKinds',
     'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementPreservesInterruptedFinalizationAndReachesEraseAdmission',
 )
-ROUND_ITEM_MOUNT_PARENT = 'fd0c90f003ecf24337e449f5cc0f72e502a0069e'
-ROUND_ITEM_MOUNT_TREES = {'FieldEvidenceApp': 'ed917df675fe5549a578316a9bcc8ab100aaf6d5', 'FieldEvidenceAppTests': 'b3c560f0e7cb15a458cb87b21a6d1976eacf4ec8', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+ROUND_ITEM_MOUNT_PARENT = '96cc1807002ecef14f0f48cabf7f58ea3e103aa2'
+ROUND_ITEM_MOUNT_TREES = {'FieldEvidenceApp': 'ee77efbd2f3f480dcb25041243d81761a3d70d3a', 'FieldEvidenceAppTests': 'b912905b6783b9727d23acca144cf007ba9b6a1d', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}
+ROUND_ITEM_COMPLETION_SELECTION_ID = 'c36-round-item-completion-no-index-build30m'
 D50_SELECTION_IDS = (LIVE_HOST_SELECTION_ID, ROUND_ITEM_MOUNT_SELECTION_ID, STARTUP_RETIREMENT_SELECTION_ID)
 NO_INDEX_ROUTES = {
     LIVE_HOST_SELECTION_ID: (LIVE_HOST_PARENT, "D50"),
     ROUND_ITEM_MOUNT_SELECTION_ID: (ROUND_ITEM_MOUNT_PARENT, "D50"),
     STARTUP_RETIREMENT_SELECTION_ID: (ROUND_ITEM_MOUNT_PARENT, "D50"),
+    ROUND_ITEM_COMPLETION_SELECTION_ID: (ROUND_ITEM_MOUNT_PARENT, "D30"),
     FIELD_AUTOSAVE_SELECTION_ID: (FIELD_AUTOSAVE_PARENT, "D30"),
     NOTIFICATION_INTERRUPTION_SELECTION_ID: (NOTIFICATION_INTERRUPTION_PARENT, "D30"),
     SAVED_REVIEW_FIELDS_SELECTION_ID: (SAVED_REVIEW_FIELDS_PARENT, "D30"),
@@ -435,7 +437,8 @@ def no_index_source_trees(selection_id):
     require(selection_id in NO_INDEX_ROUTES, "no-index closed source binding")
     if selection_id == LIVE_HOST_SELECTION_ID:
         return LIVE_HOST_TREES
-    if selection_id in (ROUND_ITEM_MOUNT_SELECTION_ID, STARTUP_RETIREMENT_SELECTION_ID):
+    if selection_id in (ROUND_ITEM_MOUNT_SELECTION_ID, STARTUP_RETIREMENT_SELECTION_ID,
+                        ROUND_ITEM_COMPLETION_SELECTION_ID):
         return ROUND_ITEM_MOUNT_TREES
     if selection_id == FIELD_AUTOSAVE_SELECTION_ID:
         return FIELD_AUTOSAVE_TREES
@@ -558,7 +561,30 @@ ROUND_ITEM_MOUNT_SELECTORS = tuple('FieldEvidenceAppTests/V23ProductionRoundItem
         'testRevisionPinnedRouteRetargetsThenReusesEntryAndBegunParentReopens',
         'testInterruptedPreparedBeginReopensForExplicitRecoveryAndCompletesOnce',
     ))
+ROUND_ITEM_COMPLETION_PROFILE = 'round-item-completion-v1'
+ROUND_ITEM_COMPLETION_POOL_SHA256 = 'AA6FED058B963A5110857E98FD68573DCA72F20FD8D0BD19B7A50B252E957A7B'
+ROUND_ITEM_COMPLETION_MAP_SHA256 = '2872B03CDC17B8C001CA351411FBF10954063B09F052146BECAC81BE8E831FB0'
+ROUND_ITEM_COMPLETION_SELECTORS = tuple('FieldEvidenceAppTests/V23ProductionRoundItemCompletionTests/' + method
+    for method in (
+        'testCouldNotVerifyFinishRecordsOneReportAndOneCompleteThenShowsNextItem',
+        'testLostFinalizationAndCompleteAcknowledgementsResumeOriginalsOnce',
+        'testDeferAndKeepOpenRetainParentsAndAdvanceOnce',
+        'testRetiredSceneDeniesFinishAndAdvanceWithoutEffects',
+        'testTwoPhotoJourneyCommitsEachSlotOnceRecoversAndFinishes',
+        'testStoragePublicationAcceptsFreeByteDriftOnlyWithTheSameVerdict',
+    ))
+ROUND_READINESS_SELECTORS = tuple('FieldEvidenceAppTests/V23ProductionRoundReadinessTests/' + method
+    for method in (
+        'testActualRoundRoutesReadEveryWriterFrontierWithoutStartingOrResuming',
+        'testActualRoundReadinessPublishesExactSessionAndRejectsWriterAndFinalCoverRaces',
+        'testActualRoundFinalPublicationRejectsChangedNilRevisionFrontier',
+        'testActualNativeRoundRouteAndBackPreserveReportsWithoutAutomaticWork',
+        'testActualRoundOldPublicationCannotReadAfterFreshSceneActivation',
+        'testReadinessPreFinalHookRejectionDoesNotCarryHookOrWriteIntoNextOperation',
+    ))
+ROUND_ITEM_COMPLETION_QUESTION_SELECTORS = ROUND_ITEM_COMPLETION_SELECTORS + ROUND_READINESS_SELECTORS
 GENERATED_PROFILE_PINS = {
+    ROUND_ITEM_COMPLETION_POOL_SHA256: (ROUND_ITEM_COMPLETION_PROFILE, ROUND_ITEM_COMPLETION_MAP_SHA256),
     ROUND_ITEM_MOUNT_POOL_SHA256: (ROUND_ITEM_MOUNT_PROFILE, ROUND_ITEM_MOUNT_MAP_SHA256),
     LIVE_HOST_POOL_SHA256: (LIVE_HOST_PROFILE, LIVE_HOST_MAP_SHA256),
     SAVED_REVIEW_POOL_SHA256: (SAVED_REVIEW_PROFILE, SAVED_REVIEW_MAP_SHA256),
@@ -1329,6 +1355,7 @@ def validate_selection(selection):
             PARENT_FINALIZATION_METHOD_PARTITIONS[0][1], RESTORE_BUILD_WATCHDOG_SELECTORS,
             REMINDER_BUILD_WATCHDOG_SELECTORS, RESTORE_HISTORY_SELECTORS, REPLACEMENT_UNION_SELECTORS, ERASE_RECOVERY_SELECTORS, ACTIVITY_CONTRACT_SELECTORS, ACTIVITY_CODEC_PUNCH_SELECTORS, ACTIVITY_COMPLETED_SOURCE_SELECTORS,
             NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS, NOTIFICATION_INTERRUPTION_SELECTORS, FINDING_PROFILE_FIXTURES_SELECTORS, SAVED_REVIEW_FIELDS_SELECTORS, FIELD_AUTOSAVE_SELECTORS, LIVE_HOST_RUNTIME_SELECTORS,
+            ROUND_ITEM_COMPLETION_QUESTION_SELECTORS,
             *(members for _, members in ERASE_DIAGNOSTIC_PARTITIONS),
             *(members for _, members in REPLACEMENT_DIAGNOSTIC_PARTITIONS)),
             "build watchdog exact approved methods")
@@ -1380,12 +1407,13 @@ def resolve_selection(default, selection_map, selection_id):
                  and g.get("classes") == ['S3_6CameraRecoveryTests', 'S4_5CorrectionTests', 'S6_2BackupExportTests', 'V9_18PackLifecycleIntegrationTests']]) == 1
     )
     generated_profile_shape = (
-        isinstance(groups, list) and len(groups) in (68, 69, 70, 71)
+        isinstance(groups, list) and len(groups) in (68, 69, 70, 71, 72)
         and (sha256(canonical(default)), sha256(canonical(selection_map))) in (
             (SAVED_REVIEW_POOL_SHA256, SAVED_REVIEW_MAP_SHA256),
             (GENERATED_SELECTION_POOL_SHA256, GENERATED_SELECTION_MAP_SHA256),
             (LIVE_HOST_POOL_SHA256, LIVE_HOST_MAP_SHA256),
             (ROUND_ITEM_MOUNT_POOL_SHA256, ROUND_ITEM_MOUNT_MAP_SHA256),
+            (ROUND_ITEM_COMPLETION_POOL_SHA256, ROUND_ITEM_COMPLETION_MAP_SHA256),
             (PRE_SAVED_REVIEW_POOL_SHA256, PRE_SAVED_REVIEW_MAP_SHA256))
     )
     require(isinstance(groups, list) and
@@ -1427,6 +1455,7 @@ def resolve_selection(default, selection_map, selection_id):
                     (GENERATED_SELECTION_POOL_SHA256, GENERATED_SELECTION_MAP_SHA256),
                     (LIVE_HOST_POOL_SHA256, LIVE_HOST_MAP_SHA256),
                     (ROUND_ITEM_MOUNT_POOL_SHA256, ROUND_ITEM_MOUNT_MAP_SHA256),
+                    (ROUND_ITEM_COMPLETION_POOL_SHA256, ROUND_ITEM_COMPLETION_MAP_SHA256),
                     (PRE_SAVED_REVIEW_POOL_SHA256, PRE_SAVED_REVIEW_MAP_SHA256),
                     (SAVED_REVIEW_POOL_SHA256, SAVED_REVIEW_MAP_SHA256)),
                 "durable begin exact base pool/map")
@@ -1671,7 +1700,8 @@ def resolve_selection(default, selection_map, selection_id):
         validate_selection(finding)
         resolved[FINDING_PROFILE_FIXTURES_SELECTION_ID] = finding
     if generated_profile_shape and sha256(canonical(default)) in (SAVED_REVIEW_POOL_SHA256, GENERATED_SELECTION_POOL_SHA256, LIVE_HOST_POOL_SHA256,
-                                                                   ROUND_ITEM_MOUNT_POOL_SHA256):
+                                                                   ROUND_ITEM_MOUNT_POOL_SHA256,
+                                                                   ROUND_ITEM_COMPLETION_POOL_SHA256):
         require(tuple(default["unitTestSelectors"][1054:1059]) == SAVED_REVIEW_NEW_SELECTORS
                 and tuple(default["unitTestSelectors"][773:777]) == SAVED_REVIEW_REGRESSION_SELECTORS
                 and tuple(resolved["c36-production-destination"]["unitTestSelectors"])
@@ -1684,8 +1714,10 @@ def resolve_selection(default, selection_map, selection_id):
         validate_selection(saved_review)
         resolved[SAVED_REVIEW_SELECTION_ID] = saved_review
     if generated_profile_shape and sha256(canonical(default)) in (GENERATED_SELECTION_POOL_SHA256, LIVE_HOST_POOL_SHA256,
-                                                                   ROUND_ITEM_MOUNT_POOL_SHA256):
-        round_item_mount = sha256(canonical(default)) == ROUND_ITEM_MOUNT_POOL_SHA256
+                                                                   ROUND_ITEM_MOUNT_POOL_SHA256,
+                                                                   ROUND_ITEM_COMPLETION_POOL_SHA256):
+        round_item_completion = sha256(canonical(default)) == ROUND_ITEM_COMPLETION_POOL_SHA256
+        round_item_mount = round_item_completion or sha256(canonical(default)) == ROUND_ITEM_MOUNT_POOL_SHA256
         live_host = round_item_mount or sha256(canonical(default)) == LIVE_HOST_POOL_SHA256
         expected_fields = FIELD_EDIT_SELECTORS + ((LIVE_HOST_NEW_SELECTORS[0],) if live_host else ())
         require(tuple(default["unitTestSelectors"][1059:1064]) == FIELD_EDIT_SELECTORS
@@ -1706,7 +1738,8 @@ def resolve_selection(default, selection_map, selection_id):
         resolved[FIELD_AUTOSAVE_SELECTION_ID] = autosave
         if live_host:
             require(tuple(default["unitTestSelectors"][1064:1078]) == LIVE_HOST_RUNTIME_SELECTORS
-                    and len(default["unitTestSelectors"]) == (1085 if round_item_mount else 1078)
+                    and len(default["unitTestSelectors"]) == (1091 if round_item_completion
+                                                              else 1085 if round_item_mount else 1078)
                     and tuple(resolved["c36-live-host"]["unitTestSelectors"]) == LIVE_HOST_SELECTORS,
                     "live host exact appended methods and class group")
             require(len(LIVE_HOST_RUNTIME_SELECTORS) == len(set(LIVE_HOST_RUNTIME_SELECTORS)) == 14
@@ -1724,7 +1757,7 @@ def resolve_selection(default, selection_map, selection_id):
             validate_selection(startup_question)
             resolved[STARTUP_RETIREMENT_SELECTION_ID] = startup_question
         if round_item_mount:
-            require(tuple(default["unitTestSelectors"][1078:]) == ROUND_ITEM_MOUNT_SELECTORS
+            require(tuple(default["unitTestSelectors"][1078:1085]) == ROUND_ITEM_MOUNT_SELECTORS
                     and tuple(resolved["c36-round-item-mount"]["unitTestSelectors"]) == ROUND_ITEM_MOUNT_SELECTORS
                     and len(set(ROUND_ITEM_MOUNT_SELECTORS)) == 7
                     and ROUND_ITEM_MOUNT_SELECTION_ID not in resolved, "round item mount exact appended class")
@@ -1732,6 +1765,17 @@ def resolve_selection(default, selection_map, selection_id):
                                   tier="D50", **dict(zip(BUDGET_KEYS, TIERS["D50"])))
             validate_selection(mount_question)
             resolved[ROUND_ITEM_MOUNT_SELECTION_ID] = mount_question
+        if round_item_completion:
+            require(tuple(default["unitTestSelectors"][1085:]) == ROUND_ITEM_COMPLETION_SELECTORS
+                    and tuple(resolved["c36-round-item-completion"]["unitTestSelectors"]) == ROUND_ITEM_COMPLETION_SELECTORS
+                    and len(set(ROUND_ITEM_COMPLETION_SELECTORS)) == 6
+                    and set(ROUND_READINESS_SELECTORS) <= defaults
+                    and len(set(ROUND_ITEM_COMPLETION_QUESTION_SELECTORS)) == 12
+                    and ROUND_ITEM_COMPLETION_SELECTION_ID not in resolved,
+                    "round item completion exact appended class and readiness question")
+            completion_question = dict(combined, unitTestSelectors=list(ROUND_ITEM_COMPLETION_QUESTION_SELECTORS))
+            validate_selection(completion_question)
+            resolved[ROUND_ITEM_COMPLETION_SELECTION_ID] = completion_question
     if "erase-lease-lifecycle" in resolved:
         require(tuple(resolved["erase-lease-lifecycle"]["unitTestSelectors"]) == ERASE_LEASE_SELECTORS,
                 "erase exact enrolled lifecycle methods")
@@ -1877,6 +1921,7 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
         LIVE_HOST_SELECTION_ID: (LIVE_HOST_PARENT, LIVE_HOST_RUNTIME_SELECTORS),
         ROUND_ITEM_MOUNT_SELECTION_ID: (ROUND_ITEM_MOUNT_PARENT, ROUND_ITEM_MOUNT_SELECTORS),
         STARTUP_RETIREMENT_SELECTION_ID: (ROUND_ITEM_MOUNT_PARENT, STARTUP_RETIREMENT_SELECTORS),
+        ROUND_ITEM_COMPLETION_SELECTION_ID: (ROUND_ITEM_MOUNT_PARENT, ROUND_ITEM_COMPLETION_QUESTION_SELECTORS),
         NOTIFICATION_INTERRUPTION_SELECTION_ID: (NOTIFICATION_INTERRUPTION_PARENT, NOTIFICATION_INTERRUPTION_SELECTORS),
         SAVED_REVIEW_FIELDS_SELECTION_ID: (SAVED_REVIEW_FIELDS_PARENT, SAVED_REVIEW_FIELDS_SELECTORS),
         FINDING_PROFILE_FIXTURES_SELECTION_ID: (FINDING_PROFILE_FIXTURES_PARENT, FINDING_PROFILE_FIXTURES_SELECTORS),

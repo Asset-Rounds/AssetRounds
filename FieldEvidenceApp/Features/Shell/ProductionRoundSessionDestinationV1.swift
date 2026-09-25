@@ -537,6 +537,35 @@ final class ProductionRoundSessionPresentationV1: ObservableObject {
         Task { await host.retire() }
     }
 
+    /// After the host's receipt-backed Round step: close the host and show the
+    /// Round at the result's revision; a revision-pinned route re-targets.
+    func acceptCaptureProgress(_ result: AppAccessPresentationV1.RoundAccess.RepetitiveCaptureProgressResultV2) {
+        guard let host = captureHost else { return }
+        captureHost = nil
+        Task { await host.retire() }
+        readiness = nil
+        do {
+            guard isActiveRoute else { throw AppAccessContractFailureV1.accessDenied }
+            let round = result.progress.chain.currentRound
+            try access.validateRepetitiveCaptureProgressForPublication(result)
+            let destination = try NavigationTargetV1(workspaceID: target.workspaceID,
+                destination: .work, stableSessionID: round.sessionID,
+                requestedMode: target.requestedMode,
+                expectedRevision: target.expectedRevision == nil ? nil : round.revision,
+                fallback: target.fallback)
+            if destination == target {
+                session = round
+            } else {
+                try scene.open(destination)
+                session = nil
+            }
+            couldNotLoad = false
+        } catch {
+            session = nil
+            couldNotLoad = true
+        }
+    }
+
     func refresh() async {
         if isOpeningCapture || captureHost != nil { return }
         if isOrdering || hasUnacknowledgedReorder || isTransitioning || hasUnacknowledgedTransition {
@@ -705,10 +734,13 @@ final class ProductionRoundSessionPresentationV1: ObservableObject {
 
 /// The opened item. Close forces a flush first; if that save cannot complete,
 /// leaving keeps the last durable checkpoint and never discards the draft.
+/// Every screen is derived from the durable parent; only explicit actions write.
 @MainActor
 private struct ProductionRoundCaptureHostViewV1: View {
     @ObservedObject var host: ProductionCheckRunnerItemCapturePresentationV1
+    let recordedByName: String
     let dismiss: @MainActor () -> Void
+    let advanced: @MainActor (AppAccessPresentationV1.RoundAccess.RepetitiveCaptureProgressResultV2) -> Void
     @State private var isClosing = false
     @State private var closeFailed = false
     @State private var actionFailed = false
@@ -716,47 +748,53 @@ private struct ProductionRoundCaptureHostViewV1: View {
     var body: some View {
         NavigationStack {
             Group {
-                switch host.durableBegin {
-                case .bound?:
-                    AssetRoundsEmptyState(title: Text("Check started"),
-                        message: Text("This check is saved on this iPhone. Close to return to the round."))
-                        .accessibilityIdentifier("production.round.capture.started")
-                case .prepared?:
+                switch host.stage {
+                case .preflight:
+                    ProductionCheckRunnerItemPreflightViewV1(state: host, leave: { dismiss() })
+                case .interruptedBegin:
                     // An interrupted Begin has no editor; recovery never flushes fields.
-                    VStack(spacing: DesignTokens.Spacing.space16) {
-                        AssetRoundsEmptyState(title: Text("Finish starting this check"),
-                            message: Text("Starting this check was interrupted. Finish starting it with the details you already confirmed."))
-                        AssetRoundsPrimaryAction("Finish starting") {
-                            do { try host.finishPreparedBegin(); actionFailed = false } catch { actionFailed = true }
-                        }
-                        .disabled(host.isPerformingAction)
-                        .accessibilityIdentifier("production.round.capture.finish-begin")
-                        if actionFailed {
-                            Text("The check could not be started. Try again.")
-                                .font(DesignTokens.Typography.primaryBody)
-                                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
-                        }
+                    actionScreen(title: "Finish starting this check",
+                        message: "Starting this check was interrupted. Finish starting it with the details you already confirmed.",
+                        action: "Finish starting", identifier: "production.round.capture.finish-begin") {
+                        try host.finishPreparedBegin()
                     }
-                case .notBegun?:
-                    if host.editor != nil {
-                        ProductionCheckRunnerItemPreflightViewV1(state: host, leave: { dismiss() })
-                    } else {
-                        unavailable
+                case .capture, .pendingPhoto:
+                    captureScreen
+                case let .outcome(photosIncomplete):
+                    outcomeScreen(photosIncomplete: photosIncomplete)
+                case .preparedFinalization:
+                    actionScreen(title: "Finish saving this check",
+                        message: "Saving this check was interrupted. Finish saving the report you already confirmed.",
+                        action: "Finish saving", identifier: "production.round.capture.finish-save") {
+                        finish()
                     }
-                case nil:
+                case .completed:
+                    actionScreen(title: "Check saved",
+                        message: "This check is saved on this iPhone. Continue to record it in the round.",
+                        action: "Continue", identifier: "production.round.capture.completed") {
+                        finish()
+                    }
+                case .unavailable:
                     unavailable
                 }
             }
+            .overlay {
+                if host.isPerformingAction { ProgressView("Saving check") }
+            }
             .safeAreaInset(edge: .top) {
-                if closeFailed {
-                    VStack(spacing: 8) {
-                        Text("Your latest changes could not be saved.")
-                        Button("Leave anyway") { dismiss() }
-                            .accessibilityIdentifier("production.round.capture.leave-anyway")
+                VStack(spacing: 0) {
+                    // One visible failure for every stage's explicit action.
+                    failureText
+                    if closeFailed {
+                        VStack(spacing: 8) {
+                            Text("Your latest changes could not be saved.")
+                            Button("Leave anyway") { dismiss() }
+                                .accessibilityIdentifier("production.round.capture.leave-anyway")
+                        }
+                        .padding(8)
+                        .frame(maxWidth: .infinity)
+                        .background(DesignTokens.SemanticColors.workBackground)
                     }
-                    .padding(8)
-                    .frame(maxWidth: .infinity)
-                    .background(DesignTokens.SemanticColors.workBackground)
                 }
             }
             .toolbar {
@@ -765,7 +803,85 @@ private struct ProductionRoundCaptureHostViewV1: View {
                         .disabled(isClosing || host.isPerformingAction)
                         .accessibilityIdentifier("production.round.capture.close")
                 }
+                if host.hasBoundBegin, host.editor != nil {
+                    ToolbarItem(placement: .primaryAction) {
+                        Menu("Next item") {
+                            Button("Defer and go to next") { advance(.defer) }
+                                .accessibilityIdentifier("production.round.capture.defer")
+                            Button("Keep open and go to next") { advance(.keepOpenAndNext) }
+                                .accessibilityIdentifier("production.round.capture.keep-open")
+                        }
+                        .disabled(isClosing || host.isPerformingAction)
+                        .accessibilityIdentifier("production.round.capture.next-menu")
+                    }
+                }
             }
+        }
+    }
+
+    private var sourceApp: SourceAppSnapshotV1 {
+        let info = Bundle.main.infoDictionary ?? [:]
+        return SourceAppSnapshotV1(build: info["CFBundleVersion"] as? String ?? "0",
+                                   version: info["CFBundleShortVersionString"] as? String ?? "0")
+    }
+
+    @ViewBuilder
+    private func outcomeScreen(photosIncomplete: Bool) -> some View {
+        if let presentation = host.outcomePresentation, let editor = host.editor {
+            OutcomeReviewView(assetID: host.source.assetID, durable: .init(
+                presentation: presentation, couldNotVerifyOnly: photosIncomplete,
+                values: { editor.values.outcome },
+                update: { outcome in
+                    guard host.editor === editor else { throw CheckRunnerItemEditingSessionFailureV1.changedCheckpoint }
+                    try host.replaceEditableValues(.init(preflight: editor.values.preflight,
+                        outcome: outcome, semanticAnchor: editor.values.semanticAnchor))
+                },
+                review: { try await host.readReview() },
+                thumbnail: { host.reviewThumbnail($0) },
+                returnToPhotos: photosIncomplete ? { try host.returnToPhotos() } : nil,
+                finish: {
+                    let result = try await host.finish(recordedByName: recordedByName, sourceApp: sourceApp)
+                    advanced(result)
+                }))
+        } else {
+            unavailable
+        }
+    }
+
+    /// The shared capture screen with its durable backend: selection stages
+    /// through the C36 pipeline and Use Photo commits; neither runs implicitly.
+    private var captureScreen: some View {
+        CaptureStepView(assetID: host.source.assetID, durable: .init(
+            preparation: host.capturePreparation, pending: host.pendingPhoto,
+            preview: host.selectedPhotoPreview,
+            stagePhoto: { data, origin in try await host.stagePhoto(data, origin: origin) },
+            usePhoto: { try await host.usePhoto() },
+            cannotComplete: { try host.openCouldNotVerify() }))
+            .accessibilityIdentifier("production.round.capture.photo-step")
+    }
+
+    private func actionScreen(title: String, message: String, action: String, identifier: String,
+                              perform: @escaping @MainActor () throws -> Void) -> some View {
+        VStack(spacing: DesignTokens.Spacing.space16) {
+            AssetRoundsEmptyState(title: Text(title), message: Text(message))
+            AssetRoundsPrimaryAction(action) {
+                do { try perform(); actionFailed = false } catch { actionFailed = true }
+            }
+            .disabled(host.isPerformingAction)
+            .accessibilityIdentifier(identifier)
+        }
+    }
+
+    @ViewBuilder
+    private var failureText: some View {
+        if actionFailed {
+            Text("This could not be saved. Try again.")
+                .font(DesignTokens.Typography.primaryBody)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+                .padding(8)
+                .frame(maxWidth: .infinity)
+                .background(DesignTokens.SemanticColors.workBackground)
+                .accessibilityIdentifier("production.round.capture.action-failed")
         }
     }
 
@@ -777,6 +893,22 @@ private struct ProductionRoundCaptureHostViewV1: View {
             AssetRoundsSecondaryAction("Try again") { Task { try? await host.reload() } }
                 .disabled(host.isPerformingAction)
                 .accessibilityIdentifier("production.round.capture.reload")
+        }
+    }
+
+    private func finish() {
+        actionFailed = false
+        Task {
+            do { advanced(try await host.finish(recordedByName: recordedByName, sourceApp: sourceApp)) }
+            catch { actionFailed = true }
+        }
+    }
+
+    private func advance(_ action: RepetitiveCaptureProgressActionV2) {
+        actionFailed = false
+        Task {
+            do { advanced(try await host.advance(action, recordedByName: recordedByName)) }
+            catch { actionFailed = true }
         }
     }
 
@@ -896,7 +1028,9 @@ struct ProductionRoundSessionDestinationV1: View {
         })) {
             Group {
                 if let host = state.captureHost {
-                    ProductionRoundCaptureHostViewV1(host: host, dismiss: { state.dismissCapture() })
+                    ProductionRoundCaptureHostViewV1(host: host, recordedByName: recorderName,
+                        dismiss: { state.dismissCapture() },
+                        advanced: { state.acceptCaptureProgress($0) })
                 } else {
                     captureConfirmation
                 }
