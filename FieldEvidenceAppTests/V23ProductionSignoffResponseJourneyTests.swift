@@ -63,7 +63,7 @@ extension V23ProductionFourRootShellTestSupport {
     }
 
     @MainActor
-    func waitUntilCompletedWork(_ condition: @MainActor () -> Bool) async -> Bool {
+    func waitUntilCompletedWork(_ condition: @escaping @MainActor () -> Bool) async -> Bool {
         for _ in 0..<200 {
             if condition() { return true }
             try? await Task.sleep(nanoseconds: 25_000_000)
