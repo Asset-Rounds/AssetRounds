@@ -484,6 +484,9 @@ SHARED_DOWNLOAD_DIRECTORY = "V23SharedPayloadDownload"
 SHARED_EXTRACTED_DIRECTORY = "V23SharedPayloadExtracted"
 SHARED_TAR = "FieldEvidencePayload.tar"
 SHARED_TAR_DIGEST = "FieldEvidencePayload.tar.sha256"
+# The route runs in its own small reusable worker (GitHub counts every called template
+# once per calling job); its sources are bound into the route's checkpoint evidence.
+SHARED_WORKER_SOURCES = (".github/workflows/ios-ci-shared-worker.yml", "Scripts/v23-shared-worker.sh")
 # After tests, the scheme command may leave build bookkeeping (Logs, XCBuildData, PIFCache)
 # in DerivedData without compiling; only compiler or linker evidence fails a consumer, and
 # every other new DerivedData entry is listed in the delta record.
@@ -2860,6 +2863,15 @@ def verify_no_index_build(root, artifact, record, environment):
             "speedupEstablished": False, "acceptance": False}
 
 
+def shared_worker_sources(root):
+    sources = {}
+    for relative in SHARED_WORKER_SOURCES:
+        path = root / relative
+        require(path.is_file() and not path.is_symlink(), "shared coverage worker source")
+        sources[relative] = sha256(path.read_bytes())
+    return sources
+
+
 def shared_role(record):
     binding = record.get(SHARED_KEY) if record.get("selectionID") == SHARED_SELECTION_ID else None
     require(isinstance(binding, dict) and binding.get("role") in SHARED_ROLES, "shared coverage admitted role")
@@ -3258,7 +3270,8 @@ def verify_shared_producer(root, artifact, record, environment):
     return {"role": "producer", "payloadArtifactName": receipt["payloadArtifactName"],
             "archive": receipt["archive"], "metadataSHA256": receipt["metadataSHA256"],
             "productsTreeSHA256": receipt["productsTreeSHA256"], "xctestrunSHA256": receipt["xctestrunSHA256"],
-            "planSHA256": record[SHARED_KEY]["planSHA256"], "testsExecuted": 0}
+            "planSHA256": record[SHARED_KEY]["planSHA256"], "testsExecuted": 0,
+            "workerSources": shared_worker_sources(root)}
 
 
 def verify_shared_consumer(root, artifact, record, selection, environment):
@@ -3305,7 +3318,8 @@ def verify_shared_consumer(root, artifact, record, selection, environment):
             "metadataSHA256": receipt["metadataSHA256"], "restoreSeconds": receipt["restoreSeconds"],
             "productsTreeSHA256Before": fingerprints["before"]["productsTreeSHA256"],
             "productsTreeSHA256After": after["productsTreeSHA256"],
-            "derivedDataDelta": summary, "planSHA256": binding["planSHA256"], "buildEvidence": []}
+            "derivedDataDelta": summary, "planSHA256": binding["planSHA256"], "buildEvidence": [],
+            "workerSources": shared_worker_sources(root)}
 
 
 def sha256_path(path):

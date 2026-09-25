@@ -458,17 +458,12 @@ jobs:
     permissions:
       contents: read
       actions: read
-    uses: ./.github/workflows/ios-ci-worker.yml
+    uses: ./.github/workflows/ios-ci-shared-worker.yml
     with:
-      runner_label: macos-26
-      runner_provider: github
       native_acceptance_contract: ${{ needs.shared-selection.outputs.native_acceptance_contract }}
       native_selection_id: ${{ needs.shared-selection.outputs.native_selection_id }}
       native_selection_sha256: ${{ needs.shared-selection.outputs.native_selection_sha256 }}
       native_selection_map_sha256: ${{ needs.shared-selection.outputs.native_selection_map_sha256 }}
-      run_ui_smoke: false
-      s10_4_shard_id: none
-      s10_4_segment_id: none
       v23_shared_role: producer
       v23_payload_artifact_name: v23-shared-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
 
@@ -484,17 +479,12 @@ jobs:
     permissions:
       contents: read
       actions: read
-    uses: ./.github/workflows/ios-ci-worker.yml
+    uses: ./.github/workflows/ios-ci-shared-worker.yml
     with:
-      runner_label: macos-26
-      runner_provider: github
       native_acceptance_contract: ${{ needs.shared-selection.outputs.native_acceptance_contract }}
       native_selection_id: ${{ needs.shared-selection.outputs.native_selection_id }}
       native_selection_sha256: ${{ needs.shared-selection.outputs.native_selection_sha256 }}
       native_selection_map_sha256: ${{ needs.shared-selection.outputs.native_selection_map_sha256 }}
-      run_ui_smoke: false
-      s10_4_shard_id: none
-      s10_4_segment_id: none
       v23_shared_role: consumer
       v23_partition_id: ${{ matrix.partition_id }}
       v23_payload_artifact_name: v23-shared-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}

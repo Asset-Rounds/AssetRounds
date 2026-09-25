@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Native-route protocol tests using disposable facts, never native PASS evidence."""
+import ast
+import collections
 import copy
 import base64
 import hashlib
@@ -36,39 +38,13 @@ D50_JOB_CAP_EXPRESSION = "${{ (inputs.native_selection_id == 'c36-live-host-no-i
 
 
 SHARED_ROUTE = 'v23-shared-coverage-d50x'
-SHARED_WORKER_STEPS = (
-    'Download V23 shared coverage payload', 'Verify and restore V23 shared coverage payload',
-    'Recheck setup budget after V23 shared payload restore', 'Seal V23 shared coverage payload',
-    'Upload V23 shared coverage payload', 'Fingerprint V23 shared products before tests',
-    'Fingerprint V23 shared products after tests')
-SHARED_WORKER_INPUTS = '''      v23_shared_role:
-        description: Closed V23 shared coverage role (none, producer or consumer); development only
-        required: false
-        default: none
-        type: string
-      v23_partition_id:
-        description: Exact V23 coverage partition for a consumer; empty otherwise
-        required: false
-        default: ""
-        type: string
-      v23_payload_artifact_name:
-        description: Exact V23 shared payload artifact name; empty outside the shared route
-        required: false
-        default: ""
-        type: string
-'''
-SHARED_WORKER_REPLACEMENTS = (
-    ("${{ inputs.v23_shared_role != 'none' && format('{0}-{1}-{2}-', inputs.v23_shared_role, inputs.v23_partition_id, github.run_id) || '' }}", ''),
-    ('      V23_SHARED_ROLE: ${{ inputs.v23_shared_role }}\n'
-     '      V23_PARTITION_ID: ${{ inputs.v23_partition_id }}\n'
-     '      V23_PAYLOAD_ARTIFACT_NAME: ${{ inputs.v23_payload_artifact_name }}\n', ''),
-    (" && inputs.v23_shared_role != 'consumer' && inputs.native_selection_id != 'c36-destination-discard-build-before-boot'",
-     " && inputs.native_selection_id != 'c36-destination-discard-build-before-boot'"),
-    (" && inputs.s10_4_shared_build_mode != 'consumer' && inputs.v23_shared_role != 'producer' }}",
-     " && inputs.s10_4_shared_build_mode != 'consumer' }}"),
-    ("(inputs.v23_shared_role != 'none' && format('ios-ci-native-{0}-{1}-{2}{3}-{4}-{5}', inputs.runner_provider, inputs.native_selection_id, inputs.v23_shared_role, inputs.v23_partition_id != '' && format('-{0}', inputs.v23_partition_id) || '', github.run_id, github.run_attempt) || format('ios-ci-native-{0}-{1}-{2}-{3}', inputs.runner_provider, inputs.native_selection_id, github.run_id, github.run_attempt))",
-     "format('ios-ci-native-{0}-{1}-{2}-{3}', inputs.runner_provider, inputs.native_selection_id, github.run_id, github.run_attempt)"),
-)
+# The shared route runs in its own small reusable worker; the ordinary worker is
+# byte-identical to its last pre-shared-route commit.
+SHARED_WORKER_PATH = '.github/workflows/ios-ci-shared-worker.yml'
+SHARED_WORKER_SCRIPT = 'Scripts/v23-shared-worker.sh'
+ORDINARY_WORKER_BASE_COMMIT = 'aaf21a16e48129e2072c67c64326e6047c4ae087'
+SHARED_WORKER_MAX_BYTES = 100 * 1024
+CALLED_TEMPLATE_MAX_BYTES = int(5.75 * 1024 * 1024)
 SHARED_DISPATCH_REPLACEMENTS = (
     ('          - ' + SHARED_ROUTE + '\n', ''),
     ('      native_shared_partitions: ${{ steps.native_selection.outputs.native_shared_partitions }}\n', ''),
@@ -80,26 +56,6 @@ def remove_exactly_once(text, old, new=''):
     if text.count(old) != 1:
         raise AssertionError('expected one shared-coverage hunk: ' + old[:80])
     return text.replace(old, new)
-
-
-def remove_workflow_step(text, name):
-    # Each added step block ends at its first blank line; removing it restores the neighbour.
-    marker = '      - name: ' + name + '\n'
-    if text.count(marker) != 1:
-        raise AssertionError('expected one shared-coverage step: ' + name)
-    start = text.index(marker)
-    return text[:start] + text[text.index('\n\n', start) + 2:]
-
-
-def worker_before_shared_coverage(raw):
-    """Reverse exactly the shared-coverage worker additions; nothing else may differ."""
-    text = raw.decode('utf-8') if isinstance(raw, bytes) else raw
-    text = remove_exactly_once(text, SHARED_WORKER_INPUTS)
-    for old, new in SHARED_WORKER_REPLACEMENTS:
-        text = remove_exactly_once(text, old, new)
-    for name in SHARED_WORKER_STEPS:
-        text = remove_workflow_step(text, name)
-    return text.encode('utf-8') if isinstance(raw, bytes) else text
 
 
 def workflow_before_shared_coverage(raw):
@@ -175,8 +131,6 @@ SHARED_BUILD_SMOKE_LINE = '   [ "${NATIVE_SELECTION_ID:-none}" = ' + SHARED_ROUT
 def before_shared_coverage_bytes(relative, raw):
     if relative == '.github/workflows/ios-ci.yml':
         return workflow_before_shared_coverage(raw)
-    if relative == '.github/workflows/ios-ci-worker.yml':
-        return worker_before_shared_coverage(raw)
     if relative == 'Scripts/build-smoke.sh':
         return remove_exactly_once(raw.decode('utf-8'), SHARED_BUILD_SMOKE_LINE).encode('utf-8')
     if relative == 'Scripts/test-smoke.sh':
@@ -187,10 +141,9 @@ def before_shared_coverage_bytes(relative, raw):
 
 
 def worker_before_live_host_d50(test_case, raw):
-    # Reverse the shared-coverage additions, then only the owner-approved D50 job cap
-    # (live-host, its two rebound questions and the reusable development batch); every
-    # other worker byte must still match its historical boundary.
-    raw = worker_before_shared_coverage(raw)
+    # Reverse only the owner-approved D50 job cap (live-host, its two rebound questions
+    # and the reusable development batch); every other worker byte must still match its
+    # historical boundary.
     changed = b"    timeout-minutes: " + D50_JOB_CAP_EXPRESSION.encode() + b"\n"
     test_case.assertEqual(raw.count(changed), 1)
     return raw.replace(changed, b"    timeout-minutes: 90\n")
@@ -4345,7 +4298,7 @@ class BuildOrderDiagnosticTests(unittest.TestCase):
                 with self.assertRaises(ValueError): CI.build_order_observations(artifact, self.record, UDID)
 
     def test_workflow_diagnostic_and_ordinary_paths_preserve_commands_order_and_failure_gates(self):
-        worker = worker_before_shared_coverage((ROOT/'.github/workflows/ios-ci-worker.yml').read_text(encoding='utf-8'))
+        worker = (ROOT/'.github/workflows/ios-ci-worker.yml').read_text(encoding='utf-8')
         names = ['Build unsigned simulator app before boot (diagnostic)', 'Boot selected Simulator',
                  'Await selected Simulator boot', 'Build unsigned simulator app', 'Prepare S10.4 shared build payload']
         positions = [worker.index('      - name: '+name+'\n') for name in names]
@@ -4479,9 +4432,9 @@ class InterruptionBuildOrderTests(unittest.TestCase):
         positions=[worker.index('      - name: '+name+'\n') for name in names]
         self.assertEqual(positions,sorted(positions))
         early,boot,wait,normal=[worker[positions[i]:positions[i+1]] for i in range(4)]
-        def predicate(block,contract,selection,role='',shared_role='none'):
+        def predicate(block,contract,selection,role=''):
             expression=re.search(r'if: \$\{\{ (.*?) \}\}',block).group(1)
-            for name,value in {'native_acceptance_contract':contract,'native_selection_id':selection,'s10_4_execution_role':role,'v23_shared_role':shared_role}.items():
+            for name,value in {'native_acceptance_contract':contract,'native_selection_id':selection,'s10_4_execution_role':role}.items():
                 expression=expression.replace('inputs.'+name,json.dumps(value))
             expression=expression.replace('&&','and').replace('||','or')
             parsed=ast.parse(expression,mode='eval')
@@ -4495,9 +4448,8 @@ class InterruptionBuildOrderTests(unittest.TestCase):
         self.assertTrue(predicate(normal,CI.CONTRACT,'notification-schedule-erase-no-index-build30m'))
         self.assertFalse(predicate(early,'','ordinary'))
         self.assertFalse(predicate(normal,'','ordinary','payload-consumer'))
-        # The shared-coverage consumer never builds; its producer builds normally.
-        self.assertFalse(predicate(normal,CI.CONTRACT,SHARED_ROUTE,'independent','consumer'))
-        self.assertTrue(predicate(normal,CI.CONTRACT,SHARED_ROUTE,'independent','producer'))
+        # The shared route never reaches this worker; its own worker gates its build.
+        self.assertNotIn('v23_shared_role',worker)
         pattern=r'^\s+(DISPATCH_\w+): \$\{\{ inputs\.(\w+) \}\}$'
         self.assertEqual(dict(re.findall(pattern,early,re.M)),dict(re.findall(pattern,normal,re.M)))
         self.assertEqual(len(re.findall(pattern,early,re.M)),9)
@@ -7762,6 +7714,54 @@ SHARED_XCTESTRUN = {'FieldEvidenceAppTests': {
     'TestBundlePath': '__TESTHOST__/PlugIns/FieldEvidenceAppTests.xctest'}}
 
 
+def git_bash():
+    return (Path(shutil.which('git')).resolve().parents[1] / 'bin/bash.exe') if os.name == 'nt' else Path(shutil.which('bash'))
+
+
+def posix_path(path):
+    if os.name != 'nt':
+        return str(path)
+    return subprocess.check_output([str(git_bash()), '-c', 'cygpath -u "$1"', '_', str(path)], text=True).strip()
+
+
+def called_template_bytes(workflow_text, size_of):
+    """Caller bytes plus each local reusable workflow's bytes, once per calling job.
+
+    GitHub rejected d2c1c4b ("Maximum object size exceeded") when this reached about 6 MiB."""
+    calls = re.findall(r'^    uses: \./(\.github/workflows/[A-Za-z0-9_.-]+\.ya?ml)$', workflow_text, re.M)
+    if len(calls) != len(re.findall(r'uses:\s*["\']?\./', workflow_text)):
+        raise AssertionError('every local call must be one job-level reusable workflow call')
+    return len(workflow_text.encode('utf-8')) + sum(size_of(path) for path in calls), calls
+
+
+def workflow_steps(text):
+    """(name, if-expression or None, body) for each step, in order."""
+    steps = []
+    for chunk in text.split('\n      - name: ')[1:]:
+        name, _, body = chunk.partition('\n')
+        condition = re.search(r'^        if: (.+)$', body, re.M)
+        steps.append((name, condition.group(1) if condition else None, body))
+    return steps
+
+
+def shared_worker_job_env(text, inputs):
+    """The slim worker's job-level env with ${{ inputs.X }} resolved from the caller's inputs."""
+    block = text.split('\n    env:\n', 1)[1].split('\n\n    steps:\n', 1)[0]
+    env = {}
+    for line in block.splitlines():
+        if line.strip().startswith('#'):
+            continue
+        key, value = re.fullmatch(r'      ([A-Za-z][A-Za-z0-9_]*): (.*)', line).groups()
+        if len(value) >= 2 and value[0] == value[-1] == '"':
+            value = value[1:-1]
+        reference = re.fullmatch(r'\$\{\{ inputs\.([a-z0-9_]+) \}\}', value)
+        value = inputs[reference.group(1)] if reference else value
+        if '${{' in value or key in env:
+            raise AssertionError('unexpected job environment line: ' + line)
+        env[key] = value
+    return env
+
+
 def load_partition_script():
     spec = importlib.util.spec_from_file_location('v23_coverage_partitions', ROOT / 'Scripts/v23-coverage-partitions.py')
     module = importlib.util.module_from_spec(spec)
@@ -8393,6 +8393,8 @@ class SharedCoverageRouteTests(unittest.TestCase):
             result = CI.verify_checkpoint(ROOT, artifact, record, plan, e)
             self.assertEqual((result['executedUnitMethods'], result['simulatorFileProtectionDiagnostics']), ([], None))
             self.assertEqual(result['sharedCoverageEvidence']['testsExecuted'], 0)
+            self.assertEqual(result['sharedCoverageEvidence']['workerSources'], {
+                relative: CI.sha256((ROOT / relative).read_bytes()) for relative in (SHARED_WORKER_PATH, SHARED_WORKER_SCRIPT)})
             self.assertEqual((result['acceptance'], result['providerQualification'], result['diagnosticOnly']),
                              (False, False, True))
             (artifact / 'test-smoke.log').write_text('unexpected\n')
@@ -8432,7 +8434,7 @@ class SharedCoverageRouteTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 CI.verify_checkpoint(ROOT, artifact, record, selection, e)
 
-    def test_workflow_jobs_concurrency_and_artifact_names_are_role_and_partition_exact(self):
+    def test_workflow_jobs_call_the_slim_worker_with_role_and_partition_exact_names(self):
         workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
         block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
         options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
@@ -8441,21 +8443,27 @@ class SharedCoverageRouteTests(unittest.TestCase):
         self.assertIn('      native_shared_partitions: ${{ steps.native_selection.outputs.native_shared_partitions }}\n', workflow)
         jobs = workflow.split('\n  v23-shared-producer:\n', 1)[1].split('\n  getmac-shard:\n', 1)[0]
         producer, consumer = jobs.split('\n  v23-shared-consumer:\n')
+        # The collector matches "<caller job name> / verify"; the caller names are unchanged.
+        self.assertIn('    name: V23 shared coverage producer · build-for-testing (development only)\n', producer)
+        self.assertIn('    name: V23 shared coverage consumer · ${{ matrix.partition_id }} (development only)\n', consumer)
+        bound = ('    uses: ./' + SHARED_WORKER_PATH + '\n    with:\n'
+                 '      native_acceptance_contract: ${{ needs.shared-selection.outputs.native_acceptance_contract }}\n'
+                 '      native_selection_id: ${{ needs.shared-selection.outputs.native_selection_id }}\n'
+                 '      native_selection_sha256: ${{ needs.shared-selection.outputs.native_selection_sha256 }}\n'
+                 '      native_selection_map_sha256: ${{ needs.shared-selection.outputs.native_selection_map_sha256 }}\n')
+        payload = '      v23_payload_artifact_name: v23-shared-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}\n'
+        self.assertTrue(producer.endswith(bound + '      v23_shared_role: producer\n' + payload), producer)
+        self.assertTrue(consumer.endswith(bound + '      v23_shared_role: consumer\n'
+                                          '      v23_partition_id: ${{ matrix.partition_id }}\n' + payload), consumer)
         for text in (producer, consumer):
             self.assertIn("inputs.execution_lane == 'github-xcode-26.6-acceptance' && inputs.native_selection_id == '" + SHARED_ROUTE + "'", text)
-            self.assertIn('uses: ./.github/workflows/ios-ci-worker.yml', text)
-            self.assertIn('runner_label: macos-26\n      runner_provider: github\n', text)
-            self.assertIn('run_ui_smoke: false\n', text)
-            self.assertIn('v23_payload_artifact_name: v23-shared-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}\n', text)
+            self.assertNotIn('ios-ci-worker.yml', text)
         self.assertIn('    needs: shared-selection\n', producer)
-        self.assertIn('      v23_shared_role: producer\n', producer)
-        self.assertNotIn('v23_partition_id', producer)
         self.assertIn('    needs: [shared-selection, v23-shared-producer]\n', consumer)
         self.assertIn("needs.v23-shared-producer.result == 'success'", consumer)
         self.assertIn('    strategy:\n      fail-fast: false\n      max-parallel: 5\n      matrix:\n'
                       "        partition_id: ${{ fromJSON(needs.shared-selection.outputs.native_shared_partitions || '[\"none\"]') }}\n",
                       consumer)
-        self.assertIn('      v23_shared_role: consumer\n      v23_partition_id: ${{ matrix.partition_id }}\n', consumer)
         shard = workflow.split('\n  github-shard:\n', 1)[1].split('\n  v23-shared-producer:\n', 1)[0]
         self.assertIn("&& inputs.native_selection_id != '" + SHARED_ROUTE + "' }}", shard)
         # Dispatch publishes the ordered matrix from the committed partition file.
@@ -8473,49 +8481,333 @@ class SharedCoverageRouteTests(unittest.TestCase):
             outputs = dict(line.split('=', 1) for line in output.read_text().splitlines())
         self.assertEqual(json.loads(outputs['native_shared_partitions']), self.plan[CI.SHARED_KEY]['partitionIDs'])
         self.assertEqual(outputs['native_selection_sha256'], CI.sha256(CI.canonical(self.plan)))
-        worker = (ROOT / '.github/workflows/ios-ci-worker.yml').read_text(encoding='utf-8')
-        self.assertIn(SHARED_WORKER_INPUTS, worker)
-        group = re.search(r'(?m)^  group: (.+)$', worker).group(1)
-        self.assertIn("${{ inputs.v23_shared_role != 'none' && format('{0}-{1}-{2}-', inputs.v23_shared_role, inputs.v23_partition_id, github.run_id) || '' }}", group)
-        self.assertIn("format('ios-ci-native-{0}-{1}-{2}{3}-{4}-{5}', inputs.runner_provider, inputs.native_selection_id, inputs.v23_shared_role, inputs.v23_partition_id != '' && format('-{0}', inputs.v23_partition_id) || '', github.run_id, github.run_attempt)", worker)
-        names = {role + ('-' + partition if partition else ''): 'ios-ci-native-{0}-{1}-{2}{3}-{4}-{5}'.format(
-                    'github', SHARED_ROUTE, role, '-' + partition if partition else '', '123', '1')
-                 for role, partition in (('producer', ''), ('consumer', 'S27'), ('consumer', 'S01'))}
-        self.assertEqual(len(set(names.values())), 3)
-        self.assertEqual(names['consumer-S27'], 'ios-ci-native-github-' + SHARED_ROUTE + '-consumer-S27-123-1')
-        for name in SHARED_WORKER_STEPS:
-            self.assertEqual(worker.count('      - name: ' + name + '\n'), 1, name)
-        download = step(worker, 'Download V23 shared coverage payload')
-        self.assertIn("if: ${{ inputs.v23_shared_role == 'consumer' }}", download)
-        self.assertIn('name: ${{ inputs.v23_payload_artifact_name }}\n          path: ${{ runner.temp }}/V23SharedPayloadDownload', download)
-        upload = step(worker, 'Upload V23 shared coverage payload')
-        self.assertIn("if: ${{ inputs.v23_shared_role == 'producer' }}", upload)
-        self.assertIn('path: ${{ runner.temp }}/V23SharedPayloadTransport\n          if-no-files-found: error\n'
-                      '          retention-days: 3', upload)
-        self.assertIn("always() && inputs.v23_shared_role == 'consumer'", step(worker, 'Fingerprint V23 shared products after tests'))
-        self.assertIn("inputs.v23_shared_role != 'consumer'", step(worker, 'Build unsigned simulator app'))
-        self.assertIn("inputs.v23_shared_role != 'producer'", step(worker, 'Run targeted tests'))
-        order = [worker.index('      - name: ' + name + '\n') for name in (
-            'Verify and restore V23 shared coverage payload', 'Boot selected Simulator', 'Build unsigned simulator app',
-            'Seal V23 shared coverage payload', 'Upload V23 shared coverage payload',
-            'Fingerprint V23 shared products before tests', 'Run targeted tests',
-            'Fingerprint V23 shared products after tests', 'Validate exact ordinary integration native checkpoint')]
-        self.assertEqual(order, sorted(order))
+        # The ordinary worker is byte-identical to its pre-shared-route commit.
+        self.assertEqual((ROOT / '.github/workflows/ios-ci-worker.yml').read_bytes(), subprocess.check_output(
+            ['git', 'show', ORDINARY_WORKER_BASE_COMMIT + ':.github/workflows/ios-ci-worker.yml'], cwd=ROOT))
 
-        def inputs(name):
-            body = step(worker, name).split('        run:', 1)[0]
-            return dict(re.findall(r'^          (DISPATCH_[A-Z0-9_]+): (.+)$', body, re.M))
-        admitted = inputs('Validate task selection and timeout tier')
-        for name in ('Verify and restore V23 shared coverage payload', 'Seal V23 shared coverage payload',
-                     'Fingerprint V23 shared products before tests', 'Fingerprint V23 shared products after tests'):
-            self.assertEqual(inputs(name), admitted, name)
-        source = (ROOT / 'Scripts/build-smoke.sh').read_text(encoding='utf-8')
-        self.assertEqual(source.count('[ "${NATIVE_SELECTION_ID:-none}" = ' + SHARED_ROUTE + ' ]'), 1)
+    def test_slim_worker_declares_closed_inputs_steps_names_and_the_unchanged_admission_environment(self):
+        worker = (ROOT / SHARED_WORKER_PATH).read_text(encoding='utf-8')
+        ordinary = (ROOT / '.github/workflows/ios-ci-worker.yml').read_text(encoding='utf-8')
+        self.assertNotIn('\r', worker)
+        inputs_block = worker.split('    inputs:\n', 1)[1].split('\n\nconcurrency:', 1)[0]
+        self.assertEqual(re.findall(r'^      ([a-z0-9_]+):$', inputs_block, re.M), [
+            'native_acceptance_contract', 'native_selection_id', 'native_selection_sha256',
+            'native_selection_map_sha256', 'v23_shared_role', 'v23_partition_id', 'v23_payload_artifact_name'])
+        self.assertNotIn('secrets', worker)
+        self.assertIn('\njobs:\n  verify:\n    runs-on: macos-26\n    timeout-minutes: 90\n', worker)
+        self.assertIn('  group: v23-github-${{ inputs.native_selection_id }}-${{ inputs.v23_shared_role }}-'
+                      '${{ inputs.v23_partition_id }}-${{ github.run_id }}\n  cancel-in-progress: false\n', worker)
+        # Every action is one the ordinary worker already pins by commit.
+        actions = re.findall(r'^        uses: (.+)$', worker, re.M)
+        self.assertEqual(len(actions), 4)
+        for action in actions:
+            self.assertRegex(action, r'^actions/[a-z-]+@[0-9a-f]{40} # v[0-9.]+$')
+            self.assertIn('        uses: ' + action + '\n', ordinary)
+        steps = workflow_steps(worker)
+        names = [name for name, _, _ in steps]
+        self.assertEqual(len(names), len(set(names)))
+
+        def runs(condition, role):
+            if condition is None:
+                return True
+            expression = condition.removeprefix('${{ ').removesuffix(' }}')
+            expression = expression.replace('inputs.v23_shared_role', json.dumps(role)).replace('always()', 'True')
+            parsed = ast.parse(expression.replace('&&', 'and'), mode='eval')
+            self.assertTrue(all(isinstance(node, (ast.Expression, ast.BoolOp, ast.Compare, ast.Constant, ast.And, ast.Eq))
+                                for node in ast.walk(parsed)), condition)
+            return eval(compile(parsed, 'slim-worker-predicate', 'eval'), {'__builtins__': {}})
+        common_start = ['Prepare evidence directory', 'Check out the exact revision', 'Validate task selection and timeout tier',
+                        'Verify pinned toolchain, shared scheme, and simulator', 'Verify setup budget before build']
+        common_end = ['Begin evidence-finalization budget', 'Validate required build and test evidence',
+                      'Validate exact ordinary integration native checkpoint', 'Remove owned isolated Simulator',
+                      'Hash collected evidence', 'Recheck evidence-finalization budget',
+                      'Verify selected total budget before upload', 'Upload build evidence']
+        boot = ['Boot selected Simulator', 'Await selected Simulator boot']
+        self.assertEqual([name for name, condition, _ in steps if runs(condition, 'producer')], common_start + boot + [
+            'Build unsigned simulator app', 'Seal V23 shared coverage payload', 'Upload V23 shared coverage payload'] + common_end)
+        self.assertEqual([name for name, condition, _ in steps if runs(condition, 'consumer')], common_start + [
+            'Download V23 shared coverage payload', 'Verify and restore V23 shared coverage payload',
+            'Recheck setup budget after V23 shared payload restore'] + boot + [
+            'Fingerprint V23 shared products before tests', 'Run targeted tests',
+            'Fingerprint V23 shared products after tests'] + common_end)
+        by_name = {name: (condition, body) for name, condition, body in steps}
+        # Evidence is retained and checked whatever an earlier step did.
+        for name in common_end + ['Fingerprint V23 shared products after tests']:
+            self.assertTrue(by_name[name][0].startswith(('always()', '${{ always() &&')), name)
+        commands = {name: re.search(r'^        run: (.+)$', body, re.M) for name, (_, body) in by_name.items()}
+        script = (ROOT / SHARED_WORKER_SCRIPT).read_text(encoding='utf-8')
+        declared = re.findall(r'^  ([a-z-]+)\) ', script.split('\ncase "${1:-}" in\n', 1)[1], re.M)
+        used = [match.group(1).split()[-1] for match in commands.values()
+                if match and match.group(1).startswith('bash Scripts/v23-shared-worker.sh ')]
+        self.assertEqual(sorted(used), sorted(declared))
+        self.assertEqual(commands['Verify and restore V23 shared coverage payload'].group(1),
+                         'python3 Scripts/v23-native-ci.py shared-restore')
+        self.assertEqual(commands['Seal V23 shared coverage payload'].group(1), 'python3 Scripts/v23-native-ci.py shared-seal')
+        for phase in ('before', 'after'):
+            self.assertEqual(commands['Fingerprint V23 shared products %s tests' % phase].group(1),
+                             'python3 Scripts/v23-native-ci.py shared-fingerprint --phase ' + phase)
+        self.assertEqual(commands['Validate exact ordinary integration native checkpoint'].group(1),
+                         'python3 Scripts/v23-native-ci.py verify')
+        self.assertIn('NATIVE_PRIOR_JOB_STATUS: ${{ job.status }}', by_name['Validate exact ordinary integration native checkpoint'][1])
+        self.assertEqual(commands['Validate required build and test evidence'].group(1),
+                         'bash --noprofile --norc -e -o pipefail Scripts/validate-required-evidence.sh')
+        self.assertIn('RUNTIME_SETUP_OUTCOME: ${{ steps.runtime_setup.outcome }}', by_name['Hash collected evidence'][1])
+        self.assertIn('        id: runtime_setup\n', by_name['Verify pinned toolchain, shared scheme, and simulator'][1])
+        self.assertIn('        id: simulator_boot\n        background: true\n', by_name['Boot selected Simulator'][1])
+        self.assertIn('        wait: simulator_boot', by_name['Await selected Simulator boot'][1])
+        # The build and test commands are the ordinary worker's, under the selected budgets.
+        for name, script_name, budget in (('Build unsigned simulator app', 'build-smoke', 'BUILD'),
+                                          ('Run targeted tests', 'test-smoke', 'TEST')):
+            text = ('          bash Scripts/run-with-timeout.sh "$CI_%s_TIMEOUT_SECONDS" \\\n'
+                    '            bash Scripts/%s.sh 2>&1 | tee "$CI_ARTIFACT_DIR/%s.log"\n' % (budget, script_name, script_name))
+            self.assertIn(text, by_name[name][1])
+            self.assertIn(text, step(ordinary, name))
+        self.assertIn('          name: ${{ inputs.v23_payload_artifact_name }}\n          path: ${{ runner.temp }}/V23SharedPayloadDownload',
+                      by_name['Download V23 shared coverage payload'][1])
+        self.assertIn('          name: ${{ inputs.v23_payload_artifact_name }}\n          path: ${{ runner.temp }}/V23SharedPayloadTransport\n'
+                      '          if-no-files-found: error\n          retention-days: 3', by_name['Upload V23 shared coverage payload'][1])
+        self.assertIn("          name: ${{ format('ios-ci-native-github-{0}-{1}{2}-{3}-{4}', inputs.native_selection_id, "
+                      "inputs.v23_shared_role, inputs.v23_partition_id != '' && format('-{0}', inputs.v23_partition_id) || '', "
+                      "github.run_id, github.run_attempt) }}\n          path: ${{ runner.temp }}/FieldEvidenceCI\n"
+                      '          if-no-files-found: error\n          retention-days: 14', by_name['Upload build evidence'][1])
+        names = {role + partition: 'ios-ci-native-github-{0}-{1}{2}-{3}-{4}'.format(
+                     SHARED_ROUTE, role, '-' + partition if partition else '', '123', '1')
+                 for role, partition in (('producer', ''), ('consumer', 'S27'))}
+        self.assertEqual(names, {'producer': 'ios-ci-native-github-' + SHARED_ROUTE + '-producer-123-1',
+                                 'consumerS27': 'ios-ci-native-github-' + SHARED_ROUTE + '-consumer-S27-123-1'})
+        # The job environment satisfies the unchanged worker admission for each role.
+        for role, partition in (('producer', ''), ('consumer', 'S27')):
+            e, selection, record = self.shared_environment(role, partition)
+            job = shared_worker_job_env(worker, {
+                'native_acceptance_contract': CI.CONTRACT, 'native_selection_id': SHARED_ROUTE,
+                'native_selection_sha256': e['DISPATCH_NATIVE_SELECTION_SHA256'],
+                'native_selection_map_sha256': e['DISPATCH_NATIVE_SELECTION_MAP_SHA256'],
+                'v23_shared_role': role, 'v23_partition_id': partition,
+                'v23_payload_artifact_name': e['V23_PAYLOAD_ARTIFACT_NAME']})
+            for key in set(job) & set(e):
+                self.assertEqual(job[key], e[key], key)
+            actual = {key: value for key, value in e.items() if key.startswith('GITHUB_')}
+            actual.update(job)
+            with mock.patch.object(CI.subprocess, 'check_output') as git:
+                admitted = CI.admission(selection, actual, HEAD, 'worker', record, ROOT)
+            git.assert_not_called()
+            self.assertEqual((admitted[CI.SHARED_KEY]['role'], admitted['acceptance']), (role, False))
+            self.assertFalse(any('SIMULATOR_FILE_PROTECTION' in key or key.startswith('TEST_RUNNER_') for key in job))
+            with self.assertRaisesRegex(ValueError, 'foreign execution inputs'):
+                CI.admission(selection, dict(actual, DISPATCH_S10_4_PILOT_MODE='true'), HEAD, 'worker', record, ROOT)
+
+    def run_shared_worker(self, base, command, environment_values, cwd=ROOT, mocks=(), preamble=''):
+        """Run one Scripts/v23-shared-worker.sh subcommand under Git Bash with mock tools."""
+        binary = base / 'bin'
+        binary.mkdir(exist_ok=True)
+        for name, body in mocks:
+            (binary / name).write_text('#!/bin/bash\n' + body, newline='\n')
+            (binary / name).chmod(0o755)
+        github_env = base / 'github-env'
+        if not github_env.exists():
+            github_env.write_text('')
+        e = dict(os.environ, GITHUB_ENV=posix_path(github_env), **environment_values)
+        result = subprocess.run([str(git_bash()), '-c', preamble + 'export PATH="$1:$PATH"; exec bash "$2" "$3"', '_',
+                                 posix_path(binary), posix_path(ROOT / SHARED_WORKER_SCRIPT), command],
+                                env=e, capture_output=True, text=True, cwd=cwd)
+        values = dict(line.split('=', 1) for line in github_env.read_text().splitlines() if line)
+        return result, values
+
+    def test_slim_worker_admit_binds_role_tier_budgets_and_selection(self):
+        mock_python = ('case "$1 $2" in\n'
+                       '  "Scripts/v23-native-ci.py admit") test "$3 $4" = "--stage worker"; echo admitted >> "$MOCK_LOG" ;;\n'
+                       '  "Scripts/v23-native-ci.py select") test "$3" = --output; test ! -e "$4"; cp "$MOCK_SELECTION" "$4" ;;\n'
+                       '  *) exit 97 ;;\nesac\n')
+        consumer = CI.shared_selection(ROOT, 'S27')
+        cases = [('producer', '', self.plan, {}, 0, ('D40P', '300', '2400', '0', '0', '3000')),
+                 ('consumer', 'S27', consumer, {}, 0, ('D50C', '300', '0', '3000', '0', '3600')),
+                 ('consumer', 'S27', self.plan, {}, 1, None),
+                 ('consumer', 'S27', consumer, {'DISPATCH_RUN_UI_SMOKE': 'true'}, 1, None),
+                 ('consumer', 'S27', consumer, {'CI_RUNNER_LABEL': 'macos-15'}, 1, None),
+                 ('consumer', '', consumer, {}, 65, None), ('producer', 'S27', self.plan, {}, 65, None),
+                 ('observer', '', self.plan, {}, 65, None)]
+        for role, partition, selected, changes, expected, budgets in cases:
+            with self.subTest(role=role, partition=partition, changes=changes), tempfile.TemporaryDirectory() as directory:
+                base = Path(directory)
+                artifact = base / 'artifact'
+                artifact.mkdir()
+                (base / 'selection.json').write_bytes(CI.canonical(selected))
+                values = dict(CI_RUNNER_PROVIDER='github', CI_RUNNER_LABEL='macos-26', CI_NATIVE_ACCEPTANCE_CONTRACT=CI.CONTRACT,
+                              NATIVE_SELECTION_ID=SHARED_ROUTE, DISPATCH_NATIVE_SELECTION_ID=SHARED_ROUTE,
+                              V23_SHARED_ROLE=role, V23_PARTITION_ID=partition, DISPATCH_RUN_UI_SMOKE='false',
+                              CI_ARTIFACT_DIR=posix_path(artifact), MOCK_SELECTION=posix_path(base / 'selection.json'),
+                              MOCK_LOG=posix_path(base / 'log'))
+                values.update(changes)
+                result, env = self.run_shared_worker(base, 'admit', values, mocks=[('python3', mock_python)])
+                self.assertEqual(result.returncode, expected, result.stderr)
+                if expected:
+                    continue
+                self.assertEqual((base / 'log').read_text(), 'admitted\n')
+                self.assertEqual((artifact / 'ci-selection.selected.json').read_bytes(), CI.canonical(selected))
+                self.assertEqual((artifact / 'ci-selection-map.json').read_bytes(), (ROOT / CI.SELECTION_MAP_PATH).read_bytes())
+                self.assertEqual((artifact / 'ci-selection.json').read_bytes(), (ROOT / 'Scripts/ci-selection.json').read_bytes())
+                self.assertEqual(env['CI_SELECTION_PATH'], posix_path(artifact) + '/ci-selection.selected.json')
+                self.assertEqual(tuple(env[key] for key in ('CI_TIER', 'CI_SETUP_ARTIFACT_TIMEOUT_SECONDS', 'CI_BUILD_TIMEOUT_SECONDS',
+                                                            'CI_TEST_TIMEOUT_SECONDS', 'CI_UI_TIMEOUT_SECONDS',
+                                                            'CI_TOTAL_BUDGET_SECONDS')), budgets)
+                self.assertEqual((env['CI_TASK_ID'], env['CI_RUN_UI_SMOKE'], env['CI_SELECTOR_RUN_UI_SMOKE'],
+                                  env['SIMULATOR_RUNTIME_BUILD']), (CI.TASK, 'false', 'false', '23C54'))
+                self.assertIn('v23_shared_role=%s\nv23_partition_id=%s\n' % (role, partition),
+                              (artifact / 'ci-selection-validation.txt').read_text())
+
+    def test_slim_worker_toolchain_boot_and_cleanup_write_the_checkpoint_facts(self):
+        created = '11111111-2222-3333-4444-555555555555'
+        runtimes = json.dumps({'runtimes': [
+            {'name': 'iOS 26.2', 'buildversion': '23C53', 'isAvailable': True, 'identifier': 'runtime.old'},
+            {'name': 'iOS 26.2', 'buildversion': '23C54', 'isAvailable': True, 'identifier': 'runtime.exact'}]})
+        device_types = json.dumps({'devicetypes': [{'name': 'iPhone 17', 'identifier': 'device.iphone17'}]})
+
+        def tools(state='Shutdown', sdk_build='23F81a', deployment='18.0', boot_exit=0):
+            devices = json.dumps({'devices': {'runtime.exact': [{'udid': created, 'state': state, 'name': 'iPhone 17'}]}})
+            xcrun = '\n'.join([
+                'case "$*" in',
+                '  "--sdk iphonesimulator --show-sdk-version") echo 26.5 ;;',
+                '  "--sdk iphonesimulator --show-sdk-build-version") echo %s ;;' % sdk_build,
+                "  \"simctl list runtimes -j\") printf '%%s\\n' '%s' ;;" % runtimes,
+                "  \"simctl list devicetypes -j\") printf '%%s\\n' '%s' ;;" % device_types,
+                '  "simctl create iPhone 17 device.iphone17 runtime.exact") echo %s ;;' % created,
+                "  \"simctl list devices available -j\") printf '%%s\\n' '%s' ;;" % devices,
+                '  "simctl bootstatus %s -b") echo booted; exit %d ;;' % (created, boot_exit),
+                '  "simctl shutdown %s") ;;' % created,
+                '  "simctl delete %s") ;;' % created,
+                "  \"simctl list devices -j\") printf '%s\\n' '{\"devices\":{}}' ;;",
+                '  *) exit 97 ;;', 'esac', ''])
+            xcodebuild = '\n'.join([
+                'case "$1" in',
+                '  -version) printf "Xcode 26.6\\nBuild version 17F113\\n" ;;',
+                "  -list) printf '%s\\n' '{\"project\":{\"schemes\":[\"FieldEvidenceApp\"]}}' ;;",
+                '  -showBuildSettings) printf "    IPHONEOS_DEPLOYMENT_TARGET = %s\\n" ;;' % deployment,
+                '  *) exit 97 ;;', 'esac', ''])
+            sw_vers = ('case "$1" in\n  -productVersion) echo 26.6.2 ;;\n  -productName) echo macOS ;;\n'
+                       '  -buildVersion) echo 25G83 ;;\nesac\n')
+            return [('xcodebuild', xcodebuild), ('xcrun', xcrun), ('sw_vers', sw_vers), ('uname', 'echo arm64\n')]
+        developer = '/Applications/Xcode_26.6.app/Contents/Developer'
         with tempfile.TemporaryDirectory() as directory:
-            result, _, events, args = self.run_mock_build(directory, SHARED_ROUTE)
+            root = Path(directory)
+            (root / 'Scripts').mkdir()
+            (root / 'Scripts/run-with-timeout.sh').write_text('shift\nexec "$@"\n', newline='\n')
+            (root / 'FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes').mkdir(parents=True)
+            (root / 'FieldEvidenceApp.xcodeproj/project.pbxproj').write_text('fixture')
+            (root / 'FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme').write_text('fixture')
+
+            def run(name, command, tool_changes=None, **changes):
+                base = root / name
+                base.mkdir()
+                artifact = base / 'artifact'
+                artifact.mkdir()
+                values = dict(CI_RUNNER_PROVIDER='github', CI_RUNNER_LABEL='macos-26', CI_NATIVE_ACCEPTANCE_CONTRACT=CI.CONTRACT,
+                              NATIVE_SELECTION_ID=SHARED_ROUTE, DISPATCH_NATIVE_SELECTION_ID=SHARED_ROUTE,
+                              V23_SHARED_ROLE='consumer', V23_PARTITION_ID='S27', CI_ARTIFACT_DIR=posix_path(artifact),
+                              RUNNER_NAME='GitHub Actions 7', RUNNER_ARCH='ARM64', RUNNER_TEMP=posix_path(base),
+                              DEVELOPER_DIR=developer, EXPECTED_XCODE_VERSION='Xcode 26.6',
+                              EXPECTED_XCODE_BUILD='Build version 17F113', EXPECTED_MINIMUM_IOS='18.0',
+                              PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp', CONFIGURATION='Debug',
+                              SIMULATOR_RUNTIME='iOS 26.2', SIMULATOR_RUNTIME_BUILD='23C54', SIMULATOR_NAME='iPhone 17',
+                              GITHUB_REPOSITORY=CI.REPOSITORY, GITHUB_REF=sorted(CI.REFS)[0], GITHUB_SHA=HEAD,
+                              GITHUB_RUN_ID='123', GITHUB_RUN_ATTEMPT='1', CI_SIMULATOR_BOOT_TIMEOUT_SECONDS='900',
+                              CI_SIMULATOR_UDID=created, CI_SIMULATOR_INITIAL_STATE='Shutdown',
+                              CI_NATIVE_CREATED_SIMULATOR_UDID=created, CI_BUDGET_START_EPOCH='1')
+                values.update(changes)
+                # Windows has no /Applications: only that one directory test is answered here.
+                present = ('test() { if [ "$*" = "-d %s" ]; then return 0; fi; builtin test "$@"; }; export -f test; '
+                           % values['DEVELOPER_DIR'] if values['DEVELOPER_DIR'] == developer else '')
+                result, env = self.run_shared_worker(base, command, values, cwd=root, mocks=tools(**(tool_changes or {})),
+                                                     preamble=present)
+                return result, env, artifact
+            result, env, artifact = run('toolchain', 'toolchain')
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(events, ['receipt', 'build'])
-            self.assertEqual(args[-2:], ['COMPILER_INDEX_STORE_ENABLE=NO', 'build-for-testing'])
+            self.assertEqual((env['CI_NATIVE_CREATED_SIMULATOR_UDID'], env['CI_SIMULATOR_UDID'], env['CI_DESTINATION'],
+                              env['CI_SIMULATOR_INITIAL_STATE']),
+                             (created, created, 'platform=iOS Simulator,id=' + created, 'Shutdown'))
+            # The files are exactly what the checkpoint reads.
+            provider = CI.key_values(artifact / 'runner-provider.txt')
+            self.assertEqual({key: provider[key] for key in ('provider', 'label', 'runner_architecture', 'uname_architecture',
+                                                              'developer_dir', 'macos_product_version')},
+                             {'provider': 'github', 'label': 'macos-26', 'runner_architecture': 'ARM64',
+                              'uname_architecture': 'arm64', 'developer_dir': developer, 'macos_product_version': '26.6.2'})
+            self.assertEqual(CI.key_values(artifact / 'native-sdk.txt'), {'sdk': 'iphonesimulator', 'version': '26.5', 'build': '23F81a'})
+            self.assertEqual((artifact / 'xcode-version.txt').read_text().splitlines(), ['Xcode 26.6', 'Build version 17F113'])
+            self.assertEqual(CI.key_values(artifact / 'simulator-selection.txt'), {
+                'runtime': 'iOS 26.2', 'runtime_build': '23C54', 'name': 'iPhone 17', 'udid': created, 'initial_state': 'Shutdown'})
+            for name, tool_changes, changes in (('booted', {'state': 'Booted'}, {}), ('sdk', {'sdk_build': '23F80'}, {}),
+                                                ('target', {'deployment': '17.0'}, {}),
+                                                ('developer', None, {'DEVELOPER_DIR': '/Applications/Xcode.app/Contents/Developer'}),
+                                                ('runtime', None, {'SIMULATOR_RUNTIME_BUILD': '23C53'})):
+                with self.subTest(name=name):
+                    self.assertNotEqual(run(name, 'toolchain', tool_changes, **changes)[0].returncode, 0)
+            result, env, artifact = run('boot', 'boot')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('action=boot\nbudget_seconds=900\n', (artifact / 'simulator-boot-start.log').read_text())
+            log = (artifact / 'simulator-boot.log').read_text()
+            self.assertIn('bootstatus_exit=0\ntee_exit=0\n', log)
+            self.assertIn('ready_udid=' + created, log)
+            self.assertEqual(env['CI_SIMULATOR_READY_UDID'], created)
+            result, _, artifact = run('boot-failed', 'boot', {'boot_exit': 3})
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('bootstatus_exit=3\n', (artifact / 'simulator-boot.log').read_text())
+            self.assertNotEqual(run('boot-booted', 'boot', CI_SIMULATOR_INITIAL_STATE='Booted')[0].returncode, 0)
+            result, _, artifact = run('remove', 'remove-simulator')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((artifact / 'native-simulator-lifecycle.txt').read_text(),
+                             'isolated=true\ndeleted=true\nudid=%s\n' % created)
+            self.assertNotEqual(run('remove-none', 'remove-simulator', CI_NATIVE_CREATED_SIMULATOR_UDID='')[0].returncode, 0)
+
+    def test_slim_worker_budget_and_hash_accounting_matches_the_selected_tier(self):
+        shasum = 'test "$1 $2" = "-a 256" || exit 97\nshift 2\nexec sha256sum "$@"\n'
+        now = int(time.time())
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+
+            def run(name, command, **changes):
+                base = root / name
+                base.mkdir()
+                artifact = base / 'artifact'
+                artifact.mkdir()
+                (artifact / 'evidence.txt').write_text('fixture\n', newline='\n')
+                values = dict(CI_ARTIFACT_DIR=posix_path(artifact), RUNNER_TEMP=posix_path(base), V23_SHARED_ROLE='consumer',
+                              CI_BUDGET_START_EPOCH=str(now - 100), CI_SETUP_ARTIFACT_TIMEOUT_SECONDS='300',
+                              CI_TOTAL_BUDGET_SECONDS='3600', CI_ARTIFACT_START_EPOCH=str(now - 10),
+                              CI_SETUP_ELAPSED_SECONDS='120', CI_TASK_ID=CI.TASK, CI_NATIVE_ACCEPTANCE_CONTRACT=CI.CONTRACT,
+                              CI_RUNNER_PROVIDER='github', CI_RUNNER_LABEL='macos-26')
+                values.update(changes)
+                result, env = self.run_shared_worker(base, command, values, mocks=[('shasum', shasum)])
+                return result, env, artifact
+            result, env, artifact = run('setup', 'setup-budget')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('setup_budget_seconds=300\n', (artifact / 'setup-budget.txt').read_text())
+            self.assertTrue(100 <= int(env['CI_SETUP_ELAPSED_SECONDS']) <= 160)
+            self.assertNotEqual(run('setup-over', 'setup-budget', CI_BUDGET_START_EPOCH=str(now - 400))[0].returncode, 0)
+            result, env, artifact = run('restore', 'restore-budget')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue((artifact / 'v23-shared-restore-budget.txt').read_text().startswith('shared_restore_setup_elapsed_seconds='))
+            self.assertNotEqual(run('restore-producer', 'restore-budget', V23_SHARED_ROLE='producer')[0].returncode, 0)
+            self.assertEqual(run('total', 'total-budget')[0].returncode, 0)
+            self.assertNotEqual(run('total-over', 'total-budget', CI_BUDGET_START_EPOCH=str(now - 3700))[0].returncode, 0)
+            self.assertEqual(run('final', 'finalization-budget')[0].returncode, 0)
+            self.assertNotEqual(run('final-over', 'finalization-budget', CI_SETUP_ELAPSED_SECONDS='295')[0].returncode, 0)
+            result, _, artifact = run('hash', 'hash')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            sums = (artifact / 'SHA256SUMS.txt').read_text().splitlines()
+            self.assertEqual([line.split()[-1].lstrip('*') for line in sums], ['./artifact-budget.txt', './evidence.txt'])
+            self.assertEqual(sums[1].split()[0], hashlib.sha256(b'fixture\n').hexdigest())
+            budget = CI.key_values(artifact / 'artifact-budget.txt')
+            self.assertEqual((budget['setup_elapsed_seconds'], budget['setup_artifact_budget_seconds']), ('120', '300'))
+            # Over budget: the checksums are still written, then the step fails.
+            result, _, artifact = run('hash-over', 'hash', CI_SETUP_ELAPSED_SECONDS='299')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertTrue((artifact / 'SHA256SUMS.txt').is_file())
+            # A setup failure is retained without inventing timing, and still fails.
+            result, _, artifact = run('hash-setup', 'hash', RUNTIME_SETUP_OUTCOME='failure', CI_SETUP_ELAPSED_SECONDS='')
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn('reason=setup-failed-before-accounting\n', (artifact / 'v23-setup-failure-evidence.txt').read_text())
+            self.assertIn('v23-setup-failure-evidence.txt', (artifact / 'SHA256SUMS.txt').read_text())
+            self.assertFalse((artifact / 'artifact-budget.txt').exists())
+            self.assertNotEqual(run('unknown', 'rerun')[0].returncode, 0)
 
     def test_consumer_shell_tests_restored_products_and_evidence_is_role_exact(self):
         bash = (Path(shutil.which('git')).resolve().parents[1] / 'bin/bash.exe') if os.name == 'nt' else Path(shutil.which('bash'))
@@ -8598,6 +8890,29 @@ class SharedCoverageRouteTests(unittest.TestCase):
                                          shell_path(ROOT / 'Scripts/validate-required-evidence.sh')],
                                         cwd=ROOT, env=e, capture_output=True, text=True)
                 self.assertEqual(result.returncode, expected, result.stderr)
+
+
+class WorkflowTemplateBudgetTests(unittest.TestCase):
+    """GitHub counts each called workflow's template once per calling job; d2c1c4b failed at ~6 MiB."""
+
+    def test_dispatcher_called_template_bytes_stay_under_the_guard(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        total, calls = called_template_bytes(workflow, lambda path: (ROOT / path).stat().st_size)
+        self.assertLessEqual(total, CALLED_TEMPLATE_MAX_BYTES)
+        self.assertEqual(collections.Counter(calls), {'.github/workflows/ios-ci-worker.yml': 16,
+                                                      '.github/workflows/bitrise-build-hub-probe.yml': 1,
+                                                      SHARED_WORKER_PATH: 2})
+        self.assertLessEqual((ROOT / SHARED_WORKER_PATH).stat().st_size, SHARED_WORKER_MAX_BYTES)
+
+        # The guard separates the layout GitHub accepted from the one it rejected.
+        def at(commit):
+            text = subprocess.check_output(['git', 'show', commit + ':.github/workflows/ios-ci.yml'], cwd=ROOT).decode('utf-8')
+            return called_template_bytes(text, lambda path: int(subprocess.check_output(
+                ['git', 'cat-file', '-s', commit + ':' + path], cwd=ROOT, text=True)))[0]
+        self.assertLessEqual(at(ORDINARY_WORKER_BASE_COMMIT), CALLED_TEMPLATE_MAX_BYTES)
+        self.assertGreater(at('d2c1c4b359a44c02539545e2e6da359addd86eb8'), CALLED_TEMPLATE_MAX_BYTES)
+        with self.assertRaises(AssertionError):
+            called_template_bytes(workflow + '\n  extra:\n    uses: "./.github/workflows/ios-ci-worker.yml"\n', len)
 
 
 if __name__ == "__main__":

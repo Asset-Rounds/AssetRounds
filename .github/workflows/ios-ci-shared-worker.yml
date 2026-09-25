@@ -1,0 +1,236 @@
+name: iOS CI shared coverage
+
+# Development-only V23 shared coverage worker (v23-shared-coverage-d50x) on GitHub
+# macos-26: one build-only producer, or one test-only consumer partition that tests
+# the producer's restored products. The ordinary worker (ios-ci-worker.yml) is
+# unchanged. This file stays small because GitHub counts every called workflow's
+# template once per calling job against one size limit. Never acceptance credit.
+
+on:
+  workflow_call:
+    inputs:
+      native_acceptance_contract:
+        description: Closed ordinary integration contract admitted by the exact-source dispatcher
+        required: true
+        type: string
+      native_selection_id:
+        description: Closed V23 shared coverage selection ID
+        required: true
+        type: string
+      native_selection_sha256:
+        description: Dispatcher-bound SHA-256 of the shared coverage plan
+        required: true
+        type: string
+      native_selection_map_sha256:
+        description: Dispatcher-bound SHA-256 of the complete checked-in V23 selection map
+        required: true
+        type: string
+      v23_shared_role:
+        description: Closed V23 shared coverage role (producer or consumer); development only
+        required: true
+        type: string
+      v23_partition_id:
+        description: Exact V23 coverage partition for a consumer; empty for the producer
+        required: false
+        default: ""
+        type: string
+      v23_payload_artifact_name:
+        description: Exact V23 shared payload artifact name
+        required: true
+        type: string
+
+concurrency:
+  group: v23-github-${{ inputs.native_selection_id }}-${{ inputs.v23_shared_role }}-${{ inputs.v23_partition_id }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: macos-26
+    timeout-minutes: 90
+    env:
+      CI_NATIVE_ACCEPTANCE_CONTRACT: ${{ inputs.native_acceptance_contract }}
+      NATIVE_SELECTION_ID: ${{ inputs.native_selection_id }}
+      DISPATCH_NATIVE_SELECTION_ID: ${{ inputs.native_selection_id }}
+      DISPATCH_NATIVE_SELECTION_SHA256: ${{ inputs.native_selection_sha256 }}
+      DISPATCH_NATIVE_SELECTION_MAP_SHA256: ${{ inputs.native_selection_map_sha256 }}
+      V23_SHARED_ROLE: ${{ inputs.v23_shared_role }}
+      V23_PARTITION_ID: ${{ inputs.v23_partition_id }}
+      V23_PAYLOAD_ARTIFACT_NAME: ${{ inputs.v23_payload_artifact_name }}
+      # This worker has no UI, S10.4, pilot or Bitrise inputs; the unchanged
+      # admission requires each at its closed ordinary value.
+      DISPATCH_RUN_UI_SMOKE: "false"
+      DISPATCH_S10_4_SHARD_ID: none
+      DISPATCH_S10_4_SEGMENT_ID: none
+      DISPATCH_S10_4_EXECUTION_ROLE: independent
+      DISPATCH_S10_4_PAYLOAD_ARTIFACT_NAME: ""
+      DISPATCH_S10_4_PILOT_MODE: "false"
+      DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID: none
+      DISPATCH_S10_4_DIAGNOSTIC_EXECUTION_LANE: none
+      DISPATCH_S10_4_UNIT_ONLY: "false"
+      CI_S10_4_SHARED_BUILD_MODE: none
+      CI_S10_4_SHARED_PAYLOAD_RUN_ID: ""
+      WORKER_S10_4_MINIMUM_CORE_SMOKE_ID: none
+      WORKER_S10_4_MINIMUM_SEGMENT_ID: none
+      WORKER_S10_4_SHARED_MATRIX_ID: ""
+      WORKER_S10_4_SEGMENT_SOURCE_RUN_IDS: ""
+      CI_RUNNER_LABEL: macos-26
+      CI_RUNNER_PROVIDER: github
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      EXPECTED_XCODE_VERSION: "Xcode 26.6"
+      EXPECTED_XCODE_BUILD: "Build version 17F113"
+      EXPECTED_MINIMUM_IOS: "18.0"
+      PROJECT_PATH: FieldEvidenceApp.xcodeproj
+      SCHEME: FieldEvidenceApp
+      CONFIGURATION: Debug
+      SIMULATOR_RUNTIME: iOS 26.2
+      SIMULATOR_NAME: iPhone 17
+      CI_SIMULATOR_BOOT_TIMEOUT_SECONDS: "900"
+      CODE_SIGNING_ALLOWED: "NO"
+      NSUnbufferedIO: "YES"
+
+    steps:
+      - name: Prepare evidence directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          CI_BUDGET_START_EPOCH="$(date +%s)"
+          CI_ARTIFACT_DIR="$RUNNER_TEMP/FieldEvidenceCI"
+          mkdir -p "$CI_ARTIFACT_DIR"
+          printf 'CI_BUDGET_START_EPOCH=%s\nCI_ARTIFACT_DIR=%s\n' \
+            "$CI_BUDGET_START_EPOCH" "$CI_ARTIFACT_DIR" >> "$GITHUB_ENV"
+
+      - name: Check out the exact revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate task selection and timeout tier
+        shell: bash
+        run: bash Scripts/v23-shared-worker.sh admit
+
+      - name: Verify pinned toolchain, shared scheme, and simulator
+        id: runtime_setup
+        shell: bash
+        run: bash Scripts/v23-shared-worker.sh toolchain
+
+      - name: Verify setup budget before build
+        shell: bash
+        run: bash Scripts/v23-shared-worker.sh setup-budget
+
+      - name: Download V23 shared coverage payload
+        if: ${{ inputs.v23_shared_role == 'consumer' }}
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ${{ inputs.v23_payload_artifact_name }}
+          path: ${{ runner.temp }}/V23SharedPayloadDownload
+
+      - name: Verify and restore V23 shared coverage payload
+        if: ${{ inputs.v23_shared_role == 'consumer' }}
+        shell: bash
+        run: python3 Scripts/v23-native-ci.py shared-restore
+
+      - name: Recheck setup budget after V23 shared payload restore
+        if: ${{ inputs.v23_shared_role == 'consumer' }}
+        shell: bash
+        run: bash Scripts/v23-shared-worker.sh restore-budget
+
+      - name: Boot selected Simulator
+        id: simulator_boot
+        background: true
+        shell: bash
+        run: bash Scripts/v23-shared-worker.sh boot
+
+      - name: Await selected Simulator boot
+        wait: simulator_boot
+
+      - name: Build unsigned simulator app
+        id: build_unsigned_simulator_app
+        if: ${{ inputs.v23_shared_role == 'producer' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash Scripts/run-with-timeout.sh "$CI_BUILD_TIMEOUT_SECONDS" \
+            bash Scripts/build-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/build-smoke.log"
+
+      - name: Seal V23 shared coverage payload
+        if: ${{ inputs.v23_shared_role == 'producer' }}
+        shell: bash
+        run: python3 Scripts/v23-native-ci.py shared-seal
+
+      - name: Upload V23 shared coverage payload
+        if: ${{ inputs.v23_shared_role == 'producer' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ inputs.v23_payload_artifact_name }}
+          path: ${{ runner.temp }}/V23SharedPayloadTransport
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Fingerprint V23 shared products before tests
+        if: ${{ inputs.v23_shared_role == 'consumer' }}
+        shell: bash
+        run: python3 Scripts/v23-native-ci.py shared-fingerprint --phase before
+
+      - name: Run targeted tests
+        id: run_targeted_tests
+        if: ${{ inputs.v23_shared_role == 'consumer' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash Scripts/run-with-timeout.sh "$CI_TEST_TIMEOUT_SECONDS" \
+            bash Scripts/test-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/test-smoke.log"
+
+      - name: Fingerprint V23 shared products after tests
+        if: ${{ always() && inputs.v23_shared_role == 'consumer' }}
+        shell: bash
+        run: python3 Scripts/v23-native-ci.py shared-fingerprint --phase after
+
+      - name: Begin evidence-finalization budget
+        if: always()
+        shell: bash
+        run: printf 'CI_ARTIFACT_START_EPOCH=%s\n' "$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Validate required build and test evidence
+        id: validate_required_evidence
+        if: always()
+        shell: bash
+        run: bash --noprofile --norc -e -o pipefail Scripts/validate-required-evidence.sh
+
+      - name: Validate exact ordinary integration native checkpoint
+        if: always()
+        shell: bash
+        env:
+          NATIVE_PRIOR_JOB_STATUS: ${{ job.status }}
+        run: python3 Scripts/v23-native-ci.py verify
+
+      - name: Remove owned isolated Simulator
+        if: always()
+        shell: bash
+        run: bash Scripts/v23-shared-worker.sh remove-simulator
+
+      - name: Hash collected evidence
+        if: always()
+        shell: bash
+        env:
+          RUNTIME_SETUP_OUTCOME: ${{ steps.runtime_setup.outcome }}
+        run: bash Scripts/v23-shared-worker.sh hash
+
+      - name: Recheck evidence-finalization budget
+        if: always()
+        shell: bash
+        run: bash Scripts/v23-shared-worker.sh finalization-budget
+
+      - name: Verify selected total budget before upload
+        if: always()
+        shell: bash
+        run: bash Scripts/v23-shared-worker.sh total-budget
+
+      - name: Upload build evidence
+        id: upload_evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ format('ios-ci-native-github-{0}-{1}{2}-{3}-{4}', inputs.native_selection_id, inputs.v23_shared_role, inputs.v23_partition_id != '' && format('-{0}', inputs.v23_partition_id) || '', github.run_id, github.run_attempt) }}
+          path: ${{ runner.temp }}/FieldEvidenceCI
+          if-no-files-found: error
+          retention-days: 14
