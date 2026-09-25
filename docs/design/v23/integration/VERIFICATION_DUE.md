@@ -230,4 +230,8 @@ The production photo journey takes priority over another isolated foundation. So
   - V23StoreSemantic :114: a LocationNodeRow inserted directly into a cold store doesn't make `reproofAfterSave()` throw receiptHistoryCorrupt. Possible integrity gap in the reproof; investigate.
   - Backup-import hierarchyViolation family (V9_06 G01, V9_07Corpus G01/I01, LocationHierarchy :181/:848) and the V9_06 R01 orphan layout remain.
   - Backup handoff note: scratchpad handoff-backup.md. The V23 draft-photo fixture is needed for the S6_2 "6 children" checks.
+- Batch O follow-ups:
+  - A development device with an unfinished schema-1 aggregate journal lands in forward-fix maintenance with no in-app recovery. It never shipped.
+  - Watch the hosted timing of the <60 s upgrade budget; raise it only with a recorded reason.
+  - V10_01 testHistoricalCheckpointRejects… showed sourceUnavailable in a batch run but passed alone, which suggests order dependence.
 

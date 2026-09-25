@@ -4006,3 +4006,18 @@ Development sweep 36168198155 (e37ea96, batch K head; collected on the Mac, deve
   - V23StoreSemantic: 2 failures went to 1.
   - V9_06Archive C40 passes.
 
+## Batch O: layered upgrade digest (restricted migration change, 2026-09-25)
+
+Implements the "Release blocker: S10 → V23 upgrade digest" decision.
+- `StoreSemanticLayerDigestV1` covers V3…V53 with n-2 layers. V53 framed bytes are unchanged; golden 8dc72f…35a3 was independently recomputed by the reviewer.
+- Every aggregate-path comparison uses `aggregateSemanticDigest`: framed from V3, flat for V1/V2. The legacy single-step journal keeps its flat nested digests.
+- The final aggregate manifest is schema 2 / framedLayersV1.
+- Aggregate journal schema 2: an unfinished schema-1 journal fails closed with forwardFixRequired, and a completed schema-1 journal stays readable.
+Measured on the local iOS 26.5 Simulator:
+- a real V1 upgrade with 1 site went from 316 s and 2.1 GB to 11.4 s and 95 MB;
+- 40 sites went from a kill at 660 s (7.3 GB) to 13.3 s and 94 MB;
+- V10_01 historical checkpoint: 407 s → 23 s; v4 accept: killed at 600 s → 11.9 s.
+New bounded test: both launches in under 60 s and under 256 MB, plus per-release framed goldens and tamper checks.
+Review: independent reviewer (Claude Opus 5.5, read-only, not the author): APPROVE, compile risk LOW. Gate condition: journal schema 2 is recorded in MERGE_READINESS as a restricted Phase 1 item.
+Local: build-for-testing SUCCEEDED. S2 `testInvalidGenerationLedgerFailsClosed…` passed 5 of 5 isolated runs, so the author's intermittent result is not reproduced.
+

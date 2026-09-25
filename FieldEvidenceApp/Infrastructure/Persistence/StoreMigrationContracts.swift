@@ -893,22 +893,30 @@ enum StoreSemanticDigestAlgorithmV1: String, Codable, Equatable, Sendable {
     case framedLayersV1
 }
 
-/// Hashes every complete local validation envelope once, in V3...V53 order.
-/// Framing is domain UTF8 (including NUL), UInt64 big-endian release, then
+/// Hashes every complete local validation envelope once, in V3...Vn order.
+/// Framing is domain UTF8 (including NUL), UInt64 big-endian release n, then
 /// (layer number, byte count, canonical bytes) per layer, and final layer count.
+/// Release n (3...53) has exactly n-2 layers; V53 bytes are unchanged from the
+/// original V53-only format. V1/V2 flat record digests are never framed.
 /// No encoded layer or predecessor byte stream is retained after append returns.
 struct StoreSemanticLayerDigestV1 {
     private var hasher = SHA256()
     private var layerCount: UInt64 = 0
+    private let expectedLayerCount: UInt64
 
     init(release: PersistentSchemaReleaseV1) throws {
-        guard release == .v53 else { throw StoreMigrationFailure.invalidContract }
+        let major = release.versionIdentifier.major
+        guard (3...53).contains(major),
+              PersistentSchemaReleaseRegistryV1.releases.contains(release) else {
+            throw StoreMigrationFailure.invalidContract
+        }
+        expectedLayerCount = UInt64(major - 2)
         hasher.update(data: Data("AssetRounds.StoreSemanticDigest.framed-layers.v1\0".utf8))
-        appendInteger(53)
+        appendInteger(UInt64(major))
     }
 
     mutating func append(_ canonicalLayer: Data) throws {
-        guard layerCount < 51 else { throw StoreMigrationFailure.invalidContract }
+        guard layerCount < expectedLayerCount else { throw StoreMigrationFailure.invalidContract }
         appendInteger(layerCount + 3)
         appendInteger(UInt64(canonicalLayer.count))
         hasher.update(data: canonicalLayer)
@@ -916,7 +924,7 @@ struct StoreSemanticLayerDigestV1 {
     }
 
     mutating func finalize() throws -> String {
-        guard layerCount == 51 else { throw StoreMigrationFailure.invalidContract }
+        guard layerCount == expectedLayerCount else { throw StoreMigrationFailure.invalidContract }
         appendInteger(layerCount)
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
@@ -1635,7 +1643,13 @@ struct StoreAggregateMutationNormalizationV1: Codable, Equatable, Sendable {
 }
 
 struct StoreAggregateMigrationJournalV1: Codable, Equatable, Sendable {
-    var schemaVersion: Int = 1
+    /// Schema 2 records V3...V53 candidate digests as `StoreSemanticLayerDigestV1`
+    /// (V1/V2 flat records digests are unchanged). Schema 1 recorded nested
+    /// canonical digests: only its completed history remains readable.
+    static let currentSchemaVersion = 2
+    /// An unfinished schema-1 journal is never reinterpreted or re-hashed.
+    static let nestedDigestJournalRequiresForwardFix = StoreMigrationFailure.maintenanceRequired(.forwardFixRequired)
+    var schemaVersion: Int = Self.currentSchemaVersion
     let upgradeID: UUID
     var ownerID: UUID
     var revision: Int = 0
@@ -1676,7 +1690,8 @@ struct StoreAggregateMigrationJournalV1: Codable, Equatable, Sendable {
 
     func validate() throws {
         let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
-        guard schemaVersion == 1, revision >= 0,
+        if schemaVersion == 1, phase != .complete { throw Self.nestedDigestJournalRequiresForwardFix }
+        guard schemaVersion == Self.currentSchemaVersion || (schemaVersion == 1 && phase == .complete), revision >= 0,
               [upgradeID, ownerID, sourceGenerationID, targetGenerationID, migrationID, originatingProcessID].allSatisfy({ $0 != zero }),
               sourceGenerationID != targetGenerationID, upgradeID != sourceGenerationID, upgradeID != targetGenerationID,
               sourceRelease.versionIdentifier.major < targetRelease.versionIdentifier.major,
@@ -1777,7 +1792,7 @@ struct StoreAggregateMigrationJournalV1: Codable, Equatable, Sendable {
 
     func validateReplacement(of previous: Self) throws {
         try previous.validate(); try validate()
-        guard revision == previous.revision + 1,
+        guard revision == previous.revision + 1, schemaVersion == previous.schemaVersion,
               upgradeID == previous.upgradeID, sourceGenerationID == previous.sourceGenerationID,
               sourceRelease == previous.sourceRelease, originalPointerData == previous.originalPointerData,
               sourceRootDevice == previous.sourceRootDevice, sourceRootInode == previous.sourceRootInode,

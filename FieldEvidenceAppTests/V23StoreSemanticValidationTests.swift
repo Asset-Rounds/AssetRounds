@@ -121,6 +121,13 @@ final class V23StoreSemanticValidationTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.path))
     }
 
+    /// A released S10 (V1) store upgrades through every adjacent release and both
+    /// launches with bounded framed digests: no nested canonical V3...V53 bytes.
+    func testReleasedV1UpgradeCompletesBothLaunchesWithinBoundedTimeAndMemory() async throws {
+        try await assertBoundedV1Upgrade(siteCount: 1, label: "OneSite")
+        try await assertBoundedV1Upgrade(siteCount: 40, label: "FortySites")
+    }
+
     func testEarlyAndLatestCanonicalRowCorruptionKeepTypedFailureAndColdOpenTargetMismatchWithoutRepair() throws {
         try assertCorruptionFailsClosed(.location)
         try assertCorruptionFailsClosed(.nightWorkflow)
@@ -201,6 +208,13 @@ final class V23StoreSemanticValidationTests: XCTestCase {
         var currentLayers: [Data] = []
         try factory.validateSemanticRowsForTesting(in: context, through: .v53) { currentLayers.append($0) }
         let expectedModern = expectedFramedDigest(currentLayers)
+        // Aggregate candidates hash the same local envelopes, truncated at their release.
+        for release in [PersistentSchemaReleaseV1.v3, .v4, .v6, .v44, .v52] {
+            let major = release.versionIdentifier.major
+            XCTAssertEqual(try factory.framedSemanticDigestForTesting(in: context, release: release),
+                           expectedFramedDigest(Array(currentLayers.prefix(major - 2)), release: UInt64(major)))
+        }
+        XCTAssertThrowsError(try factory.framedSemanticDigestForTesting(in: context, release: .v2))
         let newManifest = try StoreGenerationManifestV1(schemaVersion: 2, generationID: semanticID(823),
             predecessorGenerationID: semanticID(824), migrationID: semanticID(825), storeSchemaRelease: .v53,
             semanticSHA256: expectedModern, semanticDigestAlgorithm: .framedLayersV1,
@@ -228,12 +242,12 @@ final class V23StoreSemanticValidationTests: XCTestCase {
 
     // Independent whole-frame oracle used only for small test fixtures.
     // Production hashes incrementally and never keeps this aggregate buffer.
-    private func expectedFramedDigest(_ layers: [Data]) -> String {
+    private func expectedFramedDigest(_ layers: [Data], release: UInt64 = 53) -> String {
         func integer(_ value: UInt64) -> [UInt8] {
             (0..<8).reversed().map { UInt8(truncatingIfNeeded: value >> ($0 * 8)) }
         }
         var frame = Array("AssetRounds.StoreSemanticDigest.framed-layers.v1\0".utf8)
-        frame += integer(53)
+        frame += integer(release)
         for (offset, layer) in layers.enumerated() {
             frame += integer(UInt64(offset + 3))
             frame += integer(UInt64(layer.count))
@@ -243,8 +257,8 @@ final class V23StoreSemanticValidationTests: XCTestCase {
         return SHA256.hash(data: Data(frame)).map { String(format: "%02x", $0) }.joined()
     }
 
-    private func digestLayers(_ layers: [Data]) throws -> String {
-        var digest = try StoreSemanticLayerDigestV1(release: .v53)
+    private func digestLayers(_ layers: [Data], release: PersistentSchemaReleaseV1 = .v53) throws -> String {
+        var digest = try StoreSemanticLayerDigestV1(release: release)
         for layer in layers { try digest.append(layer) }
         return try digest.finalize()
     }
@@ -265,7 +279,13 @@ final class V23StoreSemanticValidationTests: XCTestCase {
         XCTAssertNotEqual(try digestLayers(reordered), expected)
         XCTAssertThrowsError(try digestLayers(Array(layers.dropLast())))
         XCTAssertThrowsError(try digestLayers(layers + [Data()]))
-        XCTAssertThrowsError(try StoreSemanticLayerDigestV1(release: .v52))
+        // Recorded expectation change (aggregate journal schema 2): V3...V52 are
+        // valid framed releases with exactly n-2 layers; flat V1/V2 never frame.
+        XCTAssertThrowsError(try StoreSemanticLayerDigestV1(release: .v1))
+        XCTAssertThrowsError(try StoreSemanticLayerDigestV1(release: .v2))
+        XCTAssertThrowsError(try digestLayers(layers, release: .v52))
+        XCTAssertThrowsError(try digestLayers(Array(layers.dropLast(2)), release: .v52))
+        XCTAssertNotEqual(try digestLayers(Array(layers.dropLast()), release: .v52), expected)
     }
 
     private func assertManifestDigestFormatsAndFrozenFrameVector() throws {
@@ -275,6 +295,23 @@ final class V23StoreSemanticValidationTests: XCTestCase {
         XCTAssertEqual(expectedFramedDigest(vector), golden)
         XCTAssertEqual(try digestLayers(vector), golden)
         try assertFramedLayerTamperAndBounds(vector)
+        // Frozen independently with Python hashlib (same framing, release n, n-2 layers).
+        let releaseGoldens: [(PersistentSchemaReleaseV1, String)] = [
+            (.v3, "0dfc060b4518873e37ace624f18e3e88ce0ea9817e7c21d1718e5a6758960691"),
+            (.v4, "abfb5566dcb667b7e567503c27782a7ed39a9a0bcb4517457762e323741276eb"),
+            (.v44, "6f54c88c8bcf68ff98bb2d8f6129a7658fbf59870cc306d147a57831f68b3976"),
+            (.v52, "2cf093c0f468f2f8b44102cbc55e61a95a0fe357db06ff2f9828b987d7d0e3af")
+        ]
+        for (release, expected) in releaseGoldens {
+            let major = release.versionIdentifier.major
+            let layers = (3...major).map { Data("layer-\($0)".utf8) }
+            XCTAssertEqual(expectedFramedDigest(layers, release: UInt64(major)), expected)
+            XCTAssertEqual(try digestLayers(layers, release: release), expected)
+            XCTAssertThrowsError(try digestLayers(Array(layers.dropLast()), release: release))
+            XCTAssertThrowsError(try digestLayers(layers + [Data()], release: release))
+            var changed = layers; changed[layers.count - 1].append(0x20)
+            XCTAssertNotEqual(try digestLayers(changed, release: release), expected)
+        }
 
         let generation = try XCTUnwrap(UUID(uuidString: "10000000-0000-4000-8000-000000000001"))
         let predecessor = try XCTUnwrap(UUID(uuidString: "10000000-0000-4000-8000-000000000002"))
@@ -646,6 +683,101 @@ final class V23StoreSemanticValidationTests: XCTestCase {
         )
     }
 
+    private func openStartup(support: URL, identity: WorkspaceReplicaIdentityV1,
+                             processID: UUID) async throws -> StoreStartupOpenResultV1 {
+        let factory = StoreGenerationFactory(applicationSupportURL: support,
+            migrationIdentitySource: StoreMigrationIdentitySourceV1(makeMigrationID: UUID.init,
+                makeGenerationID: UUID.init, makeProcessID: { processID }),
+            pointerEnrichmentIdentity: identity)
+        return try await factory.openForStartup { _ in }
+    }
+
+    private func assertBoundedV1Upgrade(siteCount: Int, label: String) async throws {
+        // Measured on a heavily loaded iOS 26.5 Simulator host: 11-14 s for both
+        // launches, <10 MB footprint growth (nested exports: >300 s and >2 GB).
+        let wallBudgetSeconds = 60.0
+        let footprintBudgetBytes: UInt64 = 256 * 1_048_576
+        let root = temporaryRoot("Upgrade\(label)")
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("Library", isDirectory: true),
+                                                withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let support = applicationSupport(in: root)
+        let identity = try WorkspaceReplicaIdentityV1(workspaceID: WorkspaceID(rawValue: semanticID(900)),
+                                                      replicaID: ReplicaID(rawValue: semanticID(901)))
+        let sourceGenerationID = semanticID(902)
+        let date = Date(timeIntervalSince1970: 1_700_060_000)
+        try semanticObserved("seed released V1 \(label)") {
+            try autoreleasepool {
+                _ = try StoreGenerationFactory(applicationSupportURL: support, pointerEnrichmentIdentity: identity)
+                    .seedReleasedCheckpointTestFixture(release: .v1, generationID: sourceGenerationID,
+                        migrationID: semanticID(903), identity: identity) { context in
+                        for index in 0..<siteCount {
+                            context.insert(Site(id: semanticID(1_000 + index), label: "Upgrade site \(index)",
+                                address: "\(index) Main Street, Springfield", timeZoneID: "UTC",
+                                createdAt: date, updatedAt: date))
+                        }
+                    }
+            }
+        }
+        let sampler = SemanticFootprintSampler()
+        let started = Date()
+        guard case .awaitingIndependentValidation(let pending) = try await openStartup(
+            support: support, identity: identity, processID: semanticID(904)) else {
+            _ = sampler.stop()
+            return XCTFail("\(label): first launch must migrate and await independent validation")
+        }
+        let firstLaunchSeconds = Date().timeIntervalSince(started)
+        let control = try XCTUnwrap(StoreAggregateMigrationControlV1(applicationSupportURL: support))
+        let awaiting = try XCTUnwrap(control.load())
+        XCTAssertEqual(awaiting.schemaVersion, StoreAggregateMigrationJournalV1.currentSchemaVersion)
+        XCTAssertEqual(awaiting.phase, .awaitingIndependentValidation)
+        XCTAssertEqual(awaiting.transitions.map { $0.targetRelease.versionIdentifier.major }, Array(2...53))
+        XCTAssertEqual(awaiting.targetGenerationID, pending.targetGenerationID)
+        let manifestStore = try StoreMigrationJournalStoreV1(applicationSupportURL: support)
+        let manifest = try manifestStore.loadManifest(targetGenerationID: awaiting.targetGenerationID,
+            expectedDigest: try XCTUnwrap(awaiting.targetManifestSHA256))
+        XCTAssertEqual(manifest.schemaVersion, 2)
+        XCTAssertEqual(manifest.semanticDigestAlgorithm, .framedLayersV1)
+        XCTAssertEqual(manifest.storeSchemaRelease, .v53)
+        XCTAssertEqual(manifest.semanticSHA256, awaiting.transitions.last?.targetSemanticSHA256)
+
+        // An unfinished journal carrying the retired nested format fails closed by name.
+        let awaitingBytes = try awaiting.canonicalData()
+        var nested = try jsonObject(awaitingBytes); nested["schemaVersion"] = 1
+        let nestedBytes = try JSONSerialization.data(withJSONObject: nested, options: [.sortedKeys, .withoutEscapingSlashes])
+        XCTAssertThrowsError(try StoreAggregateMigrationJournalV1.decodeCanonical(from: nestedBytes)) { error in
+            XCTAssertEqual(error as? StoreMigrationFailure,
+                           StoreAggregateMigrationJournalV1.nestedDigestJournalRequiresForwardFix)
+            XCTAssertEqual(error as? StoreMigrationFailure, .maintenanceRequired(.forwardFixRequired))
+        }
+        var future = try jsonObject(awaitingBytes); future["schemaVersion"] = 3
+        XCTAssertThrowsError(try StoreAggregateMigrationJournalV1.decodeCanonical(
+            from: JSONSerialization.data(withJSONObject: future, options: [.sortedKeys, .withoutEscapingSlashes])))
+
+        let secondStarted = Date()
+        guard case .ready(let session) = try await openStartup(
+            support: support, identity: identity, processID: semanticID(905)) else {
+            _ = sampler.stop()
+            return XCTFail("\(label): independent second launch must validate and admit the target")
+        }
+        let secondLaunchSeconds = Date().timeIntervalSince(secondStarted)
+        let peak = sampler.stop()
+        let growth = peak > sampler.baseline ? peak - sampler.baseline : 0
+        print("V23AggregateUpgradeBudget label=\(label) sites=\(siteCount) firstLaunch=\(String(format: "%.2f", firstLaunchSeconds))s secondLaunch=\(String(format: "%.2f", secondLaunchSeconds))s peakFootprintMB=\(peak / 1_048_576) growthMB=\(growth / 1_048_576)")
+        XCTAssertEqual(session.generationID, pending.targetGenerationID)
+        XCTAssertEqual(session.storeSchemaRelease, .v53)
+        XCTAssertEqual(try session.modelContext.fetchCount(FetchDescriptor<Site>()), siteCount)
+        XCTAssertEqual(try StoreGenerationFactory(applicationSupportURL: support)
+            .framedSemanticDigestForTesting(in: session.modelContext), manifest.semanticSHA256)
+        let complete = try XCTUnwrap(control.load())
+        XCTAssertEqual(complete.phase, .complete)
+        // Completed schema-1 history stays readable; it is never re-hashed.
+        var history = complete; history.schemaVersion = 1
+        XCTAssertNoThrow(try history.validate())
+        XCTAssertLessThan(firstLaunchSeconds + secondLaunchSeconds, wallBudgetSeconds, label)
+        XCTAssertLessThan(growth, footprintBudgetBytes, label)
+    }
+
     private func temporaryRoot(_ suffix: String) -> URL {
         FileManager.default.temporaryDirectory.appendingPathComponent(
             "V23StoreSemanticValidation-\(suffix)-\(UUID().uuidString)",
@@ -663,6 +795,45 @@ final class V23StoreSemanticValidationTests: XCTestCase {
 
     private func semanticID(_ suffix: Int) -> UUID {
         UUID(uuidString: String(format: "53530000-0000-4000-8000-%012x", suffix))!
+    }
+}
+
+/// Samples this process's physical footprint off the main actor.
+private final class SemanticFootprintSampler: @unchecked Sendable {
+    let baseline: UInt64
+    private let lock = NSLock()
+    private var peak: UInt64
+    private let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .userInitiated))
+
+    init() {
+        baseline = Self.footprint()
+        peak = baseline
+        timer.schedule(deadline: .now(), repeating: .milliseconds(20))
+        timer.setEventHandler { [weak self] in self?.sample() }
+        timer.resume()
+    }
+
+    private func sample() {
+        let value = Self.footprint()
+        lock.lock(); peak = max(peak, value); lock.unlock()
+    }
+
+    func stop() -> UInt64 {
+        timer.cancel()
+        sample()
+        lock.lock(); defer { lock.unlock() }
+        return peak
+    }
+
+    static func footprint() -> UInt64 {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
+            }
+        }
+        return result == KERN_SUCCESS ? info.phys_footprint : 0
     }
 }
 
