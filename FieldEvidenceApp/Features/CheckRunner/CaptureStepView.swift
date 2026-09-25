@@ -64,12 +64,12 @@ struct CaptureStepView: View {
 
     /// The live parent owns selection, commit and the Outcome screen; this
     /// backend never calls the standalone coordinator.
-    init(assetID: UUID, durable: CheckRunnerDurableCaptureActionsV1,
-         usesImportedCaptureFixturesForUITest: Bool = false, cameraAdapter: CameraAdapter = .live) {
+    @MainActor
+    init(assetID: UUID, durable: CheckRunnerDurableCaptureActionsV1) {
         self.assetID = assetID
         self.backend = .durable(durable)
-        self.usesImportedCaptureFixturesForUITest = usesImportedCaptureFixturesForUITest
-        self.cameraAdapter = cameraAdapter
+        self.usesImportedCaptureFixturesForUITest = false
+        self.cameraAdapter = .live
         self.cannotComplete = {}
     }
 

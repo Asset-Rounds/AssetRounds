@@ -827,25 +827,39 @@ private struct ProductionRoundCaptureHostViewV1: View {
 
     @ViewBuilder
     private func outcomeScreen(photosIncomplete: Bool) -> some View {
-        if let presentation = host.outcomePresentation, let editor = host.editor {
-            OutcomeReviewView(assetID: host.source.assetID, durable: .init(
-                presentation: presentation, couldNotVerifyOnly: photosIncomplete,
-                values: { editor.values.outcome },
-                update: { outcome in
-                    guard host.editor === editor else { throw CheckRunnerItemEditingSessionFailureV1.changedCheckpoint }
-                    try host.replaceEditableValues(.init(preflight: editor.values.preflight,
-                        outcome: outcome, semanticAnchor: editor.values.semanticAnchor))
-                },
-                review: { try await host.readReview() },
-                thumbnail: { host.reviewThumbnail($0) },
-                returnToPhotos: photosIncomplete ? { try host.returnToPhotos() } : nil,
-                finish: {
-                    let result = try await host.finish(recordedByName: recordedByName, sourceApp: sourceApp)
-                    advanced(result)
-                }))
+        if let actions = outcomeActions(photosIncomplete: photosIncomplete) {
+            OutcomeReviewView(assetID: host.source.assetID, durable: actions)
         } else {
             unavailable
         }
+    }
+
+    /// Explicitly typed durable actions, kept out of the view builder.
+    private func outcomeActions(photosIncomplete: Bool) -> CheckRunnerDurableOutcomeActionsV1? {
+        guard let presentation = host.outcomePresentation, let editor = host.editor else { return nil }
+        let host = self.host
+        let recordedByName = self.recordedByName
+        let sourceApp = self.sourceApp
+        let advanced = self.advanced
+        let values: @MainActor () -> CheckRunnerEditableOutcomeV1 = { editor.values.outcome }
+        let update: @MainActor (CheckRunnerEditableOutcomeV1) throws -> Void = { outcome in
+            guard host.editor === editor else { throw CheckRunnerItemEditingSessionFailureV1.changedCheckpoint }
+            try host.replaceEditableValues(.init(preflight: editor.values.preflight,
+                outcome: outcome, semanticAnchor: editor.values.semanticAnchor))
+        }
+        let review: @MainActor () async throws -> FinalizationReview = { try await host.readReview() }
+        let thumbnail: @MainActor (ReviewEvidence) -> Data? = { evidence in host.reviewThumbnail(evidence) }
+        var returnToPhotos: (@MainActor () throws -> Void)?
+        if photosIncomplete {
+            returnToPhotos = { try host.returnToPhotos() }
+        }
+        let finish: @MainActor () async throws -> Void = {
+            let result = try await host.finish(recordedByName: recordedByName, sourceApp: sourceApp)
+            advanced(result)
+        }
+        return CheckRunnerDurableOutcomeActionsV1(presentation: presentation, couldNotVerifyOnly: photosIncomplete,
+            values: values, update: update, review: review, thumbnail: thumbnail,
+            returnToPhotos: returnToPhotos, finish: finish)
     }
 
     /// The shared capture screen with its durable backend: selection stages
@@ -860,7 +874,7 @@ private struct ProductionRoundCaptureHostViewV1: View {
             .accessibilityIdentifier("production.round.capture.photo-step")
     }
 
-    private func actionScreen(title: String, message: String, action: String, identifier: String,
+    private func actionScreen(title: String, message: String, action: LocalizedStringKey, identifier: String,
                               perform: @escaping @MainActor () throws -> Void) -> some View {
         VStack(spacing: DesignTokens.Spacing.space16) {
             AssetRoundsEmptyState(title: Text(title), message: Text(message))
