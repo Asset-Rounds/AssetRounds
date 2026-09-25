@@ -97,9 +97,9 @@ Functional, privacy, accessibility or unusable-state defects block a phase. Nonc
 
 ## Model and effort
 
-The owner sets the session model and effort in the app. As of 2026-09-25 afternoon it is Opus 5.5 at High; the owner may raise it later depending on usage limits. Claude subagents inherit the session level. Repository policy never changes these settings.
+The owner sets the session model and effort in the app. As of 2026-09-25 evening it is Opus 5.5 at Medium (lowered from High to save usage); the owner may raise it later. Claude subagents inherit the session level. Repository policy never changes these settings.
 
-Helper budget (owner, 2026-09-25): at most 4 concurrent subagents plus the root session. Reuse an existing helper that already holds the relevant context (continue it with SendMessage) before spawning a new one, to save tokens. The owner may raise the limit to 5 if the 5-hour usage allows. Use the Mac's 16 GB and CPU fully within that limit; up to about 3 concurrent Xcode builds, the CPU being the practical limit.
+Helper budget (owner, 2026-09-25, lowered the same evening to save 5-hour usage): at most 3 concurrent active subagents plus the root session; an idle reviewer does not count until it is working. Before a helper is retired, it writes a short handoff note (scratchpad or VERIFICATION_DUE) so its knowledge can be reused. Reuse an existing helper that already holds the relevant context (continue it with SendMessage) before spawning a new one, to save tokens. The owner may raise the limit again if the 5-hour usage allows. Use the Mac's 16 GB and CPU fully within that limit; up to about 3 concurrent Xcode builds, the CPU being the practical limit.
 
 ## Owner decisions in force (2026-09-24/25)
 

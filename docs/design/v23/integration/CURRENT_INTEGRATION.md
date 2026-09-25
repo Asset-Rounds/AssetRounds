@@ -3982,3 +3982,27 @@ Review:
   - the writer should call the shared C13 concurrency-target function;
   - a named stderr line when the exit flush's try-lock drops pending counts.
 
+Development sweep 36168198155 (e37ea96, batch K head; collected on the Mac, development only):
+- Coverage exact: 3,446 planned, all declared, 0 missing or duplicate.
+- Results: 2,774 passed, 499 failed, 26 interrupted, 141 not started, 6 skipped.
+- 38 of 42 partitions failed. Shared checks flagged S02 and S03 (the timed-out solo partitions) for DerivedData deltas.
+- The build had 0 Swift errors and 499 warnings.
+- Many failing classes were fixed afterwards in batches L and M; sweep 36194519822 at 75533db measures them.
+
+## Batch N: restore receipt order, backup worker stack, writer-based test seeding (2026-09-25, cloud Mac)
+
+- **Restore (product).** `BackupCanonicalEncoderV1.archiveOrderedMutationHistory` is shared by export and restore readback. Since ff8ae4c0, restore of 10+ receipts failed (lexical vs numeric order). Archive bytes and the exact comparison are unchanged.
+- **Backup worker (product).** `BackupOffMainTaskExecutorV1` runs the worker actor on one dedicated 16 MiB-stack thread, fixing the SIGBUS stack overflow. Cancellation and serialization are kept.
+- **S6_2 photos.** The backup does NOT lose check-runner photos: accepted EvidenceFile photos are not field-draft children. The export test now proves all 6 media and thumbnails through replace-restore readback.
+- **Test harness.**
+  - Unique V9_06 deletion IDs (discovery journal leakage).
+  - `TestSupport/CanonicalWriterSeedingV1` and `CanonicalLightingFixtureV1` seed through the writer, replacing hand-inserted rows in LocationHierarchy, V9_06 C40, the receipt-safety privacy, work-resource, temporal and day/night tests, V23StoreSemantic, operational contact and service reliability.
+  - Receipt counts become seed plus delta, with reasons in the commit messages.
+- **Partitions:** v2, 36 partitions, 3,454 methods.
+- **Review:** independent reviewer (Claude Opus 5.5, read-only, not an author): APPROVE. Optional: pin the fixed seeded receipt counts; add a restore test with 10+ receipts.
+- **Local:** build-for-testing SUCCEEDED.
+  - S6_2: 33 pass / 8 fail, no crashes.
+  - V23MutationReceiptSafety: 18 failures went to 10.
+  - V23StoreSemantic: 2 failures went to 1.
+  - V9_06Archive C40 passes.
+

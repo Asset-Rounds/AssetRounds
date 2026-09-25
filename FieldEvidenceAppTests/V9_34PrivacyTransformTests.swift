@@ -106,9 +106,13 @@ enum C20PrivacyTransformTestSupport {
         )
     }
 
-    static func makeFixture() throws -> Fixture {
+    /// `policyMutationSlot` gives the policy its own mutation so a fixture can
+    /// append it through the canonical writer before publishing; by default
+    /// the policy shares the publication mutation exactly as before.
+    static func makeFixture(policyMutationSlot: Int? = nil) throws -> Fixture {
         let workspace = WorkspaceID(rawValue: id(1))
         let mutationID = try MutationIDV1(rawValue: id(2))
+        let policyMutationID = try policyMutationSlot.map { try MutationIDV1(rawValue: id($0)) } ?? mutationID
         let capturedAt = fixedDate
         let originalBytes = Data("c20 immutable original bytes".utf8)
         let derivativeBytes = Data("c20 redacted derivative bytes".utf8)
@@ -169,7 +173,7 @@ enum C20PrivacyTransformTestSupport {
             allowedTransformKinds: [.blur, .solidFill, .pixelate],
             allowedReasons: [.vehicleIdentifier, .person, .confidentialInformation,
                              .identifyingMark, .unrelatedPrivateDetail],
-            maximumAgeSeconds: 3_600, effectiveAt: capturedAt, mutationID: mutationID
+            maximumAgeSeconds: 3_600, effectiveAt: capturedAt, mutationID: policyMutationID
         )
         let regions = try [
             PrivacyRegionV1(

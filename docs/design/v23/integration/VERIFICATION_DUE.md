@@ -224,4 +224,10 @@ The production photo journey takes priority over another isolated foundation. So
   - D2: replicated immutable-version kinds keep immutable-history backup/export/restore/erase dispositions. The C38/C40 contracts are silent on this.
   - D5: V9_93 checks Release/V23P05C01 against CI bytes committed at 5f17cdcd, applying decision 7 by analogy to a V23 card.
 - Batch M recommendations: a millisecond-boundary finalization case; the writer should call the shared C13 target function; name dropped exit-flush counts.
+- Setup-helper handoff (2026-09-25):
+  - Reviewed-draft receipt-safety tests (:736 ×3, :1375, :1410, :1601) should get their external baseline through the restore route (BackupRestoreService.swift:14230/14980) once the backup work lands.
+  - Imported-history and carryover tests (:1667, :2381, :2536, :2863) are blocked by `LocalChangeJournalV1.makeCheckpoint` (LocalChangeJournalV1.swift:812) requiring persistent 16 / records 15 (pin from f2eeb472, C36). No replication checkpoint is possible at v53. This is the same root as the ReleasedDataCompatibilityPolicyV1 16.0.0 writer question.
+  - V23StoreSemantic :114: a LocationNodeRow inserted directly into a cold store doesn't make `reproofAfterSave()` throw receiptHistoryCorrupt. Possible integrity gap in the reproof; investigate.
+  - Backup-import hierarchyViolation family (V9_06 G01, V9_07Corpus G01/I01, LocationHierarchy :181/:848) and the V9_06 R01 orphan layout remain.
+  - Backup handoff note: scratchpad handoff-backup.md. The V23 draft-photo fixture is needed for the S6_2 "6 children" checks.
 

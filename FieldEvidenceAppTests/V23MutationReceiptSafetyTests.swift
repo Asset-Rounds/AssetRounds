@@ -6,13 +6,11 @@ import XCTest
 @MainActor
 final class V23MutationReceiptSafetyTests: XCTestCase {
     func testPrivacyPublicationLostAcknowledgmentReplaysThroughFreshAuthority() async throws {
-        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
-        let harness = try ReceiptSafetyHarness(workspaceID: fixture.workspace) { context in
-            context.insert(try PrivacyTransformPolicyRow(fixture.policy))
-            context.insert(try ActorSnapshotRow(fixture.author))
-        }
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture(policyMutationSlot: 3)
+        let harness = try ReceiptSafetyHarness(workspaceID: fixture.workspace, seed: { _ in },
+            canonicalSeed: { try ReceiptSafetyPrivacySeed.apply(fixture, to: $0) })
         defer { harness.removeFiles() }
-        let content = EvidenceBundleStore(generationRootURL: harness.root)
+        let content = EvidenceBundleStore(generationRootURL: harness.generationRootURL)
         let interrupted = try WorkspacePrivacyTransformPublicationAuthorityV1(
             contentWriter: content, workspaceWriter: harness.writer,
             interruptionHook: { point in
@@ -43,11 +41,13 @@ final class V23MutationReceiptSafetyTests: XCTestCase {
         let repeated = try await freshAuthority.publish(fixture.bundle)
         XCTAssertEqual(repeated, receipt)
         XCTAssertEqual(try freshWriter.currentRevision().revision, before.revision + 1)
-        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 1)
+        // The author and policy are seeded through the writer (two receipts);
+        // the publication itself still commits exactly one receipt.
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 2 + 1)
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<PrivacyTransformManifestRow>()), 1)
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<PrivacyRegionRow>()), fixture.regions.count)
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationQuarantineRow>()), 0)
-        let bytes = harness.root.appendingPathComponent(
+        let bytes = harness.generationRootURL.appendingPathComponent(
             "content/\(fixture.derivative.workspaceID)/\(fixture.derivative.contentID)/original.bin"
         )
         XCTAssertEqual(try Data(contentsOf: bytes), fixture.derivativeBytes)
@@ -55,14 +55,12 @@ final class V23MutationReceiptSafetyTests: XCTestCase {
     }
 
     func testValidChangedPrivacyPublicationQuarantinesAndCachedReceiptFailsClosed() async throws {
-        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
-        let harness = try ReceiptSafetyHarness(workspaceID: fixture.workspace) { context in
-            context.insert(try PrivacyTransformPolicyRow(fixture.policy))
-            context.insert(try ActorSnapshotRow(fixture.author))
-        }
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture(policyMutationSlot: 3)
+        let harness = try ReceiptSafetyHarness(workspaceID: fixture.workspace, seed: { _ in },
+            canonicalSeed: { try ReceiptSafetyPrivacySeed.apply(fixture, to: $0) })
         defer { harness.removeFiles() }
         let authority = try WorkspacePrivacyTransformPublicationAuthorityV1(
-            contentWriter: EvidenceBundleStore(generationRootURL: harness.root),
+            contentWriter: EvidenceBundleStore(generationRootURL: harness.generationRootURL),
             workspaceWriter: harness.writer
         )
         _ = try await authority.publish(fixture.bundle)
@@ -119,14 +117,12 @@ final class V23MutationReceiptSafetyTests: XCTestCase {
 
     func testCachedPrivacyReceiptDeniesRevokedLeaseAndUnrelatedCorruptJournal() async throws {
         for revoke in [false, true] {
-            let fixture = try C20PrivacyTransformTestSupport.makeFixture()
-            let harness = try ReceiptSafetyHarness(workspaceID: fixture.workspace) { context in
-                context.insert(try PrivacyTransformPolicyRow(fixture.policy))
-                context.insert(try ActorSnapshotRow(fixture.author))
-            }
+            let fixture = try C20PrivacyTransformTestSupport.makeFixture(policyMutationSlot: 3)
+            let harness = try ReceiptSafetyHarness(workspaceID: fixture.workspace, seed: { _ in },
+                canonicalSeed: { try ReceiptSafetyPrivacySeed.apply(fixture, to: $0) })
             defer { harness.removeFiles() }
             let authority = try WorkspacePrivacyTransformPublicationAuthorityV1(
-                contentWriter: EvidenceBundleStore(generationRootURL: harness.root),
+                contentWriter: EvidenceBundleStore(generationRootURL: harness.generationRootURL),
                 workspaceWriter: harness.writer
             )
             _ = try await authority.publish(fixture.bundle)
@@ -155,11 +151,16 @@ final class V23MutationReceiptSafetyTests: XCTestCase {
     func testTemporalCommittedReceiptCannotAuthorizeCleanupAfterRevocationOrQuarantine() async throws {
         for revoke in [false, true] {
             let seed = try ReceiptSafetyTemporalSeed()
-            let harness = try ReceiptSafetyHarness(workspaceID: seed.clip.workspaceID, seed: seed.persist)
+            let harness = try ReceiptSafetyHarness(workspaceID: seed.clip.workspaceID, seed: { _ in })
             defer { harness.removeFiles() }
+            try await seed.persist(through: harness)
+            let seededReceipts = try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>())
+            // Seeding commits through the writer, so the clip binds the seeded
+            // workspace revision rather than an empty store's revision 0.
             let expected = try C33TemporalEvidenceTestSupport.expectedRevision(
                 for: seed.clip, generationID: harness.generationID,
-                writerInstanceID: harness.writerInstanceID
+                writerInstanceID: harness.writerInstanceID,
+                workspaceRevision: harness.writer.currentRevision().revision
             )
             _ = try harness.writer.commitTemporalEvidence(.init(
                 workspaceID: seed.clip.workspaceID, expectedRevision: expected,
@@ -220,7 +221,8 @@ final class V23MutationReceiptSafetyTests: XCTestCase {
             XCTAssertEqual(cleanup.calls, 0)
             let marked = await unused.markedCount
             XCTAssertEqual(marked, 0)
-            XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 2)
+            // Exactly the accepted clip and its removal commit beyond the writer seeding.
+            XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), seededReceipts + 2)
             XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationQuarantineRow>()), revoke ? 0 : 1)
         }
     }
@@ -230,10 +232,13 @@ final class V23MutationReceiptSafetyTests: XCTestCase {
             let workspace = C46OperationalContactTestSupport.workspace(revoke ? 90_102 : 90_101)
             let party = try C46OperationalContactTestSupport.party(slot: revoke ? 90_104 : 90_103,
                                                                      workspaceID: workspace)
-            let harness = try ReceiptSafetyHarness(workspaceID: workspace) { context in
-                context.insert(try ServicePartyRow(party))
-            }
+            // The party enters through the writer so it carries an entity
+            // revision that the contact mutation's concurrency set binds.
+            let harness = try ReceiptSafetyHarness(workspaceID: workspace, seed: { _ in }, canonicalSeed: {
+                _ = try $0.execute(.applyPartyAccountability(.recordParty(party)), mutationID: party.mutationID)
+            })
             defer { harness.removeFiles() }
+            let seededReceipts = try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>())
             let current = try harness.writer.currentRevision()
             let mutationID = try C46OperationalContactTestSupport.mutation(revoke ? 90_106 : 90_105)
             let contact = try ServiceContactPointV1(
@@ -266,7 +271,7 @@ final class V23MutationReceiptSafetyTests: XCTestCase {
             let original = try await harness.writer.commitOperationalContact(mutation)
             let replay = try await harness.writer.commitOperationalContact(mutation)
             XCTAssertEqual(replay, original)
-            XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 1)
+            XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), seededReceipts + 1)
 
             if revoke {
                 try harness.registry.release(harness.lease)
@@ -306,23 +311,29 @@ final class V23MutationReceiptSafetyTests: XCTestCase {
                     XCTAssertEqual(error as? WorkspaceMutationFailureV1, .mutationIDQuarantined)
                 }
             }
-            XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 1)
+            XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), seededReceipts + 1)
         }
     }
 
-    func testDayAndNightWorkflowReplayBindsOriginalRequestAndLiveJournalAuthority() throws {
+    func testDayAndNightWorkflowReplayBindsOriginalRequestAndLiveJournalAuthority() async throws {
         for night in [false, true] {
             for denial in 0..<3 {
                 let fixture = try ReceiptSafetyLighting.makeFixture(slot: (night ? 10 : 0) + denial)
-                let harness = try ReceiptSafetyHarness(workspaceID: fixture.day.workspaceID) { context in
-                    context.insert(try LightingSystemRow(fixture.system))
-                    context.insert(try LightingObservationRow(fixture.dayObservation))
-                    if night {
-                        context.insert(try LightingDayInventoryWorkflowRowV1(fixture.plannedDay))
-                        context.insert(try LightingObservationRow(fixture.nightObservation))
-                    }
-                }
+                let harness = try ReceiptSafetyHarness(workspaceID: fixture.day.workspaceID, seed: { _ in })
                 defer { harness.removeFiles() }
+                // Lighting rows enter only through the canonical writer.
+                let promotionActor = try C26SurveySessionTestSupport.actor(workspaceID: fixture.day.workspaceID, slot: 8_003)
+                if night {
+                    try await CanonicalWriterSeedingV1.seedLightingNightPrerequisites(fixture,
+                        promotionActor: promotionActor, writer: harness.writer, journal: harness.store,
+                        context: harness.context)
+                } else {
+                    try await CanonicalWriterSeedingV1.seedLightingSystem(fixture.system, package: fixture.package,
+                        observations: [fixture.dayObservation], promotionActor: promotionActor,
+                        writer: harness.writer, journal: harness.store,
+                        context: harness.context, promotedAt: max(promotionActor.capturedAt, fixture.system.recordedAt))
+                }
+                let seededReceipts = try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>())
                 let dayOperation = LightingDayInventoryWriteOperationV1.appendWorkflow(
                     value: fixture.day, predecessor: nil, admission: fixture.dayAdmission)
                 let nightOperation = LightingNightWorkflowWriteOperationV1.appendWorkflow(
@@ -342,8 +353,9 @@ final class V23MutationReceiptSafetyTests: XCTestCase {
                 XCTAssertEqual(try harness.writer.durableReceipt(mutationID: mutationID), first)
                 XCTAssertEqual(try reopened.durableReceipt(mutationID: mutationID), first)
                 let receipts = try harness.context.fetch(FetchDescriptor<MutationReceiptRow>())
-                let receiptRow = try XCTUnwrap(receipts.first)
-                XCTAssertEqual(receipts.count, 1)
+                // Exactly one workflow receipt beyond the writer seeding.
+                XCTAssertEqual(receipts.count, seededReceipts + 1)
+                let receiptRow = try XCTUnwrap(receipts.first { $0.mutationID == mutationID.rawValue })
                 let expected: WorkspaceMutationFailureV1
                 switch denial {
                 case 0:
@@ -388,7 +400,7 @@ final class V23MutationReceiptSafetyTests: XCTestCase {
                     XCTAssertEqual(rows.count, 1)
                     XCTAssertEqual(try XCTUnwrap(rows.first).value(), fixture.day)
                 }
-                XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 1)
+                XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), seededReceipts + 1)
             }
         }
     }
@@ -549,15 +561,13 @@ final class V23MutationReceiptSafetyTests: XCTestCase {
     func testWorkResourceReplayBindsOriginalRequestAndLiveJournalAuthority() throws {
         for denial in [false, true] {
             let fixture = try ReceiptSafetyWorkResource.makeFixture(slot: denial ? 2 : 1)
-            let harness = try ReceiptSafetyHarness(workspaceID: fixture.workspaceID) { context in
-                context.insert(try ActorSnapshotRow(fixture.actor))
-                context.insert(try WorkPacketManifestRow(fixture.manifest))
+            let harness = try ReceiptSafetyHarness(workspaceID: fixture.workspaceID, seed: { context in
                 let site = Site(label: "Receipt safety work-resource site", timeZoneID: "UTC")
                 context.insert(site)
                 context.insert(Asset(id: fixture.assetID, siteID: site.id, packID: "receipt-safety",
                                      packSchemaVersion: 1, packContentVersion: 1,
                                      label: "Receipt safety work-resource asset"))
-            }
+            }, canonicalSeed: { try ReceiptSafetyWorkResource.seed(fixture, to: $0) })
             defer { harness.removeFiles() }
             let before = try harness.writer.currentRevision()
             let first = try harness.writer.commitWorkResource(fixture.mutation, expectedRevision: fixture.expected(before))
@@ -568,7 +578,8 @@ final class V23MutationReceiptSafetyTests: XCTestCase {
             let cold = try harness.reopenWriter()
             XCTAssertEqual(try cold.commitWorkResource(fixture.mutation, expectedRevision: fixture.expected(before)), first)
             XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<ManualWorkResourceRecordRow>()), 1)
-            XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 1)
+            // Two seeding receipts (actor, manifest) plus exactly one work-resource receipt.
+            XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 2 + 1)
 
             let substituted = try ReceiptSafetyEvidenceContext.operation(
                 workspaceID: fixture.workspaceID, assetID: fixture.assetID,
@@ -584,10 +595,8 @@ final class V23MutationReceiptSafetyTests: XCTestCase {
             // Start a separate valid commit before exercising live-authority denial;
             // the quarantined C49 ID above must not mask lease or full-journal checks.
             let fresh = try ReceiptSafetyWorkResource.makeFixture(slot: denial ? 4 : 3)
-            let freshHarness = try ReceiptSafetyHarness(workspaceID: fresh.workspaceID) { context in
-                context.insert(try ActorSnapshotRow(fresh.actor))
-                context.insert(try WorkPacketManifestRow(fresh.manifest))
-            }
+            let freshHarness = try ReceiptSafetyHarness(workspaceID: fresh.workspaceID, seed: { _ in },
+                canonicalSeed: { try ReceiptSafetyWorkResource.seed(fresh, to: $0) })
             defer { freshHarness.removeFiles() }
             let freshBefore = try freshHarness.writer.currentRevision()
             _ = try freshHarness.writer.commitWorkResource(fresh.mutation, expectedRevision: fresh.expected(freshBefore))
@@ -694,11 +703,13 @@ private final class ReceiptSafetyHarness {
     let fence: StaleWriterFenceV1
     let identity: WorkspaceReplicaIdentityV1
     let generationID: UUID
+    let generationRootURL: URL
     let writerInstanceID: UUID
     let store: MutationJournalStoreV1
     let writer: WorkspaceWriterV1
 
-    init(workspaceID: WorkspaceID, seed: (ModelContext) throws -> Void) throws {
+    init(workspaceID: WorkspaceID, seed: (ModelContext) throws -> Void,
+         canonicalSeed: ((WorkspaceWriterV1) throws -> Void)? = nil) throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("V23-receipt-safety-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -712,6 +723,11 @@ private final class ReceiptSafetyHarness {
         try seed(context)
         try context.save()
         generationID = UUID()
+        // Content stores bind the canonical generation layout by name.
+        generationRootURL = root.appendingPathComponent("FieldEvidenceData", isDirectory: true)
+            .appendingPathComponent("generations", isDirectory: true)
+            .appendingPathComponent(generationID.uuidString.lowercased(), isDirectory: true)
+        try FileManager.default.createDirectory(at: generationRootURL, withIntermediateDirectories: true)
         writerInstanceID = UUID()
         identity = try .init(workspaceID: workspaceID, replicaID: .init(rawValue: UUID()))
         let epoch = try GenerationEpochV1(generationID: generationID,
@@ -727,6 +743,9 @@ private final class ReceiptSafetyHarness {
             clock: ReceiptSafetyClock(), idSource: ReceiptSafetyIDs(value: writerInstanceID),
             fileAuthority: ReceiptSafetyFiles(), adapter: WorkspaceWriterAdapterV1(modelContext: context),
             journalStore: store)
+        // Revisioned rows enter only through the writer, after the empty journal
+        // initializes; direct inserts have no entity revision and fail bootstrap.
+        try canonicalSeed?(writer)
     }
 
     func reopenWriter() throws -> WorkspaceWriterV1 {
@@ -849,6 +868,16 @@ private enum ReceiptSafetyEvidenceContext {
 }
 
 private enum ReceiptSafetyWorkResource {
+    /// Appends the actor and packet manifest through the canonical writer.
+    @MainActor
+    static func seed(_ fixture: Fixture, to writer: WorkspaceWriterV1) throws {
+        _ = try writer.execute(.applyPartyAccountability(.appendActorSnapshot(fixture.actor)),
+            mutationID: MutationIDV1(rawValue: UUID()))
+        let manifest = try WorkPacketMutationV1(workspaceID: fixture.workspaceID, expectedRevision: 0,
+            mutationID: fixture.manifest.mutationID, postImage: .appendManifest(fixture.manifest))
+        _ = try writer.execute(.applyWorkPacket(manifest), mutationID: manifest.mutationID)
+    }
+
     struct Fixture {
         let workspaceID: WorkspaceID
         let assetID: UUID
@@ -924,7 +953,7 @@ private enum ReceiptSafetyServiceReliability {
         let interval = try ServiceReliabilityClosedIntervalV1(lowerBound: instant,
                                                                upperBound: .init(millisecondsSince1970: instant.millisecondsSince1970 + 60_000))
         let observation = try ObservationBasisV1(kind: .directlyObserved,
-                                                  method: try .init(key: "RECEIPT_SAFETY_C53"),
+                                                  method: try .init(key: "receipt.safety.c53"),
                                                   source: try .init(kind: .observer))
         let temporal = try TemporalContextV1(occurredAtUTC: date, recordedAtUTC: date,
                                              localDate: nil, localTime: nil, utcOffsetSeconds: nil,
@@ -952,8 +981,8 @@ private enum ReceiptSafetyServiceReliability {
 private struct ReceiptSafetyTemporalSeed {
     let definition: SurveyDefinitionReleaseV1
     let session: SurveySessionV1
-    let promoted: PromotedPackageReleaseV1
-    let pointer: ActivePackageRegistryPointerV1
+    let package: InspectionPackageReleaseV1
+    let provisional: ProvisionalSubjectV1
     let clip: TemporalEvidenceClipV1
 
     init() throws {
@@ -962,16 +991,12 @@ private struct ReceiptSafetyTemporalSeed {
         definition = try C26SurveySessionTestSupport.release(releaseSlot: 330, workspaceID: workspace)
         let package = try C26SurveySessionTestSupport.packageRelease()
         let provisional = try C26SurveySessionTestSupport.provisional(workspaceID: workspace)
+        self.package = package
+        self.provisional = provisional
         session = try C26SurveySessionTestSupport.session(
             authority: C26SurveySessionTestSupport.authority(for: definition, package: package),
             workspaceID: workspace, subject: .provisional(provisional.reference),
             state: .draft, transition: .create, revision: 1, actorSlot: 601)
-        promoted = try C26SurveySessionTestSupport.promotedPackage(package, workspaceID: workspace, slot: 8001)
-        pointer = try ActivePackageRegistryPointerV1(pointerID: UUID(), workspaceID: workspace,
-            packageID: package.packageID, activeReleaseRecordID: promoted.releaseRecordID,
-            promotionReceiptID: UUID(), activePackageReleaseID: package.packageReleaseID,
-            activeReleaseRecordSHA256: promoted.releaseRecordSHA256, revision: 1,
-            mutationID: .init(rawValue: UUID()))
         let value = fixture.clip
         clip = try TemporalEvidenceClipV1(clipID: value.clipID, workspaceID: workspace,
             target: .init(workspaceID: workspace, sessionID: session.sessionID,
@@ -984,11 +1009,15 @@ private struct ReceiptSafetyTemporalSeed {
             mutationID: value.mutationID)
     }
 
-    func persist(_ context: ModelContext) throws {
-        context.insert(try SurveyDefinitionReleaseRow(definition))
-        context.insert(try SurveySessionRow(session))
-        context.insert(try PromotedPackageReleaseRow(promoted))
-        context.insert(try ActivePackageRegistryPointerRow(pointer))
+    /// Seeds the promotion, definition, provisional subject and session through
+    /// the canonical writer; direct inserts have no entity revisions.
+    @MainActor
+    func persist(through harness: ReceiptSafetyHarness) async throws {
+        try await CanonicalWriterSeedingV1.seedSurveySession(definition: definition, package: package,
+            provisional: provisional, session: session,
+            promotionActor: try C26SurveySessionTestSupport.actor(workspaceID: session.workspaceID, slot: 8_002),
+            writer: harness.writer, journal: harness.store, context: harness.context,
+            promotedAt: definition.authoredAt)
     }
 
     func removalEvent(policySHA256: String = String(repeating: "f", count: 64),
@@ -1035,184 +1064,7 @@ private actor ReceiptSafetyUnusedTemporalPorts: TemporalEvidenceImmutableContent
     func finishCleanup(_ reservation: TemporalEvidenceRetentionCleanupReservationV1) throws { throw ReceiptSafetyUnexpectedCall.unusedPort }
 }
 
-private enum ReceiptSafetyLighting {
-    struct Fixture {
-        let system: LightingSystemV1
-        let dayObservation: LightingObservationV1
-        let nightObservation: LightingObservationV1
-        let day: LightingDayInventoryWorkflowV1
-        let plannedDay: LightingDayInventoryWorkflowV1
-        let night: LightingNightWorkflowV1
-        let dayAdmission: LightingDayInventoryAdmissionClosureV1
-        let nightAdmission: LightingNightWorkflowAdmissionClosureV1
-    }
-
-    static func makeFixture(slot: Int) throws -> Fixture {
-        let packetFixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 290_000 + slot)
-        let workspace = packetFixture.workspaceID
-        let date = Date(timeIntervalSince1970: 1_800_000_000)
-        let actor = try C26SurveySessionTestSupport.actor(workspaceID: workspace)
-        let package = try C26SurveySessionTestSupport.packageRelease(workflowID: "c17.report.workflow")
-        let packageIdentity = try PackageReleaseIdentityV1(packageID: package.packageID, schemaVersion: 1,
-                                                          contentVersion: package.packageContentVersion)
-        let assetID = id(202), zoneID = id(203), groupID = id(204), luminaireID = id(205)
-        let binding = try WorkSubjectSemanticBindingSnapshotV1(assetID: assetID,
-            kindBindingEventID: id(206), kindBindingRevision: 1,
-            catalogRelease: .init(releaseID: id(207), packageRelease: packageIdentity, catalogSHA256: digest("a")),
-            semanticID: "luminaire.exterior", workflowPackageReleases: [packageIdentity])
-        let zone = LightingZoneV1(zoneID: zoneID, displayName: "Day inventory",
-            workSubject: .init(kind: .locationNode, subjectID: zoneID, revision: 1, ownerAssetID: nil),
-            declaredActivityClass: "PARKING", declaredSecurityClass: "GENERAL")
-        let group = ControlGroupV1(controlGroupID: groupID, semanticID: "lighting.primary",
-            expectation: try .init(controlGroupID: groupID.uuidString.lowercased(), expectedState: .noExpectation,
-                policyID: "C17_LOCAL_POLICY", policyVersion: 1, policySHA256: digest("b")))
-        let luminaire = LuminaireAssetV1(luminaireID: luminaireID, assetID: assetID, assetRevision: 1,
-            semanticBinding: binding, zoneIDs: [zoneID], controlGroupIDs: [groupID],
-            maintenanceDisposition: .independentlyMaintained)
-        let system = try LightingSystemV1(recordID: id(208), systemID: id(209), workspaceID: workspace,
-            siteID: id(210), packageRelease: .init(package), zones: [zone], controlGroups: [group],
-            luminaires: [luminaire], revision: 1, mutationID: .init(rawValue: id(211)),
-            recordedBy: actor, recordedAt: date)
-        let temporal = try TemporalContextV1(occurredAtUTC: date, recordedAtUTC: date,
-            localDate: "2027-01-15", localTime: "08:00:00", utcOffsetSeconds: 0,
-            ianaTimeZoneIdentifier: "UTC", localTimeDisposition: .unambiguous)
-        let context = try EvidenceContextV1(contextID: id(212), workspaceID: workspace,
-            evidenceID: "c17-original", evidenceSHA256: digest("c"), evidenceRevision: 1,
-            assetID: assetID, assetRevision: 1, temporalContext: temporal,
-            userObserved: .init(condition: .daylight, observationNoteCode: "DAY_NOT_NIGHT_TEST"),
-            derivedSolar: nil, controlExpectation: nil, predecessor: nil, revision: 1,
-            mutationID: .init(rawValue: id(213)), recordedBy: actor, recordedAt: date)
-        let observation = try LightingObservationV1(recordID: id(214), observationID: id(215),
-            workspaceID: workspace, system: system, luminaireID: luminaireID, zoneID: zoneID,
-            controlGroupID: groupID, evidenceContext: context,
-            observationBasis: .init(kind: .directlyObserved, method: .init(key: "c17.manual"),
-                source: .init(kind: .observer), limitations: []), issueKinds: [], revision: 1,
-            mutationID: .init(rawValue: id(216)), recordedBy: actor, recordedAt: date)
-        let path = try LocationPathSnapshotV1(siteID: system.siteID, siteDisplay: "Fixture site", nodes: [])
-        let safety = try LightingSafetyIntakeV1(intakeID: id(217), workspaceID: workspace,
-            systemID: system.systemID, systemRevision: system.revision, systemSHA256: system.systemSHA256,
-            area: zone.workSubject, route: path, timeContext: temporal, siteAuthority: .confirmed,
-            requiredPPE: [], confirmedPPE: [], emergencyReadiness: .confirmed,
-            trafficSafety: .noTrafficExposure, observerSafety: .authorizedAccessibleVantage,
-            recordedBy: actor, recordedAt: date)
-        let condition = try LightingDayConditionSnapshotV1(luminaireID: luminaireID, assetID: assetID,
-            assetRevision: 1, zoneID: zoneID, controlGroupID: groupID, observation: .init(observation),
-            poseDisposition: .notDeclared, poseEvent: nil,
-            facts: [.init(aspect: .lens, state: .notObserved, issueKind: nil)], contextualMedia: [])
-        let day = try LightingDayInventoryWorkflowV1(recordID: id(223), workflowID: id(224),
-            workspaceID: workspace, system: system, safetyIntake: safety, conditionSnapshots: [condition],
-            state: .dayInventoryRecorded, revision: 1, mutationID: .init(rawValue: id(225)),
-            recordedBy: actor, recordedAt: date)
-        let dayAdmission = LightingDayInventoryAdmissionClosureV1(system: system, observations: [observation],
-            poseEvents: [], occurrence: nil, workPacket: nil, readiness: nil)
-        try dayAdmission.validate(day)
-
-        let nightDate = Date(timeIntervalSince1970: 1_800_046_800)
-        let definition = try C26SurveySessionTestSupport.release(workspaceID: workspace)
-        let timeBasis = try FrozenScheduleTimeBasisV1(
-            ianaTimeZoneIdentifier: "UTC", timeZoneRuleSetVersion: "test-frozen-v1",
-            timeZoneRuleSetSHA256: digest("a"), ambiguousTimePolicy: .earlierOffset,
-            nonexistentTimePolicy: .shiftForwardByGap, calendarBasisSHA256: digest("b")
-        )
-        let anchor = ScheduleLocalAnchorV1(
-            year: nil, month: nil, day: nil, weekday: nil, weekdayOrdinal: nil,
-            hour: 21, minute: 0, second: 0
-        )
-        let schedule = try ScheduleDefinitionReleaseV1(
-            scheduleDefinitionID: id(8_101), releaseID: id(8_102), workspaceID: workspace,
-            occurrenceIdentityNamespaceID: id(8_103), action: .create, lifecycleState: .active,
-            recurrence: .fixedCalendar(.init(cadence: .daily, interval: 1, anchor: anchor)),
-            timeBasis: timeBasis, startsAtUTC: nightDate, generationHorizonDays: 30,
-            maximumGeneratedOccurrences: 8, readyLeadSeconds: 0, overdueGraceSeconds: 0,
-            subject: WorkSubjectReferenceV1(kind: .asset, subjectID: id(8_104),
-                                            revision: 1, ownerAssetID: nil),
-            workDefinition: ScheduledWorkDefinitionReferenceV1(
-                kind: .workPacket, definition: definition, packageRelease: package
-            ),
-            revision: 1, mutationID: MutationIDV1(rawValue: id(8_105)),
-            authoredBy: actor, authoredAt: nightDate
-        )
-        let basis = ResolvedOccurrenceBasisV1(
-            nominalLocalDate: "2027-01-15", nominalLocalTime: "21:00:00",
-            resolvedAtUTC: nightDate, utcOffsetSeconds: 0, disposition: .unambiguous,
-            timeBasisSHA256: try timeBasis.canonicalSHA256(), adjustmentProvenanceSHA256: nil
-        )
-        let occurrenceID = try OccurrenceIDV1(
-            scheduleDefinitionID: schedule.scheduleDefinitionID,
-            identityNamespaceID: schedule.occurrenceIdentityNamespaceID, nominalKey: basis.nominalKey
-        )
-        let event = try OccurrenceHistoryEventV1(
-            eventID: id(8_106), workspaceID: workspace, occurrenceID: occurrenceID,
-            scheduleRelease: ScheduleDefinitionReleaseReferenceV1(schedule),
-            action: .generated, nominalBasis: basis, effectiveBasis: basis,
-            predecessor: nil, revision: 1, mutationID: MutationIDV1(rawValue: id(8_107)),
-            recordedBy: actor, recordedAt: nightDate
-        )
-        let plan = try LightingNightFollowupPlanV1(planID: id(310), workspaceID: workspace,
-            sourceSystemID: system.systemID, sourceSystemRevision: system.revision,
-            sourceSystemSHA256: system.systemSHA256, sourceDayInventoryContentSHA256: day.dayInventoryContentSHA256,
-            selectedLuminaireIDs: [luminaireID], occurrence: .init(event),
-            workPacket: .init(packetFixture.manifest), offlineReadinessSourceSHA256: digest("e"),
-            offlineReadinessManifestSHA256: digest("f"), readinessCheckedAt: nightDate,
-            createdBy: actor, createdAt: nightDate)
-        let plannedDay = try LightingDayInventoryWorkflowV1(recordID: id(311), workflowID: id(312),
-            workspaceID: workspace, system: system, safetyIntake: safety, conditionSnapshots: [condition],
-            state: .nightFollowupPrepared, nightFollowupPlan: plan, revision: 1,
-            mutationID: .init(rawValue: id(313)), recordedBy: actor, recordedAt: nightDate)
-        let nightTime = try TemporalContextV1(occurredAtUTC: nightDate, recordedAtUTC: nightDate,
-            localDate: "2027-01-15", localTime: "21:00:00", utcOffsetSeconds: 0,
-            ianaTimeZoneIdentifier: "UTC", localTimeDisposition: .unambiguous)
-        let nightContext = try EvidenceContextV1(contextID: id(314), workspaceID: workspace,
-            evidenceID: "receipt-safety-night", evidenceSHA256: digest("8"), evidenceRevision: 1,
-            assetID: assetID, assetRevision: 1, temporalContext: nightTime,
-            userObserved: .init(condition: .night, observationNoteCode: "NIGHT_INVENTORY"),
-            derivedSolar: nil, controlExpectation: nil, predecessor: nil, revision: 1,
-            mutationID: .init(rawValue: id(315)), recordedBy: actor, recordedAt: nightDate)
-        let nightObservation = try LightingObservationV1(recordID: id(316), observationID: id(317),
-            workspaceID: workspace, system: system, luminaireID: luminaireID, zoneID: zoneID,
-            controlGroupID: groupID, evidenceContext: nightContext,
-            observationBasis: .init(kind: .directlyObserved, method: .init(key: "receipt.night.manual"),
-                source: .init(kind: .observer), limitations: []), issueKinds: [], revision: 1,
-            mutationID: .init(rawValue: id(318)), recordedBy: actor, recordedAt: nightDate)
-        let nightSafety = try LightingSafetyIntakeV1(intakeID: id(319), workspaceID: workspace,
-            systemID: system.systemID, systemRevision: system.revision, systemSHA256: system.systemSHA256,
-            area: zone.workSubject, route: path, timeContext: nightTime, siteAuthority: .confirmed,
-            requiredPPE: [], confirmedPPE: [], emergencyReadiness: .confirmed,
-            trafficSafety: .noTrafficExposure, observerSafety: .authorizedAccessibleVantage,
-            recordedBy: actor, recordedAt: nightDate)
-        let comparableMedia = try ContentReferenceV1(
-            workspaceID: workspace.rawValue.uuidString.lowercased(),
-            contentID: nightContext.evidenceID, byteLength: 1, mediaType: "image/jpeg",
-            digests: .init([.init(algorithm: .sha256,
-                hexadecimalValue: nightContext.evidenceSHA256)]),
-            byteRole: .immutableOriginal, createdAt: ISO8601DateFormatter().string(from: nightDate))
-        let delta = try LightingNightDeltaV1(luminaireID: luminaireID, assetID: assetID, assetRevision: 1,
-            zoneID: zoneID, controlGroupID: groupID, observation: .init(nightObservation),
-            expectedControl: .noDeclaredExpectation, observedControl: .appearedOn,
-            issueKinds: [], comparableMedia: [comparableMedia], temporaryLight: .notObserved,
-            weatherContext: .notObserved, surfaceContext: .notObserved, measurement: nil,
-            cameraBandingRecordedWithoutFlickerClaim: false)
-        let night = try LightingNightWorkflowV1(recordID: id(320), workflowID: id(321),
-            workspaceID: workspace, system: system, dayWorkflow: plannedDay,
-            safety: .init(intake: nightSafety, nightPlan: plan), deltas: [delta], repairPolicy: .init(),
-            state: .nightInventoryRecorded, revision: 1, mutationID: .init(rawValue: id(322)),
-            recordedBy: actor, recordedAt: nightDate)
-        let nightAdmission = LightingNightWorkflowAdmissionClosureV1(system: system,
-            dayWorkflow: plannedDay, observations: [nightObservation], issues: [],
-            admittedMeasurementSHA256s: [], patrolSessions: [])
-        try nightAdmission.validate(night)
-        return .init(system: system, dayObservation: observation, nightObservation: nightObservation,
-            day: day, plannedDay: plannedDay, night: night, dayAdmission: dayAdmission,
-            nightAdmission: nightAdmission)
-    }
-
-    private static func id(_ slot: Int) -> UUID {
-        UUID(uuidString: String(format: "d1800000-0000-4000-8000-%012x", slot))!
-    }
-    private static func digest(_ character: Character) -> String {
-        String(repeating: String(character), count: 64)
-    }
-}
+private typealias ReceiptSafetyLighting = CanonicalLightingFixtureV1
 
 // Actual C36 adapter retries retain the original journal envelope even after
 // another checkpoint revision and later saga effects advance the workspace.
@@ -3386,5 +3238,17 @@ extension V23MutationReceiptSafetyTests {
             XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MyDayCarryoverReceiptRowV1>()), 0)
             XCTAssertFalse(harness.context.hasChanges)
         }
+    }
+}
+
+/// Appends the C20 author and policy through the canonical writer, each with
+/// its own mutation, before the tests publish.
+@MainActor
+enum ReceiptSafetyPrivacySeed {
+    static func apply(_ fixture: C20PrivacyTransformTestSupport.Fixture, to writer: WorkspaceWriterV1) throws {
+        _ = try writer.execute(.applyPartyAccountability(.appendActorSnapshot(fixture.author)),
+            mutationID: MutationIDV1(rawValue: C20PrivacyTransformTestSupport.id(4)))
+        _ = try writer.execute(.applyPrivacyTransform(.policy(fixture.policy)),
+            mutationID: fixture.policy.mutationID)
     }
 }

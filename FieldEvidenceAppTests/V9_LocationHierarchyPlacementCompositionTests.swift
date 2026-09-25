@@ -42,7 +42,7 @@ final class C30EvidenceContextAnchorV9_LocationHierarchyPlacementComposition: XC
 @MainActor
 final class V9_LocationHierarchyPlacementCompositionTests: XCTestCase {
     @MainActor
-    func testNonemptyHierarchyCommitRebindsPlacementAndPoseThroughCanonicalWriter() throws {
+    func testNonemptyHierarchyCommitRebindsPlacementAndPoseThroughCanonicalWriter() async throws {
         let schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
         let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [
             ModelConfiguration("HierarchyReturn", schema: schema, isStoredInMemoryOnly: true,
@@ -84,11 +84,8 @@ final class V9_LocationHierarchyPlacementCompositionTests: XCTestCase {
             applicability: .applicable)
         let registryRelease = try PoseAxisRegistryReleaseV1(packageRelease: package,
             registry: PoseAxisDescriptorRegistryV1(descriptors: [descriptor]))
-        let promoted = try PromotedPackageReleaseV1(releaseRecordID: UUID(), workspaceID: workspace,
-            packageRelease: package, mutationID: seedMutation, promotedAt: now.addingTimeInterval(-30))
         context.insert(site); context.insert(asset)
         context.insert(try LocationNodeRow(node)); context.insert(try AssetPlacementEventRow(placement))
-        context.insert(try PromotedPackageReleaseRow(promoted))
         try context.save()
         let identity = try WorkspaceReplicaIdentityV1(workspaceID: workspace, replicaID: ReplicaID(rawValue: UUID()))
         let journal = try MutationJournalStoreV1(modelContext: context, identity: identity, generationID: generation)
@@ -96,6 +93,17 @@ final class V9_LocationHierarchyPlacementCompositionTests: XCTestCase {
             initialRevision: journal.currentRevision(writerInstanceID: UUID()),
             clock: HierarchyReturnClock(value: now), idSource: HierarchyReturnIDs(),
             fileAuthority: HierarchyReturnFiles(), adapter: WorkspaceWriterAdapterV1(modelContext: context), journalStore: journal)
+        // The package release is promoted through the canonical writer after the
+        // empty journal initializes; a directly inserted revisioned row has no
+        // entity revision and the journal bootstrap rejects it.
+        let promotionActorReference = try LocalActorReferenceV1(actorReferenceID: UUID(), workspaceID: workspace,
+            displayName: "Package steward")
+        try await CanonicalWriterSeedingV1.promotePackage(package, workspaceID: workspace,
+            actor: try ActorSnapshotV1(snapshotID: UUID(), workspaceID: workspace, actor: promotionActorReference,
+                responsibility: .recordedBy, displayNameAtTime: promotionActorReference.displayName,
+                capturedAt: now.addingTimeInterval(-30)),
+            writer: writer, journal: journal, context: context, promotedAt: now.addingTimeInterval(-30),
+            ids: .fresh())
         func expected(adding identities: [WorkspaceEntityIdentityV1]) throws -> WorkspaceExpectedRevisionV1 {
             let current = try writer.currentRevision()
             let known = Set(current.entityRevisions.map(\.identity))

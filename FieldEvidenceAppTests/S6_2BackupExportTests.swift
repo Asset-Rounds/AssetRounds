@@ -369,16 +369,58 @@ final class S6_2BackupExportTests: XCTestCase {
         }
     }
 
+    /// Backup validation/restore projections overflowed the 512 KiB cooperative
+    /// stack (SIGBUS in CheckRunnerPhotoBackupHistoryV1.projectChild). The
+    /// worker must run on its dedicated large-stack thread and still observe
+    /// the calling task's cancellation.
+    func testBackupOffMainWorkRunsOnDedicatedLargeStackThreadAndKeepsCancellation() async throws {
+        let facts = try await BackupOffMainWorkV1.run {
+            (Thread.current.name ?? "", Thread.current.stackSize, Thread.isMainThread)
+        }
+        XCTAssertEqual(facts.0, "AssetRounds.BackupOffMainWorker")
+        XCTAssertGreaterThanOrEqual(facts.1, BackupOffMainTaskExecutorV1.stackByteCount)
+        XCTAssertFalse(facts.2)
+        let cancelled = Task { () async throws -> Bool in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await BackupOffMainWorkV1.run { true }
+        }
+        do {
+            _ = try await cancelled.value
+            XCTFail("A cancelled task must not run backup work")
+        } catch {
+            XCTAssertTrue(error is CancellationError)
+        }
+        let observed = try await Task { () async throws -> Bool in
+            try await BackupOffMainWorkV1.run {
+                withUnsafeCurrentTask { $0?.cancel() }
+                return Task.isCancelled
+            }
+        }.value
+        XCTAssertTrue(observed, "the worker keeps the calling task's cancellation state")
+    }
+
     /// A complete export of the mixed fixture (six check-runner photos) must
     /// return. Its commit validation runs while the generation mutation lock
     /// is held; resolving identity through a fresh factory there self-deadlocked
     /// on flock, so the named watchdog reports the stage instead of hanging.
+    /// The fixture's photos are accepted check evidence (EvidenceFile rows with
+    /// original and thumbnail bytes), so the round trip proves all six reach the
+    /// archive and a physical restore with identical bytes.
     @MainActor
     func testMixedExportWithCheckRunnerPhotosCompletesUnderPublicationLock() async throws {
         let watchdog = S6_2StallWatchdogV1(test: #function,
             seconds: S6_2StallWatchdogV1.mixedExportDeadlineSeconds, stage: "fixture")
         defer { watchdog.finish() }
         let harness = try await makeMixedHarness("complete-export", sharedRaw: true)
+        let sourceEvidence = try harness.context.fetch(FetchDescriptor<EvidenceFile>())
+        XCTAssertEqual(sourceEvidence.count, 6)
+        let generationRoot = harness.session.generationRootURL
+        let originalMedia = try Dictionary(uniqueKeysWithValues: sourceEvidence.map {
+            ($0.id, try Data(contentsOf: generationRoot.appendingPathComponent($0.relativePath)))
+        })
+        let originalThumbnails = try Dictionary(uniqueKeysWithValues: sourceEvidence.map {
+            ($0.id, try Data(contentsOf: generationRoot.appendingPathComponent($0.thumbnailRelativePath)))
+        })
         watchdog.enter("content-access")
         let authorized = try await makeAuthorizedExportHarness(harness)
         defer { authorized.close() }
@@ -389,26 +431,13 @@ final class S6_2BackupExportTests: XCTestCase {
         watchdog.enter("prepare-preview")
         let preview = try authorized.contentAccess.withRead { try service.prepare() }
         XCTAssertEqual(preview.photoCount, 6)
-        let before = try treeFacts(harness.session.generationRootURL)
+        let before = try treeFacts(generationRoot)
         watchdog.enter("export")
         let package = try await service.export(previewID: preview.id, to: destination,
             contentAccess: authorized.contentAccess)
-        watchdog.enter("import-validation")
         XCTAssertEqual(package.lastPathComponent, "AssetRounds.fieldrecordbackup")
         XCTAssertEqual(try package.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile, true)
-        XCTAssertEqual(try treeFacts(harness.session.generationRootURL), before)
-        let importer = try BackupImportService(
-            generationRootURL: harness.session.generationRootURL,
-            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
-            makeUUID: { UUID(uuidString: "62000000-0000-0000-0000-000000000097")! },
-            scopedAccess: .alreadyAuthorized
-        )
-        let validated = try importer.stageAndValidate(selectedPackageURL: package)
-        defer { try? importer.discard(validated) }
-        XCTAssertEqual(validated.manifest.source.workspaceID, harness.session.workspaceID.rawValue)
-        let photoHistory = try CheckRunnerPhotoBackupHistoryV1.project(
-            source: validated.manifest.source, records: validated.records)
-        XCTAssertEqual(photoHistory.children.count, 6)
+        XCTAssertEqual(try treeFacts(generationRoot), before)
         // The exporter consumed its frozen preview: a repeated export is stale.
         do {
             _ = try await service.export(previewID: preview.id, to: destination,
@@ -416,6 +445,49 @@ final class S6_2BackupExportTests: XCTestCase {
             XCTFail("A consumed preview must not export twice")
         } catch {
             XCTAssertEqual(error as? BackupExportServiceError, .stalePreview)
+        }
+        authorized.close()
+
+        watchdog.enter("import-validation")
+        let importer = try BackupImportService(
+            generationRootURL: generationRoot,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+            makeUUID: { UUID(uuidString: "62000000-0000-0000-0000-000000000097")! },
+            scopedAccess: .alreadyAuthorized
+        )
+        let validated = try importer.stageAndValidate(selectedPackageURL: package)
+        defer { try? importer.discard(validated) }
+        XCTAssertEqual(validated.manifest.source.workspaceID, harness.session.workspaceID.rawValue)
+        XCTAssertEqual(Set(validated.records.evidenceFiles.map(\.id)), Set(originalMedia.keys))
+        let memberPaths = Set(validated.manifest.entries.map(\.path))
+        for id in originalMedia.keys {
+            let name = id.uuidString.lowercased()
+            XCTAssertTrue(memberPaths.contains("media/\(name).jpg"), "missing original \(name)")
+            XCTAssertTrue(memberPaths.contains("thumbnails/\(name).jpg"), "missing thumbnail \(name)")
+        }
+        // Accepted check evidence is not a V23 field-draft photo child: this
+        // fixture writes no draft checkpoints, so the draft photo history is empty.
+        XCTAssertTrue(validated.records.fieldDrafts.isEmpty)
+        XCTAssertTrue(try CheckRunnerPhotoBackupHistoryV1.project(
+            source: validated.manifest.source, records: validated.records).children.isEmpty)
+
+        watchdog.enter("restore")
+        let restore = try BackupRestoreService(applicationSupportURL: harness.applicationSupportURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+        let restored = try await restore.restore(validatedPackage: validated, currentModelContext: harness.context,
+            currentGenerationID: harness.session.generationID,
+            currentGenerationRootURL: generationRoot, mode: .replaceExisting)
+        let reopened = try StoreGenerationFactory(applicationSupportURL: harness.applicationSupportURL)
+            .openOrBootstrapCurrent()
+        XCTAssertEqual(reopened.generationID, restored.generationID)
+        XCTAssertNotEqual(reopened.generationID, harness.session.generationID)
+        let restoredEvidence = try reopened.modelContext.fetch(FetchDescriptor<EvidenceFile>())
+        XCTAssertEqual(Set(restoredEvidence.map(\.id)), Set(originalMedia.keys))
+        for row in restoredEvidence {
+            XCTAssertEqual(try Data(contentsOf: reopened.generationRootURL.appendingPathComponent(row.relativePath)),
+                try XCTUnwrap(originalMedia[row.id]))
+            XCTAssertEqual(try Data(contentsOf: reopened.generationRootURL.appendingPathComponent(
+                row.thumbnailRelativePath)), try XCTUnwrap(originalThumbnails[row.id]))
         }
     }
 

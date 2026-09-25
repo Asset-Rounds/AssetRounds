@@ -2643,3 +2643,26 @@ enum C55PartsStockBackupEncodingBoundaryV1 {
     static let canonicalSnapshotIsEmbedded = true
     static let parallelEnvelopeIsForbidden = true
 }
+
+extension BackupCanonicalEncoderV1 {
+    /// Journal snapshots keep numeric replica-sequence order; archive records
+    /// order receipts by their lexical identity `stableKey` (so sequence 10
+    /// sorts before 2) and entity revisions by identity, without rewriting any
+    /// receipt bytes. Export and restore readback share this one projection.
+    static func archiveOrderedMutationHistory(
+        _ history: MutationHistorySnapshotV1
+    ) throws -> MutationHistorySnapshotV1 {
+        let ordered = try history.receipts.map { record in
+            (record, try MutationReceiptV1.decodeCanonical(from: record.receiptData).identity.stableKey)
+        }.sorted { $0.1 < $1.1 }.map { $0.0 }
+        return MutationHistorySnapshotV1(
+            workspaceRevision: history.workspaceRevision,
+            lastLocalSequence: history.lastLocalSequence,
+            receipts: ordered,
+            quarantines: history.quarantines,
+            entityRevisions: history.entityRevisions.sorted {
+                $0.identity.stableKey < $1.identity.stableKey
+            }
+        )
+    }
+}

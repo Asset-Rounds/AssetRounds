@@ -18718,11 +18718,14 @@ private extension BackupRestoreService {
                 workspaceID: WorkspaceID(rawValue: state.workspaceID),
                 replicaID: ReplicaID(rawValue: state.activeReplicaID)
             )
-            return try MutationJournalStoreV1(
-                modelContext: context,
-                identity: identity,
-                generationID: state.generationID
-            ).exportSnapshot()
+            // Readback is compared with archive records, which use the lexical
+            // receipt identity order; the journal snapshot is numeric.
+            return try BackupCanonicalEncoderV1.archiveOrderedMutationHistory(
+                MutationJournalStoreV1(
+                    modelContext: context,
+                    identity: identity,
+                    generationID: state.generationID
+                ).exportSnapshot())
         } catch {
             throw attributedRestoreAuthorityFailureV1(line: #line)
         }

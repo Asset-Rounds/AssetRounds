@@ -498,11 +498,16 @@ enum V906Integration {
         _ harness: Harness,
         failure: WholeSignDeletionFailurePoint? = nil
     ) -> WholeSignDeletionService {
-        WholeSignDeletionService(
+        // The deletion ID also names the operation in the process-wide private
+        // system discovery journal, which persists in the simulator container
+        // across tests and runs. A fixed ID collides with an earlier committed
+        // removal for another workspace; keep one stable ID per service instead.
+        let deletionID = UUID()
+        return WholeSignDeletionService(
             modelContext: harness.session.modelContext,
             generationRootURL: harness.session.generationRootURL,
             now: { deletedAt },
-            makeUUID: { id(50) },
+            makeUUID: { deletionID },
             failureInjection: failure.map {
                 WholeSignDeletionFailureInjection(failOnceAt: $0)
             }

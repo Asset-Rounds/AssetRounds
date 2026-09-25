@@ -993,12 +993,54 @@ private actor BackupOffMainWorkerV1 {
     }
 }
 
+/// Backup validation and restore projections are deep, value-heavy synchronous
+/// chains. On a 512 KiB cooperative-pool stack the unoptimized build overflowed
+/// into the stack guard inside `CheckRunnerPhotoBackupHistoryV1.projectChild`
+/// (SIGBUS, 29 frames, no recursion). This task executor runs the worker actor
+/// on one dedicated thread with an explicit stack, while the calling task
+/// (cancellation, task locals) and the actor's serialization stay unchanged.
+final class BackupOffMainTaskExecutorV1: TaskExecutor, @unchecked Sendable {
+    static let shared = BackupOffMainTaskExecutorV1()
+    static let stackByteCount = 16 * 1024 * 1024
+
+    private let condition = NSCondition()
+    private var jobs: [UnownedJob] = []
+
+    private init() {
+        let thread = Thread { [unowned self] in self.drain() }
+        thread.name = "AssetRounds.BackupOffMainWorker"
+        thread.stackSize = Self.stackByteCount
+        thread.qualityOfService = .userInitiated
+        thread.start()
+    }
+
+    func enqueue(_ job: consuming ExecutorJob) {
+        let job = UnownedJob(job)
+        condition.lock()
+        jobs.append(job)
+        condition.signal()
+        condition.unlock()
+    }
+
+    private func drain() {
+        while true {
+            condition.lock()
+            while jobs.isEmpty { condition.wait() }
+            let job = jobs.removeFirst()
+            condition.unlock()
+            job.runSynchronously(on: asUnownedTaskExecutor())
+        }
+    }
+}
+
 enum BackupOffMainWorkV1 {
     static func run<Value: Sendable>(
         _ operation: @escaping @Sendable () throws -> Value
     ) async throws -> Value {
         do {
-            return try await BackupOffMainWorkerV1.shared.run(operation)
+            return try await withTaskExecutorPreference(BackupOffMainTaskExecutorV1.shared) {
+                try await BackupOffMainWorkerV1.shared.run(operation)
+            }
         } catch let failure as StreamingArchiveFailureV1
             where failure == .cancelled {
             throw CancellationError()

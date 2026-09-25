@@ -81,8 +81,14 @@ final class V9_06DeletionArchiveIntegrationTests: XCTestCase {
             recordedAt: V906Integration.deletedAt.addingTimeInterval(-30),
             mutationID: mutationID
         )
-        harness.session.modelContext.insert(try AuthoritySourceReleaseRow(value))
-        try harness.session.modelContext.save()
+        // Revisioned authority rows enter only through the canonical writer; a
+        // directly inserted row has no entity revision and journal validation
+        // rejects it as corrupt history.
+        let coordinator = StoreSessionCoordinator(session: harness.session)
+        _ = try coordinator.workspaceWriter.execute(.applyAuthorityCriterion(try AuthorityCriterionMutationV1(
+            workspaceID: value.workspaceID, expectedRevision: 0, mutationID: mutationID,
+            postImage: .appendAuthoritySource(value))), mutationID: mutationID)
+        try coordinator.invalidateAndReleaseWriter()
         let assetID = try XCTUnwrap(
             harness.session.modelContext.fetch(FetchDescriptor<Asset>()).first?.id
         )
