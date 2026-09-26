@@ -281,7 +281,8 @@ private struct StartupRootView: View {
                     reason: reason,
                     restoreSession: router.maintenanceRestoreSession,
                     eraseSession: router.maintenanceEraseSession,
-                    applicationSupportURL: applicationSupportURL
+                    applicationSupportURL: applicationSupportURL,
+                    metricKitDiagnosticsAdapter: metricKitDiagnosticsAdapter
                 )
 
             case .awaitingIndependentValidation:
@@ -505,8 +506,10 @@ private struct MaintenanceRestoreHost: View {
     let restoreSession: StoreGenerationSession?
     let eraseSession: StoreGenerationSession?
     let applicationSupportURL: URL
+    let metricKitDiagnosticsAdapter: MetricKitDiagnosticsAdapter
 
     @State private var showsRestore = false
+    @State private var showsDiagnostics = false
     @State private var showsErase = false
     @State private var eraseCoordinator: StoreSessionCoordinator?
 
@@ -517,8 +520,19 @@ private struct MaintenanceRestoreHost: View {
                 Task { await access.retryStartup() }
             },
             restoreDataBackup: restoreAction,
-            eraseAll: eraseAction
+            eraseAll: eraseAction,
+            // Read-only support export: the diagnostics sidecar only; no
+            // writer, store session or lease is needed or opened.
+            viewDiagnostics: { showsDiagnostics = true }
         )
+        .sheet(isPresented: $showsDiagnostics) {
+            NavigationStack {
+                DiagnosticExportView(
+                    diagnosticsStore: router.maintenanceDiagnosticsStore,
+                    metricKitAdapter: metricKitDiagnosticsAdapter
+                )
+            }
+        }
         .sheet(isPresented: $showsRestore) {
             if let restoreSession, let previewAccess = access.backupPreviewAccess {
                 BackupRestoreProgressView(
@@ -560,7 +574,13 @@ private struct MaintenanceRestoreHost: View {
     private var eraseAction: (() -> Void)? {
         guard let eraseSession else { return nil }
         return {
-            eraseCoordinator = StoreSessionCoordinator(session: eraseSession)
+            // Eligibility already proved the writer installs; if the store has
+            // since become unusable, stay on maintenance rather than trap.
+            guard let coordinator = try? StoreSessionCoordinator(validatingSession: eraseSession) else {
+                eraseCoordinator = nil
+                return
+            }
+            eraseCoordinator = coordinator
             showsErase = true
         }
     }

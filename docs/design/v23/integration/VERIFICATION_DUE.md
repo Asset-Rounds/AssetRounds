@@ -234,4 +234,29 @@ The production photo journey takes priority over another isolated foundation. So
   - A development device with an unfinished schema-1 aggregate journal lands in forward-fix maintenance with no in-app recovery. It never shipped.
   - Watch the hosted timing of the <60 s upgrade budget; raise it only with a recorded reason.
   - V10_01 testHistoricalCheckpointRejects… showed sourceUnavailable in a batch run but passed alone, which suggests order dependence.
+- Integrity (reproof helper, wt/reproof 4c5ff142):
+  - The V23StoreSemantic :114 assertion targeted `reproofAfterSave` (file-set/protection only). It now asserts relaunch `validateAll` detects the out-of-writer row, per frozen V23P02C02MutationRecoveryMatrixV1 relaunchValidation.
+  - Root decision (owner decisions 14 and 18): same-session absorption of an out-of-writer save by a later commit does not get per-commit full-store verification (doubles commit cost; the frozen contract places detection at relaunch; single writer). A DEBUG-only assertion is to be added if a cheap signal exists.
+  - The checkpoint covers 82 of 148 WorkspaceEntityKindV1 kinds. A per-kind tamper matrix is in progress; a versioned checkpoint only if some kinds are undetected by any validator.
+- Tamper matrix (wt/reproof 51270b94):
+  - Modify/delete of receipt-backed rows is detected for all 148 kinds (terminal re-check).
+  - Out-of-writer INSERTS are undetected for 65 kinds (stock, My Day, survey, service, plan, signoff, qualification, snapshot kinds and more).
+  - The DEBUG writer assertion is skipped: there's no cheap, reliable signal.
+  - Root decision: versioned checkpoint v2 covering all kinds. It's additive, with v1 validated before re-staging. Restricted persistence change: all five gates before main. In progress.
+- CORRECTION (later on 2026-09-25): the V9_05 crashes are NOT caused by batch P. They reproduce identically on the pre-P journal code. Cause: the V9_05 makeHarness inserts Site/Asset outside the writer after bootstrap, and validateAll correctly detects it. These tests never ran before batch K (private classes). Fix: seed through the writer (in progress). The earlier S6_2 8-vs-23 comparison mixed builds and is invalid (7 on both). Original note: Batch P (checkpoint v2) is BLOCKED, not committed. The R2 regression run crashed V9_05 restore-identity tests 7 times: StoreSessionCoordinator:80 writer lease receiptHistoryCorrupt, a v2 false alarm after restore/staging inserts outside the writer. S6_2 failures rose from 8 to 23. The fix is in progress in wt/reproof; batch P lands only after these show 0 crashes and no new failures.
+- Separate (pre-existing) UX concern: StoreSessionCoordinator:80 fatalErrors when the writer lease can't be installed. A corrupt store should route to maintenance, not crash the app.
+- Maintenance route (wt/maint 26e45b5b, awaiting review):
+  - Writer-install failure no longer traps. StoreSessionCoordinator(session:) is DEBUG-only; the erase entry and the button use the throwing init; the reason maps to .finalizationInconsistent.
+  - Product gap: with a corrupt journal, maintenance offers Retry and Recovery steps only. Erase needs a writer, and Restore needs an empty current store. Check the frozen design for maintenance options (writer-less erase/restore, diagnostics export) before deciding.
+- Process: `git stash` is shared across worktrees; helpers must not use it (a near miss on 2026-09-25). wt/reproof still has its own stash "diag".
+- Maintenance export/support (wt/maint 62229f85, awaiting review): "View diagnostics" is added to StartupMaintenanceView (reuses DiagnosticExportView; read-only; no writer or lease).
+  - Backup export is correctly refused for a corrupt journal: a backup must carry validated history.
+  - Root decision (owner decisions 14 and 18; blueprint :10987 "maintenance/export/support"): add a plain-files SALVAGE export from maintenance.
+    - Contents: photos, thumbnails and report PDFs from the last accepted generation, shared through the share sheet.
+    - It is not a backup and not restorable; no new archive format. Clearly labeled, S10 components.
+    - Queued.
+- BATCH Q R2 (required before the Phase 1 gate): prove the real restore and upgrade paths validate under checkpoint v2.
+  - Run S6_4, V9_04, V9_03, the C55 parts-stock and MyDay restore tests, and the batch O V1→V53 upgrade test, each followed by `StoreSessionCoordinator(validatingSession:)` on the restored or upgraded store.
+  - Triage the 6 V9_05 restore-identity failures. Any receiptHistoryCorrupt or post-restore checkpoint mismatch belongs to v2.
+- Maintenance reason: `.finalizationInconsistent` is a broad bucket for journal-integrity failures. A dedicated reason would change the closed maintenance vocabulary and copy; owner call.
 

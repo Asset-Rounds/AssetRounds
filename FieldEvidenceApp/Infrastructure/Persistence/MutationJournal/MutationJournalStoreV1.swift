@@ -329,6 +329,8 @@ final class MutationJournalStoreV1 {
         return persistedAttemptEnvelopeSHA256 == digest
     }
     private let accessMode: AccessMode
+    /// The checkpoint version proved by the latest validateAll in this session.
+    private var lastValidatedCheckpointVersion: Int?
 
     /// Validates an original released journal before migration is allowed to
     /// freeze or normalize its checkpoint. The authority binds the actual
@@ -5339,6 +5341,7 @@ final class MutationJournalStoreV1 {
         historicalAuthority: StoreMigrationHistoricalCheckpointAuthorityV1?,
         diagnosticPhase: ((String) -> Void)? = nil
     ) throws -> StoreMigrationValidatedTerminalImagesV1 {
+        lastValidatedCheckpointVersion = nil
         let releaseVersion = release.versionIdentifier.major
         guard (4...PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major)
                 .contains(releaseVersion) else {
@@ -5504,15 +5507,23 @@ final class MutationJournalStoreV1 {
             guard MutationEnvelopeV1.isSHA256(checkpoint) else {
                 diagnosticPhase?("validate.guard.line-5464"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
-            let releasedCheckpoint = try mutableSemanticSHA256(release: release)
+            // Implicit version dispatch: v2 first (active release only); v1 bytes
+            // are accepted only on an exact v1 match and are never reinterpreted.
+            if release == PersistentSchemaReleaseRegistryV1.activeRelease,
+               checkpoint == (try mutableSemanticV2SHA256()) {
+                lastValidatedCheckpointVersion = 2
+            } else {
+            let releasedCheckpoint = try mutableSemanticV1SHA256(release: release)
             if checkpoint != releasedCheckpoint {
                 guard releaseVersion >= 10,
                       let historicalAuthority,
-                      releasedCheckpoint == (try mutableSemanticSHA256(release: .v10)),
-                      checkpoint == (try mutableSemanticSHA256(release: .v9)) else {
+                      releasedCheckpoint == (try mutableSemanticV1SHA256(release: .v10)),
+                      checkpoint == (try mutableSemanticV1SHA256(release: .v9)) else {
                     diagnosticPhase?("validate.guard.line-5472"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
                 }
                 try historicalAuthority.requireOriginalV10LegacyBaseline()
+            }
+            lastValidatedCheckpointVersion = 1
             }
         } else if releaseVersion >= 8 {
             diagnosticPhase?("validate.guard.line-5477"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
@@ -6365,6 +6376,33 @@ final class MutationJournalStoreV1 {
     /// Stages, but deliberately does not save, the semantic checkpoint after
     /// an already-authorized deletion/erase service has staged its content and
     /// deletion-ledger changes in this same ModelContext transaction.
+    /// Re-stages an exact v1 checkpoint as v2, only in a canonical writer session
+    /// and only after this session's validateAll proved the v1 value.
+    /// v1-window caveat: v1 cannot see rows of the kinds v2 adds, so an
+    /// out-of-writer insert of such a row made while the store still carried a
+    /// v1 checkpoint is absorbed by this one-time re-stage. Every later change is
+    /// covered by v2.
+    func restageValidatedLegacyCheckpointIfNeeded() throws {
+        guard lastValidatedCheckpointVersion == 1, case .canonicalWriter = accessMode else { return }
+        guard !modelContext.hasChanges else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+        let state = try requireState()
+        state.mutableSemanticSHA256 = try mutableSemanticV2SHA256()
+        do { try saveWithStaleWriterFence() } catch {
+            modelContext.rollback()
+            throw WorkspaceMutationFailureV1.persistenceFailed
+        }
+        lastValidatedCheckpointVersion = 2
+    }
+
+#if DEBUG
+    func checkpointVersionsForTesting() throws -> (v1: String, v2: String, stored: String?, validated: Int?) {
+        (try mutableSemanticV1SHA256(), try mutableSemanticV2SHA256(),
+         try requireState().mutableSemanticSHA256, lastValidatedCheckpointVersion)
+    }
+    func checkpointV1ForTesting() throws -> String { try mutableSemanticV1SHA256() }
+    func checkpointV2ForTesting() throws -> String { try mutableSemanticV2SHA256() }
+#endif
+
     func stageMutableSemanticStateAfterAuthorizedExternalMutation() throws {
         let state = try requireState()
         for row in try boundedFetch(FetchDescriptor<EntityMutationRevisionRow>()) {
@@ -7747,9 +7785,9 @@ final class MutationJournalStoreV1 {
         }
     }
 
-    private func mutableSemanticSHA256(
-        release: PersistentSchemaReleaseV1 = PersistentSchemaReleaseRegistryV1.activeRelease
-    ) throws -> String {
+    private func mutableSemanticBasis(
+        release: PersistentSchemaReleaseV1
+    ) throws -> MutableSemanticDigestBasis {
         let releaseVersion = release.versionIdentifier.major
         guard (4...PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major)
                 .contains(releaseVersion) else {
@@ -7920,6 +7958,10 @@ final class MutationJournalStoreV1 {
         identities += try boundedFetch(FetchDescriptor<ServiceContactPointRow>()).filter{$0.workspaceID==self.identity.workspaceID.rawValue}.map{try .init(kind:.serviceContactPoint,id:$0.contactPointID)}
         identities += try boundedFetch(FetchDescriptor<SystemHandoffIntentRow>()).filter{$0.workspaceID==self.identity.workspaceID.rawValue&&$0.dispositionRawValue==SystemHandoffIntentDispositionV1.activeSourceWorkspace.rawValue}.map{try .init(kind:.systemHandoffIntent,id:$0.intentID)}
         }
+#if DEBUG
+        assert(identities.allSatisfy { Self.mutableSemanticV1IdentityKinds.contains($0.kind) },
+               "mutableSemanticV1IdentityKinds must list every kind the v1 basis enumerates")
+#endif
         guard identities.count <= Self.maximumMutableContentValidationCount,
               Set(identities).count == identities.count else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
@@ -7934,9 +7976,128 @@ final class MutationJournalStoreV1 {
             )
         }.sorted { $0.stableIdentity < $1.stableIdentity }
         let ledger = try DeletionLedgerStore(context: modelContext).snapshot()
-        return try WorkspaceMutationCanonicalV1.sha256(
-            MutableSemanticDigestBasis(content: items, deletionLedger: ledger)
-        )
+        return MutableSemanticDigestBasis(content: items, deletionLedger: ledger)
+    }
+
+    /// Checkpoint v1: the original released bytes, recomputed only to verify an
+    /// existing v1 checkpoint (or a historical release). Never written for the
+    /// active release.
+    private func mutableSemanticV1SHA256(
+        release: PersistentSchemaReleaseV1 = PersistentSchemaReleaseRegistryV1.activeRelease
+    ) throws -> String {
+        try WorkspaceMutationCanonicalV1.sha256(try mutableSemanticBasis(release: release))
+    }
+
+    /// Checkpoint v2 (active release only). The version is implicit: v2 hashes a
+    /// distinct domain-tagged basis, so a v2 value can never equal a v1 value and
+    /// no persisted field or schema changes. It keeps the v1 content items and
+    /// deletion ledger and adds a row inventory (row count per backing model) for
+    /// every journaled kind outside the v1 identity set, so an out-of-writer
+    /// insert of any of the 148 kinds changes the checkpoint. Modify/delete of
+    /// receipt-backed rows remain re-proved by validateTerminalRows.
+    private func mutableSemanticV2SHA256() throws -> String {
+        guard PersistentSchemaReleaseRegistryV1.activeRelease == .v53 else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        let basis = try mutableSemanticBasis(release: PersistentSchemaReleaseRegistryV1.activeRelease)
+        return try WorkspaceMutationCanonicalV1.sha256(MutableSemanticDigestBasisV2(
+            checkpointDomain: Self.mutableSemanticV2Domain,
+            content: basis.content,
+            deletionLedger: basis.deletionLedger,
+            rowInventory: try mutableSemanticRowInventoryV2()
+        ))
+    }
+
+    /// Writers, re-stage and the aggregate final candidate always write v2.
+    private func mutableSemanticSHA256() throws -> String {
+        try mutableSemanticV2SHA256()
+    }
+
+    private static let mutableSemanticV2Domain = "AssetRounds.MutableSemanticCheckpoint.v2"
+
+    /// v2 row inventory: one backing model per journaled kind outside the v1
+    /// identity set. Authoritative for both the digest and the coverage guard.
+    static let mutableSemanticInventoryModelsV2: [MutableSemanticInventoryModelV2] = [
+        MutableSemanticInventoryModelV2(kind: .stockAbandonment, model: "AbandonUnverifiedStockRowV1") { try $0.fetchCount(FetchDescriptor<AbandonUnverifiedStockRowV1>()) },
+        MutableSemanticInventoryModelV2(kind: .accessibleDocumentAssessmentReceipt, model: "AccessibleDocumentAssessmentReceiptRow") { try $0.fetchCount(FetchDescriptor<AccessibleDocumentAssessmentReceiptRow>()) },
+        MutableSemanticInventoryModelV2(kind: .activitySessionEnvelope, model: "ActivitySessionEnvelopeRow") { try $0.fetchCount(FetchDescriptor<ActivitySessionEnvelopeRow>()) },
+        MutableSemanticInventoryModelV2(kind: .activityStateTransition, model: "ActivityStateTransitionRow") { try $0.fetchCount(FetchDescriptor<ActivityStateTransitionRow>()) },
+        MutableSemanticInventoryModelV2(kind: .actorSnapshot, model: "ActorSnapshotRow") { try $0.fetchCount(FetchDescriptor<ActorSnapshotRow>()) },
+        MutableSemanticInventoryModelV2(kind: .assetLocator, model: "AssetLocatorRow") { try $0.fetchCount(FetchDescriptor<AssetLocatorRow>()) },
+        MutableSemanticInventoryModelV2(kind: .assetPoseEvent, model: "AssetPoseEventRow") { try $0.fetchCount(FetchDescriptor<AssetPoseEventRow>()) },
+        MutableSemanticInventoryModelV2(kind: .assetServiceIncident, model: "AssetServiceIncidentRow") { try $0.fetchCount(FetchDescriptor<AssetServiceIncidentRow>()) },
+        MutableSemanticInventoryModelV2(kind: .bulkCommitReceipt, model: "BulkCommitReceiptRowV1") { try $0.fetchCount(FetchDescriptor<BulkCommitReceiptRowV1>()) },
+        MutableSemanticInventoryModelV2(kind: .bulkSession, model: "BulkSessionRowV1") { try $0.fetchCount(FetchDescriptor<BulkSessionRowV1>()) },
+        MutableSemanticInventoryModelV2(kind: .entityAliasLink, model: "EntityAliasLinkRowV1") { try $0.fetchCount(FetchDescriptor<EntityAliasLinkRowV1>()) },
+        MutableSemanticInventoryModelV2(kind: .entityConsolidationReceipt, model: "EntityConsolidationReceiptRowV1") { try $0.fetchCount(FetchDescriptor<EntityConsolidationReceiptRowV1>()) },
+        MutableSemanticInventoryModelV2(kind: .evidenceAssociationEvent, model: "EvidenceAssociationEventRowV1") { try $0.fetchCount(FetchDescriptor<EvidenceAssociationEventRowV1>()) },
+        MutableSemanticInventoryModelV2(kind: .evidenceSequenceRevision, model: "EvidenceSequenceRevisionRowV1") { try $0.fetchCount(FetchDescriptor<EvidenceSequenceRevisionRowV1>()) },
+        MutableSemanticInventoryModelV2(kind: .exceptionCalendarRelease, model: "ExceptionCalendarReleaseRow") { try $0.fetchCount(FetchDescriptor<ExceptionCalendarReleaseRow>()) },
+        MutableSemanticInventoryModelV2(kind: .factCapture, model: "FactCaptureRow") { try $0.fetchCount(FetchDescriptor<FactCaptureRow>()) },
+        MutableSemanticInventoryModelV2(kind: .fieldReferenceBinding, model: "FieldReferenceBindingRow") { try $0.fetchCount(FetchDescriptor<FieldReferenceBindingRow>()) },
+        MutableSemanticInventoryModelV2(kind: .fieldReferenceRelease, model: "FieldReferenceReleaseRow") { try $0.fetchCount(FetchDescriptor<FieldReferenceReleaseRow>()) },
+        MutableSemanticInventoryModelV2(kind: .importMappingProfile, model: "ImportMappingProfileRowV1") { try $0.fetchCount(FetchDescriptor<ImportMappingProfileRowV1>()) },
+        MutableSemanticInventoryModelV2(kind: .installationAsBuiltSnapshot, model: "InstallationAsBuiltSnapshotRow") { try $0.fetchCount(FetchDescriptor<InstallationAsBuiltSnapshotRow>()) },
+        MutableSemanticInventoryModelV2(kind: .installationTaskResult, model: "InstallationTaskResultRow") { try $0.fetchCount(FetchDescriptor<InstallationTaskResultRow>()) },
+        MutableSemanticInventoryModelV2(kind: .localPartDefinition, model: "LocalPartDefinitionRowV1") { try $0.fetchCount(FetchDescriptor<LocalPartDefinitionRowV1>()) },
+        MutableSemanticInventoryModelV2(kind: .locatorBindingReceipt, model: "LocatorBindingReceiptRow") { try $0.fetchCount(FetchDescriptor<LocatorBindingReceiptRow>()) },
+        MutableSemanticInventoryModelV2(kind: .workResourceEntry, model: "ManualWorkResourceRecordRow") { try $0.fetchCount(FetchDescriptor<ManualWorkResourceRecordRow>()) },
+        MutableSemanticInventoryModelV2(kind: .myDayCarryoverReceipt, model: "MyDayCarryoverReceiptRowV1") { try $0.fetchCount(FetchDescriptor<MyDayCarryoverReceiptRowV1>()) },
+        MutableSemanticInventoryModelV2(kind: .myDayPlan, model: "MyDayPlanRowV1") { try $0.fetchCount(FetchDescriptor<MyDayPlanRowV1>()) },
+        MutableSemanticInventoryModelV2(kind: .occurrenceHistoryEvent, model: "OccurrenceHistoryEventRow") { try $0.fetchCount(FetchDescriptor<OccurrenceHistoryEventRow>()) },
+        MutableSemanticInventoryModelV2(kind: .planDocument, model: "PlanDocumentRow") { try $0.fetchCount(FetchDescriptor<PlanDocumentRow>()) },
+        MutableSemanticInventoryModelV2(kind: .planPlacement, model: "PlanPlacementRow") { try $0.fetchCount(FetchDescriptor<PlanPlacementRow>()) },
+        MutableSemanticInventoryModelV2(kind: .planRevision, model: "PlanRevisionRow") { try $0.fetchCount(FetchDescriptor<PlanRevisionRow>()) },
+        MutableSemanticInventoryModelV2(kind: .practiceWorkspaceProvenance, model: "PracticeWorkspaceProvenanceRowV1") { try $0.fetchCount(FetchDescriptor<PracticeWorkspaceProvenanceRowV1>()) },
+        MutableSemanticInventoryModelV2(kind: .provisionalSubject, model: "ProvisionalSubjectRow") { try $0.fetchCount(FetchDescriptor<ProvisionalSubjectRow>()) },
+        MutableSemanticInventoryModelV2(kind: .punchReviewBasisSnapshot, model: "PunchReviewBasisSnapshotRow") { try $0.fetchCount(FetchDescriptor<PunchReviewBasisSnapshotRow>()) },
+        MutableSemanticInventoryModelV2(kind: .qualificationSnapshot, model: "QualificationSnapshotRow") { try $0.fetchCount(FetchDescriptor<QualificationSnapshotRow>()) },
+        MutableSemanticInventoryModelV2(kind: .qualifiedServiceExposure, model: "QualifiedServiceExposureRow") { try $0.fetchCount(FetchDescriptor<QualifiedServiceExposureRow>()) },
+        MutableSemanticInventoryModelV2(kind: .planRebaseReceipt, model: "RebaseReceiptRow") { try $0.fetchCount(FetchDescriptor<RebaseReceiptRow>()) },
+        MutableSemanticInventoryModelV2(kind: .roundSession, model: "RoundSessionRevisionRowV1") { try $0.fetchCount(FetchDescriptor<RoundSessionRevisionRowV1>()) },
+        MutableSemanticInventoryModelV2(kind: .savedSmartView, model: "SavedSmartViewRowV1") { try $0.fetchCount(FetchDescriptor<SavedSmartViewRowV1>()) },
+        MutableSemanticInventoryModelV2(kind: .scheduleDefinitionRelease, model: "ScheduleDefinitionReleaseRow") { try $0.fetchCount(FetchDescriptor<ScheduleDefinitionReleaseRow>()) },
+        MutableSemanticInventoryModelV2(kind: .scheduleOverrideEvent, model: "ScheduleOverrideEventRow") { try $0.fetchCount(FetchDescriptor<ScheduleOverrideEventRow>()) },
+        MutableSemanticInventoryModelV2(kind: .serviceCauseAssertion, model: "ServiceCauseAssertionRow") { try $0.fetchCount(FetchDescriptor<ServiceCauseAssertionRow>()) },
+        MutableSemanticInventoryModelV2(kind: .serviceImpactSegment, model: "ServiceImpactSegmentRow") { try $0.fetchCount(FetchDescriptor<ServiceImpactSegmentRow>()) },
+        MutableSemanticInventoryModelV2(kind: .serviceParty, model: "ServicePartyRow") { try $0.fetchCount(FetchDescriptor<ServicePartyRow>()) },
+        MutableSemanticInventoryModelV2(kind: .serviceRemedyAssertion, model: "ServiceRemedyAssertionRow") { try $0.fetchCount(FetchDescriptor<ServiceRemedyAssertionRow>()) },
+        MutableSemanticInventoryModelV2(kind: .serviceRepairInterval, model: "ServiceRepairIntervalRow") { try $0.fetchCount(FetchDescriptor<ServiceRepairIntervalRow>()) },
+        MutableSemanticInventoryModelV2(kind: .serviceRequestDispositionEvent, model: "ServiceRequestDispositionEventRow") { try $0.fetchCount(FetchDescriptor<ServiceRequestDispositionEventRow>()) },
+        MutableSemanticInventoryModelV2(kind: .serviceRequestRecord, model: "ServiceRequestRecordRow") { try $0.fetchCount(FetchDescriptor<ServiceRequestRecordRow>()) },
+        MutableSemanticInventoryModelV2(kind: .serviceRequestWorkLinkEvent, model: "ServiceRequestWorkLinkEventRow") { try $0.fetchCount(FetchDescriptor<ServiceRequestWorkLinkEventRow>()) },
+        MutableSemanticInventoryModelV2(kind: .serviceRestorationAssertion, model: "ServiceRestorationAssertionRow") { try $0.fetchCount(FetchDescriptor<ServiceRestorationAssertionRow>()) },
+        MutableSemanticInventoryModelV2(kind: .shopReportProfile, model: "ShopReportProfileRowV1") { try $0.fetchCount(FetchDescriptor<ShopReportProfileRowV1>()) },
+        MutableSemanticInventoryModelV2(kind: .signoffSnapshot, model: "SignoffSnapshotRow") { try $0.fetchCount(FetchDescriptor<SignoffSnapshotRow>()) },
+        MutableSemanticInventoryModelV2(kind: .sitePartyRoleEvent, model: "SitePartyRoleEventRow") { try $0.fetchCount(FetchDescriptor<SitePartyRoleEventRow>()) },
+        MutableSemanticInventoryModelV2(kind: .snippetInsertion, model: "SnippetInsertionHistoryRowV1") { try $0.fetchCount(FetchDescriptor<SnippetInsertionHistoryRowV1>()) },
+        MutableSemanticInventoryModelV2(kind: .spatialAnchorObservation, model: "SpatialAnchorObservationRow") { try $0.fetchCount(FetchDescriptor<SpatialAnchorObservationRow>()) },
+        MutableSemanticInventoryModelV2(kind: .stockMovementEvent, model: "StockMovementEventRowV1") { try $0.fetchCount(FetchDescriptor<StockMovementEventRowV1>()) },
+        MutableSemanticInventoryModelV2(kind: .stockReturnReceipt, model: "StockReturnReceiptRowV1") { try $0.fetchCount(FetchDescriptor<StockReturnReceiptRowV1>()) },
+        MutableSemanticInventoryModelV2(kind: .stockStorageLocation, model: "StockStorageLocationRowV1") { try $0.fetchCount(FetchDescriptor<StockStorageLocationRowV1>()) },
+        MutableSemanticInventoryModelV2(kind: .stockUseReceipt, model: "StockUseReceiptRowV1") { try $0.fetchCount(FetchDescriptor<StockUseReceiptRowV1>()) },
+        MutableSemanticInventoryModelV2(kind: .stockUseReversalReceipt, model: "StockUseReversalReceiptRowV1") { try $0.fetchCount(FetchDescriptor<StockUseReversalReceiptRowV1>()) },
+        MutableSemanticInventoryModelV2(kind: .subjectPromotionReceipt, model: "SubjectPromotionReceiptRow") { try $0.fetchCount(FetchDescriptor<SubjectPromotionReceiptRow>()) },
+        MutableSemanticInventoryModelV2(kind: .surveyDefinitionIdentity, model: "SurveyDefinitionIdentityRow") { try $0.fetchCount(FetchDescriptor<SurveyDefinitionIdentityRow>()) },
+        MutableSemanticInventoryModelV2(kind: .surveyDefinitionRelease, model: "SurveyDefinitionReleaseRow") { try $0.fetchCount(FetchDescriptor<SurveyDefinitionReleaseRow>()) },
+        MutableSemanticInventoryModelV2(kind: .surveyPublicationSnapshot, model: "SurveyPublicationSnapshotRow") { try $0.fetchCount(FetchDescriptor<SurveyPublicationSnapshotRow>()) },
+        MutableSemanticInventoryModelV2(kind: .surveySession, model: "SurveySessionRow") { try $0.fetchCount(FetchDescriptor<SurveySessionRow>()) },
+    ]
+
+    /// Kinds whose identities the v1 basis enumerates (the DEBUG check in
+    /// mutableSemanticBasis keeps this in step with that enumeration).
+    static let mutableSemanticV1IdentityKinds: Set<WorkspaceEntityKindV1> = [
+        .acceptedLabelGenerationSnapshot, .activePackageRegistryPointer, .applicabilityContextSnapshot, .assessmentScopeSnapshot, .asset, .assetCompositionEdge, .assetCompositionEvent, .assetFunctionalRelationshipEvent, .assetPlacementEvent, .assuranceManifest, .attachmentStagingItem, .attestation, .authoritySourceRelease, .calibrationStatusSnapshot, .captureInboxItem, .capturePromotion, .changeRequest, .claimEvidenceLink, .clientCapabilityAdmissionDecision, .clientCapabilityProfile, .correctiveActionEvent, .correctiveActionPolicy, .derivedFactEvaluatorDescriptor, .derivedFactProvenance, .draftCommitReceipt, .draftCommitSaga, .draftContentReservation, .draftDiscardReceipt, .evidenceContext, .evidenceFile, .evidenceQualityAssessment, .evidenceQualityRuleSet, .evidenceQualityWaiverEvent, .evidenceVisibility, .exceptionQueueAcknowledgement, .fieldDraftCheckpoint, .findingClassificationBinding, .functionalRelationshipTypeDescriptor, .inspectionReviewTransition, .instrumentReference, .issue, .lightingClaimState, .lightingDayInventoryWorkflow, .lightingIssue, .lightingMeasurementPlan, .lightingNightWorkflow, .lightingObservation, .lightingSystem, .locationNode, .measurementCapture, .measurementProtocolRelease, .measurementQualityAssessment, .measurementSeries, .packageLifecycleDisposition, .packageLifecyclePolicy, .packagePromotionReceipt, .packageSandboxRun, .packet, .pairedObservationLink, .privacyRegion, .privacyReviewReceipt, .privacyTransformManifest, .privacyTransformPolicy, .promotedPackageRelease, .reinspectionPlan, .report, .requirementBasisBinding, .reviewDisposition, .serviceContactPoint, .severityScaleRelease, .site, .snippet, .systemHandoffIntent, .temporalEvidenceClip, .timecodedEvidenceAnchor, .unchangedAttestation, .workHandoff, .workItemClaim, .workLease, .workPacketManifest, .workRelease, .workflowRecord,
+    ]
+
+    /// Kinds with no row of their own: a virtual balance stream and the
+    /// deletion ledger, which both checkpoint versions hash directly.
+    static let mutableSemanticNonInventoryKinds: Set<WorkspaceEntityKindV1> = [.stockBalanceStream, .deletionLedgerEntry]
+
+    private func mutableSemanticRowInventoryV2() throws -> [MutableSemanticRowCountV2] {
+        try Self.mutableSemanticInventoryModelsV2.map {
+            MutableSemanticRowCountV2(model: $0.model, count: try $0.count(modelContext))
+        }
     }
 
     private func boundedFetch<Model: PersistentModel>(_ descriptor: FetchDescriptor<Model>) throws -> [Model] {
@@ -8669,6 +8830,24 @@ final class MutationJournalStoreV1 {
     private struct MutableSemanticDigestBasis: Codable {
         let content: [MutableSemanticItem]
         let deletionLedger: DeletionLedgerV2
+    }
+
+    struct MutableSemanticInventoryModelV2 {
+        let kind: WorkspaceEntityKindV1
+        let model: String
+        let count: @MainActor (ModelContext) throws -> Int
+    }
+
+    private struct MutableSemanticRowCountV2: Codable {
+        let model: String
+        let count: Int
+    }
+
+    private struct MutableSemanticDigestBasisV2: Codable {
+        let checkpointDomain: String
+        let content: [MutableSemanticItem]
+        let deletionLedger: DeletionLedgerV2
+        let rowInventory: [MutableSemanticRowCountV2]
     }
 }
 

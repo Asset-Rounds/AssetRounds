@@ -4021,3 +4021,17 @@ New bounded test: both launches in under 60 s and under 256 MB, plus per-release
 Review: independent reviewer (Claude Opus 5.5, read-only, not the author): APPROVE, compile risk LOW. Gate condition: journal schema 2 is recorded in MERGE_READINESS as a restricted Phase 1 item.
 Local: build-for-testing SUCCEEDED. S2 `testInvalidGenerationLedgerFailsClosed…` passed 5 of 5 isolated runs, so the author's intermittent result is not reproduced.
 
+## Batch Q: mutable-semantic checkpoint v2, parts-stock time, fail-closed maintenance (2026-09-25; restricted)
+
+- **Integrity (product, restricted).**
+  - V23StoreSemantic :114 now asserts relaunch `validateAll`, not file-set reproof (frozen C02 relaunchValidation).
+  - Checkpoint v2 uses an implicit version (distinct domain tag; the v1 items plus a fetchCount inventory of the 64 row-backed kinds outside v1). It is checked first; v1 is accepted only on an exact match and re-staged to v2 after a v1 validateAll in a canonical-writer session. Writers and the aggregate final candidate write v2. No schema, field or archive change.
+  - Tamper matrix: 9 probes, all detected, including count-neutral and canonical-byte cases. A coverage guard asserts all 148 kinds.
+  - Cost: about +7–13 ms per checkpoint (~389–421 ms on a populated store).
+- **Parts stock (product).** A local applyPartsStock freezes the commit instant at the canonical millisecond. Previously a durable commit reported failure.
+- **V9_05 harness (test-only).** Seeding goes through createFirstSign on a validating coordinator: 14 crashes → 0. Six V9_05 tests now fail on real restore-identity assertions; they never ran before batch K (private classes).
+- **Maintenance (product).**
+  - The trapping coordinator init/activate is DEBUG-only; erase entry and action use the throwing init; a writer-install failure maps to .finalizationInconsistent. A corrupt store now shows maintenance instead of a crash loop.
+  - "View diagnostics" reuses DiagnosticExportView, read-only.
+- **Review.** Independent reviewer (Claude Opus 5.5, read-only, not an author): APPROVE. R1 and R3 are satisfied. R2 is an open obligation before the phase gate (see VERIFICATION_DUE). Compile risk LOW.
+

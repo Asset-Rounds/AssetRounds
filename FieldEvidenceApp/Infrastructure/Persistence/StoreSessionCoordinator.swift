@@ -37,6 +37,10 @@ final class StoreSessionCoordinator: ObservableObject {
     private(set) var searchIndexStore: LocalSearchIndexStoreV1
     private(set) var searchServices: ProductionSearchServicesV1
 
+#if DEBUG
+    /// Test convenience only. Production must use the throwing
+    /// `init(validatingSession:)`: a damaged store (for example a corrupt
+    /// receipt history) fails closed to maintenance instead of trapping.
     convenience init(
         session: StoreGenerationSession,
         clock: any ApplicationClock = SystemApplicationClock(),
@@ -93,6 +97,7 @@ final class StoreSessionCoordinator: ObservableObject {
             searchServices: searchServices
         )
     }
+#endif
 
     convenience init(
         validatingSession session: StoreGenerationSession,
@@ -556,6 +561,8 @@ final class StoreSessionCoordinator: ObservableObject {
         )
     }
 
+#if DEBUG
+    /// Test convenience only; production activation uses `activateValidating`.
     func activate(session: StoreGenerationSession) {
         do {
             try activateValidating(session: session)
@@ -565,6 +572,7 @@ final class StoreSessionCoordinator: ObservableObject {
             )
         }
     }
+#endif
 
     func activateValidating(session: StoreGenerationSession) throws {
         try activateValidating(session: session, generationFactory: generationFactory)

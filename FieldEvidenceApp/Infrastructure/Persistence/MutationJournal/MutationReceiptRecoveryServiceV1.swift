@@ -24,6 +24,7 @@ final class MutationReceiptRecoveryServiceV1 {
             try validateLightingDayInventoryRecoveryParity()
             try validateLightingNightWorkflowRecoveryParity()
             try validatePartyContactSiteRoleImportRecoveryParity()
+            try store.restageValidatedLegacyCheckpointIfNeeded()
         }
     }
 

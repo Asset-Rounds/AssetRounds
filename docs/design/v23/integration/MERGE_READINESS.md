@@ -22,6 +22,8 @@ Inventory basis (read-only census at 31126e9, 2026-09-25; retained in the sessio
   - aggregate migration journal schema 2, with framed layered semantic digests V3…V53 and a schema-2 final aggregate manifest (batch O). This fixes the S10 → V23 upgrade blow-up.
   - the backup restore readback shares the export's archive receipt order (batch N). Archive bytes are unchanged.
 
+  - Mutable-semantic checkpoint v2 (batch Q; implicit version, all 148 kinds). R2 restore/upgrade evidence is required.
+
 ### Phase ledger (later phases; nothing silently dropped)
 
 | Card | Status at 31126e9 | Remaining work | Blocking dependencies |

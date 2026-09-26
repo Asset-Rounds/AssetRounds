@@ -1229,7 +1229,9 @@ final class EraseAllService {
     }
 
     func validateMaintenanceEntry(_ session: StoreGenerationSession) throws {
-        let coordinator = StoreSessionCoordinator(session: session)
+        // Fails closed: an uninstallable writer (e.g. corrupt receipt history)
+        // makes Erase ineligible instead of trapping on every maintenance launch.
+        let coordinator = try StoreSessionCoordinator(validatingSession: session)
         guard !coordinator.modelContext.hasChanges else {
             throw EraseAllServiceError.contextHasChanges
         }

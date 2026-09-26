@@ -40,11 +40,16 @@ struct StartupMaintenanceView: View {
     static let recoveryTextAccessibilityIdentifier = "s2.maintenance.recovery.text"
     static let restoreAccessibilityIdentifier = "s6.4.maintenance.restore-data-backup"
     static let eraseAccessibilityIdentifier = "s6.6.maintenance.erase-all"
+    /// Support path (blueprint: post-activation failures enter
+    /// maintenance/export/support). Reuses the Settings diagnostics label.
+    static let viewDiagnosticsButtonText = "View diagnostics"
+    static let viewDiagnosticsAccessibilityIdentifier = "s2.maintenance.view-diagnostics"
 
     let reason: StartupMaintenanceReason
     let retryChecks: () -> Void
     let restoreDataBackup: (() -> Void)?
     let eraseAll: (() -> Void)?
+    let viewDiagnostics: (() -> Void)?
 
     @State private var showsRecoverySteps = false
 
@@ -52,12 +57,14 @@ struct StartupMaintenanceView: View {
         reason: StartupMaintenanceReason,
         retryChecks: @escaping () -> Void,
         restoreDataBackup: (() -> Void)? = nil,
-        eraseAll: (() -> Void)? = nil
+        eraseAll: (() -> Void)? = nil,
+        viewDiagnostics: (() -> Void)? = nil
     ) {
         self.reason = reason
         self.retryChecks = retryChecks
         self.restoreDataBackup = restoreDataBackup
         self.eraseAll = eraseAll
+        self.viewDiagnostics = viewDiagnostics
     }
 
     var body: some View {
@@ -94,6 +101,15 @@ struct StartupMaintenanceView: View {
                         AssetRoundsSecondaryAction("Erase All", action: eraseAll)
                             .accessibilityLabel("Erase All")
                             .accessibilityIdentifier(Self.eraseAccessibilityIdentifier)
+                    }
+
+                    if let viewDiagnostics {
+                        AssetRoundsSecondaryAction("View diagnostics", action: viewDiagnostics)
+                            .accessibilityLabel(Self.viewDiagnosticsButtonText)
+                            .accessibilityHint(
+                                "Previews privacy-safe local counters and bounded system diagnostics before saving"
+                            )
+                            .accessibilityIdentifier(Self.viewDiagnosticsAccessibilityIdentifier)
                     }
 
                     AssetRoundsSecondaryAction(action: {

@@ -714,6 +714,144 @@ final class S2PersistenceLedgerTests: XCTestCase {
         }
     }
 
+    /// A damaged receipt history makes the writer uninstallable. Startup must
+    /// fail closed to maintenance (never trap on relaunch), keep the writer
+    /// uninstalled, write nothing, and not offer an Erase that needs a writer.
+    @MainActor
+    func testCorruptReceiptHistoryRoutesToMaintenanceWithoutWriterOrCrash() async throws {
+        let root = try makeStartupApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        let factory = StoreGenerationFactory(applicationSupportURL: root)
+        let siteID = UUID(), assetID = UUID(), placementID = UUID()
+        do {
+            let session = try factory.openOrBootstrapCurrent()
+            let coordinator = try StoreSessionCoordinator(validatingSession: session)
+            let writer = coordinator.workspaceWriter
+            let current = try writer.currentRevision()
+            let mutation = try MutationIDV1(rawValue: UUID())
+            let expected = try WorkspaceExpectedRevisionV1(workspaceID: current.workspaceID,
+                generationID: current.generationID, writerInstanceID: current.writerInstanceID,
+                workspaceRevision: current.revision, entityRevisions: [
+                    .init(identity: WorkspaceEntityIdentityV1(kind: .site, id: siteID), revision: 0),
+                    .init(identity: WorkspaceEntityIdentityV1(kind: .asset, id: assetID), revision: 0),
+                    .init(identity: WorkspaceEntityIdentityV1(kind: .assetPlacementEvent, id: placementID), revision: 0),
+                ])
+            _ = try writer.execute(.init(mutationID: mutation, expectedRevision: expected,
+                command: .createFirstSign(.init(siteID: siteID,
+                    newSite: .init(id: siteID, label: "Damaged site", address: nil, timeZoneID: "UTC"),
+                    assetID: assetID, assetLabel: "Damaged asset", packID: "test.pack",
+                    packSchemaVersion: 1, packContentVersion: 1,
+                    createdAt: Date(timeIntervalSince1970: 1_800_000_000),
+                    initialPlacementMutationID: mutation, initialPlacementEventID: placementID,
+                    initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: UUID())))))
+            try coordinator.invalidateAndReleaseWriter()
+            let row = try XCTUnwrap(session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).first)
+            row.receiptData = Data("corrupt canonical receipt".utf8)
+            try session.modelContext.save()
+        }
+
+        let router = StartupRouter(applicationSupportURL: root)
+        await router.retryChecks()
+
+        guard case let .maintenance(reason) = router.route else {
+            return XCTFail("A corrupt receipt history must block startup, got \(router.route)")
+        }
+        XCTAssertEqual(reason, .finalizationInconsistent)
+        XCTAssertNil(router.maintenanceEraseSession, "Erase needs an installable writer")
+        let reopened = try StoreGenerationFactory(applicationSupportURL: root).openOrBootstrapCurrent()
+        XCTAssertEqual(try reopened.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).map(\.receiptData),
+                       [Data("corrupt canonical receipt".utf8)], "startup must not rewrite the damaged history")
+        XCTAssertThrowsError(try StoreSessionCoordinator(validatingSession: reopened),
+                             "the writer stays uninstallable; nothing proceeds on the corrupt store")
+    }
+
+    /// Blueprint: post-activation failures enter maintenance/export/support.
+    /// With a corrupt receipt history the backup format cannot be produced
+    /// (it carries the validated history); the backup export fails closed with
+    /// no writes. The support path, a privacy-safe diagnostics export, works
+    /// read-only from maintenance with no writer or lease.
+    @MainActor
+    func testCorruptReceiptHistoryMaintenanceSupportExportIsReadOnlyAndPrivacySafe() async throws {
+        let root = try makeStartupApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        try seedCorruptReceiptHistoryStore(root)
+        let router = StartupRouter(applicationSupportURL: root)
+        await router.retryChecks()
+        guard case .maintenance(.finalizationInconsistent) = router.route else {
+            return XCTFail("Expected maintenance, got \(router.route)")
+        }
+        let data = root.appendingPathComponent("FieldEvidenceData", isDirectory: true)
+        let before = try directoryFacts(data)
+
+        let session = try StoreGenerationFactory(applicationSupportURL: root).openOrBootstrapCurrent()
+        let backup = BackupExportService(modelContext: session.modelContext,
+            generationRootURL: session.generationRootURL)
+        XCTAssertThrowsError(try backup.prepare()) {
+            XCTAssertEqual($0 as? BackupExportServiceError, .invalidAuthority)
+        }
+        XCTAssertFalse(session.modelContext.hasChanges)
+
+        let adapter = MetricKitDiagnosticsAdapter(manager: nil,
+            logger: DiagnosticsLogger(sink: { _ in }, operationalSink: { _ in }))
+        let prepared = try await DiagnosticExportService(
+            diagnosticsStore: router.maintenanceDiagnosticsStore, metricKitAdapter: adapter
+        ).prepare()
+        XCTAssertEqual(try DiagnosticExportCanonicalEncoderV1.encode(prepared.value), prepared.canonicalData)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: prepared.canonicalData) as? [String: Any])
+        XCTAssertTrue(Set(object.keys).isSubset(of: [
+            "app", "counters", "device", "diagnosticSchemaVersion", "generatedAt", "metricKit",
+        ]), "\(object.keys.sorted())")
+        let text = try XCTUnwrap(String(data: prepared.canonicalData, encoding: .utf8))
+        for forbidden in ["Damaged site", "Damaged asset", "corrupt canonical receipt", root.path,
+                          "model.sqlite", "FieldEvidenceData"] {
+            XCTAssertFalse(text.contains(forbidden), forbidden)
+        }
+        XCTAssertEqual(try directoryFacts(data), before, "maintenance export must not write the store")
+        XCTAssertThrowsError(try StoreSessionCoordinator(validatingSession: session))
+    }
+
+    private func directoryFacts(_ url: URL) throws -> [String: Data] {
+        var facts: [String: Data] = [:]
+        let keys: [URLResourceKey] = [.isRegularFileKey]
+        guard let enumerator = fileManager.enumerator(at: url, includingPropertiesForKeys: keys) else { return facts }
+        for case let file as URL in enumerator
+            where try file.resourceValues(forKeys: Set(keys)).isRegularFile == true
+                && !file.lastPathComponent.hasSuffix("-shm") {
+            facts[file.path] = try Data(contentsOf: file)
+        }
+        return facts
+    }
+
+    @MainActor
+    private func seedCorruptReceiptHistoryStore(_ root: URL) throws {
+        let factory = StoreGenerationFactory(applicationSupportURL: root)
+        let siteID = UUID(), assetID = UUID(), placementID = UUID()
+        let session = try factory.openOrBootstrapCurrent()
+        let coordinator = try StoreSessionCoordinator(validatingSession: session)
+        let writer = coordinator.workspaceWriter
+        let current = try writer.currentRevision()
+        let mutation = try MutationIDV1(rawValue: UUID())
+        let expected = try WorkspaceExpectedRevisionV1(workspaceID: current.workspaceID,
+            generationID: current.generationID, writerInstanceID: current.writerInstanceID,
+            workspaceRevision: current.revision, entityRevisions: [
+                .init(identity: WorkspaceEntityIdentityV1(kind: .site, id: siteID), revision: 0),
+                .init(identity: WorkspaceEntityIdentityV1(kind: .asset, id: assetID), revision: 0),
+                .init(identity: WorkspaceEntityIdentityV1(kind: .assetPlacementEvent, id: placementID), revision: 0),
+            ])
+        _ = try writer.execute(.init(mutationID: mutation, expectedRevision: expected,
+            command: .createFirstSign(.init(siteID: siteID,
+                newSite: .init(id: siteID, label: "Damaged site", address: nil, timeZoneID: "UTC"),
+                assetID: assetID, assetLabel: "Damaged asset", packID: "test.pack",
+                packSchemaVersion: 1, packContentVersion: 1,
+                createdAt: Date(timeIntervalSince1970: 1_800_000_000),
+                initialPlacementMutationID: mutation, initialPlacementEventID: placementID,
+                initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: UUID())))))
+        try coordinator.invalidateAndReleaseWriter()
+        let row = try XCTUnwrap(session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).first)
+        row.receiptData = Data("corrupt canonical receipt".utf8)
+        try session.modelContext.save()
+    }
+
     @MainActor
     func testMaintenanceReasonAndCopyContractIsClosedAndExact() {
         XCTAssertEqual(

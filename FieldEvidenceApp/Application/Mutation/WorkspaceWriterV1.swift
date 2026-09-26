@@ -1939,10 +1939,13 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         let normalizesGeneratedPlacementTime = request.command.kind == .createFirstSign
             && envelope.sourceKind == .localUser
         if occurredAtOverride == nil, sourceKind != .importedHistory,
-           request.command.kind == .applyMyDay || normalizesGeneratedPlacementTime {
-            // My Day receipts and newly generated First Sign placement rows
-            // must retain one exact instant across canonical bytes and scalar
-            // readback. Freeze that precision before any persistence effect.
+           request.command.kind == .applyMyDay || request.command.kind == .applyPartsStock
+            || normalizesGeneratedPlacementTime {
+            // My Day and Parts Stock receipts and newly generated First Sign
+            // placement rows must retain one exact instant across canonical
+            // bytes and scalar readback (Parts Stock typed receipts require a
+            // whole millisecond). Freeze that precision before any persistence
+            // effect so a durable commit never reports failure.
             let milliseconds = (clock.now().timeIntervalSince1970 * 1_000)
                 .rounded(.toNearestOrAwayFromZero)
             occurredAt = Date(timeIntervalSince1970: milliseconds / 1_000)

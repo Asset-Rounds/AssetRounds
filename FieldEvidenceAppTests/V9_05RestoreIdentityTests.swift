@@ -796,16 +796,20 @@ private extension V9_05RestoreIdentityTests {
             try source.session.modelContext.fetch(FetchDescriptor<Site>()).first?.id
         )
         let sourceMutationID = try MutationIDV1(rawValue: id(89))
-        let writer = StoreSessionCoordinator(session: source.session).workspaceWriter
+        // Keep the coordinator (and its writer lease) alive while its writer is used.
+        let sourceCoordinator = StoreSessionCoordinator(session: source.session)
+        let writer = sourceCoordinator.workspaceWriter
         let before = try writer.currentRevision()
+        let siteIdentity = try WorkspaceEntityIdentityV1(kind: .site, id: sourceSiteID)
         let expected = try WorkspaceExpectedRevisionV1(
             workspaceID: before.workspaceID,
             generationID: before.generationID,
             writerInstanceID: before.writerInstanceID,
             workspaceRevision: before.revision,
             entityRevisions: [.init(
-                identity: try WorkspaceEntityIdentityV1(kind: .site, id: sourceSiteID),
-                revision: 0
+                identity: siteIdentity,
+                // The writer-seeded site carries its committed revision.
+                revision: before.entityRevisions.first { $0.identity == siteIdentity }?.revision ?? 0
             )]
         )
         let sourceRequest = WorkspaceMutationRequestV1(
@@ -830,6 +834,7 @@ private extension V9_05RestoreIdentityTests {
         XCTAssertThrowsError(try writer.execute(conflictingRequest)) {
             XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .mutationIDQuarantined)
         }
+        try sourceCoordinator.invalidateAndReleaseWriter()
         let sourceJournal = try MutationJournalStoreV1(
             modelContext: source.session.modelContext,
             identity: source.session.workspaceIdentity,
@@ -867,10 +872,23 @@ private extension V9_05RestoreIdentityTests {
         let factory = StoreGenerationFactory(applicationSupportURL: support)
         let session = try factory.openOrBootstrapCurrent()
         if nonempty {
+            // Seed through the canonical writer: rows saved outside it are
+            // (correctly) rejected by the next writer activation's relaunch check.
+            let coordinator = try StoreSessionCoordinator(validatingSession: session)
             let siteID = UUID()
-            session.modelContext.insert(Site(id: siteID, label: "\(name) lot", address: siteAddress, timeZoneID: "America/New_York", createdAt: Date(timeIntervalSince1970: 1_799_999_000)))
-            session.modelContext.insert(Asset(id: UUID(), siteID: siteID, packID: SignPack.illuminatedSignV1.packID, packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion, packContentVersion: SignPack.illuminatedSignV1.contentVersion, label: "\(name) sign", createdAt: Date(timeIntervalSince1970: 1_799_999_001)))
-            try session.modelContext.save()
+            let mutationID = try MutationIDV1(rawValue: UUID())
+            _ = try coordinator.workspaceWriter.execute(.createFirstSign(.init(
+                siteID: siteID,
+                newSite: .init(id: siteID, label: "\(name) lot", address: siteAddress, timeZoneID: "America/New_York"),
+                assetID: UUID(), assetLabel: "\(name) sign",
+                packID: SignPack.illuminatedSignV1.packID,
+                packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
+                packContentVersion: SignPack.illuminatedSignV1.contentVersion,
+                createdAt: Date(timeIntervalSince1970: 1_799_999_000),
+                initialPlacementMutationID: mutationID, initialPlacementEventID: UUID(),
+                initialPhysicalEpisodeID: .init(rawValue: UUID())
+            )), mutationID: mutationID)
+            try coordinator.invalidateAndReleaseWriter()
         }
         return Harness(support: support, factory: factory, session: session)
     }

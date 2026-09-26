@@ -949,10 +949,23 @@ final class StartupRouter: ObservableObject {
             // V2 effects and receipts are one transaction, so the journal is
             // already coherent before file-intent recovery. Keep this sole
             // writer unpublished until every recovery step succeeds.
-            let coordinator = try StoreSessionCoordinator(
-                validatingSession: session,
-                lifecycleProfileRegistry: lifecycleProfileRegistry
-            )
+            // Installing the writer revalidates the canonical mutation journal.
+            // An integrity failure (e.g. receiptHistoryCorrupt) keeps the writer
+            // uninstalled and routes to the finalization-step maintenance reason.
+            let coordinator: StoreSessionCoordinator
+            do {
+                coordinator = try StoreSessionCoordinator(
+                    validatingSession: session,
+                    lifecycleProfileRegistry: lifecycleProfileRegistry
+                )
+            } catch let reason as StartupMaintenanceReason {
+                throw reason
+            } catch {
+#if DEBUG
+                reportStartupFailureForTesting(error)
+#endif
+                throw StartupMaintenanceReason.finalizationInconsistent
+            }
             let owner = OwnedWriter(coordinator)
             unpublishedOwner = owner
             operationOwnedWriter = owner

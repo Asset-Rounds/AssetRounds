@@ -109,9 +109,22 @@ final class V23StoreSemanticValidationTests: XCTestCase {
                     occurredAt: lighting.night.recordedAt.addingTimeInterval(200)
                 )
             )
+            // Recorded expectation correction: reproofAfterSave() re-proves only the
+            // closed generation file set and protection policy (its contract). Rows
+            // saved outside WorkspaceWriter are detected by relaunch validation,
+            // which verifies the persisted mutable semantic checkpoint
+            // (V23P02C02MutationRecoveryMatrixV1.json persistedStateRecovery
+            // relaunchValidation VERIFY_ACTUAL_STATE_TOMBSTONES_MUTABLE_SEMANTIC_AND_EXTERNAL_PROJECTIONS).
+            let relaunchJournal = try MutationJournalStoreV1(
+                modelContext: cold.modelContext, identity: cold.workspaceIdentity,
+                generationID: cold.generationID, allowStateBootstrap: false)
+            XCTAssertNoThrow(try relaunchJournal.validateAll())
             cold.modelContext.insert(try LocationNodeRow(laterLocation))
             try cold.modelContext.save()
-            XCTAssertThrowsError(try cold.reproofAfterSave()) {
+            XCTAssertNoThrow(try cold.reproofAfterSave())
+            XCTAssertThrowsError(try MutationJournalStoreV1(
+                modelContext: cold.modelContext, identity: cold.workspaceIdentity,
+                generationID: cold.generationID, allowStateBootstrap: false).validateAll()) {
                 XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
             }
             XCTAssertEqual(try receiptBytes(in: cold.modelContext), facts.receipts)
@@ -126,6 +139,229 @@ final class V23StoreSemanticValidationTests: XCTestCase {
     func testReleasedV1UpgradeCompletesBothLaunchesWithinBoundedTimeAndMemory() async throws {
         try await assertBoundedV1Upgrade(siteCount: 1, label: "OneSite")
         try await assertBoundedV1Upgrade(siteCount: 40, label: "FortySites")
+    }
+
+    /// A durable Parts Stock commit reports success under a live clock with
+    /// sub-millisecond precision: the writer freezes the commit instant at the
+    /// canonical millisecond before any effect, so the persisted generic receipt,
+    /// the typed receipt and replay agree.
+    func testPartsStockCommitUnderSubMillisecondClockReportsSuccess() throws {
+        struct SubMillisecondClock: ApplicationClock {
+            func now() -> Date { Date(timeIntervalSince1970: 1_800_000_000.123_456_7) }
+        }
+        let root = temporaryRoot("PartsStockClock")
+        let support = applicationSupport(in: root)
+        try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let workspaceID = WorkspaceID(rawValue: semanticID(790))
+        let factory = StoreGenerationFactory(applicationSupportURL: support,
+            pointerEnrichmentIdentity: try workspaceIdentity(workspaceID))
+        let session = try semanticObserved("parts clock open") { try factory.openOrBootstrapCurrent() }
+        let coordinator = try semanticObserved("parts clock writer") {
+            try StoreSessionCoordinator(validatingSession: session, clock: SubMillisecondClock())
+        }
+        let mutation = PartsStockMutationV1.upsertPart(try LocalPartDefinitionV1(
+            partID: semanticID(791), workspaceID: workspaceID, displayName: "Clock part",
+            canonicalUnit: .each, productIdentities: [try .init(kind: .sku, value: "SKU-CLOCK")],
+            preferredMinimum: try .init(mantissa: 1, scale: 0, unit: .each), archived: false,
+            revision: 1, mutationID: try MutationIDV1(rawValue: semanticID(792))))
+        let receipt = try coordinator.workspaceWriter.commitPartsStock(mutation)
+        XCTAssertNoThrow(try receipt.validate())
+        XCTAssertEqual(receipt.committedAt, Date(timeIntervalSince1970: 1_800_000_000.123))
+        XCTAssertEqual(try coordinator.workspaceWriter.commitPartsStock(mutation), receipt, "replay agrees")
+        try coordinator.invalidateAndReleaseWriter()
+        let journal = try MutationJournalStoreV1(modelContext: session.modelContext,
+            identity: session.workspaceIdentity, generationID: session.generationID, allowStateBootstrap: false)
+        XCTAssertEqual(try journal.receipt(mutationID: mutation.mutationID)?.committedAt, receipt.committedAt)
+        XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<LocalPartDefinitionRowV1>()).count, 1)
+        XCTAssertNoThrow(try journal.validateAll())
+    }
+
+    /// Coverage guard: every journaled kind is either enumerated by the v1
+    /// identity basis, counted by the v2 row inventory, or hashed directly
+    /// (virtual balance stream, deletion ledger). A new kind fails here until
+    /// it is placed in exactly one group.
+    func testMutableSemanticCheckpointCoversEveryJournaledKind() {
+        let v1 = MutationJournalStoreV1.mutableSemanticV1IdentityKinds
+        let inventory = MutationJournalStoreV1.mutableSemanticInventoryModelsV2
+        let v2 = Set(inventory.map(\.kind))
+        let direct = MutationJournalStoreV1.mutableSemanticNonInventoryKinds
+        XCTAssertEqual(WorkspaceEntityKindV1.allCases.count, 148)
+        XCTAssertEqual(v2.count, inventory.count, "one inventory model per kind")
+        XCTAssertEqual(Set(inventory.map(\.model)).count, inventory.count)
+        XCTAssertTrue(v1.isDisjoint(with: v2))
+        XCTAssertTrue(v1.isDisjoint(with: direct))
+        XCTAssertTrue(v2.isDisjoint(with: direct))
+        XCTAssertEqual(v1.union(v2).union(direct), Set(WorkspaceEntityKindV1.allCases))
+        XCTAssertEqual(inventory.map(\.model), inventory.map(\.model).sorted(), "digest order is stable")
+    }
+
+    /// Test-only tamper matrix for out-of-writer changes made in the writer's
+    /// context and checked by the relaunch validator (validateAll). Source
+    /// analysis: validateTerminalRows re-proves the current post-image of every
+    /// revision-journaled identity for all WorkspaceEntityKindV1 cases, so
+    /// modify/delete of receipt-backed rows is kind-generic; an insert without a
+    /// receipt is only seen through the mutable semantic checkpoint identity set
+    /// (parity validators are receipt-driven). The recorded gap set pins today's
+    /// behavior so a versioned checkpoint must update it deliberately.
+    func testOutOfWriterTamperMatrixRecordsDetectionMechanism() throws {
+        let root = temporaryRoot("TamperMatrix")
+        let support = applicationSupport(in: root)
+        try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let lighting = try SemanticValidationLighting.makeFixture(slot: 61)
+        let factory = StoreGenerationFactory(applicationSupportURL: support,
+            pointerEnrichmentIdentity: try workspaceIdentity(lighting.night.workspaceID))
+        let session = try semanticObserved("tamper matrix open") { try factory.openOrBootstrapCurrent() }
+        let persisted = try semanticObserved("tamper matrix populate") { try populateCurrentStore(session, lighting: lighting) }
+        let context = session.modelContext
+        let journal = try MutationJournalStoreV1(modelContext: context, identity: session.workspaceIdentity,
+            generationID: session.generationID, allowStateBootstrap: false)
+        XCTAssertNoThrow(try journal.validateAll())
+        let date = lighting.night.recordedAt.addingTimeInterval(500)
+        // Writer-committed rows of two v2-only kinds for count-neutral and
+        // canonical-byte tamper probes.
+        let committedActorID = semanticID(770), committedPartID = semanticID(772)
+        try semanticObserved("tamper matrix writer seeds") {
+            let seeding = try StoreSessionCoordinator(validatingSession: session)
+            let actor = try LocalActorReferenceV1(actorReferenceID: semanticID(771),
+                workspaceID: lighting.night.workspaceID, displayName: "Committed matrix actor")
+            _ = try seeding.workspaceWriter.execute(.applyPartyAccountability(.appendActorSnapshot(
+                try ActorSnapshotV1(snapshotID: committedActorID, workspaceID: lighting.night.workspaceID,
+                    actor: actor, responsibility: .recordedBy, displayNameAtTime: actor.displayName,
+                    capturedAt: date))), mutationID: MutationIDV1(rawValue: semanticID(773)))
+            let partReceipt = try seeding.workspaceWriter.commitPartsStock(.upsertPart(try LocalPartDefinitionV1(
+                partID: committedPartID, workspaceID: lighting.night.workspaceID, displayName: "Committed part",
+                canonicalUnit: .each, productIdentities: [try .init(kind: .sku, value: "SKU-COMMITTED")],
+                preferredMinimum: try .init(mantissa: 1, scale: 0, unit: .each), archived: false,
+                revision: 1, mutationID: try MutationIDV1(rawValue: semanticID(774)))))
+            XCTAssertNoThrow(try partReceipt.validate())
+            try seeding.invalidateAndReleaseWriter()
+        }
+        XCTAssertEqual(try context.fetch(FetchDescriptor<LocalPartDefinitionRowV1>()).filter {
+            $0.partID == committedPartID }.count, 1)
+        XCTAssertNoThrow(try journal.validateAll())
+        func probe(_ name: String, _ tamper: () throws -> Void) rethrows -> Bool {
+            try tamper()
+            defer { context.rollback() }
+            do { try journal.validateAll(); return false } catch { return true }
+        }
+        var detected: [String: Bool] = [:]
+        detected["locationNode.insert(checkpoint)"] = try probe("insert location") {
+            context.insert(try LocationNodeRow(try LocationNodeV1(
+                id: semanticID(760), workspaceID: lighting.night.workspaceID, siteID: lighting.system.siteID,
+                parentNodeID: nil, kind: .building, label: "Tamper matrix building", shortCode: "TM",
+                siblingOrder: 7, state: .active, revision: 1,
+                provenance: .init(mutationID: try MutationIDV1(rawValue: semanticID(761)), occurredAt: date))))
+        }
+        detected["locationNode.modify(terminal+checkpoint)"] = try probe("modify location") {
+            let old = try persisted.location.value()
+            let changed = try LocationNodeV1(id: old.id, workspaceID: old.workspaceID, siteID: old.siteID,
+                parentNodeID: old.parentNodeID, kind: old.kind, label: "Consistently tampered label",
+                shortCode: old.shortCode, siblingOrder: old.siblingOrder, state: old.state,
+                revision: old.revision, provenance: old.provenance)
+            persisted.location.label = changed.label
+            persisted.location.canonicalData = try LocationPersistenceCodecV1.encode(changed)
+        }
+        detected["locationNode.delete(terminal+checkpoint)"] = try probe("delete location") {
+            context.delete(persisted.location)
+        }
+        detected["lightingNightWorkflow.delete(terminal+checkpoint)"] = try probe("delete night") {
+            context.delete(persisted.night)
+        }
+        detected["actorSnapshot.insert(v2 inventory)"] = try probe("insert actor") {
+            let actor = try LocalActorReferenceV1(actorReferenceID: semanticID(764),
+                workspaceID: lighting.night.workspaceID, displayName: "Tamper matrix actor")
+            context.insert(try ActorSnapshotRow(try ActorSnapshotV1(snapshotID: semanticID(765),
+                workspaceID: lighting.night.workspaceID, actor: actor, responsibility: .recordedBy,
+                displayNameAtTime: actor.displayName, capturedAt: date)))
+        }
+        detected["localPartDefinition.insert(v2 inventory)"] = try probe("insert part") {
+            context.insert(try LocalPartDefinitionRowV1(try LocalPartDefinitionV1(
+                partID: semanticID(766), workspaceID: lighting.night.workspaceID, displayName: "Tamper part",
+                canonicalUnit: .each, productIdentities: [try .init(kind: .sku, value: "SKU-TAMPER")],
+                preferredMinimum: try .init(mantissa: 1, scale: 0, unit: .each), archived: false,
+                revision: 1, mutationID: try MutationIDV1(rawValue: semanticID(767)))))
+        }
+        detected["actorSnapshot.insertAndDelete(count-neutral)"] = try probe("count-neutral actor") {
+            let actor = try LocalActorReferenceV1(actorReferenceID: semanticID(775),
+                workspaceID: lighting.night.workspaceID, displayName: "Forged matrix actor")
+            context.insert(try ActorSnapshotRow(try ActorSnapshotV1(snapshotID: semanticID(776),
+                workspaceID: lighting.night.workspaceID, actor: actor, responsibility: .recordedBy,
+                displayNameAtTime: actor.displayName, capturedAt: date)))
+            let committed = try context.fetch(FetchDescriptor<ActorSnapshotRow>(
+                predicate: #Predicate { $0.snapshotID == committedActorID }))
+            XCTAssertEqual(committed.count, 1)
+            committed.forEach(context.delete)
+        }
+        detected["localPartDefinition.modifyCanonicalBytes(v2-only kind)"] = try probe("modify part bytes") {
+            let row = try XCTUnwrap(context.fetch(FetchDescriptor<LocalPartDefinitionRowV1>()).first {
+                $0.partID == committedPartID })
+            let old = try row.value()
+            let forged = try LocalPartDefinitionV1(partID: old.partID, workspaceID: old.workspaceID,
+                displayName: "Forged part name", canonicalUnit: old.canonicalUnit,
+                productIdentities: old.productIdentities, preferredMinimum: old.preferredMinimum,
+                archived: old.archived, revision: old.revision, mutationID: old.mutationID)
+            row.displayName = forged.displayName
+            row.canonicalData = try PartsStockPersistenceCodecV1.encode(forged)
+        }
+        detected["assetLocator.insert(v2 inventory)"] = try probe("insert locator") {
+            context.insert(try AssetLocatorRow(try AssetLocatorV1(
+                locatorID: semanticID(762), workspaceID: lighting.night.workspaceID,
+                assetID: try XCTUnwrap(lighting.night.deltas.first).assetID,
+                representation: .externalKey(try ExternalKeyV1(namespaceID: "asset",
+                    normalization: .asciiCaseInsensitive, suppliedValue: "tamper-matrix")),
+                state: .active, revision: 1, mutationID: try MutationIDV1(rawValue: semanticID(763)),
+                recordedAt: date)))
+        }
+        for (key, value) in detected.sorted(by: { $0.key < $1.key }) {
+            print("V23TamperMatrix probe=\(key) detected=\(value)")
+        }
+        XCTAssertFalse(context.hasChanges)
+        XCTAssertNoThrow(try journal.validateAll())
+        // Recorded expectation change (checkpoint v2): no exercised out-of-writer
+        // insert, modify or delete remains undetected.
+        XCTAssertEqual(Set(detected.filter { !$0.value }.keys), [])
+
+        // Implicit version dispatch and one-time re-stage.
+        let versions = try journal.checkpointVersionsForTesting()
+        XCTAssertNotEqual(versions.v1, versions.v2)
+        XCTAssertEqual(versions.stored, versions.v2)
+        XCTAssertEqual(versions.validated, 2)
+        let state = try XCTUnwrap(context.fetch(FetchDescriptor<WorkspaceMutationStateRow>()).first)
+        state.mutableSemanticSHA256 = versions.v1
+        try context.save()
+        XCTAssertNoThrow(try journal.validateAll())
+        XCTAssertEqual(try journal.checkpointVersionsForTesting().validated, 1)
+        try journal.restageValidatedLegacyCheckpointIfNeeded()
+        XCTAssertEqual(state.mutableSemanticSHA256, versions.v1, "maintenance access never re-stages")
+        state.mutableSemanticSHA256 = String(repeating: "0", count: 64)
+        XCTAssertThrowsError(try journal.validateAll())
+        context.rollback()
+        let coordinator = try semanticObserved("tamper matrix writer re-stage") {
+            try StoreSessionCoordinator(validatingSession: session)
+        }
+        try coordinator.invalidateAndReleaseWriter()
+        XCTAssertEqual(try XCTUnwrap(context.fetch(FetchDescriptor<WorkspaceMutationStateRow>()).first)
+            .mutableSemanticSHA256, versions.v2, "first writer session re-stages an exact v1 checkpoint as v2")
+        XCTAssertNoThrow(try journal.validateAll())
+        XCTAssertEqual(try journal.checkpointVersionsForTesting().validated, 2)
+
+        // Timing on a populated context (unsaved, rolled back): v2 adds only
+        // row-count queries to the v1 computation.
+        for index in 0..<600 {
+            context.insert(Site(id: semanticID(20_000 + index), label: "Timing site \(index)", address: nil,
+                                timeZoneID: "UTC", createdAt: date, updatedAt: date))
+        }
+        var v1Seconds: [Double] = [], v2Seconds: [Double] = []
+        for _ in 0..<5 {
+            var start = Date(); _ = try journal.checkpointV1ForTesting(); v1Seconds.append(Date().timeIntervalSince(start))
+            start = Date(); _ = try journal.checkpointV2ForTesting(); v2Seconds.append(Date().timeIntervalSince(start))
+        }
+        context.rollback()
+        let v1Median = v1Seconds.sorted()[2], v2Median = v2Seconds.sorted()[2]
+        print("V23CheckpointTiming rows=600+fixture v1MedianMs=\(Int(v1Median * 1000)) v2MedianMs=\(Int(v2Median * 1000))")
+        XCTAssertLessThan(v2Median, 2.0)
     }
 
     func testEarlyAndLatestCanonicalRowCorruptionKeepTypedFailureAndColdOpenTargetMismatchWithoutRepair() throws {
