@@ -1989,6 +1989,11 @@ jobs:
           BITRISE_BUILD_CACHE_WORKSPACE_ID: ${{ inputs.runner_provider == 'bitrise' && inputs.s10_4_execution_role != 'payload-consumer' && vars.BITRISE_BUILD_CACHE_WORKSPACE_ID || '' }}
         run: |
           set -euo pipefail
+          if test "${NATIVE_SELECTION_ID:-none}" = v23-ui-batch-rui1; then
+            bash Scripts/run-with-timeout.sh "$CI_UI_TIMEOUT_SECONDS" \
+              bash Scripts/v23-ui-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/ui-smoke.log"
+            exit 0
+          fi
           if test "${WORKER_S10_4_DIAGNOSTIC_PROBE_ID:-none}" != none; then
             test "${WORKER_S10_4_DIAGNOSTIC_PROBE_TIMEOUT_SECONDS:?}" = "600"
             test "$WORKER_S10_4_DIAGNOSTIC_EXECUTION_LANE" = \

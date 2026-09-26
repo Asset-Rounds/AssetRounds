@@ -4,7 +4,7 @@
 
 ## Current state — 2026-09-26, Codex takeover
 
-- Work locally at `/Users/rentamac/Developer/AssetRounds` on `codex/v23-s10-integration-20260910`. Batch V is committed/non-force pushed at `079159b1`; owner policy is at `7c70ed33`. Batch W journal read-performance corrections compile; local19/21methods pass, including all13progress and both lease controls. Two preexisting fixture failures remain. Accepted main remains `b1d04ae5`.
+- Work locally at `/Users/rentamac/Developer/AssetRounds` on `codex/v23-s10-integration-20260910`. V is pushed at `079159b1`; W read-performance checkpoint at `a6faa8f9`. RUI1 route integration passes its combined checks; next are reviewed clone/C49/fixture corrections and migration. Accepted main remains `b1d04ae5`.
 - One existing app/project/shared scheme, sole writer and S10 design system. Preserve owner drafts, frozen design, V30, coordination ledger, `docs/design/s10/**` and `Release/**`. Card135 owner-only/skipped; physical/minimum-runtime verification deferred; releaseReady=false.
 - Owner approved risk-based review and standing reversible implementation/tooling authority (AGENTS.md); gates and owner-reserved decisions remain.
 - Owner switched all Claude roles to GPT-6 Astra, including the separate read-only independent reviewer. Root alone integrates, commits, pushes and dispatches; no PRs or merge commits.

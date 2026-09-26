@@ -73,17 +73,22 @@ PARALLEL_DEVELOPMENT_REPLACEMENTS = (
 )
 
 
+RUI1_WORKER_BRANCH = '          if test "${NATIVE_SELECTION_ID:-none}" = v23-ui-batch-rui1; then\n            bash Scripts/run-with-timeout.sh "$CI_UI_TIMEOUT_SECONDS" \\\n              bash Scripts/v23-ui-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/ui-smoke.log"\n            exit 0\n          fi\n'
+
+
 def workflow_before_parallel_development(raw):
-    """Reverse exactly the owner-decision-16 caller additions (input, group term, tier output and input)."""
+    """Reverse the exact RUI1 choice and owner-decision-16 caller additions."""
     text = raw.decode('utf-8') if isinstance(raw, bytes) else raw
+    text = remove_exactly_once(text, '          - v23-ui-batch-rui1\n')
     for old, new in PARALLEL_DEVELOPMENT_REPLACEMENTS:
         text = remove_exactly_once(text, old, new)
     return text.encode('utf-8') if isinstance(raw, bytes) else text
 
 
 def worker_before_parallel_development(raw):
-    """Reverse exactly the per-head development term of the ordinary worker's concurrency group."""
+    """Reverse the exact RUI1 branch and per-head development concurrency term."""
     text = raw.decode('utf-8') if isinstance(raw, bytes) else raw
+    text = remove_exactly_once(text, RUI1_WORKER_BRANCH)
     text = remove_exactly_once(text, DEVELOPMENT_PER_HEAD_TERM + '\n  cancel-in-progress: false\n',
                                '\n  cancel-in-progress: false\n')
     return text.encode('utf-8') if isinstance(raw, bytes) else text
@@ -179,7 +184,8 @@ def before_shared_coverage_bytes(relative, raw):
     if relative == '.github/workflows/ios-ci-worker.yml':
         return worker_before_parallel_development(raw)
     if relative == 'Scripts/build-smoke.sh':
-        return remove_exactly_once(raw.decode('utf-8'), SHARED_BUILD_SMOKE_LINE).encode('utf-8')
+        text = remove_exactly_once(raw.decode('utf-8'), '   [ "${NATIVE_SELECTION_ID:-none}" = v23-ui-batch-rui1 ] || \\\n')
+        return remove_exactly_once(text, SHARED_BUILD_SMOKE_LINE).encode('utf-8')
     if relative == 'Scripts/test-smoke.sh':
         return test_smoke_before_shared_coverage(raw)
     if relative == 'Scripts/validate-required-evidence.sh':
@@ -1768,7 +1774,7 @@ class ReportPartitionTests(unittest.TestCase):
         expected.remove('c36-live-host')
         expected.remove('c36-round-item-mount')
         expected.remove('c36-round-item-completion')
-        expected[expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1:expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1] = [CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, SHARED_ROUTE, CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-live-host', 'c36-round-item-mount', 'c36-round-item-completion', CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit']
+        expected[expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1:expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1] = [CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, CI.UI_BATCH_SELECTION_ID, SHARED_ROUTE, CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-live-host', 'c36-round-item-mount', 'c36-round-item-completion', CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit']
         expected.insert(expected.index('c36-restore-review') + 1, CI.NO_INDEX_SELECTION_ID)
         expected.insert(expected.index(CI.NO_INDEX_SELECTION_ID) + 1, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID)
         expected.insert(expected.index('notification-schedule-erase') + 1, CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID)
@@ -3389,8 +3395,12 @@ class FieldAutosaveBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
             r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)',
             (ROOT / '.github/workflows/ios-ci.yml').read_text()).group(1), re.M)
         previous, previous_map = prelive_host_values(self.default, self.mapping)
+        # RUI1 is a later standalone file-bound route, checked by RUI1RouteTests.
+        self.assertEqual(identifiers.count(CI.UI_BATCH_SELECTION_ID), 1)
+        with self.assertRaises(ValueError):
+            old['resolve_selection'](previous, previous_map, CI.UI_BATCH_SELECTION_ID)
         for identifier in identifiers:
-            if identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, SHARED_ROUTE, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, 'c36-live-host'):
+            if identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, CI.UI_BATCH_SELECTION_ID, SHARED_ROUTE, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, 'c36-live-host'):
                 continue
             self.assertEqual(CI.resolve_selection(previous, previous_map, identifier),
                              old['resolve_selection'](previous, previous_map, identifier), identifier)
@@ -3455,8 +3465,12 @@ class SavedReviewFieldsBuild30DiagnosticTests(ReplacementPartitionDiagnosticTest
         workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text()
         block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
         choices = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        # Preserve every old-map comparison; RUI1 has separate closed-route checks.
+        self.assertEqual(choices.count(CI.UI_BATCH_SELECTION_ID), 1)
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(old_pool, old_map, CI.UI_BATCH_SELECTION_ID)
         for identifier in choices:
-            if identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, SHARED_ROUTE, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.DEFAULT_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
+            if identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, CI.UI_BATCH_SELECTION_ID, SHARED_ROUTE, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.DEFAULT_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
                 continue
             previous = CI.resolve_selection(old_pool, old_map, identifier)
             additions = [s for s in EXPECTED_LIVE_HOST_RUNTIME if CI.selection_class(s) in next((g['classes'] for g in self.mapping['groups'] if g['id'] == identifier), [])]
@@ -7747,7 +7761,7 @@ class DevelopmentBatchRouteTests(unittest.TestCase):
             return re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
         current_choices = choices((ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8'))
         base_choices = choices(base_workflow)
-        self.assertEqual([item for item in current_choices if item not in (CI.DEV_BATCH_SELECTION_ID, SHARED_ROUTE)],
+        self.assertEqual([item for item in current_choices if item not in (CI.DEV_BATCH_SELECTION_ID, CI.UI_BATCH_SELECTION_ID, SHARED_ROUTE)],
                          base_choices)
         # Each shell/workflow file differs from the base head only by the new route ID.
         def base_bytes(relative):
@@ -9350,6 +9364,418 @@ class CoverageTimingsFromLogsTests(unittest.TestCase):
         self.assertEqual((value['provenance']['runID'], value['provenance']['head'],
                           value['provenance']['unknownMethodsDropped']), ('42', 'a' * 40, 1))
         load_partition_script().read_timings(value)
+
+
+class RUI1RouteTests(unittest.TestCase):
+    """Synthetic protocol artifacts only: these never count as screenshots or native evidence."""
+    @classmethod
+    def setUpClass(cls):
+        cls.ui = CI.load_ui_evidence(ROOT)
+        cls.selected = cls.ui.selection(ROOT)
+        cls.catalogue = cls.ui.read(ROOT / cls.ui.CATALOGUE)
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix='rui1-protocol-')
+        self.addCleanup(temporary.cleanup)
+        self.artifact = Path(temporary.name).resolve()
+        self.export = self.artifact / 'rui1-original-attachments'
+        self.export.mkdir()
+        for name in ('Build.xcresult', 'UnitTests.xcresult', 'UISmoke.xcresult'):
+            bundle = self.artifact / name
+            (bundle / 'Data').mkdir(parents=True)
+            (bundle / 'Info.plist').write_bytes(b'PROTOCOL FIXTURE, NOT XCRESULT')
+            (bundle / 'Data/original').write_bytes(b'non-native protocol payload')
+        self.record = {'head': HEAD, 'runID': '123', 'runAttempt': '1', 'selectionID': self.ui.ROUTE,
+                       'selectionSHA256': self.ui.sha(self.ui.canonical(self.selected)),
+                       'rui1ProtocolSources': self.ui.protocol_sources(ROOT)}
+        self.env = {'PROJECT_PATH': 'FieldEvidenceApp.xcodeproj', 'SCHEME': 'FieldEvidenceApp',
+                    'CONFIGURATION': 'Debug', 'CODE_SIGNING_ALLOWED': 'NO', 'CI_SIMULATOR_UDID': UDID,
+                    'CI_DESTINATION': 'platform=iOS Simulator,id=' + UDID, 'RUNNER_TEMP': '/runner/temp'}
+        groups = {m: {'testIdentifier': self.ui.UI_CLASS + '/' + m + '()', 'attachments': []}
+                  for m in self.ui.METHODS}
+        for state in self.catalogue['states']:
+            png = self.ui.PNG + b'NOT A REAL SCREENSHOT: PROTOCOL FIXTURE ' + state['id'].encode()
+            audit = {'schemaVersion': 1, 'stateID': state['id'],
+                     'testName': '-[FieldEvidenceAppUITests.' + self.ui.UI_CLASS + ' ' + state['method'] + ']',
+                     'ordinalInMethod': state['orderInMethod'], 'pngSHA256': self.ui.sha(png).lower(),
+                     'pngByteCount': len(png), 'auditTypes': ['contrast', 'dynamicType', 'textClipped'],
+                     'issuesFailTest': True, 'humanReviewRequired': True, 'issueCount': 0, 'issues': [],
+                     'auditError': None, 'applicationFrame': '{{0, 0}, {402, 874}}'}
+            for kind, ext, raw in [('state', 'png', png), ('ax', 'json', self.ui.canonical(audit))]:
+                name = state['id'] + '.' + ext
+                (self.export / name).write_bytes(raw)
+                groups[state['method']]['attachments'].append({'exportedFileName': name,
+                    'suggestedHumanReadableName': 'P1 ' + kind + ' ' + state['id'], 'isAssociatedWithFailure': False})
+        self.manifest = list(groups.values())
+        self.put('rui1-original-attachments/manifest.json', self.manifest)
+        self.tree = native_tree(self.ui.UI[0], True)
+        self.cases = self.tree['testNodes'][0]['children'][0]['children'][0]['children']
+        self.cases[:] = [leaf(native_tree(m, True)) for m in self.ui.UI]
+        self.put('ui-test-results.json', self.tree)
+        self.receipt = {'schema': 'v23-rui1-command.v1', **{k: self.record[k] for k in ('head','runID','runAttempt')},
+            'admissionSHA256': CI.sha256(CI.canonical(self.record)), 'argv': self.ui.command(self.artifact, self.env),
+            'runnerEnvironment': {'TEST_RUNNER_V23_P1_AX_AUDIT_STRICT': '1'}, 'acceptance': False, 'releaseReady': False}
+        self.put('rui1-command.json', self.receipt)
+        (self.artifact / 'ui-final.png').write_bytes(png)
+        # Manifest/source binding has its own real-source checks below. Artifact
+        # mutation tests cache that immutable input to keep protocol checks fast.
+        patch = mock.patch.object(self.ui, 'selection', return_value=self.selected)
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def put(self, name, value):
+        (self.artifact / name).write_bytes(self.ui.canonical(value))
+
+    def verify(self):
+        return self.ui.verify(ROOT, self.artifact, self.record, self.selected, CI)
+
+    def test_exact_original_census_and_nonaccepting_owner_package(self):
+        proof = self.verify()
+        self.assertEqual(len(proof['states']), 27)
+        self.assertEqual(proof['uiMethods'], sorted(self.ui.UI))
+        self.assertEqual(proof['attachmentManifestSHA256'], CI.sha256((self.export / 'manifest.json').read_bytes()))
+        for field in ('acceptance', 'releaseReady', 'providerQualification', 'humanReviewCompleted'):
+            self.assertIs(proof[field], False)
+        page = self.ui.review_page(ROOT, self.artifact, proof).decode()
+        self.assertEqual(page.count('<img '), 27)
+        self.assertEqual(page.count('Original accessibility audit'), 27)
+        self.assertIn('No human approval or acceptance', page)
+        self.assertEqual(len(self.receipt['argv']), 22)
+        self.assertEqual(self.receipt['argv'][-1], 'test-without-building')
+        self.assertEqual([a for a in self.receipt['argv'] if a.startswith('-only-testing:')],
+                         ['-only-testing:' + x for x in self.ui.UI])
+        self.assertNotIn('-retry-tests-on-failure', self.receipt['argv'])
+
+    def test_audits_must_complete_strictly_and_bind_original_png(self):
+        state = self.catalogue['states'][0]
+        name = 'rui1-original-attachments/' + state['id'] + '.json'
+        original = self.ui.read(self.artifact / name)
+        for changes in ({'issuesFailTest': False}, {'auditError': 'incomplete'}, {'issues': ['contrast']},
+                        {'issueCount': 1}, {'pngSHA256': '0'*64}, {'pngByteCount': 1},
+                        {'ordinalInMethod': 2}, {'testName': 'Other/test'}, {'humanReviewRequired': False},
+                        {'auditTypes': ['contrast']}, {'stateID': 'foreign'}, {'schemaVersion': 2}):
+            with self.subTest(changes=changes):
+                self.put(name, dict(original, **changes))
+                with self.assertRaises(ValueError): self.verify()
+        self.put(name, original)
+        self.verify()
+
+    def test_attachment_missing_duplicate_foreign_and_wrong_owner_are_denied(self):
+        original = copy.deepcopy(self.manifest)
+        for kind in ('missing', 'duplicate', 'foreign', 'wrongOwner', 'failure', 'extraGroup'):
+            value = copy.deepcopy(original)
+            if kind == 'missing': value[0]['attachments'].pop()
+            elif kind == 'duplicate': value[0]['attachments'].append(value[0]['attachments'][0])
+            elif kind == 'foreign': value[0]['attachments'][0]['suggestedHumanReadableName'] = 'P1 state unknown'
+            elif kind == 'wrongOwner': value[1]['attachments'].append(value[0]['attachments'].pop())
+            elif kind == 'failure': value[0]['attachments'][0]['isAssociatedWithFailure'] = True
+            else: value.append(copy.deepcopy(value[0]))
+            with self.subTest(kind=kind):
+                self.put('rui1-original-attachments/manifest.json', value)
+                with self.assertRaises(ValueError): self.verify()
+        self.put('rui1-original-attachments/manifest.json', original)
+        self.verify()
+
+    def test_export_suffix_is_bounded_and_files_cannot_escape_or_alias(self):
+        original = copy.deepcopy(self.manifest)
+        entry = self.manifest[0]['attachments'][0]
+        entry['suggestedHumanReadableName'] += '_1_' + UDID + '.png'
+        self.put('rui1-original-attachments/manifest.json', self.manifest)
+        self.verify()
+        for filename in ('../outside.png', '/outside.png', 'nested/file.png', '.', '..'):
+            value = copy.deepcopy(original)
+            value[0]['attachments'][0]['exportedFileName'] = filename
+            self.put('rui1-original-attachments/manifest.json', value)
+            with self.subTest(filename=filename), self.assertRaises(ValueError): self.verify()
+        self.put('rui1-original-attachments/manifest.json', original)
+        path = self.export / original[0]['attachments'][0]['exportedFileName']
+        raw = path.read_bytes()
+        path.unlink()
+        outside = self.artifact / 'outside.png'
+        outside.write_bytes(raw)
+        path.symlink_to(outside)
+        with self.assertRaises(ValueError): self.verify()
+        path.unlink()
+        path.write_bytes(raw)
+        (self.export / 'unlisted.png').write_bytes(raw)
+        with self.assertRaises(ValueError): self.verify()
+
+    def test_structured_results_never_accept_skip_retry_missing_or_foreign_method(self):
+        original = copy.deepcopy(self.cases)
+        for kind in ('skipped', 'failed', 'duplicate', 'missing', 'foreign'):
+            cases = copy.deepcopy(original)
+            if kind in ('skipped','failed'): cases[0]['result'] = kind.title()
+            elif kind == 'duplicate': cases.append(copy.deepcopy(cases[0]))
+            elif kind == 'missing': cases.pop()
+            else: cases[0]['nodeIdentifier'] = 'Other/testForeign()'
+            self.cases[:] = cases
+            self.put('ui-test-results.json', self.tree)
+            with self.subTest(kind=kind), self.assertRaises(ValueError): self.verify()
+        self.cases[:] = original
+        self.put('ui-test-results.json', self.tree)
+        self.verify()
+
+    def test_command_head_audit_override_and_final_image_tampering_fail(self):
+        original = copy.deepcopy(self.receipt)
+        mutations = [dict(original, head='2'*40), dict(original, runAttempt='2'),
+                     dict(original, runnerEnvironment={}), dict(original, acceptance=True)]
+        changed = copy.deepcopy(original)
+        changed['argv'][-1] = 'test'
+        mutations.append(changed)
+        changed = copy.deepcopy(original)
+        changed['argv'].insert(-1, '-skip-testing:' + self.ui.UI[0])
+        mutations.append(changed)
+        for receipt in mutations:
+            self.put('rui1-command.json', receipt)
+            with self.assertRaises(ValueError): self.verify()
+        self.put('rui1-command.json', original)
+        self.verify()
+        (self.artifact / 'ui-final.png').write_bytes(self.ui.PNG + b'wrong image')
+        with self.assertRaises(ValueError): self.verify()
+
+    def test_closed_selection_native_and_jq_reject_mutated_budgets_bindings_and_methods(self):
+        CI.validate_selection(self.selected)
+        for changes in ({'tier': 'P12'}, {'uiTimeoutSeconds': 901}, {'runUISmoke': False},
+                        {'uiTestSelectors': self.selected['uiTestSelectors'][:1]},
+                        {'unitTestSelectors': self.selected['unitTestSelectors'][:-1]},
+                        {'uiBatch': dict(self.selected['uiBatch'], acceptance=True)},
+                        {'uiBatch': dict(self.selected['uiBatch'], sha256='wrong')}):
+            value = dict(self.selected, **changes)
+            with self.subTest(changes=changes):
+                with self.assertRaises(ValueError): CI.validate_selection(value)
+                result = subprocess.run(['jq', '-e', '-f', str(ROOT / 'Scripts/ci-worker-selection.jq')],
+                    input=CI.canonical(value), env=dict(os.environ, NATIVE_SELECTION_ID=self.ui.ROUTE), capture_output=True)
+                self.assertNotEqual(result.returncode, 0)
+        for route, passes in ((self.ui.ROUTE, True), (CI.DEV_BATCH_SELECTION_ID, False), ('none', False)):
+            result = subprocess.run(['jq', '-e', '-f', str(ROOT / 'Scripts/ci-worker-selection.jq')],
+                input=CI.canonical(self.selected), env=dict(os.environ, NATIVE_SELECTION_ID=route), capture_output=True)
+            self.assertEqual(result.returncode == 0, passes)
+
+    def test_dispatch_and_worker_admit_only_exact_original_github_route(self):
+        record = dict(self.record, selectionMapSHA256=CI.sha256((ROOT / CI.SELECTION_MAP_PATH).read_bytes()))
+        e = dict(environment(tier='N8'), NATIVE_SELECTION_ID=self.ui.ROUTE, SHARED_UI='true',
+                 DISPATCH_RUN_UI_SMOKE='true', DISPATCH_NATIVE_SELECTION_ID=self.ui.ROUTE,
+                 DISPATCH_NATIVE_SELECTION_SHA256=record['selectionSHA256'],
+                 DISPATCH_NATIVE_SELECTION_MAP_SHA256=record['selectionMapSHA256'])
+        for stage in ('dispatch','worker'):
+            self.assertIsNotNone(CI.admission(self.selected, e, HEAD, stage, record, ROOT))
+            for changes in ({'GITHUB_RUN_ATTEMPT':'2'}, {'GITHUB_SHA':'2'*40},
+                            {'SHARED_UI':'false','DISPATCH_RUN_UI_SMOKE':'false'}):
+                with self.subTest(stage=stage, changes=changes), self.assertRaises(ValueError):
+                    CI.admission(self.selected, dict(e, **changes), HEAD, stage, record, ROOT)
+        for provider in ('bitrise','getmac'):
+            other = dict(e, CI_RUNNER_PROVIDER=provider, CI_RUNNER_LABEL='foreign-runner')
+            with self.assertRaises(ValueError): CI.admission(self.selected, other, HEAD, 'worker', record, ROOT)
+
+    def test_real_runner_argv_forwards_strict_audit_and_preserves_native_failure(self):
+        from types import SimpleNamespace
+        native = SimpleNamespace(selected_input=lambda root, environment: (self.selected, self.record),
+                                 canonical=CI.canonical)
+        for override in (False, True):
+            out = self.artifact / ('override' if override else 'failure')
+            out.mkdir()
+            (out / 'ci-selection.selected.json').write_bytes(CI.canonical(self.selected))
+            (out / 'native-admission.json').write_bytes(CI.canonical(self.record))
+            e = dict(self.env, GITHUB_SHA=HEAD, CI_SELECTION_PATH=str(out / 'ci-selection.selected.json'))
+            if override: e['TEST_RUNNER_V23_P1_AX_AUDIT_STRICT'] = '0'
+            with mock.patch.dict(os.environ, e, clear=True), mock.patch.object(self.ui, 'load', return_value=native), \
+                    mock.patch.object(self.ui.subprocess, 'run', return_value=subprocess.CompletedProcess([], 42)) as run:
+                if override:
+                    with self.assertRaisesRegex(ValueError, 'caller UI audit overrides'): self.ui.run(ROOT, out)
+                    run.assert_not_called()
+                else:
+                    with self.assertRaises(SystemExit) as error: self.ui.run(ROOT, out)
+                    self.assertEqual(error.exception.code, 42)
+                    run.assert_called_once()
+                    self.assertEqual(run.call_args.args[0], self.ui.command(out, e))
+                    self.assertEqual(run.call_args.kwargs['env']['TEST_RUNNER_V23_P1_AX_AUDIT_STRICT'], '1')
+                self.assertFalse((out / 'rui1-review.json').exists())
+                self.assertFalse((out / 'ui-final.png').exists())
+
+    def test_real_source_manifest_binding_rejects_missing_methods_and_catalogue_drift(self):
+        root = self.artifact / 'checkout'
+        module = CI.load_ui_evidence(ROOT)  # Independent instance: not the cached selection fixture.
+        paths = (module.PATH, module.CATALOGUE, module.UI_SOURCE, module.UNIT_SOURCE,
+                 'FieldEvidenceAppTests/V23ProductionFourRootShellTests.swift', 'Scripts/v23-selection-generator.py')
+        for relative in paths:
+            target = root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes((ROOT / relative).read_bytes())
+        self.assertEqual(module.selection(root), self.selected)
+        for relative, old, new in ((module.UI_SOURCE, module.METHODS[0], 'notATest'),
+                                  (module.UNIT_SOURCE, module.UNITS[0].split('/')[-1], 'notATest'),
+                                  (module.CATALOGUE, 'PROVISIONAL_NOT_RUN', 'DRIFT')):
+            path = root / relative
+            original = path.read_bytes()
+            self.assertIn(old.encode(), original)
+            path.write_bytes(original.replace(old.encode(), new.encode()))
+            with self.subTest(relative=relative), self.assertRaises((ValueError, module.load(root,
+                    'Scripts/v23-selection-generator.py', 'rui_test_generator').ManifestError)):
+                module.selection(root)
+            path.write_bytes(original)
+        self.assertEqual(module.selection(root), self.selected)
+
+    def collector_fixture(self):
+        self.record.update(CI.source_binding(ROOT))
+        self.record.update(runnerProvider='github', runnerLabel='macos-26', acceptance=False,
+                           releaseReady=False, providerQualification=False, diagnosticOnly=True)
+        self.env.update(CI_ARTIFACT_DIR=str(self.artifact), CI_NATIVE_CREATED_SIMULATOR_UDID=UDID,
+                        NATIVE_PRIOR_JOB_STATUS='success')
+        self.receipt['admissionSHA256'] = CI.sha256(CI.canonical(self.record))
+        self.put('rui1-command.json', self.receipt)
+        self.put('native-admission.json', self.record)
+        self.put('ci-selection.selected.json', self.selected)
+        (self.artifact / 'ci-selection-map.json').write_bytes((ROOT / CI.SELECTION_MAP_PATH).read_bytes())
+        (self.artifact / 'runner-provider.txt').write_text(
+            'provider=github\nlabel=macos-26\nrunner_architecture=ARM64\nuname_architecture=arm64\n'
+            'developer_dir=/Applications/Xcode_26.6.app/Contents/Developer\nmacos_product_version=26.6.1\n')
+        (self.artifact / 'xcode-version.txt').write_text('Xcode 26.6\nBuild version 17F113\n')
+        (self.artifact / 'native-sdk.txt').write_text('sdk=iphonesimulator\nversion=26.5\nbuild=23F81a\n')
+        (self.artifact / 'test-smoke.log').write_text('non-native protocol fixture\n')
+        diagnostic_transport(self.artifact)
+        build = CI.no_index_build_receipt(ROOT, self.artifact, self.record, self.env)
+        self.put(CI.NO_INDEX_RECEIPT, build)
+        executed = ['/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild'] + build['argv'][1:]
+        (self.artifact / 'build-smoke.log').write_text('Command line invocation:\n    ' + shlex.join(executed)
+            + '\nbuiltin-SwiftDriver -- /swiftc -module-name ProtocolFixture\n** TEST BUILD SUCCEEDED **\n')
+        proof = self.verify()
+        self.put('rui1-review.json', proof)
+        page = self.ui.review_page(ROOT, self.artifact, proof)
+        (self.artifact / 'rui1-review.html').write_bytes(page)
+        units = native_tree(self.ui.UNITS[0])
+        units['testNodes'][0]['children'][0]['children'][0]['children'] = [leaf(native_tree(m)) for m in self.ui.UNITS]
+        self.put('unit-test-results.json', units)
+        # Positive now passes the real worker verifier with every retained fact,
+        # then collection recomputes it read-only from the same original bytes.
+        checkpoint = CI.verify_checkpoint(ROOT, self.artifact, self.record, self.selected, self.env)
+        self.put('native-checkpoint.json', checkpoint)
+        return proof, checkpoint, page
+
+    def collect_fixture(self, head=HEAD, run='123'):
+        return self.ui.collected_review(ROOT, self.artifact, CI, head, run)
+
+    def test_collector_requires_completed_checkpoint_and_binds_run_and_owner_page(self):
+        proof, checkpoint, page = self.collector_fixture()
+        before = {p.relative_to(self.artifact):p.read_bytes() for p in self.artifact.rglob('*') if p.is_file()}
+        self.assertEqual(self.collect_fixture(), proof)
+        self.assertEqual({p.relative_to(self.artifact):p.read_bytes() for p in self.artifact.rglob('*') if p.is_file()}, before)
+        for head, run in (('2'*40,'123'), (HEAD,'999')):
+            with self.assertRaises(ValueError): self.collect_fixture(head,run)
+        for changes in ({'executedUnitMethods': []}, {'rui1Evidence': {}}, {'humanReviewComplete': True},
+                        {'head':'2'*40}, {'recordType':'admission'}, {'simulator':{}}, {'provider':{}},
+                        {'sdk':{}}, {'noIndexBuildDiagnostic':{}}):
+            self.put('native-checkpoint.json', dict(checkpoint, **changes))
+            with self.assertRaises(ValueError): self.collect_fixture()
+        self.put('native-checkpoint.json', checkpoint)
+        (self.artifact / 'rui1-review.html').write_bytes(page.replace(b'No human approval', b'Human approval'))
+        with self.assertRaises(ValueError): self.collect_fixture()
+        (self.artifact / 'rui1-review.html').write_bytes(page)
+        self.assertEqual(self.collect_fixture(), proof)
+
+    def test_collector_rejects_coherently_changed_runtime_provider_sdk_build_and_diagnostics(self):
+        proof, checkpoint, _ = self.collector_fixture()
+        for name, old, new, checkpoint_field, key, value in (
+                ('simulator-selection.txt','iOS 26.2','iOS 26.5','simulator','runtime','iOS 26.5'),
+                ('simulator-selection.txt','23C54','23F77','simulator','runtime_build','23F77'),
+                ('simulator-selection.txt','Shutdown','Booted','simulator','initial_state','Booted'),
+                ('runner-provider.txt','ARM64','X64','provider','runner_architecture','X64'),
+                ('runner-provider.txt','Xcode_26.6','Xcode_26.5','provider','developer_dir',
+                 '/Applications/Xcode_26.5.app/Contents/Developer'),
+                ('native-sdk.txt','23F81a','foreign','sdk','build','foreign')):
+            path = self.artifact / name
+            raw = path.read_bytes()
+            path.write_bytes(raw.replace(old.encode(),new.encode()))
+            changed = copy.deepcopy(checkpoint)
+            changed[checkpoint_field][key] = value
+            self.put('native-checkpoint.json', changed)
+            with self.subTest(name=name, key=key), self.assertRaises(ValueError): self.collect_fixture()
+            path.write_bytes(raw)
+        self.put('native-checkpoint.json', checkpoint)
+        for name, old, new in (
+                ('xcode-version.txt','17F113','wrong'),
+                ('build-smoke.log','** TEST BUILD SUCCEEDED **','** TEST BUILD FAILED **'),
+                ('build-smoke.log','-module-name','-index-store-path /bad -module-name'),
+                ('build-smoke.log','COMPILER_INDEX_STORE_ENABLE=NO','COMPILER_INDEX_STORE_ENABLE=YES')):
+            path = self.artifact / name
+            raw = path.read_bytes()
+            path.write_bytes(raw.replace(old.encode(),new.encode()))
+            with self.subTest(name=name, old=old), self.assertRaises(ValueError): self.collect_fixture()
+            path.write_bytes(raw)
+        for name in ('xcode-version.txt','native-sdk.txt','runner-provider.txt','simulator-selection.txt',
+                     'build-smoke.log',CI.NO_INDEX_RECEIPT,CI.SIMULATOR_DIAGNOSTIC_OUTPUT):
+            path = self.artifact / name
+            raw = path.read_bytes()
+            path.unlink()
+            with self.subTest(missing=name), self.assertRaises((ValueError,FileNotFoundError)): self.collect_fixture()
+            path.write_bytes(raw)
+        self.assertEqual(self.collect_fixture(), proof)
+
+    def test_collector_requires_complete_original_bundle_census_and_supports_relocated_evidence(self):
+        proof, _, _ = self.collector_fixture()
+        for name in ('Build.xcresult','UnitTests.xcresult','UISmoke.xcresult'):
+            bundle = self.artifact / name
+            for relative in ('Info.plist','Data/original'):
+                path = bundle / relative
+                raw = path.read_bytes()
+                path.unlink()
+                with self.subTest(missing=name+'/'+relative), self.assertRaises(ValueError): self.collect_fixture()
+                path.write_bytes(raw[:1])
+                with self.subTest(truncated=name+'/'+relative), self.assertRaises(ValueError): self.collect_fixture()
+                path.write_bytes(raw)
+            extra = bundle / 'foreign-member'
+            extra.write_bytes(b'foreign')
+            with self.assertRaises(ValueError): self.collect_fixture()
+            extra.unlink()
+            payload = bundle / 'Data/original'
+            raw = payload.read_bytes()
+            payload.unlink()
+            payload.symlink_to(bundle / 'Info.plist')
+            with self.assertRaises(ValueError): self.collect_fixture()
+            payload.unlink()
+            payload.write_bytes(raw)
+        with tempfile.TemporaryDirectory(prefix='rui1-relocated-') as destination:
+            relocated = Path(destination).resolve() / 'artifact'
+            shutil.copytree(self.artifact, relocated)
+            self.assertEqual(self.ui.collected_review(ROOT, relocated, CI, HEAD, '123'), proof)
+        self.assertEqual(self.collect_fixture(), proof)
+
+    def test_raw_result_inventory_rejects_child_directory_scan_errors(self):
+        original = os.scandir
+        unreadable = self.artifact / 'Build.xcresult' / 'Data'
+        (unreadable.parent / 'other-payload').write_bytes(b'payload remains visible at the readable root')
+
+        def denied(path):
+            if Path(path) == unreadable:
+                raise PermissionError('protocol fixture: unreadable result child')
+            return original(path)
+
+        # The root remains readable. Default os.walk would silently omit this
+        # child, so exercise the actual walker rather than mock its callback.
+        with mock.patch.object(os, 'scandir', side_effect=denied):
+            with self.assertRaisesRegex(PermissionError, 'unreadable result child'):
+                self.ui.original_results(self.artifact)
+        self.assertEqual(set(self.ui.original_results(self.artifact)),
+                         {'Build.xcresult', 'UnitTests.xcresult', 'UISmoke.xcresult'})
+
+    def test_worker_shell_preserves_failure_and_never_reaches_legacy_ui(self):
+        text = (ROOT / '.github/workflows/ios-ci-worker.yml').read_text()
+        body = step(text, 'Run task-authorized UI smoke').split('        run: |\n',1)[1]
+        body = '\n'.join(line[10:] if line.startswith(' '*10) else line for line in body.splitlines())
+        cut = body.index('if test "${WORKER_S10_4_DIAGNOSTIC_PROBE_ID')
+        script = body[:cut] + 'exit 99\n'
+        scripts = self.artifact / 'Scripts'
+        scripts.mkdir()
+        (scripts / 'run-with-timeout.sh').write_text('shift\nexec "$@"\n')
+        for code in (0, 42):
+            (scripts / 'v23-ui-smoke.sh').write_text('echo protocol-only\nexit ' + str(code) + '\n')
+            result = subprocess.run(['bash','-c',script], cwd=self.artifact,
+                env=dict(os.environ, NATIVE_SELECTION_ID=self.ui.ROUTE, CI_UI_TIMEOUT_SECONDS='900',
+                         CI_ARTIFACT_DIR=str(self.artifact)), capture_output=True)
+            self.assertEqual(result.returncode, code, result.stderr)
+        self.assertIn('inputs.run_ui_smoke == true', step(text,'Run task-authorized UI smoke'))
+        self.assertNotIn(self.ui.ROUTE, D50_JOB_CAP_EXPRESSION)
+        self.assertIn('timeout-minutes: ' + D50_JOB_CAP_EXPRESSION, text)
+        self.assertLess(text.index('      - name: Run targeted tests\n'), text.index('      - name: Run task-authorized UI smoke\n'))
 
 
 class WorkflowTemplateBudgetTests(unittest.TestCase):

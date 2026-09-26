@@ -2,6 +2,8 @@
             # Only the reusable development batch route carries its file binding.
             def dev_batch_route:
               ($ENV.NATIVE_SELECTION_ID // "") == "v23-dev-batch-no-index-d50";
+            def rui_route:
+              ($ENV.NATIVE_SELECTION_ID // "") == "v23-ui-batch-rui1";
             def shared_route:
               ($ENV.NATIVE_SELECTION_ID // "") == "v23-shared-coverage-d50x";
             def exact_keys:
@@ -17,7 +19,7 @@
                 "totalBudgetSeconds",
                 "unitTestSelectors",
                 "uiTestSelectors"
-              ] + (if dev_batch_route then ["devBatch"] elif shared_route then ["sharedCoverage"] else [] end)) | sort) == (keys | sort);
+              ] + (if dev_batch_route then ["devBatch"] elif shared_route then ["sharedCoverage"] elif rui_route then ["uiBatch"] else [] end)) | sort) == (keys | sort);
             # The shared coverage route: a build-only producer plan or one consumer partition.
             def shared_values($role):
               (.unitTestSelectors | length) as $count
@@ -69,8 +71,25 @@
                   and startswith($prefix)
                   and (length > ($prefix | length))))
                 and (($values | unique | length) == ($values | length));
+            def rui_values:
+              rui_route and .taskID == "V23-INTEGRATION-20260910"
+              and .tier == "RUI1" and .runUISmoke == true
+              and [.setupArtifactTimeoutSeconds, .buildTimeoutSeconds,
+                   .testTimeoutSeconds, .uiTimeoutSeconds, .totalBudgetSeconds] == [300,1800,900,900,3900]
+              and .unitTestSelectors == ["FieldEvidenceAppTests/V23PhaseGateTests/testShippingGateEnablesNoGatedFeature", "FieldEvidenceAppTests/V23PhaseGateTests/testAllFeaturesGateEnablesEveryGatedFeature", "FieldEvidenceAppTests/V23PhaseGateTests/testEveryGatedFeatureBelongsToAPhaseLaterThanPhaseOne", "FieldEvidenceAppTests/V23PhaseGateTests/testBuiltInfoPlistClaimsNoEnvelopeDocumentTypeWhileEnvelopeOpenIsGated", "FieldEvidenceAppTests/V23PhaseGateTests/testBuiltCameraPurposeUsesTheAcceptedS10Wording", "FieldEvidenceAppTests/V23PhaseGateTests/testSystemDiscoveryIntentsAreUndiscoverableWhileGated", "FieldEvidenceAppTests/V23PhaseGateTests/testShippingShellShowsPhaseOneTodayAndCompletedWorkWithoutLaterPhaseSurfaces", "FieldEvidenceAppTests/V23PhaseGateTests/testAllFeaturesShellStillReachesEveryGatedSurfaceForTests"]
+              and .uiTestSelectors == ["FieldEvidenceAppUITests/V23Phase1CriticalStatesUITests/test1MigratedS10StoreOpensFourTabShell", "FieldEvidenceAppUITests/V23Phase1CriticalStatesUITests/test2SignReportAndApprovalResponseInShell", "FieldEvidenceAppUITests/V23Phase1CriticalStatesUITests/test3SettingsAppLockAndCover"]
+              and (.uiBatch | type == "object")
+              and ((.uiBatch | keys) == ["acceptance","cataloguePath","catalogueSHA256","developmentOnly",
+                   "path","releaseReady","schema","sha256","uiSourceSHA256","unitSourceSHA256"])
+              and .uiBatch.path == "Scripts/v23-ui-batch.json"
+              and .uiBatch.schema == "v23-ui-batch.v1"
+              and .uiBatch.cataloguePath == "docs/design/v23/integration/phase1-critical-states.json"
+              and all([.uiBatch.sha256,.uiBatch.catalogueSHA256,.uiBatch.uiSourceSHA256,.uiBatch.unitSourceSHA256][];
+                      type == "string" and test("\\A[0-9A-F]{64}\\z"))
+              and .uiBatch.developmentOnly == true and .uiBatch.acceptance == false and .uiBatch.releaseReady == false;
             def tier_values_match:
-              if .tier == "N8" then
+              if .tier == "RUI1" then rui_values
+              elif .tier == "N8" then
                 [
                   .setupArtifactTimeoutSeconds,
                   .buildTimeoutSeconds,
@@ -523,9 +542,10 @@
             exact_keys
             and (.schemaVersion == 1)
             and (.taskID | nonempty_string)
-            and (.tier | type == "string" and IN("N8", "D30", "D50", "P12", "F25", "D40P", "D50C", "D90S"))
+            and (.tier | type == "string" and IN("N8", "D30", "D50", "P12", "F25", "D40P", "D50C", "D90S", "RUI1"))
             and (if dev_batch_route then .tier == "D50" else true end)
             and (if shared_route then (.tier == "D40P" or .tier == "D50C" or .tier == "D90S") else true end)
+            and (if rui_route then .tier == "RUI1" else .tier != "RUI1" end)
             and (.runUISmoke | type == "boolean")
             and tier_values_match
             and (.unitTestSelectors | selectors("FieldEvidenceAppTests/"; 1))
@@ -535,6 +555,6 @@
                 and (.uiTestSelectors | type == "array" and length == 0)
               else
                 (.runUISmoke == true)
-                and (.uiTestSelectors | selectors("FieldEvidenceAppUITests/"; 1) and length == 1)
+                and (.uiTestSelectors | selectors("FieldEvidenceAppUITests/"; 1) and length == (if rui_route then 3 else 1 end))
               end
             )

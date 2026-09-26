@@ -111,6 +111,7 @@ on:
           - c36-round-item-mount-no-index-build30m
           - c36-startup-retirement-no-index-build30m
           - v23-dev-batch-no-index-d50
+          - v23-ui-batch-rui1
           - v23-shared-coverage-d50x
           - c36-round-item-completion-no-index-build30m
           - c36-live-host

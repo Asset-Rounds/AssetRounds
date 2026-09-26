@@ -34,7 +34,7 @@ LANES = {
     "github-xcode-26.6-acceptance": ("github", "macos-26"),
     "bitrise-build-hub-xcode-26.6-acceptance": ("bitrise", "bitrise-runner-Asset Roundddd"),
 }
-TIERS = {"N8": (300, 1200, 900, 0, 2400), "P12": (300, 600, 900, 900, 3300),
+TIERS = {"RUI1": (300, 1800, 900, 900, 3900), "N8": (300, 1200, 900, 0, 2400), "P12": (300, 600, 900, 900, 3300),
          "F25": (300, 900, 1200, 1800, 4500), "D30": (300, 1800, 900, 0, 3000),
          "D50": (300, 1800, 3000, 0, 5100),
          # Development-only shared coverage: one build-only producer, then test-only consumers.
@@ -448,6 +448,8 @@ NO_INDEX_ROUTES = {
 # needs no selector, parent/tree pin or manifest change. It pins no parent or trees:
 # the selected evidence binds the file digest and ordered list, and the admission
 # binds the head. Never acceptance, provider qualification, coverage or merge credit.
+UI_BATCH_SELECTION_ID = "v23-ui-batch-rui1"
+UI_BATCH_KEY = "uiBatch"
 DEV_BATCH_SELECTION_ID = "v23-dev-batch-no-index-d50"
 DEV_BATCH_PATH = "Scripts/v23-dev-batch.json"
 DEV_BATCH_SCHEMA = "v23-dev-batch.v1"
@@ -1497,11 +1499,12 @@ def validate_shared_binding(selection):
 
 def validate_selection(selection):
     require(isinstance(selection, dict), "selection object")
+    ui_batch = UI_BATCH_KEY in selection
     development_batch = DEV_BATCH_KEY in selection
     shared = SHARED_KEY in selection
     keys = {"schemaVersion", "taskID", "tier", "runUISmoke",
             "unitTestSelectors", "uiTestSelectors", *BUDGET_KEYS}
-    require(set(selection) == ((keys | {DEV_BATCH_KEY}) if development_batch
+    require(set(selection) == ((keys | {UI_BATCH_KEY}) if ui_batch else (keys | {DEV_BATCH_KEY}) if development_batch
                                else (keys | {SHARED_KEY}) if shared else keys), "selection keys")
     require(type(selection["schemaVersion"]) is int and selection["schemaVersion"] == 1, "schema")
     require(selection["taskID"] == TASK and selection["tier"] in TIERS, "task/tier")
@@ -1517,7 +1520,13 @@ def validate_selection(selection):
         require(all(re.fullmatch(re.escape(bundle) + r"/[A-Za-z_][A-Za-z0-9_]*/test[A-Za-z0-9_]+", x)
                     for x in selectors), "exact native method selectors")
     require(bool(selection["unitTestSelectors"]), "no unit methods")
-    require(len(selection["uiTestSelectors"]) == int(ui), "UI method count")
+    require(len(selection["uiTestSelectors"]) == (3 if ui_batch else int(ui)), "UI method count")
+    require(ui_batch == (selection["tier"] == "RUI1"), "RUI1 closed tier")
+    if ui_batch:
+        module = load_ui_evidence(Path(__file__).resolve().parents[1])
+        module.validate_binding(selection[UI_BATCH_KEY])
+        require(tuple(selection["unitTestSelectors"]) == module.UNITS
+                and tuple(selection["uiTestSelectors"]) == module.UI, "RUI1 exact methods")
     if development_batch:
         # Shape only; admission binds this list to the committed file at the head.
         require(selection["tier"] == DEV_BATCH_TIER, "development batch tier")
@@ -2022,6 +2031,15 @@ def verify_generated_selection(root, default, selection_map):
     return report
 
 
+def load_ui_evidence(root):
+    source = root / "Scripts/v23-ui-evidence.py"
+    require(source.is_file() and not source.is_symlink(), "RUI1 verifier source")
+    spec = importlib.util.spec_from_file_location("v23_ui_evidence", source)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def development_batch_selection(root):
     """Return the D50 selection named by the committed development batch at root.
 
@@ -2471,7 +2489,11 @@ def selected_input(root, environment):
     selection_map = read_json(root / SELECTION_MAP_PATH)
     role, partition, payload = shared_route_environment(environment)
     shared_binding = None
-    if selection_id == DEV_BATCH_SELECTION_ID:
+    if selection_id == UI_BATCH_SELECTION_ID:
+        require((role, partition, payload) == ("none", "", ""), "RUI1 independent route")
+        resolve_selection(default, selection_map, DEFAULT_SELECTION_ID)
+        selected = load_ui_evidence(root).selection(root)
+    elif selection_id == DEV_BATCH_SELECTION_ID:
         # The checked-in pool and map keep every existing check; only the exact
         # ordered methods come from the committed development batch at this head.
         require((role, partition, payload) == ("none", "", ""), "V23 shared inputs outside the shared route")
@@ -2596,7 +2618,12 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
               or SHARED_KEY in selection_record)
     if not shared:
         require(shared_route_environment(e) == ("none", "", ""), "V23 shared inputs outside the shared route")
-    if development_batch:
+    if selection_record["selectionID"] == UI_BATCH_SELECTION_ID or UI_BATCH_KEY in selection:
+        require(selection_record["selectionID"] == UI_BATCH_SELECTION_ID
+                and selection == load_ui_evidence(root).selection(root), "RUI1 committed input binding")
+        require(provider == "github" and label == "macos-26", "RUI1 GitHub only")
+        require(e["GITHUB_RUN_ATTEMPT"] == "1", "RUI1 original only")
+    elif development_batch:
         # No parent/tree pin: the exact list is recomputed from the committed file
         # at this checkout and must equal the dispatched selection byte for byte.
         require(selection_record["selectionID"] == DEV_BATCH_SELECTION_ID
@@ -2881,25 +2908,28 @@ def build_order_observations(artifact, record, selected_udid):
             "acceptance": False, "performanceImprovementProven": False}
 
 
-def no_index_build_receipt(root, artifact, record, environment):
+def no_index_build_receipt(root, artifact, record, environment, *, command_artifact=None):
     development_batch = record["selectionID"] == DEV_BATCH_SELECTION_ID
     shared = record["selectionID"] == SHARED_SELECTION_ID
     if shared:
         require(shared_role(record) == "producer", "shared coverage build is producer-only")
-    unpinned = development_batch or shared
+    unpinned = development_batch or shared or record["selectionID"] == UI_BATCH_SELECTION_ID
     require(record["selectionID"] in NO_INDEX_ROUTES or unpinned, "no-index admitted selection")
     require(read_json(artifact / "native-admission.json") == record, "no-index admission changed")
+    from pathlib import PurePosixPath
+    command_root = artifact if command_artifact is None else command_artifact
     e = environment
     require(e.get("PROJECT_PATH") == "FieldEvidenceApp.xcodeproj"
             and e.get("SCHEME") == "FieldEvidenceApp" and e.get("CONFIGURATION") == "Debug"
             and e.get("CODE_SIGNING_ALLOWED") == "NO", "no-index build configuration")
     destination = "platform=iOS Simulator,id=" + e["CI_SIMULATOR_UDID"]
     require(e.get("CI_DESTINATION") == destination, "no-index exact destination")
-    require(e.get("CI_ARTIFACT_DIR") == str(artifact), "no-index artifact path")
+    require(e.get("CI_ARTIFACT_DIR") == str(command_root), "no-index artifact path")
+    runner_temp = Path(e["RUNNER_TEMP"]) if command_artifact is None else PurePosixPath(e["RUNNER_TEMP"])
     arguments = ["xcodebuild", "-project", e["PROJECT_PATH"], "-scheme", e["SCHEME"],
                  "-configuration", e["CONFIGURATION"], "-destination", destination,
-                 "-derivedDataPath", str(Path(e["RUNNER_TEMP"]) / "FieldEvidenceDerivedData"),
-                 "-resultBundlePath", str(artifact / "Build.xcresult"),
+                 "-derivedDataPath", str(runner_temp / "FieldEvidenceDerivedData"),
+                 "-resultBundlePath", str(command_root / "Build.xcresult"),
                  "CODE_SIGNING_ALLOWED=NO", "COMPILER_INDEX_STORE_ENABLE=NO", "build-for-testing"]
     # The development batch and shared producer pin no parent or trees; their admission
     # record (bound by admissionSHA256) carries the exact head, head tree and list digest.
@@ -2913,8 +2943,8 @@ def no_index_build_receipt(root, artifact, record, environment):
             "argv": arguments, "diagnosticOnly": True, "acceptance": False}
 
 
-def verify_no_index_build(root, artifact, record, environment):
-    expected = no_index_build_receipt(root, artifact, record, environment)
+def verify_no_index_build(root, artifact, record, environment, *, command_artifact=None):
+    expected = no_index_build_receipt(root, artifact, record, environment, command_artifact=command_artifact)
     require(read_json(artifact / NO_INDEX_RECEIPT) == expected, "no-index command receipt changed")
     path = artifact / "build-smoke.log"
     require(path.is_file() and not path.is_symlink() and path.stat().st_size <= 256 * 1024 * 1024,
@@ -3403,7 +3433,11 @@ def sha256_path(path):
     return digest.hexdigest().upper()
 
 
-def verify_checkpoint(root, artifact, record, selection, environment):
+def verify_checkpoint(root, artifact, record, selection, environment, *, retained_command_artifact=None):
+    # Collection reads relocated originals. Only command paths retain their
+    # runner spelling; every fact is read from artifact, with no writes.
+    if retained_command_artifact is not None:
+        require(record["selectionID"] == UI_BATCH_SELECTION_ID, "retained RUI1 verification only")
     role = shared_role(record) if record["selectionID"] == SHARED_SELECTION_ID else None
     if role == "producer":
         # A build-only producer runs no tests, so it has no diagnostic stream to retain.
@@ -3414,7 +3448,12 @@ def verify_checkpoint(root, artifact, record, selection, environment):
                 "shared producer test evidence")
         diagnostic_evidence = None
     else:
-        diagnostic_evidence = persist_simulator_diagnostic_observations(root, artifact, record)
+        if retained_command_artifact is None:
+            diagnostic_evidence = persist_simulator_diagnostic_observations(root, artifact, record)
+        else:
+            diagnostic_evidence, parse_error = simulator_diagnostic_observations(root, artifact, record)
+            require(parse_error is None and read_json(artifact / SIMULATOR_DIAGNOSTIC_OUTPUT) == diagnostic_evidence,
+                    "retained simulator diagnostic observations")
         require(environment.get("NATIVE_PRIOR_JOB_STATUS") == "success", "earlier job failure")
         require(diagnostic_evidence["testLog"]["availability"] == "AVAILABLE"
                 and diagnostic_evidence["parseStatus"] == "PASS",
@@ -3448,9 +3487,10 @@ def verify_checkpoint(root, artifact, record, selection, environment):
             and simulator.get("udid") == environment.get("CI_NATIVE_CREATED_SIMULATOR_UDID"),
             "fresh owned Simulator")
     build_order = {}
-    if (record["selectionID"] in NO_INDEX_ROUTES or record["selectionID"] == DEV_BATCH_SELECTION_ID
+    if (record["selectionID"] in NO_INDEX_ROUTES or record["selectionID"] in (DEV_BATCH_SELECTION_ID, UI_BATCH_SELECTION_ID)
             or role == "producer"):
-        build_order["noIndexBuildDiagnostic"] = verify_no_index_build(root, artifact, record, environment)
+        build_order["noIndexBuildDiagnostic"] = verify_no_index_build(
+            root, artifact, record, environment, command_artifact=retained_command_artifact)
     if record["selectionID"] in (BUILD_ORDER_SELECTION_ID, NOTIFICATION_INTERRUPTION_SELECTION_ID):
         build_order["buildOrderDiagnostic"] = build_order_observations(artifact, record, simulator["udid"])
     if role == "producer":
@@ -3466,6 +3506,16 @@ def verify_checkpoint(root, artifact, record, selection, environment):
     if selection["runUISmoke"]:
         ui = executed_methods(read_json(artifact / "ui-test-results.json"),
                               selection["uiTestSelectors"], "FieldEvidenceAppUITests", "UI test bundle")
+        if record["selectionID"] == UI_BATCH_SELECTION_ID:
+            from types import SimpleNamespace
+            evidence = load_ui_evidence(root)
+            proof = evidence.verify(root, artifact, record, selection,
+                    SimpleNamespace(executed_methods=executed_methods, canonical=canonical), environment,
+                    command_artifact=retained_command_artifact)
+            require(read_json(artifact / "rui1-review.json") == proof, "RUI1 review proof")
+            require(evidence.regular(artifact / "rui1-review.html") == evidence.review_page(root, artifact, proof),
+                    "RUI1 owner review presentation")
+            build_order["rui1Evidence"] = proof
         screenshot = artifact / "ui-final.png"
         require(screenshot.is_file() and not screenshot.is_symlink()
                 and screenshot.stat().st_size > 8, "native UI screenshot")
@@ -3544,6 +3594,8 @@ def main():
         return
     subprocess.run(["git", "diff", "--exit-code", "HEAD", "--"], cwd=root, check=True, stdout=subprocess.DEVNULL)
     record.update(source_binding(root))
+    if record["selectionID"] == UI_BATCH_SELECTION_ID:
+        record["rui1ProtocolSources"] = load_ui_evidence(root).protocol_sources(root)
     record["gitTree"] = subprocess.check_output(["git", "rev-parse", "HEAD^{tree}"], cwd=root, text=True).strip()
     artifact = Path(os.environ["CI_ARTIFACT_DIR"])
     require(artifact.is_dir() and not artifact.is_symlink(), "artifact directory")

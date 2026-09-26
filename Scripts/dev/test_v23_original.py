@@ -1310,6 +1310,139 @@ class DevelopmentRouteTests(unittest.TestCase):
         self.assertFalse(NEW.development_route(ORDINARY_D30, dict(ORDINARY_PLAN, developmentOnly=True, acceptance=True)))
 
 
+class RUI1OriginalTests(unittest.TestCase):
+    def test_explicit_kind_and_serialized_dispatch_request_ui(self):
+        plan = {'tier': 'RUI1', 'runUISmoke': True, 'unitTestSelectors': ['unit'],
+                'uiTestSelectors': ['ui'], 'uiBatch': {'developmentOnly': True, 'acceptance': False}}
+        route = NEW.UI_BATCH_SELECTION_ID
+        self.assertTrue(NEW.development_route(route, plan))
+        self.assertFalse(NEW.development_route('other', plan))
+        self.assertFalse(NEW.development_route(route, dict(plan, uiBatch={'acceptance': False})))
+        self.assertNotIn(route, NEW.PER_HEAD_SELECTIONS)
+        with self.assertRaisesRegex(SystemExit, '--kind'): NEW.run_kind(route, None)
+        for kind in ('gate', 'development'):
+            with tempfile.TemporaryDirectory() as temporary:
+                harness = DispatchHarness(NEW, Path(temporary), route, resolved=plan,
+                    workflow=(REPO_ROOT / NEW.WORKFLOW_PATH).read_text())
+                harness.dispatch(kind=kind)
+                calls = [entry[1] for entry in harness.calls if entry[0] == 'subprocess' and entry[1][:2] == ('gh','workflow')]
+                self.assertEqual(len(calls), 1)
+                self.assertIn('run_ui_smoke=true', calls[0])
+                if kind == 'development':
+                    self.assertIn('v23_run_kind=development', calls[0])
+                else:
+                    self.assertFalse(any(x.startswith('v23_run_kind=') for x in calls[0]))  # default gate
+
+    def test_ui_failures_and_interruption_are_counted_and_cannot_be_infra_retries(self):
+        route = NEW.UI_BATCH_SELECTION_ID
+        for outcome in ('failed', 'started'):
+            with tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                directory = stage_single(root)
+                dispatch_path = directory / 'dispatch.json'
+                dispatch = json.loads(dispatch_path.read_bytes())
+                dispatch['selection'] = route
+                selected_path = directory / 'artifact/ci-selection.selected.json'
+                selected = json.loads(selected_path.read_bytes())
+                selector = 'FieldEvidenceAppUITests/V23Phase1CriticalStatesUITests/test3SettingsAppLockAndCover'
+                selected.update(tier='RUI1', runUISmoke=True, uiTestSelectors=[selector], uiBatch={'acceptance':False})
+                selected_path.write_bytes(canonical(selected))
+                dispatch.update(resolvedSelection=selected, resolvedSelectionSHA256=sha(canonical(selected)))
+                dispatch_path.write_bytes(canonical(dispatch))
+                log = directory / 'artifact/ui-smoke.log'
+                log.write_text("Test Case '-[FieldEvidenceAppUITests.V23Phase1CriticalStatesUITests test3SettingsAppLockAndCover]' "
+                               + outcome + (" (1.234 seconds).\n" if outcome == 'failed' else "\n"))
+                with evidence_root(NEW, root): summary = NEW.summarize(SINGLE_RUN)
+                self.assertEqual(summary['tests'][selector]['result'], 'Failed' if outcome == 'failed' else 'Interrupted')
+                self.assertFalse(summary['ownerReview']['verifiedOriginals'])
+                refusals, _ = NEW.infra_failure_classification(summary, [], SINGLE_RUN, summary['head'], route)
+                self.assertTrue(any('test phase ran' in r for r in refusals))
+
+    def test_collection_never_issues_review_for_failed_or_mismatched_original(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            dispatched = {'head': HEAD, 'selection': NEW.UI_BATCH_SELECTION_ID, 'resolvedSelectionSHA256': '0'*64}
+            for observed, initial in (({'id':123,'conclusion':'failure'}, []),
+                                      ({'id':123,'conclusion':'success'}, ['wrong artifacts']),
+                                      ({'id':123,'conclusion':'success'}, [])):
+                notes = list(initial)
+                with mock.patch.object(NEW, 'git_bytes', side_effect=AssertionError('no checkout on invalid original')):
+                    NEW.collect_ui_review(directory, dispatched, observed, notes)
+                self.assertGreater(len(notes), len(initial))
+                self.assertFalse((directory / 'owner-review.html').exists())
+                self.assertFalse((directory / 'rui1-collected-review.json').exists())
+
+    def test_success_without_verified_package_fails_after_retaining_raw_export_manifest(self):
+        run = json.loads((FIXTURE / 'run.json').read_bytes())
+        run['conclusion'] = 'success'
+        jobs = json.loads((FIXTURE / 'jobs.json').read_bytes())['jobs']
+        files = {name: (FIXTURE / 'artifact' / name).read_bytes()
+                 for name in ('ci-selection.selected.json', 'test-smoke.log', 'build-smoke.log',
+                              'unit-test-results.json', 'native-admission.json')}
+        selected = json.loads(files['ci-selection.selected.json'])
+        selected.update(tier='RUI1', runUISmoke=True, uiTestSelectors=['FieldEvidenceAppUITests/Fixture/testState'])
+        files['ci-selection.selected.json'] = canonical(selected)
+        export_name = 'rui1-original-attachments/manifest.json'
+        files[export_name] = b'[]\n'  # Hostile incomplete export, retained intact.
+        files['nested/summary-original.json'] = b'{"raw":"original"}\n'
+        blob = zip_bytes(files)
+        listing = json.loads((FIXTURE / 'artifacts.json').read_bytes())['artifacts']
+        listing[0].update(name=f'ios-ci-native-github-{NEW.UI_BATCH_SELECTION_ID}-{SINGLE_RUN}-1',
+                          digest='sha256:' + hashlib.sha256(blob).hexdigest())
+        fake = FakeGitHub(run, jobs, listing, {listing[0]['id']: blob}, zip_bytes({'whole-job.txt':b'original\n'}))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = root / str(SINGLE_RUN)
+            directory.mkdir()
+            dispatched = json.loads((FIXTURE / 'dispatch.json').read_bytes())
+            dispatched.update(selection=NEW.UI_BATCH_SELECTION_ID, resolvedSelection=selected,
+                              resolvedSelectionSHA256=sha(files['ci-selection.selected.json']))
+            (directory / 'dispatch.json').write_bytes(canonical(dispatched))
+            def denied(directory, dispatched, observed, notes):
+                notes.append('synthetic protocol rejection: incomplete original export')
+            with evidence_root(NEW, root), mock.patch.object(NEW, 'api', fake.api), \
+                    mock.patch.object(NEW, 'api_bytes', fake.api_bytes), \
+                    mock.patch.object(NEW, 'collect_ui_review', side_effect=denied), \
+                    contextlib.redirect_stdout(io.StringIO()), self.assertRaisesRegex(SystemExit,'original validation failed'):
+                NEW.collect(SINGLE_RUN, False)
+            manifest = json.loads((directory / 'manifest.json').read_bytes())
+            self.assertEqual(manifest['files']['artifact/' + export_name], sha(files[export_name]))
+            self.assertEqual(manifest['files']['artifact/nested/summary-original.json'],
+                             sha(files['nested/summary-original.json']))
+            self.assertEqual((directory / 'artifact' / export_name).read_bytes(), files[export_name])
+            self.assertIn('run-logs.zip', manifest['files'])
+            self.assertIn('artifact-' + str(listing[0]['id']) + '.zip', manifest['files'])
+            self.assertFalse((directory / 'owner-review.html').exists())
+            self.assertFalse(json.loads((directory / 'summary.json').read_bytes())['ownerReview']['verifiedOriginals'])
+
+    def test_collector_uses_committed_verifier_and_dispatch_identity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            (directory / 'artifact').mkdir()
+            raw = b'{"protocol":"fixture"}\n'
+            (directory / 'artifact/ci-selection.selected.json').write_bytes(raw)
+            dispatched = {'head': HEAD, 'selection': NEW.UI_BATCH_SELECTION_ID, 'resolvedSelectionSHA256': sha(raw)}
+            archive = io.BytesIO()
+            import tarfile
+            with tarfile.open(fileobj=archive, mode='w'): pass
+            calls = []
+            def check(args, **kwargs):
+                calls.append((args, kwargs))
+                return subprocess.CompletedProcess(args, 0, b'{"acceptance":false,"humanReviewCompleted":false}\n', b'')
+            with mock.patch.object(NEW, 'git_bytes', return_value=archive.getvalue()) as tree, \
+                    mock.patch.object(NEW.subprocess, 'run', side_effect=check):
+                notes = []
+                NEW.collect_ui_review(directory, dispatched, {'id':123,'conclusion':'success'}, notes)
+            tree.assert_called_once_with('archive', '--format=tar', HEAD)
+            argv, kwargs = calls[0]
+            self.assertEqual(argv[2:4], ['Scripts/v23-ui-evidence.py', 'collect'])
+            self.assertEqual(argv[argv.index('--expected-head')+1], HEAD)
+            self.assertEqual(argv[argv.index('--expected-run')+1], '123')
+            self.assertEqual(kwargs['cwd'], argv[argv.index('--root')+1])
+            self.assertEqual(notes, [])
+            self.assertFalse(json.loads((directory / 'rui1-collected-review.json').read_bytes())['acceptance'])
+
+
 class EvidenceRootTests(unittest.TestCase):
     def test_configured_root_wins_on_every_platform(self):
         for os_name in ("nt", "posix"):

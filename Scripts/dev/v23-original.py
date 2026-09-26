@@ -15,8 +15,8 @@ Windows), else C:/AssetRounds-v23-review-evidence on Windows and
                             exact pushed head. An exclusive attempt record is
                             created BEFORE the request, so no failure after it
                             can permit a second original for head+selection.
-                            --kind is required for v23-dev-batch-no-index-d50
-                            and v23-shared-coverage-d50x; every other selection
+                            --kind is required for v23-dev-batch-no-index-d50,
+                            v23-shared-coverage-d50x and v23-ui-batch-rui1. Other selections
                             defaults to gate. The kind is recorded in the
                             attempt record, dispatch.json and the ledger. A gate
                             original is refused when head+selection already has
@@ -129,11 +129,12 @@ ROOT = Path(__file__).resolve().parents[2]
 # and parallel batches. Merge and release gates are unchanged; never acceptance.
 DEV_BATCH_SELECTION_ID = "v23-dev-batch-no-index-d50"
 # Routes that serve both development sweeps and gates: every dispatch names its kind.
-KIND_REQUIRED_SELECTIONS = (DEV_BATCH_SELECTION_ID, "v23-shared-coverage-d50x")
+UI_BATCH_SELECTION_ID = "v23-ui-batch-rui1"
+KIND_REQUIRED_SELECTIONS = (DEV_BATCH_SELECTION_ID, "v23-shared-coverage-d50x", UI_BATCH_SELECTION_ID)
 KINDS = ("development", "gate")
 DEVELOPMENT_TIERS = ("D30", "D50", "D40P", "D50C", "D90S")
 # Development originals of these routes get per-head concurrency groups (owner decision 16).
-PER_HEAD_SELECTIONS = KIND_REQUIRED_SELECTIONS
+PER_HEAD_SELECTIONS = (DEV_BATCH_SELECTION_ID, "v23-shared-coverage-d50x")
 # The dispatch input that carries the kind to the workflow; declared with default gate.
 RUN_KIND_INPUT = "v23_run_kind"
 # The exact term the caller group, the route jobs' groups and their workers' groups must
@@ -253,17 +254,19 @@ def append_ledger(entry):
 def development_route(selection, resolved):
     """True only for a development route whose resolved selection says so.
 
-    The two named routes must carry their developmentOnly/acceptance binding. Any
+    The named routes must carry their developmentOnly/acceptance binding. Any
     other selection qualifies only when it or its binding declares
     developmentOnly: true (acceptance: false alone never counts), with a
     development tier, and nothing in it claims acceptance."""
-    if not isinstance(resolved, dict) or resolved.get("tier") not in DEVELOPMENT_TIERS:
+    if not isinstance(resolved, dict) or (resolved.get("tier") not in DEVELOPMENT_TIERS
+            and not (selection == UI_BATCH_SELECTION_ID and resolved.get("tier") == "RUI1")):
         return False
-    bindings = [resolved] + [resolved[key] for key in ("devBatch", "sharedCoverage")
+    bindings = [resolved] + [resolved[key] for key in ("devBatch", "sharedCoverage", "uiBatch")
                              if isinstance(resolved.get(key), dict)]
     if any(b.get("acceptance") is True or b.get("developmentOnly") is False for b in bindings):
         return False
-    named = {DEV_BATCH_SELECTION_ID: "devBatch", SHARED_SELECTION_ID: "sharedCoverage"}
+    named = {DEV_BATCH_SELECTION_ID: "devBatch", SHARED_SELECTION_ID: "sharedCoverage",
+             UI_BATCH_SELECTION_ID: "uiBatch"}
     if selection in named:
         binding = resolved.get(named[selection])
         return (isinstance(binding, dict) and binding.get("developmentOnly") is True
@@ -272,7 +275,7 @@ def development_route(selection, resolved):
 
 
 def run_kind(selection, kind):
-    """The declared run kind: required for the two dual-use routes, else gate by default."""
+    """The declared run kind: required for the dual-use routes, else gate by default."""
     if kind is None:
         if selection in KIND_REQUIRED_SELECTIONS:
             raise SystemExit(f"--kind development|gate is required for {selection}: it serves both "
@@ -734,7 +737,8 @@ def dispatch(selection, kind=None, infra_retry_of=None, reason=None):
     attempt_path = retry_path or ATTEMPTS / f"{head}-{selection}.json"
     argv = ["gh", "workflow", "run", WORKFLOW, "--repo", REPO, "--ref", BRANCH,
             "-f", "execution_lane=" + LANE, "-f", "native_selection_id=" + selection,
-            "-f", "run_ui_smoke=false", "-f", "s10_4_shard_id=none",
+            "-f", "run_ui_smoke=" + ("true" if selection == UI_BATCH_SELECTION_ID else "false"),
+            "-f", "s10_4_shard_id=none",
             "-f", "s10_4_minimum_core_smoke_id=none", "-f", "s10_4_shared_segment_id=none"]
     if kind == "development":
         # A gate passes nothing: the workflow default (gate) keeps its argv and groups unchanged.
@@ -875,15 +879,56 @@ def collect(run_id, resume):
     if not (directory / "run-logs").exists():
         extract(directory / "run-logs.zip", directory / "run-logs")
     check_identity(api(f"repos/{REPO}/actions/runs/{run_id}"), dispatched)
+    if dispatched["selection"] == UI_BATCH_SELECTION_ID:
+        collect_ui_review(directory, dispatched, observed, notes)
     walk_root = Path("\\\\?\\" + str(directory.resolve())) if os.name == "nt" else directory
     manifest = {p.relative_to(walk_root).as_posix(): sha256(p.read_bytes())
-                for p in sorted(walk_root.rglob("*")) if p.is_file() and p.name != "manifest.json"
-                and not p.name.startswith("summary")}
+                for p in sorted(walk_root.rglob("*")) if p.is_file()
+                and (p != walk_root / "manifest.json" if dispatched["selection"] == UI_BATCH_SELECTION_ID
+                     else p.name != "manifest.json")
+                and (not (p.parent == walk_root and p.name.startswith("summary"))
+                     if dispatched["selection"] == UI_BATCH_SELECTION_ID else not p.name.startswith("summary"))}
     write_new(directory / "manifest.json", {"runID": run_id, "files": manifest, "notes": notes, "atUTC": now()})
     summary = summarize(run_id)
     print(json.dumps({k: v for k, v in summary.items() if k not in ("tests", "steps")}, indent=2))
     for key, value in summary["tests"].items():
         print(value["result"], value["seconds"], key)
+    if dispatched["selection"] == UI_BATCH_SELECTION_ID and observed["conclusion"] == "success" \
+            and not summary["ownerReview"]["verifiedOriginals"]:
+        raise SystemExit("RUI1 original validation failed; originals and manifest retained, no owner review package")
+
+
+def collect_ui_review(directory, dispatched, observed, notes):
+    """Recheck original bytes using the exact dispatched head, never the live checkout.
+
+    Failed or incomplete originals remain retained. A package is produced only
+    after all screenshot/audit/outcome and source bindings pass; it records no
+    owner approval, provider qualification or acceptance.
+    """
+    if observed["conclusion"] != "success":
+        notes.append("RUI1 original failed: no verified owner review package")
+        return
+    if notes:
+        notes.append("RUI1 artifact census invalid: no verified owner review package")
+        return
+    artifact = directory / "artifact"
+    selected = artifact / "ci-selection.selected.json"
+    if not selected.is_file() or sha256(selected.read_bytes()) != dispatched["resolvedSelectionSHA256"]:
+        notes.append("RUI1 selected input differs from dispatch: no verified owner review package")
+        return
+    with tempfile.TemporaryDirectory(prefix="v23-rui-review-") as temporary:
+        with tarfile.open(fileobj=io.BytesIO(git_bytes("archive", "--format=tar", dispatched["head"]))) as archive:
+            archive.extractall(temporary, filter="data")
+        completed = subprocess.run([sys.executable, "-B", "Scripts/v23-ui-evidence.py", "collect",
+            "--root", temporary, "--artifact", str(artifact.resolve()), "--expected-head", dispatched["head"],
+            "--expected-run", str(observed["id"]), "--review-output", str((directory / "owner-review.html").resolve())],
+            cwd=temporary, capture_output=True)
+        save_bytes(directory / "rui1-collection.log", completed.stdout + completed.stderr)
+        if completed.returncode:
+            notes.append("RUI1 original validation failed: see rui1-collection.log; no review or acceptance credit")
+            return
+        proof = json.loads(completed.stdout)
+        write_new(directory / "rui1-collected-review.json", proof)
 
 
 def extract(archive, target):
@@ -988,6 +1033,16 @@ def summarize(run_id):
     selected = selection["unitTestSelectors"]
     log, from_job_log = test_lines(directory)
     results, unselected, timings, diagnostics = parse_test_log(log, selected)
+    if dispatched["selection"] == UI_BATCH_SELECTION_ID:
+        ui_log = directory / "artifact" / "ui-smoke.log"
+        if not ui_log.is_file():
+            candidates = sorted((directory / "run-logs").rglob("*Run task-authorized UI smoke.txt"))
+            ui_log = candidates[0] if candidates else None
+        ui_results, ui_unselected, ui_timings, ui_diagnostics = parse_test_log(ui_log, selection["uiTestSelectors"])
+        results.update(ui_results)
+        unselected.update(ui_unselected)
+        timings.extend(ui_timings)
+        diagnostics.extend(ui_diagnostics)
     duplicated = sorted(k for k, v in results.items() if v["lines"] > 2)
     structured = {}
     results_path = directory / "artifact" / "unit-test-results.json"
@@ -1016,6 +1071,10 @@ def summarize(run_id):
                "duplicatedTestLines": duplicated, "protectedFileTiming": timings[-60:],
                "namedDiagnostics": diagnostics, "devBatch": selection.get("devBatch"),
                "steps": steps, "acceptance": False, "releaseReady": False, "atUTC": now()}
+    if dispatched["selection"] == UI_BATCH_SELECTION_ID:
+        summary["uiBatch"] = selection.get("uiBatch")
+        summary["ownerReview"] = {"verifiedOriginals": (directory / "rui1-collected-review.json").is_file(),
+                                  "humanReviewCompleted": False, "acceptance": False}
     target = directory / "summary.json"
     if target.exists():
         target = directory / f"summary-{int(time.time())}.json"
