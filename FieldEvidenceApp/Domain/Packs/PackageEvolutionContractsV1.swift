@@ -167,6 +167,51 @@ struct PackageSemanticDiffV1: Codable, Equatable, Sendable {
 }
 
 enum PackageSemanticDifferV1 {
+    private enum CompositeDomain: String { case guidance, presentation }
+    private struct CompositeSubjectBasis: Codable {
+        let domain: String
+        let semanticID: String
+    }
+    /// Preserve prior valid token bytes; only the graph's composite subjects
+    /// need a bounded, domain-separated representation in a change record.
+    private static func subjectID(_ value: String, domain: CompositeDomain) throws -> String {
+        if InspectionPackageValidationV2.validToken(value, maximumBytes: 256) { return value }
+        let parts = value.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+        switch domain {
+        case .guidance:
+            guard parts.count == 3, let kind = InspectionPackageGuidanceKindV2(rawValue: parts[1]) else {
+                throw PackageEvolutionFailureV1.invalidValue
+            }
+            do {
+                try InspectionPackageGuidanceV2(guidanceID: parts[0], kind: kind, localizationKey: parts[2]).validate()
+            } catch { throw PackageEvolutionFailureV1.invalidValue }
+        case .presentation:
+            guard let kind = parts.first else { throw PackageEvolutionFailureV1.invalidValue }
+            switch kind {
+            case "acknowledgement":
+                guard parts.count == 3,
+                      InspectionPackageValidationV2.validIdentifier(parts[1], maximumBytes: 100),
+                      InspectionPackageValidationV2.validToken(parts[2], maximumBytes: 200) else {
+                    throw PackageEvolutionFailureV1.invalidValue
+                }
+            case "couldNotVerifyRegistry":
+                guard parts.count == 2,
+                      InspectionPackageValidationV2.validToken(parts[1], maximumBytes: 200) else {
+                    throw PackageEvolutionFailureV1.invalidValue
+                }
+            case "evidencePurpose", "issueLabel", "couldNotVerify", "stage", "outcome":
+                guard parts.count == 2,
+                      InspectionPackageValidationV2.validIdentifier(parts[1], maximumBytes: 100) else {
+                    throw PackageEvolutionFailureV1.invalidValue
+                }
+            default: throw PackageEvolutionFailureV1.invalidValue
+            }
+        }
+        let digest = try WorkspaceMutationCanonicalV1.sha256(CompositeSubjectBasis(
+            domain: "package-semantic-change/" + domain.rawValue + "/v1", semanticID: value))
+        return "c18." + domain.rawValue + "." + digest
+    }
+
     static func diff(source: InspectionPackageReleaseV1, target: InspectionPackageReleaseV1) throws -> PackageSemanticDiffV1 {
         try diff(source: source, target: target, sourceBindings: .init(), targetBindings: .init())
     }
@@ -186,9 +231,14 @@ enum PackageSemanticDifferV1 {
                         target b: PackageSemanticGraphV1) throws -> [PackageSemanticChangeV1] {
         try a.validate(); try b.validate()
         var changes: [PackageSemanticChangeV1] = []
-        func setChanges(_ old: [String], _ new: [String], added: PackageSemanticChangeKindV1, removed: PackageSemanticChangeKindV1) throws {
-            for value in Set(new).subtracting(old).sorted() { changes.append(try .init(kind: added, stableSubjectID: value)) }
-            for value in Set(old).subtracting(new).sorted() { changes.append(try .init(kind: removed, stableSubjectID: value)) }
+        func setChanges(_ old: [String], _ new: [String], added: PackageSemanticChangeKindV1,
+                        removed: PackageSemanticChangeKindV1, domain: CompositeDomain? = nil) throws {
+            func subject(_ value: String) throws -> String {
+                guard let domain else { return value }
+                return try subjectID(value, domain: domain)
+            }
+            for value in Set(new).subtracting(old).sorted() { changes.append(try .init(kind: added, stableSubjectID: subject(value))) }
+            for value in Set(old).subtracting(new).sorted() { changes.append(try .init(kind: removed, stableSubjectID: subject(value))) }
         }
         if a.packageID != b.packageID { changes.append(try .init(kind: .packageIdentityChanged, stableSubjectID: b.packageID)) }
         if a.packageContentVersion != b.packageContentVersion {
@@ -205,14 +255,17 @@ enum PackageSemanticDifferV1 {
         }
         try setChanges(a.capabilityIDs, b.capabilityIDs, added: .capabilityAdded, removed: .capabilityRemoved)
         try setChanges(a.permissionIDs, b.permissionIDs, added: .permissionAdded, removed: .permissionRemoved)
-        try setChanges(a.guidanceSemanticIDs, b.guidanceSemanticIDs, added: .guidanceAdded, removed: .guidanceRemoved)
-        try setChanges(a.presentationSemanticIDs, b.presentationSemanticIDs, added: .guidanceAdded, removed: .guidanceRemoved)
+        try setChanges(a.guidanceSemanticIDs, b.guidanceSemanticIDs, added: .guidanceAdded, removed: .guidanceRemoved, domain: .guidance)
+        try setChanges(a.presentationSemanticIDs, b.presentationSemanticIDs, added: .guidanceAdded, removed: .guidanceRemoved, domain: .presentation)
         if a.semanticReleaseBindings != b.semanticReleaseBindings { changes.append(try .init(kind: .semanticReleaseChanged, stableSubjectID: "package.semantic.releases")) }
         try setChanges(a.declaredFieldIDs, b.declaredFieldIDs, added: .fieldAdded, removed: .fieldRemoved)
         let oldNodes = Set(a.workflowNodeSemanticSHA256ByID.keys), newNodes = Set(b.workflowNodeSemanticSHA256ByID.keys)
         for id in newNodes.subtracting(oldNodes).sorted() { changes.append(try .init(kind: .workflowNodeAdded, stableSubjectID: id)) }
         for id in oldNodes.subtracting(newNodes).sorted() { changes.append(try .init(kind: .workflowNodeRemoved, stableSubjectID: id)) }
         for id in oldNodes.intersection(newNodes).sorted() where a.workflowNodeSemanticSHA256ByID[id] != b.workflowNodeSemanticSHA256ByID[id] { changes.append(try .init(kind: .workflowNodeChanged, stableSubjectID: id)) }
+        guard Set(changes.map(\.stableKey)).count == changes.count else {
+            throw PackageEvolutionFailureV1.invalidValue
+        }
         return changes.sorted { $0.stableKey < $1.stableKey }
     }
     static func classification(source: PackageSemanticGraphV1, target: PackageSemanticGraphV1, changes: [PackageSemanticChangeV1]) -> PackageSemanticDiffClassificationV1 {

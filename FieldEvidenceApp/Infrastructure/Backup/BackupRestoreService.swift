@@ -1384,6 +1384,7 @@ final class BackupRestoreService {
     var configurationCloneRetirementBeforeClaimForTesting: ((URL, Bool) throws -> Void)?
     var photoRawPointerObservationForTesting: ((Bool) throws -> Void)?
     // Opt-in fixed phase labels only; never changes restore decisions or errors.
+    var restoreOwnedRemovalBoundaryForTesting: ((String) throws -> Void)?
     var restorePhaseDiagnosticForTesting: (@MainActor (String) -> Void)?
 #endif
 
@@ -2055,26 +2056,29 @@ final class BackupRestoreService {
         } else { destinationReviewPlan = nil }
         var retainedCloneGuard: ConfigurationCloneEmptyStagingGuardV1?
         var retainedCloneRetirement: ConfigurationCloneRetirementBindingV1?
-        do {
-            try Task.checkCancellation()
-            if let destinationReviewPlan {
-                guard let history = expectedRecords.mutationHistory else {
-                    throw BackupRestoreServiceError.invalidRestoreAuthority
-                }
-                expectedRecords = replacingMutationHistoryForCurrentWriter(
-                    in: expectedRecords, with: history,
-                    fieldDrafts: try destinationReviewPlan.retainingUnownedRows(expectedRecords.fieldDrafts))
+        // Pure admission must not enter startup recovery: without a durable
+        // restore owner, that recovery treats the caller's import as abandoned.
+        // Keep the owned stage intact when value validation rejects the request.
+        try Task.checkCancellation()
+        if let destinationReviewPlan {
+            guard let history = expectedRecords.mutationHistory else {
+                throw BackupRestoreServiceError.invalidRestoreAuthority
             }
-            traceRestorePhase("records-for-materialization")
-            expectedRecords = try recordsForMaterialization(
-                expectedRecords,
-                members: validatedPackage.members,
-                identityDecision: preliminaryIdentityDecision,
-                legacyWorkspaceID: frozenCurrentIdentity.workspaceID.rawValue,
-                partsStockOperationID: restoreID,
-                currentOriginalRecords: frozenCurrentRecords,
-                incomingOriginalRecords: validatedPackage.records
-            )
+            expectedRecords = replacingMutationHistoryForCurrentWriter(
+                in: expectedRecords, with: history,
+                fieldDrafts: try destinationReviewPlan.retainingUnownedRows(expectedRecords.fieldDrafts))
+        }
+        traceRestorePhase("records-for-materialization")
+        expectedRecords = try recordsForMaterialization(
+            expectedRecords,
+            members: validatedPackage.members,
+            identityDecision: preliminaryIdentityDecision,
+            legacyWorkspaceID: frozenCurrentIdentity.workspaceID.rawValue,
+            partsStockOperationID: restoreID,
+            currentOriginalRecords: frozenCurrentRecords,
+            incomingOriginalRecords: validatedPackage.records
+        )
+        do {
             traceRestorePhase("parts-stock-lifecycle")
             if let snapshot = expectedRecords.partsStockSnapshot {
                 let targetWorkspaceID = WorkspaceID(rawValue:
@@ -2158,6 +2162,11 @@ final class BackupRestoreService {
             }
             let photoPlans = photo?.plans ?? []
             let photoProof = try photo?.proof
+            // Bind retirement and materialization to the same projected history.
+            if mode == .clone, let history = expectedRecords.mutationHistory {
+                expectedRecords = replacingPhotoRestoreHistory(in: expectedRecords,
+                    with: try ConfigurationCloneOperationalFamilyV1.projectingDroppedRevisions(history))
+            }
             let clone = mode == .clone ? try await prepareConfigurationClone(package: validatedPackage,
                 currentRecords: frozenCurrentRecords, destinationRecords: expectedRecords,
                 currentIdentity: frozenCurrentIdentity, currentGenerationID: currentGenerationID,
@@ -2166,10 +2175,6 @@ final class BackupRestoreService {
             let cloneStagingProof = clone?.emptyProof
             let cloneFinalMedia = mode == .clone
                 ? try configurationCloneFinalMedia(package: validatedPackage, records: expectedRecords) : [:]
-            if mode == .clone, let history = expectedRecords.mutationHistory {
-                expectedRecords = replacingPhotoRestoreHistory(in: expectedRecords,
-                    with: try ConfigurationCloneOperationalFamilyV1.projectingDroppedRevisions(history))
-            }
             traceRestorePhase("materialize")
             try materialize(
                 validatedPackage,
@@ -4517,6 +4522,9 @@ private extension BackupRestoreService {
                     roundProjection: roundProjection
                 )
             } else {
+#if DEBUG
+                materializationPhase = "c49-work-resource-rebind"
+#endif
                 normalized = try rebindingWorkResources(
                     in: normalized,
                     sourceRecords: records,
@@ -6760,7 +6768,7 @@ private extension BackupRestoreService {
     ) throws -> V4BackupRecordsV1 {
         guard let history = destination.mutationHistory,
               let sourceHistory = sourceRecords.mutationHistory else {
-            throw BackupRestoreServiceError.invalidPackage
+            throw attributedRestorePackageFailureV1(line: #line)
         }
         let sourceEntries = try sourceRecords.validateC49WorkResources()
         let sourceEntryByID = Dictionary(uniqueKeysWithValues: sourceEntries.map { ($0.entryID, $0) })
@@ -6806,7 +6814,7 @@ private extension BackupRestoreService {
         var removedPartsStockReversalBasisSHA256s = Set<String>()
         if stripPartsStock {
             guard let sourceSnapshot = sourceRecords.partsStockSnapshot else {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
             try sourceSnapshot.validate()
             let snapshotWorkEntries = sourceSnapshot.uses.map(\.workResourceSuccessor)
@@ -6832,14 +6840,14 @@ private extension BackupRestoreService {
                       receipt.commandBodySHA256 == envelope.commandBodySHA256,
                       receipt.expectedRevision == envelope.expectedRevision,
                       receipt.postImages == images else {
-                    throw BackupRestoreServiceError.invalidPackage
+                    throw attributedRestorePackageFailureV1(line: #line)
                 }
                 if let data = record.reversalBasisData {
                     let basis = try ReversalBasisV1.decodeCanonical(from: data)
                     guard basis.targetMutationID == receipt.mutationID,
                           basis.targetReceiptIdentity == receipt.identity,
                           envelope.reversalPlanDigest == basis.planDigest else {
-                        throw BackupRestoreServiceError.invalidPackage
+                        throw attributedRestorePackageFailureV1(line: #line)
                     }
                     removedPartsStockReversalBasisSHA256s.insert(
                         try basis.canonicalSHA256()
@@ -6852,7 +6860,7 @@ private extension BackupRestoreService {
                               $0 == semantic.reversesMutationID
                           }) ?? false,
                           semantic.resultingRevision == receipt.resultingRevision else {
-                        throw BackupRestoreServiceError.invalidPackage
+                        throw attributedRestorePackageFailureV1(line: #line)
                     }
                     removedPartsStockReversalBasisSHA256s.insert(
                         semantic.reversalBasisSHA256
@@ -6907,7 +6915,7 @@ private extension BackupRestoreService {
                       receipt.reversesMutationID.map({
                           !removedPartsStockMutationIDs.contains($0.rawValue)
                       }) ?? true else {
-                    throw BackupRestoreServiceError.invalidPackage
+                    throw attributedRestorePackageFailureV1(line: #line)
                 }
             }
         }
@@ -6921,7 +6929,7 @@ private extension BackupRestoreService {
                   record.workspaceID == actor.workspaceID.rawValue,
                   actor.workspaceID == targetWorkspaceID,
                   targetActorByID.updateValue(actor, forKey: actor.snapshotID) == nil else {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
         }
 
@@ -6937,7 +6945,7 @@ private extension BackupRestoreService {
             guard case let .applyWorkResource(mutation) = envelope.command else { return nil }
             let receipt = try MutationReceiptV1.decodeCanonical(from: indexed.element.receiptData)
             guard receipt.expectedRevision == envelope.expectedRevision else {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
             _ = try WorkResourceMutationReceiptV1(mutation: mutation, mutationReceipt: receipt)
             guard !stripPartsStock
@@ -6946,10 +6954,10 @@ private extension BackupRestoreService {
                 // applyPartsStock receipt.  Treating a duplicate
                 // applyWorkResource receipt as an independent history row
                 // would leave a dangling target chain.
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
             guard sourceEntryByID[mutation.postImage.entryID] == mutation.postImage else {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
             return ReceiptValue(index: indexed.offset, envelope: envelope, receipt: receipt,
                                 mutation: mutation, record: indexed.element)
@@ -6957,7 +6965,7 @@ private extension BackupRestoreService {
         guard receiptValues.count == eligibleSourceEntries.count,
               Set(receiptValues.map { $0.mutation.postImage.entryID })
                 == Set(eligibleSourceEntries.map(\.entryID)) else {
-            throw BackupRestoreServiceError.invalidPackage
+            throw attributedRestorePackageFailureV1(line: #line)
         }
         let ordered = receiptValues.sorted {
             ($0.mutation.postImage.revision, $0.mutation.postImage.entryID.uuidString)
@@ -6969,7 +6977,7 @@ private extension BackupRestoreService {
         }
         guard sourceMutationIDs.count == ordered.count,
               Set(targetMutationIDs.map(\.rawValue)).count == ordered.count else {
-            throw BackupRestoreServiceError.invalidPackage
+            throw attributedRestorePackageFailureV1(line: #line)
         }
         let targetMutationIDRawValues = Set(targetMutationIDs.map(\.rawValue))
         let targetMutationIDBySourceID = Dictionary(
@@ -7035,7 +7043,7 @@ private extension BackupRestoreService {
             guard requiredIdentities.isSubset(of: identities) else {
                 // A removed identity required for command concurrency is a
                 // real dangling dependency, not an inherited full-state row.
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
             let expected = try WorkspaceExpectedRevisionV1(
                 workspaceID: workspaceID ?? value.workspaceID,
@@ -7054,7 +7062,7 @@ private extension BackupRestoreService {
         ) throws -> MutationEnvelopeV1 {
             guard expectedRevision.workspaceID == source.workspaceID,
                   expectedRevision.generationID == source.generationID else {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
             let expected = try WorkspaceExpectedRevisionV1(
                 workspaceID: expectedRevision.workspaceID,
@@ -7127,12 +7135,12 @@ private extension BackupRestoreService {
                     // ReversalBasisV1 stores no source plan from which a
                     // changed target identity can be rebuilt.  Keep it only
                     // when all immutable digest bindings remain exact.
-                    throw BackupRestoreServiceError.invalidPackage
+                    throw attributedRestorePackageFailureV1(line: #line)
                 }
             } else {
                 guard sourceEnvelope.reversalPlanDigest == nil,
                       targetEnvelope.reversalPlanDigest == nil else {
-                    throw BackupRestoreServiceError.invalidPackage
+                    throw attributedRestorePackageFailureV1(line: #line)
                 }
             }
 
@@ -7159,7 +7167,7 @@ private extension BackupRestoreService {
                       !expectedRevisionChanged,
                       !resultingRevisionChanged,
                       targetEnvelope == sourceEnvelope else {
-                    throw BackupRestoreServiceError.invalidPackage
+                    throw attributedRestorePackageFailureV1(line: #line)
                 }
                 let execution = try SemanticReversalExecutionV1(
                     targetMutationID: semantic.reversesMutationID,
@@ -7172,7 +7180,7 @@ private extension BackupRestoreService {
                       targetEnvelope.semanticReversalExecution == execution,
                       sourceEnvelope.semanticReversalReplayIdentitySHA256
                           == targetEnvelope.semanticReversalReplayIdentitySHA256 else {
-                    throw BackupRestoreServiceError.invalidPackage
+                    throw attributedRestorePackageFailureV1(line: #line)
                 }
             } else {
                 guard sourceEnvelope.semanticReversalReplayIdentitySHA256 == nil,
@@ -7181,7 +7189,7 @@ private extension BackupRestoreService {
                       targetReceipt.reversesMutationID == nil,
                       targetEnvelope.semanticReversalReplayIdentitySHA256 == nil,
                       targetEnvelope.semanticReversalExecution == nil else {
-                    throw BackupRestoreServiceError.invalidPackage
+                    throw attributedRestorePackageFailureV1(line: #line)
                 }
             }
             return (record.reversalBasisData, record.semanticReversalData)
@@ -7190,7 +7198,7 @@ private extension BackupRestoreService {
         let preparedPartsStockSnapshot: PartsStockBackupSnapshotV1? = try {
             guard stripPartsStock else { return nil }
             guard let sourceSnapshot = sourceRecords.partsStockSnapshot else {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
             return try preparedCloneForkPartsStockSnapshot(
                 sourceSnapshot,
@@ -7233,19 +7241,19 @@ private extension BackupRestoreService {
             )
             guard let mappedActor = targetActorByID[source.actor.snapshotID],
                   mappedActor == expectedMappedActor else {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
             let mappedPredecessorSHA256: String?
             if let predecessorID = source.supersedesEntryID {
                 guard let predecessor = targetEntryByID[predecessorID] else {
-                    throw BackupRestoreServiceError.invalidPackage
+                    throw attributedRestorePackageFailureV1(line: #line)
                 }
                 mappedPredecessorSHA256 = predecessor.entrySHA256
             } else {
                 mappedPredecessorSHA256 = nil
             }
             guard let mutationID = targetMutationIDBySourceID[source.mutationID.rawValue] else {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
             let targetEntry = try source.rebound(
                 to: targetWorkspaceID,
@@ -7274,7 +7282,7 @@ private extension BackupRestoreService {
                 // WorkResourceMutationV1 has an exact one-row concurrency
                 // contract.  Any surviving extra row is not removable stock
                 // state and cannot be silently rewritten.
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
             let targetExpected = try WorkspaceExpectedRevisionV1(
                 workspaceID: targetWorkspaceID,
@@ -7366,29 +7374,10 @@ private extension BackupRestoreService {
         }
         guard transformedByIndex.count == receiptValues.count,
               targetEntryByID.count == eligibleSourceEntries.count else {
-            throw BackupRestoreServiceError.invalidPackage
+            throw attributedRestorePackageFailureV1(line: #line)
         }
 
-        var terminalRevisionByIdentity: [WorkspaceEntityIdentityV1: UInt64] = [:]
-        var terminalProjectionSHAByIdentity: [WorkspaceEntityIdentityV1: String] = [:]
-        func noteTerminalRevisions(_ receipt: MutationReceiptV1) throws {
-            for image in receipt.postImages {
-                terminalProjectionSHAByIdentity[try image.identity] = image.semanticSHA256
-            }
-            for row in receipt.resultingRevision.entityRevisions {
-                guard !isRemovedPartsStockProjectionIdentity(row.identity) else {
-                    throw BackupRestoreServiceError.invalidPackage
-                }
-                if let prior = terminalRevisionByIdentity[row.identity],
-                   row.revision < prior {
-                    // Retained receipts are a sequential terminal-state
-                    // history.  A projected state may omit stock rows, but it
-                    // may not move an unrelated identity backwards.
-                    throw BackupRestoreServiceError.invalidPackage
-                }
-                terminalRevisionByIdentity[row.identity] = row.revision
-            }
-        }
+        var targetReceiptValues: [MutationReceiptV1] = []
 
         let targetReceipts = try history.receipts.enumerated().compactMap {
             indexed -> MutationHistoryReceiptRecordV1? in
@@ -7402,7 +7391,7 @@ private extension BackupRestoreService {
                     // Source and destination history positions are retained
                     // by the preceding C47 rebinding.  Never drop a later
                     // unrelated receipt because a source index was stock.
-                    throw BackupRestoreServiceError.invalidPackage
+                    throw attributedRestorePackageFailureV1(line: #line)
                 }
                 return nil
             }
@@ -7410,14 +7399,14 @@ private extension BackupRestoreService {
                case .applyPartsStock = destinationEnvelope.command {
                 // A destination-only stock receipt has no corresponding
                 // source C55 cause and cannot be silently retained or lost.
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
 
             if let transformed = transformedByIndex[indexed.offset] {
                 let receipt = try MutationReceiptV1.decodeCanonical(
                     from: transformed.receiptData
                 )
-                try noteTerminalRevisions(receipt)
+                targetReceiptValues.append(receipt)
                 return transformed
             }
 
@@ -7425,10 +7414,10 @@ private extension BackupRestoreService {
                 from: originalRecord.receiptData
             )
             guard destinationReceipt.expectedRevision == destinationEnvelope.expectedRevision else {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
             guard stripPartsStock else {
-                try noteTerminalRevisions(destinationReceipt)
+                targetReceiptValues.append(destinationReceipt)
                 return originalRecord
             }
 
@@ -7454,7 +7443,7 @@ private extension BackupRestoreService {
                 guard !removedPartsStockMutationIDs.contains(
                     sourceCausation.rawValue
                 ) else {
-                    throw BackupRestoreServiceError.invalidPackage
+                    throw attributedRestorePackageFailureV1(line: #line)
                 }
                 if destinationEnvelope.sourceKind == .semanticReversal {
                     // Semantic replay binds causation to the execution target;
@@ -7477,7 +7466,7 @@ private extension BackupRestoreService {
             // causation rebinding actually changes its portable contract.
             if !expectedRevisionChanged, !resultingRevisionChanged,
                causation == destinationEnvelope.causationMutationID {
-                try noteTerminalRevisions(destinationReceipt)
+                targetReceiptValues.append(destinationReceipt)
                 return originalRecord
             }
             let targetEnvelope = try reissuedEnvelope(
@@ -7511,13 +7500,57 @@ private extension BackupRestoreService {
                 destinationEnvelope.semanticReversalReplayIdentitySHA256,
                 targetEnvelope.semanticReversalReplayIdentitySHA256
             )
-            try noteTerminalRevisions(targetReceipt)
+            targetReceiptValues.append(targetReceipt)
             return MutationHistoryReceiptRecordV1(
                 envelopeData: try targetEnvelope.canonicalData(),
                 receiptData: try targetReceipt.canonicalData(),
                 reversalBasisData: sidecars.reversalBasisData,
                 semanticReversalData: sidecars.semanticReversalData
             )
+        }
+
+        // Serialized receipt identity order is not causal order (for example,
+        // an unpadded sequence sorts 10 before 2). Preserve the original array
+        // and all index mappings; validate terminal facts in a separate pass.
+        var terminalRevisionByIdentity: [WorkspaceEntityIdentityV1: UInt64] = [:]
+        var terminalImageByIdentity: [WorkspaceEntityIdentityV1: MutationPostImageV1] = [:]
+        let workspaceHistories = Dictionary(grouping: targetReceiptValues) {
+            $0.resultingRevision.workspaceID
+        }
+        for receipts in workspaceHistories.values {
+            let causalReceipts = receipts.sorted {
+                if $0.resultingRevision.workspaceRevision != $1.resultingRevision.workspaceRevision {
+                    return $0.resultingRevision.workspaceRevision < $1.resultingRevision.workspaceRevision
+                }
+                return $0.identity.stableKey < $1.identity.stableKey
+            }
+            var priorRevisionByIdentity: [WorkspaceEntityIdentityV1: UInt64] = [:]
+            var seenImages: [WorkspaceEntityIdentityV1: [UInt64: MutationPostImageV1]] = [:]
+            for receipt in causalReceipts {
+                for row in receipt.resultingRevision.entityRevisions {
+                    guard !isRemovedPartsStockProjectionIdentity(row.identity),
+                          priorRevisionByIdentity[row.identity].map({ row.revision >= $0 }) ?? true else {
+                        throw attributedRestorePackageFailureV1(line: #line)
+                    }
+                    priorRevisionByIdentity[row.identity] = row.revision
+                    terminalRevisionByIdentity[row.identity] = max(
+                        terminalRevisionByIdentity[row.identity] ?? 0, row.revision)
+                }
+                for image in receipt.postImages {
+                    let entity = try image.identity
+                    // Equal-revision equality is workspace-local. Retained
+                    // foreign originals are not destination projection authority.
+                    if let prior = seenImages[entity]?[image.revision], prior != image {
+                        throw attributedRestorePackageFailureV1(line: #line)
+                    }
+                    seenImages[entity, default: [:]][image.revision] = image
+                    guard receipt.resultingRevision.workspaceID == targetWorkspaceID else { continue }
+                    if let prior = terminalImageByIdentity[entity], prior.revision >= image.revision {
+                        continue
+                    }
+                    terminalImageByIdentity[entity] = image
+                }
+            }
         }
 
         let transformedQuarantines = try history.quarantines.compactMap { quarantine -> MutationHistoryQuarantineRecordV1? in
@@ -7543,7 +7576,7 @@ private extension BackupRestoreService {
             guard let sourceAcceptedIdentitySHA256,
                   let targetAcceptedIdentitySHA256,
                   quarantine.acceptedIdentitySHA256 == sourceAcceptedIdentitySHA256 else {
-                throw BackupRestoreServiceError.invalidPackage
+                throw attributedRestorePackageFailureV1(line: #line)
             }
             return MutationHistoryQuarantineRecordV1(
                 workspaceID: targetWorkspaceID,
@@ -7569,7 +7602,7 @@ private extension BackupRestoreService {
                     externalProjectionSHA256: part.partSHA256
                 )
                 guard revisions.updateValue(baseline, forKey: identity) == nil else {
-                    throw BackupRestoreServiceError.invalidPackage
+                    throw attributedRestorePackageFailureV1(line: #line)
                 }
             }
             for location in preparedPartsStockSnapshot.locations {
@@ -7584,7 +7617,7 @@ private extension BackupRestoreService {
                         try PartsStockCanonicalCodecV1.sha256(location)
                 )
                 guard revisions.updateValue(baseline, forKey: identity) == nil else {
-                    throw BackupRestoreServiceError.invalidPackage
+                    throw attributedRestorePackageFailureV1(line: #line)
                 }
             }
         }
@@ -7593,22 +7626,27 @@ private extension BackupRestoreService {
                 revision.revision <= $0
             } ?? true
         }) else {
-            throw BackupRestoreServiceError.invalidPackage
+            throw attributedRestorePackageFailureV1(line: #line)
         }
         for (identity, revision) in targetRevisionByIdentity { revisions[identity] = revision }
         for (identity, terminalRevision) in terminalRevisionByIdentity {
-            let projection = terminalProjectionSHAByIdentity[identity]
-                ?? revisions[identity]?.externalProjectionSHA256
-                ?? targetRevisionByIdentity[identity]?.externalProjectionSHA256
             let finalRevision: MutationHistoryEntityRevisionV1
             if let targetRevision = targetRevisionByIdentity[identity],
                targetRevision.revision == terminalRevision {
                 finalRevision = targetRevision
+            } else if let inherited = revisions[identity], inherited.revision == terminalRevision {
+                // Earlier restore boundaries have already normalized this
+                // projection. Preserve its exact digest, including receipt-backed nil.
+                finalRevision = inherited
             } else {
+                guard let image = terminalImageByIdentity[identity],
+                      image.revision == terminalRevision else {
+                    throw attributedRestorePackageFailureV1(line: #line)
+                }
                 finalRevision = MutationHistoryEntityRevisionV1(
                     identity: identity,
                     revision: terminalRevision,
-                    externalProjectionSHA256: projection
+                    externalProjectionSHA256: image.semanticSHA256
                 )
             }
             revisions[identity] = finalRevision
@@ -7616,7 +7654,7 @@ private extension BackupRestoreService {
         guard terminalRevisionByIdentity.allSatisfy({ identity, revision in
             revisions[identity]?.revision == revision
         }) else {
-            throw BackupRestoreServiceError.invalidPackage
+            throw attributedRestorePackageFailureV1(line: #line)
         }
         let targetWorkspaceRevision: UInt64
         let targetLastLocalSequence: UInt64
@@ -11197,8 +11235,16 @@ private extension BackupRestoreService {
     private func reopenCloneRetirement(_ binding: ConfigurationCloneRetirementBindingV1) throws
         -> DraftConfigurationCloneRetirementPreparedV1 {
         guard let ownership = binding.ownership else { throw BackupRestoreServiceError.invalidRestoreAuthority }
-        let prepared = try cloneRetirementOwner(binding).reopenConfigurationCloneRetirement(
-            authority: .init(core: binding.core, applicationSupportURL: applicationSupportURL), ownership: ownership)
+        let prepared: DraftConfigurationCloneRetirementPreparedV1
+        do {
+            prepared = try DraftAttachmentStagingAdapterV1.reopenOwnedConfigurationCloneRetirement(
+                authority: .init(core: binding.core, applicationSupportURL: applicationSupportURL), ownership: ownership)
+        } catch {
+#if DEBUG
+            print("ConfigurationClone.retirement.failure phase=service.reopen completion=\(binding.completion) errorType=\(String(reflecting: type(of: error)))")
+#endif
+            throw error
+        }
 #if DEBUG
         prepared.observationForTesting = configurationCloneRetirementObservationForTesting
         prepared.beforeClaimForTesting = configurationCloneRetirementBeforeClaimForTesting
@@ -11366,7 +11412,14 @@ private extension BackupRestoreService {
                 disposition = .retire; terminal = .retired
                 if binding.completion == .active, saved != nil {
                     guard binding.ownership != nil else { throw BackupRestoreServiceError.invalidRestoreAuthority }
-                    try reopenCloneRetirement(binding).finish(permit: cloneRetirementPermit(binding, disposition: .retire))
+                    do {
+                        try reopenCloneRetirement(binding).finish(permit: cloneRetirementPermit(binding, disposition: .retire))
+                    } catch {
+#if DEBUG
+                        print("ConfigurationClone.retirement.failure phase=service.forward-finish completion=\(binding.completion) errorType=\(String(reflecting: type(of: error)))")
+#endif
+                        throw error
+                    }
                 }
             } else {
                 guard currentID == original.oldGenerationID, session == nil,
@@ -13001,6 +13054,18 @@ private extension BackupRestoreService {
         })
     }
 
+    /// A removal claim carries the exact existing binding bytes. It is an
+    /// alternate location, never a second binding: both locations fail closed.
+    private func removalClaimName(_ name: String) -> String { name + ".unlink" }
+
+    private func resolvedRemovalClaimName(_ name: String, parent: Int32) throws -> String {
+        let claim = removalClaimName(name)
+        let normalExists = try itemExists(parent: parent, name: name)
+        let claimExists = try itemExists(parent: parent, name: claim)
+        guard !(normalExists && claimExists) else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+        return claimExists ? claim : name
+    }
+
     private struct CloneRetirementBindingLeaf {
         let value: ConfigurationCloneRetirementBindingV1
         let data: Data
@@ -13014,8 +13079,9 @@ private extension BackupRestoreService {
 
     /// Metadata only. All raw originals and generation media remain streamed
     /// by their existing owners; no payload is admitted through this bound.
-    private func readCloneRetirementBindingLeaf(_ name: String, parent: Int32,
+    private func readCloneRetirementBindingLeaf(_ requestedName: String, parent: Int32,
         verify: () throws -> Void) throws -> CloneRetirementBindingLeaf? {
+        let name = try resolvedRemovalClaimName(requestedName, parent: parent)
         guard try itemExists(parent: parent, name: name) else { return nil }
         let identity = try itemIdentity(parent: parent, name: name)
         guard identity.type == UInt32(S_IFREG), identity.linkCount == 1 else {
@@ -13111,21 +13177,22 @@ private extension BackupRestoreService {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
         }
-        try withPinnedDirectory(root: applicationSupportURL, relativePath: "FieldEvidenceRestore",
+        try withPinnedDirectoryMutations(root: applicationSupportURL, relativePath: "FieldEvidenceRestore",
             createMissing: false, authorityCheck: { try self.generationAuthority.requireNoEraseAuthority() },
             creationFailure: .invalidRestoreAuthority
-        ) { parent, verify, createExclusiveRegular in
+        ) { parent, verify, createExclusiveRegular, removeOwnedRegular, restoreOwnedClaim in
             var current = try readCloneRetirementBindingLeaf(names.current, parent: parent, verify: verify)
             var next = try readCloneRetirementBindingLeaf(names.next, parent: parent, verify: verify)
             let selected = try selectedCloneRetirementBinding(current: current, next: next)
             guard selected == expected else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+            if let current { try restoreOwnedClaim(names.current, current.identity) }
+            if let next { try restoreOwnedClaim(names.next, next.identity) }
 
             @MainActor func remove(_ leaf: CloneRetirementBindingLeaf, named name: String) throws {
-                guard try readCloneRetirementBindingLeaf(name, parent: parent, verify: verify)?.identity == leaf.identity,
-                      Darwin.unlinkat(parent, name, 0) == 0, Darwin.fsync(parent) == 0 else {
+                guard try readCloneRetirementBindingLeaf(name, parent: parent, verify: verify)?.identity == leaf.identity else {
                     throw BackupRestoreServiceError.invalidRestoreAuthority
                 }
-                try verify()
+                try removeOwnedRegular(name, leaf.identity)
             }
 
             if let pending = next {
@@ -13201,16 +13268,15 @@ private extension BackupRestoreService {
         }
         try persistCloneRetirementBindingLocked(binding, replacing: binding)
         let names = cloneRetirementBindingNames(binding.core.plan.restoreID)
-        try withPinnedDirectory(root: applicationSupportURL, relativePath: "FieldEvidenceRestore",
+        try withPinnedDirectoryMutations(root: applicationSupportURL, relativePath: "FieldEvidenceRestore",
             createMissing: false, authorityCheck: { try self.generationAuthority.requireNoEraseAuthority() }
-        ) { parent, verify, _ in
+        ) { parent, verify, _, removeOwnedRegular, _ in
             guard let current = try readCloneRetirementBindingLeaf(names.current, parent: parent, verify: verify),
                   current.value == binding, try !itemExists(parent: parent, name: names.next),
-                  try itemIdentity(parent: parent, name: names.current) == current.identity,
-                  Darwin.unlinkat(parent, names.current, 0) == 0, Darwin.fsync(parent) == 0 else {
+                  try itemIdentity(parent: parent, name: names.current) == current.identity else {
                 throw BackupRestoreServiceError.invalidRestoreAuthority
             }
-            try verify()
+            try removeOwnedRegular(names.current, current.identity)
         }
     }
 
@@ -13222,7 +13288,8 @@ private extension BackupRestoreService {
             return nil
         }
         var ids = Set<UUID>()
-        for name in try fileManager.contentsOfDirectory(atPath: root.path) {
+        for storedName in try fileManager.contentsOfDirectory(atPath: root.path) {
+            let name = storedName.hasSuffix(".unlink") ? String(storedName.dropLast(".unlink".count)) : storedName
             let candidate: String
             if name.hasPrefix(".clone-retirement-"), name.hasSuffix(".json.next") {
                 candidate = String(name.dropFirst().dropLast(".next".count))
@@ -13269,8 +13336,9 @@ private extension BackupRestoreService {
 
     /// Metadata only. All raw originals and generation media remain streamed
     /// by their existing owners; no payload is admitted through this bound.
-    private func readPhotoBindingLeaf(_ name: String, parent: Int32,
+    private func readPhotoBindingLeaf(_ requestedName: String, parent: Int32,
         allowLegacy: Bool = false, verify: () throws -> Void) throws -> PhotoBindingLeaf? {
+        let name = try resolvedRemovalClaimName(requestedName, parent: parent)
         guard try itemExists(parent: parent, name: name) else { return nil }
         let identity = try itemIdentity(parent: parent, name: name)
         guard identity.type == UInt32(S_IFREG), identity.linkCount == 1 else {
@@ -13344,7 +13412,7 @@ private extension BackupRestoreService {
         return try withPinnedDirectory(root: applicationSupportURL, relativePath: "FieldEvidenceRestore",
             createMissing: false, authorityCheck: { try self.generationAuthority.requireNoEraseAuthority() }
         ) { parent, verify, _ in
-            let hasNext = try itemExists(parent: parent, name: names.next)
+            let hasNext = try itemExists(parent: parent, name: resolvedRemovalClaimName(names.next, parent: parent))
             let current = try readPhotoBindingLeaf(names.current, parent: parent, allowLegacy: !hasNext, verify: verify)
             let next = try readPhotoBindingLeaf(names.next, parent: parent, verify: verify)
             let result = try selectedPhotoBinding(current: current, next: next)
@@ -13378,21 +13446,22 @@ private extension BackupRestoreService {
                     throw BackupRestoreServiceError.invalidRestoreAuthority
                 }
             }
-            try withPinnedDirectory(root: applicationSupportURL, relativePath: "FieldEvidenceRestore",
+            try withPinnedDirectoryMutations(root: applicationSupportURL, relativePath: "FieldEvidenceRestore",
                 createMissing: false, authorityCheck: { try self.generationAuthority.requireNoEraseAuthority() },
                 creationFailure: .invalidRestoreAuthority
-            ) { parent, verify, createExclusiveRegular in
+            ) { parent, verify, createExclusiveRegular, removeOwnedRegular, restoreOwnedClaim in
                 var current = try readPhotoBindingLeaf(names.current, parent: parent, verify: verify)
                 var next = try readPhotoBindingLeaf(names.next, parent: parent, verify: verify)
                 let selected = try selectedPhotoBinding(current: current, next: next)
                 guard selected == expected else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                if let current { try restoreOwnedClaim(names.current, current.identity) }
+                if let next { try restoreOwnedClaim(names.next, next.identity) }
 
                 @MainActor func remove(_ leaf: PhotoBindingLeaf, named name: String) throws {
-                    guard try readPhotoBindingLeaf(name, parent: parent, verify: verify)?.identity == leaf.identity,
-                          Darwin.unlinkat(parent, name, 0) == 0, Darwin.fsync(parent) == 0 else {
+                    guard try readPhotoBindingLeaf(name, parent: parent, verify: verify)?.identity == leaf.identity else {
                         throw BackupRestoreServiceError.invalidRestoreAuthority
                     }
-                    try verify()
+                    try removeOwnedRegular(name, leaf.identity)
                 }
 
                 if let pending = next {
@@ -13571,17 +13640,16 @@ private extension BackupRestoreService {
         let registry = try generationFactory.makeGenerationLeaseRegistry(ownerID: binding.core.restoreID)
         try registry.withNoMigrationReservation {
             guard try intentStore.load() == nil else { throw BackupRestoreServiceError.invalidRestoreAuthority }
-            try withPinnedDirectory(root: applicationSupportURL, relativePath: "FieldEvidenceRestore",
+            try withPinnedDirectoryMutations(root: applicationSupportURL, relativePath: "FieldEvidenceRestore",
                 createMissing: false, authorityCheck: { try self.generationAuthority.requireNoEraseAuthority() }
-            ) { parent, verify, _ in
+            ) { parent, verify, _, removeOwnedRegular, _ in
                 guard let current = try readPhotoBindingLeaf(names.current, parent: parent, verify: verify),
                       current.value == binding,
                       try !itemExists(parent: parent, name: names.next),
-                      try itemIdentity(parent: parent, name: names.current) == current.identity,
-                      Darwin.unlinkat(parent, names.current, 0) == 0, Darwin.fsync(parent) == 0 else {
+                      try itemIdentity(parent: parent, name: names.current) == current.identity else {
                     throw BackupRestoreServiceError.invalidRestoreAuthority
                 }
-                try verify()
+                try removeOwnedRegular(names.current, current.identity)
             }
         }
     }
@@ -13591,7 +13659,8 @@ private extension BackupRestoreService {
         let root = applicationSupportURL.appendingPathComponent("FieldEvidenceRestore", isDirectory: true)
         guard fileManager.fileExists(atPath: root.path) else { return nil }
         var operationIDs = Set<UUID>()
-        for name in try fileManager.contentsOfDirectory(atPath: root.path) {
+        for storedName in try fileManager.contentsOfDirectory(atPath: root.path) {
+            let name = storedName.hasSuffix(".unlink") ? String(storedName.dropLast(".unlink".count)) : storedName
             let candidate: String
             if name.hasPrefix(".draft-publication-"), name.hasSuffix(".json.next") {
                 candidate = String(name.dropFirst().dropLast(".next".count))
@@ -15937,10 +16006,34 @@ private extension BackupRestoreService {
     }
 
 
-    // Only this scoped primitive can advance a pin for a regular-file create.
-    // The exact +1 transition is evidenced on the pinned native environment;
-    // other deltas fail closed and do not qualify another filesystem/provider.
+    // Read/create callers receive no removal capability.
     private func withPinnedDirectory<T>(
+        root: URL, relativePath: String, createMissing: Bool,
+        authorityCheck: () throws -> Void,
+        creationFailure: BackupRestoreServiceError = .materializationFailed,
+        diagnosticCaller: String = #function,
+        diagnosticOperation: () -> String? = { nil },
+        body: (Int32, () throws -> Void, (String) throws -> Int32) throws -> T
+    ) throws -> T {
+        try withPinnedDirectoryMutations(root: root, relativePath: relativePath,
+            createMissing: createMissing, authorityCheck: authorityCheck,
+            creationFailure: creationFailure, diagnosticCaller: diagnosticCaller,
+            diagnosticOperation: diagnosticOperation) { parent, verify, create, _, _ in
+                // Forwarding closure parameters through another nonescaping
+                // callback needs an explicit dynamic lifetime in Swift. These
+                // capabilities must not outlive this synchronous owner scope.
+                try withoutActuallyEscaping(verify) { scopedVerify in
+                    try withoutActuallyEscaping(create) { scopedCreate in
+                        try body(parent, scopedVerify, scopedCreate)
+                    }
+                }
+            }
+    }
+
+    // Only this scoped primitive can advance pins for owned regular-file mutations.
+    // The exact +1 create / -1 removal transitions are provider-specific;
+    // other deltas fail closed and do not qualify another filesystem/provider.
+    private func withPinnedDirectoryMutations<T>(
         root: URL,
         relativePath: String,
         createMissing: Bool,
@@ -15948,7 +16041,9 @@ private extension BackupRestoreService {
         creationFailure: BackupRestoreServiceError = .materializationFailed,
         diagnosticCaller: String = #function,
         diagnosticOperation: () -> String? = { nil },
-        body: (Int32, () throws -> Void, (String) throws -> Int32) throws -> T
+        body: (Int32, () throws -> Void, (String) throws -> Int32,
+               (String, PinnedIdentity) throws -> Void,
+               (String, PinnedIdentity) throws -> Void) throws -> T
     ) throws -> T {
         let components = try validatedPathComponents(relativePath)
         try authorityCheck()
@@ -16052,15 +16147,18 @@ private extension BackupRestoreService {
 
 #if DEBUG
         let directoryPinDiagnosticsEnabled = restorePhaseDiagnosticForTesting != nil
+        let removalBoundaryForTesting = restoreOwnedRemovalBoundaryForTesting
         var directoryPinRejection: String?
-        var ownedCreationObservation: String?
+        var ownedMutationObservation: String?
+        var ownedRemovalObservation: String?
         var directoryPinBodyPhase = "before-body"
         var directoryPinVerification = 0
         defer {
+            if let ownedRemovalObservation { traceRestorePhase(ownedRemovalObservation) }
             if let directoryPinRejection {
                 // The sink can perform I/O. Observe first and emit only after
                 // the body unwinds, outside the nonisolated verifier closure.
-                let operation = ownedCreationObservation ?? diagnosticOperation() ?? "operation=none-observed"
+                let operation = ownedMutationObservation ?? diagnosticOperation() ?? "operation=none-observed"
                 traceRestorePhase(directoryPinRejection + " " + operation)
             }
         }
@@ -16068,10 +16166,10 @@ private extension BackupRestoreService {
         return try withoutActuallyEscaping(authorityCheck) { authorityCheck in
             var pinned = pins
             var scopeActive = true
-            var creationPoisoned = false
+            var mutationPoisoned = false
             defer { scopeActive = false }
             func verifyPinnedDirectories(_ expectedPins: [PinnedDirectory], checkingAuthority: Bool) throws {
-                guard scopeActive, !creationPoisoned else {
+                guard scopeActive, !mutationPoisoned else {
                     throw attributedRestoreAuthorityFailureV1(line: #line)
                 }
 #if DEBUG
@@ -16095,6 +16193,9 @@ private extension BackupRestoreService {
                                 + " finalParent=\(pinIndex == expectedPins.count - 1) check=descriptor"
                                 + " statOK=\(statResult == 0) errno=\(statErrno)"
                                 + " createMissing=\(createMissing)"
+                                + " expectedDevice=\(pin.identity.device) observedDevice=\(observed.device)"
+                                + " expectedInode=\(pin.identity.inode) observedInode=\(observed.inode)"
+                                + " expectedType=\(pin.identity.type) observedType=\(observed.type)"
                                 + " deviceEqual=\(observed.device == pin.identity.device)"
                                 + " inodeEqual=\(observed.inode == pin.identity.inode)"
                                 + " typeEqual=\(observed.type == pin.identity.type)"
@@ -16141,7 +16242,7 @@ private extension BackupRestoreService {
                         // Ownership never reached the caller. Close our fd and
                         // retain uncertain residue for guarded restore recovery;
                         // never unlink a potentially substituted named leaf.
-                        creationPoisoned = true
+                        mutationPoisoned = true
                         _ = Darwin.close(descriptor)
 #if DEBUG
                         if directoryPinDiagnosticsEnabled && directoryPinRejection == nil {
@@ -16160,7 +16261,7 @@ private extension BackupRestoreService {
                 let parentIdentity = PinnedIdentity(parentAfter)
 #if DEBUG
                 if directoryPinDiagnosticsEnabled {
-                    ownedCreationObservation = "operation=owned-create-exclusive"
+                    ownedMutationObservation = "operation=owned-create-exclusive"
                         + " linksBefore=\(parentPin.identity.linkCount) linksAfter=\(parentIdentity.linkCount)"
                 }
 #endif
@@ -16188,11 +16289,169 @@ private extension BackupRestoreService {
                 transferred = true
                 return descriptor
             }
+            func restoreOwnedClaim(_ name: String, expected: PinnedIdentity) throws {
+                try verifyDirectories()
+                guard !name.isEmpty, name != ".", name != "..",
+                      !name.contains("/"), !name.contains("\\"), !name.contains("\0"),
+                      expected.type == UInt32(S_IFREG), expected.linkCount == 1 else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                let claim = name + ".unlink"
+                guard try self.itemExists(parent: current, name: claim) else { return }
+                guard try !self.itemExists(parent: current, name: name),
+                      try self.itemIdentity(parent: current, name: claim) == expected else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                let descriptor = Darwin.openat(current, claim, O_RDONLY | O_NOFOLLOW | O_NONBLOCK)
+                guard descriptor >= 0 else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                defer { _ = Darwin.close(descriptor) }
+                var held = stat()
+                guard Darwin.fstat(descriptor, &held) == 0, PinnedIdentity(held) == expected else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                var completed = false
+                defer { if !completed { mutationPoisoned = true } }
+                guard Darwin.renameatx_np(current, claim, current, name, UInt32(RENAME_EXCL)) == 0,
+                      Darwin.fsync(current) == 0,
+                      try self.itemIdentity(parent: current, name: name) == expected,
+                      try !self.itemExists(parent: current, name: claim) else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                try verifyDirectories()
+                guard Darwin.fstat(descriptor, &held) == 0, PinnedIdentity(held) == expected,
+                      try self.itemIdentity(parent: current, name: name) == expected else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                completed = true
+            }
+            func removeOwnedRegular(_ name: String, expected: PinnedIdentity) throws {
+                try verifyDirectories()
+                guard !name.isEmpty, name != ".", name != "..",
+                      !name.contains("/"), !name.contains("\\"), !name.contains("\0"),
+                      expected.type == UInt32(S_IFREG), expected.linkCount == 1,
+                      let parentPin = pinned.last, parentPin.descriptor == current else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                let (nextLinkCount, underflow) = parentPin.identity.linkCount.subtractingReportingOverflow(1)
+                guard !underflow else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                let claim = name + ".unlink"
+                guard try !self.itemExists(parent: current, name: claim) else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                let descriptor = Darwin.openat(current, name, O_RDONLY | O_NOFOLLOW | O_NONBLOCK)
+                guard descriptor >= 0 else { throw BackupRestoreServiceError.invalidRestoreAuthority }
+                defer { _ = Darwin.close(descriptor) }
+                // Keep the owned inode open across unlink. A substituted leaf,
+                // changed parent, or authority callback cannot authorize it.
+                try verifyDirectories()
+                var opened = stat()
+                var named = stat()
+                guard Darwin.fstat(descriptor, &opened) == 0,
+                      Darwin.fstatat(current, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                      PinnedIdentity(opened) == expected, PinnedIdentity(named) == expected else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                var completed = false
+                defer {
+                    if !completed {
+                        // Once capture is attempted, never revive a scope with
+                        // uncertain mutation/authority by catching its error.
+                        mutationPoisoned = true
+#if DEBUG
+                        if directoryPinDiagnosticsEnabled && directoryPinRejection == nil {
+                            directoryPinRejection = "directory-owned-remove.reject caller=\(diagnosticCaller)"
+                        }
+#endif
+                    }
+                }
+#if DEBUG
+                try removalBoundaryForTesting?("before-claim")
+#endif
+                // Capture is non-destructive. A public-name substitution is
+                // retained at the recognized claim location, never unlinked.
+                guard Darwin.renameatx_np(current, name, current, claim, UInt32(RENAME_EXCL)) == 0,
+                      Darwin.fsync(current) == 0 else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                try verifyDirectories()
+                func verifyClaim() throws {
+                    var held = stat()
+                    guard Darwin.fstat(descriptor, &held) == 0,
+                          PinnedIdentity(held) == expected,
+                          try self.itemIdentity(parent: current, name: claim) == expected,
+                          try !self.itemExists(parent: current, name: name) else {
+                        throw BackupRestoreServiceError.invalidRestoreAuthority
+                    }
+                }
+                try verifyClaim()
+#if DEBUG
+                try removalBoundaryForTesting?("before-private-unlink")
+#endif
+                try verifyDirectories()
+                try verifyClaim()
+                // The receipt-reserved claim namespace is private to this
+                // synchronous G-locked metadata owner, like draft retirement's
+                // private claims. This is not an inode-conditioned syscall or
+                // protection from arbitrary same-UID mutation of private names.
+                guard Darwin.unlinkat(current, claim, 0) == 0,
+                      Darwin.fsync(current) == 0 else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                var parentAfter = stat()
+                guard Darwin.fstat(current, &parentAfter) == 0 else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                let parentIdentity = PinnedIdentity(parentAfter)
+#if DEBUG
+                if directoryPinDiagnosticsEnabled {
+                    ownedMutationObservation = "operation=owned-unlink expectedDelta=-1"
+                    let observedDelta = parentIdentity.linkCount >= parentPin.identity.linkCount
+                        ? "+\(parentIdentity.linkCount - parentPin.identity.linkCount)"
+                        : "-\(parentPin.identity.linkCount - parentIdentity.linkCount)"
+                    ownedRemovalObservation = "directory-owned-remove.observed caller=\(diagnosticCaller)"
+                        + " expectedDevice=\(parentPin.identity.device) observedDevice=\(parentIdentity.device)"
+                        + " expectedInode=\(parentPin.identity.inode) observedInode=\(parentIdentity.inode)"
+                        + " expectedType=\(parentPin.identity.type) observedType=\(parentIdentity.type)"
+                        + " linksBefore=\(parentPin.identity.linkCount) expectedLinks=\(nextLinkCount)"
+                        + " observedLinks=\(parentIdentity.linkCount) expectedDelta=-1 observedDelta=\(observedDelta)"
+                }
+#endif
+                guard parentIdentity.device == parentPin.identity.device,
+                      parentIdentity.inode == parentPin.identity.inode,
+                      parentIdentity.type == parentPin.identity.type,
+                      parentIdentity.linkCount == nextLinkCount else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                func verifyRemovedLeaf() throws {
+                    var removed = stat()
+                    var absent = stat()
+                    guard Darwin.fstat(descriptor, &removed) == 0,
+                          UInt64(removed.st_dev) == expected.device,
+                          UInt64(removed.st_ino) == expected.inode,
+                          UInt32(removed.st_mode & S_IFMT) == expected.type,
+                          removed.st_nlink == 0,
+                          Darwin.fstatat(current, name, &absent, AT_SYMLINK_NOFOLLOW) != 0,
+                          errno == ENOENT,
+                          try !self.itemExists(parent: current, name: claim) else {
+                        throw BackupRestoreServiceError.invalidRestoreAuthority
+                    }
+                }
+                var candidatePins = pinned
+                candidatePins[candidatePins.count - 1] = PinnedDirectory(
+                    descriptor: parentPin.descriptor, identity: parentIdentity,
+                    parent: parentPin.parent, name: parentPin.name)
+                try verifyRemovedLeaf()
+                try verifyPinnedDirectories(candidatePins, checkingAuthority: false)
+                try verifyPinnedDirectories(candidatePins, checkingAuthority: true)
+                try verifyRemovedLeaf()
+                pinned = candidatePins
+                completed = true
+            }
             try verifyDirectories()
 #if DEBUG
             directoryPinBodyPhase = "body"
 #endif
-            let result = try body(current, verifyDirectories, createExclusiveRegular)
+            let result = try body(current, verifyDirectories, createExclusiveRegular, removeOwnedRegular, restoreOwnedClaim)
 #if DEBUG
             directoryPinBodyPhase = "after-body"
 #endif
@@ -16262,7 +16521,7 @@ private extension BackupRestoreService {
         }
     }
 
-    private func itemExists(
+    nonisolated private func itemExists(
         parent: Int32,
         name: String
     ) throws -> Bool {
@@ -18910,6 +19169,42 @@ internal extension BackupRestoreService {
             root: root, relativePath: relativePath, createMissing: false,
             authorityCheck: authorityCheck, creationFailure: .materializationFailed,
             body: body)
+    }
+
+    func c36WithPinnedRegularRemovalForTesting<T>(
+        root: URL, relativePath: String,
+        authorityCheck: () throws -> Void,
+        body: (Int32, () throws -> Void, (String) throws -> Int32,
+               (String, Int32) throws -> Void) throws -> T
+    ) throws -> T {
+        try withPinnedDirectoryMutations(root: root, relativePath: relativePath,
+            createMissing: false, authorityCheck: authorityCheck) { parent, verify, create, remove, _ in
+                try withoutActuallyEscaping(verify) { scopedVerify in
+                    try withoutActuallyEscaping(create) { scopedCreate in
+                        try withoutActuallyEscaping(remove) { scopedRemove in
+                            try body(parent, scopedVerify, scopedCreate) { name, expectedDescriptor in
+                                var expected = stat()
+                                guard Darwin.fstat(expectedDescriptor, &expected) == 0 else {
+                                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                                }
+                                try scopedRemove(name, PinnedIdentity(expected))
+                            }
+                        }
+                    }
+                }
+            }
+    }
+
+    func c36RestoreOwnedRemovalClaimForTesting(root: URL, relativePath: String,
+        name: String, expectedDescriptor: Int32) throws {
+        try withPinnedDirectoryMutations(root: root, relativePath: relativePath,
+            createMissing: false, authorityCheck: {}) { _, _, _, _, restore in
+                var expected = stat()
+                guard Darwin.fstat(expectedDescriptor, &expected) == 0 else {
+                    throw BackupRestoreServiceError.invalidRestoreAuthority
+                }
+                try restore(name, PinnedIdentity(expected))
+            }
     }
 
     func c36RecoveryPlanForTesting(

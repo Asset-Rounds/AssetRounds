@@ -23,7 +23,8 @@ Inventory basis (read-only census at 31126e9, 2026-09-25; retained in the sessio
   - the backup restore readback shares the export's archive receipt order (batch N). Archive bytes are unchanged.
 
   - Mutable-semantic checkpoint v2 (batch Q; implicit version, all 148 kinds). R2 restore/upgrade evidence is required.
-  - Batch U C11/C12 typed postimage/history census, optional reversal-plan validation and C18 package promotion/replay/complete-closure corrections (in progress). Independent review, affected native results and complete same-head persistence/restore gates remain required.
+  - Batch U C11/C12 typed postimage/history census, optional reversal-plan validation and C18 package promotion/replay/complete-closure corrections: independently reviewed, locally compiled/tested and pushed4a8c0ea1. Same-head hosted persistence/restore gates remain required.
+  - Batch V restore claim recovery/digest ordering, My Day/portable corrections and immutable legacy package bridge: combined builds passed; V4 affected45/45PASS, V7 deletion/recovery3/3PASS and V9 new C49 history casesPASS. Genuine clone remains blocked by six destination journal projection gaps, now exactly attributed by V10; C49 class retains3failures and V9_03 migration remains unresolved. Forward-only claim locations and all restricted-change gates remain explicit; no phase acceptance.
   - Batch T C13 concurrency/domain postimage binding and configuration-clone omitted-draft destination projections. Receipts and revision history remain preserved; complete restore/relaunch coverage remains required.
   - Batch S/T writer lease and per-operation file-authority proof performance changes retain fencing and file-policy predicates; full hosted coverage remains required.
 

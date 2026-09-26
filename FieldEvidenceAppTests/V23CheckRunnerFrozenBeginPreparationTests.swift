@@ -952,7 +952,7 @@ func withAsyncFrozenBeginFixture<Value>(
         } else {
             support = fixtureRoot
         }
-        let fixture = try FrozenBeginFixture(
+        let fixture = try await FrozenBeginFixture.withAcceptedPromotion(
             root: support, entry: entry, storedTimeZoneID: storedTimeZoneID
         )
         diagnosticPhase?("fixture.init.end")
@@ -1041,25 +1041,89 @@ final class FrozenBeginFixture {
         let sourceData: Data
     }
 
-    init(root: URL, entry: CheckRunnerRequestedEntryV1, storedTimeZoneID: String?) throws {
+    private struct PreparedPromotion {
+        let factory: StoreGenerationFactory
+        let session: StoreGenerationSession
+        let coordinator: StoreSessionCoordinator
+        let ids: FrozenBeginCountingIDs
+        let clock: FrozenBeginClock
+        let promoted: PromotedPackageReleaseV1
+    }
+
+    /// Async export/recovery fixtures need the complete accepted package
+    /// history, not the isolated published row used by synchronous unit cases.
+    static func withAcceptedPromotion(root: URL, entry: CheckRunnerRequestedEntryV1,
+        storedTimeZoneID: String?) async throws -> FrozenBeginFixture {
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let identity = try WorkspaceReplicaIdentityV1(
+            workspaceID: WorkspaceID(rawValue: beginPreparationUUID(10_001)),
+            replicaID: ReplicaID(rawValue: beginPreparationUUID(10_002)))
+        let factory = StoreGenerationFactory(applicationSupportURL: root,
+            pointerEnrichmentIdentity: identity)
+        let session = try factory.openOrBootstrapCurrent()
+        let ids = FrozenBeginCountingIDs()
+        let clock = FrozenBeginClock(value: Date(timeIntervalSince1970: 1_789_500_000.4567))
+        let coordinator = try StoreSessionCoordinator(validatingSession: session,
+            clock: clock, idSource: ids,
+            lifecycleProfileRegistry: WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        do {
+            let release = try frozenBeginShippingRelease(stage: entry.stage)
+            let journal = try MutationJournalStoreV1(modelContext: session.modelContext,
+                identity: coordinator.workspaceIdentity, generationID: coordinator.generationID,
+                allowStateBootstrap: false)
+            let promoted = try await CanonicalWriterSeedingV1.promotePackage(release,
+                workspaceID: session.workspaceID, actor: actor(workspaceID: session.workspaceID),
+                writer: coordinator.workspaceWriter, journal: journal, context: session.modelContext,
+                promotedAt: Date(timeIntervalSince1970: 1_789_000_000),
+                ids: .init(releaseRecordID: beginPreparationUUID(10_040),
+                    sandboxRunID: beginPreparationUUID(10_042), pointerID: beginPreparationUUID(10_043),
+                    receiptID: beginPreparationUUID(10_044),
+                    mutationID: .init(rawValue: beginPreparationUUID(10_041)),
+                    actorMutationID: .init(rawValue: beginPreparationUUID(10_045))))
+            let adapter = PackageEvolutionLifecycleAdapterV1(writer: coordinator.workspaceWriter,
+                journal: journal, modelContext: session.modelContext)
+            let closure = try XCTUnwrap(adapter.acceptedLifecycleClosure(mutationID: promoted.mutationID))
+            try closure.validate()
+            XCTAssertEqual(closure.promotedReleases, [promoted])
+            XCTAssertEqual(closure.sandboxRuns.count, 1)
+            XCTAssertEqual(closure.promotionReceipts.count, 1)
+            XCTAssertEqual(closure.activePointers.count, 1)
+            XCTAssertEqual(closure.promotionReceipts.first?.operation, .initialActivation)
+            XCTAssertEqual(try journal.receipt(mutationID: promoted.mutationID)?.mutationID, promoted.mutationID)
+            try journal.validateAll()
+            return try FrozenBeginFixture(root: root, entry: entry, storedTimeZoneID: storedTimeZoneID,
+                prepared: .init(factory: factory, session: session, coordinator: coordinator,
+                    ids: ids, clock: clock, promoted: promoted))
+        } catch {
+            try? coordinator.invalidateAndReleaseWriter()
+            throw error
+        }
+    }
+
+    convenience init(root: URL, entry: CheckRunnerRequestedEntryV1, storedTimeZoneID: String?) throws {
+        try self.init(root: root, entry: entry, storedTimeZoneID: storedTimeZoneID, prepared: nil)
+    }
+
+    private init(root: URL, entry: CheckRunnerRequestedEntryV1, storedTimeZoneID: String?,
+        prepared: PreparedPromotion?) throws {
         self.root = root
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let identity = try WorkspaceReplicaIdentityV1(
             workspaceID: WorkspaceID(rawValue: beginPreparationUUID(10_001)),
             replicaID: ReplicaID(rawValue: beginPreparationUUID(10_002))
         )
-        let localFactory = StoreGenerationFactory(
+        let localFactory = prepared?.factory ?? StoreGenerationFactory(
             applicationSupportURL: root, pointerEnrichmentIdentity: identity
         )
         factory = localFactory
-        let localSession = try localFactory.openOrBootstrapCurrent()
+        let localSession = try prepared?.session ?? localFactory.openOrBootstrapCurrent()
         session = localSession
-        let localIDs = FrozenBeginCountingIDs()
+        let localIDs = prepared?.ids ?? FrozenBeginCountingIDs()
         ids = localIDs
-        let localClock = FrozenBeginClock(value: Date(timeIntervalSince1970: 1_789_500_000.4567))
+        let localClock = prepared?.clock ?? FrozenBeginClock(value: Date(timeIntervalSince1970: 1_789_500_000.4567))
         clock = localClock
         let registry = try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry()
-        let localCoordinator = try StoreSessionCoordinator(
+        let localCoordinator = try prepared?.coordinator ?? StoreSessionCoordinator(
             validatingSession: localSession, clock: localClock, idSource: localIDs,
             lifecycleProfileRegistry: registry
         )
@@ -1071,7 +1135,11 @@ final class FrozenBeginFixture {
         signPack = localProfile.package
         let localRelease = try frozenBeginShippingRelease(stage: entry.stage)
         publishedRelease = localRelease
-        try Self.installPublishedRelease(localRelease, in: localCoordinator, context: localSession.modelContext)
+        if let prepared {
+            XCTAssertEqual(prepared.promoted.packageRelease, localRelease)
+        } else {
+            try Self.installPublishedRelease(localRelease, in: localCoordinator, context: localSession.modelContext)
+        }
 
         let localSiteID = beginPreparationUUID(10_010)
         let localAssetID = beginPreparationUUID(10_011)
@@ -1972,15 +2040,29 @@ struct FrozenProductionPhotoV1 {
                 expectedCheckpointSHA256: initial.checkpointSHA256, observedAtUTC: h.clock.millisecondValue)
             parent = try service.resumeInitialBegin(draftID: prepared.draftID)
         }
+        return try await stage(owner: h.coordinator, service: service,
+            runner: owners.runner, adapter: owners.adapter, root: h.root,
+            parent: parent, step: step,
+            bytes: WorkCanonicalIntegrationTestSupportV1.makePNG(seed: step == .wide ? 183 : 184),
+            clock: h.clock, publishRaw: publishRaw, diagnosticPhase: diagnosticPhase)
+    }
+
+    /// Reuses the genuine raw-stage path with an already authenticated parent
+    /// in an existing mixed backup workspace. Caller supplies real picker bytes.
+    static func stage(owner: StoreSessionCoordinator,
+        service: ProductionCheckRunnerItemDraftServiceV1, runner: CheckRunnerCoordinator,
+        adapter: DraftAttachmentStagingAdapterV1, root: URL,
+        parent: FieldDraftCheckpointV1, step: WorkflowDraftStep, bytes: Data,
+        clock: FrozenBeginClock, publishRaw: Bool = true,
+        diagnosticPhase: (@MainActor (String) -> Void)? = nil) async throws -> Self {
         let payload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(parent)
         let begin = try XCTUnwrap(payload.field.begin.attempt)
-        let bytes = try WorkCanonicalIntegrationTestSupportV1.makePNG(seed: step == .wide ? 183 : 184)
-        let base = max(parent.updatedAt, h.clock.millisecondValue)
+        let base = max(parent.updatedAt, clock.millisecondValue)
         let intent = try CheckRunnerPhotoRawStageIntentV1(stageID: UUID(), stageMutationID: .init(rawValue: UUID()),
             stageCreatedAt: base.addingTimeInterval(2), expectedSourceByteCount: Int64(bytes.count),
             provenanceID: "photo-production-journey", evidenceID: UUID(), evidenceCreatedAt: base.addingTimeInterval(1))
         let childID = UUID()
-        let proposal = try CheckRunnerPhotoDraftPayloadV1(workspaceID: h.workspaceID,
+        let proposal = try CheckRunnerPhotoDraftPayloadV1(workspaceID: owner.workspaceID,
             childDraftID: childID, parentDraftID: parent.draftID, recordID: begin.recordCommand.recordID,
             assetID: payload.source.assetID, sourceBinding: payload.source,
             workflowStage: payload.source.requestedEntry.stage, captureStep: step,
@@ -1993,13 +2075,13 @@ struct FrozenProductionPhotoV1 {
         diagnosticPhase?("raw-prepare.end")
         if publishRaw {
             diagnosticPhase?("raw-publish.begin")
-            let url = h.root.appendingPathComponent("picker-\(childID.uuidString).png")
+            let url = root.appendingPathComponent("picker-\(childID.uuidString).png")
             try bytes.write(to: url)
             _ = try await service.publishRawPhoto(parentDraftID: parent.draftID, childDraftID: childID, sourceURL: url)
             diagnosticPhase?("raw-publish.end")
         }
-        h.clock.value = intent.stageCreatedAt.addingTimeInterval(1)
-        return .init(owner: h.coordinator, service: service, runner: owners.runner, adapter: owners.adapter,
+        clock.value = intent.stageCreatedAt.addingTimeInterval(1)
+        return .init(owner: owner, service: service, runner: runner, adapter: adapter,
             parentID: parent.draftID, childID: childID, intent: intent)
     }
 

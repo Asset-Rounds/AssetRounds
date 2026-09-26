@@ -173,7 +173,7 @@ struct PortableExchangeProtectedCapabilityArtifactV2: Codable, Equatable, Sendab
     func validate() throws {
         guard schemaVersion == Self.schemaVersion,
               C48PortableReviewPersistenceValidationV1.validRelativePath(relativePath),
-              relativePath.contains("capability"),
+              relativePath.hasPrefix("capability/"),
               byteCount == 32,
               StoreMigrationCanonicalJSONV1.isLowercaseSHA256(sha256),
               state.isActive else {

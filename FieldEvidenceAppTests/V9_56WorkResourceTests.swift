@@ -165,6 +165,7 @@ final class V9_56WorkResourceTests: XCTestCase {
         }
     }
 
+    @MainActor
     func testV23P03C49I01ReplaceRestoreAndCloneForkRecoveryChainIsExplicit() throws {
         func id(_ slot: Int) -> UUID {
             UUID(uuidString: String(format: "49000000-0000-4000-8000-%012x", slot))!
@@ -209,6 +210,154 @@ final class V9_56WorkResourceTests: XCTestCase {
         XCTAssertTrue(C49WorkResourceRestoreIdentityPolicyV1.requiresHistoricRebinding(fork))
         XCTAssertTrue(C49WorkResourceLifecycleBoundaryV1.backupRestoreCloneForkDeleteAndEraseAreExplicit)
         XCTAssertTrue(C49WorkResourceStreamingArchiveBoundaryV1.totalsSearchDraftsAndLiveStockAreExcluded)
+
+        // Exercise the actual C49 restore projection with typed journal values.
+        // No database, photo producer, archive, or physical restore is needed.
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("C49-terminal-order-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = try BackupRestoreService(applicationSupportURL: root)
+        let site = try WorkspaceEntityIdentityV1(kind: .site, id: id(950))
+        let unrelatedSite = try WorkspaceEntityIdentityV1(kind: .site, id: id(951))
+        func imageDigest(_ value: String) -> String {
+            CanonicalJSONV1.sha256(Data(value.utf8))
+        }
+        func record(
+            step: UInt64, sequence: UInt64, entity: WorkspaceEntityIdentityV1,
+            before: UInt64, after: UInt64, imageSHA: String,
+            receiptWorkspace: WorkspaceID? = nil, replica: UUID? = nil,
+            inherited: [WorkspaceEntityRevisionV1] = []
+        ) throws -> MutationHistoryReceiptRecordV1 {
+            let owner = receiptWorkspace ?? workspaceID
+            let replicaID = replica ?? id(900)
+            let expected = try WorkspaceExpectedRevisionV1(
+                workspaceID: owner, generationID: id(952), writerInstanceID: id(953),
+                workspaceRevision: step - 1,
+                entityRevisions: [.init(identity: entity, revision: before)])
+            let envelope = try MutationEnvelopeV1(
+                request: .init(mutationID: .init(rawValue: UUID()), expectedRevision: expected,
+                    command: .updateSiteTimeZone(.init(siteID: entity.id,
+                        timeZoneID: "America/Chicago", confirmedAt: instant))),
+                identity: .init(workspaceID: owner, replicaID: .init(rawValue: replicaID)))
+            let resulting = try WorkspaceExpectedRevisionV1(
+                workspaceID: owner, generationID: id(952), writerInstanceID: id(953),
+                workspaceRevision: step,
+                entityRevisions: inherited + [.init(identity: entity, revision: after)])
+            let receipt = try MutationReceiptV1(
+                identity: .init(workspaceID: owner, replicaID: .init(rawValue: replicaID),
+                    localSequence: sequence), envelope: envelope,
+                resultingRevision: .init(resulting),
+                postImages: [.site(id: entity.id, revision: after, semanticSHA256: imageSHA)],
+                committedAt: instant)
+            return .init(envelopeData: try envelope.canonicalData(),
+                receiptData: try receipt.canonicalData(), reversalBasisData: nil,
+                semanticReversalData: nil)
+        }
+        func history(
+            _ receipts: [MutationHistoryReceiptRecordV1], workspaceRevision: UInt64 = 12,
+            revisions: [MutationHistoryEntityRevisionV1]? = nil
+        ) -> MutationHistorySnapshotV1 {
+            .init(workspaceRevision: workspaceRevision, lastLocalSequence: workspaceRevision,
+                receipts: receipts, quarantines: [],
+                entityRevisions: revisions ?? [.init(identity: site, revision: 12,
+                    externalProjectionSHA256: nil)])
+        }
+        func project(_ input: MutationHistorySnapshotV1, using decision: RestoreIdentityV1) throws
+            -> MutationHistorySnapshotV1 {
+            let emptyStock = try PartsStockBackupSnapshotV1(workspaceID: workspaceID,
+                parts: [], locations: [], movements: [], uses: [], reversals: [],
+                returns: [], abandonments: [])
+            let records = V4BackupRecordsV1(assets: [], deletionLedger: .empty,
+                evidenceFiles: [], issues: [], mutationHistory: input, packets: [],
+                recordsSchemaVersion: C55PartsStockBackupEnrollmentV1.recordsSchemaVersion,
+                reports: [], sites: [], workflowRecords: [], partsStockSnapshot: emptyStock)
+            let result = try service.c55RebindingWorkResourcesForTesting(
+                in: records, sourceRecords: records, identity: decision,
+                partsStockOperationID: id(954))
+            return try XCTUnwrap(result.mutationHistory)
+        }
+        let chronological = try (1...12).map { value in
+            try record(step: UInt64(value), sequence: UInt64(value), entity: site,
+                before: UInt64(value - 1), after: UInt64(value),
+                imageSHA: imageDigest("site-\(value)"))
+        }
+        let keyed = try chronological.map { record in
+            (record, try MutationReceiptV1.decodeCanonical(from: record.receiptData).identity.stableKey)
+        }
+        let lexical = keyed.sorted { $0.1 < $1.1 }.map(\.0)
+        XCTAssertEqual(try lexical.map {
+            try MutationReceiptV1.decodeCanonical(from: $0.receiptData).identity.localSequence
+        }, [1, 10, 11, 12, 2, 3, 4, 5, 6, 7, 8, 9])
+        for decision in [clone, fork, replaceExisting] {
+            for receipts in [chronological, lexical, Array(chronological.reversed())] {
+                let input = history(receipts)
+                try MutationJournalStoreV1.validateImportedSnapshot(input)
+                let output = try project(input, using: decision)
+                XCTAssertEqual(output.receipts, input.receipts)
+                XCTAssertEqual(output.quarantines, input.quarantines)
+                XCTAssertEqual(output.entityRevisions, input.entityRevisions)
+                try MutationJournalStoreV1.validateImportedSnapshot(output)
+            }
+        }
+
+        // A later causal receipt may not regress an inherited, untouched row.
+        // Each receipt is individually valid; its own post-image still advances.
+        let regressing = try record(step: 12, sequence: 12, entity: unrelatedSite,
+            before: 0, after: 1, imageSHA: imageDigest("unrelated"),
+            inherited: [.init(identity: site, revision: 10)])
+        let regression = history(Array(chronological.prefix(11)) + [regressing], revisions: [
+            .init(identity: site, revision: 11, externalProjectionSHA256: nil),
+            .init(identity: unrelatedSite, revision: 1, externalProjectionSHA256: nil),
+        ])
+        try MutationJournalStoreV1.validateImportedSnapshot(regression)
+        XCTAssertThrowsError(try project(regression, using: clone)) {
+            XCTAssertEqual($0 as? BackupRestoreServiceError, .invalidPackage)
+        }
+
+        // Equal-revision conflicts within one workspace remain invalid even
+        // when a higher image is encountered first in serialized array order.
+        let lowerA = try record(step: 1, sequence: 1, entity: site,
+            before: 0, after: 1, imageSHA: imageDigest("lower-a"))
+        let lowerB = try record(step: 2, sequence: 2, entity: site,
+            before: 0, after: 1, imageSHA: imageDigest("lower-b"))
+        let higher = try record(step: 3, sequence: 3, entity: site,
+            before: 1, after: 2, imageSHA: imageDigest("higher"))
+        let conflict = history([higher, lowerA, lowerB], workspaceRevision: 3,
+            revisions: [.init(identity: site, revision: 2, externalProjectionSHA256: nil)])
+        try MutationJournalStoreV1.validateImportedSnapshot(conflict)
+        XCTAssertThrowsError(try project(conflict, using: clone)) {
+            XCTAssertEqual($0 as? BackupRestoreServiceError, .invalidPackage)
+        }
+
+        // A foreign original is not this destination's image authority. An
+        // already normalized projection survives differing foreign digests.
+        let foreign = try record(step: 1, sequence: 1, entity: site,
+            before: 11, after: 12, imageSHA: imageDigest("foreign-site-12"),
+            receiptWorkspace: .init(rawValue: id(960)), replica: id(961))
+        let normalized = MutationHistoryEntityRevisionV1(identity: site, revision: 12,
+            externalProjectionSHA256: imageDigest("authorized-normalized-site-12"))
+        for receipts in [lexical + [foreign], [foreign] + Array(chronological.reversed())] {
+            let input = history(receipts, revisions: [normalized])
+            try MutationJournalStoreV1.validateImportedSnapshot(input)
+            for decision in [clone, fork, replaceExisting] {
+                let output = try project(input, using: decision)
+                XCTAssertEqual(output.receipts, input.receipts)
+                XCTAssertEqual(output.entityRevisions, [normalized])
+            }
+        }
+
+        // Foreign original receipts cannot invent or advance a destination
+        // baseline when neither an exact row nor a target image authorizes it.
+        for revisions in [[], [MutationHistoryEntityRevisionV1(identity: site,
+            revision: 11, externalProjectionSHA256: imageDigest("site-11"))]] {
+            let unsupported = history(lexical, revisions: revisions)
+            for decision in [clone, fork] {
+                XCTAssertThrowsError(try project(unsupported, using: decision)) {
+                    XCTAssertEqual($0 as? BackupRestoreServiceError, .invalidPackage)
+                }
+            }
+        }
     }
 
     func testV23P03C49H01CustomerSafeProjectionNeverLeaksInternalDirectCost() throws {

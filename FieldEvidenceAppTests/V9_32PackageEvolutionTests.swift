@@ -210,6 +210,7 @@ final class V9_32PackageEvolutionTests: XCTestCase {
             same.changes.map(\.stableKey),
             same.changes.sorted { $0.stableKey < $1.stableKey }.map(\.stableKey)
         )
+        try assertCompositeSemanticChanges()
     }
 
     func testV23P03C18A01ExplicitDraftOptInRunsBothSandboxShapes() async throws {
@@ -1108,12 +1109,139 @@ final class V9_32PackageEvolutionTests: XCTestCase {
         return try JSONDecoder().decode(Corpus.self, from: Data(contentsOf: url))
     }
 
-    private func publishedRelease(workflowID: String, contentVersion: Int = 1) throws -> InspectionPackageReleaseV1 {
+    private func assertCompositeSemanticChanges() throws {
+        let base = try ShippingIlluminatedSignAdapterV1.inspectionPackage()
+        let workflowID = "c18.workflow.composite.v1"
+        func release(_ version: Int, _ guidance: [InspectionPackageGuidanceV2],
+                     _ presentation: InspectionPackagePresentationV2? = nil) throws -> InspectionPackageReleaseV1 {
+            try publishedRelease(workflowID: workflowID, contentVersion: version,
+                guidance: guidance, presentation: presentation)
+        }
+        func presentation(labels: [InspectionPackageDisplayEntryV2],
+                          acknowledgements: [InspectionPackageAcknowledgementV2]? = nil) -> InspectionPackagePresentationV2 {
+            let p = base.presentation
+            return .init(assetSingular: p.assetSingular, assetPlural: p.assetPlural,
+                checkSingular: p.checkSingular, checkPlural: p.checkPlural,
+                issueSingular: p.issueSingular, issuePlural: p.issuePlural,
+                evidencePurposes: p.evidencePurposes, acknowledgements: acknowledgements ?? p.acknowledgements,
+                issueLabels: labels, couldNotVerifyRegistryVersion: p.couldNotVerifyRegistryVersion,
+                couldNotVerifyReasons: p.couldNotVerifyReasons, stageDisplays: p.stageDisplays,
+                outcomeDisplays: p.outcomeDisplays, disclaimer: p.disclaimer)
+        }
+        let a = InspectionPackageGuidanceV2(guidanceID: "c18.guidance.a", kind: .evidence, localizationKey: "c18.guidance.a")
+        let b = InspectionPackageGuidanceV2(guidanceID: "c18.guidance.b", kind: .safety, localizationKey: "c18.guidance.b")
+        let changedA = InspectionPackageGuidanceV2(guidanceID: a.guidanceID, kind: .limitation, localizationKey: "c18.guidance.changed")
+        let empty = try release(1, [])
+        let added = try PackageSemanticDifferV1.diff(source: empty, target: release(2, [b, a]))
+        XCTAssertEqual(added.classification, .additiveDraftSafe)
+        XCTAssertEqual(added.changes.filter { $0.kind == .guidanceAdded }.count, 2)
+        XCTAssertEqual(added, try PackageSemanticDifferV1.diff(source: empty, target: release(2, [a, b])))
+        XCTAssertTrue(added.changes.allSatisfy { InspectionPackageValidationV2.validToken($0.stableSubjectID, maximumBytes: 256) })
+        let longGuidance = InspectionPackageGuidanceV2(guidanceID: String(repeating: "g", count: 120),
+            kind: .evidence, localizationKey: String(repeating: "k", count: 200))
+        let longDiff = try PackageSemanticDifferV1.diff(source: empty, target: release(2, [longGuidance]))
+        XCTAssertEqual(longDiff.classification, .additiveDraftSafe)
+        XCTAssertTrue(longDiff.changes.allSatisfy { InspectionPackageValidationV2.validToken($0.stableSubjectID, maximumBytes: 256) })
+        let removed = try PackageSemanticDifferV1.diff(source: release(1, [a, b]), target: release(2, []))
+        XCTAssertEqual(removed.classification, .draftMigrationRequired)
+        XCTAssertEqual(Set(removed.changes.filter { $0.kind == .guidanceRemoved }.map(\.stableSubjectID)),
+                       Set(added.changes.filter { $0.kind == .guidanceAdded }.map(\.stableSubjectID)))
+        let changed = try PackageSemanticDifferV1.diff(source: release(1, [a]), target: release(2, [changedA]))
+        XCTAssertEqual(changed.classification, .draftMigrationRequired)
+        XCTAssertEqual(changed.changes.filter { $0.kind == .guidanceAdded }.count, 1)
+        XCTAssertEqual(changed.changes.filter { $0.kind == .guidanceRemoved }.count, 1)
+        XCTAssertNotEqual(changed.changes.first { $0.kind == .guidanceAdded }?.stableSubjectID,
+                          changed.changes.first { $0.kind == .guidanceRemoved }?.stableSubjectID)
+        let label = InspectionPackageDisplayEntryV2(key: "c18.added", display: "Added issue")
+        let labels = base.presentation.issueLabels + [label]
+        let presentationAdded = try PackageSemanticDifferV1.diff(source: empty,
+            target: release(2, [], presentation(labels: labels)))
+        XCTAssertEqual(presentationAdded.classification, .additiveDraftSafe)
+        let presentationID = try XCTUnwrap(presentationAdded.changes.first { $0.kind == .guidanceAdded }?.stableSubjectID)
+        XCTAssertTrue(presentationID.hasPrefix("c18.presentation."))
+        XCTAssertFalse(added.changes.contains { $0.stableSubjectID == presentationID })
+        let presentationRemoved = try PackageSemanticDifferV1.diff(
+            source: release(1, [], presentation(labels: labels)), target: release(2, []))
+        XCTAssertEqual(presentationRemoved.classification, .draftMigrationRequired)
+        XCTAssertEqual(presentationRemoved.changes.first { $0.kind == .guidanceRemoved }?.stableSubjectID, presentationID)
+        let acknowledgement = InspectionPackageAcknowledgementV2(key: "c18.ack", copy: "Acknowledge", version: "1")
+        let successorAcknowledgement = InspectionPackageAcknowledgementV2(key: "c18.ack", copy: "Acknowledge", version: "2")
+        let presentationChanged = try PackageSemanticDifferV1.diff(
+            source: release(1, [], presentation(labels: [], acknowledgements: [acknowledgement])),
+            target: release(2, [], presentation(labels: [], acknowledgements: [successorAcknowledgement])))
+        XCTAssertEqual(presentationChanged.classification, .draftMigrationRequired)
+        XCTAssertEqual(presentationChanged.changes.filter { $0.kind == .guidanceAdded }.count, 1)
+        XCTAssertEqual(presentationChanged.changes.filter { $0.kind == .guidanceRemoved }.count, 1)
+        let localized = InspectionPackageDisplayEntryV2(key: label.key, display: "Localized issue")
+        XCTAssertEqual(try PackageSemanticDifferV1.diff(
+            source: release(1, [], presentation(labels: [label])),
+            target: release(1, [], presentation(labels: [localized]))).classification, .noChange)
+        XCTAssertEqual(try PackageSemanticDifferV1.diff(source: empty, target: release(1, [a])).classification, .invalid)
+        XCTAssertThrowsError(try release(2, [a, a]))
+        XCTAssertThrowsError(try release(2, [], presentation(labels: [label, label])))
+        XCTAssertThrowsError(try PackageSemanticChangeV1(kind: .guidanceAdded, stableSubjectID: "id|EVIDENCE|key"))
+        XCTAssertThrowsError(try release(2, [.init(guidanceID: "c18.control", kind: .evidence, localizationKey: "c18.key\n")]))
+
+        // Compare unchanged/version-only bytes with the original frozen basis,
+        // not a hardcoded digest repin or a second composite-ID producer.
+        struct FrozenDiffBasis: Encodable {
+            let schemaVersion: Int
+            let source, target: PackageSemanticGraphV1
+            let classification: PackageSemanticDiffClassificationV1
+            let changes: [PackageSemanticChangeV1]
+        }
+        for target in [empty, try release(2, [])] {
+            let diff = try PackageSemanticDifferV1.diff(source: empty, target: target)
+            let expected: [PackageSemanticChangeV1] = target.packageContentVersion == 1 ? []
+                : [try .init(kind: .packageContentVersionChanged, stableSubjectID: "1__TO__2")]
+            XCTAssertEqual(diff.changes, expected)
+            XCTAssertEqual(diff.diffSHA256, try WorkspaceMutationCanonicalV1.sha256(FrozenDiffBasis(
+                schemaVersion: 1, source: diff.source, target: diff.target,
+                classification: expected.isEmpty ? .noChange : .additiveDraftSafe, changes: expected)))
+        }
+        let roundTrip = try PackageEvolutionCanonicalCodecV1.decode(PackageSemanticDiffV1.self,
+            from: PackageEvolutionCanonicalCodecV1.encode(changed))
+        XCTAssertEqual(roundTrip, changed)
+        try roundTrip.validate()
+        XCTAssertThrowsError(try PackageSemanticDiffV1(source: changed.source, target: changed.target,
+            classification: changed.classification, changes: changed.changes + [changed.changes[0]]))
+
+        // A well-hashed imported graph must not turn controls or a legacy-token
+        // alias into an admitted composite subject by hashing it.
+        func graph(_ values: [String]) throws -> PackageSemanticGraphV1 {
+            var object = try XCTUnwrap(JSONSerialization.jsonObject(with:
+                WorkspaceMutationCanonicalV1.data(added.target)) as? [String: Any])
+            object["guidanceSemanticIDs"] = values.sorted()
+            var basis = object
+            basis.removeValue(forKey: "packageReleaseID")
+            basis.removeValue(forKey: "semanticGraphSHA256")
+            object["semanticGraphSHA256"] = KernelCanonicalHashV1.sha256(try JSONSerialization.data(
+                withJSONObject: basis, options: [.sortedKeys, .withoutEscapingSlashes]))
+            let result = try JSONDecoder().decode(PackageSemanticGraphV1.self,
+                from: JSONSerialization.data(withJSONObject: object, options: [.sortedKeys, .withoutEscapingSlashes]))
+            try result.validate()
+            return result
+        }
+        let aComposite = "\(a.guidanceID)|\(a.kind.rawValue)|\(a.localizationKey)"
+        let aOnly = try PackageSemanticDifferV1.diff(source: empty, target: release(2, [a]))
+        let aToken = try XCTUnwrap(aOnly.changes.first { $0.kind == .guidanceAdded }?.stableSubjectID)
+        let aliasGraph = try graph([aComposite, aToken])
+        let controlGraph = try graph(["c18.a|EVIDENCE|c18.key\n"])
+        XCTAssertThrowsError(try PackageSemanticDifferV1.changes(source: added.source, target: aliasGraph))
+        XCTAssertThrowsError(try PackageSemanticDifferV1.changes(source: added.source, target: controlGraph))
+        let priorTokenGraph = try graph(["prior.valid.token"])
+        XCTAssertTrue(try PackageSemanticDifferV1.changes(source: added.source, target: priorTokenGraph)
+            .contains { $0.kind == .guidanceAdded && $0.stableSubjectID == "prior.valid.token" })
+    }
+
+    private func publishedRelease(workflowID: String, contentVersion: Int = 1,
+                                  guidance: [InspectionPackageGuidanceV2]? = nil,
+                                  presentation: InspectionPackagePresentationV2? = nil) throws -> InspectionPackageReleaseV1 {
         let base = try ShippingIlluminatedSignAdapterV1.inspectionPackage()
         let package = try InspectionPackageV2(packageID: base.packageID, contentVersion: contentVersion,
             minimumRegistryVersion: base.minimumRegistryVersion, maximumRegistryVersion: base.maximumRegistryVersion,
             capabilities: base.capabilities, permissions: base.permissions,
-            advisoryGuidance: base.advisoryGuidance, presentation: base.presentation)
+            advisoryGuidance: guidance ?? base.advisoryGuidance, presentation: presentation ?? base.presentation)
         let draft = try InspectionPackageReleaseV1.makeDraft(
             package: package,
             workflow: try c18Workflow(id: workflowID)

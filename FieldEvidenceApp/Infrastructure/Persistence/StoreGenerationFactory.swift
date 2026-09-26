@@ -361,6 +361,12 @@ private extension StoreGenerationFactory {
                       cloned.files == sourceManifest.files else {
                     throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
                 }
+#if DEBUG
+                let sourceSemantic = try adjacentDiagnosticSemanticExport(
+                    at: restoreStagingGenerationURL(id: journal.targetGenerationID),
+                    release: journal.sourceRelease, phase: "prepared.semantic-open",
+                    expectedFiles: sourceManifest.files, expectedTreeDigest: journal.sourceTreeDigest)
+#else
                 let sourceSemantic = try semanticExport(
                     at: restoreStagingGenerationURL(
                         id: journal.targetGenerationID
@@ -368,6 +374,7 @@ private extension StoreGenerationFactory {
                     release: journal.sourceRelease,
                     markerMigrationID: nil
                 )
+#endif
                 if journal.sourceRelease != .v1,
                    sourceManifest.semanticSHA256
                     != StoreMigrationCanonicalJSONV1.sha256(sourceSemantic) {
@@ -420,16 +427,31 @@ private extension StoreGenerationFactory {
                 guard try authority.presence(id: journal.targetGenerationID).staging,
                       try generationTreeDigest(at: targetRoot)
                         == journal.sourceTreeDigest else {
+#if DEBUG
+                    print("StoreMigration.adjacent.guard phase=sourceCloned reason=staging-or-tree sameProcess=\(processID == journal.originatingProcessID)")
+                    let expectedFiles = try? requireSourceManifest(journal, store: store).files
+                    _ = adjacentDiagnosticFiles(at: targetRoot, phase: "sourceCloned.guard",
+                        expectedFiles: expectedFiles, expectedTreeDigest: journal.sourceTreeDigest)
+#endif
                     throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
                 }
+#if DEBUG
+                let recoveredSourceSemantic = try adjacentDiagnosticSemanticExport(
+                    at: targetRoot, release: journal.sourceRelease, phase: "sourceCloned.semantic-open",
+                    expectedFiles: nil, expectedTreeDigest: journal.sourceTreeDigest)
+#else
                 let recoveredSourceSemantic = try semanticExport(
                     at: targetRoot.appendingPathComponent(Self.modelStoreName),
                     release: journal.sourceRelease,
                     markerMigrationID: nil
                 )
+#endif
                 guard StoreMigrationCanonicalJSONV1.sha256(
                     recoveredSourceSemantic
                 ) == journal.sourceSemanticDigest else {
+#if DEBUG
+                    print("StoreMigration.adjacent.guard phase=sourceCloned reason=semantic-digest")
+#endif
                     throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
                 }
                 try reachMigrationBoundary(.beforeV2WriteAuthorization)
@@ -2101,6 +2123,82 @@ private extension StoreGenerationFactory {
         return container
     }
 
+
+#if DEBUG
+    /// Diagnostic reads never replace a migration guard or its frozen input.
+    /// Only SQLite leaf names are printed; other owned paths are hashed.
+    @MainActor
+    private func adjacentDiagnosticFiles(
+        at root: URL, phase: String,
+        expectedFiles: [StoreGenerationFileDigestV1]?, expectedTreeDigest: String?
+    ) -> [StoreGenerationFileDigestV1]? {
+        do {
+            let observed = try generationFileDigests(at: root, durable: false)
+            let digest = StoreMigrationCanonicalJSONV1.sha256(try StoreMigrationCanonicalJSONV1.encode(observed))
+            print("StoreMigration.adjacent.files phase=\(phase) count=\(observed.count) expectedTree=\(expectedTreeDigest ?? "none") observedTree=\(digest)")
+            let sqlite: Set<String> = ["model.sqlite", "model.sqlite-wal", "model.sqlite-shm"]
+            func safeName(_ path: String) -> String {
+                sqlite.contains(path) ? path : "owned-sha256:" + StoreMigrationCanonicalJSONV1.sha256(Data(path.utf8))
+            }
+            func value(_ file: StoreGenerationFileDigestV1?) -> String {
+                guard let file else { return "absent" }
+                return "bytes:\(file.byteCount),sha256:\(file.sha256)"
+            }
+            // Always show the SQLite vector, even in a populated media tree.
+            let vector = observed.filter { sqlite.contains($0.relativePath) }
+                + Array(observed.filter { !sqlite.contains($0.relativePath) }.prefix(29))
+            for file in vector {
+                print("StoreMigration.adjacent.vector phase=\(phase) file=\(safeName(file.relativePath)) value=\(value(file))")
+            }
+            if let expectedFiles {
+                var expectedByPath: [String: StoreGenerationFileDigestV1] = [:]
+                var observedByPath: [String: StoreGenerationFileDigestV1] = [:]
+                for file in expectedFiles { expectedByPath[file.relativePath] = file }
+                for file in observed { observedByPath[file.relativePath] = file }
+                let changed = Set(expectedByPath.keys).union(observedByPath.keys).filter {
+                    expectedByPath[$0] != observedByPath[$0]
+                }.sorted()
+                print("StoreMigration.adjacent.diff phase=\(phase) changed=\(changed.count) emitted=\(min(changed.count, 32))")
+                for path in changed.prefix(32) {
+                    print("StoreMigration.adjacent.diff-file phase=\(phase) file=\(safeName(path)) expected=\(value(expectedByPath[path])) observed=\(value(observedByPath[path]))")
+                }
+            }
+            return observed
+        } catch {
+            print("StoreMigration.adjacent.files phase=\(phase) acquisition-failed type=\(String(reflecting: type(of: error)))")
+            return nil
+        }
+    }
+
+    @MainActor
+    private func adjacentDiagnosticSemanticExport(
+        at root: URL, release: PersistentSchemaReleaseV1, phase: String,
+        expectedFiles: [StoreGenerationFileDigestV1]?, expectedTreeDigest: String
+    ) throws -> Data {
+        let before = adjacentDiagnosticFiles(at: root, phase: phase + ".before",
+            expectedFiles: expectedFiles, expectedTreeDigest: expectedTreeDigest)
+        weak var retainedContainer: ModelContainer?
+        weak var retainedContext: ModelContext?
+        defer {
+            print("StoreMigration.adjacent.drain phase=\(phase) containerReleased=\(retainedContainer == nil) contextReleased=\(retainedContext == nil)")
+            _ = adjacentDiagnosticFiles(at: root, phase: phase + ".after",
+                expectedFiles: before, expectedTreeDigest: expectedTreeDigest)
+        }
+        do {
+            return try autoreleasepool {
+                let container = try openReleasedContainer(at: root.appendingPathComponent(Self.modelStoreName),
+                    release: release, markerMigrationID: nil)
+                retainedContainer = container; retainedContext = container.mainContext
+                let result = try semanticProjection(in: container.mainContext, release: release)
+                print("StoreMigration.adjacent.read phase=\(phase) contextHasChanges=\(container.mainContext.hasChanges)")
+                return result
+            }
+        } catch {
+            print("StoreMigration.adjacent.read phase=\(phase) failed type=\(String(reflecting: type(of: error)))")
+            throw error
+        }
+    }
+#endif
 
     @MainActor
     private func semanticExport(
@@ -4527,6 +4625,33 @@ private extension StoreGenerationFactory {
         try requireV10LegacyMigrationState(in: context, migrationID: migrationID)
     }
 
+    /// The shipping inspection wrapper has schema 2; its accepted SignPack
+    /// source has schema 1. This bridge never changes the asset's stored tuple
+    /// or the workflow binding derived from it.
+    private func requireAcceptedAssetMigrationPackage(
+        _ package: PackageReleaseIdentityV1,
+        catalogPackage: PackageReleaseIdentityV1,
+        phase: String
+    ) throws {
+        if package == catalogPackage { return }
+        let source = SignPack.illuminatedSignV1
+        let legacy = try PackageReleaseIdentityV1(packageID: source.packID,
+            schemaVersion: source.schemaVersion, contentVersion: source.contentVersion)
+        let parity = try ShippingIlluminatedSignAdapterV1.parityReceipt()
+        guard package == legacy, parity.exactParity,
+              parity.packageID == legacy.packageID,
+              parity.sourceSchemaVersion == legacy.schemaVersion,
+              parity.sourceContentVersion == legacy.contentVersion,
+              catalogPackage.packageID == parity.packageID,
+              catalogPackage.schemaVersion == parity.inspectionPackageSchemaVersion,
+              catalogPackage.contentVersion == parity.sourceContentVersion else {
+#if DEBUG
+            print("StoreMigration.asset-package.failure phase=\(phase) reason=unsupported-release")
+#endif
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+    }
+
     @MainActor
     private func predictedV10AssetBackfill(asset: Asset, workspaceID: WorkspaceID,
                                            migrationID: UUID) throws -> AssetSemanticPersistentSnapshotV1 {
@@ -4534,16 +4659,15 @@ private extension StoreGenerationFactory {
         let acceptedCatalog = try BundledInspectionPackageRegistryV2.shippingAssetSemanticCatalog()
         let recordedAt = try canonicalAssetSemanticDate(asset.createdAt)
         let packageRelease = try asset.legacyPackageReleaseIdentityForAssetSemanticMigration()
-        guard packageRelease == acceptedCatalog.packageRelease else {
-            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
-        }
+        try requireAcceptedAssetMigrationPackage(packageRelease,
+            catalogPackage: acceptedCatalog.packageRelease, phase: "historical-prediction")
         let catalogRelease = acceptedCatalog.reference
         let kindEventID = deterministicAssetSemanticUUID(
             domain: "asset-semantics/legacy-kind-binding/v1",
             workspaceID: workspaceID.rawValue,
             assetID: asset.id
         )
-        let kindDraft = AssetKindBindingEventV1(
+        let kind = try AssetKindBindingEventV1.canonical(
             eventID: kindEventID,
             workspaceID: workspaceID,
             assetID: asset.id,
@@ -4552,17 +4676,14 @@ private extension StoreGenerationFactory {
             predecessorEventID: nil,
             revision: 1,
             mutationID: mutationID,
-            recordedAt: recordedAt,
-            eventSHA256: String(repeating: "0", count: 64)
+            recordedAt: recordedAt
         )
-        let kind = try kindDraft.rebound(to: workspaceID)
-        try kind.validate()
         let workflowEventID = deterministicAssetSemanticUUID(
             domain: "asset-semantics/legacy-workflow-binding/v1",
             workspaceID: workspaceID.rawValue,
             assetID: asset.id
         )
-        let workflowDraft = try AssetWorkflowCapabilityBindingEventV1(
+        let workflow = try AssetWorkflowCapabilityBindingEventV1(
             eventID: workflowEventID,
             workspaceID: workspaceID,
             assetID: asset.id,
@@ -4574,10 +4695,8 @@ private extension StoreGenerationFactory {
             predecessorEventID: nil,
             revision: 1,
             mutationID: mutationID,
-            recordedAt: recordedAt,
-            eventSHA256: String(repeating: "0", count: 64)
+            recordedAt: recordedAt
         )
-        let workflow = try workflowDraft.rebound(to: workspaceID)
         return try AssetSemanticPersistentSnapshotV1(workspaceID: workspaceID, assetID: asset.id,
             kindBindings: [kind], workflowCapabilityBindings: [workflow], productIdentities: [],
             lifecycleEvents: [], successorLinks: [], workSubjectScopes: [])
@@ -4613,14 +4732,18 @@ private extension StoreGenerationFactory {
                 throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
             }
             let expectedPackage = try asset.legacyPackageReleaseIdentityForAssetSemanticMigration()
+            try requireAcceptedAssetMigrationPackage(expectedPackage,
+                catalogPackage: acceptedCatalog.packageRelease, phase: "v10-baseline")
             guard kind.workspaceID.rawValue == state.workspaceID,
                   kind.eventID == deterministicAssetSemanticUUID(domain: "asset-semantics/legacy-kind-binding/v1", workspaceID: state.workspaceID, assetID: asset.id),
-                  expectedPackage == acceptedCatalog.packageRelease,
                   kind.catalogRelease == acceptedCatalog.reference,
                   kind.semanticID == AssetSemanticPersistenceReleaseV1.acceptedLegacySignSemanticID,
                   kind.predecessorEventID == nil, kind.revision == 1,
                   kind.mutationID == mutation,
                   kind.recordedAt == (try canonicalAssetSemanticDate(asset.createdAt)) else {
+#if DEBUG
+                print("StoreMigration.asset-package.failure phase=v10-baseline reason=kind-binding")
+#endif
                 throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
             }
         }
@@ -4639,6 +4762,9 @@ private extension StoreGenerationFactory {
                   workflow.predecessorEventID == nil, workflow.revision == 1,
                   workflow.mutationID == mutation,
                   workflow.recordedAt == (try canonicalAssetSemanticDate(asset.createdAt)) else {
+#if DEBUG
+                print("StoreMigration.asset-package.failure phase=v10-baseline reason=workflow-binding")
+#endif
                 throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
             }
         }

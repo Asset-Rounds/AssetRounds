@@ -880,6 +880,10 @@ extension V10_01WorkspaceWriterTests {
                 boundary,
                 candidateFault == "pre-retry" ? .afterAdjacentMarkerSave : .afterFinalCheckpointSave
             )
+        } catch {
+            let progress = try? StoreAggregateMigrationControlV1(applicationSupportURL: root)?.load()
+            print("HistoricalTerminal.initial-open case=\(candidateFault) phase=\(String(describing: progress?.phase)) candidate=\(String(describing: progress?.currentCandidateRelease)) next=\(String(describing: progress?.authorizedTargetRelease)) error=\(String(reflecting: error))")
+            throw error
         }
         let interrupted = try XCTUnwrap(
             StoreAggregateMigrationControlV1(applicationSupportURL: root)?.load()
@@ -914,7 +918,7 @@ extension V10_01WorkspaceWriterTests {
                 retainedCandidateContext = context
                 if candidateFault == "mixed-tuple" {
                     let rows = try context.fetch(FetchDescriptor<EntityMutationRevisionRow>())
-                    let row = try XCTUnwrap(rows.first { $0.entityID == asset.id })
+                    let row = try XCTUnwrap(rows.first { $0.entityID == assetIdentity.id })
                     XCTAssertNotNil(row.externalProjectionSHA256)
                     row.externalProjectionSHA256 = nil
                 } else if candidateFault == "assurance-metadata" {
@@ -946,7 +950,7 @@ extension V10_01WorkspaceWriterTests {
                     row.label = "Hostile candidate base"
                 } else if candidateFault == "revision" {
                     let rows = try context.fetch(FetchDescriptor<EntityMutationRevisionRow>())
-                    let row = try XCTUnwrap(rows.first { $0.entityID == asset.id })
+                    let row = try XCTUnwrap(rows.first { $0.entityID == assetIdentity.id })
                     row.revision = 2
                 } else if candidateFault == "receipt-anchor" {
                     let rows = try context.fetch(FetchDescriptor<MutationReceiptRow>())
@@ -1712,6 +1716,145 @@ extension V10_01WorkspaceWriterTests {
     }
 
     @MainActor
+    func testHistoricalAssetMigrationUsesClosedLegacyPackageBridge() async throws {
+        let shipping = SignPack.illuminatedSignV1
+        let catalog = try BundledInspectionPackageRegistryV2.shippingAssetSemanticCatalog()
+        let legacy = try PackageReleaseIdentityV1(packageID: shipping.packID,
+            schemaVersion: shipping.schemaVersion, contentVersion: shipping.contentVersion)
+        XCTAssertNotEqual(legacy, catalog.packageRelease)
+        let cases: [(String, PackageReleaseIdentityV1, Bool)] = [
+            ("legacy-v1", legacy, true),
+            ("wrapper-v2", catalog.packageRelease, true),
+            ("unknown-package", try .init(packageID: "unknown.sign.package",
+                schemaVersion: legacy.schemaVersion, contentVersion: legacy.contentVersion), false),
+            ("unknown-schema", try .init(packageID: legacy.packageID,
+                schemaVersion: catalog.packageRelease.schemaVersion + 1,
+                contentVersion: legacy.contentVersion), false),
+            ("unknown-content", try .init(packageID: legacy.packageID,
+                schemaVersion: legacy.schemaVersion, contentVersion: legacy.contentVersion + 1), false),
+        ]
+        for (label, package, accepted) in cases {
+            let root = try Self.makeAbsentApplicationSupportURL(label: "asset-package-\(label)")
+            defer { try? FileManager.default.removeItem(at: root.deletingLastPathComponent()) }
+            let generationID = UUID(), migrationID = UUID(), siteID = UUID(), assetID = UUID()
+            let identity = try Self.historicalIdentity()
+            let timestamp = Date(timeIntervalSince1970: 1_700_090_000)
+            let site = Site(id: siteID, label: "Package source", timeZoneID: "UTC", createdAt: timestamp)
+            let asset = Asset(id: assetID, siteID: siteID, packID: package.packageID,
+                packSchemaVersion: package.schemaVersion, packContentVersion: package.contentVersion,
+                label: "Original asset", createdAt: timestamp)
+            let siteIdentity = try WorkspaceEntityIdentityV1(kind: .site, id: siteID)
+            let assetIdentity = try WorkspaceEntityIdentityV1(kind: .asset, id: assetID)
+            let siteValue = try Self.historicalItem(identity: siteIdentity, revision: 1,
+                value: V4BackupSiteDTO(id: siteID, schemaVersion: site.schemaVersion,
+                    label: site.label, address: site.address, timeZoneID: site.timeZoneID,
+                    createdAt: site.createdAt, updatedAt: site.updatedAt))
+            let assetValue = try Self.historicalItem(identity: assetIdentity, revision: 1,
+                value: V4BackupAssetDTO(id: assetID, schemaVersion: asset.schemaVersion,
+                    siteID: siteID, packID: asset.packID, packSchemaVersion: asset.packSchemaVersion,
+                    packContentVersion: asset.packContentVersion, label: asset.label,
+                    createdAt: asset.createdAt, updatedAt: asset.updatedAt))
+            let checkpoint = try Self.historicalCheckpoint([siteValue, assetValue])
+            let factory = StoreGenerationFactory(applicationSupportURL: root,
+                migrationFailureInjection: StoreMigrationFailureInjection(
+                    aggregateFault: .afterAdjacentMarkerSave, targetRelease: .v10))
+            let modelURL = try factory.seedReleasedCheckpointTestFixture(release: .v9,
+                generationID: generationID, migrationID: migrationID, identity: identity) { context in
+                context.insert(site); context.insert(asset)
+                context.insert(EntityMutationRevisionRow(identity: siteIdentity, revision: 1,
+                    externalProjectionSHA256: siteValue.semanticSHA256))
+                context.insert(EntityMutationRevisionRow(identity: assetIdentity, revision: 1,
+                    externalProjectionSHA256: assetValue.semanticSHA256))
+                context.insert(WorkspaceMutationStateRow(workspaceID: identity.workspaceID.rawValue,
+                    generationID: generationID, activeReplicaID: identity.replicaID.rawValue,
+                    mutableSemanticSHA256: checkpoint))
+            }
+            let pointerURL = root.appendingPathComponent("FieldEvidenceData/current.json")
+            let pointerBefore = try Data(contentsOf: pointerURL)
+            let sourceBefore = try Data(contentsOf: modelURL)
+            let snapshotBefore = try factory.makeRestoreGenerationAuthority()
+                .snapshotInstalledGeneration(id: generationID)
+            var reachedV10Marker = false
+            do {
+                _ = try await factory.openForStartup(recoverOriginalSource: { _ in })
+                XCTFail("Expected package \(label) to stop at its exact boundary")
+            } catch {
+                print("HistoricalAssetPackage.case=\(label) error=\(String(reflecting: error))")
+                if accepted {
+                    reachedV10Marker = (error as? StoreAggregateMigrationFaultBoundaryV1) == .afterAdjacentMarkerSave
+                    XCTAssertEqual(error as? StoreAggregateMigrationFaultBoundaryV1, .afterAdjacentMarkerSave)
+                } else {
+                    XCTAssertEqual(error as? StoreMigrationFailure, .maintenanceRequired(.targetMismatch))
+                }
+            }
+            XCTAssertEqual(try Data(contentsOf: pointerURL), pointerBefore, label)
+            XCTAssertEqual(try Data(contentsOf: modelURL), sourceBefore, label)
+            let snapshotAfter = try factory.makeRestoreGenerationAuthority()
+                .snapshotInstalledGeneration(id: generationID)
+            XCTAssertEqual(snapshotAfter.files, snapshotBefore.files, label)
+            XCTAssertEqual(snapshotAfter.frozenIdentityDigest, snapshotBefore.frozenIdentityDigest, label)
+            // The failed boundary assertion remains the primary failure; do
+            // not open a nonexistent candidate and obscure it with SQLite noise.
+            if accepted && !reachedV10Marker { continue }
+            let journal = try XCTUnwrap(StoreAggregateMigrationControlV1(applicationSupportURL: root)?.load())
+            if !accepted {
+                XCTAssertEqual(journal.phase, .recoveringSource, label)
+                XCTAssertNil(journal.sourceCheckpoint, label)
+                XCTAssertFalse(FileManager.default.fileExists(
+                    atPath: factory.restoreStagingGenerationURL(id: journal.targetGenerationID).path), label)
+                XCTAssertFalse(FileManager.default.fileExists(
+                    atPath: factory.installedGenerationURL(id: journal.targetGenerationID).path), label)
+                continue
+            }
+            XCTAssertEqual(journal.currentCandidateRelease, .v9, label)
+            XCTAssertEqual(journal.authorizedTargetRelease, .v10, label)
+            guard journal.phase == .migrating, journal.currentCandidateRelease == .v9,
+                  journal.authorizedTargetRelease == .v10 else {
+                XCTFail("Expected a real V10 candidate for \(label)")
+                continue
+            }
+            let candidateURL = factory.restoreStagingGenerationURL(id: journal.targetGenerationID)
+                .appendingPathComponent("model.sqlite")
+            let schema = Schema(PersistentSchemaV10.models, version: PersistentSchemaV10.versionIdentifier)
+            let configuration = ModelConfiguration("HistoricalAssetPackage", schema: schema,
+                url: candidateURL, allowsSave: false, cloudKitDatabase: .none)
+            weak var retainedContainer: ModelContainer?
+            weak var retainedContext: ModelContext?
+            try autoreleasepool {
+                let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [configuration])
+                let context = container.mainContext
+                context.autosaveEnabled = false
+                retainedContainer = container; retainedContext = context
+                let migrated = try XCTUnwrap(context.fetch(FetchDescriptor<Asset>()).first)
+                XCTAssertEqual(migrated.id, assetID)
+                XCTAssertEqual(try migrated.legacyPackageReleaseIdentityForAssetSemanticMigration(), package)
+                let kind = try XCTUnwrap(context.fetch(FetchDescriptor<AssetKindBindingEventRow>()).first).value()
+                let workflow = try XCTUnwrap(context.fetch(FetchDescriptor<AssetWorkflowCapabilityBindingEventRow>()).first).value()
+                XCTAssertEqual(kind.catalogRelease, catalog.reference)
+                XCTAssertEqual(workflow.workflowPackageRelease, package)
+                XCTAssertEqual(workflow.kindBindingEventID, kind.eventID)
+                XCTAssertThrowsError(try AssetWorkflowCapabilityBindingEventV1(
+                    eventID: workflow.eventID, workspaceID: workflow.workspaceID,
+                    assetID: workflow.assetID, kindBindingEventID: workflow.kindBindingEventID,
+                    kindBindingRevision: workflow.kindBindingRevision,
+                    workflowPackageRelease: workflow.workflowPackageRelease,
+                    capabilityIDs: workflow.capabilityIDs, disposition: workflow.disposition,
+                    predecessorEventID: workflow.predecessorEventID, revision: workflow.revision,
+                    mutationID: workflow.mutationID, recordedAt: workflow.recordedAt,
+                    eventSHA256: String(repeating: "0", count: 64))) {
+                    XCTAssertEqual($0 as? AssetSemanticContractFailureV1, .nonCanonicalData)
+                }
+                XCTAssertTrue(try context.fetch(FetchDescriptor<MutationReceiptRow>()).isEmpty)
+                XCTAssertFalse(context.hasChanges)
+            }
+            XCTAssertNil(retainedContext); XCTAssertNil(retainedContainer)
+            Self.assertAwaitingIndependentValidation(
+                try await factory.openForStartup(recoverOriginalSource: { _ in }))
+            XCTAssertEqual(try Data(contentsOf: modelURL), sourceBefore, label)
+        }
+    }
+
+    @MainActor
     func testV10HistoricalAssetBackfillAcceptsOnlyItsFrozenV9Checkpoint() async throws {
         let root = try Self.makeAbsentApplicationSupportURL(label: "V10-asset-backfill")
         defer { try? FileManager.default.removeItem(at: root.deletingLastPathComponent()) }
@@ -1749,6 +1892,7 @@ extension V10_01WorkspaceWriterTests {
             try Self.historicalItem(identity: assetIdentity, value: assetDTO),
         ])
         let catalog = try BundledInspectionPackageRegistryV2.shippingAssetSemanticCatalog()
+        let originalPackage = try asset.legacyPackageReleaseIdentityForAssetSemanticMigration()
         let mutationID = try MutationIDV1(rawValue: migrationID)
         let kindEventID = Self.historicalAssetSemanticUUID(
             domain: "asset-semantics/legacy-kind-binding/v1",
@@ -1776,7 +1920,7 @@ extension V10_01WorkspaceWriterTests {
             assetID: assetID,
             kindBindingEventID: kindEventID,
             kindBindingRevision: 1,
-            workflowPackageRelease: catalog.packageRelease,
+            workflowPackageRelease: originalPackage,
             capabilityIDs: [],
             disposition: .bound,
             predecessorEventID: nil,
@@ -1806,91 +1950,94 @@ extension V10_01WorkspaceWriterTests {
             try await factory.openForStartup(recoverOriginalSource: { _ in })
         )
 
-        let hostileRoot = try Self.makeAbsentApplicationSupportURL(label: "V10-malformed-backfill")
-        defer { try? FileManager.default.removeItem(at: hostileRoot.deletingLastPathComponent()) }
-        let hostileGenerationID = UUID()
-        let malformedKindEventID = UUID()
-        let malformedKind = try AssetKindBindingEventV1.canonical(
-            eventID: malformedKindEventID,
-            workspaceID: identity.workspaceID,
-            assetID: assetID,
-            catalogRelease: catalog.reference,
-            semanticID: AssetSemanticPersistenceReleaseV1.acceptedLegacySignSemanticID,
-            predecessorEventID: nil,
-            revision: 1,
-            mutationID: mutationID,
-            recordedAt: recordedAt
-        )
-        let malformedWorkflow = try AssetWorkflowCapabilityBindingEventV1(
-            eventID: Self.historicalAssetSemanticUUID(
-                domain: "asset-semantics/legacy-workflow-binding/v1",
-                workspaceID: identity.workspaceID.rawValue,
-                assetID: assetID
-            ),
-            workspaceID: identity.workspaceID,
-            assetID: assetID,
-            kindBindingEventID: malformedKindEventID,
-            kindBindingRevision: 1,
-            workflowPackageRelease: catalog.packageRelease,
-            capabilityIDs: [],
-            disposition: .bound,
-            predecessorEventID: nil,
-            revision: 1,
-            mutationID: mutationID,
-            recordedAt: recordedAt
-        )
-        let hostileFactory = StoreGenerationFactory(applicationSupportURL: hostileRoot)
-        let hostileModelURL = try hostileFactory.seedReleasedCheckpointTestFixture(
-            release: .v10,
-            generationID: hostileGenerationID,
-            migrationID: migrationID,
-            identity: identity
-        ) { context in
-            context.insert(Site(
-                id: siteDTO.id, label: siteDTO.label, address: siteDTO.address,
-                timeZoneID: siteDTO.timeZoneID, createdAt: siteDTO.createdAt,
-                updatedAt: siteDTO.updatedAt
-            ))
-            context.insert(Asset(
-                id: assetDTO.id, siteID: assetDTO.siteID, packID: assetDTO.packID,
-                packSchemaVersion: assetDTO.packSchemaVersion,
-                packContentVersion: assetDTO.packContentVersion, label: assetDTO.label,
-                createdAt: assetDTO.createdAt, updatedAt: assetDTO.updatedAt
-            ))
-            context.insert(try AssetKindBindingEventRow(malformedKind))
-            context.insert(try AssetWorkflowCapabilityBindingEventRow(malformedWorkflow))
-            context.insert(WorkspaceMutationStateRow(
-                workspaceID: identity.workspaceID.rawValue,
+        for hostile in ["event-identity", "workflow-wrapper"] {
+            let hostileRoot = try Self.makeAbsentApplicationSupportURL(label: "V10-malformed-backfill-\(hostile)")
+            defer { try? FileManager.default.removeItem(at: hostileRoot.deletingLastPathComponent()) }
+            let hostileGenerationID = UUID()
+            let malformedKindEventID = hostile == "event-identity" ? UUID() : kindEventID
+            let malformedKind = try AssetKindBindingEventV1.canonical(
+                eventID: malformedKindEventID,
+                workspaceID: identity.workspaceID,
+                assetID: assetID,
+                catalogRelease: catalog.reference,
+                semanticID: AssetSemanticPersistenceReleaseV1.acceptedLegacySignSemanticID,
+                predecessorEventID: nil,
+                revision: 1,
+                mutationID: mutationID,
+                recordedAt: recordedAt
+            )
+            let malformedWorkflow = try AssetWorkflowCapabilityBindingEventV1(
+                eventID: Self.historicalAssetSemanticUUID(
+                    domain: "asset-semantics/legacy-workflow-binding/v1",
+                    workspaceID: identity.workspaceID.rawValue,
+                    assetID: assetID
+                ),
+                workspaceID: identity.workspaceID,
+                assetID: assetID,
+                kindBindingEventID: malformedKindEventID,
+                kindBindingRevision: 1,
+                workflowPackageRelease: hostile == "workflow-wrapper"
+                    ? catalog.packageRelease : originalPackage,
+                capabilityIDs: [],
+                disposition: .bound,
+                predecessorEventID: nil,
+                revision: 1,
+                mutationID: mutationID,
+                recordedAt: recordedAt
+            )
+            let hostileFactory = StoreGenerationFactory(applicationSupportURL: hostileRoot)
+            let hostileModelURL = try hostileFactory.seedReleasedCheckpointTestFixture(
+                release: .v10,
                 generationID: hostileGenerationID,
-                activeReplicaID: identity.replicaID.rawValue,
-                mutableSemanticSHA256: checkpoint
-            ))
-        }
-        let hostilePointerURL = hostileRoot.appendingPathComponent("FieldEvidenceData/current.json")
-        let hostilePointerBefore = try Data(contentsOf: hostilePointerURL)
-        let hostileSourceBytesBefore = try Data(contentsOf: hostileModelURL)
-        let hostileSnapshotBefore = try hostileFactory.makeRestoreGenerationAuthority()
-            .snapshotInstalledGeneration(id: hostileGenerationID)
-        do {
-            _ = try await hostileFactory.openForStartup(recoverOriginalSource: { _ in })
-            XCTFail("Expected a non-deterministic V10 legacy event identity to fail closed")
-        } catch {
-            XCTAssertTrue(error is StoreMigrationFailure || error is WorkspaceMutationFailureV1)
-        }
-        XCTAssertEqual(try Data(contentsOf: hostilePointerURL), hostilePointerBefore)
-        XCTAssertEqual(try Data(contentsOf: hostileModelURL), hostileSourceBytesBefore)
-        let hostileSnapshotAfter = try hostileFactory.makeRestoreGenerationAuthority()
-            .snapshotInstalledGeneration(id: hostileGenerationID)
-        XCTAssertEqual(hostileSnapshotAfter.files, hostileSnapshotBefore.files)
-        XCTAssertEqual(hostileSnapshotAfter.sourceTreeDigest, hostileSnapshotBefore.sourceTreeDigest)
-        XCTAssertEqual(hostileSnapshotAfter.frozenIdentityDigest, hostileSnapshotBefore.frozenIdentityDigest)
-        if let journal = try StoreAggregateMigrationControlV1(applicationSupportURL: hostileRoot)?.load() {
-            XCTAssertFalse(FileManager.default.fileExists(
-                atPath: hostileFactory.installedGenerationURL(id: journal.targetGenerationID).path
-            ))
-            XCTAssertFalse(FileManager.default.fileExists(
-                atPath: hostileFactory.restoreStagingGenerationURL(id: journal.targetGenerationID).path
-            ))
+                migrationID: migrationID,
+                identity: identity
+            ) { context in
+                context.insert(Site(
+                    id: siteDTO.id, label: siteDTO.label, address: siteDTO.address,
+                    timeZoneID: siteDTO.timeZoneID, createdAt: siteDTO.createdAt,
+                    updatedAt: siteDTO.updatedAt
+                ))
+                context.insert(Asset(
+                    id: assetDTO.id, siteID: assetDTO.siteID, packID: assetDTO.packID,
+                    packSchemaVersion: assetDTO.packSchemaVersion,
+                    packContentVersion: assetDTO.packContentVersion, label: assetDTO.label,
+                    createdAt: assetDTO.createdAt, updatedAt: assetDTO.updatedAt
+                ))
+                context.insert(try AssetKindBindingEventRow(malformedKind))
+                context.insert(try AssetWorkflowCapabilityBindingEventRow(malformedWorkflow))
+                context.insert(WorkspaceMutationStateRow(
+                    workspaceID: identity.workspaceID.rawValue,
+                    generationID: hostileGenerationID,
+                    activeReplicaID: identity.replicaID.rawValue,
+                    mutableSemanticSHA256: checkpoint
+                ))
+            }
+            let hostilePointerURL = hostileRoot.appendingPathComponent("FieldEvidenceData/current.json")
+            let hostilePointerBefore = try Data(contentsOf: hostilePointerURL)
+            let hostileSourceBytesBefore = try Data(contentsOf: hostileModelURL)
+            let hostileSnapshotBefore = try hostileFactory.makeRestoreGenerationAuthority()
+                .snapshotInstalledGeneration(id: hostileGenerationID)
+            do {
+                _ = try await hostileFactory.openForStartup(recoverOriginalSource: { _ in })
+                XCTFail("Expected V10 legacy \(hostile) to fail closed")
+            } catch {
+                XCTAssertTrue(error is StoreMigrationFailure || error is WorkspaceMutationFailureV1)
+            }
+            XCTAssertEqual(try Data(contentsOf: hostilePointerURL), hostilePointerBefore)
+            XCTAssertEqual(try Data(contentsOf: hostileModelURL), hostileSourceBytesBefore)
+            let hostileSnapshotAfter = try hostileFactory.makeRestoreGenerationAuthority()
+                .snapshotInstalledGeneration(id: hostileGenerationID)
+            XCTAssertEqual(hostileSnapshotAfter.files, hostileSnapshotBefore.files)
+            XCTAssertEqual(hostileSnapshotAfter.sourceTreeDigest, hostileSnapshotBefore.sourceTreeDigest)
+            XCTAssertEqual(hostileSnapshotAfter.frozenIdentityDigest, hostileSnapshotBefore.frozenIdentityDigest)
+            if let journal = try StoreAggregateMigrationControlV1(applicationSupportURL: hostileRoot)?.load() {
+                XCTAssertFalse(FileManager.default.fileExists(
+                    atPath: hostileFactory.installedGenerationURL(id: journal.targetGenerationID).path
+                ))
+                XCTAssertFalse(FileManager.default.fileExists(
+                    atPath: hostileFactory.restoreStagingGenerationURL(id: journal.targetGenerationID).path
+                ))
+            }
         }
     }
 

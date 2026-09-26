@@ -11,6 +11,217 @@ final class S6_5ReplacementUnionTests: XCTestCase {
     private let fileManager = FileManager.default
     private let replacementAt = Date(timeIntervalSince1970: 1_786_710_000)
 
+#if DEBUG
+    @MainActor
+    func testOwnedRegularRemovalAdvancesOnlyExactMutationPins() throws {
+        let root = try makeRoot("owned-remove")
+        defer { try? fileManager.removeItem(at: root) }
+        let service = try BackupRestoreService(applicationSupportURL: root)
+        // Preserve the existing creation success/hostile matrix as a paired control.
+        try assertOwnedRegularCreationContract(service: service, root: root)
+        var diagnostics = [String]()
+        service.restorePhaseDiagnosticForTesting = { diagnostics.append($0) }
+        let normal = root.appendingPathComponent("normal", isDirectory: true)
+        try fileManager.createDirectory(at: normal, withIntermediateDirectories: false)
+        try service.c36WithPinnedRegularRemovalForTesting(
+            root: root, relativePath: "normal", authorityCheck: {}
+        ) { parent, verify, create, remove in
+            let fd = try create("leaf")
+            defer { _ = Darwin.close(fd) }
+            var before = stat()
+            XCTAssertEqual(Darwin.fstat(parent, &before), 0)
+            try remove("leaf", fd)
+            try verify()
+            var after = stat(), unlinked = stat(), absent = stat()
+            XCTAssertEqual(Darwin.fstat(parent, &after), 0)
+            XCTAssertEqual(UInt64(after.st_nlink) + 1, UInt64(before.st_nlink))
+            XCTAssertEqual(Darwin.fstat(fd, &unlinked), 0)
+            XCTAssertEqual(unlinked.st_nlink, 0)
+            XCTAssertEqual(Darwin.fstatat(parent, "leaf", &absent, AT_SYMLINK_NOFOLLOW), -1)
+            XCTAssertEqual(errno, ENOENT)
+            // A completed removal cannot authorize a second unlink.
+            XCTAssertThrowsError(try remove("leaf", fd))
+            try verify()
+            let next = try create("leaf")
+            defer { _ = Darwin.close(next) }
+            try remove("leaf", next)
+            try verify()
+        }
+        XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: normal.path), [])
+        XCTAssertTrue(diagnostics.contains { $0.hasPrefix("directory-owned-remove.observed")
+            && $0.contains("expectedDelta=-1") && $0.contains("observedDelta=-1") })
+
+        for kind in ["absent", "wrong-inode", "symlink", "hardlink", "directory", "fifo"] {
+            let parent = root.appendingPathComponent(kind, isDirectory: true)
+            try fileManager.createDirectory(at: parent, withIntermediateDirectories: false)
+            let expectedURL = parent.appendingPathComponent("expected")
+            let leaf = parent.appendingPathComponent("leaf")
+            let bytes = Data("owned original must survive".utf8)
+            try bytes.write(to: expectedURL)
+            let fd = Darwin.open(expectedURL.path, O_RDONLY | O_NOFOLLOW)
+            XCTAssertGreaterThanOrEqual(fd, 0)
+            defer { _ = Darwin.close(fd) }
+            switch kind {
+            case "wrong-inode": try bytes.write(to: leaf)
+            case "symlink": try fileManager.createSymbolicLink(at: leaf, withDestinationURL: expectedURL)
+            case "hardlink": try fileManager.linkItem(at: expectedURL, to: leaf)
+            case "directory": try fileManager.createDirectory(at: leaf, withIntermediateDirectories: false)
+            case "fifo": XCTAssertEqual(Darwin.mkfifo(leaf.path, mode_t(0o600)), 0)
+            default: break
+            }
+            let before = try fileManager.contentsOfDirectory(atPath: parent.path).sorted()
+            try service.c36WithPinnedRegularRemovalForTesting(
+                root: root, relativePath: kind, authorityCheck: {}
+            ) { _, verify, _, remove in
+                for name in ["leaf", "", ".", "..", "../expected", "/expected", "back\\slash", "nul\0suffix"] {
+                    XCTAssertThrowsError(try remove(name, fd), "\(kind):\(name)")
+                    try verify()
+                }
+            }
+            XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: parent.path).sorted(), before)
+            XCTAssertEqual(try Data(contentsOf: expectedURL), bytes)
+            if kind == "wrong-inode" { XCTAssertEqual(try Data(contentsOf: leaf), bytes) }
+        }
+
+        // Mutate at the authority callback either before unlink, or after the
+        // exact unlink but before its updated pin can become usable.
+        for moment in ["before", "after"] {
+            for mutation in ["authority-loss", "extra-entry", "replace-leaf", "replace-parent", "replace-ancestor"] {
+                let caseRoot = root.appendingPathComponent("\(moment)-\(mutation)", isDirectory: true)
+                let ancestor = caseRoot.appendingPathComponent("ancestor", isDirectory: true)
+                let parent = ancestor.appendingPathComponent("parent", isDirectory: true)
+                let leaf = parent.appendingPathComponent("leaf")
+                try fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
+                let bytes = Data("original".utf8), hostile = Data("replacement must survive".utf8)
+                try bytes.write(to: leaf)
+                let expected = Darwin.open(leaf.path, O_RDONLY | O_NOFOLLOW)
+                XCTAssertGreaterThanOrEqual(expected, 0)
+                defer { _ = Darwin.close(expected) }
+                var armed = false, injected = false, rejected = false
+                let authorityCheck = {
+                    guard armed, !injected,
+                          moment == "before" || (!self.fileManager.fileExists(atPath: leaf.path)
+                            && !self.fileManager.fileExists(atPath: leaf.path + ".unlink")) else { return }
+                    injected = true
+                    switch mutation {
+                    case "authority-loss": throw FixtureError.invalid
+                    case "extra-entry": try hostile.write(to: parent.appendingPathComponent("extra"))
+                    case "replace-leaf":
+                        if moment == "before" { try self.fileManager.removeItem(at: leaf) }
+                        try hostile.write(to: leaf)
+                    case "replace-parent":
+                        try self.fileManager.moveItem(at: parent, to: ancestor.appendingPathComponent("old-parent"))
+                        try self.fileManager.createDirectory(at: parent, withIntermediateDirectories: false)
+                    default:
+                        try self.fileManager.moveItem(at: ancestor, to: caseRoot.appendingPathComponent("old-ancestor"))
+                        try self.fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
+                    }
+                }
+                do {
+                    try service.c36WithPinnedRegularRemovalForTesting(
+                        root: caseRoot, relativePath: "ancestor/parent", authorityCheck: authorityCheck
+                    ) { _, verify, create, remove in
+                        armed = true
+                        XCTAssertThrowsError(try remove("leaf", expected)) { _ in rejected = true }
+                        if moment == "after" {
+                            XCTAssertThrowsError(try verify())
+                            XCTAssertThrowsError(try create("must-not-create"))
+                            XCTAssertThrowsError(try remove("leaf", expected))
+                        }
+                    }
+                    XCTAssertEqual(moment, "before", "Post-unlink failure must poison the scope")
+                } catch {
+                    XCTAssertTrue(injected && rejected, "Unexpected error before injected removal denial: \(error)")
+                }
+                XCTAssertTrue(injected)
+                XCTAssertTrue(rejected)
+                XCTAssertFalse(fileManager.fileExists(atPath: parent.appendingPathComponent("must-not-create").path))
+                if mutation == "replace-leaf" { XCTAssertEqual(try Data(contentsOf: leaf), hostile) }
+                if mutation == "extra-entry" { XCTAssertEqual(try Data(contentsOf: parent.appendingPathComponent("extra")), hostile) }
+                if moment == "before" && mutation != "replace-leaf" {
+                    let original: URL
+                    if mutation == "replace-parent" { original = ancestor.appendingPathComponent("old-parent/leaf") }
+                    else if mutation == "replace-ancestor" { original = caseRoot.appendingPathComponent("old-ancestor/parent/leaf") }
+                    else { original = leaf }
+                    XCTAssertEqual(try Data(contentsOf: original), bytes)
+                }
+                var observed = stat()
+                XCTAssertEqual(Darwin.fstat(expected, &observed), 0)
+                XCTAssertEqual(observed.st_nlink, moment == "after" || mutation == "replace-leaf" ? 0 : 1)
+            }
+        }
+        // Deterministic final-check -> capture/private-delete witnesses. The
+        // public substitution is moved but survives; it never authorizes unlink.
+        for boundary in ["before-claim", "before-private-unlink"] {
+            let parent = root.appendingPathComponent(boundary, isDirectory: true)
+            try fileManager.createDirectory(at: parent, withIntermediateDirectories: false)
+            let leaf = parent.appendingPathComponent("leaf")
+            let claim = parent.appendingPathComponent("leaf.unlink")
+            try Data("original".utf8).write(to: leaf)
+            let expected = Darwin.open(leaf.path, O_RDONLY | O_NOFOLLOW)
+            XCTAssertGreaterThanOrEqual(expected, 0)
+            defer { _ = Darwin.close(expected) }
+            var injected = false
+            service.restoreOwnedRemovalBoundaryForTesting = { phase in
+                guard phase == boundary else { return }
+                injected = true
+                let substituted = boundary == "before-claim" ? leaf : claim
+                try self.fileManager.removeItem(at: substituted)
+                try Data("hostile replacement must survive".utf8).write(to: substituted)
+            }
+            XCTAssertThrowsError(try service.c36WithPinnedRegularRemovalForTesting(
+                root: root, relativePath: boundary, authorityCheck: {}
+            ) { _, verify, create, remove in
+                XCTAssertThrowsError(try remove("leaf", expected))
+                XCTAssertThrowsError(try verify())
+                XCTAssertThrowsError(try create("must-not-create"))
+            })
+            service.restoreOwnedRemovalBoundaryForTesting = nil
+            XCTAssertTrue(injected)
+            XCTAssertFalse(fileManager.fileExists(atPath: leaf.path))
+            XCTAssertEqual(try Data(contentsOf: claim), Data("hostile replacement must survive".utf8))
+            XCTAssertFalse(fileManager.fileExists(atPath: parent.appendingPathComponent("must-not-create").path))
+        }
+
+        // A crash after capture leaves the same owned bytes at a recognized
+        // alternate slot. Recovery restores that exact slot without unlinking.
+        let recoveryRoot = root.appendingPathComponent("claim-recovery", isDirectory: true)
+        try fileManager.createDirectory(at: recoveryRoot, withIntermediateDirectories: false)
+        let leaf = recoveryRoot.appendingPathComponent("leaf")
+        let claim = recoveryRoot.appendingPathComponent("leaf.unlink")
+        let bytes = Data("durable binding bytes".utf8)
+        try bytes.write(to: leaf)
+        let expected = Darwin.open(leaf.path, O_RDONLY | O_NOFOLLOW)
+        XCTAssertGreaterThanOrEqual(expected, 0)
+        defer { _ = Darwin.close(expected) }
+        service.restoreOwnedRemovalBoundaryForTesting = { phase in
+            if phase == "before-private-unlink" { throw FixtureError.invalid }
+        }
+        XCTAssertThrowsError(try service.c36WithPinnedRegularRemovalForTesting(
+            root: root, relativePath: "claim-recovery", authorityCheck: {}
+        ) { _, _, _, remove in try remove("leaf", expected) })
+        service.restoreOwnedRemovalBoundaryForTesting = nil
+        XCTAssertFalse(fileManager.fileExists(atPath: leaf.path))
+        XCTAssertEqual(try Data(contentsOf: claim), bytes)
+        let cold = try BackupRestoreService(applicationSupportURL: root)
+        // A conflicting normal name must never be overwritten during recovery.
+        try Data("unrelated".utf8).write(to: leaf)
+        XCTAssertThrowsError(try cold.c36RestoreOwnedRemovalClaimForTesting(
+            root: root, relativePath: "claim-recovery", name: "leaf", expectedDescriptor: expected))
+        XCTAssertEqual(try Data(contentsOf: leaf), Data("unrelated".utf8))
+        XCTAssertEqual(try Data(contentsOf: claim), bytes)
+        try fileManager.removeItem(at: leaf)
+        try cold.c36RestoreOwnedRemovalClaimForTesting(
+            root: root, relativePath: "claim-recovery", name: "leaf", expectedDescriptor: expected)
+        XCTAssertEqual(try Data(contentsOf: leaf), bytes)
+        XCTAssertFalse(fileManager.fileExists(atPath: claim.path))
+        try cold.c36WithPinnedRegularRemovalForTesting(
+            root: root, relativePath: "claim-recovery", authorityCheck: {}
+        ) { _, verify, _, remove in try remove("leaf", expected); try verify() }
+        XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: recoveryRoot.path), [])
+    }
+#endif
+
     func testPureRuleCreatesOnlyCurrentOnlyTombstonesAndRejectsCollisions() throws {
         let currentA = packet(
             id: uuid(10), root: uuid(11), currentRecord: uuid(12), created: 100

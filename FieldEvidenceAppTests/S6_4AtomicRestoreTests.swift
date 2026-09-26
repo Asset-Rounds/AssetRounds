@@ -4101,6 +4101,27 @@ extension S6_4AtomicRestoreTests {
             XCTAssertEqual(revision.externalProjectionSHA256, try MutationJournalStoreV1.restoreTombstoneSHA256(
                 identity: revision.identity, revision: revision.revision))
         }
+        let originalHistory = try XCTUnwrap(validated.records.mutationHistory)
+        XCTAssertFalse(originalHistory.receipts.isEmpty)
+        XCTAssertGreaterThan(originalHistory.lastLocalSequence, 0)
+        // A new workspace starts at revision zero; source receipts remain immutable.
+        XCTAssertEqual(history.workspaceRevision, 0)
+        XCTAssertEqual(history.lastLocalSequence, 0)
+        XCTAssertEqual(history.receipts, originalHistory.receipts)
+        XCTAssertEqual(history.quarantines, originalHistory.quarantines)
+        XCTAssertEqual(history.entityRevisions.map(\.identity), originalHistory.entityRevisions.map(\.identity))
+        XCTAssertEqual(history.entityRevisions.map(\.revision), originalHistory.entityRevisions.map(\.revision))
+        // Literal fixture kinds keep this witness independent of the production
+        // clone-family predicate and prove every other terminal entry survives.
+        for (original, revision) in zip(originalHistory.entityRevisions, history.entityRevisions) {
+            if [.fieldDraftCheckpoint, .attachmentStagingItem].contains(revision.identity.kind) {
+                XCTAssertEqual(revision.externalProjectionSHA256, try MutationJournalStoreV1.restoreTombstoneSHA256(
+                    identity: revision.identity, revision: revision.revision))
+                XCTAssertNotEqual(revision.externalProjectionSHA256, original.externalProjectionSHA256)
+            } else {
+                XCTAssertEqual(revision, original)
+            }
+        }
         // Relaunch validation (validateTerminalRows) accepts the cloned store.
         assertCanonicalWriterActivatesV1(restored, "S6_4 configuration clone with omitted drafts")
         XCTAssertFalse(fileManager.fileExists(atPath: configurationCloneDraftRoot(target.support).path))
@@ -4309,6 +4330,89 @@ private extension S6_4AtomicRestoreTests {
 
 extension S6_4AtomicRestoreTests {
     @MainActor
+    func testConfigurationCloneRetirementMetadataClaimsRecoverAndRejectHostileAliases() async throws {
+        for slot in ["next", "terminal"] {
+            for scenario in ["resume", "duplicate", "changed"] {
+                let label = "claim-\(slot)-\(scenario)"
+                let fixture = try await makeCloneRetirementFixture(label)
+                let current = cloneRetirementBindingURL(fixture)
+                let normal = slot == "terminal" ? current : current.deletingLastPathComponent()
+                    .appendingPathComponent(".\(current.lastPathComponent).next")
+                let claim = normal.appendingPathExtension("unlink")
+                let service = try BackupRestoreService(applicationSupportURL: fixture.harness.support,
+                    makeUUID: sequence([fixture.newGenerationID, fixture.restoreID]))
+                var reached = false
+                service.restoreOwnedRemovalBoundaryForTesting = { boundary in
+                    guard boundary == "before-private-unlink", !reached,
+                          self.fileManager.fileExists(atPath: claim.path) else { return }
+                    reached = true
+                    throw BackupRestoreServiceError.injectedFailure
+                }
+                await XCTAssertThrowsErrorAsync {
+                    _ = try await service.restore(validatedPackage: fixture.package,
+                        currentModelContext: fixture.harness.session.modelContext,
+                        currentGenerationID: fixture.harness.session.generationID,
+                        currentGenerationRootURL: fixture.harness.session.generationRootURL, mode: .clone)
+                } verify: { XCTAssertEqual($0 as? BackupRestoreServiceError, .injectedFailure) }
+                XCTAssertTrue(reached, label)
+                XCTAssertFalse(fileManager.fileExists(atPath: normal.path), label)
+                let capturedBytes = try Data(contentsOf: claim)
+                XCTAssertFalse(capturedBytes.isEmpty, label)
+                let bindingObject = try XCTUnwrap(JSONSerialization.jsonObject(with: capturedBytes) as? [String: Any])
+                let core = try XCTUnwrap(bindingObject["core"] as? [String: Any])
+                let boundDestinationDigest = try XCTUnwrap(core["destinationRecordsSHA256"] as? String)
+                XCTAssertNotEqual(boundDestinationDigest, CanonicalJSONV1.sha256(fixture.sourceCanonical), label)
+                try assertCloneRetirementOldCanonicalUnchanged(fixture)
+                if slot == "terminal" {
+                    // Read the committed preimage from the authentic interrupted
+                    // claim, then independently hash the installed canonical store.
+                    let destination = try fixture.harness.factory.openOrBootstrapCurrent()
+                    let installed = try service.c55CurrentRecordsForTesting(in: destination.modelContext)
+                    XCTAssertEqual(try BackupCanonicalEncoderV1().encodeRecords(installed).sha256,
+                                   boundDestinationDigest, label)
+                    XCTAssertNil(try RestoreIntentStore(applicationSupportURL: fixture.harness.support).load())
+                    XCTAssertEqual(try fixture.harness.factory.currentGenerationID(), fixture.newGenerationID)
+                } else {
+                    XCTAssertEqual(try fixture.harness.factory.currentGenerationID(), fixture.harness.session.generationID)
+                }
+                if scenario != "resume" {
+                    if scenario == "duplicate" { try capturedBytes.write(to: normal) }
+                    else { try Data("invalid retained claim".utf8).write(to: claim) }
+                    let before = try cloneRetirementMetadata(fixture)
+                    try await assertCloneRetirementRecoveryDeniesWithoutEffects(fixture, label: label)
+                    XCTAssertEqual(try cloneRetirementMetadata(fixture), before, label)
+                    continue
+                }
+                let recovery = try BackupRestoreService(applicationSupportURL: fixture.harness.support)
+                let result = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+                if slot == "terminal" {
+                    XCTAssertEqual(result?.generationID, fixture.newGenerationID, label)
+                    try assertCloneRetirementFinished(fixture, label: label)
+                } else {
+                    XCTAssertNil(result, label)
+                    try await assertCloneRetirementRolledBack(fixture, label: label)
+                }
+                XCTAssertFalse(fileManager.fileExists(atPath: claim.path), label)
+                XCTAssertTrue(try cloneRetirementMetadata(fixture).isEmpty, label)
+                let stablePointer = try fixture.harness.factory.currentGenerationID()
+                let stableRetired = try fixture.harness.factory.retiredGenerationIDs()
+                let stableStaging = try configurationCloneRetirementTree(
+                    configurationCloneDraftRoot(fixture.harness.support))
+                let secondRecovery = try BackupRestoreService(applicationSupportURL: fixture.harness.support)
+                let secondResult = try await secondRecovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+                XCTAssertNil(secondResult, label)
+                XCTAssertEqual(try fixture.harness.factory.currentGenerationID(), stablePointer, label)
+                XCTAssertEqual(try fixture.harness.factory.retiredGenerationIDs(), stableRetired, label)
+                XCTAssertEqual(try configurationCloneRetirementTree(
+                    configurationCloneDraftRoot(fixture.harness.support)), stableStaging, label)
+                XCTAssertTrue(try cloneRetirementMetadata(fixture).isEmpty, label)
+                if slot == "terminal" { try assertCloneRetirementFinished(fixture, label: label) }
+                else { try await assertCloneRetirementRolledBack(fixture, label: label) }
+            }
+        }
+    }
+
+    @MainActor
     func testConfigurationCloneRetirementOldPointerRollbackRestoresExactIncumbent() async throws {
         for step in ["after-retirement-plan", "after-retirement-intent", "after-retirement-ownership",
                      "after-moved-root", "after-replacement-quarantine", "after-empty-manifest"] {
@@ -4498,11 +4602,13 @@ extension S6_4AtomicRestoreTests {
         let service = try BackupRestoreService(applicationSupportURL: fixture.harness.support,
             makeUUID: sequence([fixture.newGenerationID, fixture.restoreID]))
         var substituted: URL?
+        var hostileIdentity: StreamingArchiveRootIdentityV1?
         let hostile = Data("replacement belongs to no retirement claim".utf8)
         service.configurationCloneRetirementBeforeClaimForTesting = { url, directory in
             guard !directory, url.lastPathComponent == "payload.bin", substituted == nil else { return }
             try hostile.write(to: url, options: .atomic)
             try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: url)
+            hostileIdentity = try self.cloneRetirementFileIdentity(url)
             substituted = url
         }
         await XCTAssertThrowsErrorAsync {
@@ -4511,12 +4617,83 @@ extension S6_4AtomicRestoreTests {
                 currentGenerationID: fixture.harness.session.generationID,
                 currentGenerationRootURL: fixture.harness.session.generationRootURL, mode: .clone)
         } verify: { _ in }
-        let retained = try XCTUnwrap(substituted)
+        let original = try XCTUnwrap(substituted)
+        // EXCL capture retains the substituted inode under the original
+        // ownership's reserved claim; authentication then rejects its deletion.
+        let claimName = ".photo-restore-claim-\(fixture.restoreID.uuidString.lowercased())-"
+            + "\(String(fixture.payloadIdentity.device, radix: 16))-\(String(fixture.payloadIdentity.inode, radix: 16))-f"
+        let retained = original.deletingLastPathComponent().appendingPathComponent(claimName)
+        let replacementIdentity = try XCTUnwrap(hostileIdentity)
+        XCTAssertNotEqual(replacementIdentity, fixture.payloadIdentity)
+        XCTAssertFalse(fileManager.fileExists(atPath: original.path))
+        XCTAssertEqual(try cloneRetirementFileIdentity(retained), replacementIdentity)
         XCTAssertEqual(try Data(contentsOf: retained), hostile)
         XCTAssertEqual(try fixture.harness.factory.currentGenerationID(), fixture.newGenerationID)
         XCTAssertEqual(try RestoreIntentStore(applicationSupportURL: fixture.harness.support).load()?.phase, .newGenerationValidated)
         try await assertCloneRetirementRecoveryDeniesWithoutEffects(fixture, label: "substituted-inode")
         XCTAssertEqual(try Data(contentsOf: retained), hostile)
+        XCTAssertEqual(try cloneRetirementFileIdentity(retained), replacementIdentity)
+        XCTAssertFalse(fileManager.fileExists(atPath: original.path))
+
+        // Exercise the actual vnode postproof after the final preproof. The
+        // injected empty substitute may be unlinked; the exact original must
+        // survive aside and must never be certified as retired.
+        do {
+            let fixture = try await makeCloneRetirementFixture("directory-unlink-substitution")
+            let service = try BackupRestoreService(applicationSupportURL: fixture.harness.support,
+                makeUUID: sequence([fixture.newGenerationID, fixture.restoreID]))
+            let root = configurationCloneDraftRoot(fixture.harness.support)
+            var originalAside: URL?, removedSubstitute: URL?
+            var originalIdentity: StreamingArchiveRootIdentityV1?
+            var boundaryMetadata: [FileFact]?
+            func directoryIdentity(_ url: URL) throws -> StreamingArchiveRootIdentityV1 {
+                var facts = stat()
+                guard Darwin.lstat(url.path, &facts) == 0, facts.st_mode & S_IFMT == S_IFDIR else {
+                    throw FixtureError.invalid
+                }
+                return .init(device: UInt64(facts.st_dev), inode: UInt64(facts.st_ino))
+            }
+            service.configurationCloneRetirementObservationForTesting = { step in
+                guard step == "before-directory-unlink", originalAside == nil else { return }
+                let candidates = try self.fileManager.subpathsOfDirectory(atPath: root.path)
+                    .map { root.appendingPathComponent($0) }
+                    .filter { $0.lastPathComponent.hasPrefix(".photo-restore-claim-")
+                        && $0.lastPathComponent.hasSuffix("-d") }
+                XCTAssertEqual(candidates.count, 1, "Exactly one currently owned directory claim")
+                let claim = try XCTUnwrap(candidates.first)
+                XCTAssertTrue(try self.fileManager.contentsOfDirectory(atPath: claim.path).isEmpty)
+                let identity = try directoryIdentity(claim)
+                let aside = claim.deletingLastPathComponent().appendingPathComponent("hostile-renamed-original", isDirectory: true)
+                try self.fileManager.moveItem(at: claim, to: aside)
+                try self.fileManager.createDirectory(at: claim, withIntermediateDirectories: false)
+                XCTAssertNotEqual(try directoryIdentity(claim), identity)
+                originalIdentity = identity
+                originalAside = aside
+                removedSubstitute = claim
+                boundaryMetadata = try self.cloneRetirementMetadata(fixture)
+            }
+            await XCTAssertThrowsErrorAsync {
+                _ = try await service.restore(validatedPackage: fixture.package,
+                    currentModelContext: fixture.harness.session.modelContext,
+                    currentGenerationID: fixture.harness.session.generationID,
+                    currentGenerationRootURL: fixture.harness.session.generationRootURL, mode: .clone)
+            } verify: { error in
+                XCTAssertEqual(error as? DraftAttachmentStagingFailureV1, .staleStage,
+                    "Directory rename must fail the exact-vnode deletion proof")
+            }
+            let aside = try XCTUnwrap(originalAside)
+            let identity = try XCTUnwrap(originalIdentity)
+            let substitute = try XCTUnwrap(removedSubstitute)
+            XCTAssertFalse(fileManager.fileExists(atPath: substitute.path), "Actual unlink reached before postproof denial")
+            XCTAssertEqual(try directoryIdentity(aside), identity)
+            XCTAssertTrue(try fileManager.contentsOfDirectory(atPath: aside.path).isEmpty)
+            XCTAssertEqual(try cloneRetirementMetadata(fixture), try XCTUnwrap(boundaryMetadata))
+            XCTAssertEqual(try fixture.harness.factory.currentGenerationID(), fixture.newGenerationID)
+            XCTAssertEqual(try RestoreIntentStore(applicationSupportURL: fixture.harness.support).load()?.phase, .newGenerationValidated)
+            try await assertCloneRetirementRecoveryDeniesWithoutEffects(fixture, label: "directory-renamed-after-preproof")
+            XCTAssertEqual(try directoryIdentity(aside), identity)
+            XCTAssertFalse(fileManager.fileExists(atPath: substitute.path))
+        }
     }
 }
 
@@ -4528,7 +4705,7 @@ private extension S6_4AtomicRestoreTests {
         let newGenerationID: UUID
         let restoreID: UUID
         let oldCanonical: Data
-        let destinationCanonical: Data
+        let sourceCanonical: Data
         let pointerBefore: Data
         let stagingBefore: [FileFact]
         let payloadIdentity: StreamingArchiveRootIdentityV1
@@ -4564,7 +4741,7 @@ private extension S6_4AtomicRestoreTests {
             identity: harness.factory.currentWorkspaceIdentity(expectedGenerationID: harness.session.generationID),
             expectedCanonical: oldCanonical)
         try assertAssessmentCopyPreservesRejectedServiceHistory(records, workspaceID: harness.session.workspaceID.rawValue)
-        let destinationCanonical = try BackupCanonicalEncoderV1()
+        let sourceCanonical = try BackupCanonicalEncoderV1()
             .encodeRecords(package.records).data
         // The incumbent reader uses its minimal historical envelope. The real
         // export supplies the current envelope and its mandatory C12 snapshot.
@@ -4573,12 +4750,12 @@ private extension S6_4AtomicRestoreTests {
         XCTAssertNotNil(package.records.reinspectionExceptionQueue)
         try assertRestoreRecordCopyPipelinePreservesOriginals(package.records,
             identity: harness.factory.currentWorkspaceIdentity(expectedGenerationID: harness.session.generationID),
-            expectedCanonical: destinationCanonical)
+            expectedCanonical: sourceCanonical)
         let payload = configurationCloneDraftRoot(harness.support).appendingPathComponent(
             DraftAttachmentStagingAdapterV1.relativeDataPath(draftID: draft.item.draftID, stageID: draft.item.stageID))
         return .init(harness: harness, draft: draft, package: package,
             newGenerationID: UUID(), restoreID: UUID(), oldCanonical: oldCanonical,
-            destinationCanonical: destinationCanonical,
+            sourceCanonical: sourceCanonical,
             pointerBefore: try Data(contentsOf: harness.support.appendingPathComponent("FieldEvidenceData/current.json")),
             stagingBefore: try configurationCloneRetirementTree(configurationCloneDraftRoot(harness.support)),
             payloadIdentity: try cloneRetirementFileIdentity(payload),
@@ -4730,9 +4907,47 @@ private extension S6_4AtomicRestoreTests {
         let records = try inspector.c55CurrentRecordsForTesting(
             in: destination.modelContext
         )
+        // Independent fixture oracle: copy the whole authenticated source and
+        // apply only the declared clone semantics. Do not ask the restore
+        // materializer (or its clone-history projector) to compute expectation.
+        let source = fixture.package.records
+        XCTAssertEqual(try BackupCanonicalEncoderV1().encodeRecords(source).data,
+                       fixture.sourceCanonical, label)
+        XCTAssertEqual(source.fieldDrafts.count, 2, label)
+        let history = try XCTUnwrap(source.mutationHistory)
+        XCTAssertEqual(Set(history.entityRevisions.map { $0.identity.kind }),
+                       Set<WorkspaceEntityKindV1>([.fieldDraftCheckpoint, .attachmentStagingItem]), label)
+        let expectedHistory = MutationHistorySnapshotV1(
+            workspaceRevision: 0, lastLocalSequence: 0,
+            receipts: history.receipts, quarantines: history.quarantines,
+            entityRevisions: try history.entityRevisions.map { revision in
+                MutationHistoryEntityRevisionV1(identity: revision.identity, revision: revision.revision,
+                    externalProjectionSHA256: try MutationJournalStoreV1.restoreTombstoneSHA256(
+                        identity: revision.identity, revision: revision.revision))
+            })
+        let stock = try XCTUnwrap(source.partsStockSnapshot)
+        XCTAssertTrue(stock.parts.isEmpty && stock.locations.isEmpty && stock.movements.isEmpty
+            && stock.uses.isEmpty && stock.reversals.isEmpty && stock.returns.isEmpty
+            && stock.abandonments.isEmpty, label)
+        let expectedStock = try PartsStockBackupSnapshotV1(workspaceID: destination.workspaceID,
+            parts: [], locations: [], movements: [], uses: [], reversals: [], returns: [], abandonments: [])
+        let resolution = try XCTUnwrap(source.entityIdentityResolution)
+        XCTAssertTrue(resolution.aliasLinks.isEmpty && resolution.consolidationReceipts.isEmpty
+            && resolution.mutationReceipts.isEmpty, label)
+        let expectedResolution = try EntityIdentityResolutionBackupSnapshotV1(
+            workspaceID: destination.workspaceID, generationID: fixture.newGenerationID,
+            aliasLinks: [], consolidationReceipts: [], mutationReceipts: [])
+        var expectedObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(source)) as? [String: Any])
+        expectedObject["fieldDrafts"] = [] as [Any]
+        expectedObject["mutationHistory"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(expectedHistory))
+        expectedObject["partsStockSnapshot"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(expectedStock))
+        expectedObject["entityIdentityResolution"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(expectedResolution))
+        let expected = try JSONDecoder().decode(V4BackupRecordsV1.self,
+            from: JSONSerialization.data(withJSONObject: expectedObject))
         XCTAssertEqual(
             try BackupCanonicalEncoderV1().encodeRecords(records).data,
-            fixture.destinationCanonical,
+            try BackupCanonicalEncoderV1().encodeRecords(expected).data,
             label
         )
         try assertCloneRetirementOldCanonicalUnchanged(fixture)
@@ -4771,7 +4986,7 @@ private extension S6_4AtomicRestoreTests {
     func cloneRetirementMetadata(_ fixture: CloneRetirementFixture) throws -> [FileFact] {
         let current = cloneRetirementBindingURL(fixture)
         let next = current.deletingLastPathComponent().appendingPathComponent(".\(current.lastPathComponent).next")
-        return try [current, next].compactMap { url in
+        return try [current, next, current.appendingPathExtension("unlink"), next.appendingPathExtension("unlink")].compactMap { url in
             guard fileManager.fileExists(atPath: url.path) else { return nil }
             return FileFact(path: url.lastPathComponent, bytes: try Data(contentsOf: url))
         }

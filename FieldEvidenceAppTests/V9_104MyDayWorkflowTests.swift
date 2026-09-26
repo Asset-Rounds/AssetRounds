@@ -213,11 +213,13 @@ private enum C41InjectedFailure: Error, Equatable { case afterEffectBeforeReceip
     let sources = C41SourceReader()
     let checkpoint: FieldDraftCheckpointV1
     let reference: MyDayEligibleReferenceV1
+    private var coordinator: StoreSessionCoordinator?
 
-    init(_ name: String) throws {
-        root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("c41-\(name)-\(UUID().uuidString)")
-        session = try StoreGenerationFactory(applicationSupportURL: root).openOrBootstrapCurrent()
+    private init(root: URL) throws {
+        self.root = root
+        session = try Self.step("bootstrap") {
+            try StoreGenerationFactory(applicationSupportURL: root).openOrBootstrapCurrent()
+        }
         checkpoint = try FieldDraftCheckpointV1(
             draftID: C41.id(600), workspaceID: session.workspaceID,
             scope: .init(scopeKind: "MY_DAY_TEST", stableComponentIDs: ["synthetic-draft"]),
@@ -229,29 +231,69 @@ private enum C41InjectedFailure: Error, Equatable { case afterEffectBeforeReceip
             resumeAnchor: .init(sectionID: "my-day"), state: .active,
             updatedAt: C41.now, mutationID: C41.mutation(601)
         )
-        session.modelContext.insert(try FieldDraftCheckpointRow(checkpoint))
-        try session.modelContext.save()
         reference = .resumableDraft(workspaceID: session.workspaceID,
             draftID: checkpoint.draftID, revision: checkpoint.draftRevision,
             checkpointSHA256: checkpoint.checkpointSHA256, anchor: checkpoint.resumeAnchor)
+        let seed = try Self.step("seed.coordinator") {
+            try StoreSessionCoordinator(validatingSession: session, clock: C41Clock())
+        }
+        defer {
+            do { try seed.invalidateAndReleaseWriter() }
+            catch { XCTFail("C41.seed.release: \(String(reflecting: error))") }
+        }
+        try Self.step("seed.checkpoint") {
+            let mutation = try FieldDraftMutationV1(workspaceID: session.workspaceID,
+                expectedRevision: 0, expectedBaseCanonicalRevision: 0,
+                mutationID: checkpoint.mutationID, postImage: .createCheckpoint(checkpoint))
+            _ = try seed.workspaceWriter.execute(.applyFieldDraft(mutation), mutationID: mutation.mutationID)
+        }
     }
 
-    deinit { try? FileManager.default.removeItem(at: root) }
+    private static func step<T>(_ name: String, _ operation: () throws -> T) throws -> T {
+        do { return try operation() }
+        catch {
+            XCTFail("C41.\(name): \(String(reflecting: type(of: error))) \(String(reflecting: error))")
+            throw error
+        }
+    }
+
+    static func withHarness(_ name: String, body: (C41RealWriterHarness) throws -> Void) throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("c41-\(name)-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        // Drain SwiftData contexts and reader/writer leases before deleting
+        // the physical store, including when a test operation throws.
+        try autoreleasepool {
+            let harness = try C41RealWriterHarness(root: root)
+            defer {
+                do { try harness.closeWriter() }
+                catch { XCTFail("C41.teardown.release: \(String(reflecting: error))") }
+            }
+            try body(harness)
+        }
+    }
+
+    private func closeWriter() throws {
+        try coordinator?.invalidateAndReleaseWriter()
+        coordinator = nil
+    }
 
     func workflow(failure: MutationJournalFailureInjectionV1? = nil) throws
         -> MyDayWorkflowCoordinatorV1 {
-        let writerID = C41.id(602)
-        let journal = try MutationJournalStoreV1(modelContext: session.modelContext,
-            identity: session.workspaceIdentity, generationID: session.generationID,
-            failureInjection: failure)
-        let writer = try WorkspaceWriterV1(identity: session.workspaceIdentity,
-            generationID: session.generationID,
-            initialRevision: journal.currentRevision(writerInstanceID: writerID),
-            clock: C41Clock(), idSource: C41FixedID(value: writerID),
-            fileAuthority: SystemApplicationFileAuthorityV1(),
-            adapter: WorkspaceWriterAdapterV1(modelContext: session.modelContext),
-            journalStore: journal)
-        return .init(canonical: .init(writer: writer, sourceReader: sources), clock: C41Clock())
+        try Self.step("workflow.release-previous") { try closeWriter() }
+        let next: StoreSessionCoordinator
+        if let failure {
+            next = try Self.step("workflow.faulted-coordinator") {
+                try StoreSessionCoordinator(validatingSessionForTesting: session,
+                    clock: C41Clock(), mutationJournalFailureInjection: failure)
+            }
+        } else {
+            next = try Self.step("workflow.recovery-coordinator") {
+                try StoreSessionCoordinator(validatingSession: session, clock: C41Clock())
+            }
+        }
+        coordinator = next
+        return .init(canonical: .init(writer: next.workspaceWriter, sourceReader: sources), clock: C41Clock())
     }
 
     func preview(workflow: MyDayWorkflowCoordinatorV1, mutation: Int,
@@ -355,8 +397,8 @@ private actor C41ReadAuthentication: LocalAuthenticationClient {
     let recorder: ActorSnapshotV1
     let holder: ActorSnapshotV1
 
-    init() throws {
-        root = FileManager.default.temporaryDirectory.appendingPathComponent("c41-production-source-\(UUID().uuidString)")
+    private init(root: URL) throws {
+        self.root = root
         store = try StoreGenerationFactory(applicationSupportURL: root).openOrBootstrapCurrent()
         coordinator = try StoreSessionCoordinator(validatingSession: store)
         gate = AppAccessGateV1(setting: .absentDisabled, authentication: authentication,
@@ -371,7 +413,60 @@ private actor C41ReadAuthentication: LocalAuthenticationClient {
                                                      mutationID: C41.mutation(1904))
     }
 
-    deinit { try? FileManager.default.removeItem(at: root) }
+    private final class ReleaseProbe {
+        weak var harness: C41ProductionSourceHarness?
+        weak var coordinator: StoreSessionCoordinator?
+        weak var session: StoreGenerationSession?
+        weak var context: ModelContext?
+        weak var container: ModelContainer?
+    }
+    private enum LifetimeFailure: Error { case retainedStore }
+
+    /// The test owns the directory outside the async scope owning all live
+    /// sessions/providers. Deleting it is permitted only after their release.
+    static func withHarness(_ body: @MainActor (C41ProductionSourceHarness) async throws -> Void) async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("c41-production-source-\(UUID().uuidString)")
+        let released = ReleaseProbe()
+        let result: Result<Void, Error>
+        do {
+            try await runScope(root: root, released: released, body: body)
+            result = .success(())
+        } catch { result = .failure(error) }
+        guard released.harness == nil, released.coordinator == nil,
+              released.session == nil, released.context == nil, released.container == nil else {
+            XCTFail("C41.production.teardown retained live store at \(root.path)")
+            throw LifetimeFailure.retainedStore
+        }
+        if FileManager.default.fileExists(atPath: root.path) {
+            try FileManager.default.removeItem(at: root)
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.path))
+        try result.get()
+    }
+
+    private static func runScope(root: URL, released: ReleaseProbe,
+        body: @MainActor (C41ProductionSourceHarness) async throws -> Void) async throws {
+        let harness = try autoreleasepool { try C41ProductionSourceHarness(root: root) }
+        released.harness = harness
+        released.coordinator = harness.coordinator
+        released.session = harness.store
+        released.context = harness.store.modelContext
+        released.container = harness.store.modelContext.container
+        var failure: Error?
+        do { try await body(harness) }
+        catch {
+            print("C41.production.body: \(String(reflecting: type(of: error))) \(String(reflecting: error))")
+            failure = error
+        }
+        // These uses retain the harness beyond the final provider read. Body
+        // locals and callbacks have returned before the writer is invalidated.
+        do { try await harness.coordinator.awaitSearchIndexLifecycle() }
+        catch { XCTFail("C41.production.search-drain: \(error)"); if failure == nil { failure = error } }
+        do { try harness.coordinator.invalidateAndReleaseWriter() }
+        catch { XCTFail("C41.production.writer-release: \(error)"); if failure == nil { failure = error } }
+        if let failure { throw failure }
+    }
 
     func packet(seed: Int, version: UInt64 = 1, packetID: UUID? = nil) throws -> WorkPacketManifestV1 {
         try .init(manifestID: C41.id(seed), packetID: packetID ?? C41.id(seed + 1), packetVersion: version,
@@ -450,7 +545,18 @@ private actor C41ReadAuthentication: LocalAuthenticationClient {
     /// use the real protected immutable-content owner.
     func readinessRound(seed: Int, withContent: Bool, unknownGuidance: Bool = false) async throws -> ReadinessFixture {
         let shipping = try ShippingIlluminatedSignAdapterV1.inspectionPackage()
-        let package = try InspectionPackageV2(packageID: shipping.packageID, contentVersion: shipping.contentVersion,
+        // Each fixture publishes distinct workflow/guidance bytes. A forward
+        // fix of that package must therefore advance its content version.
+        let previousVersion = try coordinator.modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>())
+            .map { try $0.value().packageRelease }
+            .filter { $0.packageID == shipping.packageID }.map(\.packageContentVersion).max()
+        let contentVersion: Int
+        if let previousVersion {
+            let (next, overflow) = previousVersion.addingReportingOverflow(1)
+            guard !overflow else { throw MyDayFailureV1.invalidValue }
+            contentVersion = next
+        } else { contentVersion = shipping.contentVersion }
+        let package = try InspectionPackageV2(packageID: shipping.packageID, contentVersion: contentVersion,
             minimumRegistryVersion: shipping.minimumRegistryVersion, maximumRegistryVersion: shipping.maximumRegistryVersion,
             capabilities: shipping.capabilities, permissions: shipping.permissions,
             advisoryGuidance: unknownGuidance ? [.init(guidanceID: "unknown-local-guidance", kind: .limitation,
@@ -606,7 +712,7 @@ private actor C41ReadAuthentication: LocalAuthenticationClient {
 final class V9_104MyDayWorkflowTests: XCTestCase {
     @MainActor
     func testProductionMyDayImportedFieldReferencesRemainReadyWithAdvancingClockAndNoEffects() async throws {
-        let h = try C41ProductionSourceHarness()
+        try await C41ProductionSourceHarness.withHarness { h in
         let round = try await h.readinessRound(seed: 5000, withContent: false)
         let field = try await h.importedReference(for: round.round, seed: 5020)
         let clock = C41FieldReferenceClock(step: 1)
@@ -634,11 +740,12 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
         XCTAssertEqual(ledger.snapshot(), storage)
         let authCalls = await h.authentication.count
         XCTAssertEqual(authCalls, 0)
+        }
     }
 
     @MainActor
     func testProductionMyDayImportedFieldReferencesReadActualMissingAndCorruptBytes() async throws {
-        let h = try C41ProductionSourceHarness()
+        try await C41ProductionSourceHarness.withHarness { h in
         let round = try await h.readinessRound(seed: 5100, withContent: false)
         let field = try await h.importedReference(for: round.round, seed: 5120)
         let item = field.items[0], target = h.fieldReferenceURL(field.items[0])
@@ -677,6 +784,7 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
         XCTAssertEqual(try h.baseline(), restoredBefore)
         XCTAssertEqual(try h.coordinator.workspaceWriter.sourceMutationHistorySnapshot(), history)
         XCTAssertEqual(ledger.snapshot(), storage)
+        }
     }
 
     @MainActor
@@ -685,7 +793,7 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
         // first locator before a supported sibling, must both retain fail-closed
         // physical validation without manufacturing missing legacy metadata.
         for mixedEntries in [false, true] {
-            let h = try C41ProductionSourceHarness()
+            try await C41ProductionSourceHarness.withHarness { h in
             let round = try await h.readinessRound(seed: 5200, withContent: false)
             let field: C41ProductionSourceHarness.FieldReferenceFixture
             if mixedEntries {
@@ -716,13 +824,14 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
             XCTAssertEqual(try h.baseline(), corruptBefore)
             XCTAssertEqual(try h.coordinator.workspaceWriter.sourceMutationHistorySnapshot(), history)
             XCTAssertEqual(ledger.snapshot(), storage)
+            }
         }
     }
 
     #if DEBUG
     @MainActor
     func testProductionMyDayImportedFieldReferencePublicationRejectsExpiryAndBackwardClock() async throws {
-        let h = try C41ProductionSourceHarness()
+        try await C41ProductionSourceHarness.withHarness { h in
         let round = try await h.readinessRound(seed: 5300, withContent: false)
         let expiry = C41.now.addingTimeInterval(60)
         _ = try await h.importedReference(for: round.round, seed: 5320, expiresAt: expiry)
@@ -757,6 +866,7 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
         XCTAssertEqual(manifest.status, .blocked)
         XCTAssertEqual(manifest.referenceObservations.map(\.availability), [.expired])
         XCTAssertEqual(try h.baseline(), before)
+        }
     }
     #endif
 
@@ -778,7 +888,7 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
 
     @MainActor
     func testProductionMyDayReadinessUsesCapacityVerdictDriftSemantics() async throws {
-        let h = try C41ProductionSourceHarness()
+        try await C41ProductionSourceHarness.withHarness { h in
         let fixture = try await h.readinessRound(seed: 3400, withContent: false)
         let plan = try h.plan(items: [.init(membershipID: C41.id(3410), reference: fixture.reference,
             manualOrder: 0, estimate: nil)], seed: 3411)
@@ -826,11 +936,12 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
         XCTAssertEqual(lateFlip.count, 4)
         XCTAssertEqual(lateLedger.snapshot(), lateBaseline)
         XCTAssertEqual(try h.baseline(), baseline)
+        }
     }
 
     @MainActor
     func testProductionMyDayAssessesRealRoundReadinessWithoutEffects() async throws {
-        let h = try C41ProductionSourceHarness()
+        try await C41ProductionSourceHarness.withHarness { h in
         let required = try await h.readinessRound(seed: 3000, withContent: true)
         let empty = try await h.readinessRound(seed: 3020, withContent: false)
         // Real ledger and reservations, injected stable capacity. Actual OS
@@ -882,11 +993,12 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
             XCTAssertEqual(try h.baseline(), stepBaseline)
             XCTAssertEqual(ledger.snapshot(), storageBaseline)
         }
+        }
     }
 
     @MainActor
     func testProductionMyDayReadinessRejectsMissingCorruptAndUnknownSources() async throws {
-        let h = try C41ProductionSourceHarness()
+        try await C41ProductionSourceHarness.withHarness { h in
         let fixture = try await h.readinessRound(seed: 3100, withContent: true)
         let unknown = try await h.readinessRound(seed: 3120, withContent: false, unknownGuidance: true)
         let ledger = try OwnedStorageLedgerV1(applicationSupportURL: h.root, capacityProvider: { _ in 1_000_000_000 })
@@ -933,11 +1045,12 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
         h.coordinator.modelContext.delete(row); try h.coordinator.modelContext.save()
         let noPackage = try await provider.snapshot(evaluatedAt: C41.now)
         XCTAssertEqual(noPackage.readinessAssessments.first { $0.reference == fixture.reference }?.assessment, .unavailable(.missingExactPackage))
+        }
     }
 
     @MainActor
     func testProductionMyDayReadinessKeepsUnsupportedBindingsAndCompletionUnavailable() async throws {
-        let h = try C41ProductionSourceHarness()
+        try await C41ProductionSourceHarness.withHarness { h in
         let fixture = try await h.readinessRound(seed: 3200, withContent: true)
         let content = try XCTUnwrap(fixture.content)
         let release = try FieldReferenceReleaseV1(releaseID: C41.id(3220), workspaceID: h.store.workspaceID,
@@ -978,12 +1091,13 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
         XCTAssertEqual(completedItem.readinessAssessments.first?.assessment, .unavailable(.completionAuthorityUnavailable))
         XCTAssertEqual(try h.baseline(), baseline)
         XCTAssertEqual(ledger.snapshot(), storage)
+        }
     }
 
     #if DEBUG
     @MainActor
     func testProductionMyDayAssessedPublicationRejectsGenerationDirectorySubstitution() async throws {
-        let h = try C41ProductionSourceHarness()
+        try await C41ProductionSourceHarness.withHarness { h in
         _ = try await h.readinessRound(seed: 3340, withContent: false)
         let ledger = try OwnedStorageLedgerV1(applicationSupportURL: h.root, capacityProvider: { _ in 1_000_000_000 })
         let provider = h.assessedProvider(ledger: ledger)
@@ -1016,11 +1130,12 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
         guard case .roundManifest? = restored.readinessAssessments.first?.assessment else {
             return XCTFail("Restored original directory must remain readable")
         }
+        }
     }
 
     @MainActor
     func testProductionMyDayAssessedPublicationRejectsAccessMetadataStorageAndSessionDrift() async throws {
-        let h = try C41ProductionSourceHarness()
+        try await C41ProductionSourceHarness.withHarness { h in
         let fixture = try await h.readinessRound(seed: 3300, withContent: false)
         let ledger = try OwnedStorageLedgerV1(applicationSupportURL: h.root, capacityProvider: { _ in 1_000_000_000 })
         let provider = h.assessedProvider(ledger: ledger)
@@ -1067,12 +1182,13 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
         }
         XCTAssertEqual(manifest.status, .ready)
         XCTAssertEqual(manifest.storage.reservedBytes, 4096)
+        }
     }
     #endif
 
     @MainActor
     func testProductionMyDayReadsExactPacketHistoryWithoutEffects() async throws {
-        let h = try C41ProductionSourceHarness()
+        try await C41ProductionSourceHarness.withHarness { h in
         let first = try h.packet(seed: 2000, version: 1)
         let second = try h.packet(seed: 2010, version: 2, packetID: first.packetID)
         try h.append(first)
@@ -1141,11 +1257,12 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
         XCTAssertEqual(try h.baseline(), conflictBaseline)
         let authenticationCount = await h.authentication.count
         XCTAssertEqual(authenticationCount, 0)
+        }
     }
 
     @MainActor
     func testProductionMyDayDoesNotCompleteExpiredReclaimedOrHandedOffPackets() async throws {
-        let h = try C41ProductionSourceHarness()
+        try await C41ProductionSourceHarness.withHarness { h in
         let nextActor = try C41.actor(1910, workspaceID: h.store.workspaceID)
         let nextHolder = try ActorSnapshotV1(snapshotID: C41.id(1912), workspaceID: h.store.workspaceID,
             actor: nextActor.actor, responsibility: .assignedTo, displayNameAtTime: nextActor.displayNameAtTime,
@@ -1179,11 +1296,12 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
             XCTAssertEqual(source.state, .active)
             XCTAssertEqual(try h.baseline(), baseline)
         }
+        }
     }
 
     @MainActor
     func testProductionMyDayPreservesRoundAndDraftStates() async throws {
-        let h = try C41ProductionSourceHarness()
+        try await C41ProductionSourceHarness.withHarness { h in
         let provider = h.coordinator.makeMyDaySourceProvider(accessGate: h.gate)
         let requirement = try RoundPackageContentRequirementV1(packageRelease: .init(
             packageReleaseID: C41.digest("a"), packageID: "c41-source", packageContentVersion: 1,
@@ -1260,11 +1378,12 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
         let baseline = try h.baseline()
         _ = try await provider.snapshot(for: oldPlan, evaluatedAt: C41.now)
         XCTAssertEqual(try h.baseline(), baseline)
+        }
     }
 
     @MainActor
     func testProductionMyDayReadRejectsAccessSourceAndSessionDrift() async throws {
-        let h = try C41ProductionSourceHarness()
+        try await C41ProductionSourceHarness.withHarness { h in
         let provider = h.coordinator.makeMyDaySourceProvider(accessGate: h.gate)
         let packet = try h.packet(seed: 2300)
         try h.append(packet)
@@ -1315,11 +1434,12 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
         h.coordinator.modelContext.rollback()
         let authenticationCount = await h.authentication.count
         XCTAssertEqual(authenticationCount, 0)
+        }
     }
 
     @MainActor
     func testProductionMyDayReadsDueClosureAndRuleRetirementWithoutScheduling() async throws {
-        let h = try C41ProductionSourceHarness()
+        try await C41ProductionSourceHarness.withHarness { h in
         let fixture = try C41MyDayScheduleFixtureV1.make(workspaceID: h.store.workspaceID, actor: h.recorder)
         let definition = fixture.definition
         var calendar = Calendar(identifier: .gregorian)
@@ -1396,6 +1516,7 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
         let corruptBaseline = try h.baseline()
         do { _ = try await provider.snapshot(evaluatedAt: beforeDST); XCTFail("broken closure published") }
         catch { XCTAssertEqual(try h.baseline(), corruptBaseline) }
+        }
     }
 
     @MainActor
@@ -1749,48 +1870,66 @@ final class V9_104MyDayWorkflowTests: XCTestCase {
         }
         let stale = try h.preview(items: [valid], planID: first.plan.planID, mutation: 532)
         XCTAssertThrowsError(try h.workflow.execute(.save(stale)))
-        h.sources.current[valid.membershipID] = C41.round(21, revision: 2, sha: "z")
-        let successorDraft = try h.workflow.draft(key: first.plan.key, selectedItems: [valid],
+        h.sources.current[valid.membershipID] = C41.round(21, revision: 2, sha: "c")
+        let retainedItem = try C41.item(21, reference: valid.reference, estimate: 25)
+        let successorDraft = try h.workflow.draft(key: first.plan.key, selectedItems: [retainedItem],
                                                   eligibleReferences: [valid.reference])
         let successor = try h.workflow.previewSave(draft: successorDraft, predecessor: first.plan,
             planID: first.plan.planID, mutationID: C41.mutation(533), actor: C41.actor())
-        XCTAssertThrowsError(try h.workflow.execute(.save(successor)))
-        XCTAssertEqual(h.writer.committedCommands.count, 1)
-        XCTAssertFalse(try h.workflow.summary(plan: first.plan, dueQueue: C41.emptyDue(),
+        // Exact retained memberships remain editable when their source drifts.
+        guard case let .saved(retained) = try h.workflow.execute(.save(successor)) else {
+            return XCTFail("retained metadata save")
+        }
+        XCTAssertEqual(retained.plan.items[0].reference, first.plan.items[0].reference)
+        XCTAssertEqual(h.sources.current[valid.membershipID]!, C41.round(21, revision: 2, sha: "c"))
+        XCTAssertEqual(retained.plan.items[0].estimate, retainedItem.estimate)
+        let newMembership = try C41.item(23, reference: C41.round(22))
+        h.sources.current[newMembership.membershipID] = C41.round(22, revision: 2, sha: "c")
+        let staleSource = try h.preview(items: [retainedItem, newMembership], planID: retained.plan.planID,
+            mutation: 534, predecessor: retained.plan)
+        XCTAssertThrowsError(try h.workflow.execute(.save(staleSource))) { error in
+            XCTAssertEqual(error as? MyDayFailureV1, .staleRevision)
+        }
+        XCTAssertEqual(h.writer.committedCommands.count, 2)
+        XCTAssertEqual(try h.writer.currentPlan(for: retained.plan.key), retained.plan)
+        XCTAssertFalse(try h.workflow.summary(plan: retained.plan, dueQueue: C41.emptyDue(),
             exceptionQueue: C41.emptyExceptions()).automaticPrioritizationApplied)
 
-        let real = try C41RealWriterHarness("H-divergent")
-        let realWorkflow = try real.workflow()
-        let accepted = try real.preview(workflow: realWorkflow, mutation: 535, estimate: 25)
-        _ = try realWorkflow.execute(.save(accepted))
-        let divergent = try real.preview(workflow: realWorkflow, mutation: 535, estimate: 30)
-        XCTAssertThrowsError(try realWorkflow.execute(.save(divergent))) { error in
-            XCTAssertEqual(error as? MyDayFailureV1, .divergentMutation)
+        try C41RealWriterHarness.withHarness("H-divergent") { real in
+            let realWorkflow = try real.workflow()
+            let accepted = try real.preview(workflow: realWorkflow, mutation: 535, estimate: 25)
+            _ = try realWorkflow.execute(.save(accepted))
+            let divergent = try real.preview(workflow: realWorkflow, mutation: 535, estimate: 30)
+            XCTAssertThrowsError(try realWorkflow.execute(.save(divergent))) { error in
+                XCTAssertEqual(error as? MyDayFailureV1, .divergentMutation)
+            }
+            XCTAssertEqual(try real.planRowCount(), 1)
         }
-        XCTAssertEqual(try real.planRowCount(), 1)
     }
 
     @MainActor
     func testV23P04C41I01EffectBeforeReceiptRecoveryUsesOneExactMutation() throws {
-        let h = try C41RealWriterHarness("I-recovery")
-        let faulted = try h.workflow(failure: .init(failOnceAt: .afterEffectBeforeReceipt))
-        let preview = try h.preview(workflow: faulted, mutation: 541)
-        do {
-            _ = try faulted.execute(.save(preview))
-            XCTFail("effect-before-receipt must interrupt")
-        } catch {
-            XCTAssertEqual(error as? MutationJournalFailureV1,
-                           .injected(.afterEffectBeforeReceipt))
+        try C41RealWriterHarness.withHarness("I-recovery") { h in
+            let faulted = try h.workflow(failure: .init(failOnceAt: .afterEffectBeforeReceipt))
+            let preview = try h.preview(workflow: faulted, mutation: 541)
+            do {
+                _ = try faulted.execute(.save(preview))
+                XCTFail("effect-before-receipt must interrupt")
+            } catch {
+                XCTAssertEqual(error as? MutationJournalFailureV1,
+                               .injected(.afterEffectBeforeReceipt),
+                               "C41.save.expected-afterEffectBeforeReceipt: \(String(reflecting: type(of: error))) \(String(reflecting: error))")
+            }
+            XCTAssertTrue([0, 1].contains(try h.planRowCount()))
+            let recoveredWorkflow = try h.workflow()
+            guard case let .saved(recovered) = try recoveredWorkflow.execute(.recoverSave(preview)),
+                  case let .saved(replayed) = try recoveredWorkflow.execute(.recoverSave(preview)) else {
+                return XCTFail("recover/replay")
+            }
+            XCTAssertEqual(recovered, replayed)
+            XCTAssertEqual(recovered.receipt.mutationID, preview.successor.mutationID)
+            XCTAssertEqual(try h.planRowCount(), 1)
         }
-        XCTAssertTrue([0, 1].contains(try h.planRowCount()))
-        let recoveredWorkflow = try h.workflow()
-        guard case let .saved(recovered) = try recoveredWorkflow.execute(.recoverSave(preview)),
-              case let .saved(replayed) = try recoveredWorkflow.execute(.recoverSave(preview)) else {
-            return XCTFail("recover/replay")
-        }
-        XCTAssertEqual(recovered, replayed)
-        XCTAssertEqual(recovered.receipt.mutationID, preview.successor.mutationID)
-        XCTAssertEqual(try h.planRowCount(), 1)
     }
 
     @MainActor

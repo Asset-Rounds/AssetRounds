@@ -333,6 +333,41 @@ private enum C48PortableReviewTestSupport {
 }
 
 final class V9_55PortableReviewTests: XCTestCase {
+    func testProtectedCapabilityArtifactRequiresCapabilityNamespaceIncludingDecodedValues() throws {
+        let sessionID = "48000000-0000-4000-8000-000000000041"
+        let accepted = try PortableExchangeProtectedCapabilityArtifactV2(
+            relativePath: "capability/\(sessionID).bin", byteCount: 32,
+            sha256: String(repeating: "a", count: 64), state: .exportedAccepting)
+        XCTAssertNoThrow(try accepted.validate())
+        let encoded = try JSONEncoder().encode(accepted)
+        let decoded = try JSONDecoder().decode(PortableExchangeProtectedCapabilityArtifactV2.self,
+                                               from: encoded)
+        XCTAssertEqual(decoded, accepted)
+        XCTAssertNoThrow(try decoded.validate())
+
+        let rejectedPaths = [
+            "payload/not-a-capability.bin", "payload/capability/\(sessionID).bin",
+            "capability-extra/\(sessionID).bin", "capability", "capability/",
+            "capability/../payload/\(sessionID).bin", "../capability/\(sessionID).bin",
+            "/capability/\(sessionID).bin", "capability\\\(sessionID).bin",
+            "capability//\(sessionID).bin"
+        ]
+        for path in rejectedPaths {
+            XCTAssertThrowsError(try PortableExchangeProtectedCapabilityArtifactV2(
+                relativePath: path, byteCount: 32, sha256: accepted.sha256,
+                state: .exportedAccepting), path) {
+                XCTAssertEqual($0 as? PortableExchangePersistenceFailureV2, .invalidCapabilityArtifact)
+            }
+            var object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+            object["relativePath"] = path
+            let hostile = try JSONDecoder().decode(PortableExchangeProtectedCapabilityArtifactV2.self,
+                from: JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]))
+            XCTAssertThrowsError(try hostile.validate(), "decoded: \(path)") {
+                XCTAssertEqual($0 as? PortableExchangePersistenceFailureV2, .invalidCapabilityArtifact)
+            }
+        }
+    }
+
     private struct IntegrationExchangeClock: ApplicationClock {
         let date: Date
         func now() -> Date { date }

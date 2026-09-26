@@ -133,6 +133,60 @@ fileprivate final class DraftStagingRootOwnerV1: @unchecked Sendable {
             try DraftStagingRootOwnerV1.unchanged(fd, facts)
         }
     }
+    /// Darwin can retain a removed directory's link count on its open vnode.
+    /// Observe deletion of the exact pinned vnode; a renamed-aside original
+    /// plus a removed substitute must never satisfy the post-unlink proof.
+    final class DirectoryRemovalObservation {
+        private let directory: Directory
+        private let queue: Int32
+
+        init(directory: Directory) throws {
+            let queue = kqueue()
+            guard queue >= 0 else { throw DraftAttachmentStagingFailureV1.staleStage }
+            var change = kevent64_s()
+            change.ident = UInt64(directory.descriptor)
+            change.filter = Int16(EVFILT_VNODE)
+            change.flags = UInt16(EV_ADD | EV_ENABLE | EV_CLEAR)
+            change.fflags = UInt32(NOTE_DELETE | NOTE_RENAME | NOTE_REVOKE)
+            guard fcntl(queue, F_SETFD, FD_CLOEXEC) == 0,
+                  Darwin.kevent64(queue, &change, 1, nil, 0, 0, nil) == 0 else {
+                close(queue)
+                throw DraftAttachmentStagingFailureV1.staleStage
+            }
+            self.directory = directory
+            self.queue = queue
+        }
+
+        deinit { close(queue) }
+
+        func provesDeletion(_ facts: stat) -> Bool {
+            guard facts.st_dev == directory.identity.st_dev,
+                  facts.st_ino == directory.identity.st_ino,
+                  facts.st_mode & S_IFMT == S_IFDIR else { return failure("held-identity") }
+            var event = kevent64_s()
+            var timeout = timespec(tv_sec: 0, tv_nsec: 0)
+            // One nonblocking read: missing, foreign, error, rename and revoke
+            // events all fail closed, including aggregated DELETE + RENAME.
+            guard Darwin.kevent64(queue, nil, 0, &event, 1, 0, &timeout) == 1 else {
+                return failure("missing-delete-event")
+            }
+            guard event.ident == UInt64(directory.descriptor), event.filter == Int16(EVFILT_VNODE),
+                  event.flags & UInt16(EV_ERROR) == 0,
+                  event.fflags & UInt32(NOTE_DELETE) != 0,
+                  event.fflags & UInt32(NOTE_RENAME | NOTE_REVOKE) == 0 else {
+                return failure("unexpected-vnode-event")
+            }
+            return true
+        }
+
+        private func failure(_ phase: String) -> Bool {
+#if DEBUG
+            print("DraftDirectoryRemoval.failure phase=\(phase)")
+#endif
+            return false
+        }
+    }
+
     static func component(_ name: String) throws {
         guard !name.isEmpty, name != ".", name != "..", !name.contains("/"), !name.contains("\\"),
               !name.utf8.contains(0) else { throw DraftAttachmentStagingFailureV1.unsafePath }
@@ -2900,13 +2954,12 @@ struct DraftPhotoRestoreRawOwnershipV1: Codable, Equatable, Sendable {
                 && changedNanoseconds == Int64(value.st_ctimespec.tv_nsec)
         }
 
-        /// The final unlink/rmdir changes link count and ctime. A retained
-        /// descriptor proves that the exact admitted inode lost its last name;
-        /// a swapped-aside inode would remain linked and fail this check.
+        /// A regular file's final unlink changes link count and ctime. A
+        /// swapped-aside file stays linked. Directory removal instead requires
+        /// an exact-vnode deletion event; Darwin need not report zero links.
         fileprivate func provesUnlinked(_ value: stat) -> Bool {
-            device == UInt64(value.st_dev) && inode == UInt64(value.st_ino)
-                && value.st_mode & S_IFMT == (directory ? S_IFDIR : S_IFREG)
-                && value.st_nlink == 0
+            !directory && device == UInt64(value.st_dev) && inode == UInt64(value.st_ino)
+                && value.st_mode & S_IFMT == S_IFREG && value.st_nlink == 0
         }
     }
 
@@ -3266,6 +3319,44 @@ final class DraftConfigurationCloneRetirementPreparedV1: @unchecked Sendable {
 #endif
 
     private static let failure = DraftAttachmentStagingFailureV1.staleStage
+    private func diagnosticFailure(_ phase: String, expected: Node? = nil,
+        actual: Node? = nil) -> DraftAttachmentStagingFailureV1 {
+#if DEBUG
+        var facts = " expectedPresent=\(expected != nil) actualPresent=\(actual != nil)"
+        if let expected, let actual {
+            facts += " directory=\(expected.directory) deviceMatches=\(expected.device == actual.device)"
+            facts += " inodeMatches=\(expected.inode == actual.inode) linksExpected=\(expected.linkCount) linksObserved=\(actual.linkCount)"
+            facts += " sizeMatches=\(expected.byteCount == actual.byteCount)"
+            facts += " mtimeMatches=\(expected.modifiedSeconds == actual.modifiedSeconds && expected.modifiedNanoseconds == actual.modifiedNanoseconds)"
+            facts += " ctimeMatches=\(expected.changedSeconds == actual.changedSeconds && expected.changedNanoseconds == actual.changedNanoseconds)"
+            facts += " digestCompared=\(expected.sha256 != nil && actual.sha256 != nil) digestMatches=\(expected.sha256 != nil && expected.sha256 == actual.sha256)"
+        }
+        print("ConfigurationClone.retirement.failure phase=\(phase)" + facts)
+#endif
+        return Self.failure
+    }
+
+    private func diagnosticStatFailure(_ phase: String, expected: Node,
+        observed: stat) -> DraftAttachmentStagingFailureV1 {
+#if DEBUG
+        return diagnosticFailure(phase, expected: expected,
+            actual: observed.st_ino == 0 ? nil : Node(path: expected.path, directory: expected.directory,
+                facts: DraftPhotoRawBackupSnapshotV1.facts(observed)))
+#else
+        return Self.failure
+#endif
+    }
+
+    private func diagnosticStage<T>(_ phase: String, _ body: () throws -> T) rethrows -> T {
+        do { return try body() }
+        catch {
+#if DEBUG
+            print("ConfigurationClone.retirement.failure phase=\(phase) errorType=\(String(reflecting: type(of: error)))")
+#endif
+            throw error
+        }
+    }
+
     private let owner: DraftStagingRootOwnerV1
     private let bindingSHA256: String
     private let useLock = NSLock()
@@ -3343,7 +3434,7 @@ final class DraftConfigurationCloneRetirementPreparedV1: @unchecked Sendable {
         if (try? value.requireRestored()) != nil { return value }
         if (try? value.requireMovement(hashFiles: true)) != nil { return value }
         if (try? value.requireRollbackScaffoldCleanup()) != nil { return value }
-        try value.requireRetiring(hashFiles: true)
+        try value.diagnosticStage("reopen.require-retiring") { try value.requireRetiring(hashFiles: true) }
         return value
     }
 
@@ -3424,15 +3515,17 @@ final class DraftConfigurationCloneRetirementPreparedV1: @unchecked Sendable {
         try consume()
         try requirePermit(permit, operation: .retire)
         let held = try owner.acquire(); defer { held.release() }
-        try requireRetiring(hashFiles: true)
+        try diagnosticStage("finish.require-retiring") { try requireRetiring(hashFiles: true) }
         var nodes = privateBeforeNodes
         nodes.append(privateRootNode)
         nodes.sort {
             let lhs = $0.path.split(separator: "/").count, rhs = $1.path.split(separator: "/").count
             return lhs == rhs ? $0.path > $1.path : lhs > rhs
         }
-        for expected in nodes { try claimAndRemove(expected) }
-        try requireRetiredTerminal()
+        for expected in nodes {
+            try diagnosticStage("finish.claim-and-remove") { try claimAndRemove(expected) }
+        }
+        try diagnosticStage("finish.terminal") { try requireRetiredTerminal() }
     }
 
     func withQuarantinedVerificationLock<T>(permit: DraftConfigurationCloneRetirementPermitV1,
@@ -3626,7 +3719,7 @@ final class DraftConfigurationCloneRetirementPreparedV1: @unchecked Sendable {
         try ownership.validate()
         let manifest = try DraftStagingRootOwnerV1.ManifestSnapshot(owner: owner).manifest
         guard try manifest.canonicalBytes() == DraftAttachmentStagingManifestV1(entries: []).canonicalBytes() else {
-            throw Self.failure
+            throw diagnosticFailure("retiring.manifest")
         }
         let actual = try DraftConfigurationCloneRetirementFilesystemV1.scan(owner: owner,
             manifest: manifest, hashFiles: hashFiles)
@@ -3636,7 +3729,7 @@ final class DraftConfigurationCloneRetirementPreparedV1: @unchecked Sendable {
               matches(byPath[DraftAttachmentStagingAdapterV1.quarantineName],
                 translated(replacementNode, to: DraftAttachmentStagingAdapterV1.quarantineName), hash: false),
               try owner.directory([DraftAttachmentStagingAdapterV1.quarantineName]).names().isEmpty else {
-            throw Self.failure
+            throw diagnosticFailure("retiring.public-root-quarantine")
         }
         let manifestPath = DraftAttachmentStagingAdapterV1.manifestName
         let allowedSpecial = Set([".", manifestPath, DraftAttachmentStagingAdapterV1.quarantineName])
@@ -3645,28 +3738,28 @@ final class DraftConfigurationCloneRetirementPreparedV1: @unchecked Sendable {
         var allowedClaims = [String: Node]()
         for node in privateBeforeNodes + [privateRootNode] {
             guard let claim = node.claimPath, allowedClaims.updateValue(node, forKey: claim) == nil else {
-                throw Self.failure
+                throw diagnosticFailure("retiring.claim-map")
             }
         }
         admittedClaims = admittedClaims.filter { byPath[$0.key] != nil }
         for node in actual where !allowedSpecial.contains(node.path) {
             if let expected = allowedNormal[node.path] {
-                guard matches(node, expected, hash: hashFiles) else { throw Self.failure }
-                if let claim = expected.claimPath, byPath[claim] != nil { throw Self.failure }
+                guard matches(node, expected, hash: hashFiles) else { throw diagnosticFailure("retiring.original-facts", expected: expected, actual: node) }
+                if let claim = expected.claimPath, byPath[claim] != nil { throw diagnosticFailure("retiring.duplicate-placement") }
                 continue
             }
             guard let expected = allowedClaims[node.path], byPath[expected.path] == nil,
-                  hashFiles else { throw Self.failure }
+                  hashFiles else { throw diagnosticFailure("retiring.unexpected-placement") }
             let frozen = try admitClaim(actual: node, expected: expected)
             admittedClaims[node.path] = frozen
         }
         if let privateClaim = privateRootNode.claimPath, byPath[privateClaim] != nil {
             guard byPath[privateRootNode.path] == nil,
                   actual.allSatisfy({ allowedSpecial.contains($0.path) || $0.path == privateClaim }) else {
-                throw Self.failure
+                throw diagnosticFailure("retiring.private-claim-census")
             }
         } else if byPath[privateRootNode.path] == nil {
-            guard actual.allSatisfy({ allowedSpecial.contains($0.path) }) else { throw Self.failure }
+            guard actual.allSatisfy({ allowedSpecial.contains($0.path) }) else { throw diagnosticFailure("retiring.terminal-census") }
         }
     }
 
@@ -3676,7 +3769,7 @@ final class DraftConfigurationCloneRetirementPreparedV1: @unchecked Sendable {
         let actual = try DraftConfigurationCloneRetirementFilesystemV1.scan(owner: owner,
             manifest: manifest, hashFiles: false)
         guard Set(actual.map(\.path)) == Set([".", DraftAttachmentStagingAdapterV1.manifestName,
-                DraftAttachmentStagingAdapterV1.quarantineName]) else { throw Self.failure }
+                DraftAttachmentStagingAdapterV1.quarantineName]) else { throw diagnosticFailure("terminal.census") }
     }
 
     private func removeRollbackScaffoldIfPresent() throws {
@@ -3693,22 +3786,27 @@ final class DraftConfigurationCloneRetirementPreparedV1: @unchecked Sendable {
             guard privateRootNode.matches(directory.identity), try directory.names().isEmpty,
                   unlinkat(root.descriptor, privateRootNode.path, AT_REMOVEDIR) == 0,
                   fsync(root.descriptor) == 0 else { throw Self.failure }
+#if DEBUG
+            try observeForTesting("after-scaffold-delete")
+#endif
         }
     }
 
     private func claimAndRemove(_ expected: Node) throws {
-        guard let claimPath = expected.claimPath else { throw Self.failure }
+        guard let claimPath = expected.claimPath else { throw diagnosticFailure("claim.missing-reserved-path") }
         let original = try namedLocation(expected.path), claim = try namedLocation(claimPath)
         let originalExists = try original.map { try $0.parent.exists($0.name) } ?? false
         let claimExists = try claim.map { try $0.parent.exists($0.name) } ?? false
-        guard !(originalExists && claimExists) else { throw Self.failure }
+        guard !(originalExists && claimExists) else { throw diagnosticFailure("claim.duplicate-placement") }
         if claimExists {
-            guard let claim, let frozen = admittedClaims[claimPath] else { throw Self.failure }
+            guard let claim, let frozen = admittedClaims[claimPath] else { throw diagnosticFailure("claim.missing-admission") }
             try removeClaim(expected: expected, frozen: frozen, parent: claim.parent, name: claim.name)
             return
         }
         guard originalExists, let original, let claim else { return }
-        let source = try requireOriginalForClaim(expected, parent: original.parent, name: original.name)
+        let source = try diagnosticStage("claim.original") {
+            try requireOriginalForClaim(expected, parent: original.parent, name: original.name)
+        }
 #if DEBUG
         try beforeClaimForTesting?(original.parent.url.appendingPathComponent(original.name,
             isDirectory: expected.directory), expected.directory)
@@ -3716,8 +3814,10 @@ final class DraftConfigurationCloneRetirementPreparedV1: @unchecked Sendable {
         try original.parent.verifyNamed(); try claim.parent.verifyNamed()
         guard renameatx_np(original.parent.descriptor, original.name,
                 claim.parent.descriptor, claim.name, UInt32(RENAME_EXCL)) == 0,
-              fsync(original.parent.descriptor) == 0 else { throw Self.failure }
-        let frozen = try freezeClaim(expected, source: source, parent: claim.parent, name: claim.name)
+              fsync(original.parent.descriptor) == 0 else { throw diagnosticFailure("claim.rename-fsync") }
+        let frozen = try diagnosticStage("claim.freeze") {
+            try freezeClaim(expected, source: source, parent: claim.parent, name: claim.name)
+        }
         admittedClaims[claimPath] = frozen
 #if DEBUG
         try observeForTesting("after-retire-claim")
@@ -3824,36 +3924,36 @@ final class DraftConfigurationCloneRetirementPreparedV1: @unchecked Sendable {
 
     private func freezeClaim(_ expected: Node, source: ClaimSource,
         parent: DraftStagingRootOwnerV1.Directory, name: String) throws -> Node {
-        guard let path = expected.claimPath else { throw Self.failure }
+        guard let path = expected.claimPath else { throw diagnosticFailure("freeze.reserved-path") }
         if expected.directory {
-            guard let sourceDirectory = source.directory else { throw Self.failure }
+            guard let sourceDirectory = source.directory else { throw diagnosticFailure("freeze.directory-source") }
             var facts = stat()
-            guard fstat(sourceDirectory.descriptor, &facts) == 0 else { throw Self.failure }
+            guard fstat(sourceDirectory.descriptor, &facts) == 0 else { throw diagnosticFailure("freeze.directory-source-stat") }
             let claimed = try owner.directory(parent.components + [name])
             var current = stat()
             guard fstat(claimed.descriptor, &current) == 0,
                   current.st_dev == facts.st_dev, current.st_ino == facts.st_ino,
-                  try claimed.names().isEmpty else { throw Self.failure }
+                  try claimed.names().isEmpty else { throw diagnosticFailure("freeze.directory-placement") }
             let frozen = Node(path: path, directory: true,
                 facts: DraftPhotoRawBackupSnapshotV1.facts(current))
-            guard expected.admitsClaim(frozen) else { throw Self.failure }
+            guard expected.admitsClaim(frozen) else { throw diagnosticFailure("freeze.directory-admission", expected: expected, actual: frozen) }
             return frozen
         }
-        guard source.file >= 0 else { throw Self.failure }
+        guard source.file >= 0 else { throw diagnosticFailure("freeze.file-source") }
         let facts = try DraftStagingRootOwnerV1.regular(source.file)
         let digest = try DraftConfigurationCloneRetirementFilesystemV1.digest(source.file, facts: facts)
         let frozen = Node(path: path, directory: false,
             facts: DraftPhotoRawBackupSnapshotV1.facts(facts), sha256: digest)
-        guard expected.admitsClaim(frozen) else { throw Self.failure }
+        guard expected.admitsClaim(frozen) else { throw diagnosticFailure("freeze.file-admission", expected: expected, actual: frozen) }
         try parent.verifyPinnedFile(source.file, name: name, facts: facts)
         return frozen
     }
 
     private func admitClaim(actual: Node, expected: Node) throws -> Node {
-        guard expected.admitsClaim(actual) else { throw Self.failure }
+        guard expected.admitsClaim(actual) else { throw diagnosticFailure("claim.reopen-admission", expected: expected, actual: actual) }
         if expected.directory {
             guard try owner.directory(actual.path.split(separator: "/").map(String.init)).names().isEmpty else {
-                throw Self.failure
+                throw diagnosticFailure("claim.reopen-directory-empty")
             }
         }
         return actual
@@ -3861,25 +3961,31 @@ final class DraftConfigurationCloneRetirementPreparedV1: @unchecked Sendable {
 
     private func removeClaim(expected: Node, frozen: Node,
         parent: DraftStagingRootOwnerV1.Directory, name: String) throws {
-        guard expected.claimPath == frozen.path, try parent.exists(name) else { throw Self.failure }
+        guard expected.claimPath == frozen.path, try parent.exists(name) else { throw diagnosticFailure("unlink.placement") }
         if expected.directory {
             let directory = try owner.directory(parent.components + [name])
+            let deletion = try DraftStagingRootOwnerV1.DirectoryRemovalObservation(directory: directory)
             var facts = stat()
             guard try directory.names().isEmpty, fstat(directory.descriptor, &facts) == 0,
-                  frozen.strictlyMatches(facts) else { throw Self.failure }
+                  frozen.strictlyMatches(facts) else { throw diagnosticStatFailure("unlink.directory-preproof", expected: frozen, observed: facts) }
+            try directory.verifyNamed(); try parent.verifyNamed()
+#if DEBUG
+            try observeForTesting("before-directory-unlink")
+#endif
             var after = stat()
             guard unlinkat(parent.descriptor, name, AT_REMOVEDIR) == 0,
-                  fstat(directory.descriptor, &after) == 0, frozen.provesUnlinked(after),
-                  fsync(parent.descriptor) == 0 else { throw Self.failure }
+                  fstat(directory.descriptor, &after) == 0, deletion.provesDeletion(after),
+                  try !parent.exists(name),
+                  fsync(parent.descriptor) == 0 else { throw diagnosticStatFailure("unlink.directory-postproof-fsync", expected: frozen, observed: after) }
         } else {
             let file = try parent.openFile(name); defer { close(file) }
             let facts = try DraftStagingRootOwnerV1.regular(file)
-            guard frozen.strictlyMatches(facts) else { throw Self.failure }
+            guard frozen.strictlyMatches(facts) else { throw diagnosticStatFailure("unlink.file-preproof", expected: frozen, observed: facts) }
             try parent.verifyPinnedFile(file, name: name, facts: facts)
             var after = stat()
             guard unlinkat(parent.descriptor, name, 0) == 0,
                   fstat(file, &after) == 0, frozen.provesUnlinked(after),
-                  fsync(parent.descriptor) == 0 else { throw Self.failure }
+                  fsync(parent.descriptor) == 0 else { throw diagnosticStatFailure("unlink.file-postproof-fsync", expected: frozen, observed: after) }
         }
         admittedClaims.removeValue(forKey: frozen.path)
     }
@@ -4605,6 +4711,7 @@ final class DraftPhotoRestorePreparedPublicationV1: @unchecked Sendable {
         guard expected.claimPath == frozen.path, try parent.exists(name) else { throw Self.failure }
         if expected.directory {
             let directory = try owner.directory(parent.components + [name])
+            let deletion = try DraftStagingRootOwnerV1.DirectoryRemovalObservation(directory: directory)
             guard try directory.names().isEmpty else {
                 throw Self.failure
             }
@@ -4615,7 +4722,8 @@ final class DraftPhotoRestorePreparedPublicationV1: @unchecked Sendable {
             try directory.verifyNamed(); try parent.verifyNamed()
             var after = stat()
             guard unlinkat(parent.descriptor, name, AT_REMOVEDIR) == 0,
-                  fstat(directory.descriptor, &after) == 0, frozen.provesUnlinked(after),
+                  fstat(directory.descriptor, &after) == 0, deletion.provesDeletion(after),
+                  try !parent.exists(name),
                   fsync(parent.descriptor) == 0 else {
                 throw Self.failure
             }
@@ -4748,6 +4856,41 @@ extension DraftAttachmentStagingAdapterV1 {
         }
         return try DraftConfigurationCloneRetirementPreparedV1.prepare(
             authority: authority, verification: currentVerification)
+    }
+
+    /// Receipt-only recovery opens the existing root directly: rollback may
+    /// temporarily own both quarantine directories beneath its private root.
+    /// No general backup adapter or absent directory is created from that state.
+    nonisolated static func reopenOwnedConfigurationCloneRetirement(
+        authority: DraftConfigurationCloneRetirementAuthorityV1,
+        ownership: DraftConfigurationCloneRetirementOwnershipV1) throws
+        -> DraftConfigurationCloneRetirementPreparedV1 {
+        guard authority.applicationSupportURL.isFileURL,
+              authority.plan.workspaceID == ownership.plan.workspaceID else {
+            throw DraftAttachmentStagingFailureV1.wrongWorkspace
+        }
+        let dataRoot = authority.applicationSupportURL.standardizedFileURL
+            .appendingPathComponent(OwnedStorageRootKindV1.data.rawValue, isDirectory: true)
+        // Preserve ordinary observation's no-follow parent proof; opening only
+        // the final child component would follow a substituted data-root symlink.
+        let parent = try DraftStagingRootOwnerV1(rootURL: dataRoot)
+        let lock = try parent.acquire(); defer { lock.release() }
+        try parent.requireNamedRoot()
+        let child = try parent.directory([Self.directoryName])
+        try child.verifyNamed()
+        let owner = try DraftStagingRootOwnerV1(rootURL: child.url)
+        var opened = stat()
+        guard fstat(owner.descriptor, &opened) == 0,
+              opened.st_dev == child.identity.st_dev, opened.st_ino == child.identity.st_ino else {
+            throw DraftAttachmentStagingFailureV1.staleStage
+        }
+        // The kernel validates the opaque authority, complete ownership/plan,
+        // closed node census and protection under R before returning a permit consumer.
+        let prepared = try DraftConfigurationCloneRetirementPreparedV1.reopen(
+            authority: authority, ownership: ownership, owner: owner)
+        try parent.requireNamedRoot()
+        try child.verifyNamed()
+        return prepared
     }
 
     /// Opens immutable ownership without actor isolation or filesystem effects.

@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "654b4f574dbc91f12a2c35c7319bc65cdc678985",
+  "generatedAtHead": "4a8c0ea1788678007ef5fa1e4d856bd8218206c1",
   "sweepOrder": [
     "S01",
     "S02",
@@ -44,7 +44,7 @@
     {
       "id": "S02",
       "tier": "D50C",
-      "estimatedSeconds": 1499.9,
+      "estimatedSeconds": 1509.0,
       "selectors": [
         "FieldEvidenceAppTests/C27S82TypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorV901VersionedSchemaIdentity/testC33V901VersionedSchemaIdentityCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -72,6 +72,7 @@
         "FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementAccessAndCancellationRetainRecoveryOwner",
         "FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementChangedPrivateBytesAndUnknownNodesRemainUntouched",
         "FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementClaimRejectsAnInodeSubstitution",
+        "FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementMetadataClaimsRecoverAndRejectHostileAliases",
         "FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementOldPointerRollbackRestoresExactIncumbent",
         "FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementPointerLagAndPrivateCleanupResume",
         "FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementRollbackInterruptionsResume",
@@ -364,7 +365,7 @@
     {
       "id": "S05",
       "tier": "D50C",
-      "estimatedSeconds": 1499.9,
+      "estimatedSeconds": 1510.0,
       "selectors": [
         "FieldEvidenceAppTests/C27S41TypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/S3_7CouldNotVerifyTests/testDuplicateAndWrongPurposeEvidenceFailClosedWithoutFinalizationRows",
@@ -375,6 +376,7 @@
         "FieldEvidenceAppTests/S6_5ReplacementUnionTests/testCancelRemovesOnlyOwnedStageAndDirtyCurrentFailsClosed",
         "FieldEvidenceAppTests/S6_5ReplacementUnionTests/testFinalizedReportBytesAndReceiptsSurviveRepeatedForkAndColdReadback",
         "FieldEvidenceAppTests/S6_5ReplacementUnionTests/testGoldenReplacementKeepsIncomingLiveAndUnionsCurrentRoot",
+        "FieldEvidenceAppTests/S6_5ReplacementUnionTests/testOwnedRegularRemovalAdvancesOnlyExactMutationPins",
         "FieldEvidenceAppTests/S6_5ReplacementUnionTests/testPacketCollisionFailsBeforeGenerationOrJournalMutation",
         "FieldEvidenceAppTests/S6_5ReplacementUnionTests/testPureRuleCreatesOnlyCurrentOnlyTombstonesAndRejectsCollisions",
         "FieldEvidenceAppTests/S6_5ReplacementUnionTests/testRecoveryPreservesReplacementUnionAcrossEveryJournalPhase",
@@ -879,7 +881,7 @@
     {
       "id": "S10",
       "tier": "D50C",
-      "estimatedSeconds": 1499.9,
+      "estimatedSeconds": 1459.4,
       "selectors": [
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS6_6EraseRecovery/testTypedEvidenceContextContractAnchor",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorS63BackupValidation/testC33S63BackupValidationCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -1057,7 +1059,7 @@
     {
       "id": "S12",
       "tier": "D50C",
-      "estimatedSeconds": 1499.9,
+      "estimatedSeconds": 1525.1,
       "selectors": [
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorV903MigrationRecovery/testC33V903MigrationRecoveryCompatibilityBindsTypedTemporalEvidenceToItsOwner",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorV945EvidenceContext/testC33V945EvidenceContextCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -1080,6 +1082,7 @@
         "FieldEvidenceAppTests/S6_2BackupExportTests/testMixedExportFreezesAllAuthorityAndRecomputesManifestIndependently",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testMixedExportWithCheckRunnerPhotosCompletesUnderPublicationLock",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testPhotoHistoryAcceptsRealBeginOnlyExportWithZeroPhotoChildren",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testPhotoRestoreMetadataClaimsRecoverAndRejectHostileAliases",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testPopulatedQualityAndInboxSurvivePackageTransportAndPhysicalReplace",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testPublishedArchiveCleanupDeletesOnlyExactOwnedInode",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testPublishedArchiveCleanupPreservesEqualMagicReplacement",
@@ -1125,7 +1128,7 @@
     {
       "id": "S13",
       "tier": "D50C",
-      "estimatedSeconds": 1499.9,
+      "estimatedSeconds": 1483.5,
       "selectors": [
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS3_6CameraRecovery/testTypedEvidenceContextContractAnchor",
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS8_3DiagnosticPrivacy/testTypedEvidenceContextContractAnchor",
@@ -1780,7 +1783,7 @@
     {
       "id": "S16",
       "tier": "D50C",
-      "estimatedSeconds": 1499.9,
+      "estimatedSeconds": 1562.4,
       "selectors": [
         "FieldEvidenceAppTests/C27ChangeJournalTypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/C32AssistanceAnchorV939SurveyDefinition/testC32V939SurveyDefinitionCompatibilityKeepsProposalAtExplicitReviewBoundary",
@@ -1846,6 +1849,7 @@
         "FieldEvidenceAppTests/V10_01WorkspaceWriterTests/testC22RecoverabilityVerificationAnchor",
         "FieldEvidenceAppTests/V10_01WorkspaceWriterTests/testCanonicalCommitInvalidatesSearchAtExactWriterRevision",
         "FieldEvidenceAppTests/V10_01WorkspaceWriterTests/testCurrentActiveValidateAllBehaviorRemainsStrict",
+        "FieldEvidenceAppTests/V10_01WorkspaceWriterTests/testHistoricalAssetMigrationUsesClosedLegacyPackageBridge",
         "FieldEvidenceAppTests/V10_01WorkspaceWriterTests/testHistoricalCheckpointRejectsCounterRevisionProjectionAndFutureKindDrift",
         "FieldEvidenceAppTests/V10_01WorkspaceWriterTests/testHistoricalJournalCheckpointValidationUsesActualReleasedSchemas",
         "FieldEvidenceAppTests/V10_01WorkspaceWriterTests/testHistoricalTerminalProjectionUsesV4V5V8V9RecipesAndMixedUnchangedRows",
@@ -2102,6 +2106,7 @@
         "FieldEvidenceAppTests/V9_47CrossMarketConformanceTests/testV23P03C42R01PromotedCounterexamplesReplayAndReleaseExclusionRemainsExact",
         "FieldEvidenceAppTests/V9_55PortableReviewTests/testCanonicalReviewResponseWrapperRoundTripsAndRejectsTypedCountOrDigestTamper",
         "FieldEvidenceAppTests/V9_55PortableReviewTests/testExchangeEnvelopeUpdatesPreserveGenerationHistoryAndRetryAcrossReopen",
+        "FieldEvidenceAppTests/V9_55PortableReviewTests/testProtectedCapabilityArtifactRequiresCapabilityNamespaceIncludingDecodedValues",
         "FieldEvidenceAppTests/V9_55PortableReviewTests/testV23P03C48A01OriginRecordedElsewhereKeepsUnverifiedHistorySeparateFromEligibility",
         "FieldEvidenceAppTests/V9_55PortableReviewTests/testV23P03C48CleanupDeduplicatesResponseAliasesForEraseAndRetainsAcknowledgedSessionsOnPurge",
         "FieldEvidenceAppTests/V9_55PortableReviewTests/testV23P03C48CleanupHoldIntegrityAndLegacyJournalRecovery",
