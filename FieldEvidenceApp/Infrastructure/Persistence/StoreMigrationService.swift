@@ -3823,6 +3823,34 @@ final class StaleWriterFenceV1 {
         }
     }
 
+    struct ReadFenceFailure: Error {
+        let underlying: any Error
+    }
+
+    /// A read interval holds the same cross-process generation lock as writes,
+    /// and proves the writer epoch at both ends. The body cannot suspend.
+    /// Tag only fence/root failures so the journal can map those without
+    /// converting a graph or domain rejection thrown by the read itself.
+    func withAuthorizedRead<Value>(_ body: () throws -> Value) throws -> Value {
+        var bodyFailure: (any Error)?
+        do {
+            return try registry.withExclusiveGenerationMutationLock {
+                try validateCurrentLocked()
+                let result: Value
+                do { result = try body() }
+                catch {
+                    bodyFailure = error
+                    throw error
+                }
+                try validateCurrentLocked()
+                return result
+            }
+        } catch {
+            if let bodyFailure { throw bodyFailure }
+            throw ReadFenceFailure(underlying: error)
+        }
+    }
+
     func withAuthorizedCommit<Value>(
         _ operation: () throws -> Value
     ) throws -> Value {

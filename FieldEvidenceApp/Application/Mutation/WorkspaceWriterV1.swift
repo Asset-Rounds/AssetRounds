@@ -2476,6 +2476,20 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         return FieldDraftLifecycleAdapterV1(writer: self, journal: journalStore, modelContext: modelContext)
     }
 
+    /// A complete, value-only chain from one canonical journal read interval.
+    /// Other journal modes retain their existing adapter authentication path.
+    func reviewedRepetitiveCaptureProgressInReadScope(
+        workspaceID: WorkspaceID, sourceDraftID: UUID, modelContext: ModelContext
+    ) throws -> ReviewedRepetitiveCaptureProgressChainV2? {
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        let chain = try journalStore.reviewedRepetitiveCaptureProgressInReadScope(
+            workspaceID: workspaceID, sourceDraftID: sourceDraftID,
+            context: modelContext, writerInstanceID: writerInstanceID)
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        return chain
+    }
+
     /// Exact operational-row retry uses the original envelope revisions;
     /// later checkpoint/saga writes do not create a new command identity.
     func fieldDraftReceipt(for mutation: FieldDraftMutationV1) throws -> MutationReceiptV1? {

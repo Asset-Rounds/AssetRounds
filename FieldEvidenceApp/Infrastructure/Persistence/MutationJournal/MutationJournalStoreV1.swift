@@ -2306,6 +2306,105 @@ final class MutationJournalStoreV1 {
         }
     }
 
+    /// Only this fixed synchronous read consumes the pass's decoded values.
+    /// They never escape as an authority token or survive another operation.
+    func reviewedRepetitiveCaptureProgressInReadScope(
+        workspaceID: WorkspaceID, sourceDraftID: UUID,
+        context: ModelContext, writerInstanceID: UUID
+    ) throws -> ReviewedRepetitiveCaptureProgressChainV2? {
+        // Restore-review and DEBUG maintenance readers keep their original path;
+        // only a canonical writer owns the generation fence used by this scope.
+        guard case let .canonicalWriter(fence) = accessMode else { return nil }
+        do {
+            return try fence.withAuthorizedRead {
+                guard context === modelContext, !modelContext.hasChanges else {
+                    throw WorkspaceMutationFailureV1.persistenceFailed
+                }
+                guard workspaceID == identity.workspaceID else {
+                    throw WorkspaceMutationFailureV1.wrongWorkspace
+                }
+                let before = try currentRevision(writerInstanceID: writerInstanceID)
+                let pass = try validateJournalPass(
+                    release: PersistentSchemaReleaseRegistryV1.activeRelease,
+                    historicalAuthority: nil, retainDecodedRows: true)
+
+                // Keep absence subject to quarantine denial just like checkedReceipt.
+                // No caller-provided callback or mutation runs in this read interval.
+                @MainActor func checkedRow(_ mutationID: MutationIDV1) throws -> ValidatedReceiptRow? {
+                    try validateCurrentWriterLease()
+                    let key = MutationWorkspaceKeyV1.value(workspaceID: workspaceID, mutationID: mutationID)
+                    guard try modelContext.fetch(FetchDescriptor<MutationQuarantineRow>(
+                        predicate: #Predicate { $0.workspaceMutationKey == key }
+                    )).isEmpty else { throw WorkspaceMutationFailureV1.mutationIDQuarantined }
+                    return pass.decodedRows[key]
+                }
+                @MainActor func authenticatedCheckpoint(_ workspace: WorkspaceID, _ draftID: UUID) throws
+                    -> (FieldDraftCheckpointV1, MutationReceiptV1) {
+                    _ = try currentRevision(writerInstanceID: writerInstanceID)
+                    let id = draftID
+                    let rows = try modelContext.fetch(FetchDescriptor<FieldDraftCheckpointRow>(
+                        predicate: #Predicate { $0.draftID == id }))
+                    guard rows.count <= 1 else { throw FieldDraftFailureV1.invalidValue }
+                    guard let row = rows.first else { throw ScanToWorkFailureV1.stale }
+                    let checkpoint = try row.value()
+                    guard checkpoint.workspaceID == workspace else { throw FieldDraftFailureV1.wrongWorkspace }
+                    try RepetitiveCaptureProgressDraftCodecV2.validateCheckpoint(checkpoint)
+                    guard let saved = try checkedRow(checkpoint.mutationID) else {
+                        throw ScanToWorkFailureV1.authorityMismatch
+                    }
+                    let evidence = try FieldDraftCommittedEvidenceV1(envelope: saved.envelope, receipt: saved.receipt)
+                    guard evidence.mutation.workspaceID == workspace, evidence.mutation.expectedRevision == 0,
+                          evidence.mutation.expectedBaseCanonicalRevision == checkpoint.baseCanonicalRevision,
+                          case let .createCheckpoint(original) = evidence.mutation.postImage, original == checkpoint else {
+                        throw ScanToWorkFailureV1.authorityMismatch
+                    }
+                    return (checkpoint, evidence.receipt)
+                }
+                let chain = try RepetitiveCaptureProgressChainReviewV2.review(
+                    workspaceID: workspaceID, sourceDraftID: sourceDraftID,
+                    authenticatedProgressCheckpoint: { try authenticatedCheckpoint($0, $1) },
+                    progressRoundHistory: { workspace, session in
+                        _ = try self.currentRevision(writerInstanceID: writerInstanceID)
+                        let history = try WorkspaceWriterAdapterV1(modelContext: self.modelContext)
+                            .roundSessionHistory(workspaceID: workspace, sessionID: session)
+                        _ = try RoundSessionHistoryValidatorV1.validate(history, workspaceID: workspace, sessionID: session)
+                        return history
+                    },
+                    requireProgressLaunchReceipt: { round in
+                        guard round.revision > 0, let receipt = try checkedRow(round.mutationID)?.receipt else {
+                            throw ScanToWorkFailureV1.authorityMismatch
+                        }
+                        let mutation = try RoundSessionMutationV1(workspaceID: round.workspaceID,
+                            expectedRevision: round.revision - 1, mutationID: round.mutationID, session: round)
+                        _ = try RoundSessionMutationReceiptV1(mutation: mutation, mutationReceipt: receipt)
+                        return receipt
+                    },
+                    progressCheckpoints: { workspace in
+                        let rawWorkspaceID = workspace.rawValue
+                        let rows = try self.modelContext.fetch(FetchDescriptor<FieldDraftCheckpointRow>(
+                            predicate: #Predicate { $0.workspaceID == rawWorkspaceID }))
+                        let release = try RepetitiveCaptureProgressDraftCodecV2.release()
+                        return try rows.map { try $0.value() }.filter { $0.purpose == .repetitiveCapture && $0.codec == release }
+                    },
+                    durableReceipt: { mutationID in
+                        _ = try self.currentRevision(writerInstanceID: writerInstanceID)
+                        return try checkedRow(mutationID)?.receipt
+                    })
+                guard !modelContext.hasChanges,
+                      try currentRevision(writerInstanceID: writerInstanceID) == before else {
+                    throw WorkspaceMutationFailureV1.persistenceFailed
+                }
+                return chain
+            }
+        } catch let failure as StaleWriterFenceV1.ReadFenceFailure {
+            provenWriterLeaseInvalidated = true
+            if let registryFailure = failure.underlying as? GenerationLeaseRegistryFailureV1 {
+                throw mappedFenceFailure(registryFailure)
+            }
+            throw WorkspaceMutationFailureV1.persistenceFailed
+        }
+    }
+
     func fieldDraftEvidence(mutationID: MutationIDV1) throws -> FieldDraftCommittedEvidenceV1? {
         try validateCurrentWriterLease()
         try validateAll()
@@ -5346,6 +5445,29 @@ final class MutationJournalStoreV1 {
         historicalAuthority: StoreMigrationHistoricalCheckpointAuthorityV1?,
         diagnosticPhase: ((String) -> Void)? = nil
     ) throws -> StoreMigrationValidatedTerminalImagesV1 {
+        try validateJournalPass(release: release, historicalAuthority: historicalAuthority,
+            retainDecodedRows: false, diagnosticPhase: diagnosticPhase).terminalImages
+    }
+
+    private struct ValidatedJournalPass {
+        let terminalImages: StoreMigrationValidatedTerminalImagesV1
+        let decodedRows: [String: ValidatedReceiptRow]
+    }
+
+#if DEBUG
+    private(set) var fullValidationPassCountForTesting: UInt64 = 0
+#endif
+
+    private func validateJournalPass(
+        release: PersistentSchemaReleaseV1,
+        historicalAuthority: StoreMigrationHistoricalCheckpointAuthorityV1?,
+        retainDecodedRows: Bool,
+        diagnosticPhase: ((String) -> Void)? = nil
+    ) throws -> ValidatedJournalPass {
+#if DEBUG
+        fullValidationPassCountForTesting &+= 1
+#endif
+        var decodedRows: [String: ValidatedReceiptRow] = [:]
         lastValidatedCheckpointVersion = nil
         let releaseVersion = release.versionIdentifier.major
         guard (4...PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major)
@@ -5375,8 +5497,15 @@ final class MutationJournalStoreV1 {
         var receiptsByMutation: [String: MutationReceiptV1] = [:]
         var rowsByMutation: [String: MutationReceiptRow] = [:]
         var assistanceMutationKeys = Set<String>()
+#if DEBUG
+        let receiptLoopStarted = diagnosticPhase == nil ? nil : DispatchTime.now().uptimeNanoseconds
+#endif
         for row in rows {
-            let receipt = try validate(row: row, expectedEnvelope: nil, release: release)
+            // Full row validation authenticates both values. The optional
+            // decoded-row result remains inside one synchronous read interval;
+            // ordinary validation retains no row values beyond this pass.
+            let validatedRow = try validateReceiptRow(row: row, expectedEnvelope: nil, release: release)
+            let receipt = validatedRow.receipt
             guard identities.insert(row.receiptIdentity).inserted,
                   mutations.insert(row.workspaceMutationKey).inserted else {
                 diagnosticPhase?("validate.guard.line-5329"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
@@ -5412,7 +5541,8 @@ final class MutationJournalStoreV1 {
             let key = MutationWorkspaceKeyV1.value(workspaceID: receipt.identity.workspaceID, mutationID: receipt.mutationID)
             receiptsByMutation[key] = receipt
             rowsByMutation[key] = row
-            let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+            if retainDecodedRows { decodedRows[key] = validatedRow }
+            let envelope = validatedRow.envelope
             if case let .applyAssistanceAcceptance(request) = envelope.command,
                !assistanceMutationKeys.insert(MutationWorkspaceKeyV1.value(
                     workspaceID: request.expectedRevision.workspaceID,
@@ -5421,6 +5551,12 @@ final class MutationJournalStoreV1 {
                 diagnosticPhase?("validate.guard.line-5372"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
         }
+#if DEBUG
+        if let receiptLoopStarted {
+            let elapsed = DispatchTime.now().uptimeNanoseconds &- receiptLoopStarted
+            diagnosticPhase?("validate.receipt-loop.complete rows=\(rows.count) directRowEnvelopeDecodes=\(rows.count) envelopeReuses=\(rows.count) elapsedNs=\(elapsed)")
+        }
+#endif
         var assistanceReceiptMutationKeys = Set<String>()
         if releaseVersion >= 32 {
             let assistanceRows = try modelContext.fetch(FetchDescriptor<AssistanceAcceptanceReceiptRow>())
@@ -5605,7 +5741,7 @@ final class MutationJournalStoreV1 {
                 diagnosticPhase?("validate.guard.line-5548"); throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
         }
-        return try validateTerminalRows(
+        let terminalImages = try validateTerminalRows(
             revisionRows: revisionRows,
             revisionIdentities: revisionIdentities,
             latestPostImageByIdentity: latestPostImageByIdentity,
@@ -5616,6 +5752,7 @@ final class MutationJournalStoreV1 {
             state: state,
             sourceReceiptAnchors: sourceReceiptAnchors
         )
+        return ValidatedJournalPass(terminalImages: terminalImages, decodedRows: decodedRows)
     }
 
     private func validateTerminalRows(
@@ -7152,11 +7289,27 @@ final class MutationJournalStoreV1 {
         }
     }
 
+    private struct ValidatedReceiptRow {
+        let receipt: MutationReceiptV1
+        let envelope: MutationEnvelopeV1
+    }
+
     private func validate(
         row: MutationReceiptRow,
         expectedEnvelope: MutationEnvelopeV1?,
         release: PersistentSchemaReleaseV1 = PersistentSchemaReleaseRegistryV1.activeRelease
     ) throws -> MutationReceiptV1 {
+        try validateReceiptRow(row: row, expectedEnvelope: expectedEnvelope, release: release).receipt
+    }
+
+    /// Returns decoded values only after all original row/envelope/receipt and
+    /// referenced-history checks succeed. Never retained on the journal, writer
+    /// or another operation: a later read must validate the current bytes again.
+    private func validateReceiptRow(
+        row: MutationReceiptRow,
+        expectedEnvelope: MutationEnvelopeV1?,
+        release: PersistentSchemaReleaseV1
+    ) throws -> ValidatedReceiptRow {
         let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
         let releaseVersion = release.versionIdentifier.major
         guard Self.minimumPersistentSchemaVersion(for: envelope.command) <= releaseVersion else {
@@ -7295,7 +7448,7 @@ final class MutationJournalStoreV1 {
         } else if receipt.reversesMutationID != nil || envelope.semanticReversalExecution != nil {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
-        return receipt
+        return ValidatedReceiptRow(receipt: receipt, envelope: envelope)
     }
 
     private func v4AssetDTO(_ row: Asset) -> V4BackupAssetDTO {

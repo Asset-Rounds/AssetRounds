@@ -108,7 +108,9 @@ final class V23RepetitiveCaptureProgressDraftPayloadV2Tests: XCTestCase {
         }
         try disk.withSession { session in
             let before = try session.writer.currentRevision()
+            let passes = session.journal.fullValidationPassCountForTesting
             let recovered = try session.adapter.reviewedRepetitiveCaptureProgress(workspaceID: fixture.workspace, sourceDraftID: source.draftID)
+            XCTAssertEqual(session.journal.fullValidationPassCountForTesting - passes, 1)
             let last = try XCTUnwrap(recovered.nodes.last)
             XCTAssertEqual(last.checkpoint, pending)
             XCTAssertTrue(last.isPendingRoundEffect)
@@ -135,6 +137,83 @@ final class V23RepetitiveCaptureProgressDraftPayloadV2Tests: XCTestCase {
             let final = try session.adapter.reviewedRepetitiveCaptureProgress(workspaceID: fixture.workspace, sourceDraftID: source.draftID)
             XCTAssertFalse(try XCTUnwrap(final.nodes.last).isPendingRoundEffect)
             XCTAssertEqual(try session.writer.currentRevision(), before)
+            let passes = session.journal.fullValidationPassCountForTesting
+            XCTAssertEqual(try session.adapter.reviewedRepetitiveCaptureProgress(
+                workspaceID: fixture.workspace, sourceDraftID: source.draftID), final)
+            XCTAssertEqual(session.journal.fullValidationPassCountForTesting - passes, 1)
+
+            // No prior read can hide later corruption, even on a receipt the
+            // progress callbacks do not request (the pre-launch Round creation).
+            let creationID = fixture.draft.mutationID.rawValue
+            let creation = try XCTUnwrap(session.context.fetch(FetchDescriptor<MutationReceiptRow>(
+                predicate: #Predicate { $0.mutationID == creationID })).first)
+            let originalSHA = creation.envelopeSHA256
+            creation.envelopeSHA256 = String(repeating: "0", count: 64)
+            XCTAssertTrue(session.context.hasChanges)
+            XCTAssertThrowsError(try session.adapter.reviewedRepetitiveCaptureProgress(
+                workspaceID: fixture.workspace, sourceDraftID: source.draftID)) {
+                XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .persistenceFailed)
+            }
+            try session.context.save()
+            XCTAssertThrowsError(try session.adapter.reviewedRepetitiveCaptureProgress(
+                workspaceID: fixture.workspace, sourceDraftID: source.draftID))
+            creation.envelopeSHA256 = originalSHA
+            try session.context.save()
+            XCTAssertEqual(try session.adapter.reviewedRepetitiveCaptureProgress(
+                workspaceID: fixture.workspace, sourceDraftID: source.draftID), final)
+
+            let sourceID = source.mutationID.rawValue
+            let sourceRow = try XCTUnwrap(session.context.fetch(FetchDescriptor<MutationReceiptRow>(
+                predicate: #Predicate { $0.mutationID == sourceID })).first)
+            let quarantine = MutationQuarantineRow(workspaceID: fixture.workspace,
+                mutationID: source.mutationID, identityDomain: .mutationEnvelope,
+                acceptedIdentitySHA256: sourceRow.envelopeSHA256,
+                conflictingIdentitySHA256: String(repeating: "0", count: 64), detectedAt: ProgressFixture.date)
+            session.context.insert(quarantine)
+            try session.context.save()
+            XCTAssertThrowsError(try session.adapter.reviewedRepetitiveCaptureProgress(
+                workspaceID: fixture.workspace, sourceDraftID: source.draftID)) {
+                XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .mutationIDQuarantined)
+            }
+            session.context.delete(quarantine)
+            try session.context.save()
+            XCTAssertEqual(try session.adapter.reviewedRepetitiveCaptureProgress(
+                workspaceID: fixture.workspace, sourceDraftID: source.draftID), final)
+            // Observe this exact graph's fence-read count, then fail its final
+            // epoch reproof with a non-registry error. No fixed count is assumed.
+            let readsBefore = disk.fenceProbe.reads
+            XCTAssertEqual(try session.adapter.reviewedRepetitiveCaptureProgress(
+                workspaceID: fixture.workspace, sourceDraftID: source.draftID), final)
+            let readsPerChain = disk.fenceProbe.reads - readsBefore
+            XCTAssertGreaterThan(readsPerChain, 1)
+            disk.fenceProbe.failOnRead = disk.fenceProbe.reads + readsPerChain
+            XCTAssertThrowsError(try session.adapter.reviewedRepetitiveCaptureProgress(
+                workspaceID: fixture.workspace, sourceDraftID: source.draftID)) {
+                XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .persistenceFailed)
+            }
+            disk.fenceProbe.failOnRead = nil
+            XCTAssertEqual(try session.adapter.reviewedRepetitiveCaptureProgress(
+                workspaceID: fixture.workspace, sourceDraftID: source.draftID), final)
+
+            try session.writer.withProvenLease {
+                disk.fenceProbe.failOnRead = disk.fenceProbe.reads + 1
+                XCTAssertThrowsError(try session.adapter.reviewedRepetitiveCaptureProgress(
+                    workspaceID: fixture.workspace, sourceDraftID: source.draftID)) {
+                    XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .persistenceFailed)
+                }
+                // Failure must poison the outer proof, so this subsequent read
+                // cannot silently reuse it and bypass the newly failing fence.
+                disk.fenceProbe.failOnRead = disk.fenceProbe.reads + 1
+                XCTAssertThrowsError(try session.writer.currentRevision()) {
+                    XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .persistenceFailed)
+                }
+                disk.fenceProbe.failOnRead = nil
+            }
+            let wrongContext = ModelContext(session.context.container)
+            XCTAssertThrowsError(try session.writer.reviewedRepetitiveCaptureProgressInReadScope(
+                workspaceID: fixture.workspace, sourceDraftID: source.draftID, modelContext: wrongContext)) {
+                XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .persistenceFailed)
+            }
         }
     }
 
@@ -414,6 +493,19 @@ private struct ProgressFixture {
     }
 }
 
+private enum ProgressFenceProbeFailure: Error { case unavailableEpoch }
+
+@MainActor
+private final class ProgressFenceProbe {
+    var reads = 0
+    var failOnRead: Int?
+    func read(_ epoch: GenerationEpochV1) throws -> GenerationEpochV1 {
+        reads += 1
+        if reads == failOnRead { throw ProgressFenceProbeFailure.unavailableEpoch }
+        return epoch
+    }
+}
+
 @MainActor
 private final class ProgressDisk {
     let root: URL
@@ -421,6 +513,7 @@ private final class ProgressDisk {
     private let generationID: UUID
     private let fence: StaleWriterFenceV1
     private let registry: GenerationLeaseRegistryV1
+    let fenceProbe = ProgressFenceProbe()
     private var bootstrap = true
     init(workspaceID: WorkspaceID) throws {
         root = FileManager.default.temporaryDirectory.appendingPathComponent("V23-progress-v2-\(UUID().uuidString)", isDirectory: true)
@@ -429,12 +522,14 @@ private final class ProgressDisk {
         let epoch = try GenerationEpochV1(generationID: generationID, generationManifestSHA256: String(repeating: "a", count: 64))
         registry = try GenerationLeaseRegistryV1(applicationSupportURL: root)
         let lease = try registry.acquire(epoch: epoch, role: .writer)
+        let probe = fenceProbe
         fence = try StaleWriterFenceV1(expectedGenerationEpoch: epoch, writerLeaseToken: lease,
-            registry: registry, currentGenerationEpoch: { epoch })
+            registry: registry, currentGenerationEpoch: { try probe.read(epoch) })
     }
     struct Session {
         let context: ModelContext
         let writer: WorkspaceWriterV1
+        let journal: MutationJournalStoreV1
         let adapter: FieldDraftLifecycleAdapterV1
     }
     func withSession<T>(_ body: (Session) throws -> T) throws -> T {
@@ -454,7 +549,7 @@ private final class ProgressDisk {
                 idSource: ProgressIDs(instance: instance), fileAuthority: ProgressFiles(),
                 adapter: WorkspaceWriterAdapterV1(modelContext: context), journalStore: journal)
             defer { writer.invalidate() }
-            return try body(.init(context: context, writer: writer,
+            return try body(.init(context: context, writer: writer, journal: journal,
                 adapter: .init(writer: writer, journal: journal, modelContext: context)))
         }
     }

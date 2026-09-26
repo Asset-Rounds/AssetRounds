@@ -157,7 +157,11 @@ extension FieldDraftLifecycleAdapterV1 {
     /// complete-chain rules used by source restore validation.
     func reviewedRepetitiveCaptureProgress(workspaceID: WorkspaceID, sourceDraftID: UUID) throws
         -> ReviewedRepetitiveCaptureProgressChainV2 {
-        try RepetitiveCaptureProgressChainReviewV2.review(
+        if let chain = try writer.reviewedRepetitiveCaptureProgressInReadScope(
+            workspaceID: workspaceID, sourceDraftID: sourceDraftID, modelContext: context) {
+            return chain
+        }
+        return try RepetitiveCaptureProgressChainReviewV2.review(
             workspaceID: workspaceID, sourceDraftID: sourceDraftID,
             authenticatedProgressCheckpoint: { workspace, draft in
                 try self.authenticatedProgressCheckpoint(workspaceID: workspace, draftID: draft)
