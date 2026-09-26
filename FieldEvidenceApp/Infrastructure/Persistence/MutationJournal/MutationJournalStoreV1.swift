@@ -329,6 +329,11 @@ final class MutationJournalStoreV1 {
         return persistedAttemptEnvelopeSHA256 == digest
     }
     private let accessMode: AccessMode
+    /// Depth of the active withProvenWriterLease scope (0 = none).
+    private var provenWriterLeaseDepth = 0
+    /// Set when a fence failure is observed inside a proven scope: every later
+    /// read in that scope re-proves (and so fails) instead of reusing the proof.
+    private var provenWriterLeaseInvalidated = false
     /// The checkpoint version proved by the latest validateAll in this session.
     private var lastValidatedCheckpointVersion: Int?
 
@@ -6512,17 +6517,38 @@ final class MutationJournalStoreV1 {
         }
     }
 
+    /// Proves the canonical writer lease once, then reuses that proof for every
+    /// journal read inside `body` (synchronous, same actor, so the scope cannot
+    /// interleave with another operation of this store). Commits are unaffected:
+    /// withStaleWriterFence still re-validates under the exclusive commit lock,
+    /// so a stale writer can never publish. Nested scopes reuse the outer proof.
+    func withProvenWriterLease<Value>(_ body: () throws -> Value) throws -> Value {
+        if provenWriterLeaseDepth == 0 {
+            provenWriterLeaseInvalidated = false
+            try validateCurrentWriterLease()
+        }
+        provenWriterLeaseDepth += 1
+        defer {
+            provenWriterLeaseDepth -= 1
+            if provenWriterLeaseDepth == 0 { provenWriterLeaseInvalidated = false }
+        }
+        return try body()
+    }
+
     private func validateCurrentWriterLease() throws {
         switch accessMode {
         case let .restoreReview(authority):
             try authority.validate(context: modelContext, identity: identity,
                                    generationID: generationID)
         case .canonicalWriter(let staleWriterFence):
+            if provenWriterLeaseDepth > 0, !provenWriterLeaseInvalidated { return }
             do {
                 try staleWriterFence.validateCurrent()
             } catch let failure as GenerationLeaseRegistryFailureV1 {
+                provenWriterLeaseInvalidated = true
                 throw mappedFenceFailure(failure)
             } catch {
+                provenWriterLeaseInvalidated = true
                 throw WorkspaceMutationFailureV1.persistenceFailed
             }
         case .maintenanceOrTest:
@@ -6553,8 +6579,10 @@ final class MutationJournalStoreV1 {
             } catch let failure as MutationJournalFailureV1 {
                 throw failure
             } catch let failure as GenerationLeaseRegistryFailureV1 {
+                provenWriterLeaseInvalidated = true
                 throw mappedFenceFailure(failure)
             } catch {
+                provenWriterLeaseInvalidated = true
                 throw WorkspaceMutationFailureV1.persistenceFailed
             }
         case .maintenanceOrTest:

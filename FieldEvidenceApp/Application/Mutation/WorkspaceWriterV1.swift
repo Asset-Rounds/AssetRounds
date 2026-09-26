@@ -1529,6 +1529,15 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         )
     }
 
+    /// Proves the writer lease once for a whole service call or transaction and
+    /// reuses it for the reads inside `body`; every commit still re-fences under
+    /// the exclusive commit lock.
+    func withProvenLease<Value>(_ body: () throws -> Value) throws -> Value {
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard let journalStore else { return try body() }
+        return try journalStore.withProvenWriterLease(body)
+    }
+
     private func executeInternal(
         _ request: WorkspaceMutationRequestV1,
         reversalPlan: SemanticReversalPlanV1?,
@@ -1540,6 +1549,29 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         portableReversalPlan: PortableReversalPlanV1? = nil,
         occurredAtOverride: Date? = nil,
         reinspectionAcknowledgementAdmission: ReinspectionAcknowledgementAdmission? = nil
+    ) throws -> WorkspaceMutationOutcomeV1 {
+        try withProvenLease {
+            try executeInternalInProvenScope(request, reversalPlan: reversalPlan,
+                semanticReversalExecution: semanticReversalExecution,
+                semanticReversalReplayIdentitySHA256: semanticReversalReplayIdentitySHA256,
+                sourceKind: sourceKind, contentDependencyIDs: contentDependencyIDs,
+                correlationID: correlationID, portableReversalPlan: portableReversalPlan,
+                occurredAtOverride: occurredAtOverride,
+                reinspectionAcknowledgementAdmission: reinspectionAcknowledgementAdmission)
+        }
+    }
+
+    private func executeInternalInProvenScope(
+        _ request: WorkspaceMutationRequestV1,
+        reversalPlan: SemanticReversalPlanV1?,
+        semanticReversalExecution: SemanticReversalExecutionV1?,
+        semanticReversalReplayIdentitySHA256: String?,
+        sourceKind: MutationSourceKindV1?,
+        contentDependencyIDs: [String],
+        correlationID: UUID?,
+        portableReversalPlan: PortableReversalPlanV1?,
+        occurredAtOverride: Date?,
+        reinspectionAcknowledgementAdmission: ReinspectionAcknowledgementAdmission?
     ) throws -> WorkspaceMutationOutcomeV1 {
         guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
         guard !isExecuting else { throw WorkspaceMutationFailureV1.persistenceFailed }

@@ -764,6 +764,9 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
         let draftID = attempt.predecessor.draftID
         guard !parentOperations.contains(draftID) else { throw FieldDraftFailureV1.staleDraftRevision }
         let current = try currentSession()
+        // One lease proof for this synchronous service call; the compare-and-swap
+        // commit still re-fences under the exclusive commit lock.
+        return try current.workspaceWriter.withProvenLease {
         let mutation = try fieldEditMutation(checkpoint: attempt.successor)
         if let original = try current.workspaceWriter.fieldDraftEvidence(mutationID: attempt.successor.mutationID) {
             guard original.mutation == mutation else { throw FieldDraftFailureV1.digestMismatch }
@@ -791,14 +794,20 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
               saved.evidence.mutation == mutation else { throw FieldDraftFailureV1.staleDraftRevision }
         try coordinator.validateFieldEditing(parentCheckpoint: saved.checkpoint, progress: progress,
                                               publishedRelease: publishedRelease)
-        try Task.checkCancellation(); try validateIntent(); try validateForPublication(saved)
+        try Task.checkCancellation(); try validateIntent()
+        // `saved` was read in this same synchronous scope after the last write,
+        // so validateForPublication's revision check and re-read would observe
+        // identical state; only its owner check is not implied.
+        guard saved.owner === fieldReadOwner else { throw FieldDraftFailureV1.wrongWorkspace }
         if pendingFieldEdits[draftID] === attempt { pendingFieldEdits[draftID] = nil }
         return saved
+        }
     }
 
     func validateForPublication(_ read: CheckRunnerFieldReadbackV1) throws {
         guard read.owner === fieldReadOwner else { throw FieldDraftFailureV1.wrongWorkspace }
         let current = try currentSession()
+        try current.workspaceWriter.withProvenLease {
         guard try current.workspaceWriter.currentRevision() == read.observedRevision else {
             throw FieldDraftFailureV1.staleDraftRevision
         }
@@ -807,6 +816,7 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
               refreshed.evidence == read.evidence,
               refreshed.observedRevision == read.observedRevision else {
             throw FieldDraftFailureV1.staleDraftRevision
+        }
         }
     }
 

@@ -4061,3 +4061,21 @@ Local: build-for-testing SUCCEEDED. S2 `testInvalidGenerationLedgerFailsClosed�
 
 Development sweep 36194519822 (75533db, batch M): coverage exact, all 3,453 executed. 2,969 passed, 456 failed, 22 interrupted, 6 skipped (previous sweep: 2,774 / 499 / 167). Wall time 6.4 h, sharing the 5 GitHub macOS slots with 36198946000.
 
+Development sweep 36198946000 (779b21f, batches N+O), development only:
+- Coverage exact, 3,455 of 3,455 executed: 2,983 passed, 445 failed, 21 interrupted, 6 skipped. Shared checks OK.
+- The DEBUG diagnostic journal cost on hosted iOS 26.2 fell to about 1.4 s per heavy partition (324k calls; before, about 180 s for 412k calls).
+- The remaining protected-file cost is the verification fallback, about 142 s. Next target: lease/fence proof once per operation.
+- Wall time 6.5 h, sharing the 5 macOS slots.
+
+## Batch S: prove the writer lease once per scope (2026-09-26; writer/fence)
+
+- `MutationJournalStoreV1.withProvenWriterLease` / `WorkspaceWriterV1.withProvenLease` prove the canonical-writer lease once per synchronous main-actor scope (nested scopes reuse it). Reads skip re-proof inside the scope.
+- Commits still re-validate under the exclusive lock (withStaleWriterFence → withAuthorizedCommit). Any fence failure invalidates the scope proof, so later reads re-prove.
+- persistFieldEdit runs in one scope and drops a redundant trailing re-read (owner check kept).
+- Tests:
+  - new V9_08 testProvenLeaseScopeStillRejectsStaleCommitAndDoesNotLeak: a mid-scope generation switch → commit rejected, nothing written; the same-scope read after rejection throws; no leak after the scope;
+  - V9_08 A01 fixed with a stricter expectation (the stale durableReceipt read throws wrongGeneration).
+- Development timing: V23CheckRunnerItemFieldEditing edit/persist test 271 s → 190 s (iOS 26.5 sim).
+- Next hotspot: protected-file checks on temporary files outside writer transactions (FiveSaga ~580 s).
+- Review: independent reviewer (Claude Opus 5.5, read-only, not the author): APPROVE; the recommended scope-invalidation hardening is applied. Compile risk LOW.
+

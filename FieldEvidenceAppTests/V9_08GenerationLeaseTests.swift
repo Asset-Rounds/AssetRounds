@@ -650,7 +650,12 @@ final class V9_08GenerationLeaseTests: XCTestCase {
                 .wrongGeneration
             )
         }
-        XCTAssertNil(try realWriter.durableReceipt(mutationID: switchedMutationID))
+        // Recorded expectation change: writer reads are fenced too, so after the
+        // generation switch the stale writer cannot even read its journal.
+        // Absence of any write is proved from the rows below.
+        XCTAssertThrowsError(try realWriter.durableReceipt(mutationID: switchedMutationID)) { error in
+            XCTAssertEqual(error as? WorkspaceMutationFailureV1, .wrongGeneration)
+        }
         XCTAssertEqual(
             try realSession.modelContext.fetch(FetchDescriptor<Site>(
                 predicate: #Predicate { $0.id == switchedSiteID }
@@ -686,6 +691,68 @@ final class V9_08GenerationLeaseTests: XCTestCase {
         XCTAssertTrue(
             retainedOldGeneration.activeRetainedEpochs.contains(realOldEpoch)
         )
+    }
+
+    /// A proven-lease scope reuses one lease proof for reads, but the commit
+    /// fence still re-validates under the exclusive commit lock: a generation
+    /// switch inside the scope makes the commit fail with nothing written, and
+    /// the proof never leaks past the scope.
+    @MainActor
+    func testProvenLeaseScopeStillRejectsStaleCommitAndDoesNotLeak() throws {
+        let root = try makeApplicationSupport(label: "proven-scope")
+        defer { try? fileManager.removeItem(at: root) }
+        let factory = StoreGenerationFactory(applicationSupportURL: root)
+        let session = try factory.openOrBootstrapCurrent()
+        let coordinator = StoreSessionCoordinator(session: session,
+            clock: V908FixedClock(value: Date(timeIntervalSinceReferenceDate: 333_000)),
+            idSource: V908FixedIDSource(value: v908MakeUUID(330)), fileAuthority: V908FileAuthority())
+        let writer = coordinator.workspaceWriter
+        let siteID = v908MakeUUID(331), assetID = v908MakeUUID(332)
+        let placementEventID = v908MakeUUID(333)
+        let mutationID = try MutationIDV1(rawValue: v908MakeUUID(334))
+        var commitError: Error?
+        try writer.withProvenLease {
+            let before = try writer.currentRevision()
+            XCTAssertEqual(try writer.currentRevision(), before, "reads reuse the scope proof")
+            let oldPointer = try makeRestorePointer(
+                from: try factory.currentGenerationPointerV3(expectedGenerationID: session.generationID))
+            let authority = try factory.makeRestoreGenerationAuthority()
+            let switched = try factory.createEmptyEraseGeneration(id: v908MakeUUID(335),
+                expectedOldPointer: oldPointer, identity: session.workspaceIdentity, authority: authority)
+            try factory.publishEmptyEraseGeneration(expectedOldPointer: oldPointer,
+                targetPointer: switched.pointer, expectedEmptyLedger: switched.ledgerProof, authority: authority)
+            // Inside the scope a read is not re-proved, but the commit must be.
+            XCTAssertEqual(try writer.currentRevision(), before)
+            let expected = try WorkspaceExpectedRevisionV1(workspaceID: before.workspaceID,
+                generationID: before.generationID, writerInstanceID: before.writerInstanceID,
+                workspaceRevision: before.revision, entityRevisions: [
+                    .init(identity: try WorkspaceEntityIdentityV1(kind: .site, id: siteID), revision: 0),
+                    .init(identity: try WorkspaceEntityIdentityV1(kind: .asset, id: assetID), revision: 0),
+                    .init(identity: try WorkspaceEntityIdentityV1(kind: .assetPlacementEvent, id: placementEventID), revision: 0),
+                ])
+            do {
+                _ = try writer.execute(WorkspaceMutationRequestV1(mutationID: mutationID, expectedRevision: expected,
+                    command: .createFirstSign(.init(siteID: siteID,
+                        newSite: .init(id: siteID, label: "Stale scoped commit", address: nil, timeZoneID: "UTC"),
+                        assetID: assetID, assetLabel: "Stale asset", packID: "v23.lease.test",
+                        packSchemaVersion: 1, packContentVersion: 1,
+                        createdAt: Date(timeIntervalSinceReferenceDate: 333_001),
+                        initialPlacementMutationID: mutationID, initialPlacementEventID: placementEventID,
+                        initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(rawValue: v908MakeUUID(336))))))
+            } catch { commitError = error }
+            // The observed fence failure invalidates the scope's proof.
+            XCTAssertThrowsError(try writer.currentRevision(), "a read after the rejected commit re-proves") { error in
+                XCTAssertEqual(error as? WorkspaceMutationFailureV1, .wrongGeneration)
+            }
+        }
+        XCTAssertEqual(commitError as? WorkspaceMutationFailureV1, .wrongGeneration,
+                       "the commit fence rejects the stale writer inside a proven scope")
+        XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<Site>(
+            predicate: #Predicate { $0.id == siteID })).count, 0)
+        XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).count, 0)
+        XCTAssertThrowsError(try writer.currentRevision(), "the proof does not leak past the scope") { error in
+            XCTAssertEqual(error as? WorkspaceMutationFailureV1, .wrongGeneration)
+        }
     }
 
     @MainActor
