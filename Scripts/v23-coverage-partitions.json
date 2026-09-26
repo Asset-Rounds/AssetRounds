@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "aab6d3036a7a3b8a968465a93546342e091b7e1a",
+  "generatedAtHead": "2653188cda771660614a6fc92a3b095d22d30428",
   "sweepOrder": [
     "S01",
     "S02",
@@ -1135,7 +1135,7 @@
     {
       "id": "S13",
       "tier": "D50C",
-      "estimatedSeconds": 1483.5,
+      "estimatedSeconds": 1603.5,
       "selectors": [
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS3_6CameraRecovery/testTypedEvidenceContextContractAnchor",
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS8_3DiagnosticPrivacy/testTypedEvidenceContextContractAnchor",
@@ -1261,6 +1261,8 @@
         "FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testC52IdentityPolicyRejectsForeignEmptyC55AndAcceptsRestoredTargetProjection",
         "FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testCurrentRecordsProjectEmptyAndNonemptyC55SnapshotsWithoutWritesAndRejectForeignRows",
         "FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testDeletionWinningPlanAcceptsDeclaredC55SchemasAndRejectsMalformedAuthority",
+        "FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testEmptyStockCrossWorkspaceReplacementRetainsHistoryAndAllocatesTargetSuccessor",
+        "FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testEmptyStockProjectionBindsRevisionToTargetNamespaceAndRetainsBaselines",
         "FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testEmptyStockProjectionPreservesUnrelatedOriginalHistories",
         "FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testEmptyStockRowsCannotHideOwnedCommandHistory",
         "FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testForeignRawMutationIDCollisionUsesActiveSourceKindAndPreservesRecord",

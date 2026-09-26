@@ -6234,7 +6234,16 @@ class WorkflowWiringTests(unittest.TestCase):
                     expected['unitTestSelectors'].extend(appended)
                 self.assertEqual(actual, expected)
 
+    def prior_ag2_stock_method_inventory(self, declared):
+        # Reviewed AG2 adds exactly these two witnesses at indices 1 and 4.
+        # Match the complete ordered class before reconstructing historical15.
+        self.assertEqual(declared, ['testEmptyStockProjectionPreservesUnrelatedOriginalHistories', 'testEmptyStockProjectionBindsRevisionToTargetNamespaceAndRetainsBaselines', 'testEmptyStockRowsCannotHideOwnedCommandHistory', 'testPublicReplacementAndColdReadbackPreserveEmptyIncomingOverEmptyStock', 'testEmptyStockCrossWorkspaceReplacementRetainsHistoryAndAllocatesTargetSuccessor', 'testPublicReplacementAndColdReadbackRemoveNonemptyCurrentStockForEmptyIncoming', 'testPublicReplacementAndColdReadbackPreserveMixedIncomingOriginalHistory', 'testCurrentRecordsProjectEmptyAndNonemptyC55SnapshotsWithoutWritesAndRejectForeignRows', 'testPopulatedC55CanonicalBackupRoundTripsNumericDatesAndRejectsStringDates', 'testC52IdentityPolicyRejectsForeignEmptyC55AndAcceptsRestoredTargetProjection', 'testDeletionWinningPlanAcceptsDeclaredC55SchemasAndRejectsMalformedAuthority', 'testActorSnapshotRequiresExistingPartyButAcceptsExplicitUnlinkedActor', 'testAlternatingC49C55ProjectionIsDeterministicAndRetainsUnrelatedCurrentWork', 'testReceiptIdentityExportOrderAndShuffleUseGlobalRevisionOrder', 'testForeignRawMutationIDCollisionUsesActiveSourceKindAndPreservesRecord', 'testOriginalMembershipAndBindingHostilesFailBeforeProjection', 'testIncomingOtherFamilyOriginalsAndCausalTargetHistoryArePreserved'])
+        return declared[:1] + declared[2:4] + declared[5:]
+
     def prior_bf6_stock_method_inventory(self, declared):
+        ag2_methods = ['testEmptyStockProjectionBindsRevisionToTargetNamespaceAndRetainsBaselines', 'testEmptyStockCrossWorkspaceReplacementRetainsHistoryAndAllocatesTargetSuccessor']
+        if any(name in declared for name in ag2_methods):
+            declared = self.prior_ag2_stock_method_inventory(declared)
         new_methods = ['testEmptyStockProjectionPreservesUnrelatedOriginalHistories',
                        'testEmptyStockRowsCannotHideOwnedCommandHistory']
         if any(name in declared for name in new_methods):
@@ -6248,6 +6257,7 @@ class WorkflowWiringTests(unittest.TestCase):
     def test_empty_stock_regressions_preserve_exact_historical_inventory(self):
         source = (ROOT / 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests.swift').read_text(encoding='utf-8')
         declared = re.findall(r"\bfunc\s+(test\w+)\s*\(", source)
+        declared = self.prior_ag2_stock_method_inventory(declared)
         added = ['testEmptyStockProjectionPreservesUnrelatedOriginalHistories',
                  'testEmptyStockRowsCannotHideOwnedCommandHistory']
         self.assertEqual(declared[:2], added)
@@ -6259,6 +6269,39 @@ class WorkflowWiringTests(unittest.TestCase):
                         added + ['testUnknownExtraCase'] + legacy):
             with self.subTest(hostile=hostile[:4]), self.assertRaises(AssertionError):
                 self.prior_bf6_stock_method_inventory(hostile)
+
+    def test_ag2_stock_regressions_preserve_exact_prior_inventories_and_reject_drift(self):
+        source = (ROOT / 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests.swift').read_text(encoding='utf-8')
+        declared = re.findall(r"\bfunc\s+(test\w+)\s*\(", source)
+        prior15 = self.prior_ag2_stock_method_inventory(declared)
+        self.assertEqual(len(prior15), 15)
+        prior13 = prior15[2:]
+        self.assertEqual(len(prior13), 13)
+        prior11 = self.prior_bf6_stock_method_inventory(prior13)
+        self.assertEqual(len(prior11), 11)
+        self.assertEqual(self.prior_bf6_stock_method_inventory(prior15), prior11)
+        self.assertEqual(self.prior_bf6_stock_method_inventory(declared), prior11)
+        swapped = declared.copy()
+        swapped[1], swapped[4] = swapped[4], swapped[1]
+        prior_reordered = declared.copy()
+        prior_reordered[5], prior_reordered[6] = prior_reordered[6], prior_reordered[5]
+        hostiles = (
+            declared[:1] + declared[2:],  # Missing the first addition.
+            declared[:4] + declared[5:],  # Missing the second addition.
+            prior15,  # Both absent: valid historical input, not current AG2.
+            declared[:2] + [declared[1]] + declared[2:],
+            declared[:5] + [declared[4]] + declared[5:],
+            swapped, prior_reordered,
+            declared[:1] + declared[2:4] + [declared[1]] + declared[4:],
+            declared[:1] + ['testUnknownExtraCase'] + declared[2:],
+            declared + ['testUnknownExtraCase'],
+        )
+        for index, hostile in enumerate(hostiles):
+            with self.subTest(index=index), self.assertRaises(AssertionError):
+                self.prior_ag2_stock_method_inventory(hostile)
+            if hostile != prior15:
+                with self.subTest(index=index, historical=True), self.assertRaises(AssertionError):
+                    self.prior_bf6_stock_method_inventory(hostile)
 
     def prior_bf6a1bc_pool(self, default):
         if len(default['unitTestSelectors']) in (673, 677, 683, 692):

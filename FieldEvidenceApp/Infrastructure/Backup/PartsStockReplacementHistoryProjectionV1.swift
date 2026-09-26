@@ -485,9 +485,34 @@ enum PartsStockReplacementHistoryProjectionV1 {
             && currentRemovedMutationKeys.isEmpty && originalBaselines.isEmpty
             && targetWorkByID.isEmpty
         if preservesUnrelatedTargetHistory && projectedValues.isEmpty {
+            // Generic history union retains foreign originals and its scalar
+            // maximum is not necessarily this destination's active revision.
+            // Complete imported validation above has checked each workspace's
+            // receipt chain. Bind only the final target chain to live metadata.
+            let currentTarget = currentValues.filter {
+                $0.envelope.workspaceID == input.targetWorkspaceID
+                    && $0.receipt.identity.workspaceID == input.targetWorkspaceID
+            }
+            let currentTerminal = currentTarget.map { $0.receipt.resultingRevision.workspaceRevision }.max()
+            let targetByKey = Dictionary(uniqueKeysWithValues: retainedTarget.map { ($0.mutationKey, $0) })
+            let targetTerminal = retainedTarget.map { $0.receipt.resultingRevision.workspaceRevision }.max()
+            guard currentTerminal.map({ $0 == input.currentHistory.workspaceRevision }) ?? true,
+                  currentTarget.allSatisfy({ targetByKey[$0.mutationKey] == $0 }),
+                  targetTerminal.map({ $0 >= input.currentHistory.workspaceRevision }) ?? true else {
+                throw PartsStockReplacementHistoryProjectionFailureV1.invalidSource
+            }
+            // A destination without receipts may have an admitted projected
+            // baseline. Preserve it; foreign receipts neither reset nor raise it.
+            let history = MutationHistorySnapshotV1(
+                workspaceRevision: targetTerminal ?? input.currentHistory.workspaceRevision,
+                lastLocalSequence: input.plannedHistory.lastLocalSequence,
+                receipts: input.plannedHistory.receipts,
+                quarantines: input.plannedHistory.quarantines,
+                entityRevisions: input.plannedHistory.entityRevisions)
+            try MutationJournalStoreV1.validateImportedSnapshot(history)
             return Result(sourceSnapshotSHA256: valueResult.sourceSnapshotSHA256,
                           targetSnapshot: valueResult.targetSnapshot,
-                          history: input.plannedHistory, workResources: [], roundSessions: [])
+                          history: history, workResources: [], roundSessions: [])
         }
 
         var terminal: [WorkspaceEntityIdentityV1: UInt64] = [:]

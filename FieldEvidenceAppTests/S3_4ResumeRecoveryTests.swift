@@ -1066,12 +1066,17 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         var descriptorsAfterPreparation: Int?
         let boundedRouter = StartupRouter(applicationSupportURL: applicationSupportURL,
             entitlementRuntime: isolatedStartupRuntime)
+        observeStartupMediaFailures(boundedRouter, scenario: "generic-orphans")
+        defer { recordStartupMediaRoute(boundedRouter, scenario: "generic-orphans") }
         boundedRouter.beforeCurrentMediaCleanupForTesting = { _ in
+            print("S3_4Media[generic-orphans] stage=cleanup-hook")
             descriptorsAfterPreparation = try self.openFileDescriptorCount()
         }
         let boundedGate = startupGate(clock: FrozenBeginClock(value: Date(timeIntervalSince1970: 1_789_600_000)))
         try boundedRouter.bindStartupAccessGate(boundedGate)
+        print("S3_4Media[generic-orphans] stage=start")
         try await boundedRouter.startIfNeeded(accessGate: boundedGate)
+        recordStartupMediaRoute(boundedRouter, scenario: "generic-orphans")
         guard case .ready = boundedRouter.route else {
             let routeCategory = startupRouteCategory(boundedRouter.route)
             #if DEBUG
@@ -1092,25 +1097,33 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         // preserving both the orphan candidate and canonical photo authority.
         try await withAsyncFrozenBeginFixture("startup-media-substitution", entry: .check,
             storedTimeZoneID: "America/Chicago") { h in
+            let scenario = "substitution"
+            print("S3_4Media[\(scenario)] stage=seed")
             let seeded = try await self.seedOwnedPhotoAndGenericOrphan(h)
+            print("S3_4Media[\(scenario)] stage=seed-complete-close-writer")
             try h.closeCoordinator()
             let router = StartupRouter(applicationSupportURL: h.root,
                 entitlementRuntime: self.isolatedStartupRuntime)
+            self.observeStartupMediaFailures(router, scenario: scenario)
             defer {
+                self.recordStartupMediaRoute(router, scenario: scenario)
                 if let session = router.maintenanceRestoreSession { h.observeCleanupOwner(session) }
             }
             var observedPreparation = false
             router.beforeCurrentMediaCleanupForTesting = { context in
                 h.observeCleanupOwner(context)
                 observedPreparation = true
+                print("S3_4Media[\(scenario)] stage=cleanup-hook")
                 try FileManager.default.moveItem(at: seeded.orphanOriginalURL,
                     to: h.root.appendingPathComponent("retained-orphan-original.jpg"))
                 try seeded.orphanOriginalBytes.write(to: seeded.orphanOriginalURL)
                 try ProtectedFilePolicyV1.applyAndVerify(.mediaOriginal, at: seeded.orphanOriginalURL)
             }
             let gate = self.startupGate(clock: h.clock)
+            print("S3_4Media[\(scenario)] stage=bind-startup-gate")
             try router.bindStartupAccessGate(gate)
             try await router.startIfNeeded(accessGate: gate)
+            self.recordStartupMediaRoute(router, scenario: scenario)
             guard case .maintenance(.mediaInconsistent) = router.route else {
                 if let session = router.maintenanceRestoreSession { h.observeCleanupOwner(session) }
                 router.failClosedPDFRecovery()
@@ -1126,24 +1139,32 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
 
         try await withAsyncFrozenBeginFixture("startup-media-ownership-change", entry: .check,
             storedTimeZoneID: "America/Chicago") { h in
+            let scenario = "ownership-change"
+            print("S3_4Media[\(scenario)] stage=seed")
             let seeded = try await self.seedOwnedPhotoAndGenericOrphan(h)
+            print("S3_4Media[\(scenario)] stage=seed-complete-close-writer")
             try h.closeCoordinator()
             let router = StartupRouter(applicationSupportURL: h.root,
                 entitlementRuntime: self.isolatedStartupRuntime)
+            self.observeStartupMediaFailures(router, scenario: scenario)
             defer {
+                self.recordStartupMediaRoute(router, scenario: scenario)
                 if let session = router.maintenanceRestoreSession { h.observeCleanupOwner(session) }
             }
             var observedPreparation = false
             router.beforeCurrentMediaCleanupForTesting = { context in
                 h.observeCleanupOwner(context)
                 observedPreparation = true
+                print("S3_4Media[\(scenario)] stage=cleanup-hook")
                 let row = try XCTUnwrap(context.fetch(FetchDescriptor<EvidenceFile>()).first)
                 row.purposeKey = "hostile_changed_ownership"
                 try context.save()
             }
             let gate = self.startupGate(clock: h.clock)
+            print("S3_4Media[\(scenario)] stage=bind-startup-gate")
             try router.bindStartupAccessGate(gate)
             try await router.startIfNeeded(accessGate: gate)
+            self.recordStartupMediaRoute(router, scenario: scenario)
             guard case .maintenance(.mediaInconsistent) = router.route else {
                 if let session = router.maintenanceRestoreSession { h.observeCleanupOwner(session) }
                 router.failClosedPDFRecovery()
@@ -1159,7 +1180,10 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
 
         try await withAsyncFrozenBeginFixture("startup-media-access-revocation", entry: .check,
             storedTimeZoneID: "America/Chicago") { h in
+            let scenario = "access-revocation"
+            print("S3_4Media[\(scenario)] stage=seed")
             let seeded = try await self.seedOwnedPhotoAndGenericOrphan(h)
+            print("S3_4Media[\(scenario)] stage=seed-complete-close-writer")
             try h.closeCoordinator()
             let gate = AppAccessGateV1(setting: .value(.init(isEnabled: true)),
                 authentication: FrozenBeginAuthentication(), clock: h.clock, identifiers: h.ids)
@@ -1167,20 +1191,27 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
             XCTAssertEqual(unlock, .authenticated)
             let router = StartupRouter(applicationSupportURL: h.root,
                 entitlementRuntime: self.isolatedStartupRuntime)
+            self.observeStartupMediaFailures(router, scenario: scenario)
             defer {
+                self.recordStartupMediaRoute(router, scenario: scenario)
                 if let session = router.maintenanceRestoreSession { h.observeCleanupOwner(session) }
             }
             var observedPreparation = false
             router.beforeCurrentMediaCleanupForTesting = { context in
                 h.observeCleanupOwner(context)
                 observedPreparation = true
+                print("S3_4Media[\(scenario)] stage=cleanup-hook")
                 await gate.lock(reason: .returnedFromBackground)
             }
+            print("S3_4Media[\(scenario)] stage=bind-startup-gate")
             try router.bindStartupAccessGate(gate)
             do {
                 try await router.startIfNeeded(accessGate: gate)
+                self.recordStartupMediaRoute(router, scenario: scenario)
                 XCTFail("Revoked startup authorization must stop cleanup")
             } catch {
+                self.recordStartupMediaRoute(router, scenario: scenario)
+                print("S3_4Media[\(scenario)] stage=public-error type=\(String(reflecting: type(of: error)))")
                 XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
             }
             XCTAssertTrue(fileManager.fileExists(atPath: seeded.orphanOriginalURL.path))
@@ -1193,7 +1224,10 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
 
         try await withAsyncFrozenBeginFixture("startup-media-configuration-revocation", entry: .check,
             storedTimeZoneID: "America/Chicago") { h in
+            let scenario = "configuration-revocation"
+            print("S3_4Media[\(scenario)] stage=seed")
             let seeded = try await self.seedOwnedPhotoAndGenericOrphan(h)
+            print("S3_4Media[\(scenario)] stage=seed-complete-close-writer")
             try h.closeCoordinator()
             let gate = AppAccessGateV1(setting: .corruptOrAmbiguous,
                 authentication: FrozenBeginAuthentication(), clock: h.clock, identifiers: h.ids)
@@ -1213,20 +1247,27 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
             let router = StartupRouter(applicationSupportURL: h.root,
                 entitlementRuntime: self.isolatedStartupRuntime,
                 lifecycleProfileRegistry: try WorkspacePackageLifecycleProfileRegistryV1(profiles: [h.profile]))
+            self.observeStartupMediaFailures(router, scenario: scenario)
             defer {
+                self.recordStartupMediaRoute(router, scenario: scenario)
                 if let session = router.maintenanceRestoreSession { h.observeCleanupOwner(session) }
             }
             var observedPreparation = false
             router.beforeCurrentMediaCleanupForTesting = { context in
                 h.observeCleanupOwner(context)
                 observedPreparation = true
+                print("S3_4Media[\(scenario)] stage=cleanup-hook")
                 await gate.sceneBecameInactive()
             }
+            print("S3_4Media[\(scenario)] stage=bind-startup-gate")
             try router.bindStartupAccessGate(gate)
             do {
                 _ = try await router.notificationSource(authorization: authorization)
+                self.recordStartupMediaRoute(router, scenario: scenario)
                 XCTFail("Revoked configuration startup must stop cleanup")
             } catch {
+                self.recordStartupMediaRoute(router, scenario: scenario)
+                print("S3_4Media[\(scenario)] stage=public-error type=\(String(reflecting: type(of: error)))")
                 XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
             }
             XCTAssertTrue(observedPreparation)
@@ -1250,28 +1291,56 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         var thumbnailPath = ""
         var originalHash = ""
         var thumbnailHash = ""
-        var relaunchDiagnosticPhase = "wide.initial-open-write"
+        var relaunchDiagnosticPhase = "wide.initial-open-write" {
+            didSet { print("S3_4Relaunch stage=\(relaunchDiagnosticPhase)") }
+        }
 
         do {
         do {
             let session = try factory.openOrBootstrapCurrent()
             let context = session.modelContext
             let pack = SignPack.illuminatedSignV1
-            let site = Site(label: "North Campus", timeZoneID: "America/New_York")
-            let asset = Asset(
-                siteID: site.id, packID: pack.packID,
-                packSchemaVersion: pack.schemaVersion,
-                packContentVersion: pack.contentVersion, label: "Monument Sign"
-            )
-            context.insert(site); context.insert(asset); try context.save()
+            // Match the shipping composition and S3_2 durable media fixture:
+            // the journal-owned writer saves Begin and Accept atomically.
+            relaunchDiagnosticPhase = "wide.writer-create"
+            let owner = try StoreSessionCoordinator(validatingSession: session)
+            defer {
+                do { try owner.invalidateAndReleaseWriter() }
+                catch { XCTFail("Relaunch initial writer release failed: \(error)") }
+            }
+            let siteID = UUID(), assetID = UUID()
+            let placementMutationID = try MutationIDV1(rawValue: UUID())
+            relaunchDiagnosticPhase = "wide.first-sign"
+            _ = try owner.workspaceWriter.execute(.createFirstSign(.init(
+                siteID: siteID,
+                newSite: .init(id: siteID, label: "North Campus", address: nil,
+                    timeZoneID: "America/New_York"),
+                assetID: assetID, assetLabel: "Monument Sign",
+                packID: pack.packID, packSchemaVersion: pack.schemaVersion,
+                packContentVersion: pack.contentVersion,
+                createdAt: Date(timeIntervalSince1970: 1_768_438_823),
+                initialPlacementMutationID: placementMutationID,
+                initialPlacementEventID: UUID(),
+                initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(rawValue: UUID())
+            )), mutationID: placementMutationID)
+            let asset = try XCTUnwrap(context.fetch(FetchDescriptor<Asset>()).first { $0.id == assetID })
             capturedAssetID = asset.id
-            let coordinator = CheckRunnerCoordinator(modelContext: context, signPack: pack)
+            let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: pack)
+            let coordinator = try CheckRunnerCoordinator(modelContext: context,
+                packageLifecycleDependencies: owner.packageLifecycleDependencies(),
+                packageLifecycleProfile: profile)
             coordinator.configureCapture(generationRootURL: session.generationRootURL)
-            _ = try coordinator.beginCheck(
+            relaunchDiagnosticPhase = "wide.begin"
+            let draft = try coordinator.beginCheck(
                 assetID: asset.id, timeZoneID: nil, isTimeZoneConfirmed: false,
                 afterDarkAccepted: true, safePositionAccepted: true,
                 observedAt: Date(timeIntervalSince1970: 1_768_438_923)
             )
+            XCTAssertFalse(context.hasChanges, "Begin must be durably saved by the real writer")
+            let beginMutationID = try MutationIDV1(rawValue: draft.id)
+            XCTAssertTrue(try owner.workspaceWriter.acceptedReceiptsForProjection().contains {
+                $0.mutationID == beginMutationID
+            })
             relaunchDiagnosticPhase = "wide.import"
             let candidate = try await coordinator.importCandidate(
                 assetID: asset.id, sourceData: retainedPNG,
@@ -1279,6 +1348,11 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
             )
             relaunchDiagnosticPhase = "wide.accept"
             let evidence = try await coordinator.accept(candidate: candidate, assetID: asset.id)
+            XCTAssertFalse(context.hasChanges, "Accept must be durably saved by the real writer")
+            let acceptMutationID = try MutationIDV1(rawValue: candidate.id)
+            XCTAssertTrue(try owner.workspaceWriter.acceptedReceiptsForProjection().contains {
+                $0.mutationID == acceptMutationID
+            })
             capturedEvidenceID = evidence.id
             originalPath = evidence.relativePath
             thumbnailPath = evidence.thumbnailRelativePath
@@ -1299,7 +1373,14 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
             XCTAssertEqual(evidence.thumbnailRelativePath, thumbnailPath)
             XCTAssertEqual(evidence.sha256, originalHash)
             XCTAssertEqual(evidence.thumbnailSHA256, thumbnailHash)
-            let coordinator = CheckRunnerCoordinator(modelContext: context, signPack: .illuminatedSignV1)
+            let owner = try StoreSessionCoordinator(validatingSession: reopened)
+            defer {
+                do { try owner.invalidateAndReleaseWriter() }
+                catch { XCTFail("Relaunch reopened writer release failed: \(error)") }
+            }
+            let coordinator = try CheckRunnerCoordinator(modelContext: context,
+                packageLifecycleDependencies: owner.packageLifecycleDependencies(),
+                packageLifecycleProfile: WorkspacePackageLifecycleCompatibilityV1.shippingProfile())
             coordinator.configureCapture(generationRootURL: reopened.generationRootURL)
             let preparation = try coordinator.prepareCapture(assetID: assetID)
             XCTAssertEqual(preparation.step, .close)
@@ -1619,6 +1700,26 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         }
     }
 
+    @MainActor
+    private func observeStartupMediaFailures(_ router: StartupRouter, scenario: String) {
+        #if DEBUG
+        // Only inert labels enter the observer; never retain a session or context.
+        router.startupFailureDiagnosticForTesting = { message in
+            print("S3_4Media[\(scenario)] startup-failure \(message)")
+        }
+        #endif
+    }
+
+    @MainActor
+    private func recordStartupMediaRoute(_ router: StartupRouter, scenario: String) {
+        #if DEBUG
+        let phase = router.runtimeObservation?.phase.rawValue ?? "none"
+        #else
+        let phase = "unavailable"
+        #endif
+        print("S3_4Media[\(scenario)] route=\(startupRouteCategory(router.route)) runtimePhase=\(phase)")
+    }
+
     private struct OwnedPhotoAndOrphan {
         let ownedOriginalURL: URL
         let ownedThumbnailURL: URL
@@ -1652,13 +1753,20 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         let router = StartupRouter(applicationSupportURL: h.root,
             entitlementRuntime: isolatedStartupRuntime,
             lifecycleProfileRegistry: try WorkspacePackageLifecycleProfileRegistryV1(profiles: [h.profile]))
+        observeStartupMediaFailures(router, scenario: "cold-photo")
         defer {
+            recordStartupMediaRoute(router, scenario: "cold-photo")
             if let session = router.maintenanceRestoreSession { h.observeCleanupOwner(session) }
         }
-        router.beforeCurrentMediaCleanupForTesting = { context in h.observeCleanupOwner(context) }
+        router.beforeCurrentMediaCleanupForTesting = { context in
+            h.observeCleanupOwner(context)
+            print("S3_4Media[cold-photo] stage=cleanup-hook")
+        }
         let gate = startupGate(clock: h.clock)
         try router.bindStartupAccessGate(gate)
+        print("S3_4Media[cold-photo] stage=start")
         try await router.startIfNeeded(accessGate: gate)
+        recordStartupMediaRoute(router, scenario: "cold-photo")
         guard case let .ready(owner, _, _) = router.route else {
             if let session = router.maintenanceRestoreSession { h.observeCleanupOwner(session) }
             router.failClosedPDFRecovery()

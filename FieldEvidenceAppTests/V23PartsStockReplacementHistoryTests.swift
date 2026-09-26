@@ -57,6 +57,117 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         try MutationJournalStoreV1.validateImportedSnapshot(result.history)
     }
 
+    func testEmptyStockProjectionBindsRevisionToTargetNamespaceAndRetainsBaselines() throws {
+        let target = WorkspaceID(rawValue: Fixture.id(4_000))
+        let source = WorkspaceID(rawValue: Fixture.id(5_000))
+        func empty(_ workspace: WorkspaceID) throws -> PartsStockBackupSnapshotV1 {
+            try .init(workspaceID: workspace, parts: [], locations: [], movements: [],
+                uses: [], reversals: [], returns: [], abandonments: [])
+        }
+        func original(_ slot: Int, count: Int) throws -> MutationHistorySnapshotV1 {
+            let identity = try WorkspaceReplicaIdentityV1(workspaceID: .init(rawValue: Fixture.id(slot)),
+                replicaID: .init(rawValue: Fixture.id(slot + 1)))
+            var commands: [WorkspaceCommandV1] = []
+            var ids: [Int: MutationIDV1] = [:]
+            let pack = SignPack.illuminatedSignV1
+            for index in 0..<count {
+                let base = slot + 20 + index * 20
+                let mutationID = try Fixture.mutation(base)
+                ids[index] = mutationID
+                commands.append(.createFirstSign(.init(
+                    siteID: Fixture.id(base + 1),
+                    newSite: .init(id: Fixture.id(base + 1), label: "Namespace site", address: nil,
+                        timeZoneID: "America/New_York"),
+                    assetID: Fixture.id(base + 2), assetLabel: "Namespace sign", packID: pack.packID,
+                    packSchemaVersion: pack.schemaVersion, packContentVersion: pack.contentVersion,
+                    createdAt: Fixture.fixedDate, initialPlacementMutationID: mutationID,
+                    initialPlacementEventID: Fixture.id(base + 3),
+                    initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(rawValue: Fixture.id(base + 4)))))
+            }
+            return try Fixture.history(commands: commands, identities: [identity],
+                generationID: Fixture.id(slot + 2), writerID: Fixture.id(slot + 3), explicitMutationIDs: ids)
+        }
+        func input(current: MutationHistorySnapshotV1, incoming: MutationHistorySnapshotV1,
+                   planned: MutationHistorySnapshotV1) throws -> Projector.Input {
+            try .init(currentSnapshot: empty(target), incomingSnapshot: empty(source),
+                currentHistory: current, incomingHistory: incoming, plannedHistory: planned,
+                currentWorkResources: [], incomingWorkResources: [], plannedWorkResources: [],
+                targetWorkspaceID: target, targetGenerationID: Fixture.id(6_000),
+                writerInstanceID: Fixture.id(6_001), mutationBindings: [], subjectBindings: [], replicaBindings: [])
+        }
+        func merged(_ current: MutationHistorySnapshotV1, _ incoming: MutationHistorySnapshotV1)
+            -> MutationHistorySnapshotV1 {
+            .init(workspaceRevision: max(current.workspaceRevision, incoming.workspaceRevision),
+                lastLocalSequence: 67, receipts: current.receipts + incoming.receipts,
+                quarantines: current.quarantines + incoming.quarantines,
+                entityRevisions: current.entityRevisions + incoming.entityRevisions)
+        }
+        func check(_ current: MutationHistorySnapshotV1, _ incoming: MutationHistorySnapshotV1,
+                   planned: MutationHistorySnapshotV1? = nil, expected: UInt64,
+                   file: StaticString = #filePath, line: UInt = #line) throws {
+            let planned = planned ?? merged(current, incoming)
+            let result = try Projector.project(input(current: current, incoming: incoming, planned: planned))
+            XCTAssertEqual(result.history.workspaceRevision, expected, file: file, line: line)
+            XCTAssertEqual(result.history.receipts, planned.receipts, file: file, line: line)
+            XCTAssertEqual(result.history.quarantines, planned.quarantines, file: file, line: line)
+            XCTAssertEqual(result.history.entityRevisions, planned.entityRevisions, file: file, line: line)
+            XCTAssertEqual(result.history.lastLocalSequence, 67, file: file, line: line)
+            XCTAssertEqual(result.targetSnapshot, try empty(target), file: file, line: line)
+            XCTAssertEqual(result.sourceSnapshotSHA256, try empty(source).snapshotSHA256, file: file, line: line)
+            XCTAssertTrue(result.workResources.isEmpty, file: file, line: line)
+            XCTAssertTrue(result.roundSessions.isEmpty, file: file, line: line)
+            try MutationJournalStoreV1.validateImportedSnapshot(result.history)
+        }
+        let one = try original(4_000, count: 1)
+        let three = try original(4_000, count: 3)
+        let foreignOne = try original(5_000, count: 1)
+        let foreignFour = try original(5_000, count: 4)
+        let zero = try original(4_000, count: 0)
+        try check(one, foreignFour, expected: 1)
+        try check(three, foreignOne, expected: 3)
+        try check(zero, foreignFour, expected: 0)
+        // Earlier authenticated target projections can extend the current prefix.
+        try check(one, foreignFour, planned: merged(three, foreignFour), expected: 3)
+        let projected = MutationHistorySnapshotV1(workspaceRevision: 7, lastLocalSequence: 19,
+            receipts: [], quarantines: [], entityRevisions: [
+                .init(identity: try .init(kind: .site, id: Fixture.id(6_010)), revision: 1,
+                    externalProjectionSHA256: Fixture.digest("a"))])
+        try check(projected, foreignFour, expected: 7)
+
+        let inconsistentCurrent = MutationHistorySnapshotV1(workspaceRevision: 2,
+            lastLocalSequence: one.lastLocalSequence, receipts: one.receipts,
+            quarantines: one.quarantines, entityRevisions: one.entityRevisions)
+        XCTAssertThrowsError(try Projector.project(input(current: inconsistentCurrent,
+            incoming: foreignFour, planned: merged(inconsistentCurrent, foreignFour)))) {
+            XCTAssertEqual($0 as? PartsStockReplacementHistoryProjectionFailureV1, .invalidSource)
+        }
+        // A valid but shorter target chain cannot erase the admitted current prefix.
+        XCTAssertThrowsError(try Projector.project(input(current: three, incoming: foreignFour,
+            planned: merged(one, foreignFour)))) {
+            XCTAssertEqual($0 as? PartsStockReplacementHistoryProjectionFailureV1, .invalidSource)
+        }
+        let omittedTarget = MutationHistorySnapshotV1(workspaceRevision: 4, lastLocalSequence: 67,
+            receipts: foreignFour.receipts, quarantines: [],
+            entityRevisions: one.entityRevisions + foreignFour.entityRevisions)
+        XCTAssertThrowsError(try Projector.project(input(current: one, incoming: foreignFour,
+            planned: omittedTarget))) {
+            XCTAssertEqual($0 as? PartsStockReplacementHistoryProjectionFailureV1, .invalidSource)
+        }
+        let duplicate = MutationHistorySnapshotV1(workspaceRevision: 4, lastLocalSequence: 67,
+            receipts: one.receipts + foreignFour.receipts + one.receipts, quarantines: [],
+            entityRevisions: one.entityRevisions + foreignFour.entityRevisions)
+        XCTAssertThrowsError(try Projector.project(input(current: one, incoming: foreignFour, planned: duplicate)))
+        let gap = MutationHistorySnapshotV1(workspaceRevision: 4, lastLocalSequence: 67,
+            receipts: Array(three.receipts.dropFirst()) + foreignFour.receipts, quarantines: [],
+            entityRevisions: three.entityRevisions + foreignFour.entityRevisions)
+        XCTAssertThrowsError(try Projector.project(input(current: one, incoming: foreignFour, planned: gap)))
+        // Baseline metadata cannot be lowered even when all planned receipts validate.
+        XCTAssertThrowsError(try Projector.project(input(current: projected, incoming: foreignFour,
+            planned: merged(one, foreignFour)))) {
+            XCTAssertEqual($0 as? PartsStockReplacementHistoryProjectionFailureV1, .invalidSource)
+        }
+    }
+
     func testEmptyStockRowsCannotHideOwnedCommandHistory() throws {
         let fixture = try Fixture.make()
         let requirements = try Projector.requirements(incomingSnapshot: fixture.incoming.snapshot,
@@ -88,6 +199,98 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
             seedCurrentStock: false,
             restoreOffset: 31
         )
+    }
+
+    @MainActor
+    func testEmptyStockCrossWorkspaceReplacementRetainsHistoryAndAllocatesTargetSuccessor() async throws {
+        let source = try V906Integration.makeHarness("c55-revision-source", withAsset: false)
+        registerPublicFixtureCleanup(source)
+        let target = try V906Integration.makeHarness("c55-revision-target", withAsset: false)
+        registerPublicFixtureCleanup(target)
+        func journal(_ session: StoreGenerationSession) throws -> MutationJournalStoreV1 {
+            try .init(modelContext: session.modelContext, identity: session.workspaceIdentity,
+                generationID: session.generationID, allowStateBootstrap: false)
+        }
+        func seed(_ session: StoreGenerationSession, slot: Int, extraActors: Int) throws {
+            let coordinator = try StoreSessionCoordinator(validatingSession: session)
+            defer { XCTAssertNoThrow(try coordinator.invalidateAndReleaseWriter()) }
+            let pack = SignPack.illuminatedSignV1
+            let mutationID = try Fixture.mutation(slot)
+            _ = try coordinator.workspaceWriter.execute(.createFirstSign(.init(
+                siteID: Fixture.id(slot + 1),
+                newSite: .init(id: Fixture.id(slot + 1), label: "Revision site", address: nil,
+                    timeZoneID: "America/New_York"),
+                assetID: Fixture.id(slot + 2), assetLabel: "Revision sign", packID: pack.packID,
+                packSchemaVersion: pack.schemaVersion, packContentVersion: pack.contentVersion,
+                createdAt: Fixture.fixedDate, initialPlacementMutationID: mutationID,
+                initialPlacementEventID: Fixture.id(slot + 3),
+                initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: Fixture.id(slot + 4)))),
+                mutationID: mutationID)
+            for index in 0..<extraActors {
+                let actor = try Fixture.actor(session.workspaceID, slot: slot + 20 + index * 10,
+                    includesPartyReference: false)
+                _ = try coordinator.workspaceWriter.execute(.applyPartyAccountability(.appendActorSnapshot(actor)),
+                    mutationID: Fixture.mutation(slot + 21 + index * 10))
+            }
+            try journal(session).validateAll()
+            XCTAssertFalse(session.modelContext.hasChanges)
+        }
+        try seed(source.session, slot: 7_000, extraActors: 2)
+        try seed(target.session, slot: 8_000, extraActors: 0)
+        let sourceHistory = try journal(source.session).exportSnapshot()
+        let targetHistory = try journal(target.session).exportSnapshot()
+        XCTAssertEqual(sourceHistory.workspaceRevision, 3)
+        XCTAssertEqual(targetHistory.workspaceRevision, 1)
+        let archive = try V906Integration.exportStreaming(source)
+        let generationID: UUID
+        let appendedHistory: MutationHistorySnapshotV1
+        do {
+            let restored = try await V906Integration.restore(archive, into: target,
+                mode: .replaceExisting, ids: V906Integration.restoreIDs(.replaceExisting, offset: 61))
+            generationID = restored.generationID
+            XCTAssertEqual(restored.workspaceIdentity, target.session.workspaceIdentity)
+            try assertEmptyStock(in: restored)
+            let store = try journal(restored)
+            let beforeAppend = try store.exportSnapshot()
+            XCTAssertEqual(beforeAppend.workspaceRevision, targetHistory.workspaceRevision)
+            XCTAssertEqual(beforeAppend.lastLocalSequence, targetHistory.lastLocalSequence)
+            XCTAssertEqual(beforeAppend.receipts.count, sourceHistory.receipts.count + targetHistory.receipts.count)
+            for original in sourceHistory.receipts + targetHistory.receipts {
+                XCTAssertTrue(beforeAppend.receipts.contains(original), "retain exact original envelope/receipt/reversal bytes")
+            }
+            XCTAssertEqual(beforeAppend.quarantines, sourceHistory.quarantines + targetHistory.quarantines)
+            for revision in sourceHistory.entityRevisions + targetHistory.entityRevisions {
+                XCTAssertEqual(beforeAppend.entityRevisions.first { $0.identity == revision.identity }?.revision,
+                    revision.revision)
+            }
+            let coordinator = try StoreSessionCoordinator(validatingSession: restored)
+            defer { XCTAssertNoThrow(try coordinator.invalidateAndReleaseWriter()) }
+            let mutationID = try Fixture.mutation(8_101)
+            let actor = try Fixture.actor(restored.workspaceID, slot: 8_110, includesPartyReference: false)
+            _ = try coordinator.workspaceWriter.execute(.applyPartyAccountability(.appendActorSnapshot(actor)),
+                mutationID: mutationID)
+            appendedHistory = try store.exportSnapshot()
+            let record = try XCTUnwrap(appendedHistory.receipts.first {
+                try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData).mutationID == mutationID
+            })
+            let receipt = try MutationReceiptV1.decodeCanonical(from: record.receiptData)
+            XCTAssertEqual(receipt.expectedRevision.workspaceRevision, beforeAppend.workspaceRevision)
+            XCTAssertEqual(receipt.resultingRevision.workspaceRevision, beforeAppend.workspaceRevision + 1)
+            XCTAssertEqual(receipt.identity.workspaceID, restored.workspaceID)
+            XCTAssertEqual(receipt.identity.replicaID, restored.workspaceIdentity.replicaID)
+            XCTAssertEqual(receipt.identity.localSequence, beforeAppend.lastLocalSequence + 1)
+            XCTAssertEqual(appendedHistory.workspaceRevision, beforeAppend.workspaceRevision + 1)
+            XCTAssertEqual(appendedHistory.lastLocalSequence, beforeAppend.lastLocalSequence + 1)
+            XCTAssertEqual(appendedHistory.receipts.count, beforeAppend.receipts.count + 1)
+            for original in beforeAppend.receipts { XCTAssertTrue(appendedHistory.receipts.contains(original)) }
+            try store.validateAll()
+            XCTAssertFalse(restored.modelContext.hasChanges)
+        }
+        let reopened = try target.factory.openOrBootstrapCurrent()
+        XCTAssertEqual(reopened.generationID, generationID)
+        XCTAssertEqual(try journal(reopened).exportSnapshot(), appendedHistory)
+        try journal(reopened).validateAll()
+        try assertEmptyStock(in: reopened)
     }
 
     @MainActor
