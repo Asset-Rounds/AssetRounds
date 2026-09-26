@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import XCTest
 @testable import FieldEvidenceApp
 
@@ -1069,16 +1070,31 @@ extension V9_16SnapshotProjectionTests {
             try ControllerZoneDistributionArchetypeV1.scenario()
         ]
         let registry = ReportProjectionRegistryV1()
+        var originalSnapshotIDs = Set<String>()
 
         for (index, scenario) in scenarios.enumerated() {
             XCTAssertTrue(scenario.operations.contains { $0.kind == .rebuildProjection })
             let typedState = ([scenario.archetypeID] + scenario.capabilities.map(\.rawValue))
                 .joined(separator: " ")
             let fixture = try makeFixture(
-                snapshotRevision: index + 1,
+                snapshotRevision: 1,
                 snapshotID: "c42-snapshot-\(index + 1)",
                 serviceStatus: typedState
             )
+            // Each archetype is an independent original, not an amendment
+            // of the preceding scenario's completed snapshot.
+            XCTAssertTrue(originalSnapshotIDs.insert(fixture.snapshot.payload.snapshotID).inserted)
+            XCTAssertEqual(fixture.snapshot.payload.snapshotRevision, 1)
+            XCTAssertNil(fixture.snapshot.payload.supersedesSnapshotID)
+            XCTAssertNil(fixture.snapshot.payload.supersededSnapshotSHA256)
+            XCTAssertNil(fixture.snapshot.payload.amendmentReason)
+            XCTAssertThrowsError(try makeFixture(
+                snapshotRevision: 2,
+                snapshotID: "c42-unbound-amendment-\(index + 1)",
+                serviceStatus: typedState
+            )) {
+                XCTAssertEqual($0 as? SnapshotProjectionFailureV1, .historyRewrite)
+            }
             guard case .complete(let projected) = try registry.render(
                 snapshot: fixture.snapshot,
                 manifest: fixture.manifest,
@@ -1108,6 +1124,7 @@ extension V9_16SnapshotProjectionTests {
             )
             XCTAssertEqual(rebuilt, projected)
         }
+        XCTAssertEqual(originalSnapshotIDs.count, 2)
     }
 }
 
@@ -1327,5 +1344,962 @@ extension V9_16SnapshotProjectionTests {
         try snapshot.validate()
         XCTAssertEqual(snapshot.selectedTarget?.destination, .reports)
         XCTAssertEqual(snapshot.selectedTarget?.workspaceID, workspace)
+    }
+}
+
+
+extension V9_16SnapshotProjectionTests {
+    func testLegacyC33ReportReadbackPreservesCompleteTemporalLinksAndTypedWire() throws {
+        let encoder = ReportSnapshotEncoderV1()
+        for kind in [TemporalEvidenceMediaKindV1.audio, .video] {
+            for preview in [false, true] {
+                for anchorCount in [0, 2] {
+                    let fixture = try legacyTemporalReportFixture(kind: kind, preview: preview,
+                        anchorCount: anchorCount)
+                    let snapshot = fixture.snapshot
+                    let link = try XCTUnwrap(snapshot.temporalEvidenceLinks?.first)
+                    try link.validate(clip: fixture.clip, anchors: fixture.anchors)
+                    XCTAssertEqual(link.anchorCount, anchorCount)
+                    XCTAssertEqual(link.derivativePreview != nil, preview)
+                    XCTAssertNil(link.manualTranscript)
+                    let originalBytes = try encoder.encode(snapshot)
+                    let reopened = try encoder.decode(originalBytes.data)
+                    XCTAssertEqual(reopened, snapshot)
+                    XCTAssertEqual(reopened.temporalEvidenceLinks, [link])
+                    XCTAssertEqual(try encoder.encode(reopened).data, originalBytes.data)
+                    XCTAssertEqual(originalBytes.sha256, publicationDigest(originalBytes.data))
+                    let wire = try XCTUnwrap(JSONSerialization.jsonObject(with: originalBytes.data)
+                        as? [String: Any])
+                    XCTAssertEqual(try legacyTemporalJSON(wire), originalBytes.data,
+                        "The hostile-wire helper must preserve this original canonical representation")
+                    let legacyLink = try XCTUnwrap((wire["temporalEvidenceLinks"] as? [[String: Any]])?.first)
+                    XCTAssertEqual(legacyLink["workspaceID"] as? String,
+                        fixture.clip.workspaceID.rawValue.uuidString.lowercased())
+                    XCTAssertEqual(legacyLink["anchorCount"] as? Int, anchorCount)
+
+                    // Ordinary Codable retains its original keyed workspace wire,
+                    // omits the computed count, and defers domain validation.
+                    let typedEncoder = JSONEncoder()
+                    typedEncoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+                    let typedBytes = try typedEncoder.encode(link)
+                    XCTAssertEqual(typedBytes, try legacyTemporalJSON(legacyTemporalExpectedTypedLink(link)))
+                    XCTAssertEqual(try JSONDecoder().decode(TemporalEvidenceReportLinkV1.self,
+                        from: typedBytes), link)
+                    var typedObject = try XCTUnwrap(JSONSerialization.jsonObject(with: typedBytes)
+                        as? [String: Any])
+                    typedObject["clipID"] = "00000000-0000-0000-0000-000000000000"
+                    let invalidTyped = try JSONDecoder().decode(TemporalEvidenceReportLinkV1.self,
+                        from: legacyTemporalJSON(typedObject))
+                    XCTAssertThrowsError(try invalidTyped.validate()) {
+                        XCTAssertEqual($0 as? TemporalEvidenceContractFailureV1, .invalidValue)
+                    }
+
+                    // A stored optional transcript remains lossless. This is
+                    // typed historical-field compatibility, not a claim that
+                    // today's report producer publishes transcript text.
+                    if !preview {
+                        var storedFields = legacyTemporalExpectedTypedLink(link)
+                        storedFields["manualTranscript"] = try XCTUnwrap(fixture.clip.manualTranscript)
+                        let storedLink = try JSONDecoder().decode(TemporalEvidenceReportLinkV1.self,
+                            from: legacyTemporalJSON(storedFields))
+                        try storedLink.validate(clip: fixture.clip, anchors: fixture.anchors)
+                        var storedSnapshot = snapshot
+                        storedSnapshot.temporalEvidenceLinks = [storedLink]
+                        let storedBytes = try encoder.encode(storedSnapshot)
+                        XCTAssertEqual(try encoder.decode(storedBytes.data), storedSnapshot)
+                        XCTAssertEqual(try encoder.encode(encoder.decode(storedBytes.data)).data, storedBytes.data)
+                    }
+                }
+            }
+        }
+    }
+
+    func testLegacyC33ReportDecoderRejectsMalformedAndCrossFormatTemporalWires() throws {
+        let fixture = try legacyTemporalReportFixture(kind: .video, preview: true, anchorCount: 2)
+        let encoder = ReportSnapshotEncoderV1()
+        let original = try encoder.encode(fixture.snapshot).data
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: original) as? [String: Any])
+        let link = try XCTUnwrap((object["temporalEvidenceLinks"] as? [[String: Any]])?.first)
+        let originalAnchors = try XCTUnwrap(link["anchorBindings"] as? [[String: Any]])
+        let firstAnchor = try XCTUnwrap(originalAnchors.first)
+        let originalDerivative = try XCTUnwrap(link["derivativePreview"] as? [String: Any])
+        func reject(_ label: String, _ mutate: (inout [String: Any]) -> Void) throws {
+            var changed = link
+            mutate(&changed)
+            var root = object
+            root["temporalEvidenceLinks"] = [changed]
+            XCTAssertThrowsError(try encoder.decode(legacyTemporalJSON(root)), label) {
+                XCTAssertEqual($0 as? ReportSnapshotEncodingErrorV1, .noncanonicalData, label)
+            }
+        }
+        try reject("missing count") { $0.removeValue(forKey: "anchorCount") }
+        try reject("false count") { $0["anchorCount"] = 1 }
+        try reject("fractional count") { $0["anchorCount"] = 2.5 }
+        try reject("null count") { $0["anchorCount"] = NSNull() }
+        try reject("typed workspace in legacy file") {
+            $0["workspaceID"] = ["rawValue": fixture.clip.workspaceID.rawValue.uuidString]
+        }
+        try reject("invalid workspace UUID") { $0["workspaceID"] = "not-a-uuid" }
+        try reject("noncanonical UUID spelling") { $0["clipID"] = fixture.clip.clipID.uuidString.uppercased() }
+        try reject("unknown field") { $0["unexpected"] = true }
+        try reject("missing stored field") { $0.removeValue(forKey: "accessibleDescription") }
+        try reject("missing canonical null field") { $0.removeValue(forKey: "manualTranscript") }
+        try reject("unsupported schema") { $0["schemaVersion"] = 2 }
+        try reject("unsupported media") { $0["mediaKind"] = "UNKNOWN" }
+        try reject("unsupported projection") { $0["projection"] = "UNKNOWN" }
+        try reject("zero revision") { $0["clipRevision"] = 0 }
+        try reject("unrepresentable legacy integer") { $0["durationMilliseconds"] = UInt64.max }
+        try reject("malformed digest") { $0["clipSHA256"] = String(repeating: "a", count: 63) }
+        try reject("source content disagreement") { $0["contentID"] = "different.content" }
+        try reject("raw bytes forbidden") { $0["embedsOriginalBytes"] = true }
+        try reject("oversized description") { $0["accessibleDescription"] = String(repeating: "x", count: 4_097) }
+        try reject("preview and transcript conflict") { $0["manualTranscript"] = "Reviewed transcript" }
+        try reject("duplicate anchor identity with matching count") {
+            $0["anchorBindings"] = [firstAnchor, firstAnchor]
+        }
+        try reject("reversed anchor order") { $0["anchorBindings"] = Array(originalAnchors.reversed()) }
+        try reject("anchor revision disagreement") {
+            var anchors = originalAnchors
+            anchors[0]["clipRevision"] = fixture.clip.revision + 1
+            $0["anchorBindings"] = anchors
+        }
+        try reject("anchor digest disagreement") {
+            var anchors = originalAnchors
+            anchors[0]["clipSHA256"] = String(repeating: "f", count: 64)
+            $0["anchorBindings"] = anchors
+        }
+        try reject("preview source disagreement") {
+            var derivative = originalDerivative
+            derivative["sourceClipRevision"] = fixture.clip.revision + 1
+            $0["derivativePreview"] = derivative
+        }
+        var dateObject = object
+        dateObject["snapshotCreatedAt"] = "2027-09-04T00:00:40.0000Z"
+        XCTAssertThrowsError(try encoder.decode(legacyTemporalJSON(dateObject)))
+        XCTAssertThrowsError(try encoder.decode(Data(" ".utf8) + original))
+        let duplicate = Data("{\"snapshotSchemaVersion\":1,".utf8) + original.dropFirst()
+        XCTAssertThrowsError(try encoder.decode(duplicate))
+
+        // No global WorkspaceID widening and no legacy shape in the new wire.
+        let stringWorkspace = try JSONSerialization.data(withJSONObject:
+            fixture.clip.workspaceID.rawValue.uuidString.lowercased(), options: [.fragmentsAllowed])
+        XCTAssertThrowsError(try JSONDecoder().decode(WorkspaceID.self, from: stringWorkspace))
+        let typedLink = try JSONEncoder().encode(try XCTUnwrap(fixture.snapshot.temporalEvidenceLinks?.first))
+        var typedObject = try XCTUnwrap(JSONSerialization.jsonObject(with: typedLink) as? [String: Any])
+        typedObject["workspaceID"] = fixture.clip.workspaceID.rawValue.uuidString.lowercased()
+        XCTAssertThrowsError(try JSONDecoder().decode(TemporalEvidenceReportLinkV1.self,
+            from: legacyTemporalJSON(typedObject)))
+        let basis = try ReportPublicationBasisV1(workspaceID: fixture.clip.workspaceID,
+            audience: .customerSafe, projectionVersion: "report-projection-v1", snapshot: fixture.snapshot)
+        let basisBytes = try ReportPublicationCanonicalCodecV1.encodeBasis(basis)
+        var basisObject = try XCTUnwrap(JSONSerialization.jsonObject(with: basisBytes) as? [String: Any])
+        var snapshotObject = try XCTUnwrap(basisObject["snapshot"] as? [String: Any])
+        snapshotObject["temporalEvidenceLinks"] = [link]
+        basisObject["snapshot"] = snapshotObject
+        XCTAssertThrowsError(try ReportPublicationCanonicalCodecV1.decodeBasis(legacyTemporalJSON(basisObject)))
+        XCTAssertEqual(try ReportPublicationCanonicalCodecV1.decodeBasis(basisBytes), basis)
+    }
+
+    private func legacyTemporalReportFixture(kind: TemporalEvidenceMediaKindV1, preview: Bool,
+        anchorCount: Int) throws -> (snapshot: ReportSnapshotV1, clip: TemporalEvidenceClipV1,
+                                    anchors: [TimecodedEvidenceAnchorV1]) {
+        let base = try C33TemporalEvidenceTestSupport.clip(slot: 2_200, kind: kind,
+            reportProjection: preview ? .typedLinkWithDerivativePreview : .typedLinkOnly)
+        let clip: TemporalEvidenceClipV1
+        let derivative: TemporalEvidenceDerivativeReferenceV1?
+        if preview {
+            let value = try C33TemporalEvidenceTestSupport.derivative(clip: base.clip, slot: 2_201)
+            derivative = try value.reference
+            clip = try base.clip.successor(clipID: C33TemporalEvidenceTestSupport.id(2_202),
+                profile: base.profile, derivativeReferences: [try value.reference],
+                mutationID: C33TemporalEvidenceTestSupport.mutation(2_203))
+        } else {
+            clip = base.clip
+            derivative = nil
+        }
+        let anchors = try (0..<anchorCount).map {
+            try C33TemporalEvidenceTestSupport.anchor(clip: clip, slot: 2_210 + $0)
+        }
+        var snapshot = try C33TemporalEvidenceTestSupport.reportSnapshot(clip: clip, anchors: anchors,
+            reportID: C33TemporalEvidenceTestSupport.id(2_220), slot: 2_230, includesAssurance: false)
+        if let derivative {
+            snapshot.temporalEvidenceLinks = [try TemporalEvidenceReportLinkV1(clip: clip,
+                anchors: anchors, currentDerivative: derivative, profile: base.profile)]
+        }
+        return (snapshot, clip, anchors)
+    }
+
+    private func legacyTemporalJSON(_ object: Any) throws -> Data {
+        try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys, .withoutEscapingSlashes])
+    }
+
+    private func legacyTemporalExpectedTypedLink(_ value: TemporalEvidenceReportLinkV1) -> [String: Any] {
+        var result: [String: Any] = [
+            "schemaVersion": value.schemaVersion,
+            "workspaceID": ["rawValue": value.workspaceID.rawValue.uuidString],
+            "clipID": value.clipID.uuidString, "clipRevision": value.clipRevision,
+            "clipSHA256": value.clipSHA256, "contentID": value.contentID,
+            "mediaKind": value.mediaKind.rawValue, "durationMilliseconds": value.durationMilliseconds,
+            "anchorBindings": value.anchorBindings.map { anchor -> [String: Any] in [
+                "anchorID": anchor.anchorID.uuidString, "revision": anchor.revision,
+                "anchorSHA256": anchor.anchorSHA256, "clipID": anchor.clipID.uuidString,
+                "clipRevision": anchor.clipRevision, "clipSHA256": anchor.clipSHA256,
+                "sourceContentID": anchor.sourceContentID, "sourceSHA256": anchor.sourceSHA256,
+            ] },
+            "accessibleDescription": value.accessibleDescription,
+            "projection": value.projection.rawValue, "embedsOriginalBytes": value.embedsOriginalBytes,
+        ]
+        if let transcript = value.manualTranscript { result["manualTranscript"] = transcript }
+        if let preview = value.derivativePreview {
+            result["derivativePreview"] = [
+                "derivativeID": preview.derivativeID.uuidString, "revision": preview.revision,
+                "derivativeSHA256": preview.derivativeSHA256, "kind": preview.kind.rawValue,
+                "sourceClipID": preview.sourceClipID.uuidString, "sourceClipRevision": preview.sourceClipRevision,
+                "sourceClipSHA256": preview.sourceClipSHA256, "projection": preview.projection.rawValue,
+            ] as [String: Any]
+        }
+        return result
+    }
+
+    func testReportPublicationBindsCompleteTemporalBasisAndSeparateOuterIdentity() throws {
+        let snapshot = try publicationSnapshot(anchorSlots: [991, 992])
+        let workspace = C33TemporalEvidenceTestSupport.workspace()
+        let basis = try ReportPublicationBasisV1(workspaceID: workspace, audience: .customerSafe,
+            projectionVersion: "report-projection-v1", snapshot: snapshot)
+        // Independent fixed-object oracle for the explicitly NEW full typed
+        // snapshot wire, including every stored optional projection.
+        let expectedBasis = try publicationExpectedBytes(publicationExpectedBasis(basis))
+        let expectedDigest = publicationDigest(expectedBasis)
+        XCTAssertEqual(try ReportPublicationCanonicalCodecV1.encodeBasis(basis), expectedBasis)
+        XCTAssertEqual(try ReportPublicationCanonicalCodecV1.decodeBasis(expectedBasis), basis)
+        let plain = try ReportPublicationV1(basis: basis)
+        XCTAssertEqual(plain.basisSHA256, expectedDigest)
+        let assurance = try publicationAssurance(basis: basis, digest: expectedDigest)
+        let publication = try ReportPublicationV1(basis: basis, assurance: assurance)
+        let encoded = try ReportPublicationCanonicalCodecV1.encode(publication)
+        let expectedOuter = try publicationExpectedBytes(publicationExpectedWire(publication))
+        XCTAssertEqual(encoded.data, expectedOuter)
+        XCTAssertEqual(encoded.sha256, publicationDigest(expectedOuter))
+        XCTAssertNotEqual(encoded.sha256, expectedDigest)
+        XCTAssertNotEqual(encoded, try ReportPublicationCanonicalCodecV1.encode(plain))
+        XCTAssertEqual(try ReportPublicationCanonicalCodecV1.decode(encoded.data), publication)
+        XCTAssertEqual(try ReportPublicationCanonicalCodecV1.decode(
+            ReportPublicationCanonicalCodecV1.encode(plain).data), plain)
+        XCTAssertEqual(publication.basis.snapshot, snapshot)
+
+        let otherSnapshot = try publicationSnapshot(anchorSlots: [992, 993])
+        let otherBasis = try ReportPublicationBasisV1(workspaceID: workspace, audience: .customerSafe,
+            projectionVersion: basis.projectionVersion, snapshot: otherSnapshot)
+        XCTAssertEqual(snapshot.temporalEvidenceLinks?.first?.anchorCount,
+                       otherSnapshot.temporalEvidenceLinks?.first?.anchorCount)
+        XCTAssertNotEqual(try ReportPublicationV1(basis: otherBasis).basisSHA256, expectedDigest)
+        XCTAssertThrowsError(try ReportPublicationV1(basis: otherBasis, assurance: assurance))
+        let otherPlain = try ReportPublicationV1(basis: otherBasis)
+        XCTAssertEqual(try ReportPublicationCanonicalCodecV1.decode(
+            ReportPublicationCanonicalCodecV1.encode(otherPlain).data).basis.snapshot, otherSnapshot)
+
+        // Every selected fact is part of the source, not just its temporal link.
+        let sourceChanges: [(String, Any)] = [
+            ("note", "Changed reviewed note"),
+            ("snapshotCreatedAt", snapshot.snapshotCreatedAt.addingTimeInterval(60).timeIntervalSinceReferenceDate),
+            ("sourceRecordID", "c3300000-0000-4000-8000-000000000fff"),
+        ]
+        for (key, changed) in sourceChanges {
+            // Construct the complete typed source in its own representation.
+            // The legacy report file's distinct wire format is not this new
+            // source's representation or mutation authority.
+            var object = try XCTUnwrap(publicationSnapshotObject(snapshot) as? [String: Any])
+            object[key] = changed
+            let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .deferredToDate
+            let changedSnapshot = try decoder.decode(ReportSnapshotV1.self,
+                from: JSONSerialization.data(withJSONObject: object))
+            let changedBasis = try ReportPublicationBasisV1(workspaceID: workspace,
+                audience: basis.audience, projectionVersion: basis.projectionVersion, snapshot: changedSnapshot)
+            XCTAssertThrowsError(try ReportPublicationV1(basis: changedBasis, assurance: assurance), key)
+        }
+        for changedBasis in [
+            try ReportPublicationBasisV1(workspaceID: workspace, audience: .internalUse,
+                projectionVersion: basis.projectionVersion, snapshot: snapshot),
+            try ReportPublicationBasisV1(workspaceID: workspace, audience: basis.audience,
+                projectionVersion: "report-projection-v2", snapshot: snapshot),
+        ] {
+            XCTAssertThrowsError(try ReportPublicationV1(basis: changedBasis, assurance: assurance))
+        }
+    }
+
+    func testReportPublicationRejectsUnboundNestedAndNoncanonicalInputs() throws {
+        let snapshot = try publicationSnapshot(anchorSlots: [991, 992])
+        let workspace = C33TemporalEvidenceTestSupport.workspace()
+        let basis = try ReportPublicationBasisV1(workspaceID: workspace, audience: .customerSafe,
+            projectionVersion: "report-projection-v1", snapshot: snapshot)
+        let plain = try ReportPublicationV1(basis: basis)
+        let assurance = try publicationAssurance(basis: basis, digest: plain.basisSHA256)
+        var embedded = snapshot
+        embedded.assurance = assurance
+        XCTAssertThrowsError(try ReportPublicationBasisV1(workspaceID: workspace,
+            audience: .customerSafe, projectionVersion: basis.projectionVersion, snapshot: embedded))
+        var duplicate = snapshot
+        duplicate.temporalEvidenceLinks = (snapshot.temporalEvidenceLinks ?? []) + (snapshot.temporalEvidenceLinks ?? [])
+        XCTAssertThrowsError(try ReportPublicationBasisV1(workspaceID: workspace,
+            audience: .customerSafe, projectionVersion: basis.projectionVersion, snapshot: duplicate))
+        XCTAssertThrowsError(try ReportPublicationBasisV1(workspaceID: C33TemporalEvidenceTestSupport.workspace(9),
+            audience: .customerSafe, projectionVersion: basis.projectionVersion, snapshot: snapshot))
+        XCTAssertThrowsError(try ReportPublicationV1(basis: basis, assurance:
+            publicationAssurance(basis: basis, digest: plain.basisSHA256,
+                workspace: C33TemporalEvidenceTestSupport.workspace(9))))
+        XCTAssertThrowsError(try ReportPublicationV1(basis: basis, assurance:
+            publicationAssurance(basis: basis, digest: plain.basisSHA256, audience: .internalReview)))
+        XCTAssertThrowsError(try ReportPublicationV1(basis: basis, assurance:
+            publicationAssurance(basis: basis, digest: plain.basisSHA256, projectionVersion: "other-version")))
+
+        let valid = try ReportPublicationCanonicalCodecV1.encode(plain).data
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: valid) as? [String: Any])
+        let outerChanges: [(String, Any)] = [
+            ("basisSHA256", String(repeating: "0", count: 64)),
+            ("reportPublicationSchemaVersion", 2),
+            ("reportPublicationSchemaVersion", NSNull()),
+            ("schemaVersion", 1), ("snapshotSchemaVersion", 1),
+            ("unknown", true), ("assurance", NSNull()),
+        ]
+        for (key, value) in outerChanges {
+            var changed = root; changed[key] = value
+            XCTAssertThrowsError(try ReportPublicationCanonicalCodecV1.decode(
+                JSONSerialization.data(withJSONObject: changed, options: [.sortedKeys, .withoutEscapingSlashes])), key)
+        }
+        for key in ["unknown", "reportPublicationSchemaVersion"] {
+            var changed = root
+            var nested = try XCTUnwrap(changed["basis"] as? [String: Any])
+            nested[key] = 1; changed["basis"] = nested
+            XCTAssertThrowsError(try ReportPublicationCanonicalCodecV1.decode(
+                JSONSerialization.data(withJSONObject: changed, options: [.sortedKeys, .withoutEscapingSlashes])))
+        }
+        for invalidTime in ["not-a-time", "2027-09-04T00:00:40Z"] {
+            var changed = root
+            var nested = try XCTUnwrap(changed["basis"] as? [String: Any])
+            var nestedSnapshot = try XCTUnwrap(nested["snapshot"] as? [String: Any])
+            nestedSnapshot["snapshotCreatedAt"] = invalidTime
+            nested["snapshot"] = nestedSnapshot; changed["basis"] = nested
+            XCTAssertThrowsError(try ReportPublicationCanonicalCodecV1.decode(
+                JSONSerialization.data(withJSONObject: changed, options: [.sortedKeys, .withoutEscapingSlashes])))
+        }
+        let text = try XCTUnwrap(String(data: valid, encoding: .utf8))
+        let duplicateKey = "{\"reportPublicationSchemaVersion\":1," + text.dropFirst()
+        XCTAssertThrowsError(try ReportPublicationCanonicalCodecV1.decode(Data(duplicateKey.utf8)))
+        XCTAssertThrowsError(try ReportPublicationCanonicalCodecV1.decode(Data((text + "\n").utf8)))
+        XCTAssertThrowsError(try ReportPublicationCanonicalCodecV1.decode(Data()))
+        XCTAssertThrowsError(try ReportPublicationCanonicalCodecV1.decode(
+            Data(repeating: 0x20, count: SnapshotProjectionLimitsV1.maximumProjectionBytes + 1)))
+        XCTAssertThrowsError(try ReportPublicationCanonicalCodecV1.decodeBasis(valid))
+    }
+
+    func testReportPublicationLeavesLegacyGoldenBytesAndAdmissionUnchanged() throws {
+        let bundle = Bundle(for: V9_16SnapshotProjectionTests.self)
+        let url = try XCTUnwrap(bundle.url(forResource: "S3_3ReportSnapshotV1", withExtension: "json",
+            subdirectory: "Fixtures") ?? bundle.url(forResource: "S3_3ReportSnapshotV1", withExtension: "json"))
+        let bytes = try Data(contentsOf: url)
+        XCTAssertEqual(publicationDigest(bytes), "8b81589641276df9ee94dba99ac390ce8679fcc2932825e79e4178eb91377b3e")
+        let encoder = ReportSnapshotEncoderV1()
+        let snapshot = try encoder.decode(bytes)
+        XCTAssertEqual(try encoder.encode(snapshot).data, bytes)
+        XCTAssertNil(try encoder.completedActivityV2SnapshotIfPresent(bytes, declaredSchemaVersion: 1))
+        XCTAssertThrowsError(try ReportPublicationCanonicalCodecV1.decode(bytes))
+        let basis = try ReportPublicationBasisV1(workspaceID: C33TemporalEvidenceTestSupport.workspace(),
+            audience: .customerSafe, projectionVersion: "report-projection-v1", snapshot: snapshot)
+        let publication = try ReportPublicationV1(basis: basis)
+        let published = try ReportPublicationCanonicalCodecV1.encode(publication)
+        XCTAssertEqual(try encoder.encode(publication.basis.snapshot).data, bytes)
+        XCTAssertThrowsError(try encoder.decode(published.data))
+        XCTAssertThrowsError(try encoder.completedActivityV2SnapshotIfPresent(
+            published.data, declaredSchemaVersion: 1))
+
+        // This schema-two fixture is specified independently as the existing
+        // golden document plus the complete C07 observation/time fields. No new
+        // publication codec supplies its expected legacy bytes.
+        var schemaTwoObject = try XCTUnwrap(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        schemaTwoObject["snapshotSchemaVersion"] = 2
+        schemaTwoObject["observationBasis"] = [
+            "version": 1, "kind": "DIRECTLY_OBSERVED", "method": ["key": "visual"],
+            "source": ["kind": "OBSERVER", "reference": NSNull()], "limitations": [],
+        ] as [String: Any]
+        schemaTwoObject["temporalContext"] = [
+            "version": 1, "occurredAtUTC": "2026-01-14T20:02:03.000Z",
+            "recordedAtUTC": "2026-01-14T20:02:06.000Z", "localDate": "2026-01-14",
+            "localTime": "15:02:03", "utcOffsetSeconds": -18_000,
+            "ianaTimeZoneIdentifier": "America/New_York", "localTimeDisposition": "UNAMBIGUOUS",
+        ] as [String: Any]
+        let schemaTwoBytes = try JSONSerialization.data(withJSONObject: schemaTwoObject,
+            options: [.sortedKeys, .withoutEscapingSlashes])
+        let schemaTwo = try encoder.decode(schemaTwoBytes)
+        XCTAssertEqual(try encoder.encode(schemaTwo).data, schemaTwoBytes)
+        XCTAssertEqual(try encoder.encode(schemaTwo).sha256, publicationDigest(schemaTwoBytes))
+        XCTAssertNil(try encoder.completedActivityV2SnapshotIfPresent(schemaTwoBytes, declaredSchemaVersion: 2))
+        let schemaTwoPublication = try ReportPublicationV1(basis: ReportPublicationBasisV1(
+            workspaceID: basis.workspaceID, audience: basis.audience,
+            projectionVersion: basis.projectionVersion, snapshot: schemaTwo))
+        let schemaTwoOuter = try ReportPublicationCanonicalCodecV1.encode(schemaTwoPublication)
+        XCTAssertEqual(try encoder.encode(ReportPublicationCanonicalCodecV1.decode(
+            schemaTwoOuter.data).basis.snapshot).data, schemaTwoBytes)
+        XCTAssertThrowsError(try encoder.decode(schemaTwoOuter.data))
+        XCTAssertThrowsError(try encoder.completedActivityV2SnapshotIfPresent(
+            schemaTwoOuter.data, declaredSchemaVersion: 2))
+        XCTAssertThrowsError(try ReportPublicationCanonicalCodecV1.decode(schemaTwoBytes))
+
+        // New full typed dates preserve fractional milliseconds even though
+        // the old report timestamp representation cannot carry that precision.
+        var submillisecond = schemaTwo
+        let time = try XCTUnwrap(schemaTwo.temporalContext)
+        submillisecond.temporalContext = try TemporalContextV1(
+            occurredAtUTC: time.occurredAtUTC,
+            recordedAtUTC: time.recordedAtUTC.addingTimeInterval(1.0 / 1_024),
+            localDate: time.localDate, localTime: time.localTime,
+            utcOffsetSeconds: time.utcOffsetSeconds, ianaTimeZoneIdentifier: time.ianaTimeZoneIdentifier,
+            localTimeDisposition: time.localTimeDisposition)
+        let lossyBytes = try encoder.encode(submillisecond).data
+        XCTAssertNotEqual(try encoder.decode(lossyBytes), submillisecond)
+        let precise = try ReportPublicationV1(basis: ReportPublicationBasisV1(workspaceID: basis.workspaceID,
+            audience: basis.audience, projectionVersion: basis.projectionVersion, snapshot: submillisecond))
+        XCTAssertEqual(try ReportPublicationCanonicalCodecV1.decode(
+            ReportPublicationCanonicalCodecV1.encode(precise).data).basis.snapshot, submillisecond)
+        XCTAssertNotEqual(precise.basisSHA256, schemaTwoPublication.basisSHA256)
+
+    }
+
+    func testReportPublicationPreservesExactSourceAndAssuranceDatePrecision() throws {
+        let original = try publicationSnapshot(anchorSlots: [991, 992])
+        let workspace = C33TemporalEvidenceTestSupport.workspace()
+        let base: Double = 812_000_000
+        let probes = [base, base.nextUp, base + 0.00025, base + 1.0 / 1_024,
+                      Date().timeIntervalSinceReferenceDate]
+        let snapshotDecoder = JSONDecoder()
+        snapshotDecoder.dateDecodingStrategy = .deferredToDate
+        var sourceDigests = Set<String>()
+        for seconds in probes {
+            var object = try XCTUnwrap(publicationSnapshotObject(original) as? [String: Any])
+            object["snapshotCreatedAt"] = seconds
+            let precise = try snapshotDecoder.decode(ReportSnapshotV1.self,
+                from: JSONSerialization.data(withJSONObject: object))
+            XCTAssertEqual(precise.snapshotCreatedAt.timeIntervalSinceReferenceDate, seconds)
+            let basis = try ReportPublicationBasisV1(workspaceID: workspace, audience: .customerSafe,
+                projectionVersion: "report-projection-v1", snapshot: precise)
+            let publication = try ReportPublicationV1(basis: basis)
+            XCTAssertTrue(sourceDigests.insert(publication.basisSHA256).inserted)
+            let decoded = try ReportPublicationCanonicalCodecV1.decode(
+                ReportPublicationCanonicalCodecV1.encode(publication).data)
+            XCTAssertEqual(decoded, publication)
+            XCTAssertEqual(decoded.basis.snapshot.snapshotCreatedAt.timeIntervalSinceReferenceDate, seconds)
+        }
+        // Demonstrate the ordinary epoch-conversion edge deterministically;
+        // the new wire does not perform this lossy conversion.
+        let unixMilliseconds = (base.nextUp + 978_307_200) * 1_000
+        XCTAssertNotEqual(unixMilliseconds / 1_000 - 978_307_200, base.nextUp)
+        let basis = try ReportPublicationBasisV1(workspaceID: workspace, audience: .customerSafe,
+            projectionVersion: "report-projection-v1", snapshot: original)
+        let plain = try ReportPublicationV1(basis: basis)
+        var outerDigests = Set<String>()
+        for seconds in probes {
+            let assurance = try publicationAssurance(basis: basis, digest: plain.basisSHA256,
+                createdAt: Date(timeIntervalSinceReferenceDate: seconds))
+            let publication = try ReportPublicationV1(basis: basis, assurance: assurance)
+            let encoded = try ReportPublicationCanonicalCodecV1.encode(publication)
+            XCTAssertTrue(outerDigests.insert(encoded.sha256).inserted)
+            let decoded = try ReportPublicationCanonicalCodecV1.decode(encoded.data)
+            XCTAssertEqual(decoded.assurance, assurance)
+            XCTAssertEqual(decoded.assurance?.preview.createdAt.timeIntervalSinceReferenceDate, seconds)
+            XCTAssertEqual(decoded.basisSHA256, plain.basisSHA256)
+        }
+        // Build hostile typed values without normalizing their dates. The new
+        // encoder's default finite-number rule must reject all three cases.
+        snapshotDecoder.nonConformingFloatDecodingStrategy = .convertFromString(
+            positiveInfinity: "INF", negativeInfinity: "-INF", nan: "NAN")
+        for nonfinite in ["INF", "-INF", "NAN"] {
+            var object = try XCTUnwrap(publicationSnapshotObject(original) as? [String: Any])
+            object["snapshotCreatedAt"] = nonfinite
+            let invalid = try snapshotDecoder.decode(ReportSnapshotV1.self,
+                from: JSONSerialization.data(withJSONObject: object))
+            XCTAssertFalse(invalid.snapshotCreatedAt.timeIntervalSinceReferenceDate.isFinite)
+            XCTAssertThrowsError(try ReportPublicationBasisV1(workspaceID: workspace,
+                audience: .customerSafe, projectionVersion: basis.projectionVersion, snapshot: invalid))
+        }
+    }
+
+    func testReportPublicationPreservesAllLegacyOmittedTypedFamilies() throws {
+        // Pure domain fixture: this does not claim a persisted report or writer
+        // acceptance. It carries the real family constructors' complete values.
+        let lighting = try CanonicalLightingFixtureV1.makeFixture(slot: 916)
+        let workspace = lighting.system.workspaceID
+        let original = try publicationSnapshot(anchorSlots: [991, 992], workspace: workspace)
+        let contents = try C23FieldReferenceTestSupport.contents(workspaceID: workspace)
+        let release = try C23FieldReferenceTestSupport.release(workspaceID: workspace, contents: contents)
+        let binding = try C23FieldReferenceTestSupport.binding(workspaceID: workspace,
+            release: release, subjectID: original.packetID, subjectState: .finalized)
+        let readiness = try FieldReferenceOfflineReadinessV1(release: release, binding: binding,
+            inputs: .init(references: contents.map(\.reference), locators: contents.map(\.locator),
+                evaluatedAt: binding.boundAt, policy: .exactLocalContentV1, protectedDataAvailable: true))
+        var complete = try original.withC23FieldReferenceProjection(binding: binding,
+            release: release, readiness: readiness, subjectRevision: binding.subjectRevision)
+        complete.lightingDayInventory = try C17LightingDayInventoryFrozenSnapshotV1(
+            workflow: lighting.day, admission: lighting.dayAdmission, poseSnapshots: [],
+            capturedAt: lighting.day.recordedAt)
+        complete.lightingNightWorkflow = try C18LightingNightFrozenSnapshotV1(
+            workflow: lighting.night, capturedAt: lighting.night.recordedAt)
+        complete.practiceWorkspace = try PracticeWorkspaceReportProjectionV1(
+            workspaceID: workspace, provenance: nil)
+        let basis = try ReportPublicationBasisV1(workspaceID: workspace, audience: .customerSafe,
+            projectionVersion: "report-projection-v1", snapshot: complete)
+        let publication = try ReportPublicationV1(basis: basis)
+        let encoded = try ReportPublicationCanonicalCodecV1.encode(publication)
+        XCTAssertEqual(try ReportPublicationCanonicalCodecV1.decode(encoded.data).basis.snapshot, complete)
+        let nested = try XCTUnwrap(publicationSnapshotObject(complete) as? [String: Any])
+        for key in ["fieldReferences", "lightingDayInventory", "lightingNightWorkflow", "practiceWorkspace"] {
+            XCTAssertNotNil(nested[key], key)
+        }
+        let expectedBasis = try JSONSerialization.data(withJSONObject: [
+            "reportBasisSchemaVersion": 1, "workspaceID": workspace.rawValue.uuidString.lowercased(),
+            "audience": ReportAudienceV1.customerSafe.rawValue,
+            "projectionVersion": basis.projectionVersion, "snapshot": nested,
+        ], options: [.sortedKeys, .withoutEscapingSlashes])
+        XCTAssertEqual(publication.basisSHA256, publicationDigest(expectedBasis))
+        let assurance = try publicationAssurance(basis: basis, digest: publication.basisSHA256)
+        let reviewed = try ReportPublicationV1(basis: basis, assurance: assurance)
+        XCTAssertEqual(try ReportPublicationCanonicalCodecV1.decode(
+            ReportPublicationCanonicalCodecV1.encode(reviewed).data), reviewed)
+
+        // Each omitted family separately contributes identity; nil and an
+        // explicitly empty collection remain different complete source values.
+        var noReferences = complete; noReferences.fieldReferences = nil
+        var emptyReferences = complete; emptyReferences.fieldReferences = []
+        var noDay = complete; noDay.lightingDayInventory = nil
+        var noNight = complete; noNight.lightingNightWorkflow = nil
+        var noPractice = complete; noPractice.practiceWorkspace = nil
+        var digests = Set([publication.basisSHA256])
+        for value in [noReferences, emptyReferences, noDay, noNight, noPractice] {
+            XCTAssertEqual(try ReportSnapshotEncoderV1().encode(value),
+                           try ReportSnapshotEncoderV1().encode(complete))
+            let otherBasis = try ReportPublicationBasisV1(workspaceID: workspace, audience: basis.audience,
+                projectionVersion: basis.projectionVersion, snapshot: value)
+            let other = try ReportPublicationV1(basis: otherBasis)
+            XCTAssertTrue(digests.insert(other.basisSHA256).inserted)
+            XCTAssertThrowsError(try ReportPublicationV1(basis: otherBasis, assurance: assurance))
+            XCTAssertEqual(try ReportPublicationCanonicalCodecV1.decode(
+                ReportPublicationCanonicalCodecV1.encode(other).data).basis.snapshot, value)
+        }
+        // These formerly omitted projections must also retain their own typed
+        // predicates, independently of the containing basis digest.
+        let snapshotDecoder = JSONDecoder()
+        snapshotDecoder.dateDecodingStrategy = .deferredToDate
+        for key in ["fieldReferences", "lightingDayInventory", "lightingNightWorkflow", "practiceWorkspace"] {
+            var corrupted = nested
+            if key == "fieldReferences" {
+                var references = try XCTUnwrap(corrupted[key] as? [[String: Any]])
+                references[0]["projectionSHA256"] = String(repeating: "0", count: 64)
+                corrupted[key] = references
+            } else {
+                var projection = try XCTUnwrap(corrupted[key] as? [String: Any])
+                projection[key == "practiceWorkspace" ? "watermark" : "snapshotSHA256"] =
+                    key == "practiceWorkspace" ? "Invalid real-workspace watermark" : String(repeating: "0", count: 64)
+                corrupted[key] = projection
+            }
+            let invalid = try snapshotDecoder.decode(ReportSnapshotV1.self,
+                from: JSONSerialization.data(withJSONObject: corrupted))
+            XCTAssertNoThrow(try ReportSnapshotEncoderV1().encode(invalid))
+            XCTAssertThrowsError(try ReportPublicationBasisV1(workspaceID: workspace, audience: basis.audience,
+                projectionVersion: basis.projectionVersion, snapshot: invalid), key)
+        }
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded.data) as? [String: Any])
+        for key in ["fieldReferences", "lightingDayInventory", "lightingNightWorkflow", "practiceWorkspace"] {
+            var tampered = root
+            var tamperedBasis = try XCTUnwrap(tampered["basis"] as? [String: Any])
+            var tamperedSnapshot = try XCTUnwrap(tamperedBasis["snapshot"] as? [String: Any])
+            tamperedSnapshot.removeValue(forKey: key)
+            tamperedBasis["snapshot"] = tamperedSnapshot; tampered["basis"] = tamperedBasis
+            XCTAssertThrowsError(try ReportPublicationCanonicalCodecV1.decode(
+                JSONSerialization.data(withJSONObject: tampered, options: [.sortedKeys, .withoutEscapingSlashes])), key)
+        }
+    }
+
+    func testReportReviewedPublicationPreservesSchemaThreeSourceAndCompleteSchemaFourView() throws {
+        let fixture = try publicationReviewFixture()
+        let originalBytes = try ReportPublicationCanonicalCodecV1.encode(fixture.original)
+        let source = try ReportReviewedSourceV1(original: fixture.original,
+            reportSubject: fixture.key, history: fixture.history)
+        let sourceBytes = try ReportPublicationCanonicalCodecV1.encodeReviewedSource(source)
+        let publication = try ReportReviewPublicationV1(source: source)
+        let encoded = try ReportPublicationCanonicalCodecV1.encode(publication)
+        // Assemble an independent fixed typed wire from original values.
+        // Parsing exact Date numbers through Any/NSNumber and reserializing
+        // would introduce a different numeric spelling operation.
+        let expectedSourceValue = PublicationExpectedReviewedSource(
+            original: try publicationExpectedWire(fixture.original),
+            reportSubject: .init(workspaceID: fixture.key.workspaceID.rawValue.uuidString.lowercased(),
+                reportID: fixture.key.subjectID.uuidString.lowercased(),
+                fixedCorrectionChainRevision: fixture.key.subjectRevision),
+            history: fixture.history)
+        let expectedSource = try publicationExpectedBytes(expectedSourceValue)
+        XCTAssertEqual(sourceBytes, expectedSource)
+        let expectedOuter = try publicationExpectedBytes(
+            PublicationExpectedReviewedOutput(source: expectedSourceValue))
+        XCTAssertEqual(encoded.data, expectedOuter)
+        XCTAssertEqual(encoded.sha256, publicationDigest(expectedOuter))
+        XCTAssertNotEqual(encoded.sha256, originalBytes.sha256)
+        XCTAssertEqual(try ReportPublicationCanonicalCodecV1.decodeReviewedSource(sourceBytes), source)
+        let reopened = try ReportPublicationCanonicalCodecV1.decodeReview(encoded.data)
+        XCTAssertEqual(reopened, publication)
+        XCTAssertEqual(try ReportPublicationCanonicalCodecV1.encode(reopened.source.original), originalBytes)
+        XCTAssertEqual(reopened.source.history, fixture.history)
+        XCTAssertFalse(fixture.history.reviewTransitions.isEmpty)
+        XCTAssertFalse(fixture.history.reviewDispositions.isEmpty)
+        XCTAssertEqual(fixture.original.basis.snapshot.snapshotSchemaVersion, 3)
+        XCTAssertFalse(try XCTUnwrap(fixture.original.basis.snapshot.authorityCriterion).aggregate.sourceReleases.isEmpty)
+        XCTAssertEqual(fixture.key.subjectRevision, 2)
+        XCTAssertNotEqual(fixture.key.subjectRevision, UInt64(fixture.history.reviewTransitions.count))
+        XCTAssertEqual(fixture.history.sourceSnapshotSHA256, originalBytes.sha256)
+        XCTAssertEqual(fixture.original.assurance?.snapshotSHA256, fixture.original.basisSHA256)
+        XCTAssertThrowsError(try fixture.original.assurance?.validate(
+            expectedSnapshotSHA256: publicationDigest(sourceBytes)))
+
+        let view = try reopened.source.reportSnapshot()
+        // Independent expected full-value view: every source key survives,
+        // exactly the three declared view fields are added/replaced.
+        var expectedView = try XCTUnwrap(publicationSnapshotObject(fixture.original.basis.snapshot) as? [String: Any])
+        expectedView["snapshotSchemaVersion"] = 4
+        expectedView["assurance"] = try publicationAssuranceObject(XCTUnwrap(fixture.original.assurance))
+        expectedView["inspectionReviewHistory"] = try publicationTypedObject(fixture.history)
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .deferredToDate
+        let expected = try decoder.decode(ReportSnapshotV1.self,
+            from: JSONSerialization.data(withJSONObject: expectedView))
+        XCTAssertEqual(view, expected)
+        XCTAssertEqual(view.fieldReferences, fixture.original.basis.snapshot.fieldReferences)
+        XCTAssertNotNil(view.lightingDayInventory)
+        XCTAssertNotNil(view.lightingNightWorkflow)
+        XCTAssertNotNil(view.practiceWorkspace)
+        XCTAssertEqual(view.temporalEvidenceLinks, fixture.original.basis.snapshot.temporalEvidenceLinks)
+        XCTAssertNoThrow(try ReportSnapshotEncoderV1().encode(view))
+        XCTAssertThrowsError(try ReportPublicationBasisV1(workspaceID: fixture.key.workspaceID,
+            audience: .customerSafe, projectionVersion: fixture.original.basis.projectionVersion, snapshot: view))
+        XCTAssertThrowsError(try ReportSnapshotEncoderV1().decode(encoded.data))
+        XCTAssertThrowsError(try ReportSnapshotEncoderV1().completedActivityV2SnapshotIfPresent(
+            encoded.data, declaredSchemaVersion: 4))
+        XCTAssertThrowsError(try ReportPublicationCanonicalCodecV1.decode(encoded.data))
+    }
+
+    func testReportReviewedSourceRejectsWrongReportTupleAndHistoricalComponents() throws {
+        let fixture = try publicationReviewFixture()
+        let original = fixture.original
+        let digest = try ReportPublicationCanonicalCodecV1.encode(original).sha256
+        let workspace = fixture.key.workspaceID
+        for key in [
+            try CompletedWorkSubjectKeyV1(workspaceID: workspace,
+                subjectID: C33TemporalEvidenceTestSupport.id(999), subjectRevision: 2),
+            try CompletedWorkSubjectKeyV1(workspaceID: workspace,
+                subjectID: fixture.key.subjectID, subjectRevision: 3),
+            try CompletedWorkSubjectKeyV1(workspaceID: C33TemporalEvidenceTestSupport.workspace(),
+                subjectID: fixture.key.subjectID, subjectRevision: 2),
+            try CompletedWorkSubjectKeyV1(workspaceID: workspace, family: .typedCompletedActivityReserved,
+                subjectID: fixture.key.subjectID, subjectRevision: 2),
+        ] {
+            XCTAssertThrowsError(try ReportReviewedSourceV1(original: original,
+                reportSubject: key, history: fixture.history))
+        }
+        let correctSubject = try InspectionReviewSubjectReferenceV1(workspaceID: workspace,
+            kind: .reportSnapshot, subjectID: fixture.key.subjectID.uuidString.lowercased(),
+            subjectRevision: 2, subjectSHA256: digest)
+        let wrongSubjects = [
+            try InspectionReviewSubjectReferenceV1(workspaceID: workspace, kind: .reportSnapshot,
+                subjectID: C33TemporalEvidenceTestSupport.id(999).uuidString.lowercased(),
+                subjectRevision: 2, subjectSHA256: digest),
+            try InspectionReviewSubjectReferenceV1(workspaceID: workspace, kind: .reportSnapshot,
+                subjectID: correctSubject.subjectID, subjectRevision: 3, subjectSHA256: digest),
+            try InspectionReviewSubjectReferenceV1(workspaceID: workspace, kind: .reportSnapshot,
+                subjectID: correctSubject.subjectID, subjectRevision: 2, subjectSHA256: String(repeating: "0", count: 64)),
+            try InspectionReviewSubjectReferenceV1(workspaceID: workspace, kind: .completedActivitySnapshot,
+                subjectID: correctSubject.subjectID, subjectRevision: 2, subjectSHA256: digest),
+        ]
+        for wrong in wrongSubjects {
+            for wrongDispositionOnly in [false, true] {
+                let history = try publicationReviewHistory(original: original, key: fixture.key,
+                    transitionSubject: wrongDispositionOnly ? correctSubject : wrong,
+                    dispositionSubject: wrongDispositionOnly ? wrong : correctSubject)
+                try history.validate() // The old generic history is insufficient for REPORT tuples.
+                XCTAssertThrowsError(try ReportReviewedSourceV1(original: original,
+                    reportSubject: fixture.key, history: history))
+            }
+        }
+        let priorBinding = fixture.history.binding
+        for field in ["source", "c13", "c38", "c40", "c41"] {
+            let invalidDigest = String(repeating: "0", count: 64)
+            let binding = try CompletedInspectionReviewBindingV1(workspaceID: workspace,
+                completedSnapshotSHA256: field == "source" ? invalidDigest : priorBinding.completedSnapshotSHA256,
+                c13AssuranceSHA256: field == "c13" ? invalidDigest : priorBinding.c13AssuranceSHA256,
+                c38AccountabilitySHA256: field == "c38" ? invalidDigest : priorBinding.c38AccountabilitySHA256,
+                c40AuthorityCriterionSHA256: field == "c40" ? invalidDigest : priorBinding.c40AuthorityCriterionSHA256,
+                c41FunctionalRelationshipsSHA256: field == "c41" ? invalidDigest : priorBinding.c41FunctionalRelationshipsSHA256)
+            let history = try publicationReviewHistory(original: original, key: fixture.key, binding: binding)
+            try history.validate()
+            XCTAssertThrowsError(try ReportReviewedSourceV1(original: original,
+                reportSubject: fixture.key, history: history), field)
+        }
+        // A legitimate new current source and fresh preview still cannot
+        // inherit an old review by substituting its different original bytes.
+        var changedObject = try XCTUnwrap(publicationSnapshotObject(original.basis.snapshot) as? [String: Any])
+        changedObject["note"] = "A separately revised factual source"
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .deferredToDate
+        let changedSnapshot = try decoder.decode(ReportSnapshotV1.self,
+            from: JSONSerialization.data(withJSONObject: changedObject))
+        let changedBasis = try ReportPublicationBasisV1(workspaceID: workspace, audience: original.basis.audience,
+            projectionVersion: original.basis.projectionVersion, snapshot: changedSnapshot)
+        let changedPlain = try ReportPublicationV1(basis: changedBasis)
+        let changed = try ReportPublicationV1(basis: changedBasis,
+            assurance: publicationAssurance(basis: changedBasis, digest: changedPlain.basisSHA256))
+        XCTAssertThrowsError(try ReportReviewedSourceV1(original: changed,
+            reportSubject: fixture.key, history: fixture.history))
+        var missingAuthority = original.basis.snapshot
+        missingAuthority.authorityCriterion = nil
+        XCTAssertThrowsError(try ReportPublicationBasisV1(workspaceID: workspace, audience: original.basis.audience,
+            projectionVersion: original.basis.projectionVersion, snapshot: missingAuthority))
+        var foreignAccountability = original.basis.snapshot
+        foreignAccountability.accountability = try CompletedAccountabilitySnapshotV1(
+            workspaceID: C33TemporalEvidenceTestSupport.workspace(90))
+        XCTAssertNoThrow(try ReportSnapshotEncoderV1().encode(foreignAccountability))
+        XCTAssertThrowsError(try ReportPublicationBasisV1(workspaceID: workspace, audience: original.basis.audience,
+            projectionVersion: original.basis.projectionVersion, snapshot: foreignAccountability))
+        XCTAssertEqual(try ReportPublicationCanonicalCodecV1.encode(original).sha256, digest)
+    }
+
+    func testReportReviewedPublicationRejectsNoncanonicalAndMissingOriginalWire() throws {
+        let fixture = try publicationReviewFixture()
+        let source = try ReportReviewedSourceV1(original: fixture.original,
+            reportSubject: fixture.key, history: fixture.history)
+        let encoded = try ReportPublicationCanonicalCodecV1.encode(ReportReviewPublicationV1(source: source)).data
+        let original = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        for field in ["original", "history", "reportSubject"] {
+            var root = original
+            var nested = try XCTUnwrap(root["source"] as? [String: Any])
+            nested.removeValue(forKey: field); root["source"] = nested
+            XCTAssertThrowsError(try ReportPublicationCanonicalCodecV1.decodeReview(
+                JSONSerialization.data(withJSONObject: root, options: [.sortedKeys, .withoutEscapingSlashes])), field)
+        }
+        for field in ["reportPublicationSchemaVersion", "snapshotSchemaVersion", "unknown", "assurance"] {
+            var root = original; root[field] = 1
+            XCTAssertThrowsError(try ReportPublicationCanonicalCodecV1.decodeReview(
+                JSONSerialization.data(withJSONObject: root, options: [.sortedKeys, .withoutEscapingSlashes])), field)
+        }
+        for version in [0, 2] {
+            var root = original; root["reportReviewPublicationSchemaVersion"] = version
+            XCTAssertThrowsError(try ReportPublicationCanonicalCodecV1.decodeReview(
+                JSONSerialization.data(withJSONObject: root, options: [.sortedKeys, .withoutEscapingSlashes])))
+        }
+        let text = try XCTUnwrap(String(data: encoded, encoding: .utf8))
+        XCTAssertThrowsError(try ReportPublicationCanonicalCodecV1.decodeReview(
+            Data(("{\"reportReviewPublicationSchemaVersion\":1," + text.dropFirst()).utf8)))
+        XCTAssertThrowsError(try ReportPublicationCanonicalCodecV1.decodeReview(encoded + Data("\n".utf8)))
+        XCTAssertThrowsError(try ReportPublicationCanonicalCodecV1.decodeReview(
+            Data(repeating: 0x20, count: SnapshotProjectionLimitsV1.maximumProjectionBytes + 1)))
+        XCTAssertThrowsError(try ReportPublicationCanonicalCodecV1.decodeReview(
+            ReportSnapshotEncoderV1().encode(source.reportSnapshot()).data))
+        XCTAssertEqual(try ReportPublicationCanonicalCodecV1.decodeReview(encoded).source.history, fixture.history)
+    }
+
+    private func publicationReviewFixture() throws ->
+        (original: ReportPublicationV1, key: CompletedWorkSubjectKeyV1, history: CompletedInspectionReviewHistorySnapshotV1) {
+        let authority = try C40AuthorityCriterionFixtureV1.makeFixture()
+        let workspace = authority.workspaceID
+        var snapshot = try publicationSnapshot(anchorSlots: [991, 992], workspace: workspace)
+        // Use the actual shared constructor's seed mapping to share C40's
+        // workspace; no accepted value is rebound or manually blessed.
+        let lighting = try CanonicalLightingFixtureV1.makeFixture(slot: 8_000 - 290_000)
+        XCTAssertEqual(lighting.system.workspaceID, workspace)
+        snapshot.lightingDayInventory = try .init(workflow: lighting.day,
+            admission: lighting.dayAdmission, poseSnapshots: [], capturedAt: lighting.day.recordedAt)
+        snapshot.lightingNightWorkflow = try .init(workflow: lighting.night, capturedAt: lighting.night.recordedAt)
+        snapshot.practiceWorkspace = try .init(workspaceID: workspace, provenance: nil)
+        snapshot.fieldReferences = []
+        snapshot.observationBasis = try .init(kind: .directlyObserved, method: .init(key: "visual"),
+            source: .init(kind: .observer))
+        snapshot.temporalContext = try .init(occurredAtUTC: snapshot.timeContext.observedAtUTC,
+            recordedAtUTC: snapshot.snapshotCreatedAt, localDate: snapshot.timeContext.localDate,
+            localTime: snapshot.timeContext.localTime, utcOffsetSeconds: snapshot.timeContext.utcOffsetMinutes * 60,
+            ianaTimeZoneIdentifier: snapshot.timeContext.timeZoneID, localTimeDisposition: .unambiguous)
+        snapshot.accountability = try .init(workspaceID: workspace, actors: [authority.actor],
+            qualifications: [authority.qualification])
+        let semantic = try XCTUnwrap(authority.scope.semanticBindings.first)
+        let kind = try AssetKindBindingEventV1.canonical(eventID: semantic.kindBindingEventID,
+            workspaceID: workspace, assetID: semantic.assetID, catalogRelease: semantic.catalogRelease,
+            semanticID: semantic.semanticID, predecessorEventID: nil, revision: semantic.kindBindingRevision,
+            mutationID: authority.mutationID, recordedAt: C40AuthorityCriterionFixtureV1.fixedDate)
+        snapshot.assetSemantics = try .init(workspaceID: workspace, catalogReleases: [semantic.catalogRelease],
+            kindBindings: [kind], workflowCapabilityBindings: [], productIdentities: [], lifecycleEvents: [],
+            successorLinks: [], workSubjectScopes: [authority.scope])
+        snapshot.authorityCriterion = try .init(workspaceID: workspace, aggregate: authority.aggregate)
+        let relationships = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 8_000)
+        snapshot.functionalRelationships = try .init(snapshotID: C33TemporalEvidenceTestSupport.id(10_020),
+            workspaceID: workspace, capturedAt: relationships.added.recordedAt,
+            descriptorReleases: [relationships.descriptor], relationships: [relationships.added])
+        var object = try XCTUnwrap(publicationSnapshotObject(snapshot) as? [String: Any])
+        object["snapshotSchemaVersion"] = 3
+        object["snapshotCreatedAt"] = snapshot.snapshotCreatedAt.timeIntervalSinceReferenceDate.nextUp
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .deferredToDate
+        snapshot = try decoder.decode(ReportSnapshotV1.self, from: JSONSerialization.data(withJSONObject: object))
+        let basis = try ReportPublicationBasisV1(workspaceID: workspace, audience: .customerSafe,
+            projectionVersion: "report-projection-v1", snapshot: snapshot)
+        let plain = try ReportPublicationV1(basis: basis)
+        let original = try ReportPublicationV1(basis: basis,
+            assurance: publicationAssurance(basis: basis, digest: plain.basisSHA256,
+                createdAt: Date(timeIntervalSinceReferenceDate:
+                    C33TemporalEvidenceTestSupport.fixedDate.addingTimeInterval(50).timeIntervalSinceReferenceDate.nextUp)))
+        // Explicit pure tuple uses the fixed position 2, not schema3 or four
+        // history entries. Canonical lineage derivation belongs to the producer.
+        let key = try CompletedWorkSubjectKeyV1(workspaceID: workspace,
+            subjectID: snapshot.reportID, subjectRevision: 2)
+        return (original, key, try publicationReviewHistory(original: original, key: key))
+    }
+
+    private func publicationReviewHistory(original: ReportPublicationV1, key: CompletedWorkSubjectKeyV1,
+        transitionSubject: InspectionReviewSubjectReferenceV1? = nil,
+        dispositionSubject: InspectionReviewSubjectReferenceV1? = nil,
+        binding: CompletedInspectionReviewBindingV1? = nil) throws -> CompletedInspectionReviewHistorySnapshotV1 {
+        let snapshot = original.basis.snapshot
+        let digest = try ReportPublicationCanonicalCodecV1.encode(original).sha256
+        let subject = try InspectionReviewSubjectReferenceV1(workspaceID: key.workspaceID, kind: .reportSnapshot,
+            subjectID: key.subjectID.uuidString.lowercased(), subjectRevision: key.subjectRevision, subjectSHA256: digest)
+        let actor = try C26SurveySessionTestSupport.actor(workspaceID: key.workspaceID,
+            slot: 10_031, responsibility: .recordedBy)
+        let reviewer = try C26SurveySessionTestSupport.actor(workspaceID: key.workspaceID,
+            slot: 10_032, responsibility: .reviewedBy)
+        let reviewID = C33TemporalEvidenceTestSupport.id(10_033)
+        let dispositionID = C33TemporalEvidenceTestSupport.id(10_034)
+        let states: [(InspectionReviewStateV1, InspectionReviewStateV1)] = [
+            (.draft, .fieldComplete), (.fieldComplete, .readyForReview),
+            (.readyForReview, .accepted), (.accepted, .finalized),
+        ]
+        var transitions: [InspectionReviewTransitionV1] = []
+        for (index, states) in states.enumerated() {
+            let value = try C14InspectionReviewTestSupportV1.makeTransition(seed: 916_100 + index,
+                reviewID: reviewID, workspaceID: key.workspaceID, subject: transitionSubject ?? subject,
+                from: states.0, to: states.1, actor: index == 2 ? reviewer : actor,
+                revision: UInt64(index + 1), mutationSeed: 916_200 + index,
+                predecessor: transitions.last?.transitionID, dispositionID: index == 2 ? dispositionID : nil)
+            transitions.append(value)
+        }
+        let disposition = try ReviewDispositionV1(dispositionID: dispositionID, reviewID: reviewID,
+            workspaceID: key.workspaceID, subject: dispositionSubject ?? subject, reviewRevision: 3,
+            kind: .accepted, reviewer: reviewer, reason: "Recorded local review of this exact report",
+            recordedAt: C14InspectionReviewTestSupportV1.fixedDate.addingTimeInterval(3),
+            mutationID: C33TemporalEvidenceTestSupport.mutation(10_035))
+        let exactBinding = try binding ?? CompletedInspectionReviewBindingV1(workspaceID: key.workspaceID,
+            completedSnapshotSHA256: digest,
+            c13AssuranceSHA256: publicationDigest(ReportEvidenceAssuranceCanonicalCodecV1.encode(XCTUnwrap(original.assurance))),
+            c38AccountabilitySHA256: XCTUnwrap(snapshot.accountability).snapshotSHA256,
+            c40AuthorityCriterionSHA256: XCTUnwrap(snapshot.authorityCriterion).snapshotSHA256,
+            c41FunctionalRelationshipsSHA256: XCTUnwrap(snapshot.functionalRelationships).snapshotSHA256)
+        return try CompletedInspectionReviewHistorySnapshotV1(workspaceID: key.workspaceID,
+            sourceSnapshotSHA256: exactBinding.completedSnapshotSHA256, binding: exactBinding,
+            reviewHistory: transitions, reviewDispositions: [disposition], changeHistory: [], actionHistory: [])
+    }
+
+    // Test-owned explicit wire schemas. These never parse product output or
+    // copy product-computed hashes; expected basis identity is computed below
+    // from original typed source values with the independently named fields.
+    private struct PublicationExpectedBasis: Encodable {
+        let reportBasisSchemaVersion = 1
+        let workspaceID: String
+        let audience: String
+        let projectionVersion: String
+        let snapshot: ReportSnapshotV1
+    }
+
+    private struct PublicationExpectedOuter: Encodable {
+        let reportPublicationSchemaVersion = 1
+        let basis: PublicationExpectedBasis
+        let basisSHA256: String
+        let assurance: ReportEvidenceAssuranceProjectionV1?
+    }
+
+    private struct PublicationExpectedReportSubject: Encodable {
+        let workspaceID: String
+        let reportID: String
+        let fixedCorrectionChainRevision: UInt64
+    }
+
+    private struct PublicationExpectedReviewedSource: Encodable {
+        let reportReviewedSourceSchemaVersion = 1
+        let original: PublicationExpectedOuter
+        let reportSubject: PublicationExpectedReportSubject
+        let history: CompletedInspectionReviewHistorySnapshotV1
+    }
+
+    private struct PublicationExpectedReviewedOutput: Encodable {
+        let reportReviewPublicationSchemaVersion = 1
+        let source: PublicationExpectedReviewedSource
+    }
+
+    private func publicationExpectedBasis(_ basis: ReportPublicationBasisV1) -> PublicationExpectedBasis {
+        .init(workspaceID: basis.workspaceID.rawValue.uuidString.lowercased(),
+            audience: basis.audience.rawValue, projectionVersion: basis.projectionVersion,
+            snapshot: basis.snapshot)
+    }
+
+    private func publicationExpectedWire(_ value: ReportPublicationV1) throws -> PublicationExpectedOuter {
+        let basis = publicationExpectedBasis(value.basis)
+        return try .init(basis: basis,
+            basisSHA256: publicationDigest(publicationExpectedBytes(basis)), assurance: value.assurance)
+    }
+
+    private func publicationExpectedBytes<T: Encodable>(_ value: T) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        encoder.dateEncodingStrategy = .deferredToDate
+        return try encoder.encode(value)
+    }
+
+    private func publicationTypedObject<T: Encodable>(_ value: T) throws -> Any {
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        encoder.dateEncodingStrategy = .deferredToDate
+        return try JSONSerialization.jsonObject(with: encoder.encode(value))
+    }
+
+    private func publicationSnapshotObject(_ snapshot: ReportSnapshotV1) throws -> Any {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        encoder.dateEncodingStrategy = .deferredToDate
+        return try JSONSerialization.jsonObject(with: encoder.encode(snapshot))
+    }
+
+    private func publicationAssuranceObject(_ assurance: ReportEvidenceAssuranceProjectionV1) throws -> Any {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        encoder.dateEncodingStrategy = .deferredToDate
+        return try JSONSerialization.jsonObject(with: encoder.encode(assurance))
+    }
+
+    private func publicationSnapshot(anchorSlots: [Int],
+        workspace: WorkspaceID = C33TemporalEvidenceTestSupport.workspace()) throws -> ReportSnapshotV1 {
+        let fixture = try C33TemporalEvidenceTestSupport.clip(slot: 990,
+            workspaceID: workspace, reportProjection: .typedLinkOnly)
+        let anchors = try anchorSlots.map { try C33TemporalEvidenceTestSupport.anchor(clip: fixture.clip, slot: $0) }
+        return try C33TemporalEvidenceTestSupport.reportSnapshot(clip: fixture.clip, anchors: anchors,
+            reportID: C33TemporalEvidenceTestSupport.id(950), slot: 960, includesAssurance: false)
+    }
+
+    private func publicationAssurance(basis: ReportPublicationBasisV1, digest: String,
+        workspace: WorkspaceID? = nil, audience: EvidenceAudienceV1 = .customerReport,
+        projectionVersion: String? = nil, createdAt: Date? = nil) throws -> ReportEvidenceAssuranceProjectionV1 {
+        let workspace = workspace ?? basis.workspaceID
+        let visibility = try EvidenceVisibilityV1(visibilityID: C33TemporalEvidenceTestSupport.id(970),
+            workspaceID: workspace, sensitivity: .routine, allowedAudiences: [.customerReport, .internalReview],
+            effectiveAt: C33TemporalEvidenceTestSupport.fixedDate,
+            mutationID: C33TemporalEvidenceTestSupport.mutation(971))
+        let link = try ClaimEvidenceLinkV1(linkID: C33TemporalEvidenceTestSupport.id(972),
+            workspaceID: workspace, claimID: "temporal-observation", evidenceID: "temporal.content.990",
+            evidenceRevision: 1, evidenceSHA256: try XCTUnwrap(basis.snapshot.temporalEvidenceLinks?.first?.clipSHA256),
+            visibility: visibility, audience: audience, mutationID: C33TemporalEvidenceTestSupport.mutation(973))
+        let preview = try AssuranceProjectionPreviewV1(previewID: C33TemporalEvidenceTestSupport.id(974),
+            workspaceID: workspace, audience: audience, snapshotSHA256: digest,
+            projectionVersion: projectionVersion ?? basis.projectionVersion, links: [link],
+            createdAt: createdAt ?? C33TemporalEvidenceTestSupport.fixedDate.addingTimeInterval(50))
+        return try ReportEvidenceAssuranceProjectionV1(preview: preview, visibilities: [visibility])
+    }
+
+    private func publicationDigest(_ bytes: Data) -> String {
+        SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
     }
 }

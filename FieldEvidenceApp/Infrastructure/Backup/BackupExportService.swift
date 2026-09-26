@@ -3183,7 +3183,13 @@ private extension BackupExportService {
         let fieldReferences = mutationHistory == nil ? [] : try fieldReferenceRecords(rows)
         let accessibleDocumentAssessments = mutationHistory == nil ? [] : try accessibleDocumentAssessmentRecords(rows)
         let surveyDefinitions=try mutationHistory.map{try surveyDefinitionRecords(rows,history:$0)} ?? []
-        let guidedSurveys=try mutationHistory.map{_ in try guidedSurveyRecords(rows)} ?? []
+        let guidedSurveys: [V25BackupGuidedSurveyRecordV1] = try mutationHistory.map { history in
+            let values = try guidedSurveyRecords(rows)
+            _ = try SurveySessionBackupGraphClosureV1.projection(records: values,
+                surveyDefinitions: surveyDefinitions, packageEvolution: packageEvolution,
+                history: history, expectedWorkspaceID: sourceIdentity.workspaceID)
+            return values
+        } ?? []
         let assetLocators = mutationHistory == nil ? [] : try assetLocatorRecords(rows)
         let schedules = mutationHistory == nil ? [] : try scheduleRecords(rows)
         let plans = mutationHistory == nil ? [] : try planRecords(rows)

@@ -8029,14 +8029,26 @@ final class MutationJournalStoreV1 {
             let rows = try modelContext.fetch(FetchDescriptor<SurveySessionRow>(predicate: #Predicate { $0.sessionID == id }))
             guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
             return try SurveyTemporalPostImageBasis.session(row.value()).postImage(identity: identity, revision: revision)
-        case .factCapture:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<FactCaptureRow>(predicate:#Predicate{$0.captureID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};let predecessor=v.predecessors.first?.captureID;return .factCapture(id:id,concurrencyIdentity:try authorityConcurrency(identity,predecessor),revision:revision,semanticSHA256:v.captureSHA256)
+        case .factCapture:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<FactCaptureRow>(predicate: #Predicate { $0.captureID == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            return try SurveyTemporalPostImageBasis.capture(row.value()).postImage(identity: identity, revision: revision)
         case .provisionalSubject:
             let id = identity.id
             let rows = try modelContext.fetch(FetchDescriptor<ProvisionalSubjectRow>(predicate: #Predicate { $0.provisionalSubjectID == id }))
             guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
             return try SurveyTemporalPostImageBasis.subject(row.value()).postImage(identity: identity, revision: revision)
-        case .subjectPromotionReceipt:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<SubjectPromotionReceiptRow>(predicate:#Predicate{$0.receiptID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .subjectPromotionReceipt(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.predecessorReceiptID),revision:revision,semanticSHA256:v.receiptSHA256)
-        case .surveyPublicationSnapshot:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<SurveyPublicationSnapshotRow>(predicate:#Predicate{$0.snapshotID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .surveyPublicationSnapshot(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesSnapshotID),revision:revision,semanticSHA256:v.snapshotSHA256)
+        case .subjectPromotionReceipt:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<SubjectPromotionReceiptRow>(predicate: #Predicate { $0.receiptID == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            return try SurveyTemporalPostImageBasis.promotion(row.value()).postImage(identity: identity, revision: revision)
+        case .surveyPublicationSnapshot:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<SurveyPublicationSnapshotRow>(predicate: #Predicate { $0.snapshotID == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            return try SurveyTemporalPostImageBasis.publication(row.value()).postImage(identity: identity, revision: revision)
         case .assetLocator:let id=identity.id,r=try modelContext.fetch(FetchDescriptor<AssetLocatorRow>(predicate:#Predicate{$0.locatorID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .assetLocator(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.locatorSHA256)
         case .locatorBindingReceipt:let id=identity.id,r=try modelContext.fetch(FetchDescriptor<LocatorBindingReceiptRow>(predicate:#Predicate{$0.receiptID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .locatorBindingReceipt(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.predecessorReceiptID),revision:revision,semanticSHA256:v.receiptSHA256)
         case .evidenceContext:
@@ -8725,6 +8737,9 @@ final class MutationJournalStoreV1 {
         case definitionRelease(SurveyDefinitionReleaseV1)
         case subject(ProvisionalSubjectV1)
         case session(SurveySessionV1)
+        case capture(FactCaptureV1)
+        case promotion(SubjectPromotionReceiptV1)
+        case publication(SurveyPublicationSnapshotV1)
         case clip(TemporalEvidenceClipV1)
 
         func postImage(identity: WorkspaceEntityIdentityV1, revision: UInt64,
@@ -8759,6 +8774,24 @@ final class MutationJournalStoreV1 {
                 image = .surveySession(id: value.sessionID,
                     concurrencyIdentity: try concurrency(.surveySession, value.sessionID),
                     revision: value.revision, semanticSHA256: value.sessionSHA256)
+            case .capture(let value):
+                try value.validateIntrinsic()
+                valueWorkspace = value.workspaceID
+                image = .factCapture(id: value.captureID,
+                    concurrencyIdentity: try concurrency(.factCapture, value.predecessors.first?.captureID ?? value.captureID),
+                    revision: value.revision, semanticSHA256: value.captureSHA256)
+            case .promotion(let value):
+                try value.validateIntrinsic()
+                valueWorkspace = value.workspaceID
+                image = .subjectPromotionReceipt(id: value.receiptID,
+                    concurrencyIdentity: try concurrency(.subjectPromotionReceipt, value.predecessorReceiptID ?? value.receiptID),
+                    revision: value.revision, semanticSHA256: value.receiptSHA256)
+            case .publication(let value):
+                try value.validateIntrinsic()
+                valueWorkspace = value.workspaceID
+                image = .surveyPublicationSnapshot(id: value.snapshotID,
+                    concurrencyIdentity: try concurrency(.surveyPublicationSnapshot, value.supersedesSnapshotID ?? value.snapshotID),
+                    revision: value.revision, semanticSHA256: value.snapshotSHA256)
             case .clip(let value):
                 try value.validateIntrinsic()
                 valueWorkspace = value.workspaceID
@@ -9000,6 +9033,32 @@ final class MutationJournalStoreV1 {
             } else {
                 basis = .session(try SurveySessionCanonicalCodecV1.decode(
                     SurveySessionV1.self, from: row.canonicalData))
+            }
+            return try basis.postImage(identity: identity, revision: revision, workspaceID: workspaceID)
+        case .factCapture, .subjectPromotionReceipt, .surveyPublicationSnapshot:
+            let kind: V25BackupGuidedSurveyRecordV1.Kind
+            switch identity.kind {
+            case .factCapture: kind = .factCapture
+            case .subjectPromotionReceipt: kind = .subjectPromotionReceipt
+            case .surveyPublicationSnapshot: kind = .publicationSnapshot
+            default: throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            // C26 retains these immutable facts across ordinary transitions,
+            // including retraction/reversal/delete. Missing transport is not
+            // permission to substitute a tombstone for an original fact.
+            guard let row = try one(records.guidedSurveys.filter({ $0.kind == kind && $0.id == id })),
+                  row.workspaceID == workspaceID.rawValue, row.revision == revision else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let basis: SurveyTemporalPostImageBasis
+            switch kind {
+            case .factCapture:
+                basis = .capture(try SurveySessionCanonicalCodecV1.decode(FactCaptureV1.self, from: row.canonicalData))
+            case .subjectPromotionReceipt:
+                basis = .promotion(try SurveySessionCanonicalCodecV1.decode(SubjectPromotionReceiptV1.self, from: row.canonicalData))
+            case .publicationSnapshot:
+                basis = .publication(try SurveySessionCanonicalCodecV1.decode(SurveyPublicationSnapshotV1.self, from: row.canonicalData))
+            default: throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
             return try basis.postImage(identity: identity, revision: revision, workspaceID: workspaceID)
         case .temporalEvidenceClip:

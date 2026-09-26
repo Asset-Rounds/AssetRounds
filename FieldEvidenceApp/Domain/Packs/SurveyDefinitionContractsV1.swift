@@ -369,7 +369,37 @@ struct SurveyTemplateArchiveManifestV1: Codable, Equatable, Sendable {
 enum SurveyTemplateQuarantineDispositionV1:String,Codable,Hashable,Sendable{case draftCandidate="DRAFT_CANDIDATE",rejected="REJECTED"}
 struct SurveyTemplateQuarantineAssessmentV1:Codable,Equatable,Sendable{let quarantineID:UUID;let archiveSHA256:String;let manifestSHA256,candidateReleaseSHA256:String?;let disposition:SurveyTemplateQuarantineDispositionV1;let findings:[String];let assessedAt:Date;let assessmentSHA256:String;init(quarantineID:UUID,archiveSHA256:String,manifestSHA256:String?,candidateReleaseSHA256:String?,disposition:SurveyTemplateQuarantineDispositionV1,findings:[String],assessedAt:Date)throws{self.quarantineID=quarantineID;self.archiveSHA256=archiveSHA256;self.manifestSHA256=manifestSHA256;self.candidateReleaseSHA256=candidateReleaseSHA256;self.disposition=disposition;self.findings=findings.sorted();self.assessedAt=assessedAt;assessmentSHA256=try WorkspaceMutationCanonicalV1.sha256(Basis(quarantineID:quarantineID,archiveSHA256:archiveSHA256,manifestSHA256:manifestSHA256,candidateReleaseSHA256:candidateReleaseSHA256,disposition:disposition,findings:self.findings,assessedAt:assessedAt));try validate()};init(quarantineID:UUID,archiveSHA256:String,manifestSHA256:String?,candidateReleaseSHA256:String?,disposition:SurveyTemplateQuarantineDispositionV1,findings:[String],assessedAt:Date,assessmentSHA256:String){self.quarantineID=quarantineID;self.archiveSHA256=archiveSHA256;self.manifestSHA256=manifestSHA256;self.candidateReleaseSHA256=candidateReleaseSHA256;self.disposition=disposition;self.findings=findings;self.assessedAt=assessedAt;self.assessmentSHA256=assessmentSHA256};func validate()throws{guard quarantineID != SurveyDefinitionLimitsV1.zero,SurveyDefinitionLimitsV1.digest(archiveSHA256),manifestSHA256.map(SurveyDefinitionLimitsV1.digest) ?? true,candidateReleaseSHA256.map(SurveyDefinitionLimitsV1.digest) ?? true,findings==findings.sorted(),Set(findings).count==findings.count,findings.allSatisfy({ SurveyDefinitionLimitsV1.token($0) }),assessedAt.timeIntervalSinceReferenceDate.isFinite,SurveyDefinitionLimitsV1.digest(assessmentSHA256),(disposition == .draftCandidate)==(manifestSHA256 != nil&&candidateReleaseSHA256 != nil&&findings.isEmpty),assessmentSHA256==(try WorkspaceMutationCanonicalV1.sha256(basis))else{throw SurveyDefinitionFailureV1.hostileArchive}};private var basis:Basis{.init(quarantineID:quarantineID,archiveSHA256:archiveSHA256,manifestSHA256:manifestSHA256,candidateReleaseSHA256:candidateReleaseSHA256,disposition:disposition,findings:findings,assessedAt:assessedAt)};private struct Basis:Codable{let quarantineID:UUID;let archiveSHA256:String;let manifestSHA256,candidateReleaseSHA256:String?;let disposition:SurveyTemplateQuarantineDispositionV1;let findings:[String];let assessedAt:Date}}
 
-enum SurveyDefinitionCanonicalCodecV1{static func encode<T:Encodable>(_ value:T)throws->Data{let e=JSONEncoder();e.outputFormatting=[.sortedKeys,.withoutEscapingSlashes];e.dateEncodingStrategy = .millisecondsSince1970;let d=try e.encode(value);guard !d.isEmpty,d.count<=SurveyDefinitionLimitsV1.maximumCanonicalBytes else{throw SurveyDefinitionFailureV1.limitExceeded};return d};static func decode<T:Codable>(_ type:T.Type,from data:Data)throws->T{guard !data.isEmpty,data.count<=SurveyDefinitionLimitsV1.maximumCanonicalBytes else{throw SurveyDefinitionFailureV1.limitExceeded};let d=JSONDecoder();d.dateDecodingStrategy = .millisecondsSince1970;let v=try d.decode(type,from:data);guard try encode(v)==data else{throw SurveyDefinitionFailureV1.invalidDigest};return v}}
+enum SurveyDefinitionCanonicalCodecV1 {
+    static func encode<T: Encodable>(_ value: T) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        encoder.dateEncodingStrategy = .millisecondsSince1970
+        let data = try encoder.encode(value)
+        guard !data.isEmpty, data.count <= SurveyDefinitionLimitsV1.maximumCanonicalBytes else {
+            throw SurveyDefinitionFailureV1.limitExceeded
+        }
+        return data
+    }
+
+    static func decode<T: Codable>(_ type: T.Type, from data: Data) throws -> T {
+        guard !data.isEmpty, data.count <= SurveyDefinitionLimitsV1.maximumCanonicalBytes else {
+            throw SurveyDefinitionFailureV1.limitExceeded
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        let value = try decoder.decode(type, from: data)
+        guard try encode(value) == data else { throw SurveyDefinitionFailureV1.invalidDigest }
+        // The two persisted facts require intrinsic validity even through generic forwarding.
+        // Other Codable values retain byte-only decoding; contextual admission, including
+        // identity/release/event and receipt joins, remains the caller's responsibility.
+        if let identity = value as? SurveyDefinitionIdentityV1 {
+            try identity.validateIntrinsic()
+        } else if let release = value as? SurveyDefinitionReleaseV1 {
+            try release.validate()
+        }
+        return value
+    }
+}
 enum SurveyDefinitionLifecycleV1{static let persistentFamilies=["SurveyDefinitionIdentityV1","SurveyDefinitionReleaseV1"];static let lifecycleEventPersistence="CANONICAL_MUTATION_JOURNAL_ENVELOPE";static let semanticDiffPersistence="NONPERSISTENT";static let adoptionPreviewPersistence="NONPERSISTENT";static let quarantinePersistence="DERIVED_ONLY";static let writer="SOLE_CANONICAL_WORKSPACE_WRITER";static let importDisposition="QUARANTINE_THEN_NEW_DRAFT_IDENTITY"}
 
 struct SurveyDefinitionDeviceLocalOverlayV1: Codable, Equatable, Hashable, Sendable {

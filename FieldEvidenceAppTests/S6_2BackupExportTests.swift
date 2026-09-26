@@ -7096,3 +7096,641 @@ extension S6_2BackupExportTests {
         XCTAssertEqual(try c25Values(fixture.harness.context).1, values.1)
     }
 }
+
+@MainActor
+private extension S6_2BackupExportTests {
+    struct C26ArchiveFixture {
+        let harness: Harness
+        let definition: SurveyDefinitionReleaseV1
+        let package: InspectionPackageReleaseV1
+        let originals: [SurveySessionMutationV1]
+        let history: MutationHistorySnapshotV1
+        let records: V4BackupRecordsV1
+    }
+
+    func c26Transition(_ old: SurveySessionV1, state: SurveySessionStateV1,
+        transition: SurveySessionTransitionV1, mutationID: MutationIDV1? = nil,
+        latest: SurveyPublicationReferenceV1? = nil) throws -> SurveySessionV1 {
+        try .init(sessionID: old.sessionID, workspaceID: old.workspaceID, authority: old.authority,
+            subject: old.subject, state: state, transition: transition,
+            latestPublication: latest ?? old.latestPublication, startedBy: old.startedBy,
+            lastTransitionBy: old.lastTransitionBy, startedAt: old.startedAt,
+            transitionedAt: old.transitionedAt.addingTimeInterval(1), predecessorSessionSHA256: old.sessionSHA256,
+            revision: old.revision + 1, mutationID: mutationID ?? MutationIDV1(rawValue: UUID()))
+    }
+
+    func makeC26ArchiveFixture(_ label: String, completeHistory: Bool) async throws -> C26ArchiveFixture {
+        let harness = try makeConfigurationCloneTarget("c26-\(label)")
+        let owner = try StoreSessionCoordinator(validatingSession: harness.session)
+        defer { XCTAssertNoThrow(try owner.invalidateAndReleaseWriter()) }
+        let writer = owner.workspaceWriter
+        let journal = try MutationJournalStoreV1(modelContext: harness.context,
+            identity: harness.session.workspaceIdentity, generationID: harness.session.generationID,
+            allowStateBootstrap: false)
+        let workspace = harness.session.workspaceID
+        let definition = try C26SurveySessionTestSupport.release(releaseSlot: 26_010, workspaceID: workspace,
+            facts: [C26SurveySessionTestSupport.fact(), C26SurveySessionTestSupport.fact("fact-b", required: false)])
+        let package = try C26SurveySessionTestSupport.packageRelease()
+        var subject = try C26SurveySessionTestSupport.provisional(workspaceID: workspace)
+        var session = try C26SurveySessionTestSupport.session(
+            authority: C26SurveySessionTestSupport.authority(for: definition, package: package),
+            workspaceID: workspace, subject: .provisional(subject.reference),
+            state: .draft, transition: .create, revision: 1, actorSlot: 601)
+        try await CanonicalWriterSeedingV1.seedSurveySession(definition: definition, package: package,
+            provisional: subject, session: session,
+            promotionActor: C26SurveySessionTestSupport.actor(workspaceID: workspace, slot: 26_020),
+            writer: writer, journal: journal, context: harness.context,
+            promotedAt: C26SurveySessionTestSupport.fixedDate)
+        let adapter = SurveySessionLifecycleAdapterV1(writer: writer, journalStore: journal)
+        @MainActor func commit(_ payload: SurveySessionMutationPayloadV1, id: MutationIDV1) throws {
+            let mutation = try SurveySessionMutationV1(workspaceID: workspace, mutationID: id, payload: payload)
+            let accepted = try adapter.applySurveySession(mutation)
+            XCTAssertEqual(accepted.mutationReceipt.mutationID, id)
+        }
+        if completeHistory {
+            session = try c26Transition(session, state: .paused, transition: .pause)
+            try commit(.applySession(session, definition: definition, publication: nil), id: session.mutationID)
+            session = try c26Transition(session, state: .draft, transition: .resume)
+            try commit(.applySession(session, definition: definition, publication: nil), id: session.mutationID)
+            @MainActor func capture(_ text: String, factID: String = "fact-a", parents: [FactCaptureV1], action: FactCaptureActionV1) throws -> FactCaptureV1 {
+                let value = try FactCaptureV1(captureID: UUID(), workspaceID: workspace, sessionID: session.sessionID,
+                    definitionRelease: session.authority.definitionRelease, factID: factID, action: action,
+                    value: .text(text), predecessors: parents.map { try $0.reference },
+                    capturedBy: session.lastTransitionBy, capturedAt: session.transitionedAt,
+                    revision: (parents.map(\.revision).max() ?? 0) + 1, mutationID: MutationIDV1(rawValue: UUID()))
+                try commit(.captureFact(value, session: session, definition: definition, predecessors: parents), id: value.mutationID)
+                return value
+            }
+            let left = try capture("left observation", parents: [], action: .record)
+            let right = try capture("right observation", parents: [], action: .record)
+            let resolved = try capture("explicit resolution", parents: [left, right], action: .resolveConflict)
+            let optional = try capture("optional observation", factID: "fact-b", parents: [], action: .record)
+            @MainActor func promote(_ action: SubjectPromotionActionV1, predecessor: SubjectPromotionReceiptV1?) throws -> SubjectPromotionReceiptV1 {
+                let preview = try C26SurveySessionTestSupport.preview(provisional: subject,
+                    sessionID: session.sessionID, action: action, safeToReverse: true)
+                let receipt = try SubjectPromotionReceiptV1(receiptID: UUID(), preview: preview,
+                    predecessor: predecessor, actor: session.lastTransitionBy, recordedAt: session.transitionedAt,
+                    revision: (predecessor?.revision ?? 0) + 1, mutationID: MutationIDV1(rawValue: UUID()))
+                subject = try ProvisionalSubjectV1(provisionalSubjectID: subject.provisionalSubjectID,
+                    workspaceID: workspace, siteID: subject.siteID, localLabel: subject.localLabel,
+                    proposedSubjectKind: subject.proposedSubjectKind,
+                    state: action == .reverse ? .promotionReversed : .promoted,
+                    createdBy: subject.createdBy, createdAt: subject.createdAt,
+                    supersedesSubjectSHA256: subject.subjectSHA256, revision: subject.revision + 1,
+                    mutationID: receipt.mutationID)
+                try commit(.promoteSubject(subject, receipt: receipt, preview: preview, predecessor: predecessor), id: receipt.mutationID)
+                return receipt
+            }
+            let promotion = try promote(.promoteToAsset, predecessor: nil)
+            @MainActor func publish(_ capture: FactCaptureV1, promotion: SubjectPromotionReceiptV1,
+                         prior: SurveyPublicationSnapshotV1?) throws -> SurveyPublicationSnapshotV1 {
+                session = try c26Transition(session, state: .reviewRequired, transition: .submitForReview)
+                try commit(.applySession(session, definition: definition, publication: nil), id: session.mutationID)
+                let mutationID = try MutationIDV1(rawValue: UUID())
+                let candidate = try c26Transition(session, state: .completed, transition: .complete, mutationID: mutationID)
+                let publication = try SurveyPublicationSnapshotV1(snapshotID: UUID(), session: candidate,
+                    definition: definition, currentCaptures: [capture, optional], promotionReceipts: [promotion],
+                    publishedBy: session.lastTransitionBy, publishedAt: candidate.transitionedAt,
+                    supersedesSnapshotID: prior?.snapshotID, revision: (prior?.revision ?? 0) + 1, mutationID: mutationID)
+                session = try c26Transition(session, state: .completed, transition: .complete,
+                    mutationID: mutationID, latest: publication.reference)
+                try commit(.publish(session, snapshot: publication, definition: definition, captures: [capture, optional]), id: mutationID)
+                return publication
+            }
+            let first = try publish(resolved, promotion: promotion, prior: nil)
+            session = try c26Transition(session, state: .amended, transition: .reopenAmendment)
+            try commit(.applySession(session, definition: definition, publication: nil), id: session.mutationID)
+            let corrected = try capture("later correction", parents: [resolved], action: .correct)
+            let reversal = try promote(.reverse, predecessor: promotion)
+            let second = try publish(corrected, promotion: reversal, prior: first)
+            session = try c26Transition(session, state: .amended, transition: .reopenAmendment)
+            try commit(.applySession(session, definition: definition, publication: nil), id: session.mutationID)
+            _ = try capture("unpublished amendment", parents: [corrected], action: .correct)
+            XCTAssertEqual(first.facts.first?.value, .text("explicit resolution"))
+            XCTAssertEqual(second.facts.first?.value, .text("later correction"))
+            XCTAssertEqual(first.promotionReceiptsAtPublication, [promotion])
+            XCTAssertEqual(second.promotionReceiptsAtPublication, [reversal])
+        }
+        let history = try writer.sourceMutationHistorySnapshot()
+        let envelopes = try history.receipts.map { try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData) }
+            .sorted { $0.expectedRevision.workspaceRevision < $1.expectedRevision.workspaceRevision }
+        let originals = envelopes.compactMap { envelope -> SurveySessionMutationV1? in
+            if case let .applySurveySession(value) = envelope.command { return value }; return nil
+        }
+        XCTAssertEqual(originals.count, completeHistory ? 18 : 2)
+        let records = try BackupCanonicalDecoderV1().decodeRecords(canonicalBasis(harness).recordsData)
+        let archiveHistory = try BackupCanonicalEncoderV1.archiveOrderedMutationHistory(history)
+        XCTAssertEqual(try XCTUnwrap(records.mutationHistory), archiveHistory)
+        XCTAssertEqual(Set(records.guidedSurveys.map(\.kind)), completeHistory
+            ? Set(V25BackupGuidedSurveyRecordV1.Kind.allCases) : Set([.session, .provisionalSubject]))
+        return .init(harness: harness, definition: definition, package: package,
+            originals: originals, history: archiveHistory, records: records)
+    }
+
+    // Independent ordered fixture oracle: original accepted commands are already
+    // in their authentic writer sequence. This never calls the production graph.
+    func c26Expected(_ originals: [SurveySessionMutationV1], workspace: WorkspaceID,
+        package: InspectionPackageReleaseV1) throws -> [V25BackupGuidedSurveyRecordV1] {
+        var sessions: [String: SurveySessionV1] = [:], subjects: [String: ProvisionalSubjectV1] = [:]
+        var captures: [UUID: FactCaptureV1] = [:], promotions: [UUID: SubjectPromotionReceiptV1] = [:]
+        var publications: [UUID: SurveyPublicationSnapshotV1] = [:]
+        func key(_ id: UUID, _ revision: UInt64) -> String { "\(id)|\(revision)" }
+        func projectSubject(_ source: SurveySessionSubjectV1) throws -> SurveySessionSubjectV1 {
+            switch source { case .canonical: return source
+            case .provisional(let reference):
+                return .provisional(try XCTUnwrap(subjects[key(reference.provisionalSubjectID, reference.revision)]).reference)
+            }
+        }
+        @MainActor func projectSession(_ source: SurveySessionV1, definition: SurveyDefinitionReleaseV1,
+                            latest: SurveyPublicationReferenceV1?) throws -> SurveySessionV1 {
+            try source.rebound(to: workspace, definition: definition, packageRelease: package,
+                subject: projectSubject(source.subject), startedBy: c30Actor(source.startedBy, workspace: workspace),
+                lastTransitionBy: c30Actor(source.lastTransitionBy, workspace: workspace),
+                predecessorSessionSHA256: sessions[key(source.sessionID, source.revision - 1)]?.sessionSHA256,
+                latestPublication: latest)
+        }
+        for mutation in originals {
+            switch mutation.payload {
+            case let .applyProvisionalSubject(value):
+                subjects[key(value.provisionalSubjectID, value.revision)] = try value.rebound(to: workspace,
+                    siteID: value.siteID, createdBy: c30Actor(value.createdBy, workspace: workspace),
+                    supersedesSubjectSHA256: subjects[key(value.provisionalSubjectID, value.revision - 1)]?.subjectSHA256)
+            case let .promoteSubject(value, receipt, _, old):
+                let prior = try XCTUnwrap(subjects[key(receipt.provisionalSubject.provisionalSubjectID, receipt.provisionalSubject.revision)])
+                promotions[receipt.receiptID] = try receipt.rebound(to: workspace, provisionalSubject: prior.reference,
+                    canonicalSubject: receipt.canonicalSubject, affectedSessionIDs: receipt.affectedSessionIDs,
+                    actor: c30Actor(receipt.actor, workspace: workspace), predecessor: old.flatMap { promotions[$0.receiptID] })
+                subjects[key(value.provisionalSubjectID, value.revision)] = try value.rebound(to: workspace,
+                    siteID: value.siteID, createdBy: c30Actor(value.createdBy, workspace: workspace), supersedesSubjectSHA256: prior.subjectSHA256)
+            case let .applySession(value, release, _):
+                let definition = try release.rebound(to: workspace, actor: c30Actor(release.authoredBy, workspace: workspace))
+                sessions[key(value.sessionID, value.revision)] = try projectSession(value, definition: definition,
+                    latest: value.latestPublication.flatMap { publications[$0.snapshotID]?.reference })
+            case let .captureFact(value, _, release, predecessors):
+                let definition = try release.rebound(to: workspace, actor: c30Actor(release.authoredBy, workspace: workspace))
+                XCTAssertTrue(value.evidence.isEmpty, "bounded fixture contains typed values without media")
+                captures[value.captureID] = try value.rebound(to: workspace, definitionRelease: .init(definition), evidence: [],
+                    predecessors: predecessors.map { try XCTUnwrap(captures[$0.captureID]).reference },
+                    capturedBy: c30Actor(value.capturedBy, workspace: workspace))
+            case let .publish(value, publication, release, inputs):
+                let definition = try release.rebound(to: workspace, actor: c30Actor(release.authoredBy, workspace: workspace))
+                let basis = try projectSession(value, definition: definition, latest: nil)
+                let projected = try publication.rebound(to: workspace, session: basis, definition: definition,
+                    captures: inputs.map { try XCTUnwrap(captures[$0.captureID]) },
+                    promotionReceipts: publication.promotionReceiptsAtPublication.map { try XCTUnwrap(promotions[$0.receiptID]) },
+                    publishedBy: c30Actor(publication.publishedBy, workspace: workspace))
+                publications[projected.snapshotID] = projected
+                sessions[key(value.sessionID, value.revision)] = try projectSession(value, definition: definition, latest: projected.reference)
+            }
+        }
+        var result: [V25BackupGuidedSurveyRecordV1] = []
+        for values in Dictionary(grouping: sessions.values, by: \.sessionID).values {
+            let value = try XCTUnwrap(values.max { $0.revision < $1.revision })
+            result.append(.init(kind: .session, id: value.sessionID, workspaceID: workspace.rawValue,
+                revision: value.revision, canonicalData: try SurveySessionCanonicalCodecV1.encode(value)))
+        }
+        for values in Dictionary(grouping: subjects.values, by: \.provisionalSubjectID).values {
+            let value = try XCTUnwrap(values.max { $0.revision < $1.revision })
+            result.append(.init(kind: .provisionalSubject, id: value.provisionalSubjectID, workspaceID: workspace.rawValue,
+                revision: value.revision, canonicalData: try SurveySessionCanonicalCodecV1.encode(value)))
+        }
+        for value in captures.values { result.append(.init(kind: .factCapture, id: value.captureID, workspaceID: workspace.rawValue,
+            revision: value.revision, canonicalData: try SurveySessionCanonicalCodecV1.encode(value))) }
+        for value in promotions.values { result.append(.init(kind: .subjectPromotionReceipt, id: value.receiptID, workspaceID: workspace.rawValue,
+            revision: value.revision, canonicalData: try SurveySessionCanonicalCodecV1.encode(value))) }
+        for value in publications.values { result.append(.init(kind: .publicationSnapshot, id: value.snapshotID, workspaceID: workspace.rawValue,
+            revision: value.revision, canonicalData: try SurveySessionCanonicalCodecV1.encode(value))) }
+        return result.sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" }
+    }
+
+    func c26Originals(_ history: MutationHistorySnapshotV1) throws -> [MutationHistoryReceiptRecordV1] {
+        try history.receipts.filter {
+            if case .applySurveySession = try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData).command { return true }; return false
+        }
+    }
+
+    func assertC26TerminalProjectionPlanning(_ fixture: C26ArchiveFixture) async throws {
+        let archive = try await exportLivePackage(fixture.harness, directoryName: "c26-terminal-planning")
+        let importer = try BackupImportService(generationRootURL: fixture.harness.session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }), scopedAccess: .alreadyAuthorized)
+        let package = try importer.stageAndValidate(selectedPackageURL: archive)
+        defer { try? importer.discard(package) }
+        let source = fixture.harness.session.workspaceID
+        let kinds: Set<WorkspaceEntityKindV1> = [.surveySession, .provisionalSubject,
+            .factCapture, .subjectPromotionReceipt, .surveyPublicationSnapshot]
+        let original = try XCTUnwrap(package.records.mutationHistory)
+        let sourcePlan = try MutationJournalStoreV1.planningCoreRestoreHistory(in: package.records, workspaceID: source)
+        let sourceRows = original.entityRevisions.filter { kinds.contains($0.identity.kind) }
+        XCTAssertEqual(sourcePlan.entityRevisions.filter { kinds.contains($0.identity.kind) }, sourceRows)
+        XCTAssertEqual(Set(sourceRows.map { $0.identity.kind }), kinds)
+        XCTAssertTrue(sourceRows.allSatisfy { $0.externalProjectionSHA256 == nil })
+        let digest = String(repeating: "a", count: 64)
+        let decision = try RestoreIdentityDecisionV1.decide(.init(mode: .clone,
+            source: .init(workspaceID: source.rawValue, replicaID: package.manifest.source.replicaID),
+            oldPointer: .init(generationID: UUID(), generationManifestSHA256: digest,
+                workspaceID: source.rawValue, replicaID: UUID()),
+            targetGenerationID: UUID(), targetGenerationManifestSHA256: digest,
+            allocatedWorkspaceID: UUID(), allocatedReplicaID: UUID()))
+        let target = WorkspaceID(rawValue: decision.targetPointer.workspaceID)
+        let service = try BackupRestoreService(applicationSupportURL: fixture.harness.applicationSupportURL)
+        let normalized: V4BackupRecordsV1
+#if DEBUG
+        normalized = try service.c55RecordsForMaterializationForTesting(package.records,
+            members: package.members, identityDecision: decision, legacyWorkspaceID: target.rawValue,
+            partsStockOperationID: UUID())
+#else
+        // Only the independent planning oracle needs this development seam.
+        // The separate real clone/native publication/fork test stays unconditional.
+        throw CloneProjectionOracleError.normalizedSourceDTOSeamRequiresDebugBuild
+#endif
+        let planned = try XCTUnwrap(normalized.mutationHistory)
+        var expected: [WorkspaceEntityIdentityV1: MutationPostImageV1] = [:]
+        typealias Basis = MutationJournalStoreV1.SurveyTemporalPostImageBasis
+        for row in normalized.guidedSurveys {
+            let image: MutationPostImageV1
+            let basis: Basis
+            switch row.kind {
+            case .session:
+                let value = try SurveySessionCanonicalCodecV1.decode(SurveySessionV1.self, from: row.canonicalData)
+                image = .surveySession(id: value.sessionID, concurrencyIdentity: try .init(kind: .surveySession, id: value.sessionID),
+                    revision: value.revision, semanticSHA256: value.sessionSHA256)
+                basis = .session(try SurveySessionRow(value).value())
+            case .provisionalSubject:
+                let value = try SurveySessionCanonicalCodecV1.decode(ProvisionalSubjectV1.self, from: row.canonicalData)
+                image = .provisionalSubject(id: value.provisionalSubjectID,
+                    concurrencyIdentity: try .init(kind: .provisionalSubject, id: value.provisionalSubjectID),
+                    revision: value.revision, semanticSHA256: value.subjectSHA256)
+                basis = .subject(try ProvisionalSubjectRow(value).value())
+            case .factCapture:
+                let value = try SurveySessionCanonicalCodecV1.decode(FactCaptureV1.self, from: row.canonicalData)
+                image = .factCapture(id: value.captureID,
+                    concurrencyIdentity: try .init(kind: .factCapture, id: value.predecessors.first?.captureID ?? value.captureID),
+                    revision: value.revision, semanticSHA256: value.captureSHA256)
+                basis = .capture(try FactCaptureRow(value).value())
+            case .subjectPromotionReceipt:
+                let value = try SurveySessionCanonicalCodecV1.decode(SubjectPromotionReceiptV1.self, from: row.canonicalData)
+                image = .subjectPromotionReceipt(id: value.receiptID,
+                    concurrencyIdentity: try .init(kind: .subjectPromotionReceipt, id: value.predecessorReceiptID ?? value.receiptID),
+                    revision: value.revision, semanticSHA256: value.receiptSHA256)
+                basis = .promotion(try SubjectPromotionReceiptRow(value).value())
+            case .publicationSnapshot:
+                let value = try SurveySessionCanonicalCodecV1.decode(SurveyPublicationSnapshotV1.self, from: row.canonicalData)
+                image = .surveyPublicationSnapshot(id: value.snapshotID,
+                    concurrencyIdentity: try .init(kind: .surveyPublicationSnapshot, id: value.supersedesSnapshotID ?? value.snapshotID),
+                    revision: value.revision, semanticSHA256: value.snapshotSHA256)
+                basis = .publication(try SurveyPublicationSnapshotRow(value).value())
+            }
+            let identity = try image.identity
+            XCTAssertNil(expected.updateValue(image, forKey: identity))
+            XCTAssertEqual(try basis.postImage(identity: identity, revision: row.revision, workspaceID: target), image)
+            XCTAssertThrowsError(try basis.postImage(identity: identity, revision: row.revision + 1, workspaceID: target))
+            XCTAssertThrowsError(try basis.postImage(identity: .init(kind: identity.kind, id: UUID()),
+                revision: row.revision, workspaceID: target))
+            XCTAssertThrowsError(try basis.postImage(identity: identity, revision: row.revision, workspaceID: source))
+        }
+        XCTAssertEqual(Set(expected.keys.map(\.kind)), kinds)
+        let projectedRows = planned.entityRevisions.filter { kinds.contains($0.identity.kind) }
+        XCTAssertEqual(projectedRows.count, expected.count)
+        for row in projectedRows {
+            let image = try XCTUnwrap(expected[row.identity])
+            XCTAssertEqual(row.externalProjectionSHA256, image.semanticSHA256)
+            XCTAssertEqual(row.revision, image.revision)
+            XCTAssertEqual(row.revision, sourceRows.first { $0.identity == row.identity }?.revision)
+        }
+        XCTAssertEqual(planned.receipts, original.receipts)
+        XCTAssertEqual(planned.quarantines, original.quarantines)
+        XCTAssertEqual(planned.workspaceRevision, 0)
+        XCTAssertEqual(planned.lastLocalSequence, 0)
+        XCTAssertEqual(try MutationJournalStoreV1.planningCoreRestoreHistory(in: normalized, workspaceID: target), planned)
+
+        @MainActor func replacing(_ rows: [V25BackupGuidedSurveyRecordV1]) throws -> V4BackupRecordsV1 {
+            let encoder = JSONEncoder()
+            var object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoder.encode(normalized)) as? [String: Any])
+            object["guidedSurveys"] = try JSONSerialization.jsonObject(with: encoder.encode(rows))
+            return try JSONDecoder().decode(V4BackupRecordsV1.self, from: JSONSerialization.data(withJSONObject: object))
+        }
+        let unchanged = try replacing(normalized.guidedSurveys)
+        XCTAssertEqual(unchanged, normalized, "hostile reconstruction preserves the complete valid DTO")
+        XCTAssertEqual(try MutationJournalStoreV1.planningCoreRestoreHistory(in: unchanged, workspaceID: target), planned)
+        let beforeRows = try configurationCloneRawJournal(fixture.harness.context)
+        let beforeTree = try treeFacts(fixture.harness.session.generationRootURL)
+        for kind in [V25BackupGuidedSurveyRecordV1.Kind.factCapture, .subjectPromotionReceipt, .publicationSnapshot] {
+            let row = try XCTUnwrap(normalized.guidedSurveys.first { $0.kind == kind && $0.revision > 1 })
+            let retained = normalized.guidedSurveys.filter { $0 != row }
+            var corruptObject = try XCTUnwrap(JSONSerialization.jsonObject(with: row.canonicalData) as? [String: Any])
+            let key = kind == .factCapture ? "captureSHA256" : (kind == .subjectPromotionReceipt ? "receiptSHA256" : "snapshotSHA256")
+            corruptObject[key] = String(repeating: "f", count: 64)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .millisecondsSince1970
+            let rawCorrupt = try JSONSerialization.data(withJSONObject: corruptObject)
+            let corruptData: Data
+            switch kind {
+            case .factCapture:
+                corruptData = try SurveySessionCanonicalCodecV1.encode(decoder.decode(FactCaptureV1.self, from: rawCorrupt))
+            case .subjectPromotionReceipt:
+                corruptData = try SurveySessionCanonicalCodecV1.encode(decoder.decode(SubjectPromotionReceiptV1.self, from: rawCorrupt))
+            case .publicationSnapshot:
+                corruptData = try SurveySessionCanonicalCodecV1.encode(decoder.decode(SurveyPublicationSnapshotV1.self, from: rawCorrupt))
+            default: return XCTFail("unexpected retained C26 fixture kind")
+            }
+            let variants: [[V25BackupGuidedSurveyRecordV1]] = [retained,
+                normalized.guidedSurveys + [row],
+                retained + [.init(kind: kind, id: UUID(), workspaceID: row.workspaceID, revision: row.revision, canonicalData: row.canonicalData)],
+                retained + [.init(kind: kind, id: row.id, workspaceID: source.rawValue, revision: row.revision, canonicalData: row.canonicalData)],
+                retained + [.init(kind: kind, id: row.id, workspaceID: row.workspaceID, revision: row.revision + 1, canonicalData: row.canonicalData)],
+                retained + [.init(kind: kind, id: row.id, workspaceID: row.workspaceID, revision: row.revision, canonicalData: corruptData)]]
+            for variant in variants {
+                let changed = try replacing(variant)
+                XCTAssertThrowsError(try MutationJournalStoreV1.planningCoreRestoreHistory(in: changed, workspaceID: target))
+            }
+        }
+        XCTAssertEqual(try configurationCloneRawJournal(fixture.harness.context), beforeRows)
+        XCTAssertEqual(try treeFacts(fixture.harness.session.generationRootURL), beforeTree)
+        XCTAssertEqual(package.records.mutationHistory, original)
+    }
+
+    func c26ColdExport(_ harness: Harness, expected: [V25BackupGuidedSurveyRecordV1],
+        originals: [MutationHistoryReceiptRecordV1], label: String) async throws -> URL {
+        let session = try StoreGenerationFactory(applicationSupportURL: harness.applicationSupportURL).openOrBootstrapCurrent()
+        let cold = Harness(applicationSupportURL: harness.applicationSupportURL, session: session,
+            context: session.modelContext, countedRoots: [])
+        let records = try BackupCanonicalDecoderV1().decodeRecords(canonicalBasis(cold).recordsData)
+        XCTAssertEqual(records.guidedSurveys, expected)
+        for original in originals { XCTAssertTrue(try XCTUnwrap(records.mutationHistory).receipts.contains(original)) }
+        let archive = try await exportLivePackage(cold, directoryName: label)
+        let target = try makeConfigurationCloneTarget("c26-validation-\(label)")
+        let importer = try BackupImportService(generationRootURL: target.session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }), scopedAccess: .alreadyAuthorized)
+        let package = try importer.stageAndValidate(selectedPackageURL: archive)
+        defer { try? importer.discard(package) }
+        XCTAssertEqual(package.records.guidedSurveys, expected)
+        for original in originals { XCTAssertTrue(try XCTUnwrap(package.records.mutationHistory).receipts.contains(original)) }
+        return archive
+    }
+}
+
+extension S6_2BackupExportTests {
+    @MainActor
+    func testC26ArchiveGraphPreservesFiveFamiliesAndHistoricalPublicationInputs() async throws {
+        for complete in [false, true] {
+            let fixture = try await makeC26ArchiveFixture("graph-\(complete)", completeHistory: complete)
+            let target = WorkspaceID(rawValue: UUID())
+            let expected = try c26Expected(fixture.originals, workspace: target, package: fixture.package)
+            let projection = try SurveySessionBackupGraphClosureV1.projection(records: fixture.records.guidedSurveys,
+                surveyDefinitions: fixture.records.surveyDefinitions, packageEvolution: fixture.records.packageEvolution,
+                history: fixture.history, expectedWorkspaceID: fixture.harness.session.workspaceID, destinationWorkspaceID: target)
+            XCTAssertEqual(projection, expected)
+            XCTAssertNotEqual(projection, fixture.records.guidedSurveys)
+            XCTAssertEqual(try c26Expected(fixture.originals, workspace: fixture.harness.session.workspaceID,
+                package: fixture.package), fixture.records.guidedSurveys)
+            let shuffled = MutationHistorySnapshotV1(workspaceRevision: fixture.history.workspaceRevision,
+                lastLocalSequence: fixture.history.lastLocalSequence, receipts: Array(fixture.history.receipts.reversed()),
+                quarantines: fixture.history.quarantines, entityRevisions: fixture.history.entityRevisions)
+            XCTAssertEqual(try SurveySessionBackupGraphClosureV1.projection(records: fixture.records.guidedSurveys,
+                surveyDefinitions: fixture.records.surveyDefinitions, packageEvolution: fixture.records.packageEvolution,
+                history: shuffled, destinationWorkspaceID: target), expected)
+            // Input row order is not lineage authority.
+            XCTAssertEqual(try SurveySessionBackupGraphClosureV1.projection(records: Array(fixture.records.guidedSurveys.reversed()),
+                surveyDefinitions: fixture.records.surveyDefinitions, packageEvolution: fixture.records.packageEvolution,
+                history: fixture.history, destinationWorkspaceID: target), expected)
+            if complete {
+                let snapshots = try expected.filter { $0.kind == .publicationSnapshot }.map {
+                    try SurveySessionCanonicalCodecV1.decode(SurveyPublicationSnapshotV1.self, from: $0.canonicalData)
+                }.sorted { $0.revision < $1.revision }
+                XCTAssertEqual(snapshots.count, 2)
+                XCTAssertEqual(snapshots.map { $0.facts.first?.value }, [.text("explicit resolution"), .text("later correction")])
+                XCTAssertEqual(snapshots.map { $0.promotionReceiptsAtPublication.first?.action }, [.promoteToAsset, .reverse])
+                XCTAssertEqual(expected.filter { $0.kind == .factCapture }.count, 6)
+                XCTAssertEqual(expected.filter { $0.kind == .subjectPromotionReceipt }.count, 2)
+                try await assertC26TerminalProjectionPlanning(fixture)
+            }
+        }
+    }
+
+    @MainActor
+    func testC26ArchiveCloneNativeSuccessorForkAndColdExportPreserveOriginals() async throws {
+        let fixture = try await makeC26ArchiveFixture("physical", completeHistory: true)
+        let originals = try c26Originals(fixture.history)
+        let sourceArchive = try await exportLivePackage(fixture.harness, directoryName: "c26-source")
+        let cloned = try await c25Restore(sourceArchive, target: makeConfigurationCloneTarget("c26-clone"), mode: .clone)
+        let expected = try c26Expected(fixture.originals, workspace: cloned.session.workspaceID, package: fixture.package)
+        _ = try await c26ColdExport(cloned, expected: expected, originals: originals, label: "c26-clone-before-write")
+        let current = try XCTUnwrap(cloned.context.fetch(FetchDescriptor<SurveySessionRow>()).map { try $0.value() }.first)
+        let definition = try XCTUnwrap(cloned.context.fetch(FetchDescriptor<SurveyDefinitionReleaseRow>()).map { try $0.value() }.first)
+        let owner = try StoreSessionCoordinator(validatingSession: cloned.session)
+        let journal = try MutationJournalStoreV1(modelContext: cloned.context, identity: cloned.session.workspaceIdentity,
+            generationID: cloned.session.generationID, allowStateBootstrap: false)
+        let adapter = SurveySessionLifecycleAdapterV1(writer: owner.workspaceWriter, journalStore: journal)
+        let next = try c26Transition(current, state: .reviewRequired, transition: .submitForReview)
+        let mutation = try SurveySessionMutationV1(workspaceID: next.workspaceID, mutationID: next.mutationID,
+            payload: .applySession(next, definition: definition, publication: nil))
+        // This remains the normal live adapter/writer. An unmet inherited-reader
+        // prerequisite must fail here; archive projection is not a substitute.
+        let receipt: SurveySessionMutationReceiptV1
+        do { receipt = try adapter.applySurveySession(mutation) }
+        catch { try owner.invalidateAndReleaseWriter(); throw error }
+        XCTAssertEqual(receipt.mutationReceipt.mutationID, next.mutationID)
+        // Publish in the destination using inherited fact/promotion heads.
+        // Its locally stamped full census, not the source workspace clock,
+        // proves exactly which immutable inputs were visible at this publish.
+        let allCaptures = try cloned.context.fetch(FetchDescriptor<FactCaptureRow>()).map { try $0.value() }
+        let replaced = Set(allCaptures.flatMap { $0.predecessors.map(\.captureID) })
+        let heads = allCaptures.filter { !replaced.contains($0.captureID) }.sorted { $0.captureID.uuidString < $1.captureID.uuidString }
+        let allPromotions = try cloned.context.fetch(FetchDescriptor<SubjectPromotionReceiptRow>()).map { try $0.value() }
+        let superseded = Set(allPromotions.compactMap(\.predecessorReceiptID))
+        let promotions = allPromotions.filter { !superseded.contains($0.receiptID) && $0.affectedSessionIDs.contains(next.sessionID) }
+        let prior = try XCTUnwrap(cloned.context.fetch(FetchDescriptor<SurveyPublicationSnapshotRow>()).map { try $0.value() }
+            .max { $0.revision < $1.revision })
+        let publishID = try MutationIDV1(rawValue: UUID())
+        let completedBasis = try c26Transition(next, state: .completed, transition: .complete, mutationID: publishID)
+        let snapshot = try SurveyPublicationSnapshotV1(snapshotID: UUID(), session: completedBasis,
+            definition: definition, currentCaptures: heads, promotionReceipts: promotions,
+            publishedBy: next.lastTransitionBy, publishedAt: completedBasis.transitionedAt,
+            supersedesSnapshotID: prior.snapshotID, revision: prior.revision + 1, mutationID: publishID)
+        let completed = try c26Transition(next, state: .completed, transition: .complete,
+            mutationID: publishID, latest: snapshot.reference)
+        let publish = try SurveySessionMutationV1(workspaceID: next.workspaceID, mutationID: publishID,
+            payload: .publish(completed, snapshot: snapshot, definition: definition, captures: heads))
+        do { XCTAssertEqual(try adapter.applySurveySession(publish).mutationReceipt.mutationID, publishID) }
+        catch { try owner.invalidateAndReleaseWriter(); throw error }
+        let destinationHistory = try owner.workspaceWriter.sourceMutationHistorySnapshot()
+        for original in originals { XCTAssertTrue(destinationHistory.receipts.contains(original)) }
+        try owner.invalidateAndReleaseWriter()
+        let destinationExpected = try c26Expected(fixture.originals + [mutation, publish], workspace: cloned.session.workspaceID,
+            package: fixture.package)
+        let secondArchive = try await c26ColdExport(cloned, expected: destinationExpected,
+            originals: originals, label: "c26-clone-after-write")
+        let forked = try await c25Restore(secondArchive, target: makeConfigurationCloneTarget("c26-fork"), mode: .fork)
+        XCTAssertNotEqual(forked.session.workspaceID, cloned.session.workspaceID)
+        _ = try await c26ColdExport(forked,
+            expected: c26Expected(fixture.originals + [mutation, publish], workspace: forked.session.workspaceID, package: fixture.package),
+            originals: try c26Originals(destinationHistory), label: "c26-fork-cold")
+        XCTAssertEqual(try BackupCanonicalDecoderV1().decodeRecords(canonicalBasis(fixture.harness).recordsData), fixture.records)
+    }
+
+    @MainActor
+    func testC26ArchiveRejectsMissingForgedAndAmbiguousFactsWithoutEffects() async throws {
+        let fixture = try await makeC26ArchiveFixture("hostile", completeHistory: true)
+        let rows = fixture.records.guidedSurveys
+        let beforeRows = try configurationCloneRawJournal(fixture.harness.context)
+        let beforeTree = try treeFacts(fixture.harness.session.generationRootURL)
+        @MainActor func rejects(_ values: [V25BackupGuidedSurveyRecordV1], history: MutationHistorySnapshotV1? = nil,
+                     definitions: [V24BackupSurveyDefinitionRecordV1]? = nil,
+                     packages: [V17BackupPackageEvolutionRecordV1]? = nil) {
+            XCTAssertThrowsError(try SurveySessionBackupGraphClosureV1.projection(records: values,
+                surveyDefinitions: definitions ?? fixture.records.surveyDefinitions,
+                packageEvolution: packages ?? fixture.records.packageEvolution, history: history ?? fixture.history,
+                expectedWorkspaceID: fixture.harness.session.workspaceID))
+        }
+        for kind in V25BackupGuidedSurveyRecordV1.Kind.allCases { rejects(rows.filter { $0.kind != kind }) }
+        rejects([])
+        rejects(rows + [try XCTUnwrap(rows.first)])
+        rejects(rows, definitions: [])
+        rejects(rows, packages: [])
+        let original = try XCTUnwrap(c26Originals(fixture.history).first)
+        func alteredHistory(_ receipts: [MutationHistoryReceiptRecordV1]) -> MutationHistorySnapshotV1 {
+            .init(workspaceRevision: fixture.history.workspaceRevision, lastLocalSequence: fixture.history.lastLocalSequence,
+                receipts: receipts, quarantines: fixture.history.quarantines, entityRevisions: fixture.history.entityRevisions)
+        }
+        rejects(rows, history: alteredHistory(fixture.history.receipts.filter { $0 != original }))
+        rejects(rows, history: alteredHistory(fixture.history.receipts + [original]))
+        let forged = MutationHistoryReceiptRecordV1(envelopeData: original.envelopeData,
+            receiptData: try XCTUnwrap(fixture.history.receipts.first { $0 != original }).receiptData,
+            reversalBasisData: original.reversalBasisData, semanticReversalData: original.semanticReversalData)
+        rejects(rows, history: alteredHistory(fixture.history.receipts.map { $0 == original ? forged : $0 }))
+        // Rehash hostile publish requests from genuine writer output. Every
+        // altered typed mutation/envelope/receipt remains intrinsically valid;
+        // only the historical full-inventory rule denies its input selection.
+        let publishRecord = try XCTUnwrap(fixture.history.receipts.first { record in
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+            if case let .applySurveySession(mutation) = envelope.command,
+               case let .publish(_, snapshot, _, _) = mutation.payload { return snapshot.revision == 1 }
+            return false
+        })
+        let publishEnvelope = try MutationEnvelopeV1.decodeCanonical(from: publishRecord.envelopeData)
+        let publishReceipt = try MutationReceiptV1.decodeCanonical(from: publishRecord.receiptData)
+        guard case let .applySurveySession(publishMutation) = publishEnvelope.command,
+              case let .publish(publishedSession, publishedSnapshot, definition, inputs) = publishMutation.payload else {
+            return XCTFail("genuine first publication missing")
+        }
+        let allCaptures = fixture.originals.compactMap { mutation -> FactCaptureV1? in
+            if case let .captureFact(value, _, _, _) = mutation.payload { return value }; return nil
+        }
+        let optional = try XCTUnwrap(inputs.first { $0.factID == "fact-b" })
+        let required = try XCTUnwrap(inputs.first { $0.factID == "fact-a" })
+        let stale = try XCTUnwrap(allCaptures.first { $0.value == .text("left observation") })
+        let future = try XCTUnwrap(allCaptures.first { $0.value == .text("later correction") })
+        let selections: [(String, [FactCaptureV1], [SubjectPromotionReceiptV1])] = [
+            ("omitted optional head", [required], publishedSnapshot.promotionReceiptsAtPublication),
+            ("stale authentic head", [stale, optional], publishedSnapshot.promotionReceiptsAtPublication),
+            ("future authentic head", [future, optional], publishedSnapshot.promotionReceiptsAtPublication),
+            ("omitted promotion head", inputs, [])
+        ]
+        for (label, captures, promotions) in selections {
+            let snapshot = try publishedSnapshot.rebound(to: publishedSession.workspaceID,
+                session: publishedSession, definition: definition, captures: captures,
+                promotionReceipts: promotions, publishedBy: publishedSnapshot.publishedBy)
+            let session = try publishedSession.rebound(to: publishedSession.workspaceID,
+                definition: definition, packageRelease: fixture.package, subject: publishedSession.subject,
+                startedBy: publishedSession.startedBy, lastTransitionBy: publishedSession.lastTransitionBy,
+                predecessorSessionSHA256: publishedSession.predecessorSessionSHA256,
+                latestPublication: snapshot.reference)
+            let mutation = try SurveySessionMutationV1(workspaceID: publishMutation.workspaceID,
+                mutationID: publishMutation.mutationID,
+                payload: .publish(session, snapshot: snapshot, definition: definition, captures: captures))
+            let expected = publishEnvelope.expectedRevision
+            let envelope = try MutationEnvelopeV1(request: .init(mutationID: mutation.mutationID,
+                expectedRevision: .init(workspaceID: expected.workspaceID, generationID: expected.generationID,
+                    writerInstanceID: UUID(), workspaceRevision: expected.workspaceRevision,
+                    entityRevisions: expected.entityRevisions), command: .applySurveySession(mutation)),
+                identity: .init(workspaceID: publishEnvelope.workspaceID, replicaID: publishEnvelope.replicaID),
+                sourceKind: publishEnvelope.sourceKind, contentDependencyIDs: publishEnvelope.contentDependencyIDs,
+                causationMutationID: publishEnvelope.causationMutationID, correlationID: publishEnvelope.correlationID)
+            let receipt = try MutationReceiptV1(identity: publishReceipt.identity, envelope: envelope,
+                resultingRevision: publishReceipt.resultingRevision, postImages: mutation.mutationPostImages,
+                committedAt: publishReceipt.committedAt)
+            _ = try SurveySessionMutationReceiptV1(mutation: mutation, mutationReceipt: receipt)
+            let replacement = MutationHistoryReceiptRecordV1(envelopeData: try envelope.canonicalData(),
+                receiptData: try receipt.canonicalData(), reversalBasisData: publishRecord.reversalBasisData,
+                semanticReversalData: publishRecord.semanticReversalData)
+            let hostile = alteredHistory(fixture.history.receipts.map { $0 == publishRecord ? replacement : $0 })
+            XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(hostile), label)
+            XCTAssertThrowsError(try SurveySessionBackupGraphClosureV1.projection(records: rows,
+                surveyDefinitions: fixture.records.surveyDefinitions, packageEvolution: fixture.records.packageEvolution,
+                history: hostile, expectedWorkspaceID: fixture.harness.session.workspaceID), label) { error in
+                guard case SurveySessionBackupGraphClosureV1.Failure.invalidPublicationFrontier = error else {
+                    return XCTFail("\(label): wrong first guard \(error)")
+                }
+            }
+        }
+        // An attacker cannot rehash the observed inventory to hide the omitted
+        // head or make a later source capture appear contemporaneous.
+        let optionalIdentity = try WorkspaceEntityIdentityV1(kind: .factCapture, id: optional.captureID)
+        let futureIdentity = try WorkspaceEntityIdentityV1(kind: .factCapture, id: future.captureID)
+        let censusVariants: [(String, [WorkspaceEntityRevisionV1])] = [
+            ("removed observed head", publishReceipt.resultingRevision.entityRevisions.filter { $0.identity != optionalIdentity }),
+            ("future introduction in census", publishReceipt.resultingRevision.entityRevisions
+                + [try .init(identity: futureIdentity, revision: future.revision)])
+        ]
+        for (label, revisions) in censusVariants {
+            let basis = publishReceipt.resultingRevision
+            let result = try MutationPortableExpectedRevisionV1(.init(workspaceID: basis.workspaceID,
+                generationID: basis.generationID, writerInstanceID: UUID(),
+                workspaceRevision: basis.workspaceRevision, entityRevisions: revisions))
+            let receipt = try MutationReceiptV1(identity: publishReceipt.identity, envelope: publishEnvelope,
+                resultingRevision: result, postImages: publishReceipt.postImages, committedAt: publishReceipt.committedAt)
+            _ = try SurveySessionMutationReceiptV1(mutation: publishMutation, mutationReceipt: receipt)
+            let replacement = MutationHistoryReceiptRecordV1(envelopeData: publishRecord.envelopeData,
+                receiptData: try receipt.canonicalData(), reversalBasisData: publishRecord.reversalBasisData,
+                semanticReversalData: publishRecord.semanticReversalData)
+            let hostile = alteredHistory(fixture.history.receipts.map { $0 == publishRecord ? replacement : $0 })
+            XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(hostile), label)
+            XCTAssertThrowsError(try SurveySessionBackupGraphClosureV1.projection(records: rows,
+                surveyDefinitions: fixture.records.surveyDefinitions, packageEvolution: fixture.records.packageEvolution,
+                history: hostile, expectedWorkspaceID: fixture.harness.session.workspaceID), label) { error in
+                guard case SurveySessionBackupGraphClosureV1.Failure.invalidPublicationFrontier = error else {
+                    return XCTFail("\(label): wrong first guard \(error)")
+                }
+            }
+        }
+        let sessionRow = try XCTUnwrap(rows.first { $0.kind == .session })
+        let session = try SurveySessionCanonicalCodecV1.decode(SurveySessionV1.self, from: sessionRow.canonicalData)
+        let changed = try session.rebound(to: session.workspaceID, definition: fixture.definition,
+            packageRelease: fixture.package, subject: session.subject, startedBy: session.startedBy,
+            lastTransitionBy: session.lastTransitionBy, predecessorSessionSHA256: String(repeating: "f", count: 64),
+            latestPublication: session.latestPublication)
+        let forgedRow = V25BackupGuidedSurveyRecordV1(kind: .session, id: session.sessionID,
+            workspaceID: session.workspaceID.rawValue, revision: session.revision,
+            canonicalData: try SurveySessionCanonicalCodecV1.encode(changed))
+        rejects(rows.map { $0.kind == .session ? forgedRow : $0 })
+        let publicationRow = try XCTUnwrap(rows.first { $0.kind == .publicationSnapshot })
+        let publication = try SurveySessionCanonicalCodecV1.decode(SurveyPublicationSnapshotV1.self, from: publicationRow.canonicalData)
+        let wrongPublicationHeader = V25BackupGuidedSurveyRecordV1(kind: .publicationSnapshot,
+            id: publication.snapshotID, workspaceID: publication.workspaceID.rawValue,
+            revision: publication.revision + 1, canonicalData: publicationRow.canonicalData)
+        rejects(rows.map { $0.id == publication.snapshotID ? wrongPublicationHeader : $0 })
+        let captureRow = try XCTUnwrap(rows.first { $0.kind == .factCapture })
+        let capture = try SurveySessionCanonicalCodecV1.decode(FactCaptureV1.self, from: captureRow.canonicalData)
+        let orphan = try FactCaptureV1(captureID: capture.captureID, workspaceID: capture.workspaceID,
+            sessionID: UUID(), definitionRelease: capture.definitionRelease, factID: capture.factID,
+            repeatCoordinates: capture.repeatCoordinates, action: capture.action, value: capture.value,
+            evidence: capture.evidence, predecessors: capture.predecessors, capturedBy: capture.capturedBy,
+            capturedAt: capture.capturedAt, revision: capture.revision, mutationID: capture.mutationID)
+        let orphanRow = V25BackupGuidedSurveyRecordV1(kind: .factCapture, id: orphan.captureID,
+            workspaceID: orphan.workspaceID.rawValue, revision: orphan.revision,
+            canonicalData: try SurveySessionCanonicalCodecV1.encode(orphan))
+        rejects(rows.map { $0.id == capture.captureID ? orphanRow : $0 })
+        // Actual writer rejects a competing successor from an old source image.
+        let owner = try StoreSessionCoordinator(validatingSession: fixture.harness.session)
+        defer { XCTAssertNoThrow(try owner.invalidateAndReleaseWriter()) }
+        let prior = try XCTUnwrap(fixture.originals.compactMap { mutation -> SurveySessionV1? in
+            if case let .applySession(value, _, _) = mutation.payload, value.revision == 3 { return value }; return nil
+        }.first)
+        let competing = try c26Transition(prior, state: .reviewRequired, transition: .submitForReview)
+        XCTAssertThrowsError(try owner.workspaceWriter.commitSurveySession(.init(workspaceID: prior.workspaceID,
+            mutationID: competing.mutationID, payload: .applySession(competing, definition: fixture.definition, publication: nil))))
+        XCTAssertEqual(try configurationCloneRawJournal(fixture.harness.context), beforeRows)
+        XCTAssertEqual(try treeFacts(fixture.harness.session.generationRootURL), beforeTree)
+        XCTAssertEqual(try BackupCanonicalDecoderV1().decodeRecords(canonicalBasis(fixture.harness).recordsData), fixture.records)
+    }
+}

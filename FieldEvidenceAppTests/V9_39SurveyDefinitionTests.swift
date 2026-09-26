@@ -176,6 +176,7 @@ enum C25SurveyDefinitionTestSupport {
         sourceReleaseSHA256: String? = nil,
         sourceArchiveSHA256: String? = nil,
         semanticDiffSHA256: String? = nil,
+        mutationID: MutationIDV1? = nil,
         revision: UInt64
     ) throws -> SurveyDefinitionLifecycleEventV1 {
         try SurveyDefinitionLifecycleEventV1(
@@ -196,7 +197,7 @@ enum C25SurveyDefinitionTestSupport {
             actor: try actor(workspaceID: release.workspaceID, slot: 500 + eventSlot),
             recordedAt: fixedDate.addingTimeInterval(100 + Double(revision)),
             revision: revision,
-            mutationID: try mutation(1_000 + eventSlot)
+            mutationID: try mutationID ?? mutation(1_000 + eventSlot)
         )
     }
 
@@ -497,6 +498,7 @@ final class V9_39SurveyDefinitionTests: XCTestCase {
             priorState: nil,
             resultingState: .draft,
             eventSlot: 60,
+            mutationID: source.mutationID,
             revision: 1
         )
         let adoption = try C25SurveyDefinitionTestSupport.event(
@@ -507,6 +509,7 @@ final class V9_39SurveyDefinitionTests: XCTestCase {
             eventSlot: 61,
             predecessor: draft,
             semanticDiffSHA256: diff.diffSHA256,
+            mutationID: target.mutationID,
             revision: 2
         )
         try adoption.validateSuccessor(of: draft, release: target)
@@ -526,6 +529,36 @@ final class V9_39SurveyDefinitionTests: XCTestCase {
             event: adoption,
             createdBy: createdBy
         )
+        XCTAssertNoThrow(try SurveyDefinitionPreparedMutationV1(
+            identity: previousIdentity, release: source, event: draft
+        ))
+        XCTAssertNoThrow(try SurveyDefinitionPreparedMutationV1(
+            identity: adoptedIdentity, release: target, event: adoption
+        ))
+        // A valid event/identity pair cannot append a release from a different mutation.
+        let wrongMutationEvent = try C25SurveyDefinitionTestSupport.event(
+            release: target,
+            action: .adoptUpgradeAsDraft,
+            priorState: .draft,
+            resultingState: .draft,
+            eventSlot: 65,
+            predecessor: draft,
+            semanticDiffSHA256: diff.diffSHA256,
+            revision: 2
+        )
+        let wrongMutationIdentity = try C25SurveyDefinitionTestSupport.identity(
+            release: target, state: .draft, event: wrongMutationEvent, createdBy: createdBy
+        )
+        try wrongMutationEvent.validateSuccessor(of: draft, release: target)
+        try wrongMutationIdentity.validateSuccessor(
+            of: previousIdentity, event: wrongMutationEvent, release: target
+        )
+        XCTAssertNotEqual(wrongMutationEvent.mutationID, target.mutationID)
+        XCTAssertThrowsError(try SurveyDefinitionPreparedMutationV1(
+            identity: wrongMutationIdentity, release: target, event: wrongMutationEvent
+        )) { error in
+            XCTAssertEqual(error as? WorkspaceMutationContractFailureV1, .invalidPlan)
+        }
         let coordinator = SurveyDefinitionCoordinatorV1(
             writer: C25RejectingSurveyDefinitionWriter()
         )
@@ -594,6 +627,7 @@ final class V9_39SurveyDefinitionTests: XCTestCase {
             eventSlot: 64,
             predecessor: draft,
             semanticDiffSHA256: C25SurveyDefinitionTestSupport.digest("f"),
+            mutationID: target.mutationID,
             revision: 2
         )
         let mismatchedIdentity = try C25SurveyDefinitionTestSupport.identity(
@@ -689,14 +723,12 @@ final class V9_39SurveyDefinitionTests: XCTestCase {
             SurveyTemplateArchiveEntryV1(path: "aggregate/limit-a.json", mediaType: "application-json", byteCount: corpus.archiveEntryLimitBytes, sha256: C25SurveyDefinitionTestSupport.digest("a")),
             SurveyTemplateArchiveEntryV1(path: "aggregate/limit-b.json", mediaType: "application-json", byteCount: corpus.archiveEntryLimitBytes, sha256: C25SurveyDefinitionTestSupport.digest("b"))
         ]
-        let atAggregateLimitManifest = SurveyTemplateArchiveManifestV1(
-            schemaVersion: SurveyTemplateArchiveManifestV1.schemaVersion,
+        let atAggregateLimitManifest = try SurveyTemplateArchiveManifestV1(
             archiveID: C25SurveyDefinitionTestSupport.id(76),
             definitionRelease: try SurveyDefinitionReleaseReferenceV1(source),
             entries: atAggregateLimitEntries,
             archiveByteCount: corpus.archiveAggregateLimitBytes,
-            archiveSHA256: C25SurveyDefinitionTestSupport.digest("c"),
-            manifestSHA256: C25SurveyDefinitionTestSupport.digest("d")
+            archiveSHA256: C25SurveyDefinitionTestSupport.digest("c")
         )
         XCTAssertNoThrow(try atAggregateLimitManifest.validate())
         let oversizedEntry = SurveyTemplateArchiveEntryV1(
@@ -1091,6 +1123,62 @@ final class V9_39SurveyDefinitionTests: XCTestCase {
         )
         let forgedData = Data(forgedText.utf8)
         XCTAssertThrowsError(try SurveyDefinitionCanonicalCodecV1.decode(SurveyDefinitionReleaseV1.self, from: forgedData))
+        XCTAssertNotEqual(forgedData, encoded)
+        XCTAssertEqual(try SurveyDefinitionCanonicalCodecV1.decode(
+            SurveyDefinitionReleaseV1.self, from: encoded
+        ), source)
+
+        func forwardedDecode<T: Codable>(_ type: T.Type, from data: Data) throws -> T {
+            try SurveyDefinitionCanonicalCodecV1.decode(type, from: data)
+        }
+        XCTAssertEqual(try SurveyDefinitionCanonicalCodecV1.encode(
+            forwardedDecode(SurveyDefinitionReleaseV1.self, from: encoded)
+        ), encoded)
+        XCTAssertThrowsError(try forwardedDecode(SurveyDefinitionReleaseV1.self, from: forgedData))
+
+        let sourceEvent = try C25SurveyDefinitionTestSupport.event(
+            release: source, action: .createDraft, priorState: nil,
+            resultingState: .draft, eventSlot: 180, mutationID: source.mutationID, revision: 1
+        )
+        let sourceIdentity = try C25SurveyDefinitionTestSupport.identity(
+            release: source, state: .draft, event: sourceEvent, createdBy: source.authoredBy
+        )
+        try sourceIdentity.validate(currentRelease: source, event: sourceEvent)
+        let identityData = try SurveyDefinitionCanonicalCodecV1.encode(sourceIdentity)
+        let identityText = try XCTUnwrap(String(data: identityData, encoding: .utf8))
+        let forgedIdentityData = Data(identityText.replacingOccurrences(
+            of: sourceIdentity.identitySHA256,
+            with: C25SurveyDefinitionTestSupport.digest("e")
+        ).utf8)
+        XCTAssertNotEqual(forgedIdentityData, identityData)
+        XCTAssertEqual(try SurveyDefinitionCanonicalCodecV1.decode(
+            SurveyDefinitionIdentityV1.self, from: identityData
+        ), sourceIdentity)
+        XCTAssertEqual(try SurveyDefinitionCanonicalCodecV1.encode(
+            forwardedDecode(SurveyDefinitionIdentityV1.self, from: identityData)
+        ), identityData)
+        XCTAssertThrowsError(try SurveyDefinitionCanonicalCodecV1.decode(
+            SurveyDefinitionIdentityV1.self, from: forgedIdentityData
+        ))
+        XCTAssertThrowsError(try forwardedDecode(
+            SurveyDefinitionIdentityV1.self, from: forgedIdentityData
+        ))
+
+        // Ordinary Codable retains deferred validation; only the canonical persisted-fact
+        // boundary above authenticates intrinsic content. Other generic values remain bytes.
+        let rawDecoder = JSONDecoder()
+        rawDecoder.dateDecodingStrategy = .millisecondsSince1970
+        let rawRelease = try rawDecoder.decode(SurveyDefinitionReleaseV1.self, from: forgedData)
+        XCTAssertEqual(try SurveyDefinitionCanonicalCodecV1.encode(rawRelease), forgedData)
+        XCTAssertThrowsError(try rawRelease.validate())
+        let rawIdentity = try rawDecoder.decode(SurveyDefinitionIdentityV1.self, from: forgedIdentityData)
+        XCTAssertEqual(try SurveyDefinitionCanonicalCodecV1.encode(rawIdentity), forgedIdentityData)
+        XCTAssertThrowsError(try rawIdentity.validateIntrinsic())
+        let byteOnlyValue = ["canonical", "bytes"]
+        XCTAssertEqual(try forwardedDecode(
+            [String].self, from: SurveyDefinitionCanonicalCodecV1.encode(byteOnlyValue)
+        ), byteOnlyValue)
+
 
         XCTAssertThrowsError(try C25SurveyDefinitionTestSupport.release(
             releaseSlot: 80,

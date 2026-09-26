@@ -2,7 +2,7 @@
 
 Current development state and exact native outcomes: [ACTIVE_BRIEF](ACTIVE_BRIEF.md). Batch evidence and independent verdicts: [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md). Open obligations: [VERIFICATION_DUE](VERIFICATION_DUE.md). This ledger defines phase scope; development results never establish acceptance.
 
-As of 2026-09-26, Phase 1 is not merge-ready. Integration checkpoint `60b7c733` is pushed; accepted S10 main remains `b1d04ae5`. Restore/history, Erase and report-production obligations remain open. AJ1 performance and AK1 localization successors are in development verification. All five same-head gates and genuine owner review remain required.
+As of 2026-09-26, Phase 1 is not merge-ready. AN1 is the current development checkpoint following pushed AK4 `aaf9bc62`; accepted S10 main remains `b1d04ae5`. AN1 compiled and executed98 distinct affected methods (87PASS/11FAIL), with the corrected missing-selector original separately retained. Restore/history, Erase and report-production obligations remain open. AJ1 performance and AK4 localization/capture checkpoints passed their affected development verification; full phase acceptance remains open. All five same-head gates and genuine owner review remain required.
 
 ## Phased merge (owner decision 2026-09-25)
 

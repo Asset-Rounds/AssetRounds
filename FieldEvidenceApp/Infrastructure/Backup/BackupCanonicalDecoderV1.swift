@@ -236,6 +236,468 @@ enum SurveyDefinitionBackupGraphClosureV1 {
     }
 }
 
+/// Complete C26 archive facts. A projection is derived data, never a live
+/// journal capability or an original mutation/receipt.
+enum SurveySessionBackupGraphClosureV1 {
+    enum Failure: Error { case invalid, invalidPublicationFrontier }
+
+    static func projection(
+        records: [V25BackupGuidedSurveyRecordV1],
+        surveyDefinitions: [V24BackupSurveyDefinitionRecordV1],
+        packageEvolution: [V17BackupPackageEvolutionRecordV1],
+        history: MutationHistorySnapshotV1,
+        expectedWorkspaceID: WorkspaceID? = nil,
+        destinationWorkspaceID: WorkspaceID? = nil
+    ) throws -> [V25BackupGuidedSurveyRecordV1] {
+        try MutationJournalStoreV1.validateImportedSnapshot(history)
+        let identities = try surveyDefinitions.filter { $0.kind == .identity }.map { record in
+            let value = try SurveyDefinitionCanonicalCodecV1.decode(SurveyDefinitionIdentityV1.self, from: record.canonicalData)
+            guard record.id == value.definitionID, record.workspaceID == value.workspaceID.rawValue,
+                  record.revision == value.revision else { throw Failure.invalid }
+            return value
+        }
+        let releases = try surveyDefinitions.filter { $0.kind == .release }.map { record in
+            let value = try SurveyDefinitionCanonicalCodecV1.decode(SurveyDefinitionReleaseV1.self, from: record.canonicalData)
+            guard record.id == value.releaseID, record.workspaceID == value.workspaceID.rawValue,
+                  record.revision == value.revision else { throw Failure.invalid }
+            return value
+        }
+        let definitionGraph = try SurveyDefinitionBackupGraphClosureV1.projection(
+            identities: identities, releases: releases, history: history, expectedWorkspaceID: expectedWorkspaceID)
+        let packages = try packageEvolution.filter { $0.kind == .promotedRelease }.map {
+            try PackageEvolutionCanonicalCodecV1.decode(PromotedPackageReleaseV1.self, from: $0.canonicalData).packageRelease
+        }
+        let graph = try Graph(history: history, definitions: definitionGraph.releases, packages: packages)
+        let workspaces = Set(records.map(\.workspaceID)
+            + identities.map { $0.workspaceID.rawValue } + releases.map { $0.workspaceID.rawValue })
+        guard workspaces.count <= 1,
+              expectedWorkspaceID.map({ workspaces.isEmpty || workspaces == Set([$0.rawValue]) }) ?? true else {
+            throw Failure.invalid
+        }
+        // Empty current rows cannot erase retained originals, even when every
+        // original belongs to a different workspace.
+        guard let current = expectedWorkspaceID ?? workspaces.first.map({ WorkspaceID(rawValue: $0) }) else {
+            guard graph.isEmpty, records.isEmpty else { throw Failure.invalid }
+            return []
+        }
+        do {
+            try graph.authenticateOriginals()
+            graph.phase = "current-projection"
+            let projected = try graph.records(in: current)
+            guard projected == records.sorted(by: order) else { throw Failure.invalid }
+            graph.phase = "destination-projection"
+            return try destinationWorkspaceID.map { try graph.records(in: $0) } ?? projected
+        } catch {
+#if DEBUG
+            print("C26 archive graph failure phase=\(graph.phase) type=\(type(of: error))")
+#endif
+            throw error
+        }
+    }
+
+    private static func order(_ lhs: V25BackupGuidedSurveyRecordV1,
+                              _ rhs: V25BackupGuidedSurveyRecordV1) -> Bool {
+        "\(lhs.kind.rawValue)\u{0}\(lhs.id.uuidString)" < "\(rhs.kind.rawValue)\u{0}\(rhs.id.uuidString)"
+    }
+
+    private struct Revision: Hashable { let id: UUID; let revision: UInt64 }
+    private struct Origin: Hashable {
+        let workspace: WorkspaceID
+        let id: UUID
+        let revision: UInt64
+        let digest: String
+    }
+    private struct ProjectionKey: Hashable { let origin: Origin; let destination: WorkspaceID }
+    private struct SessionNode { let value: SurveySessionV1; let definition: SurveyDefinitionReleaseV1; let publication: UUID? }
+    private struct CaptureNode { let value: FactCaptureV1; let session: SurveySessionV1; let definition: SurveyDefinitionReleaseV1; let predecessors: [FactCaptureV1] }
+    private struct SubjectNode { let value: ProvisionalSubjectV1; let promotion: SubjectPromotionActionV1? }
+    private struct PromotionNode { let value: SubjectPromotionReceiptV1; let predecessor: SubjectPromotionReceiptV1? }
+    private struct PublicationNode { let value: SurveyPublicationSnapshotV1; let session: SurveySessionV1; let definition: SurveyDefinitionReleaseV1; let captures: [FactCaptureV1]; let receipt: MutationReceiptV1 }
+    private struct ReceiptScope: Hashable { let workspace: WorkspaceID; let generation: UUID }
+
+    private final class Graph {
+        var sessions: [Origin: SessionNode] = [:]
+        var sessionIndex: [Revision: Origin] = [:]
+        var subjects: [Origin: SubjectNode] = [:]
+        var subjectIndex: [Revision: Origin] = [:]
+        var captures: [UUID: CaptureNode] = [:]
+        var promotions: [UUID: PromotionNode] = [:]
+        var publications: [UUID: PublicationNode] = [:]
+        var definitions: [UUID: SurveyDefinitionReleaseV1] = [:]
+        var packages: [String: InspectionPackageReleaseV1] = [:]
+        var sessionCache: [ProjectionKey: SurveySessionV1] = [:]
+        var subjectCache: [ProjectionKey: ProvisionalSubjectV1] = [:]
+        var captureCache: [ProjectionKey: FactCaptureV1] = [:]
+        var promotionCache: [ProjectionKey: SubjectPromotionReceiptV1] = [:]
+        var publicationCache: [ProjectionKey: SurveyPublicationSnapshotV1] = [:]
+        var receiptCensuses: [MutationReceiptV1] = []
+        var introductions: [WorkspaceEntityIdentityV1: MutationReceiptV1] = [:]
+        var visiting = Set<String>()
+        var phase = "originals"
+        var isEmpty: Bool { sessions.isEmpty && subjects.isEmpty && captures.isEmpty && promotions.isEmpty && publications.isEmpty }
+
+        init(history: MutationHistorySnapshotV1, definitions: [SurveyDefinitionReleaseV1], packages: [InspectionPackageReleaseV1]) throws {
+            for value in definitions {
+                guard self.definitions.updateValue(value, forKey: value.releaseID) == nil else { throw Failure.invalid }
+            }
+            for value in packages {
+                try value.validate()
+                guard self.packages.updateValue(value, forKey: value.packageReleaseID) == nil else { throw Failure.invalid }
+            }
+            var mutationKeys = Set<String>()
+            for record in history.receipts {
+                let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+                let receipt = try MutationReceiptV1.decodeCanonical(from: record.receiptData)
+                receiptCensuses.append(receipt)
+                guard case let .applySurveySession(mutation) = envelope.command else { continue }
+                _ = try SurveySessionMutationReceiptV1(mutation: mutation, mutationReceipt: receipt)
+                guard envelope.workspaceID == mutation.workspaceID, envelope.mutationID == mutation.mutationID,
+                      mutationKeys.insert("\(mutation.workspaceID.rawValue)|\(mutation.mutationID.rawValue)").inserted else {
+                    throw Failure.invalid
+                }
+                for image in try mutation.mutationPostImages {
+                    let identity = try image.identity
+                    if identity.kind == .factCapture || identity.kind == .subjectPromotionReceipt {
+                        guard introductions.updateValue(receipt, forKey: identity) == nil else { throw Failure.invalid }
+                    }
+                }
+                switch mutation.payload {
+                case let .applySession(value, definition, publication):
+                    guard publication == nil else { throw Failure.invalid }
+                    try addSession(value, definition: definition, publication: nil)
+                case let .captureFact(value, session, definition, predecessors):
+                    guard captures.updateValue(.init(value: value, session: session, definition: definition,
+                        predecessors: predecessors), forKey: value.captureID) == nil else { throw Failure.invalid }
+                case let .applyProvisionalSubject(value): try addSubject(value, promotion: nil)
+                case let .promoteSubject(value, receipt, _, predecessor):
+                    try addSubject(value, promotion: receipt.action)
+                    guard receipt.provisionalSubject.provisionalSubjectID == value.provisionalSubjectID,
+                          receipt.provisionalSubject.revision < UInt64.max,
+                          value.revision == receipt.provisionalSubject.revision + 1,
+                          value.supersedesSubjectSHA256 == receipt.provisionalSubject.subjectSHA256,
+                          promotions.updateValue(.init(value: receipt, predecessor: predecessor),
+                            forKey: receipt.receiptID) == nil else { throw Failure.invalid }
+                case let .publish(session, snapshot, definition, captures):
+                    try addSession(session, definition: definition, publication: snapshot.snapshotID)
+                    guard publications.updateValue(.init(value: snapshot, session: session, definition: definition,
+                        captures: captures, receipt: receipt), forKey: snapshot.snapshotID) == nil else { throw Failure.invalid }
+                }
+            }
+            try rejectForks(promotions.values.map { ($0.value.receiptID, $0.value.predecessorReceiptID) })
+            try rejectForks(publications.values.map { ($0.value.snapshotID, $0.value.supersedesSnapshotID) })
+            try validateObservedInventories()
+            for node in publications.values { try validatePublicationFrontier(node) }
+        }
+
+        private func scope(_ receipt: MutationReceiptV1) -> ReceiptScope {
+            .init(workspace: receipt.identity.workspaceID, generation: receipt.resultingRevision.generationID)
+        }
+        private func inventory(_ receipt: MutationReceiptV1) -> Set<WorkspaceEntityIdentityV1> {
+            Set(receipt.resultingRevision.entityRevisions.map(\.identity).filter {
+                $0.kind == .factCapture || $0.kind == .subjectPromotionReceipt
+            })
+        }
+        // record() binds storedRevision's complete post-effect census, unlike
+        // sparse expectedRevision. Capture/promotion facts survive DELETE as
+        // immutable history. A restore can introduce inherited facts only in a
+        // new generation; no foreign workspace clock establishes visibility.
+        private func validateObservedInventories() throws {
+            for (origin, receipts) in Dictionary(grouping: receiptCensuses, by: scope) {
+                guard receipts.contains(where: { !inventory($0).isEmpty })
+                    || introductions.values.contains(where: { scope($0) == origin }) else { continue }
+                let ordered = receipts.sorted { $0.resultingRevision.workspaceRevision < $1.resultingRevision.workspaceRevision }
+                var previous: Set<WorkspaceEntityIdentityV1>?
+                var previousRevision: UInt64?
+                for receipt in ordered {
+                    let revision = receipt.resultingRevision.workspaceRevision
+                    let observed = inventory(receipt)
+                    guard previousRevision.map({ $0 < revision }) ?? true else { throw Failure.invalidPublicationFrontier }
+                    let native = Set(introductions.compactMap { identity, introduction in
+                        scope(introduction) == origin && introduction.resultingRevision.workspaceRevision <= revision ? identity : nil
+                    })
+                    guard native.isSubset(of: observed) else { throw Failure.invalidPublicationFrontier }
+                    for identity in observed {
+                        guard let introduction = introductions[identity],
+                              scope(introduction) != origin || introduction.resultingRevision.workspaceRevision <= revision else {
+                            throw Failure.invalidPublicationFrontier
+                        }
+                        // Membership resolves to one complete typed original;
+                        // its ancestry must have been visible in this census.
+                        let parents: [WorkspaceEntityIdentityV1]
+                        if identity.kind == .factCapture, let node = captures[identity.id] {
+                            parents = try node.value.predecessors.map { try .init(kind: .factCapture, id: $0.captureID) }
+                        } else if identity.kind == .subjectPromotionReceipt, let node = promotions[identity.id] {
+                            parents = try node.value.predecessorReceiptID.map { [try .init(kind: .subjectPromotionReceipt, id: $0)] } ?? []
+                        } else { throw Failure.invalidPublicationFrontier }
+                        guard Set(parents).isSubset(of: observed) else { throw Failure.invalidPublicationFrontier }
+                    }
+                    if let previous {
+                        // No unreceipted foreign insertion or loss between
+                        // operations in one physical generation, including
+                        // intervening commands outside C26.
+                        guard observed == previous.union(native) else { throw Failure.invalidPublicationFrontier }
+                    }
+                    previous = observed; previousRevision = revision
+                }
+            }
+        }
+        private func validatePublicationFrontier(_ node: PublicationNode) throws {
+            let observed = inventory(node.receipt)
+            let visibleCaptures = observed.filter { $0.kind == .factCapture }.compactMap { captures[$0.id]?.value }
+            let sessionCaptures = visibleCaptures.filter { $0.sessionID == node.value.sessionID }
+            let replacedCaptures = Set(sessionCaptures.flatMap { $0.predecessors.map(\.captureID) })
+            let captureHeads = Set(sessionCaptures.map(\.captureID)).subtracting(replacedCaptures)
+            let visiblePromotions = observed.filter { $0.kind == .subjectPromotionReceipt }.compactMap { promotions[$0.id]?.value }
+            let replacedPromotions = Set(visiblePromotions.compactMap(\.predecessorReceiptID))
+            let promotionHeads = Set(visiblePromotions.filter {
+                !replacedPromotions.contains($0.receiptID) && $0.affectedSessionIDs.contains(node.value.sessionID)
+            }.map(\.receiptID))
+            guard Set(node.captures.map(\.captureID)) == captureHeads,
+                  node.captures.count == captureHeads.count,
+                  Set(node.value.promotionReceiptsAtPublication.map(\.receiptID)) == promotionHeads,
+                  node.value.promotionReceiptsAtPublication.count == promotionHeads.count else {
+                throw Failure.invalidPublicationFrontier
+            }
+        }
+
+        func addSession(_ value: SurveySessionV1, definition: SurveyDefinitionReleaseV1, publication: UUID?) throws {
+            let origin = Origin(workspace: value.workspaceID, id: value.sessionID, revision: value.revision, digest: value.sessionSHA256)
+            guard sessionIndex.updateValue(origin, forKey: .init(id: value.sessionID, revision: value.revision)) == nil,
+                  sessions.updateValue(.init(value: value, definition: definition, publication: publication), forKey: origin) == nil else {
+                throw Failure.invalid
+            }
+        }
+        func addSubject(_ value: ProvisionalSubjectV1, promotion: SubjectPromotionActionV1?) throws {
+            let origin = Origin(workspace: value.workspaceID, id: value.provisionalSubjectID, revision: value.revision, digest: value.subjectSHA256)
+            guard subjectIndex.updateValue(origin, forKey: .init(id: value.provisionalSubjectID, revision: value.revision)) == nil,
+                  subjects.updateValue(.init(value: value, promotion: promotion), forKey: origin) == nil else { throw Failure.invalid }
+        }
+        func rejectForks(_ values: [(UUID, UUID?)]) throws {
+            let ids = Set(values.map(\.0)); var children: [UUID: Int] = [:]
+            for (_, parent) in values { if let parent {
+                guard ids.contains(parent) else { throw Failure.invalid }
+                children[parent, default: 0] += 1
+                guard children[parent] == 1 else { throw Failure.invalid }
+            } }
+        }
+        func enter(_ kind: String, _ origin: Origin, _ destination: WorkspaceID) throws -> String {
+            let key = "\(kind)|\(origin.workspace.rawValue)|\(origin.id)|\(origin.revision)|\(origin.digest)|\(destination.rawValue)"
+            guard visiting.insert(key).inserted else { throw Failure.invalid }
+            return key
+        }
+        func actor(_ source: ActorSnapshotV1, in workspace: WorkspaceID) throws -> ActorSnapshotV1 {
+            try .init(snapshotID: source.snapshotID, workspaceID: workspace,
+                actor: LocalActorReferenceV1(actorReferenceID: source.actor.actorReferenceID, workspaceID: workspace,
+                    partyID: source.actor.partyID, displayName: source.actor.displayName),
+                responsibility: source.responsibility, displayNameAtTime: source.displayNameAtTime, capturedAt: source.capturedAt)
+        }
+        func definition(_ id: UUID, in workspace: WorkspaceID) throws -> SurveyDefinitionReleaseV1 {
+            guard let value = definitions[id] else { throw Failure.invalid }
+            return try value.rebound(to: workspace, actor: actor(value.authoredBy, in: workspace))
+        }
+        func package(_ session: SurveySessionV1) throws -> InspectionPackageReleaseV1 {
+            guard let value = packages[session.authority.packageRelease.packageReleaseID] else { throw Failure.invalid }
+            try session.authority.packageRelease.validate(against: value)
+            return value
+        }
+        func subjectReference(_ source: SurveySessionSubjectV1, from origin: WorkspaceID,
+                              to destination: WorkspaceID) throws -> SurveySessionSubjectV1 {
+            switch source {
+            case .canonical: return source
+            case .provisional(let ref):
+                let revision = Revision(id: ref.provisionalSubjectID, revision: ref.revision)
+                guard try subject(revision, in: origin).reference == ref else { throw Failure.invalid }
+                return try .provisional(subject(revision, in: destination).reference)
+            }
+        }
+        func subject(_ revision: Revision, in workspace: WorkspaceID) throws -> ProvisionalSubjectV1 {
+            guard let origin = subjectIndex[revision], let node = subjects[origin] else { throw Failure.invalid }
+            let key = ProjectionKey(origin: origin, destination: workspace)
+            if let cached = subjectCache[key] { return cached }
+            let visitingKey = try enter("subject", origin, workspace); defer { visiting.remove(visitingKey) }
+            let source = node.value
+            var targetPrior: ProvisionalSubjectV1?
+            if source.revision > 1 {
+                let previous = Revision(id: source.provisionalSubjectID, revision: source.revision - 1)
+                let old = try subject(previous, in: source.workspaceID)
+                guard source.supersedesSubjectSHA256 == old.subjectSHA256, source.siteID == old.siteID,
+                      source.mutationID != old.mutationID else { throw Failure.invalid }
+                if let action = node.promotion {
+                    let expected: ProvisionalSubjectStateV1 = action == .promoteToAsset ? .promoted : action == .reconcileAsAlias ? .reconciledAlias : .promotionReversed
+                    let allowed = action == .reverse ? (old.state == .promoted || old.state == .reconciledAlias) : (old.state == .active || old.state == .promotionReversed)
+                    guard allowed, source.state == expected else { throw Failure.invalid }
+                } else {
+                    guard (old.state == .active && source.state == .active) || (old.state != .archived && source.state == .archived) else { throw Failure.invalid }
+                }
+                targetPrior = try subject(previous, in: workspace)
+            } else { guard node.promotion == nil, source.state == .active else { throw Failure.invalid } }
+            let value = try source.rebound(to: workspace, siteID: source.siteID,
+                createdBy: actor(source.createdBy, in: workspace), supersedesSubjectSHA256: targetPrior?.subjectSHA256)
+            if workspace == source.workspaceID { guard value == source else { throw Failure.invalid } }
+            subjectCache[key] = value; return value
+        }
+        func session(_ revision: Revision, in workspace: WorkspaceID) throws -> SurveySessionV1 {
+            guard let origin = sessionIndex[revision], let node = sessions[origin] else { throw Failure.invalid }
+            let key = ProjectionKey(origin: origin, destination: workspace)
+            if let cached = sessionCache[key] { return cached }
+            let visitingKey = try enter("session", origin, workspace); defer { visiting.remove(visitingKey) }
+            let source = node.value
+            let originalDefinition = try definition(node.definition.releaseID, in: source.workspaceID)
+            guard originalDefinition == node.definition else { throw Failure.invalid }
+            try source.authority.validate(definition: originalDefinition, packageRelease: package(source))
+            var targetPrior: SurveySessionV1?
+            if source.revision > 1 {
+                let previous = Revision(id: source.sessionID, revision: source.revision - 1)
+                let old = try session(previous, in: source.workspaceID)
+                let originalPublication = node.publication.flatMap { publications[$0]?.value }
+                try source.validateSuccessor(of: old, publication: originalPublication)
+                targetPrior = try session(previous, in: workspace)
+            }
+            let targetDefinition = try definition(node.definition.releaseID, in: workspace)
+            let targetSubject = try subjectReference(source.subject, from: source.workspaceID, to: workspace)
+            func rebound(_ latest: SurveyPublicationReferenceV1?) throws -> SurveySessionV1 {
+                try source.rebound(to: workspace, definition: targetDefinition, packageRelease: package(source),
+                    subject: targetSubject, startedBy: actor(source.startedBy, in: workspace),
+                    lastTransitionBy: actor(source.lastTransitionBy, in: workspace),
+                    predecessorSessionSHA256: targetPrior?.sessionSHA256, latestPublication: latest)
+            }
+            let value: SurveySessionV1
+            if let id = node.publication {
+                guard let publicationNode = publications[id], publicationNode.session == source,
+                      source.latestPublication == publicationNode.value.reference else { throw Failure.invalid }
+                // The snapshot basis excludes latestPublication/session SHA. Form
+                // it from the exact historical publish inputs, then close the pair.
+                let snapshot = try projectPublication(publicationNode, session: rebound(nil), in: workspace)
+                value = try rebound(snapshot.reference)
+                try snapshot.validate(session: value, definition: targetDefinition,
+                    captures: publicationNode.captures.map { try capture($0.captureID, in: workspace) })
+                let po = publicationNode.value
+                publicationCache[.init(origin: .init(workspace: po.workspaceID, id: id, revision: po.revision,
+                    digest: po.snapshotSHA256), destination: workspace)] = snapshot
+            } else {
+                let latest = try source.latestPublication.map { reference -> SurveyPublicationReferenceV1 in
+                    guard try publication(reference.snapshotID, in: source.workspaceID).reference == reference else { throw Failure.invalid }
+                    return try publication(reference.snapshotID, in: workspace).reference
+                }
+                value = try rebound(latest)
+            }
+            if workspace == source.workspaceID { guard value == source else { throw Failure.invalid } }
+            sessionCache[key] = value; return value
+        }
+        func capture(_ id: UUID, in workspace: WorkspaceID) throws -> FactCaptureV1 {
+            guard let node = captures[id] else { throw Failure.invalid }; let source = node.value
+            let origin = Origin(workspace: source.workspaceID, id: id, revision: source.revision, digest: source.captureSHA256)
+            let key = ProjectionKey(origin: origin, destination: workspace)
+            if let cached = captureCache[key] { return cached }
+            let visitingKey = try enter("capture", origin, workspace); defer { visiting.remove(visitingKey) }
+            let sessionRevision = Revision(id: node.session.sessionID, revision: node.session.revision)
+            guard try session(sessionRevision, in: source.workspaceID) == node.session,
+                  try definition(node.definition.releaseID, in: source.workspaceID) == node.definition,
+                  Set(node.predecessors.map(\.captureID)).count == node.predecessors.count else { throw Failure.invalid }
+            for old in node.predecessors { guard try capture(old.captureID, in: source.workspaceID) == old else { throw Failure.invalid } }
+            let refs = try node.predecessors.map { try capture($0.captureID, in: workspace).reference }
+            let evidence = try source.evidence.map { value in
+                try ContentReferenceV1(workspaceID: workspace.rawValue.uuidString.lowercased(), contentID: value.contentID,
+                    byteLength: value.byteLength, mediaType: value.mediaType, digests: value.digests,
+                    byteRole: value.byteRole, createdAt: value.createdAt)
+            }
+            let value = try source.rebound(to: workspace, definitionRelease: .init(definition(node.definition.releaseID, in: workspace)),
+                evidence: evidence, predecessors: refs, capturedBy: actor(source.capturedBy, in: workspace))
+            if workspace == source.workspaceID { guard value == source else { throw Failure.invalid } }
+            captureCache[key] = value; return value
+        }
+        func promotion(_ id: UUID, in workspace: WorkspaceID) throws -> SubjectPromotionReceiptV1 {
+            guard let node = promotions[id] else { throw Failure.invalid }; let source = node.value
+            let origin = Origin(workspace: source.workspaceID, id: id, revision: source.revision, digest: source.receiptSHA256)
+            let key = ProjectionKey(origin: origin, destination: workspace)
+            if let cached = promotionCache[key] { return cached }
+            let visitingKey = try enter("promotion", origin, workspace); defer { visiting.remove(visitingKey) }
+            let ref = source.provisionalSubject
+            let subjectRevision = Revision(id: ref.provisionalSubjectID, revision: ref.revision)
+            guard try subject(subjectRevision, in: source.workspaceID).reference == ref,
+                  source.affectedSessionIDs.allSatisfy({ id in sessionIndex.keys.contains(where: { $0.id == id }) }) else { throw Failure.invalid }
+            if let old = node.predecessor { guard try promotion(old.receiptID, in: source.workspaceID) == old else { throw Failure.invalid } }
+            let prior = try node.predecessor.map { try promotion($0.receiptID, in: workspace) }
+            let value = try source.rebound(to: workspace, provisionalSubject: subject(subjectRevision, in: workspace).reference,
+                canonicalSubject: source.canonicalSubject, affectedSessionIDs: source.affectedSessionIDs,
+                actor: actor(source.actor, in: workspace), predecessor: prior)
+            if workspace == source.workspaceID { guard value == source else { throw Failure.invalid } }
+            promotionCache[key] = value; return value
+        }
+        func publication(_ id: UUID, in workspace: WorkspaceID) throws -> SurveyPublicationSnapshotV1 {
+            guard let node = publications[id] else { throw Failure.invalid }; let source = node.value
+            let key = ProjectionKey(origin: .init(workspace: source.workspaceID, id: id, revision: source.revision,
+                digest: source.snapshotSHA256), destination: workspace)
+            if let cached = publicationCache[key] { return cached }
+            _ = try session(.init(id: node.session.sessionID, revision: node.session.revision), in: workspace)
+            guard let value = publicationCache[key] else { throw Failure.invalid }; return value
+        }
+        func projectPublication(_ node: PublicationNode, session: SurveySessionV1,
+                                in workspace: WorkspaceID) throws -> SurveyPublicationSnapshotV1 {
+            let source = node.value
+            guard Set(node.captures.map(\.captureID)).count == node.captures.count,
+                  Set(source.promotionReceiptsAtPublication.map(\.receiptID)).count == source.promotionReceiptsAtPublication.count else { throw Failure.invalid }
+            for value in node.captures {
+                guard value.sessionID == source.sessionID,
+                      try capture(value.captureID, in: source.workspaceID) == value else { throw Failure.invalid }
+            }
+            for value in source.promotionReceiptsAtPublication {
+                guard value.affectedSessionIDs.contains(source.sessionID),
+                      try promotion(value.receiptID, in: source.workspaceID) == value else { throw Failure.invalid }
+            }
+            if let priorID = source.supersedesSnapshotID {
+                let prior = try publication(priorID, in: source.workspaceID)
+                guard prior.sessionID == source.sessionID, prior.revision < UInt64.max,
+                      source.revision == prior.revision + 1 else { throw Failure.invalid }
+            }
+            let value = try source.rebound(to: workspace, session: session,
+                definition: definition(node.definition.releaseID, in: workspace),
+                captures: node.captures.map { try capture($0.captureID, in: workspace) },
+                promotionReceipts: source.promotionReceiptsAtPublication.map { try promotion($0.receiptID, in: workspace) },
+                publishedBy: actor(source.publishedBy, in: workspace))
+            if workspace == source.workspaceID { guard value == source else { throw Failure.invalid } }
+            return value
+        }
+        func authenticateOriginals() throws {
+            phase = "original-subjects"
+            for (origin, node) in subjects { guard try subject(.init(id: origin.id, revision: origin.revision), in: origin.workspace) == node.value else { throw Failure.invalid } }
+            phase = "original-sessions"
+            for (origin, node) in sessions { guard try session(.init(id: origin.id, revision: origin.revision), in: origin.workspace) == node.value else { throw Failure.invalid } }
+            phase = "original-captures"
+            for (id, node) in captures { guard try capture(id, in: node.value.workspaceID) == node.value else { throw Failure.invalid } }
+            phase = "original-promotions"
+            for (id, node) in promotions { guard try promotion(id, in: node.value.workspaceID) == node.value else { throw Failure.invalid } }
+            phase = "original-publications"
+            for (id, node) in publications { guard try publication(id, in: node.value.workspaceID) == node.value else { throw Failure.invalid } }
+        }
+        func records(in workspace: WorkspaceID) throws -> [V25BackupGuidedSurveyRecordV1] {
+            var result: [V25BackupGuidedSurveyRecordV1] = []
+            for id in Set(sessionIndex.keys.map(\.id)) {
+                guard let revision = sessionIndex.keys.filter({ $0.id == id }).map(\.revision).max() else { throw Failure.invalid }
+                let value = try session(.init(id: id, revision: revision), in: workspace)
+                result.append(.init(kind: .session, id: id, workspaceID: workspace.rawValue, revision: revision,
+                    canonicalData: try SurveySessionCanonicalCodecV1.encode(value)))
+            }
+            for id in Set(subjectIndex.keys.map(\.id)) {
+                guard let revision = subjectIndex.keys.filter({ $0.id == id }).map(\.revision).max() else { throw Failure.invalid }
+                let value = try subject(.init(id: id, revision: revision), in: workspace)
+                result.append(.init(kind: .provisionalSubject, id: id, workspaceID: workspace.rawValue, revision: revision,
+                    canonicalData: try SurveySessionCanonicalCodecV1.encode(value)))
+            }
+            for id in captures.keys { let value = try capture(id, in: workspace)
+                result.append(.init(kind: .factCapture, id: id, workspaceID: workspace.rawValue, revision: value.revision,
+                    canonicalData: try SurveySessionCanonicalCodecV1.encode(value))) }
+            for id in promotions.keys { let value = try promotion(id, in: workspace)
+                result.append(.init(kind: .subjectPromotionReceipt, id: id, workspaceID: workspace.rawValue, revision: value.revision,
+                    canonicalData: try SurveySessionCanonicalCodecV1.encode(value))) }
+            for id in publications.keys { let value = try publication(id, in: workspace)
+                result.append(.init(kind: .publicationSnapshot, id: id, workspaceID: workspace.rawValue, revision: value.revision,
+                    canonicalData: try SurveySessionCanonicalCodecV1.encode(value))) }
+            return result.sorted(by: SurveySessionBackupGraphClosureV1.order)
+        }
+    }
+}
+
 enum C30EvidenceContextBackupDecoderV1 {
     static func decode(_ record: V30BackupEvidenceContextRecordV1)
         throws -> EvidenceContextBackupRecordSetV1 {
@@ -711,54 +1173,14 @@ private extension BackupCanonicalDecoderV1 {
             guard records.guidedSurveys.isEmpty else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
             return
         }
-        var keys=Set<String>(),sessions:[UUID:SurveySessionV1]=[:],captures:[UUID:FactCaptureV1]=[:],subjects:[UUID:ProvisionalSubjectV1]=[:],receipts:[UUID:SubjectPromotionReceiptV1]=[:],publications:[UUID:SurveyPublicationSnapshotV1]=[:]
-        for record in records.guidedSurveys{
-            guard keys.insert("\(record.kind.rawValue)|\(record.id.uuidString)").inserted else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
-            switch record.kind{
-            case .session:
-                let value=try SurveySessionCanonicalCodecV1.decode(SurveySessionV1.self,from:record.canonicalData);try value.validateIntrinsic();guard record.id==value.sessionID,record.workspaceID==value.workspaceID.rawValue,record.revision==value.revision,sessions.updateValue(value,forKey:value.sessionID)==nil else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
-            case .factCapture:
-                let value=try SurveySessionCanonicalCodecV1.decode(FactCaptureV1.self,from:record.canonicalData);try value.validateIntrinsic();guard record.id==value.captureID,record.workspaceID==value.workspaceID.rawValue,record.revision==value.revision,captures.updateValue(value,forKey:value.captureID)==nil else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
-            case .provisionalSubject:
-                let value=try SurveySessionCanonicalCodecV1.decode(ProvisionalSubjectV1.self,from:record.canonicalData);try value.validate();guard record.id==value.provisionalSubjectID,record.workspaceID==value.workspaceID.rawValue,record.revision==value.revision,subjects.updateValue(value,forKey:value.provisionalSubjectID)==nil else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
-            case .subjectPromotionReceipt:
-                let value=try SurveySessionCanonicalCodecV1.decode(SubjectPromotionReceiptV1.self,from:record.canonicalData);try value.validateIntrinsic();guard record.id==value.receiptID,record.workspaceID==value.workspaceID.rawValue,record.revision==value.revision,receipts.updateValue(value,forKey:value.receiptID)==nil else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
-            case .publicationSnapshot:
-                let value=try SurveySessionCanonicalCodecV1.decode(SurveyPublicationSnapshotV1.self,from:record.canonicalData);try value.validateIntrinsic();guard record.id==value.snapshotID,record.workspaceID==value.workspaceID.rawValue,record.revision==value.revision,publications.updateValue(value,forKey:value.snapshotID)==nil else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
-            }
+        guard let history = records.mutationHistory else { throw BackupCanonicalDecodingErrorV1.invalidRecords }
+        do {
+            _ = try SurveySessionBackupGraphClosureV1.projection(
+                records: records.guidedSurveys, surveyDefinitions: records.surveyDefinitions,
+                packageEvolution: records.packageEvolution, history: history)
+        } catch {
+            throw BackupCanonicalDecodingErrorV1.invalidRecords
         }
-        let definitions=try records.surveyDefinitions.filter{$0.kind == .release}.map{try SurveyDefinitionCanonicalCodecV1.decode(SurveyDefinitionReleaseV1.self,from:$0.canonicalData)}
-        let packageReleases=try records.packageEvolution.filter{$0.kind == .promotedRelease}.map{try PackageEvolutionCanonicalCodecV1.decode(PromotedPackageReleaseV1.self,from:$0.canonicalData).packageRelease}
-        for session in sessions.values{guard let definition=definitions.first(where:{$0.releaseID==session.authority.definitionRelease.releaseID&&$0.releaseSHA256==session.authority.definitionRelease.releaseSHA256}),let packageRelease=packageReleases.first(where:{$0.packageReleaseID==session.authority.packageRelease.packageReleaseID})else{throw BackupCanonicalDecodingErrorV1.invalidRecords};try session.authority.validate(definition:definition,packageRelease:packageRelease);try session.validate(definition:definition);let ownCaptures=captures.values.filter{$0.sessionID==session.sessionID};try ownCaptures.forEach{try $0.validate(session:session,definition:definition)};for publication in publications.values where publication.sessionID==session.sessionID && publication.sessionRevision==session.revision{try publication.validate(session:session,definition:definition,captures:Array(ownCaptures))}}
-        guard captures.values.allSatisfy({sessions[$0.sessionID] != nil}),publications.values.allSatisfy({sessions[$0.sessionID] != nil}),receipts.values.allSatisfy({Set($0.affectedSessionIDs).isSubset(of:Set(sessions.keys))}),sessions.values.allSatisfy({session in if case .provisional(let ref)=session.subject{return subjects[ref.provisionalSubjectID]?.reference==ref};return true})else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
-        var publicationChildren:[UUID:Int]=[:],receiptChildren:[UUID:Int]=[:]
-        for value in publications.values{if let id=value.supersedesSnapshotID{guard let prior=publications[id],prior.sessionID==value.sessionID,prior.revision<UInt64.max,value.revision==prior.revision+1 else{throw BackupCanonicalDecodingErrorV1.invalidRecords};publicationChildren[id,default:0]+=1;guard publicationChildren[id]==1 else{throw BackupCanonicalDecodingErrorV1.invalidRecords}}}
-        for value in receipts.values{if let id=value.predecessorReceiptID{guard let prior=receipts[id]else{throw BackupCanonicalDecodingErrorV1.invalidRecords};try value.validate(preview:value.reconstructedPreview,predecessor:prior);receiptChildren[id,default:0]+=1;guard receiptChildren[id]==1 else{throw BackupCanonicalDecodingErrorV1.invalidRecords}}}
-        guard let history=records.mutationHistory else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
-        var historySessions:[UUID:SurveySessionV1]=[:],historyCaptures:[UUID:FactCaptureV1]=[:],historySubjects:[UUID:ProvisionalSubjectV1]=[:],historyReceipts:[UUID:SubjectPromotionReceiptV1]=[:],historyPublications:[UUID:SurveyPublicationSnapshotV1]=[:]
-        func keepSession(_ value:SurveySessionV1)throws{if let existing=historySessions[value.sessionID],existing.revision==value.revision,existing != value{throw BackupCanonicalDecodingErrorV1.invalidRecords};if historySessions[value.sessionID].map({$0.revision<value.revision}) ?? true{historySessions[value.sessionID]=value}}
-        func keepSubject(_ value:ProvisionalSubjectV1)throws{if let existing=historySubjects[value.provisionalSubjectID],existing.revision==value.revision,existing != value{throw BackupCanonicalDecodingErrorV1.invalidRecords};if historySubjects[value.provisionalSubjectID].map({$0.revision<value.revision}) ?? true{historySubjects[value.provisionalSubjectID]=value}}
-        for record in history.receipts {
-            let envelope=try MutationEnvelopeV1.decodeCanonical(from:record.envelopeData)
-            guard case let .applySurveySession(mutation)=envelope.command else{continue}
-            switch mutation.payload {
-            case .applySession(let value,_,_): try keepSession(value)
-            case .captureFact(let value,_,_,_):
-                if let existing=historyCaptures[value.captureID],existing != value{throw BackupCanonicalDecodingErrorV1.invalidRecords}
-                historyCaptures[value.captureID]=value
-            case .applyProvisionalSubject(let value): try keepSubject(value)
-            case .promoteSubject(let subject,let receipt,_,_):
-                try keepSubject(subject)
-                if let existing=historyReceipts[receipt.receiptID],existing != receipt{throw BackupCanonicalDecodingErrorV1.invalidRecords}
-                historyReceipts[receipt.receiptID]=receipt
-            case .publish(let session,let snapshot,_,_):
-                try keepSession(session)
-                if let existing=historyPublications[snapshot.snapshotID],existing != snapshot{throw BackupCanonicalDecodingErrorV1.invalidRecords}
-                historyPublications[snapshot.snapshotID]=snapshot
-            }
-        }
-        guard historySessions==sessions,historyCaptures==captures,historySubjects==subjects,
-              historyReceipts==receipts,historyPublications==publications else{throw BackupCanonicalDecodingErrorV1.invalidRecords}
     }
 
     static func validateAssetLocators(_ records: V4BackupRecordsV1) throws {

@@ -925,3 +925,269 @@ extension ReportSnapshotV1 {
         return copy
     }
 }
+
+
+/// A complete pre-assurance source value, not an accepted report or writer proof.
+/// Its versioned canonical identity includes the audience and projection version.
+/// The legacy snapshot is preserved whole; assurance must never be stripped from
+/// an existing publication to manufacture this source.
+struct ReportPublicationBasisV1: Equatable, Sendable {
+    static let schemaVersion = 1
+    let workspaceID: WorkspaceID
+    let audience: ReportAudienceV1
+    let projectionVersion: String
+    let snapshot: ReportSnapshotV1
+
+    init(workspaceID: WorkspaceID, audience: ReportAudienceV1,
+         projectionVersion: String, snapshot: ReportSnapshotV1) throws {
+        self.workspaceID = workspaceID
+        self.audience = audience
+        self.projectionVersion = projectionVersion
+        self.snapshot = snapshot
+        try validate()
+    }
+
+    func validate() throws {
+        guard workspaceID.rawValue != EvidenceAssuranceLimitsV1.zeroUUID,
+              !projectionVersion.isEmpty,
+              projectionVersion.utf8.count <= EvidenceAssuranceLimitsV1.maximumProjectionVersionBytes,
+              SnapshotProjectionValidationV1.validID(projectionVersion),
+              (1...3).contains(snapshot.snapshotSchemaVersion),
+              snapshot.assurance == nil else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        // First reject nonfinite numbers and any lossy typed representation,
+        // before passing dates to the legacy timestamp formatter.
+        _ = try ReportPublicationCanonicalCodecV1.encodeSnapshot(snapshot)
+        // Retain established report semantics, but do not use the legacy file
+        // wire as this new full-value identity: it omits later typed fields.
+        _ = try ReportSnapshotEncoderV1().encode(snapshot)
+        for componentWorkspace in [snapshot.accountability?.workspaceID,
+                                   snapshot.assetSemantics?.workspaceID,
+                                   snapshot.authorityCriterion?.workspaceID,
+                                   snapshot.functionalRelationships?.workspaceID].compactMap({ $0 }) {
+            guard componentWorkspace == workspaceID else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+        }
+        for reference in snapshot.fieldReferences ?? [] { try reference.validate() }
+        if let day = snapshot.lightingDayInventory {
+            try day.validate()
+            guard day.projection.workspaceID == workspaceID else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+        }
+        if let night = snapshot.lightingNightWorkflow {
+            try night.validate()
+            guard night.projection.workspaceID == workspaceID else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+        }
+        if let practice = snapshot.practiceWorkspace {
+            try practice.validate()
+            guard practice.workspaceID == workspaceID else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+        }
+        let links = snapshot.temporalEvidenceLinks ?? []
+        guard Set(links.map(\.clipID)).count == links.count else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        for link in links {
+            try link.validate()
+            guard link.workspaceID == workspaceID else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+        }
+    }
+}
+
+/// Contract-only publication. No finalizer, renderer or persistence admission is
+/// implied. The file's complete encoded digest is its outer identity; there is
+/// deliberately no encoded self-hash or workspace-rebinding operation.
+struct ReportPublicationV1: Equatable, Sendable {
+    static let schemaVersion = 1
+    let basis: ReportPublicationBasisV1
+    let basisSHA256: String
+    let assurance: ReportEvidenceAssuranceProjectionV1?
+
+    init(basis: ReportPublicationBasisV1,
+         assurance: ReportEvidenceAssuranceProjectionV1? = nil) throws {
+        self.basis = basis
+        basisSHA256 = CanonicalJSONV1.sha256(
+            try ReportPublicationCanonicalCodecV1.encodeBasis(basis))
+        self.assurance = assurance
+        try validate()
+    }
+
+    func validate() throws {
+        guard basisSHA256 == CanonicalJSONV1.sha256(
+            try ReportPublicationCanonicalCodecV1.encodeBasis(basis)) else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        if let assurance {
+            guard let audience = ReportEvidenceAssuranceProjectionPolicyV1
+                .evidenceAudience(for: basis.audience) else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+            try assurance.validate(expectedSnapshotSHA256: basisSHA256,
+                expectedProjectionVersion: basis.projectionVersion, expectedAudience: audience)
+            guard assurance.preview.workspaceID == basis.workspaceID else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+        }
+    }
+}
+
+/// Finite C14 source layer. The carried publication's assurance remains bound
+/// to its original basis; it is historical content, not assurance of this layer.
+/// The subject key describes a fixed correction-chain position. This pure
+/// tuple is NOT runtime lineage authority: a future producer must derive it
+/// from the canonical immutable report chain before accepting a write.
+struct ReportReviewedSourceV1: Equatable, Sendable {
+    static let schemaVersion = 1
+    let original: ReportPublicationV1
+    let reportSubject: CompletedWorkSubjectKeyV1
+    let history: CompletedInspectionReviewHistorySnapshotV1
+
+    init(original: ReportPublicationV1, reportSubject: CompletedWorkSubjectKeyV1,
+         history: CompletedInspectionReviewHistorySnapshotV1) throws {
+        self.original = original
+        self.reportSubject = reportSubject
+        self.history = history
+        try validate()
+    }
+
+    func validate() throws {
+        try original.validate()
+        try history.validate()
+        let snapshot = original.basis.snapshot
+        let originalSHA256 = try ReportPublicationCanonicalCodecV1.encode(original).sha256
+        guard reportSubject.family == .legacyReportSnapshot,
+              reportSubject.workspaceID == original.basis.workspaceID,
+              reportSubject.subjectID == snapshot.reportID,
+              reportSubject.subjectRevision > 0,
+              snapshot.snapshotSchemaVersion == 3,
+              history.workspaceID == original.basis.workspaceID,
+              history.sourceSnapshotSHA256 == originalSHA256,
+              history.binding.completedSnapshotSHA256 == originalSHA256,
+              let assurance = original.assurance,
+              let accountability = snapshot.accountability,
+              snapshot.assetSemantics != nil,
+              let authority = snapshot.authorityCriterion,
+              let relationships = snapshot.functionalRelationships,
+              history.binding.c38AccountabilitySHA256 == accountability.snapshotSHA256,
+              history.binding.c40AuthorityCriterionSHA256 == authority.snapshotSHA256,
+              history.binding.c41FunctionalRelationshipsSHA256 == relationships.snapshotSHA256,
+              history.binding.c13AssuranceSHA256 == CanonicalJSONV1.sha256(
+                try ReportEvidenceAssuranceCanonicalCodecV1.encode(assurance)) else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        for transition in history.reviewTransitions {
+            try validateSubject(transition.subject, originalSHA256: originalSHA256)
+        }
+        for disposition in history.reviewDispositions {
+            try validateSubject(disposition.subject, originalSHA256: originalSHA256)
+        }
+        try EvidenceDetailInspectionReviewProjectionGuardV1.validateHistory(history, assurance: assurance)
+    }
+
+    private func validateSubject(_ subject: InspectionReviewSubjectReferenceV1,
+                                 originalSHA256: String) throws {
+        switch subject.kind {
+        case .reportSnapshot:
+            guard subject.workspaceID == reportSubject.workspaceID,
+                  subject.subjectID == reportSubject.subjectID.uuidString.lowercased(),
+                  subject.subjectRevision == reportSubject.subjectRevision,
+                  subject.subjectSHA256 == originalSHA256 else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+            if let package = subject.packageRelease {
+                let pack = original.basis.snapshot.pack
+                guard package.packageID == pack.id, package.schemaVersion == pack.schemaVersion,
+                      package.contentVersion == pack.contentVersion else {
+                    throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+                }
+            }
+        case .completedActivitySnapshot:
+            // A report source cannot be substituted for the distinct completed
+            // activity subject family merely because a digest matches.
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        case .finding:
+            // Existing C14 history/item/action validators retain their scope.
+            break
+        }
+    }
+
+    /// A derived S10-shaped view, never a second editable or encoded source.
+    /// It retains all original fields, adds exact historical assurance/history,
+    /// and uses schema four. The original publication bytes remain unchanged.
+    func reportSnapshot() throws -> ReportSnapshotV1 {
+        try validate()
+        let snapshot = original.basis.snapshot
+        let value = ReportSnapshotV1(
+            acknowledgements: snapshot.acknowledgements,
+            asset: snapshot.asset,
+            couldNotVerify: snapshot.couldNotVerify,
+            disclaimer: snapshot.disclaimer,
+            display: snapshot.display,
+            evidence: snapshot.evidence,
+            evidenceSourceRecordID: snapshot.evidenceSourceRecordID,
+            history: snapshot.history,
+            issues: snapshot.issues,
+            note: snapshot.note,
+            observationBasis: snapshot.observationBasis,
+            outcome: snapshot.outcome,
+            pack: snapshot.pack,
+            packetID: snapshot.packetID,
+            pdfTemplate: snapshot.pdfTemplate,
+            reportID: snapshot.reportID,
+            site: snapshot.site,
+            snapshotCreatedAt: snapshot.snapshotCreatedAt,
+            snapshotSchemaVersion: 4,
+            sourceApp: snapshot.sourceApp,
+            sourceRecordID: snapshot.sourceRecordID,
+            stableRootID: snapshot.stableRootID,
+            stage: snapshot.stage,
+            temporalContext: snapshot.temporalContext,
+            timeContext: snapshot.timeContext,
+            requirementAssurance: snapshot.requirementAssurance,
+            accountability: snapshot.accountability,
+            assetSemantics: snapshot.assetSemantics,
+            authorityCriterion: snapshot.authorityCriterion,
+            functionalRelationships: snapshot.functionalRelationships,
+            assurance: original.assurance,
+            inspectionReviewHistory: history,
+            workPacket: snapshot.workPacket,
+            measurementIntegrity: snapshot.measurementIntegrity,
+            privacyTransform: snapshot.privacyTransform,
+            clientCapability: snapshot.clientCapability,
+            fieldReferences: snapshot.fieldReferences,
+            surveyPublication: snapshot.surveyPublication,
+            scheduleProjection: snapshot.scheduleProjection,
+            planProjection: snapshot.planProjection,
+            placementPose: snapshot.placementPose,
+            lightingDayInventory: snapshot.lightingDayInventory,
+            lightingNightWorkflow: snapshot.lightingNightWorkflow,
+            temporalEvidenceLinks: snapshot.temporalEvidenceLinks,
+            practiceWorkspace: snapshot.practiceWorkspace
+        )
+        _ = try ReportPublicationCanonicalCodecV1.encodeSnapshot(value)
+        _ = try ReportSnapshotEncoderV1().encode(value)
+        return value
+    }
+}
+
+/// Complete reviewed output identity is its full encoded hash. No new current
+/// C13 assurance is implied by displaying history. A later explicitly requested
+/// current-assurance operation must freshly bind the WHOLE reviewed source;
+/// historical assurance can never satisfy that separate operation.
+struct ReportReviewPublicationV1: Equatable, Sendable {
+    static let schemaVersion = 1
+    let source: ReportReviewedSourceV1
+
+    init(source: ReportReviewedSourceV1) throws {
+        try source.validate()
+        self.source = source
+    }
+}

@@ -307,3 +307,55 @@ enum C52ServiceRequestBoundary_TemporalEvidenceContractsV1 {
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
 }
+
+/// Whole-generation disposal owns every authenticated historical registration,
+/// including replaced/retired derivatives. This does not decide ordinary live
+/// retention. Callers must authenticate the complete journal and current rows
+/// under their frozen generation authority before using these descriptors.
+enum TemporalEvidenceWholeGenerationEraseV1 {
+    static func registeredDerivatives(
+        history: MutationHistorySnapshotV1,
+        workspaceID: WorkspaceID
+    ) throws -> [TemporalEvidenceDerivativeV1] {
+        var byReference: [TemporalEvidenceDerivativeReferenceV1: TemporalEvidenceDerivativeV1] = [:]
+        var contentByID: [String: ContentReferenceV1] = [:]
+        for record in history.receipts {
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+            let receipt = try MutationReceiptV1.decodeCanonical(from: record.receiptData)
+            guard receipt.mutationID == envelope.mutationID,
+                  receipt.identity.workspaceID == envelope.workspaceID,
+                  receipt.identity.replicaID == envelope.replicaID,
+                  receipt.envelopeSHA256 == (try envelope.canonicalSHA256()) else {
+                throw TemporalEvidenceContractFailureV1.digestMismatch
+            }
+            guard case let .applyTemporalEvidence(mutation) = envelope.command else { continue }
+            _ = try TemporalEvidenceMutationReceiptV1(mutation: mutation, mutationReceipt: receipt)
+            guard case let .registerDerivative(successor, derivative, predecessor, _) = mutation.payload else {
+                continue
+            }
+            try derivative.validate(clip: predecessor)
+            let reference = try derivative.reference
+            guard successor.derivativeReferences.contains(reference),
+                  mutation.workspaceID == envelope.workspaceID,
+                  derivative.workspaceID == mutation.workspaceID,
+                  successor.workspaceID == mutation.workspaceID else {
+                throw TemporalEvidenceContractFailureV1.invalidDerivative
+            }
+            // Restore retains immutable source receipts. A foreign registration
+            // never authorizes a guessed destination or old-workspace file.
+            guard mutation.workspaceID == workspaceID else { continue }
+            if let prior = byReference[reference], prior != derivative {
+                throw TemporalEvidenceContractFailureV1.invalidDerivative
+            }
+            if let prior = contentByID[derivative.content.contentID], prior != derivative.content {
+                throw TemporalEvidenceContractFailureV1.invalidDerivative
+            }
+            byReference[reference] = derivative
+            contentByID[derivative.content.contentID] = derivative.content
+        }
+        return byReference.values.sorted {
+            ($0.content.contentID, $0.derivativeID.uuidString, $0.revision)
+                < ($1.content.contentID, $1.derivativeID.uuidString, $1.revision)
+        }
+    }
+}

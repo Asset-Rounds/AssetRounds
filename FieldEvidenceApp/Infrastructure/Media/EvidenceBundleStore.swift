@@ -1401,7 +1401,10 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         return UUID(uuidString: raw)?.uuidString.lowercased() == raw
     }
 
-    func resolveContentReference(
+    /// Synchronous immutable-byte proof: reads only immutable root identity/URL
+    /// and descriptor-local state through the nonisolated anchored helpers.
+    /// No actor-owned mutation state or suspension participates in this proof.
+    nonisolated func resolveContentReference(
         _ reference: ContentReferenceV1
     ) throws -> ContentReferenceV1? {
         guard reference.byteLength >= 0,
@@ -4517,7 +4520,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
 
     /// Descriptor-pinned, fixed-buffer verification used before derivative
     /// rendering. It proves exact source bytes without allocating the source.
-    private func verifyProtectedRegularFile(
+    nonisolated private func verifyProtectedRegularFile(
         _ kind: OwnedFileKindV1,
         at url: URL,
         parent: Int32,

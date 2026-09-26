@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "e26b91b122062da8cd8a51f0c57a36772546e2fa",
+  "generatedAtHead": "aaf9bc626468b36b32ca8cca0e5a3a846bcb7ff0",
   "sweepOrder": [
     "S01",
     "S02",
@@ -44,7 +44,7 @@
     {
       "id": "S02",
       "tier": "D50C",
-      "estimatedSeconds": 1569.0,
+      "estimatedSeconds": 2109.0,
       "selectors": [
         "FieldEvidenceAppTests/C27S82TypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorV901VersionedSchemaIdentity/testC33V901VersionedSchemaIdentityCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -202,6 +202,15 @@
         "FieldEvidenceAppTests/V9_40SurveySessionTests/testV23P03C34ExplicitSurveyResumeRestoresTheStableSessionRoute",
         "FieldEvidenceAppTests/V9_40SurveySessionTests/testV23P03C37TypedPoseContractAnchor",
         "FieldEvidenceAppTests/V9_40SurveySessionTests/testZeroSurveyIdentitiesRejectAndCaptureSuccessorsRequireExactReferences",
+        "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testC33EraseAcceptsOnlyExactAncestorsLeftByAuthenticatedDerivativeCleanup",
+        "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testC33EraseAuthenticatesSharedOriginalAndRecoversAfterPointerPublication",
+        "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testC33EraseHistoricalRegisteredDerivativesRemainOwnedAfterReplacementAndRetirement",
+        "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testC33EraseRecoveryRejectsHostileRetainedOriginalInventoryBeforeCleanup",
+        "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testC33EraseRegisteredDerivativeHostilesPreserveCurrentAndRetainedSources",
+        "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testC33EraseRejectsContradictorySharedDerivativeDescriptors",
+        "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testC33EraseRejectsHostileOriginalInventoryBeforeEffects",
+        "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testC33EraseRejectsOtherwiseEmptyOrphanTemporalOriginalBeforeEffects",
+        "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testC33EraseRestoredForeignDerivativeReferencesRequireGenuineDestinationRegistration",
         "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testC33PersistentClipReusesAcceptedShippingPackageWithoutRepromotion",
         "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testV23P03C33A01TypedLimitsAnchorsAndReplaceableDerivativesRemainBounded",
         "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testV23P03C33G01ReviewedClipPromotesImmutableContentAndOneCanonicalMutation",
@@ -1062,7 +1071,7 @@
     {
       "id": "S12",
       "tier": "D50C",
-      "estimatedSeconds": 1945.1,
+      "estimatedSeconds": 2125.1,
       "selectors": [
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorV903MigrationRecovery/testC33V903MigrationRecoveryCompatibilityBindsTypedTemporalEvidenceToItsOwner",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorV945EvidenceContext/testC33V945EvidenceContextCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -1077,6 +1086,9 @@
         "FieldEvidenceAppTests/S6_2BackupExportTests/testC25SurveyDefinitionHostileProjectionFailsBeforeEffects",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testC25SurveyDefinitionProjectionAuthenticatesOriginalAndMultiEventGraphs",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testC25SurveyDefinitionTypedAnchor",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testC26ArchiveCloneNativeSuccessorForkAndColdExportPreserveOriginals",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testC26ArchiveGraphPreservesFiveFamiliesAndHistoricalPublicationInputs",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testC26ArchiveRejectsMissingForgedAndAmbiguousFactsWithoutEffects",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testC26SurveySessionTypedAnchor",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testC30CanonicalContextsAndPairsCloneForkBindDestinationAndColdReadback",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testC30CanonicalContextsAndPairsExportAndRestoreSameWorkspace",
@@ -2367,7 +2379,7 @@
     {
       "id": "S19",
       "tier": "D50C",
-      "estimatedSeconds": 1499.9,
+      "estimatedSeconds": 2099.9,
       "selectors": [
         "FieldEvidenceAppTests/C30EvidenceContextAnchorV9_17KernelPersistence/testTypedEvidenceContextContractAnchor",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorS41DeterministicRenderer/testC33S41DeterministicRendererCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -2428,6 +2440,16 @@
         "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testC24AccessibleDocumentTypedAnchor",
         "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testC25SurveyDefinitionTypedAnchor",
         "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testC26SurveySessionTypedAnchor",
+        "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testLegacyC33ReportDecoderRejectsMalformedAndCrossFormatTemporalWires",
+        "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testLegacyC33ReportReadbackPreservesCompleteTemporalLinksAndTypedWire",
+        "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testReportPublicationBindsCompleteTemporalBasisAndSeparateOuterIdentity",
+        "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testReportPublicationLeavesLegacyGoldenBytesAndAdmissionUnchanged",
+        "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testReportPublicationPreservesAllLegacyOmittedTypedFamilies",
+        "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testReportPublicationPreservesExactSourceAndAssuranceDatePrecision",
+        "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testReportPublicationRejectsUnboundNestedAndNoncanonicalInputs",
+        "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testReportReviewedPublicationPreservesSchemaThreeSourceAndCompleteSchemaFourView",
+        "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testReportReviewedPublicationRejectsNoncanonicalAndMissingOriginalWire",
+        "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testReportReviewedSourceRejectsWrongReportTupleAndHistoricalComponents",
         "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testV23P03C13PreviewManifestBindsVisibilityAndRejectsStaleInputs",
         "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testV23P03C14SnapshotCandidateStartsAsDraftWithoutAcceptanceClaim",
         "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testV23P03C15SnapshotProjectionIncludesActiveClaimAndLease",

@@ -1622,6 +1622,7 @@ private extension EraseAllService {
             id: expectedID,
             modelContext: coordinator.modelContext,
             generationRootURL: expectedRootURL,
+            workspaceIdentity: coordinator.workspaceIdentity,
             authority: authority
         )
         traceErasePhase("current.retired-generations")
@@ -1634,6 +1635,7 @@ private extension EraseAllService {
                 id: id,
                 modelContext: retiredSession.modelContext,
                 generationRootURL: retiredSession.generationRootURL,
+                workspaceIdentity: retiredSession.workspaceIdentity,
                 authority: authority
             )
         }
@@ -1736,6 +1738,7 @@ private extension EraseAllService {
                 try validateFrozenGeneration(
                     id: id, modelContext: session.modelContext,
                     generationRootURL: session.generationRootURL,
+                    workspaceIdentity: session.workspaceIdentity,
                     authority: authority, retainedEraseValidation: validation
                 )
                 continue
@@ -1748,6 +1751,7 @@ private extension EraseAllService {
                 id: id,
                 modelContext: session.modelContext,
                 generationRootURL: session.generationRootURL,
+                workspaceIdentity: session.workspaceIdentity,
                 authority: authority
             )
         }
@@ -2322,6 +2326,7 @@ private extension EraseAllService {
         id: UUID,
         modelContext: ModelContext,
         generationRootURL: URL,
+        workspaceIdentity: WorkspaceReplicaIdentityV1,
         authority: StoreRestoreGenerationAuthority,
         retainedEraseValidation: EraseRetainedSourceValidationV1? = nil
     ) throws {
@@ -2331,14 +2336,24 @@ private extension EraseAllService {
                 == generationFactory.installedGenerationURL(id: id) else {
             traceErasePhase("authority.failure.line.\(#line)"); throw EraseAllServiceError.invalidAuthority
         }
+        let contentRootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL)
         traceErasePhase("frozen.summary")
         if let validation = retainedEraseValidation {
-            guard generationRootURL.standardizedFileURL == validation.generationRootURL else {
+            guard generationRootURL.standardizedFileURL == validation.generationRootURL,
+                  workspaceIdentity == validation.workspaceIdentity else {
                 throw EraseAllServiceError.invalidAuthority
             }
             try validation.revalidate(modelContext: modelContext)
         }
-        if !BackupRestoreService.isEmptyCurrent(modelContext) {
+        // The generic empty predicate does not enumerate temporal rows. Even
+        // an otherwise-empty store must authenticate their complete receipt and
+        // byte closure before any original path can enter the inventory.
+        let temporalClips = try modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>())
+            .map { try $0.value() }
+        var temporalDerivatives: [TemporalEvidenceDerivativeV1] = []
+        var authenticatedHistory: MutationHistorySnapshotV1?
+        var authenticatedJournal: MutationJournalStoreV1?
+        if !temporalClips.isEmpty || !BackupRestoreService.isEmptyCurrent(modelContext) {
             do {
                 if let validation = retainedEraseValidation {
                     _ = try BackupRestoreService.retainedEraseSummary(
@@ -2350,6 +2365,23 @@ private extension EraseAllService {
                         generationRootURL: generationRootURL
                     )
                 }
+                // The session/retained authority supplies identity; the state row
+                // must agree, and cannot authorize its own namespace. No writer,
+                // bootstrap or current-only factory is opened for a retired source.
+                let states = try modelContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>())
+                guard states.count == 1, let state = states.first,
+                      state.generationID == id,
+                      state.workspaceID == workspaceIdentity.workspaceID.rawValue,
+                      state.activeReplicaID == workspaceIdentity.replicaID.rawValue else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                let journal = try MutationJournalStoreV1(modelContext: modelContext,
+                    identity: workspaceIdentity, generationID: id, allowStateBootstrap: false)
+                let history = try journal.exportSnapshot()
+                temporalDerivatives = try TemporalEvidenceWholeGenerationEraseV1.registeredDerivatives(
+                    history: history, workspaceID: workspaceIdentity.workspaceID)
+                authenticatedJournal = journal
+                authenticatedHistory = history
             } catch {
                 traceErasePhase("frozen.summary.failure." + String(reflecting: type(of: error)))
                 throw error
@@ -2363,6 +2395,18 @@ private extension EraseAllService {
         ).map { try $0.value() }
         var expectedDirectories = Set<String>()
         var expectedFiles: Set<String> = ["model.sqlite"]
+        // The complete current/retained summary above authenticates these rows,
+        // their receipt closure and anchored original bytes. Enroll only those
+        // exact required members; clip derivative IDs grant no file authority.
+        for clip in temporalClips {
+            let path = try TemporalEvidenceBackupMemberV1.original(for: clip)
+            let workspace = clip.workspaceID.rawValue.uuidString.lowercased()
+            expectedDirectories.formUnion([
+                "content", "content/\(workspace)",
+                "content/\(workspace)/\(clip.original.contentID)",
+            ])
+            expectedFiles.insert(path)
+        }
         // Finalization startup owns this empty root before any Report exists.
         // Its descendants still require the exact report-backed file inventory.
         var optionalDirectories: Set<String> = ["snapshots"]
@@ -2419,8 +2463,39 @@ private extension EraseAllService {
         traceErasePhase("frozen.label-inventory")
         let contentStore = EvidenceBundleStore(
             generationRootURL: generationRootURL,
-            fileManager: fileManager
+            fileManager: fileManager,
+            expectedGenerationRootIdentity: contentRootIdentity
         )
+        var presentDerivatives: [ContentReferenceV1] = []
+        var ownedContent: [String: ContentReferenceV1] = [:]
+        for clip in temporalClips {
+            // Preserve incumbent original-sharing validation in the exporter;
+            // this map only prevents derivative/original role aliasing.
+            ownedContent[clip.original.contentID] = clip.original
+        }
+        for derivative in temporalDerivatives {
+            try derivative.locator.validate(against: derivative.content)
+            if let prior = ownedContent[derivative.content.contentID], prior != derivative.content {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            ownedContent[derivative.content.contentID] = derivative.content
+            let workspace = derivative.content.workspaceID
+            let directory = "content/\(workspace)/\(derivative.content.contentID)"
+            let path = "\(directory)/original.bin"
+            // Exact incumbent orphan cleanup removes the object directory but
+            // leaves these two parents. It does not leave an empty object.
+            optionalDirectories.formUnion(["content", "content/\(workspace)"])
+            if tree.files.contains(path) {
+                guard try contentStore.resolveContentReference(derivative.content) == derivative.content else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                expectedDirectories.formUnion(["content", "content/\(workspace)", directory])
+                expectedFiles.insert(path)
+                presentDerivatives.append(derivative.content)
+            } else if tree.directories.contains(directory) {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        }
         for snapshot in acceptedLabelSnapshots
             where snapshot.disposition == .activeSourceWorkspace {
             let binding = snapshot.outputReceipt.publicationBinding
@@ -2494,6 +2569,19 @@ private extension EraseAllService {
             }
 #endif
             traceErasePhase("authority.failure.line.\(#line)"); throw EraseAllServiceError.invalidAuthority
+        }
+        // Reprove the observed inventory and authenticated history after all
+        // readback/diagnostic boundaries, before any generation disposal.
+        for content in presentDerivatives {
+            guard try contentStore.resolveContentReference(content) == content else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        }
+        guard try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL) == contentRootIdentity,
+              try authority.installedTree(id: id) == tree,
+              !modelContext.hasChanges else { throw EraseAllServiceError.invalidAuthority }
+        if let journal = authenticatedJournal, let history = authenticatedHistory {
+            guard try journal.exportSnapshot() == history else { throw EraseAllServiceError.invalidAuthority }
         }
         if let validation = retainedEraseValidation {
             try validation.revalidate(modelContext: modelContext)

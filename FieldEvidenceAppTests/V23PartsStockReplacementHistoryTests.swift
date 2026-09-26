@@ -1742,9 +1742,29 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
     }
 
     // Diagnostic only: never substitute these bytes for a strict decoder input.
-    // Compare Foundation transport against the existing canonical renderer and
-    // report keys/digests/offsets without dumping retained business values.
-    private func reportCanonicalKeyDifference(_ data: Data, phase: String) {
+    // This compares the synthetic fixture's Foundation transport with the generic
+    // renderer, not the decoder's typed BackupCanonicalEncoderV1 rendering.
+    // Preserve exact mismatch buffers in XCTest, outside the deleted fixture root.
+    private func reportCanonicalKeyDifference(
+        _ data: Data, phase: String, originalRecords: Data? = nil
+    ) {
+        @MainActor
+        func retain(_ bytes: Data, role: String) {
+            let name = "C55.synthetic.\(phase).\(role).json"
+            let attachment = XCTAttachment(data: bytes, uniformTypeIdentifier: "public.json")
+            attachment.name = name
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            print("C55 canonical attachment=\(name) syntheticFixture=true comparison=generic-renderer bytes=\(bytes.count) sha256=\(CanonicalJSONV1.sha256(bytes))")
+        }
+        func reportWindow(_ bytes: Data, role: String, firstOffset: Int) {
+            let lower = max(0, firstOffset - 64)
+            let upper = min(bytes.count, firstOffset + 65)
+            let byteHex = firstOffset < bytes.count
+                ? String(format: "%02x", bytes[bytes.startIndex + firstOffset]) : "end-of-buffer"
+            let window = bytes.subdata(in: lower..<upper).base64EncodedString()
+            print("C55 canonical window phase=\(phase) syntheticFixture=true comparison=generic-renderer role=\(role) firstOffset=\(firstOffset) byteHex=\(byteHex) lower=\(lower) upperExclusive=\(upper) base64=\(window)")
+        }
         func value(_ object: Any) throws -> CanonicalJSONValueV1 {
             if object is NSNull { return .null }
             if let text = object as? String { return .string(text) }
@@ -1769,8 +1789,13 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
             let firstOffset = zip(data, canonical).enumerated().first {
                 $0.element.0 != $0.element.1
             }?.offset ?? min(data.count, canonical.count)
-            var firstKey = data == canonical ? "none" : "root-order-or-transport-only"
+            var firstKey = data == canonical ? "none" : "unclassified-whole-document-difference"
             if data != canonical {
+                if let originalRecords { retain(originalRecords, role: "original-records") }
+                retain(data, role: "observed-transport")
+                retain(canonical, role: "generic-canonical")
+                reportWindow(data, role: "observed-transport", firstOffset: firstOffset)
+                reportWindow(canonical, role: "generic-canonical", firstOffset: firstOffset)
                 for key in fields.keys.sorted() {
                     guard let field = fields[key] else {
                         throw FinalizationContractEncodingErrorV1.unsupportedValue
@@ -1781,9 +1806,9 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
                     if observed != expected { firstKey = key; break }
                 }
             }
-            print("C55 canonical phase=\(phase) matches=\(data == canonical) firstDifferentTopLevelKey=\(firstKey) firstDifferentByte=\(firstOffset) observedBytes=\(data.count) canonicalBytes=\(canonical.count) observedSHA=\(CanonicalJSONV1.sha256(data)) canonicalSHA=\(CanonicalJSONV1.sha256(canonical))")
+            print("C55 canonical phase=\(phase) comparison=generic-renderer matches=\(data == canonical) firstDifferentTopLevelKey=\(firstKey) firstDifferentByte=\(firstOffset) observedBytes=\(data.count) canonicalBytes=\(canonical.count) observedSHA=\(CanonicalJSONV1.sha256(data)) canonicalSHA=\(CanonicalJSONV1.sha256(canonical))")
         } catch {
-            print("C55 canonical phase=\(phase) diagnosticUnavailable=\(String(reflecting: type(of: error)))")
+            print("C55 canonical phase=\(phase) comparison=generic-renderer diagnosticUnavailable=\(String(reflecting: type(of: error))) error=\(String(reflecting: error))")
         }
     }
 
@@ -1820,17 +1845,31 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         XCTAssertEqual(workPacket.packetID, owner.id)
 
         let recordsURL = directory.appendingPathComponent("records.json")
-        var object = try XCTUnwrap(JSONSerialization.jsonObject(
-            with: Data(contentsOf: recordsURL)
+        // Ordinary Codable is only a fixture-construction intermediate. Foundation's
+        // sortedKeys order is not the backup wire's canonical key ordering.
+        let fixtureBytes = try JSONEncoder().encode(validated.records)
+        let fixtureObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: fixtureBytes
         ) as? [String: Any])
+        var object = fixtureObject
         object["packets"] = []
-        let transport = try JSONSerialization.data(
-            withJSONObject: object, options: [.sortedKeys, .withoutEscapingSlashes]
-        )
-        reportCanonicalKeyDifference(transport, phase: "packet-owner.ownerless-transport")
+        let ownerlessFixture = try JSONDecoder().decode(V4BackupRecordsV1.self,
+            from: JSONSerialization.data(withJSONObject: object))
+        // Prove the construction changes only packet ownership, including all
+        // typed dates and every populated historical family in this fixture.
+        var reconstructed = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(ownerlessFixture)
+        ) as? [String: Any])
+        reconstructed["packets"] = fixtureObject["packets"]
+        XCTAssertEqual(try JSONDecoder().decode(V4BackupRecordsV1.self,
+            from: JSONSerialization.data(withJSONObject: reconstructed)), validated.records)
+        let transport = try BackupCanonicalEncoderV1().encodeRecords(ownerlessFixture).data
+        reportCanonicalKeyDifference(transport, phase: "packet-owner.ownerless-transport",
+                                     originalRecords: originalRecords)
         let ownerless = try publicReplacementStep("packet-owner.decode-ownerless-transport") {
             try BackupCanonicalDecoderV1().decodeRecords(transport)
         }
+        XCTAssertEqual(ownerless, ownerlessFixture)
         XCTAssertTrue(ownerless.packets.isEmpty)
         XCTAssertEqual(ownerless.workPackets, validated.records.workPackets)
         let recordsData = try BackupCanonicalEncoderV1().encodeRecords(ownerless).data

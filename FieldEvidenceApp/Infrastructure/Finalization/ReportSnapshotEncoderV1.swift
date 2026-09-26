@@ -379,6 +379,8 @@ struct ReportSnapshotEncoderV1: Sendable {
 
     func decode(_ data: Data) throws -> ReportSnapshotV1 {
         let decoder = JSONDecoder()
+        decoder.userInfo[TemporalEvidenceReportLinkWireContextV1.codingKey] =
+            TemporalEvidenceReportLinkWireContextV1.legacyReportSnapshot
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             if let value = try? container.decode(String.self) {
@@ -2220,5 +2222,286 @@ enum C53ServiceReliabilityReportSnapshotEncoderV1 {
             throw ReportSnapshotEncodingErrorV1.noncanonicalData
         }
         return value
+    }
+}
+
+
+/// Explicit, additive codec only. Existing report family dispatch intentionally
+/// rejects this new discriminator until full lifecycle adoption is complete.
+/// Basis schema one embeds the COMPLETE typed snapshot with canonical sorted
+/// Codable keys and finite seconds since the Date reference epoch (2001),
+/// preserving the original Date Double without epoch arithmetic. This differs
+/// from the legacy report file wire. Fixed outer assembly never removes or
+/// normalizes source fields.
+enum ReportPublicationCanonicalCodecV1 {
+    static func encodeBasis(_ value: ReportPublicationBasisV1) throws -> Data {
+        try value.validate()
+        let snapshot = try encodeSnapshot(value.snapshot)
+        return try object([
+            ("audience", scalar(value.audience.rawValue)),
+            ("projectionVersion", scalar(value.projectionVersion)),
+            ("reportBasisSchemaVersion", Data("1".utf8)),
+            ("snapshot", snapshot),
+            ("workspaceID", scalar(value.workspaceID.rawValue.uuidString.lowercased())),
+        ])
+    }
+
+    static func decodeBasis(_ data: Data) throws -> ReportPublicationBasisV1 {
+        try requireBounded(data)
+        let value = try decoder().decode(BasisWire.self, from: data).value()
+        guard try encodeBasis(value) == data else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return value
+    }
+
+    static func encode(_ value: ReportPublicationV1) throws -> EncodedReportSnapshotV1 {
+        try value.validate()
+        var fields: [(String, Data)] = [
+            ("basis", try encodeBasis(value.basis)),
+            ("basisSHA256", try scalar(value.basisSHA256)),
+            ("reportPublicationSchemaVersion", Data("1".utf8)),
+        ]
+        if let assurance = value.assurance {
+            fields.append(("assurance", try encodeAssurance(assurance)))
+        }
+        let data = try object(fields)
+        return .init(data: data, sha256: CanonicalJSONV1.sha256(data))
+    }
+
+    static func decode(_ data: Data) throws -> ReportPublicationV1 {
+        try requireBounded(data)
+        let wire = try decoder().decode(PublicationWire.self, from: data)
+        let value = try wire.value()
+        guard try encode(value).data == data else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return value
+    }
+
+    static func encodeReviewedSource(_ value: ReportReviewedSourceV1) throws -> Data {
+        try value.validate()
+        let subject = try object([
+            ("workspaceID", scalar(value.reportSubject.workspaceID.rawValue.uuidString.lowercased())),
+            ("reportID", scalar(value.reportSubject.subjectID.uuidString.lowercased())),
+            ("fixedCorrectionChainRevision", Data(String(value.reportSubject.subjectRevision).utf8)),
+        ])
+        return try object([
+            ("reportReviewedSourceSchemaVersion", Data("1".utf8)),
+            ("original", encode(value.original).data),
+            ("reportSubject", subject),
+            ("history", encodeHistory(value.history)),
+        ])
+    }
+
+    static func decodeReviewedSource(_ data: Data) throws -> ReportReviewedSourceV1 {
+        try requireBounded(data)
+        let value = try decoder().decode(ReviewedSourceWire.self, from: data).value()
+        guard try encodeReviewedSource(value) == data else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return value
+    }
+
+    static func encode(_ value: ReportReviewPublicationV1) throws -> EncodedReportSnapshotV1 {
+        let data = try object([
+            ("reportReviewPublicationSchemaVersion", Data("1".utf8)),
+            ("source", encodeReviewedSource(value.source)),
+        ])
+        return .init(data: data, sha256: CanonicalJSONV1.sha256(data))
+    }
+
+    static func decodeReview(_ data: Data) throws -> ReportReviewPublicationV1 {
+        try requireBounded(data)
+        let wire = try decoder().decode(ReviewPublicationWire.self, from: data)
+        let value = try ReportReviewPublicationV1(source: wire.source.value())
+        guard try encode(value).data == data else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return value
+    }
+
+    private static func encodeHistory(_ value: CompletedInspectionReviewHistorySnapshotV1) throws -> Data {
+        try value.validate()
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        encoder.dateEncodingStrategy = .deferredToDate
+        let data = try encoder.encode(value)
+        try requireBounded(data)
+        guard try decoder().decode(CompletedInspectionReviewHistorySnapshotV1.self, from: data) == value else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return data
+    }
+
+    private static func scalar(_ value: String) throws -> Data {
+        try CanonicalJSONV1.encode(.string(value))
+    }
+
+    private static func object(_ fields: [(String, Data)]) throws -> Data {
+        var bytes = Data("{".utf8)
+        for (index, field) in fields.sorted(by: { $0.0 < $1.0 }).enumerated() {
+            if index > 0 { bytes.append(contentsOf: ",".utf8) }
+            bytes.append(try scalar(field.0))
+            bytes.append(contentsOf: ":".utf8)
+            bytes.append(field.1)
+        }
+        bytes.append(contentsOf: "}".utf8)
+        try requireBounded(bytes)
+        return bytes
+    }
+
+    private static func requireBounded(_ data: Data) throws {
+        guard !data.isEmpty, data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+    }
+
+    /// Full typed source serialization; unlike the legacy file encoder this
+    /// includes every stored optional projection. Exact typed parity is a
+    /// mandatory guard against future custom Codable loss or date rounding.
+    static func encodeSnapshot(_ snapshot: ReportSnapshotV1) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        encoder.dateEncodingStrategy = .deferredToDate
+        let data = try encoder.encode(snapshot)
+        try requireBounded(data)
+        guard try decoder().decode(ReportSnapshotV1.self, from: data) == snapshot else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return data
+    }
+
+    private static func encodeAssurance(_ assurance: ReportEvidenceAssuranceProjectionV1) throws -> Data {
+        // Preserve the existing assurance domain hashes and predicates while
+        // representing its full Date values losslessly in this NEW outer wire.
+        try assurance.validate()
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        encoder.dateEncodingStrategy = .deferredToDate
+        let data = try encoder.encode(assurance)
+        try requireBounded(data)
+        guard try decoder().decode(ReportEvidenceAssuranceProjectionV1.self, from: data) == assurance else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return data
+    }
+
+    private static func decoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .deferredToDate
+        return decoder
+    }
+
+    private struct BasisWire: Decodable {
+        let workspaceID: WorkspaceID
+        let audience: ReportAudienceV1
+        let projectionVersion: String
+        let snapshot: ReportSnapshotV1
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case reportBasisSchemaVersion, workspaceID, audience, projectionVersion, snapshot
+        }
+        init(from decoder: Decoder) throws {
+            try ClosedContractDecodingV1.rejectUnknownKeys(decoder,
+                allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            guard try values.decode(Int.self, forKey: .reportBasisSchemaVersion) == 1,
+                  let uuid = UUID(uuidString: try values.decode(String.self, forKey: .workspaceID)) else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            workspaceID = WorkspaceID(rawValue: uuid)
+            audience = try values.decode(ReportAudienceV1.self, forKey: .audience)
+            projectionVersion = try values.decode(String.self, forKey: .projectionVersion)
+            snapshot = try values.decode(ReportSnapshotV1.self, forKey: .snapshot)
+        }
+        func value() throws -> ReportPublicationBasisV1 {
+            try .init(workspaceID: workspaceID, audience: audience,
+                projectionVersion: projectionVersion, snapshot: snapshot)
+        }
+    }
+
+    private struct PublicationWire: Decodable {
+        let basis: BasisWire
+        let basisSHA256: String
+        let assurance: ReportEvidenceAssuranceProjectionV1?
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case reportPublicationSchemaVersion, basis, basisSHA256, assurance
+        }
+        init(from decoder: Decoder) throws {
+            try ClosedContractDecodingV1.rejectUnknownKeys(decoder,
+                allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            guard try values.decode(Int.self, forKey: .reportPublicationSchemaVersion) == 1 else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            basis = try values.decode(BasisWire.self, forKey: .basis)
+            basisSHA256 = try values.decode(String.self, forKey: .basisSHA256)
+            assurance = try ClosedContractDecodingV1.decodeOptional(
+                ReportEvidenceAssuranceProjectionV1.self, from: values, forKey: .assurance)
+        }
+        func value() throws -> ReportPublicationV1 {
+            let value = try ReportPublicationV1(basis: basis.value(), assurance: assurance)
+            guard value.basisSHA256 == basisSHA256 else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            return value
+        }
+    }
+
+    private struct ReportSubjectWire: Decodable {
+        let key: CompletedWorkSubjectKeyV1
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case workspaceID, reportID, fixedCorrectionChainRevision
+        }
+        init(from decoder: Decoder) throws {
+            try ClosedContractDecodingV1.rejectUnknownKeys(decoder,
+                allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            guard let workspace = UUID(uuidString: try values.decode(String.self, forKey: .workspaceID)),
+                  let report = UUID(uuidString: try values.decode(String.self, forKey: .reportID)) else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            key = try CompletedWorkSubjectKeyV1(workspaceID: WorkspaceID(rawValue: workspace),
+                subjectID: report, subjectRevision: values.decode(UInt64.self, forKey: .fixedCorrectionChainRevision))
+        }
+    }
+
+    private struct ReviewedSourceWire: Decodable {
+        let original: PublicationWire
+        let reportSubject: ReportSubjectWire
+        let history: CompletedInspectionReviewHistorySnapshotV1
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case reportReviewedSourceSchemaVersion, original, reportSubject, history
+        }
+        init(from decoder: Decoder) throws {
+            try ClosedContractDecodingV1.rejectUnknownKeys(decoder,
+                allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            guard try values.decode(Int.self, forKey: .reportReviewedSourceSchemaVersion) == 1 else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            original = try values.decode(PublicationWire.self, forKey: .original)
+            reportSubject = try values.decode(ReportSubjectWire.self, forKey: .reportSubject)
+            history = try values.decode(CompletedInspectionReviewHistorySnapshotV1.self, forKey: .history)
+        }
+        func value() throws -> ReportReviewedSourceV1 {
+            try .init(original: original.value(), reportSubject: reportSubject.key, history: history)
+        }
+    }
+
+    private struct ReviewPublicationWire: Decodable {
+        let source: ReviewedSourceWire
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case reportReviewPublicationSchemaVersion, source
+        }
+        init(from decoder: Decoder) throws {
+            try ClosedContractDecodingV1.rejectUnknownKeys(decoder,
+                allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            guard try values.decode(Int.self, forKey: .reportReviewPublicationSchemaVersion) == 1 else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            source = try values.decode(ReviewedSourceWire.self, forKey: .source)
+        }
     }
 }

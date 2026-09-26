@@ -5432,6 +5432,14 @@ struct TemporalEvidenceReportAnchorBindingV1:
     }
 }
 
+/// The released report file uses a UUID string and a redundant anchor count.
+/// Other typed codecs retain WorkspaceID's keyed representation and their
+/// existing decode-then-validate boundary.
+enum TemporalEvidenceReportLinkWireContextV1: Sendable {
+    case legacyReportSnapshot
+    static let codingKey = CodingUserInfoKey(rawValue: "TemporalEvidenceReportLinkV1.legacyReportSnapshot")!
+}
+
 struct TemporalEvidenceReportLinkV1: Codable, Equatable, Sendable {
     static let schemaVersion = 1
     let schemaVersion: Int
@@ -5450,6 +5458,57 @@ struct TemporalEvidenceReportLinkV1: Codable, Equatable, Sendable {
     let embedsOriginalBytes: Bool
 
     var anchorCount: Int { anchorBindings.count }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion, workspaceID, clipID, clipRevision, clipSHA256, contentID
+        case mediaKind, durationMilliseconds, derivativePreview, anchorBindings
+        case accessibleDescription, manualTranscript, projection, embedsOriginalBytes
+    }
+
+    private enum LegacyCountKeys: String, CodingKey { case anchorCount }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let legacyReport: Bool
+        if case .legacyReportSnapshot? = decoder.userInfo[TemporalEvidenceReportLinkWireContextV1.codingKey]
+            as? TemporalEvidenceReportLinkWireContextV1 {
+            legacyReport = true
+        } else {
+            legacyReport = false
+        }
+        schemaVersion = try values.decode(Int.self, forKey: .schemaVersion)
+        if legacyReport {
+            let raw = try values.decode(String.self, forKey: .workspaceID)
+            guard let id = UUID(uuidString: raw) else {
+                throw DecodingError.dataCorruptedError(forKey: .workspaceID, in: values,
+                    debugDescription: "Invalid legacy report workspace UUID")
+            }
+            workspaceID = WorkspaceID(rawValue: id)
+        } else {
+            workspaceID = try values.decode(WorkspaceID.self, forKey: .workspaceID)
+        }
+        clipID = try values.decode(UUID.self, forKey: .clipID)
+        clipRevision = try values.decode(UInt64.self, forKey: .clipRevision)
+        clipSHA256 = try values.decode(String.self, forKey: .clipSHA256)
+        contentID = try values.decode(String.self, forKey: .contentID)
+        mediaKind = try values.decode(TemporalEvidenceMediaKindV1.self, forKey: .mediaKind)
+        durationMilliseconds = try values.decode(UInt64.self, forKey: .durationMilliseconds)
+        derivativePreview = try values.decodeIfPresent(TemporalEvidenceReportDerivativeBindingV1.self,
+            forKey: .derivativePreview)
+        anchorBindings = try values.decode([TemporalEvidenceReportAnchorBindingV1].self, forKey: .anchorBindings)
+        accessibleDescription = try values.decode(String.self, forKey: .accessibleDescription)
+        manualTranscript = try values.decodeIfPresent(String.self, forKey: .manualTranscript)
+        projection = try values.decode(TemporalEvidenceReportProjectionV1.self, forKey: .projection)
+        embedsOriginalBytes = try values.decode(Bool.self, forKey: .embedsOriginalBytes)
+        if legacyReport {
+            let count = try decoder.container(keyedBy: LegacyCountKeys.self)
+            guard try count.decode(Int.self, forKey: .anchorCount) == anchorBindings.count else {
+                throw DecodingError.dataCorruptedError(forKey: .anchorCount, in: count,
+                    debugDescription: "Legacy report anchor count does not match its complete bindings")
+            }
+            try validate()
+        }
+    }
 
     init(clip: TemporalEvidenceClipV1, anchors: [TimecodedEvidenceAnchorV1],
          profile: TemporalEvidenceLimitProfileV1) throws {
