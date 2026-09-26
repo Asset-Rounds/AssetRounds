@@ -2099,3 +2099,322 @@ private extension S6_5ReplacementUnionTests {
         )
     }
 }
+
+extension S6_5ReplacementUnionTests {
+    /// Pure projection contracts; these values are not claimed as accepted
+    /// runtime history. The real C33 writer/export fixture supplies that witness.
+    @MainActor
+    func testSurveyTemporalRestorePlanningPreservesReceiptAuthorityAndRejectsCorruptDTOs() throws {
+        let sourceWorkspace = WorkspaceID(rawValue: uuid(910))
+        let destinationWorkspace = WorkspaceID(rawValue: uuid(911))
+        let source = try surveyTemporalProjectionFixture(workspaceID: sourceWorkspace)
+        let destination = try surveyTemporalProjectionFixture(workspaceID: destinationWorkspace)
+        let subjectID = try WorkspaceEntityIdentityV1(kind: .provisionalSubject,
+            id: source.subject.provisionalSubjectID)
+        let mutation = try SurveySessionMutationV1(workspaceID: sourceWorkspace,
+            mutationID: source.subject.mutationID, payload: .applyProvisionalSubject(source.subject))
+        let expected = try WorkspaceExpectedRevisionV1(workspaceID: sourceWorkspace,
+            generationID: uuid(912), writerInstanceID: uuid(913), workspaceRevision: 0,
+            entityRevisions: [.init(identity: subjectID, revision: 0)])
+        let replica = ReplicaID(rawValue: uuid(914))
+        let envelope = try MutationEnvelopeV1(request: .init(mutationID: mutation.mutationID,
+            expectedRevision: expected, command: .applySurveySession(mutation)),
+            identity: .init(workspaceID: sourceWorkspace, replicaID: replica))
+        let resulting = try WorkspaceExpectedRevisionV1(workspaceID: sourceWorkspace,
+            generationID: expected.generationID, writerInstanceID: expected.writerInstanceID,
+            workspaceRevision: 1, entityRevisions: [.init(identity: subjectID, revision: 1)])
+        let receipt = try MutationReceiptV1(identity: .init(workspaceID: sourceWorkspace,
+            replicaID: replica, localSequence: 1), envelope: envelope,
+            resultingRevision: MutationPortableExpectedRevisionV1(resulting),
+            postImages: [.provisionalSubject(id: source.subject.provisionalSubjectID,
+                concurrencyIdentity: subjectID, revision: 1, semanticSHA256: source.subject.subjectSHA256)],
+            committedAt: source.subject.createdAt)
+        _ = try SurveySessionMutationReceiptV1(mutation: mutation, mutationReceipt: receipt)
+        let original = MutationHistorySnapshotV1(workspaceRevision: 1, lastLocalSequence: 1,
+            receipts: [.init(envelopeData: try envelope.canonicalData(),
+                receiptData: try receipt.canonicalData(), reversalBasisData: nil, semanticReversalData: nil)],
+            quarantines: [.init(workspaceID: sourceWorkspace, mutationID: mutation.mutationID.rawValue,
+                identityDomain: .mutationEnvelope, acceptedIdentitySHA256: try envelope.canonicalSHA256(),
+                conflictingIdentitySHA256: String(repeating: "f", count: 64), detectedAt: source.subject.createdAt)],
+            entityRevisions: try source.images.map { .init(identity: try $0.identity, revision: $0.revision) })
+        let sourceRecords = try surveyTemporalRecords(source, history: original)
+        let records = try surveyTemporalRecords(destination, history: original)
+        let sameWorkspace = try MutationJournalStoreV1.planningCoreRestoreHistory(in: sourceRecords,
+            workspaceID: sourceWorkspace)
+        XCTAssertNil(try XCTUnwrap(sameWorkspace.entityRevisions.first { $0.identity == subjectID }).externalProjectionSHA256)
+        let planned = try MutationJournalStoreV1.planningCoreRestoreHistory(in: records,
+            workspaceID: destinationWorkspace)
+        for plan in [sameWorkspace, planned] {
+            XCTAssertEqual(plan.receipts, original.receipts)
+            XCTAssertEqual(plan.quarantines, original.quarantines)
+            XCTAssertEqual(plan.workspaceRevision, original.workspaceRevision)
+            XCTAssertEqual(plan.lastLocalSequence, original.lastLocalSequence)
+            XCTAssertEqual(plan.entityRevisions.map(\.identity), original.entityRevisions.map(\.identity)
+                .sorted { $0.stableKey < $1.stableKey })
+            XCTAssertEqual(plan.entityRevisions.map(\.revision), Array(repeating: 1, count: 5))
+        }
+        for image in destination.images {
+            let identity = try image.identity
+            XCTAssertEqual(try XCTUnwrap(planned.entityRevisions.first { $0.identity == identity })
+                .externalProjectionSHA256, image.semanticSHA256)
+        }
+        XCTAssertNotEqual(source.subject.subjectSHA256, destination.subject.subjectSHA256)
+        XCTAssertEqual(records.mutationHistory, original)
+        // A previously established exact projection is retained whole.
+        let projected = try surveyTemporalRecords(destination, history: planned)
+        XCTAssertEqual(try MutationJournalStoreV1.planningCoreRestoreHistory(in: projected,
+            workspaceID: destinationWorkspace), planned)
+
+        let baseObject = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(records)) as? [String: Any])
+        let sourceObject = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(sourceRecords)) as? [String: Any])
+        func decode(_ object: [String: Any]) throws -> V4BackupRecordsV1 {
+            try JSONDecoder().decode(V4BackupRecordsV1.self,
+                from: JSONSerialization.data(withJSONObject: object))
+        }
+        // Every arm rejects duplicated identity even if the duplicate claims a
+        // different revision; malformed transport/body cannot become absence.
+        for key in ["surveyDefinitions", "guidedSurveys", "temporalEvidence"] {
+            let rows = try XCTUnwrap(baseObject[key] as? [[String: Any]])
+            for index in rows.indices {
+                for hostile in ["duplicate", "duplicate-revision", "wrapper-workspace", "wrapper-revision", "body-workspace", "body-id", "body-digest", "malformed"] {
+                    var changed = rows
+                    var row = rows[index]
+                    switch hostile {
+                    case "duplicate": changed.append(row)
+                    case "duplicate-revision": row["revision"] = 2; changed.append(row)
+                    case "wrapper-workspace": row["workspaceID"] = sourceWorkspace.rawValue.uuidString; changed[index] = row
+                    case "wrapper-revision": row["revision"] = 2; changed[index] = row
+                    case "malformed": row["canonicalData"] = Data("not canonical JSON".utf8).base64EncodedString(); changed[index] = row
+                    case "body-workspace":
+                        // Valid canonical foreign value behind a destination
+                        // wrapper: failure must not depend on a malformed hash.
+                        let foreignRows = try XCTUnwrap(sourceObject[key] as? [[String: Any]])
+                        row["canonicalData"] = foreignRows[index]["canonicalData"]
+                        changed[index] = row
+                    default:
+                        let bytes = try XCTUnwrap(Data(base64Encoded: XCTUnwrap(row["canonicalData"] as? String)))
+                        var body = try XCTUnwrap(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+                        if hostile == "body-id" {
+                            let field: String
+                            if key == "temporalEvidence" { field = "clipID" }
+                            else if key == "surveyDefinitions" { field = index == 0 ? "definitionID" : "releaseID" }
+                            else { field = index == 0 ? "provisionalSubjectID" : "sessionID" }
+                            body[field] = uuid(999).uuidString
+                        } else {
+                            let field = key == "temporalEvidence" ? "clipSHA256" :
+                                (key == "surveyDefinitions" ? (index == 0 ? "identitySHA256" : "releaseSHA256") :
+                                    (index == 0 ? "subjectSHA256" : "sessionSHA256"))
+                            body[field] = String(repeating: "0", count: 64)
+                        }
+                        row["canonicalData"] = try JSONSerialization.data(withJSONObject: body,
+                            options: [.sortedKeys, .withoutEscapingSlashes]).base64EncodedString()
+                        changed[index] = row
+                    }
+                    var object = baseObject; object[key] = changed
+                    let corrupt = try decode(object)
+                    XCTAssertThrowsError(try MutationJournalStoreV1.planningCoreRestoreHistory(in: corrupt,
+                        workspaceID: destinationWorkspace), "\(key)[\(index)] \(hostile)")
+                }
+                var missing = rows; missing.remove(at: index)
+                var object = baseObject; object[key] = missing
+                let absent = try MutationJournalStoreV1.planningCoreRestoreHistory(in: decode(object),
+                    workspaceID: destinationWorkspace)
+                let missingID = try XCTUnwrap(UUID(uuidString: XCTUnwrap(rows[index]["id"] as? String)))
+                let terminal = try XCTUnwrap(absent.entityRevisions.first { $0.identity.id == missingID })
+                struct TombstoneBasis: Codable {
+                    let identity: WorkspaceEntityIdentityV1
+                    let revision: UInt64
+                    let disposition = "ABSENT_AFTER_MUTATION"
+                }
+                XCTAssertEqual(terminal.externalProjectionSHA256, try WorkspaceMutationCanonicalV1.sha256(
+                    TombstoneBasis(identity: terminal.identity, revision: terminal.revision)))
+                XCTAssertEqual(absent.receipts, original.receipts)
+            }
+        }
+        var object = baseObject
+        var clips = try XCTUnwrap(object["temporalEvidence"] as? [[String: Any]])
+        clips[0]["mutationID"] = uuid(999).uuidString; object["temporalEvidence"] = clips
+        let wrongMutation = try decode(object)
+        XCTAssertThrowsError(try MutationJournalStoreV1.planningCoreRestoreHistory(in: wrongMutation,
+            workspaceID: destinationWorkspace))
+    }
+
+    @MainActor
+    func testSurveyTemporalPostImagesKeepOwnIdentityAndPredecessorConcurrency() throws {
+        let workspace = WorkspaceID(rawValue: uuid(920))
+        let fixture = try surveyTemporalProjectionFixture(workspaceID: workspace)
+        typealias Basis = MutationJournalStoreV1.SurveyTemporalPostImageBasis
+        let bases: [Basis] = [
+            .definitionIdentity(try SurveyDefinitionIdentityRow(fixture.definitionIdentity).value()),
+            .definitionRelease(try SurveyDefinitionReleaseRow(fixture.release).value()),
+            .subject(try ProvisionalSubjectRow(fixture.subject).value()),
+            .session(try SurveySessionRow(fixture.session).value()),
+            .clip(try TemporalEvidenceClipRow(fixture.clip).value()),
+        ]
+        for (basis, expected) in zip(bases, fixture.images) {
+            let identity = try expected.identity
+            XCTAssertEqual(try basis.postImage(identity: identity, revision: expected.revision), expected)
+            XCTAssertThrowsError(try basis.postImage(identity: identity, revision: expected.revision + 1))
+            XCTAssertThrowsError(try basis.postImage(identity: .init(kind: identity.kind, id: uuid(999)),
+                revision: expected.revision))
+            XCTAssertThrowsError(try basis.postImage(identity: identity, revision: expected.revision,
+                workspaceID: WorkspaceID(rawValue: uuid(921))))
+        }
+        let release = try C26SurveySessionTestSupport.release(releaseSlot: 331, workspaceID: workspace,
+            revision: 2, supersedesReleaseID: fixture.release.releaseID)
+        let clip = try fixture.clip.successor(clipID: uuid(922), profile: fixture.clip.limitProfile,
+            mutationID: .init(rawValue: uuid(923)))
+        let releaseID = try WorkspaceEntityIdentityV1(kind: .surveyDefinitionRelease, id: release.releaseID)
+        let clipID = try WorkspaceEntityIdentityV1(kind: .temporalEvidenceClip, id: clip.clipID)
+        let expectedRelease = MutationPostImageV1.surveyDefinitionRelease(id: release.releaseID,
+            concurrencyIdentity: try .init(kind: .surveyDefinitionRelease, id: fixture.release.releaseID),
+            revision: 2, semanticSHA256: release.releaseSHA256)
+        let expectedClip = MutationPostImageV1.temporalEvidenceClip(id: clip.clipID,
+            concurrencyIdentity: try .init(kind: .temporalEvidenceClip, id: fixture.clip.clipID),
+            revision: 2, semanticSHA256: clip.clipSHA256)
+        XCTAssertEqual(try Basis.definitionRelease(SurveyDefinitionReleaseRow(release).value())
+            .postImage(identity: releaseID, revision: 2), expectedRelease)
+        XCTAssertEqual(try Basis.clip(TemporalEvidenceClipRow(clip).value())
+            .postImage(identity: clipID, revision: 2), expectedClip)
+        XCTAssertNotEqual(try expectedRelease.identity, try expectedRelease.concurrencyIdentity)
+        XCTAssertNotEqual(try expectedClip.identity, try expectedClip.concurrencyIdentity)
+        // Two valid typed receipt envelopes prove that a successor's full
+        // image (including predecessor concurrency) retains nil in its own
+        // workspace. Digest equality alone would not catch that regression.
+        let replica = ReplicaID(rawValue: uuid(924))
+        var receipts: [MutationHistoryReceiptRecordV1] = []
+        for (index, value) in [fixture.clip, clip].enumerated() {
+            let predecessor = index == 0 ? nil : fixture.clip
+            let concurrency = try WorkspaceEntityIdentityV1(kind: .temporalEvidenceClip,
+                id: predecessor?.clipID ?? value.clipID)
+            let expected = try WorkspaceExpectedRevisionV1(workspaceID: workspace,
+                generationID: uuid(925), writerInstanceID: uuid(926), workspaceRevision: UInt64(index),
+                entityRevisions: [.init(identity: concurrency, revision: predecessor?.revision ?? 0)])
+            let mutation = try TemporalEvidenceMutationV1(workspaceID: workspace,
+                expectedRevision: expected, mutationID: value.mutationID,
+                payload: .acceptClip(value, review: C33TemporalEvidenceTestSupport.review(for: value),
+                    predecessor: predecessor))
+            let envelope = try MutationEnvelopeV1(request: mutation.canonicalWorkspaceMutationRequest(),
+                identity: .init(workspaceID: workspace, replicaID: replica))
+            let physical = try WorkspaceEntityIdentityV1(kind: .temporalEvidenceClip, id: value.clipID)
+            let resulting = try WorkspaceExpectedRevisionV1(workspaceID: workspace,
+                generationID: expected.generationID, writerInstanceID: expected.writerInstanceID,
+                workspaceRevision: UInt64(index + 1),
+                entityRevisions: [.init(identity: physical, revision: value.revision)])
+            let receipt = try MutationReceiptV1(identity: .init(workspaceID: workspace,
+                replicaID: replica, localSequence: UInt64(index + 1)), envelope: envelope,
+                resultingRevision: MutationPortableExpectedRevisionV1(resulting),
+                postImages: [.temporalEvidenceClip(id: value.clipID, concurrencyIdentity: concurrency,
+                    revision: value.revision, semanticSHA256: value.clipSHA256)], committedAt: value.acceptedAt)
+            _ = try TemporalEvidenceMutationReceiptV1(mutation: mutation, mutationReceipt: receipt)
+            receipts.append(.init(envelopeData: try envelope.canonicalData(),
+                receiptData: try receipt.canonicalData(), reversalBasisData: nil, semanticReversalData: nil))
+        }
+        let history = MutationHistorySnapshotV1(workspaceRevision: 2, lastLocalSequence: 2,
+            receipts: receipts, quarantines: [], entityRevisions: [
+                .init(identity: try .init(kind: .temporalEvidenceClip, id: fixture.clip.clipID), revision: 1),
+                .init(identity: clipID, revision: 2),
+            ])
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(
+            surveyTemporalRecords(fixture, history: history))) as? [String: Any])
+        object["temporalEvidence"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode([
+            V33BackupTemporalEvidenceRecordV1(fixture.clip), V33BackupTemporalEvidenceRecordV1(clip)]))
+        let records = try JSONDecoder().decode(V4BackupRecordsV1.self,
+            from: JSONSerialization.data(withJSONObject: object))
+        let planned = try MutationJournalStoreV1.planningCoreRestoreHistory(in: records, workspaceID: workspace)
+        XCTAssertEqual(planned.receipts, receipts)
+        XCTAssertEqual(planned.entityRevisions, history.entityRevisions.sorted { $0.identity.stableKey < $1.identity.stableKey })
+        XCTAssertTrue(planned.entityRevisions.allSatisfy { $0.externalProjectionSHA256 == nil })
+    }
+}
+
+private extension S6_5ReplacementUnionTests {
+    struct SurveyTemporalProjectionFixture {
+        let definitionIdentity: SurveyDefinitionIdentityV1
+        let release: SurveyDefinitionReleaseV1
+        let subject: ProvisionalSubjectV1
+        let session: SurveySessionV1
+        let clip: TemporalEvidenceClipV1
+        let images: [MutationPostImageV1]
+    }
+
+    func surveyTemporalProjectionFixture(workspaceID: WorkspaceID) throws -> SurveyTemporalProjectionFixture {
+        let release = try C26SurveySessionTestSupport.release(releaseSlot: 330, workspaceID: workspaceID)
+        let event = try SurveyDefinitionLifecycleEventV1(eventID: uuid(930), workspaceID: workspaceID,
+            definitionID: release.definitionID, action: .createDraft, priorState: nil,
+            resultingState: .draft, release: .init(release), actor: release.authoredBy,
+            recordedAt: release.authoredAt, revision: 1, mutationID: release.mutationID)
+        let definitionIdentity = try SurveyDefinitionIdentityV1(definitionID: release.definitionID,
+            workspaceID: workspaceID, activityKind: release.activityKind, lifecycleState: .draft,
+            currentRelease: .init(release), latestLifecycleEventID: event.eventID,
+            latestLifecycleEventSHA256: event.eventSHA256, createdBy: release.authoredBy,
+            createdAt: release.authoredAt, revision: 1, mutationID: release.mutationID)
+        try definitionIdentity.validate(currentRelease: release, event: event)
+        let subject = try C26SurveySessionTestSupport.provisional(workspaceID: workspaceID)
+        let session = try C26SurveySessionTestSupport.session(
+            authority: C26SurveySessionTestSupport.authority(for: release,
+                package: C26SurveySessionTestSupport.packageRelease()), workspaceID: workspaceID,
+            subject: .provisional(subject.reference), state: .draft, transition: .create,
+            revision: 1, actorSlot: 601)
+        let original = try C33TemporalEvidenceTestSupport.clip(workspaceID: workspaceID).clip
+        let clip = try TemporalEvidenceClipV1(clipID: original.clipID, workspaceID: workspaceID,
+            target: .init(workspaceID: workspaceID, sessionID: session.sessionID,
+                sessionRevision: session.revision, sessionSHA256: session.sessionSHA256,
+                definitionRelease: session.authority.definitionRelease,
+                factID: XCTUnwrap(release.sections.flatMap(\.facts).first).factID, repeatCoordinates: []),
+            original: original.original, originalProvenance: original.originalProvenance,
+            locator: original.locator, facts: original.facts, profile: original.limitProfile,
+            accessibleDescription: original.accessibleDescription, manualTranscript: original.manualTranscript,
+            recordedBy: original.recordedBy, capturedAt: original.capturedAt, acceptedAt: original.acceptedAt,
+            revision: original.revision, mutationID: original.mutationID)
+        func id(_ kind: WorkspaceEntityKindV1, _ value: UUID) throws -> WorkspaceEntityIdentityV1 {
+            try .init(kind: kind, id: value)
+        }
+        let images: [MutationPostImageV1] = [
+            .surveyDefinitionIdentity(id: definitionIdentity.definitionID,
+                concurrencyIdentity: try id(.surveyDefinitionIdentity, definitionIdentity.definitionID),
+                revision: 1, semanticSHA256: definitionIdentity.identitySHA256),
+            .surveyDefinitionRelease(id: release.releaseID,
+                concurrencyIdentity: try id(.surveyDefinitionRelease, release.releaseID),
+                revision: 1, semanticSHA256: release.releaseSHA256),
+            .provisionalSubject(id: subject.provisionalSubjectID,
+                concurrencyIdentity: try id(.provisionalSubject, subject.provisionalSubjectID),
+                revision: 1, semanticSHA256: subject.subjectSHA256),
+            .surveySession(id: session.sessionID, concurrencyIdentity: try id(.surveySession, session.sessionID),
+                revision: 1, semanticSHA256: session.sessionSHA256),
+            .temporalEvidenceClip(id: clip.clipID, concurrencyIdentity: try id(.temporalEvidenceClip, clip.clipID),
+                revision: 1, semanticSHA256: clip.clipSHA256),
+        ]
+        return .init(definitionIdentity: definitionIdentity, release: release, subject: subject,
+            session: session, clip: clip, images: images)
+    }
+
+    func surveyTemporalRecords(_ fixture: SurveyTemporalProjectionFixture,
+                               history: MutationHistorySnapshotV1) throws -> V4BackupRecordsV1 {
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(c05Records())) as? [String: Any])
+        func json<T: Encodable>(_ value: T) throws -> Any {
+            try JSONSerialization.jsonObject(with: JSONEncoder().encode(value))
+        }
+        object["recordsSchemaVersion"] = LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
+        object["mutationHistory"] = try json(history)
+        object["surveyDefinitions"] = try json([
+            V24BackupSurveyDefinitionRecordV1(kind: .identity, id: fixture.definitionIdentity.definitionID,
+                workspaceID: fixture.definitionIdentity.workspaceID.rawValue, revision: 1,
+                canonicalData: SurveyDefinitionCanonicalCodecV1.encode(fixture.definitionIdentity)),
+            V24BackupSurveyDefinitionRecordV1(kind: .release, id: fixture.release.releaseID,
+                workspaceID: fixture.release.workspaceID.rawValue, revision: 1,
+                canonicalData: SurveyDefinitionCanonicalCodecV1.encode(fixture.release)),
+        ])
+        object["guidedSurveys"] = try json([
+            V25BackupGuidedSurveyRecordV1(kind: .provisionalSubject, id: fixture.subject.provisionalSubjectID,
+                workspaceID: fixture.subject.workspaceID.rawValue, revision: 1,
+                canonicalData: SurveySessionCanonicalCodecV1.encode(fixture.subject)),
+            V25BackupGuidedSurveyRecordV1(kind: .session, id: fixture.session.sessionID,
+                workspaceID: fixture.session.workspaceID.rawValue, revision: 1,
+                canonicalData: SurveySessionCanonicalCodecV1.encode(fixture.session)),
+        ])
+        object["temporalEvidence"] = try json([V33BackupTemporalEvidenceRecordV1(fixture.clip)])
+        return try JSONDecoder().decode(V4BackupRecordsV1.self,
+            from: JSONSerialization.data(withJSONObject: object))
+    }
+}

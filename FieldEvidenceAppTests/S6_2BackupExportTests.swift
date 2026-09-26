@@ -2528,10 +2528,10 @@ private extension S6_2BackupExportTests {
     }
 
     @MainActor
-    func configurationCloneExpectedProjections(
+    func configurationCloneExpectedState(
         package: ValidatedV4BackupPackageV1, oldSession: StoreGenerationSession,
         restored: StoreGenerationSession, applicationSupportURL: URL
-    ) throws -> [WorkspaceEntityIdentityV1: String] {
+    ) throws -> (projections: [WorkspaceEntityIdentityV1: String], temporalEvidence: [V33BackupTemporalEvidenceRecordV1]) {
 #if DEBUG
         // Only allocated identity comes from the installed session. Every
         // expected payload comes from the independently retained source stage;
@@ -2588,6 +2588,25 @@ private extension S6_2BackupExportTests {
                     $0.kind == .actorSnapshot && $0.id == id })
                 result[terminal.identity] = try wrapped(PartyAccountabilitySnapshotCodecV1.decode(
                     ActorSnapshotV1.self, from: row.canonicalData))
+            case .surveyDefinitionIdentity:
+                let row = try XCTUnwrap(records.surveyDefinitions.first { $0.kind == .identity && $0.id == id })
+                result[terminal.identity] = try SurveyDefinitionCanonicalCodecV1.decode(
+                    SurveyDefinitionIdentityV1.self, from: row.canonicalData).identitySHA256
+            case .surveyDefinitionRelease:
+                let row = try XCTUnwrap(records.surveyDefinitions.first { $0.kind == .release && $0.id == id })
+                result[terminal.identity] = try SurveyDefinitionCanonicalCodecV1.decode(
+                    SurveyDefinitionReleaseV1.self, from: row.canonicalData).releaseSHA256
+            case .provisionalSubject:
+                let row = try XCTUnwrap(records.guidedSurveys.first { $0.kind == .provisionalSubject && $0.id == id })
+                result[terminal.identity] = try SurveySessionCanonicalCodecV1.decode(
+                    ProvisionalSubjectV1.self, from: row.canonicalData).subjectSHA256
+            case .surveySession:
+                let row = try XCTUnwrap(records.guidedSurveys.first { $0.kind == .session && $0.id == id })
+                result[terminal.identity] = try SurveySessionCanonicalCodecV1.decode(
+                    SurveySessionV1.self, from: row.canonicalData).sessionSHA256
+            case .temporalEvidenceClip:
+                let row = try XCTUnwrap(records.temporalEvidence.first { $0.kind == .clip && $0.id == id })
+                result[terminal.identity] = try row.clipValue().clipSHA256
             case .roundSession:
                 let values = records.roundSessions.filter { $0.sessionID == id }
                     .sorted { $0.revision < $1.revision }
@@ -2615,7 +2634,7 @@ private extension S6_2BackupExportTests {
             default: break // All other families still require complete source-row equality.
             }
         }
-        return result
+        return (result, records.temporalEvidence)
 #else
         // Release-configured tests must fail explicitly rather than silently
         // dropping the clone-history assertions when this seam is unavailable.
@@ -2958,15 +2977,17 @@ private extension S6_2BackupExportTests {
                 "\(label): \(kind.rawValue)")
         }
         XCTAssertEqual(clonedRecords.evidenceFiles, package.records.evidenceFiles, label)
-        XCTAssertEqual(clonedRecords.temporalEvidence,
-            package.records.temporalEvidence, label)
+        let expectedState = try configurationCloneExpectedState(
+            package: referencePackage, oldSession: target.session,
+            restored: restored, applicationSupportURL: target.applicationSupportURL)
+        // Clone rebinds workspace, pinned survey references and limit profile.
+        // Expected rows come solely from the authenticated source normalization.
+        XCTAssertEqual(clonedRecords.temporalEvidence, expectedState.temporalEvidence, label)
         let destinationHistory = try XCTUnwrap(clonedRecords.mutationHistory, label)
         try assertConfigurationCloneHistoryPreserved(
             source: sourceMutationHistory,
             destination: destinationHistory,
-            expectedProjections: configurationCloneExpectedProjections(
-                package: referencePackage, oldSession: target.session,
-                restored: restored, applicationSupportURL: target.applicationSupportURL)
+            expectedProjections: expectedState.projections
         )
         XCTAssertTrue(
             Set(destinationHistory.receipts.map(\.receiptData)).isDisjoint(with:
@@ -3007,7 +3028,15 @@ private extension S6_2BackupExportTests {
             let row = try XCTUnwrap(clonedRecords.temporalEvidence.first, label)
             let clone = try row.clipValue()
             XCTAssertEqual(clone.workspaceID, restored.workspaceID, label)
-            XCTAssertEqual(clone.original, temporalSource.original, label)
+            // Content ownership moves to the clone workspace; every immutable
+            // content fact and the original bytes remain unchanged.
+            let original = temporalSource.original
+            let expectedOriginal = try ContentReferenceV1(
+                workspaceID: restored.workspaceID.rawValue.uuidString.lowercased(),
+                contentID: original.contentID, byteLength: original.byteLength,
+                mediaType: original.mediaType, digests: original.digests,
+                byteRole: original.byteRole, createdAt: original.createdAt)
+            XCTAssertEqual(clone.original, expectedOriginal, label)
             XCTAssertEqual(
                 try Data(contentsOf: restored.generationRootURL.appendingPathComponent(
                     try TemporalEvidenceBackupMemberV1.original(for: clone))),
@@ -6267,7 +6296,7 @@ extension S6_2BackupExportTests {
                         identity: current.session.workspaceIdentity,
                         generationID: current.session.generationID, allowStateBootstrap: false)
                     let authenticHistoryBefore = try historyStore.exportSnapshot()
-                    XCTAssertEqual(authenticHistoryBefore,
+                    XCTAssertEqual(try BackupCanonicalEncoderV1.archiveOrderedMutationHistory(authenticHistoryBefore),
                         try XCTUnwrap(originalRecords.mutationHistory), scenario)
                     if scenario != "valid-awaiting" {
                         let rows = try current.context.fetch(FetchDescriptor<FieldDraftCheckpointRow>())
@@ -6316,9 +6345,9 @@ extension S6_2BackupExportTests {
                         try assertConfigurationCloneHistoryPreserved(
                             source: try XCTUnwrap(targetPackage.records.mutationHistory),
                             destination: try XCTUnwrap(records.mutationHistory),
-                            expectedProjections: configurationCloneExpectedProjections(
+                            expectedProjections: configurationCloneExpectedState(
                                 package: stagedPackage, oldSession: current.session,
-                                restored: restored, applicationSupportURL: current.root))
+                                restored: restored, applicationSupportURL: current.root).projections)
                     } else {
                         do {
                             _ = try await service.restore(validatedPackage: targetPackage,

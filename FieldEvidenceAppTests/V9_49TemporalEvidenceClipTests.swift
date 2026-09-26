@@ -1230,10 +1230,13 @@ private final class C33TemporalEvidencePersistentHarness {
             journalStore: store
         )
         let generationRootURL = FileManager.default.temporaryDirectory
+            .resolvingSymlinksInPath()
             .appendingPathComponent(
                 "C33TemporalEvidence-\(slot)-\(UUID().uuidString)",
                 isDirectory: true
             )
+            .appendingPathComponent("FieldEvidenceData", isDirectory: true)
+            .appendingPathComponent("generations", isDirectory: true)
             .appendingPathComponent(generationID.uuidString.lowercased(), isDirectory: true)
         try FileManager.default.createDirectory(
             at: generationRootURL,

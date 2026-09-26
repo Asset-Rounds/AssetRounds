@@ -1733,6 +1733,31 @@ final class BackupRestoreService {
         mode: BackupRestoreMode = .emptyInstall,
         validateAccess: @MainActor () async throws -> Void
     ) async throws -> StoreGenerationSession {
+        do {
+            return try await restoreWithAccessFailureIsolation(
+                validatedPackage: validatedPackage,
+                currentModelContext: currentModelContext,
+                currentGenerationID: currentGenerationID,
+                currentGenerationRootURL: currentGenerationRootURL,
+                mode: mode,
+                validateAccess: validateAccess
+            )
+        } catch let failure as RestoreAccessValidationFailure {
+            // Early admission also uses the private recovery-isolation tag.
+            // Return the caller's original error without entering recovery.
+            throw failure.underlying
+        }
+    }
+
+    @MainActor
+    private func restoreWithAccessFailureIsolation(
+        validatedPackage: ValidatedV4BackupPackageV1,
+        currentModelContext: ModelContext,
+        currentGenerationID: UUID,
+        currentGenerationRootURL: URL,
+        mode: BackupRestoreMode,
+        validateAccess: @MainActor () async throws -> Void
+    ) async throws -> StoreGenerationSession {
         traceRestorePhase("access-and-admission")
         // The caller's permit guards every private restore read.  Wrap its
         // failure so the generic recovery path cannot turn an initial denial

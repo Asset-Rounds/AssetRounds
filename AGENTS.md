@@ -60,6 +60,8 @@ Gate runs follow these rules:
 
 Functional, privacy, accessibility or unusable-state defects block a phase. Noncritical visual polish goes in VERIFICATION_DUE and is finished before release.
 
+Owner decision 24 (2026-09-26) prospectively permits the pinned DEBUG Simulator route for **Phase 1 functional gates and its exact-main verification only**, with explicitly unsupported Simulator protection and physical protection UNVERIFIED/DEFERRED and release-blocking. The exact scope and unchanged predicates/gates are in [PHASE1_SIMULATOR_FUNCTIONAL_GATE_DECISION_20260926.md](docs/design/v23/integration/PHASE1_SIMULATOR_FUNCTIONAL_GATE_DECISION_20260926.md). It does not promote historical development runs, prove device protection, authorize release, or apply after Phase 1 exact-main verification. Required evidence tooling and cold qualification remain due.
+
 ### Main after Phase 1
 
 - Each change reaches main by a non-force fast-forward from a pushed candidate branch. Before that fast-forward, the candidate's exact head has passed an independent review and a hosted GitHub compile and affected-test run, recorded in the ledger as a gate run under the gate-run rules. Exact-main verification follows. Code that lands switched off meets the same rules.
@@ -150,6 +152,8 @@ Owner decisions, 2026-09-26 (Codex workflow update):
 22. Work by proven failure family, fix prerequisites first, combine reviewed corrections into bounded verification cycles, avoid redundant full development reruns, and reuse helper context and available local resources. The detailed rules above preserve all gate, data-safety and owner-review requirements.
 
 23. Owner-approved model routing and context reuse: Astra low/medium/high for coding according to risk, Astra high for consequential safety work/review, Sol medium/high for bounded support work. Reuse relevant existing helpers before new ones; clear scoped instructions and all existing gates remain mandatory.
+
+24. Owner-approved Phase 1 evidence split: adopt the exact successor decision linked above. Preserve all five functional gates and strict production protection requirements; keep real-device protection unverified and release-blocking. The prospective exception expires after Phase 1 exact-main verification.
 
 ## History
 

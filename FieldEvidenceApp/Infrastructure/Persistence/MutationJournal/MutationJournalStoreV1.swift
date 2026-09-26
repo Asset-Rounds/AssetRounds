@@ -7900,11 +7900,27 @@ final class MutationJournalStoreV1 {
         case .fieldReferenceRelease:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<FieldReferenceReleaseRow>(predicate:#Predicate{$0.releaseID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .fieldReferenceRelease(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesReleaseID),revision:revision,semanticSHA256:v.releaseSHA256)
         case .fieldReferenceBinding:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<FieldReferenceBindingRow>(predicate:#Predicate{$0.bindingID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let releaseID=row.releaseID,releases=try modelContext.fetch(FetchDescriptor<FieldReferenceReleaseRow>(predicate:#Predicate{$0.releaseID==releaseID}));guard let releaseRow=try exactlyOneOrAbsent(releases)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};let release=try releaseRow.value(),v=try row.value(release:release);guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .fieldReferenceBinding(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesBindingID),revision:revision,semanticSHA256:v.bindingSHA256)
         case .accessibleDocumentAssessmentReceipt:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<AccessibleDocumentAssessmentReceiptRow>(predicate:#Predicate{$0.receiptID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .accessibleDocumentAssessmentReceipt(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesReceiptID),revision:revision,semanticSHA256:v.receiptSHA256)
-        case .surveyDefinitionIdentity:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<SurveyDefinitionIdentityRow>(predicate:#Predicate{$0.definitionID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .surveyDefinitionIdentity(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.identitySHA256)
-        case .surveyDefinitionRelease:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<SurveyDefinitionReleaseRow>(predicate:#Predicate{$0.releaseID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .surveyDefinitionRelease(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesReleaseID),revision:revision,semanticSHA256:v.releaseSHA256)
-        case .surveySession:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<SurveySessionRow>(predicate:#Predicate{$0.sessionID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .surveySession(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.sessionSHA256)
+        case .surveyDefinitionIdentity:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<SurveyDefinitionIdentityRow>(predicate: #Predicate { $0.definitionID == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            return try SurveyTemporalPostImageBasis.definitionIdentity(row.value()).postImage(identity: identity, revision: revision)
+        case .surveyDefinitionRelease:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<SurveyDefinitionReleaseRow>(predicate: #Predicate { $0.releaseID == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            return try SurveyTemporalPostImageBasis.definitionRelease(row.value()).postImage(identity: identity, revision: revision)
+        case .surveySession:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<SurveySessionRow>(predicate: #Predicate { $0.sessionID == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            return try SurveyTemporalPostImageBasis.session(row.value()).postImage(identity: identity, revision: revision)
         case .factCapture:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<FactCaptureRow>(predicate:#Predicate{$0.captureID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};let predecessor=v.predecessors.first?.captureID;return .factCapture(id:id,concurrencyIdentity:try authorityConcurrency(identity,predecessor),revision:revision,semanticSHA256:v.captureSHA256)
-        case .provisionalSubject:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<ProvisionalSubjectRow>(predicate:#Predicate{$0.provisionalSubjectID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .provisionalSubject(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.subjectSHA256)
+        case .provisionalSubject:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<ProvisionalSubjectRow>(predicate: #Predicate { $0.provisionalSubjectID == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            return try SurveyTemporalPostImageBasis.subject(row.value()).postImage(identity: identity, revision: revision)
         case .subjectPromotionReceipt:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<SubjectPromotionReceiptRow>(predicate:#Predicate{$0.receiptID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .subjectPromotionReceipt(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.predecessorReceiptID),revision:revision,semanticSHA256:v.receiptSHA256)
         case .surveyPublicationSnapshot:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<SurveyPublicationSnapshotRow>(predicate:#Predicate{$0.snapshotID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .surveyPublicationSnapshot(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesSnapshotID),revision:revision,semanticSHA256:v.snapshotSHA256)
         case .assetLocator:let id=identity.id,r=try modelContext.fetch(FetchDescriptor<AssetLocatorRow>(predicate:#Predicate{$0.locatorID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .assetLocator(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.locatorSHA256)
@@ -7919,7 +7935,10 @@ final class MutationJournalStoreV1 {
         case .lightingDayInventoryWorkflow:let id=identity.id,r=try modelContext.fetch(FetchDescriptor<LightingDayInventoryWorkflowRowV1>(predicate:#Predicate{$0.recordID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .lightingDayInventoryWorkflow(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesRecordID),revision:revision,semanticSHA256:v.workflowSHA256)
         case .lightingNightWorkflow:let id=identity.id,r=try modelContext.fetch(FetchDescriptor<LightingNightWorkflowRowV1>(predicate:#Predicate{$0.recordID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .lightingNightWorkflow(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesRecordID),revision:revision,semanticSHA256:v.workflowSHA256)
         case .temporalEvidenceClip:
-            let id=identity.id,rows=try modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>(predicate:#Predicate{$0.clipID==id}));guard let row=try exactlyOneOrAbsent(rows)else{return try tombstone(identity,revision)};let value=try row.value();guard value.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .temporalEvidenceClip(id:id,concurrencyIdentity:try authorityConcurrency(identity,value.supersedesClipID),revision:revision,semanticSHA256:value.clipSHA256)
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>(predicate: #Predicate { $0.clipID == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            return try SurveyTemporalPostImageBasis.clip(row.value()).postImage(identity: identity, revision: revision)
         case .timecodedEvidenceAnchor:
             let id=identity.id,rows=try modelContext.fetch(FetchDescriptor<TimecodedEvidenceAnchorRow>(predicate:#Predicate{$0.anchorID==id}));guard let row=try exactlyOneOrAbsent(rows)else{return try tombstone(identity,revision)};let value=try row.value();guard value.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .timecodedEvidenceAnchor(id:id,concurrencyIdentity:try authorityConcurrency(identity,value.supersedesAnchorID),revision:revision,semanticSHA256:value.anchorSHA256)
         case .acceptedLabelGenerationSnapshot:
@@ -8564,6 +8583,63 @@ final class MutationJournalStoreV1 {
         return result
     }
 
+    /// One typed semantic basis for persisted rows and normalized restore DTOs.
+    /// Acquisition owns wrapper and namespace checks; receipt authority remains
+    /// in planningCoreRestoreHistory/replaceHistory, never in this value mapping.
+    enum SurveyTemporalPostImageBasis {
+        case definitionIdentity(SurveyDefinitionIdentityV1)
+        case definitionRelease(SurveyDefinitionReleaseV1)
+        case subject(ProvisionalSubjectV1)
+        case session(SurveySessionV1)
+        case clip(TemporalEvidenceClipV1)
+
+        func postImage(identity: WorkspaceEntityIdentityV1, revision: UInt64,
+                       workspaceID: WorkspaceID? = nil) throws -> MutationPostImageV1 {
+            let image: MutationPostImageV1
+            let valueWorkspace: WorkspaceID
+            func concurrency(_ kind: WorkspaceEntityKindV1, _ id: UUID) throws -> WorkspaceEntityIdentityV1 {
+                try .init(kind: kind, id: id)
+            }
+            switch self {
+            case .definitionIdentity(let value):
+                try value.validateIntrinsic()
+                valueWorkspace = value.workspaceID
+                image = .surveyDefinitionIdentity(id: value.definitionID,
+                    concurrencyIdentity: try concurrency(.surveyDefinitionIdentity, value.definitionID),
+                    revision: value.revision, semanticSHA256: value.identitySHA256)
+            case .definitionRelease(let value):
+                try value.validate()
+                valueWorkspace = value.workspaceID
+                image = .surveyDefinitionRelease(id: value.releaseID,
+                    concurrencyIdentity: try concurrency(.surveyDefinitionRelease, value.supersedesReleaseID ?? value.releaseID),
+                    revision: value.revision, semanticSHA256: value.releaseSHA256)
+            case .subject(let value):
+                try value.validate()
+                valueWorkspace = value.workspaceID
+                image = .provisionalSubject(id: value.provisionalSubjectID,
+                    concurrencyIdentity: try concurrency(.provisionalSubject, value.provisionalSubjectID),
+                    revision: value.revision, semanticSHA256: value.subjectSHA256)
+            case .session(let value):
+                try value.validateIntrinsic()
+                valueWorkspace = value.workspaceID
+                image = .surveySession(id: value.sessionID,
+                    concurrencyIdentity: try concurrency(.surveySession, value.sessionID),
+                    revision: value.revision, semanticSHA256: value.sessionSHA256)
+            case .clip(let value):
+                try value.validateIntrinsic()
+                valueWorkspace = value.workspaceID
+                image = .temporalEvidenceClip(id: value.clipID,
+                    concurrencyIdentity: try concurrency(.temporalEvidenceClip, value.supersedesClipID ?? value.clipID),
+                    revision: value.revision, semanticSHA256: value.clipSHA256)
+            }
+            guard try image.identity == identity, image.revision == revision,
+                  workspaceID.map({ $0 == valueWorkspace }) ?? true else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            return image
+        }
+    }
+
     private static func coreRestorePostImage(
         _ identity: WorkspaceEntityIdentityV1,
         revision: UInt64,
@@ -8687,6 +8763,54 @@ final class MutationJournalStoreV1 {
                         kind: identity.kind, id: value.supersedesPointerID ?? id),
                     revision: revision, semanticSHA256: value.pointerSHA256)
             }
+        case .surveyDefinitionIdentity, .surveyDefinitionRelease:
+            let kind: V24BackupSurveyDefinitionRecordV1.Kind =
+                identity.kind == .surveyDefinitionIdentity ? .identity : .release
+            guard let row = try one(records.surveyDefinitions.filter({ $0.kind == kind && $0.id == id })) else {
+                return try absent()
+            }
+            guard row.workspaceID == workspaceID.rawValue, row.revision == revision else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let basis: SurveyTemporalPostImageBasis
+            switch kind {
+            case .identity:
+                basis = .definitionIdentity(try SurveyDefinitionCanonicalCodecV1.decode(
+                    SurveyDefinitionIdentityV1.self, from: row.canonicalData))
+            case .release:
+                basis = .definitionRelease(try SurveyDefinitionCanonicalCodecV1.decode(
+                    SurveyDefinitionReleaseV1.self, from: row.canonicalData))
+            }
+            return try basis.postImage(identity: identity, revision: revision, workspaceID: workspaceID)
+        case .provisionalSubject, .surveySession:
+            let kind: V25BackupGuidedSurveyRecordV1.Kind =
+                identity.kind == .provisionalSubject ? .provisionalSubject : .session
+            guard let row = try one(records.guidedSurveys.filter({ $0.kind == kind && $0.id == id })) else {
+                return try absent()
+            }
+            guard row.workspaceID == workspaceID.rawValue, row.revision == revision else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let basis: SurveyTemporalPostImageBasis
+            if kind == .provisionalSubject {
+                basis = .subject(try SurveySessionCanonicalCodecV1.decode(
+                    ProvisionalSubjectV1.self, from: row.canonicalData))
+            } else {
+                basis = .session(try SurveySessionCanonicalCodecV1.decode(
+                    SurveySessionV1.self, from: row.canonicalData))
+            }
+            return try basis.postImage(identity: identity, revision: revision, workspaceID: workspaceID)
+        case .temporalEvidenceClip:
+            guard let row = try one(records.temporalEvidence.filter({ $0.kind == .clip && $0.id == id })) else {
+                return try absent()
+            }
+            guard row.workspaceID == workspaceID.rawValue, row.revision == revision else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            // clipValue authenticates every redundant transport field, including
+            // mutationID, before the shared typed postimage construction.
+            return try SurveyTemporalPostImageBasis.clip(row.clipValue()).postImage(
+                identity: identity, revision: revision, workspaceID: workspaceID)
         case .roundSession:
             let values = records.roundSessions.filter {
                 $0.workspaceID == workspaceID && $0.sessionID == id

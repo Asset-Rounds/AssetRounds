@@ -836,12 +836,14 @@ final class S6_4AtomicRestoreTests: XCTestCase {
         defer { try? fileManager.removeItem(at: harness.root) }
         let package = try makeSourcePackage(in: harness.root, name: "source")
         let validated = try importPackage(package, into: harness.session)
-        let supportBefore = try tree(harness.support)
         var validationCalls = 0
         let service = try BackupRestoreService(
             applicationSupportURL: harness.support,
             makeUUID: sequence([UUID(), UUID()])
         )
+        // Construction registers the service's owner guard. Measure the
+        // denied operation against its complete, already-constructed state.
+        let supportBefore = try tree(harness.support)
 
         await XCTAssertThrowsErrorAsync {
             _ = try await service.restore(
@@ -905,12 +907,12 @@ final class S6_4AtomicRestoreTests: XCTestCase {
         let validated = try importPackage(package, into: target.session)
         XCTAssertEqual(validated.records.accessibleDocumentAssessments.count, 1)
 
-        let fallbackBefore = try tree(target.support)
         var fallbackValidationCalls = 0
         let missingResolverService = try BackupRestoreService(
             applicationSupportURL: target.support,
             makeUUID: sequence([UUID(), UUID()])
         )
+        let fallbackBefore = try tree(target.support)
         await XCTAssertThrowsErrorAsync {
             _ = try await missingResolverService.restore(
                 validatedPackage: validated,
@@ -938,12 +940,12 @@ final class S6_4AtomicRestoreTests: XCTestCase {
             identifiers: S64IdentityIDs()
         )
         let token = try await gate.beginContentRead(for: .backupImport)
-        let supportBefore = try tree(target.support)
         let service = try BackupRestoreService(
             applicationSupportURL: target.support,
             makeUUID: sequence([UUID(), UUID()]),
             accessibleDocumentTreeResolver: resolver
         )
+        let supportBefore = try tree(target.support)
         let restore = Task { @MainActor in
             try await service.restore(
                 validatedPackage: validated,

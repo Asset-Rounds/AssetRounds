@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "4a8c0ea1788678007ef5fa1e4d856bd8218206c1",
+  "generatedAtHead": "2c1d9d44ead8c44ecb194ef0fd37b93d1305c95a",
   "sweepOrder": [
     "S01",
     "S02",
@@ -365,7 +365,7 @@
     {
       "id": "S05",
       "tier": "D50C",
-      "estimatedSeconds": 1510.0,
+      "estimatedSeconds": 1630.0,
       "selectors": [
         "FieldEvidenceAppTests/C27S41TypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/S3_7CouldNotVerifyTests/testDuplicateAndWrongPurposeEvidenceFailClosedWithoutFinalizationRows",
@@ -381,6 +381,8 @@
         "FieldEvidenceAppTests/S6_5ReplacementUnionTests/testPureRuleCreatesOnlyCurrentOnlyTombstonesAndRejectsCollisions",
         "FieldEvidenceAppTests/S6_5ReplacementUnionTests/testRecoveryPreservesReplacementUnionAcrossEveryJournalPhase",
         "FieldEvidenceAppTests/S6_5ReplacementUnionTests/testRestoreIntentTimestampUsesOneCanonicalMillisecondDomain",
+        "FieldEvidenceAppTests/S6_5ReplacementUnionTests/testSurveyTemporalPostImagesKeepOwnIdentityAndPredecessorConcurrency",
+        "FieldEvidenceAppTests/S6_5ReplacementUnionTests/testSurveyTemporalRestorePlanningPreservesReceiptAuthorityAndRejectsCorruptDTOs",
         "FieldEvidenceAppTests/S6_5ReplacementUnionTests/testV23P03C05Records42ReplacementUnionsPredecessorClosedMetadata",
         "FieldEvidenceAppTests/S6_5ReplacementUnionTests/testV23P03C18RegistryPointerBindsPromotionReceiptIdentity",
         "FieldEvidenceAppTests/S6_5ReplacementUnionTests/testV23P03C34PackageRouteUsesOneShellAndNoWriter",

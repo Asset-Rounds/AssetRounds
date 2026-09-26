@@ -1633,10 +1633,19 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         XCTAssertEqual(recoveredJournal.targetRelease, PersistentSchemaReleaseRegistryV1.activeRelease)
         XCTAssertEqual(recoveredJournal.phase, .awaitingIndependentValidation)
         let recoveryProcessID = try XCTUnwrap(recoveredJournal.firstValidationProcessID)
-        let sameProcessFactory = StoreGenerationFactory(applicationSupportURL: markerRetry.root,
-            migrationIdentitySource: StoreMigrationIdentitySourceV1(makeMigrationID: { markerRetry.migrationID },
-                makeGenerationID: UUID.init, makeProcessID: { recoveryProcessID }))
-        let sameProcess = try await sameProcessFactory.openForStartup { _ in }
+        // A process-ID replay must reuse its live registry owner. A new
+        // factory would try to take a reservation from the still-locked owner.
+        let independentProcessIndex = markerRetryCursor.index
+        guard independentProcessIndex > 0,
+              independentProcessIndex < markerRetry.processIDs.count else {
+            return XCTFail("Expected distinct fixture process identities for validation")
+        }
+        XCTAssertEqual(markerRetry.processIDs[independentProcessIndex - 1], recoveryProcessID)
+        XCTAssertNotEqual(markerRetry.processIDs[independentProcessIndex], recoveryProcessID)
+        XCTAssertEqual(try retryFactory.makeGenerationLeaseRegistry().ownerID, recoveredJournal.ownerID)
+        markerRetryCursor.index = independentProcessIndex - 1
+        let sameProcess = try await retryFactory.openForStartup { _ in }
+        XCTAssertEqual(markerRetryCursor.index, independentProcessIndex)
         guard case .awaitingIndependentValidation(let samePending) = sameProcess else {
             return XCTFail("The validating process cannot supply independent second-launch validation")
         }
