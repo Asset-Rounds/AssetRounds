@@ -71,8 +71,10 @@ Functional, privacy, accessibility or unusable-state defects block a phase. Nonc
 
 - **Root session.** It diagnoses, implements understood fixes, integrates, and alone commits, pushes and dispatches.
 - **Helpers.** Use as many as speed delivery. Each gets one bounded question and disjoint files, or read-only scope. Implementation helpers work in worktrees created by root at the exact head. Watch usage limits: typically 2–4 helpers at a time.
-- **Independent review.** Every consequential batch gets one independent GPT-6 Astra reviewer. The reviewer is read-only and never the author. Corrections go back to the same reviewer, and verdicts are recorded in CURRENT_INTEGRATION along with the reviewer model. Reviewers always assess compile risk. Automated checks are never labelled as independent review.
+- **Risk-based independent review (owner-approved 2026-09-26).** Data safety, security, persistence, backup, restore, migration, CI evidence logic and merge candidates require an independent GPT-6 Astra reviewer. Routine fixture and cosmetic changes may share a milestone review instead of a review for every intermediate batch. Legitimate test-expectation changes still require a recorded reason and independent review; no test, predicate, coverage or watchdog may be weakened. The reviewer is read-only and never the author. Corrections go back to the same reviewer, and verdicts are recorded in CURRENT_INTEGRATION along with the reviewer model. Reviewers always assess compile risk. Automated checks are never labelled as independent review.
+- **Standing implementation authority (owner-approved 2026-09-26).** Root decides reversible implementation and internal tooling choices within the existing scope and hard boundaries, without repeated owner confirmation. Frozen design remains product authority; unresolved or contradictory product decisions, genuine human visual acceptance, privacy sign-off and release decisions remain owner-reserved. This authority does not change gate requirements or authorize account/settings/secrets, paid capacity, signing or release operations.
 - **Compile first.** Compile new Swift on the Mac, or with one development batch, before fanning out native runs.
+- **Integration cadence (owner-approved 2026-09-26).** Prefer small, coherent integration-branch checkpoints. Keep subsequent fixes isolated while a checkpoint is being verified; do not continually expand a running batch. Before an integration commit, compile changed Swift and run affected development tests, obtain the risk-appropriate review above, and record exact results and remaining failures. These checkpoints are not acceptance and do not advance main. Run a deliberate hosted development sweep after meaningful stabilization, then all required same-head gates on a frozen merge candidate. Do not repeat full coverage for each intermediate integration commit, duplicate unchanged runs, or transfer development evidence into gates. Address measured performance bottlenecks without weakening checks or budgets. Phase 1 is an intermediate milestone: V23 is the app baseline incorporating accepted S10, and the complete V23 scope remains required for release.
 - **Failures.**
   - Fix failures by family, in batches.
   - Never weaken tests, predicates, coverage or watchdogs.
@@ -132,6 +134,13 @@ Owner decisions, 2026-09-25 (cloud Mac session):
     - reliable data safety;
     - polished S10 look and feel.
     Gates, frozen design and the boundaries above still govern.
+
+Owner decisions, 2026-09-26 (Codex workflow update):
+
+19. Review follows risk rather than intermediate batch size: independent review remains mandatory for restricted/high-risk changes and merge candidates; routine fixture/cosmetic work may share a milestone review. Test-expectation changes retain their recorded-reason and review requirement.
+20. Root has standing authority over reversible implementation and internal tooling choices within scope and existing boundaries. Owner-reserved decisions and all gate obligations remain unchanged.
+
+21. Use small coherent integration checkpoints, isolated follow-up work and compile/affected development verification before integration commits; schedule full hosted sweeps at meaningful stabilization and frozen merge milestones. All same-head gates remain mandatory before main; Phase 1 does not reduce the complete V23 scope.
 
 ## History
 
