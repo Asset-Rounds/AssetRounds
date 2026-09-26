@@ -575,6 +575,9 @@ def run_passive_build_fixture(case, ci, directory, selector, receipt_exit=0, bui
         blob = git("hash-object", "-w", "--stdin", data=(checkout / relative).read_bytes()).decode().strip()
         git("update-index", "--add", "--cacheinfo", mode, blob, relative)
     tree = git("write-tree").decode().strip()
+    # ZipFile extraction loses executable bits. Restore the final private
+    # index's modes and bytes without relaxing the real dirty-source guard.
+    git("checkout-index", "--all", "--force")
     identity = dict(os.environ, GIT_AUTHOR_NAME="Observer fixture", GIT_AUTHOR_EMAIL="fixture@example.invalid",
                     GIT_COMMITTER_NAME="Observer fixture", GIT_COMMITTER_EMAIL="fixture@example.invalid")
     head = subprocess.check_output(["git", "commit-tree", tree, "-p", case.source_parent,

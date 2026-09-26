@@ -584,7 +584,7 @@ final class V9_32PackageEvolutionTests: XCTestCase {
 
         // Once the first pointer exists, the only legal correction is a new
         // immutable release with a successor pointer and a forward-fix receipt.
-        let successorRelease = try publishedRelease(workflowID: "c18.workflow.forward-fix.v1")
+        let successorRelease = try publishedRelease(workflowID: "c18.workflow.forward-fix.v1", contentVersion: 2)
         let successorDiff = try PackageSemanticDifferV1.diff(
             source: promotion.release,
             target: successorRelease
@@ -707,6 +707,27 @@ final class V9_32PackageEvolutionTests: XCTestCase {
             )
         }
 
+        // Complete history and a receipt-scoped successor with its predecessor
+        // are legal; unrelated partial rows cannot hide beside a valid receipt.
+        XCTAssertNoThrow(try PackageEvolutionLifecycleClosureV1(
+            promotedReleases: [promotion.bundle.promotedRelease, successorPromoted],
+            sandboxRuns: [promotion.bundle.sandboxRun, successorSandbox],
+            promotionReceipts: [promotion.bundle.receipt, successorReceipt],
+            activePointers: [promotion.bundle.resultingPointer, successorPointer]))
+        XCTAssertNoThrow(try PackageEvolutionLifecycleClosureV1(
+            promotedReleases: [successorPromoted], sandboxRuns: [successorSandbox],
+            promotionReceipts: [successorReceipt],
+            activePointers: [promotion.bundle.resultingPointer, successorPointer]))
+        XCTAssertNoThrow(try PackageEvolutionLifecycleClosureV1(
+            promotedReleases: [], sandboxRuns: [], promotionReceipts: [], activePointers: []))
+        for orphanKind in 0..<3 {
+            XCTAssertThrowsError(try PackageEvolutionLifecycleClosureV1(
+                promotedReleases: [promotion.bundle.promotedRelease] + (orphanKind == 0 ? [successorPromoted] : []),
+                sandboxRuns: [promotion.bundle.sandboxRun] + (orphanKind == 1 ? [successorSandbox] : []),
+                promotionReceipts: [promotion.bundle.receipt],
+                activePointers: [promotion.bundle.resultingPointer] + (orphanKind == 2 ? [successorPointer] : [])))
+        }
+
         // The package-release publisher exposes all of its own write boundaries;
         // each injected failure leaves no returned partial release and a retry
         // starts from the same immutable draft bytes.
@@ -753,7 +774,7 @@ final class V9_32PackageEvolutionTests: XCTestCase {
             XCTAssertEqual(try harness.rowCounts(), [1, 1, 1, 1])
             XCTAssertEqual(
                 try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()),
-                1
+                2 // Canonical actor seed plus the one promotion; retry writes nothing.
             )
             let closure = try XCTUnwrap(
                 try harness.lifecycle.acceptedLifecycleClosure(
@@ -771,6 +792,114 @@ final class V9_32PackageEvolutionTests: XCTestCase {
                 ),
                 promotion.bundle.resultingPointer
             )
+        }
+    }
+
+    @MainActor
+    func testSuccessivePackageForwardFixesPreserveConcurrencyAndReopenHistory() throws {
+        let initial = try promotionFixture().bundle
+        let second = try successorPromotion(of: initial, seed: 900)
+        let third = try successorPromotion(of: second, seed: 920)
+        let stale = try successorPromotion(of: initial, seed: 940)
+        let schema = Schema(PersistentSchemaV53.models, version: PersistentSchemaV53.versionIdentifier)
+        let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [
+            ModelConfiguration("C18ForwardFix", schema: schema, isStoredInMemoryOnly: true,
+                               allowsSave: true, cloudKitDatabase: .none)
+        ])
+        let identity = try WorkspaceReplicaIdentityV1(workspaceID: initial.resultingPointer.workspaceID,
+                                                     replicaID: ReplicaID(rawValue: UUID()))
+        let generationID = UUID()
+        func runtime(_ context: ModelContext) throws -> (MutationJournalStoreV1, WorkspaceWriterV1, PackageEvolutionLifecycleAdapterV1) {
+            context.autosaveEnabled = false
+            let journal = try MutationJournalStoreV1(modelContext: context, identity: identity, generationID: generationID)
+            let writerID = UUID()
+            let writer = try WorkspaceWriterV1(identity: identity, generationID: generationID,
+                initialRevision: journal.currentRevision(writerInstanceID: writerID),
+                clock: C18PromotionFixedClockV1(), idSource: C18PromotionFixedIDSourceV1(value: writerID),
+                fileAuthority: C18PromotionFileAuthorityV1(),
+                adapter: WorkspaceWriterAdapterV1(modelContext: context), journalStore: journal)
+            return (journal, writer, PackageEvolutionLifecycleAdapterV1(writer: writer, journal: journal, modelContext: context))
+        }
+        let context = container.mainContext
+        let (journal, writer, lifecycle) = try runtime(context)
+        _ = try writer.execute(.applyPartyAccountability(.appendActorSnapshot(initial.actor)), mutationID: mutation(960))
+        for bundle in [initial, second, third] {
+            XCTAssertEqual(try lifecycle.applyPromotion(bundle), bundle.receipt)
+            if bundle.receipt == initial.receipt {
+                // Reusing a version with changed workflow bytes classifies as
+                // INVALID even when a caller supplies complete sandbox checks.
+                let invalid = try successorPromotion(of: initial, seed: 970,
+                    contentVersion: initial.promotedRelease.packageRelease.packageContentVersion)
+                XCTAssertEqual(invalid.semanticDiff.classification, .invalid)
+                XCTAssertNoThrow(try invalid.validate()) // Historical decoding remains compatible.
+                let beforeInvalid = try journal.exportSnapshot()
+                XCTAssertThrowsError(try lifecycle.applyPromotion(invalid)) { error in
+                    XCTAssertEqual(error as? WorkspaceMutationFailureV1, .invalidCommand)
+                }
+                XCTAssertEqual(try journal.exportSnapshot(), beforeInvalid)
+                XCTAssertEqual(try lifecycle.activePointer(workspaceID: identity.workspaceID,
+                    packageID: initial.resultingPointer.packageID), initial.resultingPointer)
+            }
+            let receipt = try XCTUnwrap(journal.receipt(mutationID: bundle.receipt.mutationID))
+            let pointerIdentity = try WorkspaceEntityIdentityV1(kind: .activePackageRegistryPointer,
+                                                               id: bundle.resultingPointer.pointerID)
+            let image = try XCTUnwrap(try receipt.postImages.first { try $0.identity == pointerIdentity })
+            XCTAssertEqual(try image.concurrencyIdentity, try WorkspaceEntityIdentityV1(
+                kind: .activePackageRegistryPointer,
+                id: bundle.predecessorPointer?.pointerID ?? bundle.resultingPointer.pointerID))
+            XCTAssertEqual(image.semanticSHA256, bundle.resultingPointer.pointerSHA256)
+            let beforeReplay = try journal.exportSnapshot()
+            XCTAssertEqual(try lifecycle.applyPromotion(bundle), bundle.receipt)
+            XCTAssertEqual(try journal.exportSnapshot(), beforeReplay)
+        }
+        let beforeStale = try journal.exportSnapshot()
+        XCTAssertThrowsError(try lifecycle.applyPromotion(stale))
+        XCTAssertEqual(try journal.exportSnapshot(), beforeStale)
+        // A fresh context and writer must reconstruct the stored predecessor
+        // identities; no authority is carried over from the original writer.
+        let reopenedContext = ModelContext(container)
+        let (reopenedJournal, reopenedWriter, reopenedLifecycle) = try runtime(reopenedContext)
+        try reopenedJournal.validateAll()
+        XCTAssertEqual(try reopenedLifecycle.activePointer(workspaceID: identity.workspaceID,
+            packageID: initial.resultingPointer.packageID), third.resultingPointer)
+        XCTAssertEqual(try reopenedJournal.exportSnapshot(), beforeStale)
+        XCTAssertEqual(try reopenedLifecycle.applyPromotion(third), third.receipt)
+        for bundle in [initial, second, third] {
+            XCTAssertEqual(try reopenedLifecycle.applyPromotion(bundle), bundle.receipt)
+            let closure = try XCTUnwrap(reopenedLifecycle.acceptedLifecycleClosure(mutationID: bundle.receipt.mutationID))
+            XCTAssertEqual(closure.promotedReleases, [bundle.promotedRelease])
+            XCTAssertEqual(closure.promotionReceipts, [bundle.receipt])
+            XCTAssertTrue(closure.activePointers.contains(bundle.resultingPointer))
+        }
+        XCTAssertEqual(try reopenedJournal.exportSnapshot(), beforeStale)
+        XCTAssertEqual(try reopenedLifecycle.activePointer(workspaceID: identity.workspaceID,
+            packageID: initial.resultingPointer.packageID), third.resultingPointer)
+        XCTAssertEqual(try reopenedContext.fetchCount(FetchDescriptor<ActivePackageRegistryPointerRow>()), 3)
+        let changedReceipt = try PackagePromotionReceiptV1(
+            receiptID: third.receipt.receiptID, workspaceID: identity.workspaceID,
+            promotedRelease: third.promotedRelease, sandboxRun: third.sandboxRun,
+            diff: third.semanticDiff, predecessorPointer: third.predecessorPointer,
+            resultingPointer: third.resultingPointer, actor: third.actor,
+            exactHead: third.receipt.exactHead, operation: third.receipt.operation,
+            postActivationPolicy: third.receipt.postActivationPolicy,
+            rollbackCompatibility: third.receipt.rollbackCompatibility,
+            mutationID: third.receipt.mutationID, recordedAt: third.receipt.recordedAt.addingTimeInterval(1))
+        let changed = PackagePromotionAtomicBundleV1(
+            promotedRelease: third.promotedRelease, sandboxRun: third.sandboxRun,
+            semanticDiff: third.semanticDiff, predecessorPointer: third.predecessorPointer,
+            resultingPointer: third.resultingPointer, actor: third.actor, receipt: changedReceipt)
+        XCTAssertThrowsError(try reopenedLifecycle.applyPromotion(changed)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .mutationIDQuarantined)
+        }
+        XCTAssertEqual(try reopenedLifecycle.acceptedReceipt(mutationID: third.receipt.mutationID), third.receipt)
+        XCTAssertEqual(try reopenedContext.fetchCount(FetchDescriptor<ActivePackageRegistryPointerRow>()), 3)
+        XCTAssertEqual(try reopenedContext.fetchCount(FetchDescriptor<MutationQuarantineRow>()), 1)
+        XCTAssertThrowsError(try reopenedLifecycle.applyPromotion(third)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .mutationIDQuarantined)
+        }
+        reopenedWriter.invalidate()
+        XCTAssertThrowsError(try reopenedLifecycle.applyPromotion(initial)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .writerInvalidated)
         }
     }
 
@@ -979,9 +1108,14 @@ final class V9_32PackageEvolutionTests: XCTestCase {
         return try JSONDecoder().decode(Corpus.self, from: Data(contentsOf: url))
     }
 
-    private func publishedRelease(workflowID: String) throws -> InspectionPackageReleaseV1 {
+    private func publishedRelease(workflowID: String, contentVersion: Int = 1) throws -> InspectionPackageReleaseV1 {
+        let base = try ShippingIlluminatedSignAdapterV1.inspectionPackage()
+        let package = try InspectionPackageV2(packageID: base.packageID, contentVersion: contentVersion,
+            minimumRegistryVersion: base.minimumRegistryVersion, maximumRegistryVersion: base.maximumRegistryVersion,
+            capabilities: base.capabilities, permissions: base.permissions,
+            advisoryGuidance: base.advisoryGuidance, presentation: base.presentation)
         let draft = try InspectionPackageReleaseV1.makeDraft(
-            package: ShippingIlluminatedSignAdapterV1.inspectionPackage(),
+            package: package,
             workflow: try c18Workflow(id: workflowID)
         )
         return try InspectionPackageReleasePublisherV1.publish(
@@ -1062,6 +1196,38 @@ final class V9_32PackageEvolutionTests: XCTestCase {
             options: [.sortedKeys, .withoutEscapingSlashes]
         )
         return try JSONDecoder().decode(PackageSemanticDiffV1.self, from: data)
+    }
+
+    private func successorPromotion(of predecessor: PackagePromotionAtomicBundleV1, seed: Int, contentVersion: Int? = nil) throws -> PackagePromotionAtomicBundleV1 {
+        let workspaceID = predecessor.resultingPointer.workspaceID
+        let release = try publishedRelease(workflowID: "c18.workflow.successor.\(seed)",
+            contentVersion: contentVersion ?? (predecessor.promotedRelease.packageRelease.packageContentVersion + 1))
+        let diff = try PackageSemanticDifferV1.diff(source: predecessor.promotedRelease.packageRelease, target: release)
+        let mutationID = mutation(seed)
+        let sandbox = try PackageSandboxRunV1(runID: id(seed + 1), workspaceID: workspaceID,
+            packageReleaseID: release.packageReleaseID, packageSHA256: release.packageSHA256,
+            workflowSHA256: release.workflowSHA256, semanticDiffSHA256: diff.diffSHA256,
+            exactHead: String(repeating: "d", count: 40),
+            activePointerStateBeforeSHA256: predecessor.resultingPointer.pointerSHA256,
+            activePointerStateAfterSHA256: predecessor.resultingPointer.pointerSHA256,
+            checks: sandboxResults(prefix: "c18.successor.\(seed)"), mutationID: mutationID)
+        let promoted = try PromotedPackageReleaseV1(releaseRecordID: id(seed + 2), workspaceID: workspaceID,
+            packageRelease: release, mutationID: mutationID, promotedAt: Date(timeIntervalSince1970: 1_800_000_030))
+        let pointer = try ActivePackageRegistryPointerV1(pointerID: id(seed + 3), workspaceID: workspaceID,
+            packageID: release.packageID, activeReleaseRecordID: promoted.releaseRecordID,
+            promotionReceiptID: id(seed + 4), activePackageReleaseID: release.packageReleaseID,
+            activeReleaseRecordSHA256: promoted.releaseRecordSHA256,
+            supersedesPointerID: predecessor.resultingPointer.pointerID,
+            revision: predecessor.resultingPointer.revision + 1, mutationID: mutationID)
+        let receipt = try PackagePromotionReceiptV1(receiptID: id(seed + 4), workspaceID: workspaceID,
+            promotedRelease: promoted, sandboxRun: sandbox, diff: diff,
+            predecessorPointer: predecessor.resultingPointer, resultingPointer: pointer,
+            actor: predecessor.actor, exactHead: sandbox.exactHead, operation: .postActivationForwardFix,
+            postActivationPolicy: .forwardFixOnly, rollbackCompatibility: .activatedForwardFixRequired,
+            mutationID: mutationID, recordedAt: Date(timeIntervalSince1970: 1_800_000_031))
+        return PackagePromotionAtomicBundleV1(promotedRelease: promoted, sandboxRun: sandbox,
+            semanticDiff: diff, predecessorPointer: predecessor.resultingPointer,
+            resultingPointer: pointer, actor: predecessor.actor, receipt: receipt)
     }
 
     private func promotionFixture() throws -> PromotionFixture {
@@ -1305,8 +1471,8 @@ private final class C18PromotionAtomicHarness {
         failureStage: C18PromotionInsertStageV1
     ) throws {
         let schema = Schema(
-            PersistentSchemaV17.models,
-            version: PersistentSchemaV17.versionIdentifier
+            PersistentSchemaV53.models,
+            version: PersistentSchemaV53.versionIdentifier
         )
         let installedContainer = try ModelContainer(
             for: schema,
@@ -1321,8 +1487,6 @@ private final class C18PromotionAtomicHarness {
         )
         let installedContext = installedContainer.mainContext
         installedContext.autosaveEnabled = false
-        installedContext.insert(try ActorSnapshotRow(bundle.actor))
-        try installedContext.save()
 
         let identity = try WorkspaceReplicaIdentityV1(
             workspaceID: bundle.resultingPointer.workspaceID,
@@ -1354,6 +1518,8 @@ private final class C18PromotionAtomicHarness {
             adapter: installedAdapter,
             journalStore: installedJournal
         )
+        _ = try installedWriter.execute(.applyPartyAccountability(.appendActorSnapshot(bundle.actor)),
+            mutationID: MutationIDV1(rawValue: c18AtomicID(855)))
         let installedLifecycle = PackageEvolutionLifecycleAdapterV1(
             writer: installedWriter,
             journal: installedJournal,
@@ -1397,7 +1563,7 @@ private final class C18PromotionFaultInjectingAdapter: WorkspaceWriterAdapterPor
     ) throws -> WorkspaceMutationEffectV1 {
         guard case let .applyPackagePromotion(mutation) = command,
               let failureStage else {
-            canonicalApplyCount += 1
+            if case .applyPackagePromotion = command { canonicalApplyCount += 1 }
             return try canonical.apply(
                 command,
                 occurredAt: occurredAt,

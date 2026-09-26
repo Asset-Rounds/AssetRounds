@@ -738,7 +738,7 @@ struct JournalChangeV1: Codable, Equatable, Sendable {
               portableReversalPlan?.targetReceiptIdentity == reversalBasis?.targetReceiptIdentity,
               portableReversalPlan?.planDigest == reversalBasis?.planDigest,
               portableReversalPlan?.compensatingCommands.map(\.kind) == reversalBasis?.compensatingCommandKinds,
-              portableReversalPlan?.expectedRevision == receipt.resultingRevision,
+              portableReversalPlan == nil || portableReversalPlan?.expectedRevision == receipt.resultingRevision,
               semanticReversalReceipt?.reversalReceiptIdentity == receipt.identity || semanticReversalReceipt == nil else { throw ChangeJournalFailureV1.tamperedBatch }
     }
     var stableKey: String { receipt.identity.stableKey }

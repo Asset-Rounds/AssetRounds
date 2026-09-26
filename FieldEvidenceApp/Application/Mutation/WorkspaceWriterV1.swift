@@ -1321,6 +1321,20 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             sequenceID: sequenceID
         )
     }
+    /// Exact package retries bind the original command and revision through
+    /// the live writer, full journal validation and durable quarantine rules.
+    func packagePromotionReceipt(for mutation: PackagePromotionMutationV1) throws -> MutationReceiptV1? {
+        try mutation.validate()
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard mutation.workspaceID == identity.workspaceID else {
+            throw WorkspaceMutationFailureV1.wrongWorkspace
+        }
+        guard let receipt = try checkedReplay(mutationID: mutation.mutationID,
+                                             command: .applyPackagePromotion(mutation)) else { return nil }
+        _ = try PackagePromotionMutationReceiptV1(mutation: mutation, mutationReceipt: receipt)
+        return receipt
+    }
+
     func commitClientCapability(_ mutation:ClientCapabilityMutationV1)throws->MutationReceiptV1{try mutation.validate();let current=try currentRevision(),concurrency=try mutation.concurrencyIdentity;let known=Dictionary(uniqueKeysWithValues:current.entityRevisions.map{($0.identity,$0.revision)});guard known[concurrency,default:0]==mutation.expectedRevision else{throw WorkspaceMutationFailureV1.staleWorkspaceRevision};let expected=try WorkspaceExpectedRevisionV1(workspaceID:current.workspaceID,generationID:current.generationID,writerInstanceID:current.writerInstanceID,workspaceRevision:current.revision,entityRevisions:[.init(identity:concurrency,revision:mutation.expectedRevision)]);_ = try execute(.init(mutationID:mutation.mutationID,expectedRevision:expected,command:.applyClientCapability(mutation)));guard let receipt=try journalStore?.receipt(mutationID:mutation.mutationID)else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};_ = try ClientCapabilityMutationReceiptV1(mutation:mutation,mutationReceipt:receipt);return receipt}
     /// Replays the original command through the active writer's complete
     /// journal authority, preserving its original expected revision.
@@ -2013,6 +2027,13 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             }
             return try notifyingSearchIndex(prior.outcome)
         }
+        if case let .applyPackagePromotion(mutation) = request.command,
+           envelope.sourceKind != .importedHistory,
+           mutation.semanticDiff.classification == .invalid {
+            // New local activation must be compatible. Existing immutable
+            // history remains readable and exact durable replay returned above.
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
         var preparedReviewedFieldDraftProof: PreparedReviewedFieldDraftApplyProofV1?
         if case let .applyFieldDraft(mutation) = request.command,
            case .resolveConflict = mutation.postImage,
@@ -2107,6 +2128,16 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         }
 
         let before = try currentRevision()
+        let reportedBefore: WorkspaceRevisionV1
+        switch request.command {
+        case .applyFastSurveyInbox, .applyReinspectionException:
+            // Report the exact full CAS snapshot, including any explicitly
+            // enrolled absent target at zero. Durable replay reports this same
+            // snapshot from the receipt; neither path invents a stored row.
+            reportedBefore = try revision(from: MutationPortableExpectedRevisionV1(request.expectedRevision))
+        default:
+            reportedBefore = before
+        }
         let temporaryRelativePath: String
         do {
             temporaryRelativePath = try fileAuthority.temporaryRelativePath(
@@ -2254,7 +2285,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                     mutationID: request.mutationID,
                     commandDigest: digest,
                     occurredAt: occurredAt,
-                    before: before,
+                    before: reportedBefore,
                     after: after,
                     effect: applied
                 ))
@@ -2419,7 +2450,7 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             mutationID: request.mutationID,
             commandDigest: digest,
             occurredAt: occurredAt,
-            before: before,
+            before: reportedBefore,
             after: after,
             effect: effect
         )

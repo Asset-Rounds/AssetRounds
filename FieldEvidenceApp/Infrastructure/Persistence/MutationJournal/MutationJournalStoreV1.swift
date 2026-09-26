@@ -851,10 +851,10 @@ final class MutationJournalStoreV1 {
         var nativeTerminal: UInt64?
         var sawNativeReceipt = false
         for receipt in ordered {
-            if receipt.sourceKind == .importedHistory {
-                guard !sawNativeReceipt else {
-                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
-                }
+            // A retained imported prefix may start from a projected baseline.
+            // Once native work begins, live imported commits participate in
+            // the same exact contiguous workspace chain as local commands.
+            if receipt.sourceKind == .importedHistory && !sawNativeReceipt {
                 if let importedTerminal {
                     guard receipt.resultingRevision.workspaceRevision > importedTerminal else {
                         throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
@@ -7657,7 +7657,7 @@ final class MutationJournalStoreV1 {
         case .promotedPackageRelease:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>(predicate:#Predicate{$0.releaseRecordID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .promotedPackageRelease(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.releaseRecordSHA256)
         case .packageSandboxRun:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<PackageSandboxRunRow>(predicate:#Predicate{$0.runID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .packageSandboxRun(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.runSHA256)
         case .packagePromotionReceipt:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<PackagePromotionReceiptRow>(predicate:#Predicate{$0.receiptID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .packagePromotionReceipt(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.receiptSHA256)
-        case .activePackageRegistryPointer:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>(predicate:#Predicate{$0.pointerID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .activePackageRegistryPointer(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.pointerSHA256)
+        case .activePackageRegistryPointer:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>(predicate:#Predicate{$0.pointerID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .activePackageRegistryPointer(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesPointerID),revision:revision,semanticSHA256:v.pointerSHA256)
         case .instrumentReference:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<InstrumentReferenceRow>(predicate:#Predicate{$0.referenceID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .instrumentReference(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesReferenceID),revision:revision,semanticSHA256:v.referenceSHA256)
         case .calibrationStatusSnapshot:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<CalibrationStatusSnapshotRow>(predicate:#Predicate{$0.snapshotID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .calibrationStatusSnapshot(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesSnapshotID),revision:revision,semanticSHA256:v.snapshotSHA256)
         case .measurementCapture:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<MeasurementCaptureRow>(predicate:#Predicate{$0.captureID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .measurementCapture(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesCaptureID),revision:revision,semanticSHA256:v.captureSHA256)
@@ -7814,7 +7814,8 @@ final class MutationJournalStoreV1 {
     }
 
     private func mutableSemanticBasis(
-        release: PersistentSchemaReleaseV1
+        release: PersistentSchemaReleaseV1,
+        validatingRevisionedHistories: Bool = false
     ) throws -> MutableSemanticDigestBasis {
         let releaseVersion = release.versionIdentifier.major
         guard (4...PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major)
@@ -7957,26 +7958,63 @@ final class MutationJournalStoreV1 {
         }
         }
         if releaseVersion >= 48 {
-        identities += try boundedFetch(FetchDescriptor<CaptureInboxItemRowV1>()).map { row in
-            try .init(kind: .captureInboxItem, id: try row.value().inboxItemID)
-        }
-        identities += try boundedFetch(FetchDescriptor<CapturePromotionRowV1>()).map { row in
-            try .init(kind: .capturePromotion, id: row.promotionID)
-        }
-        identities += try boundedFetch(FetchDescriptor<SnippetRowV1>()).map { row in
-            try .init(kind: .snippet, id: try row.value().snippetID)
+        if validatingRevisionedHistories {
+            let inbox = try boundedFetch(FetchDescriptor<CaptureInboxItemRowV1>()).map { try $0.value() }
+            let snippets = try boundedFetch(FetchDescriptor<SnippetRowV1>()).map { try $0.value() }
+            identities += try validatedHistoryIdentities(inbox, kind: .captureInboxItem,
+                id: { $0.inboxItemID }, workspace: { $0.workspaceID }, revision: { $0.revision }) { value, predecessor in
+                if let predecessor { try value.validateSuccessor(of: predecessor) }
+            }
+            identities += try validatedHistoryIdentities(snippets, kind: .snippet,
+                id: { $0.snippetID }, workspace: { $0.workspaceID }, revision: { $0.revision }) { value, predecessor in
+                if let predecessor { try value.validateSuccessor(of: predecessor) }
+            }
+            identities += try boundedFetch(FetchDescriptor<CapturePromotionRowV1>()).map { row in
+                try .init(kind: .capturePromotion, id: row.promotionID)
+            }
+        } else {
+            identities += try boundedFetch(FetchDescriptor<CaptureInboxItemRowV1>()).map { row in
+                try .init(kind: .captureInboxItem, id: try row.value().inboxItemID)
+            }
+            identities += try boundedFetch(FetchDescriptor<CapturePromotionRowV1>()).map { row in
+                try .init(kind: .capturePromotion, id: row.promotionID)
+            }
+            identities += try boundedFetch(FetchDescriptor<SnippetRowV1>()).map { row in
+                try .init(kind: .snippet, id: try row.value().snippetID)
+            }
         }
         }
         if releaseVersion >= 49 {
-        identities += try boundedFetch(FetchDescriptor<ReinspectionPlanRowV1>()).map { row in
-            try .init(kind: .reinspectionPlan, id: try row.value().planID)
-        }
-        identities += try boundedFetch(FetchDescriptor<UnchangedAttestationRowV1>()).map { row in
-            try .init(kind: .unchangedAttestation, id: try row.value().attestationID)
-        }
-        identities += try boundedFetch(FetchDescriptor<ExceptionQueueAcknowledgementRowV1>()).map { row in
-            try .init(kind: .exceptionQueueAcknowledgement,
-                      id: ReinspectionExceptionMutationCommandV1.acknowledgementIdentity(try row.value().logicalExceptionKey))
+        if validatingRevisionedHistories {
+            let plans = try boundedFetch(FetchDescriptor<ReinspectionPlanRowV1>()).map { try $0.value() }
+            let acknowledgements = try boundedFetch(FetchDescriptor<ExceptionQueueAcknowledgementRowV1>()).map { try $0.value() }
+            identities += try validatedHistoryIdentities(plans, kind: .reinspectionPlan,
+                id: { $0.planID }, workspace: { $0.workspaceID }, revision: { $0.revision }) { value, predecessor in
+                try value.validate(predecessor: predecessor)
+            }
+            identities += try validatedHistoryIdentities(acknowledgements, kind: .exceptionQueueAcknowledgement,
+                id: { ReinspectionExceptionMutationCommandV1.acknowledgementIdentity($0.logicalExceptionKey) },
+                workspace: { $0.workspaceID }, revision: { $0.revision }) { value, predecessor in
+                guard value.supersedesAcknowledgementID == predecessor?.acknowledgementID,
+                      value.predecessorSHA256 == predecessor?.acknowledgementSHA256,
+                      predecessor.map({ $0.logicalExceptionKey == value.logicalExceptionKey }) ?? true else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+            }
+            identities += try boundedFetch(FetchDescriptor<UnchangedAttestationRowV1>()).map { row in
+                try .init(kind: .unchangedAttestation, id: try row.value().attestationID)
+            }
+        } else {
+            identities += try boundedFetch(FetchDescriptor<ReinspectionPlanRowV1>()).map { row in
+                try .init(kind: .reinspectionPlan, id: try row.value().planID)
+            }
+            identities += try boundedFetch(FetchDescriptor<UnchangedAttestationRowV1>()).map { row in
+                try .init(kind: .unchangedAttestation, id: try row.value().attestationID)
+            }
+            identities += try boundedFetch(FetchDescriptor<ExceptionQueueAcknowledgementRowV1>()).map { row in
+                try .init(kind: .exceptionQueueAcknowledgement,
+                          id: ReinspectionExceptionMutationCommandV1.acknowledgementIdentity(try row.value().logicalExceptionKey))
+            }
         }
         }
         if releaseVersion >= 34 {
@@ -8007,6 +8045,29 @@ final class MutationJournalStoreV1 {
         return MutableSemanticDigestBasis(content: items, deletionLedger: ledger)
     }
 
+    /// Each revisioned family contributes one terminal stream identity. Every
+    /// decoded row still has to belong to a complete, unique revision chain.
+    /// Only v2 uses this projection; historical v1 keeps its original census.
+    private func validatedHistoryIdentities<Value>(
+        _ values: [Value], kind: WorkspaceEntityKindV1,
+        id: (Value) -> UUID, workspace: (Value) -> WorkspaceID,
+        revision: (Value) -> UInt64,
+        validate: (Value, Value?) throws -> Void
+    ) throws -> [WorkspaceEntityIdentityV1] {
+        let groups = Dictionary(grouping: values, by: id)
+        return try groups.map { key, history in
+            let ordered = history.sorted { revision($0) < revision($1) }
+            for (offset, value) in ordered.enumerated() {
+                guard workspace(value) == identity.workspaceID,
+                      revision(value) == UInt64(offset) + 1 else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                try validate(value, offset == 0 ? nil : ordered[offset - 1])
+            }
+            return try WorkspaceEntityIdentityV1(kind: kind, id: key)
+        }
+    }
+
     /// Checkpoint v1: the original released bytes, recomputed only to verify an
     /// existing v1 checkpoint (or a historical release). Never written for the
     /// active release.
@@ -8027,7 +8088,8 @@ final class MutationJournalStoreV1 {
         guard PersistentSchemaReleaseRegistryV1.activeRelease == .v53 else {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
-        let basis = try mutableSemanticBasis(release: PersistentSchemaReleaseRegistryV1.activeRelease)
+        let basis = try mutableSemanticBasis(release: PersistentSchemaReleaseRegistryV1.activeRelease,
+                                             validatingRevisionedHistories: true)
         return try WorkspaceMutationCanonicalV1.sha256(MutableSemanticDigestBasisV2(
             checkpointDomain: Self.mutableSemanticV2Domain,
             content: basis.content,
@@ -8559,7 +8621,7 @@ final class MutationJournalStoreV1 {
             guard let value = try exactlyOneOrAbsent(items.filter { $0.inboxItemID == identity.id && $0.revision == revision }) else {
                 return try tombstone(identity, revision)
             }
-            return try semanticPostImage(identity, revision, value)
+            return try Self.postImage(identity: identity, revision: revision, digest: value.itemSHA256)
         case .capturePromotion:
             let rows = try modelContext.fetch(FetchDescriptor<CapturePromotionRowV1>())
             var values: [CapturePromotionV1] = []
@@ -8580,13 +8642,13 @@ final class MutationJournalStoreV1 {
             guard let value = try exactlyOneOrAbsent(values) else {
                 return try tombstone(identity, revision)
             }
-            return try semanticPostImage(identity, revision, value)
+            return try Self.postImage(identity: identity, revision: revision, digest: value.promotionSHA256)
         case .snippet:
             let values = try modelContext.fetch(FetchDescriptor<SnippetRowV1>()).map { try $0.value() }
             guard let value = try exactlyOneOrAbsent(values.filter { $0.snippetID == identity.id && $0.revision == revision }) else {
                 return try tombstone(identity, revision)
             }
-            return try semanticPostImage(identity, revision, value)
+            return try Self.postImage(identity: identity, revision: revision, digest: value.snippetSHA256)
         case .snippetInsertion:
             let rows = try modelContext.fetch(FetchDescriptor<SnippetInsertionHistoryRowV1>())
                 .filter { $0.insertionEventID == identity.id }
@@ -8606,7 +8668,8 @@ final class MutationJournalStoreV1 {
                   ) else {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
-            return try semanticPostImage(identity, revision, try row.value(snippet: snippet))
+            let validatedInsertion = try row.value(snippet: snippet)
+            return try Self.postImage(identity: identity, revision: revision, digest: validatedInsertion.insertionSHA256)
         default:
             throw WorkspaceMutationFailureV1.invalidCommand
         }
@@ -8622,13 +8685,13 @@ final class MutationJournalStoreV1 {
             guard let value = try exactlyOneOrAbsent(values.filter { $0.planID == identity.id && $0.revision == revision }) else {
                 return try tombstone(identity, revision)
             }
-            return try semanticPostImage(identity, revision, value)
+            return try Self.postImage(identity: identity, revision: revision, digest: value.planSHA256)
         case .unchangedAttestation:
             let values = try modelContext.fetch(FetchDescriptor<UnchangedAttestationRowV1>()).map { try $0.value() }
             guard let value = try exactlyOneOrAbsent(values.filter { $0.attestationID == identity.id && revision == 1 }) else {
                 return try tombstone(identity, revision)
             }
-            return try semanticPostImage(identity, revision, value)
+            return try Self.postImage(identity: identity, revision: revision, digest: value.attestationSHA256)
         case .exceptionQueueAcknowledgement:
             let values = try modelContext.fetch(FetchDescriptor<ExceptionQueueAcknowledgementRowV1>()).map { try $0.value() }
             guard let value = try exactlyOneOrAbsent(values.filter {
@@ -8637,7 +8700,7 @@ final class MutationJournalStoreV1 {
             }) else {
                 return try tombstone(identity, revision)
             }
-            return try semanticPostImage(identity, revision, value)
+            return try Self.postImage(identity: identity, revision: revision, digest: value.acknowledgementSHA256)
         default:
             throw WorkspaceMutationFailureV1.invalidCommand
         }

@@ -77,8 +77,11 @@ final class PackageEvolutionLifecycleAdapterV1: PackageEvolutionWritingV1 {
             mutationID: bundle.receipt.mutationID,
             bundle: bundle
         )
-        _ = try writer.execute(.applyPackagePromotion(mutation), mutationID: mutation.mutationID)
-        guard let canonicalReceipt = try journal.receipt(mutationID: mutation.mutationID) else {
+        let replay = try writer.packagePromotionReceipt(for: mutation)
+        if replay == nil {
+            _ = try writer.execute(.applyPackagePromotion(mutation), mutationID: mutation.mutationID)
+        }
+        guard let canonicalReceipt = try replay ?? journal.receipt(mutationID: mutation.mutationID) else {
             throw PackageEvolutionFailureV1.incompatiblePromotion
         }
         _ = try PackagePromotionMutationReceiptV1(mutation: mutation, mutationReceipt: canonicalReceipt)
@@ -87,10 +90,16 @@ final class PackageEvolutionLifecycleAdapterV1: PackageEvolutionWritingV1 {
               closure.sandboxRuns == [bundle.sandboxRun],
               closure.promotionReceipts == [bundle.receipt],
               closure.activePointers == [bundle.predecessorPointer, bundle.resultingPointer]
-                .compactMap({ $0 }).sorted(by: { $0.pointerID.uuidString < $1.pointerID.uuidString }),
-              try activePointer(workspaceID: mutation.workspaceID,
-                                packageID: mutation.resultingPointer.packageID) == mutation.resultingPointer else {
+                .compactMap({ $0 }).sorted(by: { $0.pointerID.uuidString < $1.pointerID.uuidString }) else {
             throw PackageEvolutionFailureV1.divergentMutation
+        }
+        // A new promotion must become current. Exact replay only returns its
+        // immutable receipt; a later accepted successor remains current.
+        if replay == nil {
+            guard try activePointer(workspaceID: mutation.workspaceID,
+                                    packageID: mutation.resultingPointer.packageID) == mutation.resultingPointer else {
+                throw PackageEvolutionFailureV1.divergentMutation
+            }
         }
         return bundle.receipt
     }

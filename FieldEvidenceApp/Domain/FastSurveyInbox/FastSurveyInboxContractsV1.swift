@@ -826,11 +826,12 @@ struct FastSurveyInboxMutationCommandV1: Codable, Equatable, Sendable {
     init(commandID: UUID, workspaceID: WorkspaceID, expectedRevision: WorkspaceExpectedRevisionV1,
          mutationID: MutationIDV1, payload: FastSurveyInboxMutationPayloadV1,
          admission: FastSurveyInboxMutationAdmissionV1 = .notApplicable, submittedAt: Date) throws {
+        let enrolledExpected = try Self.canonicalExpectedRevision(expectedRevision, for: payload)
         schemaVersion = Self.schemaVersion; self.commandID = commandID; self.workspaceID = workspaceID
-        self.expectedRevision = expectedRevision; self.mutationID = mutationID; self.payload = payload
+        self.expectedRevision = enrolledExpected; self.mutationID = mutationID; self.payload = payload
         self.admission = admission; self.submittedAt = submittedAt
         commandSHA256 = try FastSurveyInboxValidationV1.sha256(Basis(schemaVersion: Self.schemaVersion,
-            commandID: commandID, workspaceID: workspaceID, expectedRevision: expectedRevision,
+            commandID: commandID, workspaceID: workspaceID, expectedRevision: enrolledExpected,
             mutationID: mutationID, payload: payload, admission: admission, submittedAt: submittedAt)); try validate()
     }
     func validate() throws {
@@ -844,7 +845,39 @@ struct FastSurveyInboxMutationCommandV1: Codable, Equatable, Sendable {
               commandSHA256 == (try FastSurveyInboxValidationV1.sha256(basis)) else { throw FastSurveyInboxFailureV1.wrongWorkspace }
     }
     func validate(currentRevision: WorkspaceRevisionV1) throws {
-        try validate(); guard WorkspaceExpectedRevisionV1(snapshot: currentRevision) == expectedRevision else { throw FastSurveyInboxFailureV1.staleRevision }
+        try validate()
+        let canonical = try Self.canonicalExpectedRevision(
+            WorkspaceExpectedRevisionV1(snapshot: currentRevision), for: payload
+        )
+        guard canonical == expectedRevision else { throw FastSurveyInboxFailureV1.staleRevision }
+    }
+
+    /// Enroll only missing targets at zero before the command digest is frozen.
+    /// Incumbent targets and every other full-snapshot entry remain exact.
+    static func canonicalExpectedRevision(
+        _ supplied: WorkspaceExpectedRevisionV1,
+        for payload: FastSurveyInboxMutationPayloadV1
+    ) throws -> WorkspaceExpectedRevisionV1 {
+        try payload.validate()
+        let targets: [WorkspaceEntityIdentityV1]
+        switch payload {
+        case let .putInboxItem(value):
+            targets = [try .init(kind: .captureInboxItem, id: value.inboxItemID)]
+        case let .promote(promotion, promoted):
+            targets = [try .init(kind: .captureInboxItem, id: promoted.inboxItemID),
+                       try .init(kind: .capturePromotion, id: promotion.promotionID)]
+        case let .putSnippet(value):
+            targets = [try .init(kind: .snippet, id: value.snippetID)]
+        case let .insertSnippet(insertion, _):
+            targets = [try .init(kind: .snippetInsertion, id: insertion.insertionEventID)]
+        }
+        var enrolled = supplied.entityRevisions
+        for target in targets where !enrolled.contains(where: { $0.identity == target }) {
+            enrolled.append(.init(identity: target, revision: 0))
+        }
+        return try .init(workspaceID: supplied.workspaceID, generationID: supplied.generationID,
+            writerInstanceID: supplied.writerInstanceID, workspaceRevision: supplied.workspaceRevision,
+            entityRevisions: enrolled)
     }
     private var basis: Basis { .init(schemaVersion: schemaVersion, commandID: commandID, workspaceID: workspaceID, expectedRevision: expectedRevision, mutationID: mutationID, payload: payload, admission: admission, submittedAt: submittedAt) }
     private struct Basis: Codable { let schemaVersion: Int; let commandID: UUID; let workspaceID: WorkspaceID; let expectedRevision: WorkspaceExpectedRevisionV1; let mutationID: MutationIDV1; let payload: FastSurveyInboxMutationPayloadV1; let admission: FastSurveyInboxMutationAdmissionV1; let submittedAt: Date }

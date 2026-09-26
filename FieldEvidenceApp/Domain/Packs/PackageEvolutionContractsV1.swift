@@ -451,6 +451,18 @@ struct PackageEvolutionLifecycleClosureV1: Codable, Equatable, Sendable {
               Set(activePointers.map(\.pointerID)).count == activePointers.count else {
             throw PackageEvolutionFailureV1.invalidValue
         }
+        // A closure contains complete receipt-bound promotions. A scoped
+        // successor may additionally carry its predecessor pointer, while a
+        // whole-store closure carries every immutable promotion in the chain.
+        let zeroSHA = String(repeating: "0", count: 64)
+        let referencedPointers = Set(promotionReceipts.flatMap {
+            [$0.resultingPointerSHA256, $0.predecessorPointerSHA256].filter { $0 != zeroSHA }
+        })
+        guard Set(promotedReleases.map(\.releaseRecordID)) == Set(promotionReceipts.map(\.promotedReleaseRecordID)),
+              Set(sandboxRuns.map(\.runID)) == Set(promotionReceipts.map(\.sandboxRunID)),
+              Set(activePointers.map(\.pointerSHA256)) == referencedPointers else {
+            throw PackageEvolutionFailureV1.incompatiblePromotion
+        }
         let releases = Dictionary(uniqueKeysWithValues: promotedReleases.map { ($0.releaseRecordID, $0) })
         let runs = Dictionary(uniqueKeysWithValues: sandboxRuns.map { ($0.runID, $0) })
         let pointers = Dictionary(uniqueKeysWithValues: activePointers.map { ($0.pointerSHA256, $0) })

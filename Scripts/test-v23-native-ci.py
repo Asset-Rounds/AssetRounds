@@ -4082,6 +4082,9 @@ class FindingProfileFixturesDiagnosticTests(ReplacementPartitionDiagnosticTests)
                 blob = git('hash-object', '-w', '--stdin', data=(checkout/relative).read_bytes()).decode().strip()
                 git('update-index', '--add', '--cacheinfo', mode, blob, relative)
             tree = git('write-tree').decode().strip()
+            # ZipFile extraction loses executable bits. Materialize the final
+            # private index so both frozen modes and the owned bytes are exact.
+            git('checkout-index', '--all', '--force')
             identity = dict(os.environ, GIT_AUTHOR_NAME='Protocol fixture', GIT_AUTHOR_EMAIL='fixture@example.invalid',
                             GIT_COMMITTER_NAME='Protocol fixture', GIT_COMMITTER_EMAIL='fixture@example.invalid')
             def commit(parent):
@@ -4105,6 +4108,25 @@ class FindingProfileFixturesDiagnosticTests(ReplacementPartitionDiagnosticTests)
                             PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp', CONFIGURATION='Debug',
                             CODE_SIGNING_ALLOWED='NO', CI_SIMULATOR_UDID=UDID, CI_DESTINATION='platform=iOS Simulator,id='+UDID)
             cli = [sys.executable, str(checkout/'Scripts/v23-native-ci.py')]
+            if os.name != 'nt':
+                # A real mode-only edit must still fail the production guard.
+                executable = checkout/'Scripts/build-smoke.sh'
+                original_mode, original_bytes = executable.stat().st_mode, executable.read_bytes()
+                self.assertTrue(original_mode & 0o111)
+                artifact = base/'mode-change'; artifact.mkdir()
+                try:
+                    executable.chmod(original_mode & ~0o111)
+                    self.assertEqual(executable.read_bytes(), original_bytes)
+                    self.assertEqual(git('diff', '--summary', 'HEAD', '--').decode().strip(),
+                                     'mode change 100755 => 100644 Scripts/build-smoke.sh')
+                    result = subprocess.run(cli+['admit'],
+                                            env=dict(base_env, CI_ARTIFACT_DIR=str(artifact)), capture_output=True)
+                    self.assertNotEqual(result.returncode, 0, result.stdout)
+                    self.assertIn(b"'diff', '--exit-code', 'HEAD', '--'", result.stderr)
+                    self.assertFalse((artifact/'native-admission.json').exists())
+                finally:
+                    executable.chmod(original_mode)
+                self.assertEqual(git('diff', 'HEAD', '--'), b'')
             for label, changes in [('wrong-head', {'GITHUB_SHA':'f'*40}), ('attempt', {'GITHUB_RUN_ATTEMPT':'2'}),
                                    ('provider', {'CI_RUNNER_PROVIDER':'bitrise'}), ('map', {'DISPATCH_NATIVE_SELECTION_MAP_SHA256':'F'*64})]:
                 artifact = base/label; artifact.mkdir()
@@ -6245,12 +6267,26 @@ class WorkflowWiringTests(unittest.TestCase):
                         self.assertEqual(selected[key], original[key])
             else:
                 self.assertEqual(selected, original)
+        # O/Q added these four witnesses after the closed BF6 selection. Keep
+        # that historical selection exact and bind the complete current class
+        # separately, with every later witness enrolled in the full sweep.
+        later_semantic = ['FieldEvidenceAppTests/V23StoreSemanticValidationTests/' + method for method in (
+            'testReleasedV1UpgradeCompletesBothLaunchesWithinBoundedTimeAndMemory',
+            'testPartsStockCommitUnderSubMillisecondClockReportsSuccess',
+            'testMutableSemanticCheckpointCoversEveryJournaledKind',
+            'testOutOfWriterTamperMatrixRecordsDetectionMechanism')]
+        current_semantic = semantic[:1] + later_semantic + semantic[1:]
         for klass, expected in (("V23CheckRunnerEditableFieldValuesTests", fields),
-                                ("V23StoreSemanticValidationTests", semantic)):
+                                ("V23StoreSemanticValidationTests", current_semantic)):
             source = (ROOT / "FieldEvidenceAppTests" / (klass + ".swift")).read_text(encoding="utf-8")
             self.assertEqual(re.findall(r"^    func (test\w+)\(", source, re.M),
                              [s.rsplit("/", 1)[1] for s in expected])
-        for selector in fields + stock + semantic:
+        # shared_selection validates the partition inventory against all source
+        # methods and rejects omissions, overlaps and unknown selectors.
+        complete_sweep = CI.shared_selection(ROOT)['unitTestSelectors']
+        for selector in current_semantic:
+            self.assertEqual(complete_sweep.count(selector), 1, selector)
+        for selector in fields + stock + current_semantic:
             bundle, klass, method = selector.split("/")
             source = (ROOT / bundle / (klass + ".swift")).read_text(encoding="utf-8")
             self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
@@ -8705,8 +8741,8 @@ class SharedCoverageRouteTests(unittest.TestCase):
             'Build unsigned simulator app', 'Seal V23 shared coverage payload', 'Upload V23 shared coverage payload'] + common_end)
         self.assertEqual([name for name, condition, _ in steps if runs(condition, 'consumer')], common_start + [
             'Download V23 shared coverage payload', 'Verify and restore V23 shared coverage payload',
-            'Recheck setup budget after V23 shared payload restore'] + boot + [
-            'Fingerprint V23 shared products before tests', 'Run targeted tests',
+            'Recheck setup budget after V23 shared payload restore', 'Boot selected Simulator',
+            'Fingerprint V23 shared products before tests', 'Await selected Simulator boot', 'Run targeted tests',
             'Fingerprint V23 shared products after tests'] + common_end)
         by_name = {name: (condition, body) for name, condition, body in steps}
         # Evidence is retained and checked whatever an earlier step did.
@@ -8733,6 +8769,17 @@ class SharedCoverageRouteTests(unittest.TestCase):
         self.assertIn('        id: runtime_setup\n', by_name['Verify pinned toolchain, shared scheme, and simulator'][1])
         self.assertIn('        id: simulator_boot\n        background: true\n', by_name['Boot selected Simulator'][1])
         self.assertIn('        wait: simulator_boot', by_name['Await selected Simulator boot'][1])
+        # The restored-payload fingerprint overlaps boot, but both must finish
+        # before tests. GitHub wait steps always join, including after a failed
+        # fingerprint; neither failure can be masked or bypassed by test guards.
+        self.assertIsNone(by_name['Await selected Simulator boot'][0])
+        self.assertIsNone(by_name['Boot selected Simulator'][0])
+        for name in ('Fingerprint V23 shared products before tests', 'Run targeted tests'):
+            self.assertEqual(by_name[name][0], "${{ inputs.v23_shared_role == 'consumer' }}")
+            self.assertNotIn('background:', by_name[name][1])
+        for name in ('Boot selected Simulator', 'Fingerprint V23 shared products before tests',
+                     'Await selected Simulator boot', 'Run targeted tests'):
+            self.assertNotIn('continue-on-error', by_name[name][1])
         # The build and test commands are the ordinary worker's, under the selected budgets.
         for name, script_name, budget in (('Build unsigned simulator app', 'build-smoke', 'BUILD'),
                                           ('Run targeted tests', 'test-smoke', 'TEST')):
@@ -9127,8 +9174,8 @@ class SharedCoverageRouteTests(unittest.TestCase):
                 script.regenerate(CI, self.root, base, 'c' * 40, bad, True)
         # The committed timings are measured development evidence with named provenance.
         committed = json.loads((ROOT / 'Scripts/v23-coverage-timings.json').read_text(encoding='utf-8'))
-        self.assertEqual(committed['provenance']['runID'], '36133511753')
-        self.assertEqual(committed['provenance']['head'], '5eb2f5f330d2567eb9d1cfb4ff1cbbe97c1071f7')
+        self.assertEqual(committed['provenance']['runID'], '36218186328')
+        self.assertEqual(committed['provenance']['head'], '27388c99647eff4e786bda786d20a80521b3180f')
         self.assertTrue(committed['provenance']['developmentOnly'])
         self.assertTrue(set(committed['seconds']) <= set(self.discovered))
         script.read_timings(committed)

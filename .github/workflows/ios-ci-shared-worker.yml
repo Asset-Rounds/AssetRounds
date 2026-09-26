@@ -147,6 +147,11 @@ jobs:
         shell: bash
         run: bash Scripts/v23-shared-worker.sh boot
 
+      - name: Fingerprint V23 shared products before tests
+        if: ${{ inputs.v23_shared_role == 'consumer' }}
+        shell: bash
+        run: python3 Scripts/v23-native-ci.py shared-fingerprint --phase before
+
       - name: Await selected Simulator boot
         wait: simulator_boot
 
@@ -172,11 +177,6 @@ jobs:
           path: ${{ runner.temp }}/V23SharedPayloadTransport
           if-no-files-found: error
           retention-days: 3
-
-      - name: Fingerprint V23 shared products before tests
-        if: ${{ inputs.v23_shared_role == 'consumer' }}
-        shell: bash
-        run: python3 Scripts/v23-native-ci.py shared-fingerprint --phase before
 
       - name: Run targeted tests
         id: run_targeted_tests

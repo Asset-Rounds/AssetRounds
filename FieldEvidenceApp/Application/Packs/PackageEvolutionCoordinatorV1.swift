@@ -178,6 +178,9 @@ final class PackageEvolutionCoordinatorV1 {
             }
             return bundle.receipt
         }
+        guard bundle.semanticDiff.classification != .invalid else {
+            throw PackageEvolutionFailureV1.incompatiblePromotion
+        }
         let current = try packageWriter.activePointer(
             workspaceID: bundle.resultingPointer.workspaceID,
             packageID: bundle.resultingPointer.packageID

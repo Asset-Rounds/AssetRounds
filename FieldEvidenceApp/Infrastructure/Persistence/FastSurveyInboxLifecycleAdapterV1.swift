@@ -193,10 +193,18 @@ struct FastSurveyInboxLifecycleAdapterV1 {
 
     @MainActor func report() throws -> Report {
         let values = try snapshot()
-        return .init(unassignedInboxCount: values.inboxItems.filter(\.isUnassigned).count,
-                     promotedInboxCount: values.inboxItems.filter { $0.state == .promoted }.count,
+        // snapshot() validates every immutable revision before projecting the
+        // current logical items, exactly as the search query does.
+        let latestItems = Dictionary(grouping: values.inboxItems, by: \.inboxItemID).values.compactMap {
+            $0.max { $0.revision < $1.revision }
+        }
+        let latestSnippets = Dictionary(grouping: values.snippets, by: \.snippetID).values.compactMap {
+            $0.max { $0.revision < $1.revision }
+        }
+        return .init(unassignedInboxCount: latestItems.filter(\.isUnassigned).count,
+                     promotedInboxCount: latestItems.filter { $0.state == .promoted }.count,
                      promotionCount: values.promotions.count,
-                     activeSnippetCount: values.snippets.filter { $0.state == .active }.count,
+                     activeSnippetCount: latestSnippets.filter { $0.state == .active }.count,
                      completedInspectionContribution: 0)
     }
 }

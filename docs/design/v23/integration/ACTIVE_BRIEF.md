@@ -4,7 +4,7 @@
 
 ## Current state — 2026-09-26, Codex takeover
 
-- Work locally at `/Users/rentamac/Developer/AssetRounds` on `codex/v23-s10-integration-20260910`. Remote was refreshed; handoff head `a796347b` is present. Accepted main remains `b1d04ae5`.
+- Work locally at `/Users/rentamac/Developer/AssetRounds` on `codex/v23-s10-integration-20260910`. Batch T is committed and pushed at `654b4f57`; batch U is compiled and independently approved for the integration branch; four older migration failures remain blockers. Accepted main remains `b1d04ae5`.
 - One existing app/project/shared scheme, sole writer and S10 design system. Preserve owner drafts, frozen design, V30, coordination ledger, `docs/design/s10/**` and `Release/**`. Card135 owner-only/skipped; physical/minimum-runtime verification deferred; releaseReady=false.
 - Owner switched all Claude roles to GPT-6 Astra, including the separate read-only independent reviewer. Root alone integrates, commits, pushes and dispatches; no PRs or merge commits.
 - Verified local Xcode 26.6 (17F113), iOS 26.5 (23F77) Simulator, Python 3.14 and authenticated GitHub access. Local execution is development only. The iOS 26.2 (23C54) gate runtime remains hosted on GitHub.
@@ -14,10 +14,10 @@
 
 ## Next work
 
-1. Commit and push reviewed batch T with explicit paths after refreshing refs; finish the Mac tooling checks. Root continues on the integration branch.
-2. Correct C11/C12 domain receipt/postimage digest mismatches and package successor concurrency identity; add real forward-fix writer/restart evidence. Restricted writer/persistence work.
+1. Continue from reviewed batch U into the separately reviewed My Day/portable and restore owned-claim corrections; integrate, compile and test them. Root continues on the integration branch.
+2. CI tooling passes 320/320; generator passes 38/38. Repacked coverage is 28 partitions/3,468 methods. Reviewed boot/fingerprint overlap still needs the next hosted development witness; no test or watchdog reduction.
 3. Diagnose and correct clone/photo retirement's owned-unlink directory proof; retain hostile controls. The FrozenEvidence test passed in retained logs, so its expected denial is not a failing test.
-4. Fix remaining Phase 1 failure families from the collected sweep, plus Mac tooling defects. Every unit method must pass; no known-failure waiver has been granted.
+4. Fix the source-proven legacy pack-schema/catalog-schema mismatch behind four reproduced V10 migration failures, then continue the collected sweep families. Every unit method must pass; no waiver has been granted.
 5. Qualify RUI1 UI route, collect critical states and obtain the owner's genuine screenshot review; freeze one candidate for all phase gates, then fast-forward main and verify exact main.
 
 ## Merge and remaining scope

@@ -6,6 +6,55 @@ import XCTest
 
 @MainActor
 final class V9_75FastSurveyInboxTests: XCTestCase {
+    func testFastSurveyExpectedRevisionEnrollsOnlyAbsentTargetsAndRetainsFullSnapshotCAS() throws {
+        let f = try C11Fixture()
+        let initial = try f.snippet(title: "Incumbent", body: "Retain its revision")
+        let firstCommand = try f.command(.putSnippet(initial), mutationID: initial.mutationID)
+        let initialTarget = try XCTUnwrap(firstCommand.affectedIdentitiesForCanonicalWriter().first)
+        XCTAssertEqual(firstCommand.expectedRevision.entityRevisions,
+                       [.init(identity: initialTarget, revision: 0)])
+        _ = try f.lifecycle.replay(firstCommand)
+        let current = try f.writer.currentRevision()
+        let candidate = try f.snippet(title: "New target", body: "Explicit zero admission")
+        let commandID = UUID()
+        func expected(_ entities: [WorkspaceEntityRevisionV1]) throws -> WorkspaceExpectedRevisionV1 {
+            try .init(workspaceID: current.workspaceID, generationID: current.generationID,
+                writerInstanceID: current.writerInstanceID, workspaceRevision: current.revision,
+                entityRevisions: entities)
+        }
+        func command(_ snapshot: WorkspaceExpectedRevisionV1) throws -> FastSurveyInboxMutationCommandV1 {
+            try .init(commandID: commandID, workspaceID: f.workspaceID, expectedRevision: snapshot,
+                mutationID: candidate.mutationID, payload: .putSnippet(candidate), submittedAt: f.date)
+        }
+        let implicit = try command(WorkspaceExpectedRevisionV1(snapshot: current))
+        let target = try XCTUnwrap(implicit.affectedIdentitiesForCanonicalWriter().first)
+        let explicit = try command(expected(current.entityRevisions + [.init(identity: target, revision: 0)]))
+        XCTAssertEqual(implicit, explicit, "normalization precedes the immutable command digest")
+        XCTAssertEqual(try JSONDecoder().decode(FastSurveyInboxMutationCommandV1.self,
+                                               from: JSONEncoder().encode(implicit)), implicit)
+        let unknown = try WorkspaceEntityIdentityV1(kind: .snippet, id: UUID())
+        let invalidSnapshots = try [
+            expected([]), // missing incumbent that is not the target
+            expected(current.entityRevisions + [.init(identity: target, revision: 1)]),
+            expected(current.entityRevisions + [.init(identity: unknown, revision: 0)]),
+            expected([.init(identity: initialTarget, revision: 0)])
+        ]
+        let before = try f.journal.exportSnapshot()
+        for invalid in invalidSnapshots {
+            XCTAssertThrowsError(try f.writer.commitFastSurveyInbox(command(invalid))) {
+                XCTAssertEqual($0 as? FastSurveyInboxFailureV1, .staleRevision)
+            }
+        }
+        let after = try f.journal.exportSnapshot()
+        XCTAssertEqual(after.receipts, before.receipts)
+        XCTAssertEqual(after.entityRevisions, before.entityRevisions)
+        XCTAssertEqual(after.quarantines, before.quarantines)
+        let accepted = try f.lifecycle.replay(implicit)
+        XCTAssertEqual(try f.lifecycle.replay(implicit), accepted)
+        XCTAssertEqual(try f.context.fetch(FetchDescriptor<SnippetRowV1>()).count, 2)
+        XCTAssertNoThrow(try f.journal.validateAll())
+    }
+
     func testBackupEnrollmentPreservesOptionalBoundaryAndRejectsDecodedProvenanceTampering() throws {
         let fixture = try C11Fixture()
         let snippet = try fixture.snippet(title: "Backup provenance", body: "Exact persisted effect")
@@ -51,15 +100,23 @@ final class V9_75FastSurveyInboxTests: XCTestCase {
         let context = try await f.item(label: "context", role: .context), detail = try await f.item(label: "detail", role: .detail), closeup = try await f.item(label: "closeup", role: .closeup)
         XCTAssertEqual([context.captureRole, detail.captureRole, closeup.captureRole], [.context, .detail, .closeup])
         XCTAssertNotNil(UUID(uuidString: context.content.contentID)); XCTAssertTrue(FileManager.default.fileExists(atPath: f.contentURL(context).path))
-        for item in [context, detail, closeup] { _ = try f.commit(.putInboxItem(item), mutationID: item.mutationID) }
+        for item in [context, detail, closeup] {
+            _ = try f.commit(.putInboxItem(item), mutationID: item.mutationID)
+            XCTAssertEqual(try f.journal.receipt(mutationID: item.mutationID)?.postImages.map(\.semanticSHA256), [item.itemSHA256])
+        }
         let (promotion, promoted) = try f.promotion(source: context, kind: .assetEvidence)
-        let receipt = try f.commit(.promote(promotion, promoted), mutationID: promotion.mutationID)
+        let promotionCommand = try f.command(.promote(promotion, promoted), mutationID: promotion.mutationID)
+        let promotionTarget = try WorkspaceEntityIdentityV1(kind: .capturePromotion, id: promotion.promotionID)
+        let inboxTarget = try WorkspaceEntityIdentityV1(kind: .captureInboxItem, id: context.inboxItemID)
+        XCTAssertEqual(promotionCommand.expectedRevision.entityRevisions.first { $0.identity == promotionTarget }?.revision, 0)
+        XCTAssertEqual(promotionCommand.expectedRevision.entityRevisions.first { $0.identity == inboxTarget }?.revision, 1)
+        let receipt = try f.lifecycle.replay(promotionCommand)
         XCTAssertEqual(receipt.semanticSHA256s, [promotion.promotionSHA256, promoted.itemSHA256].sorted())
         XCTAssertEqual(promoted.content, context.content); XCTAssertEqual(promoted.originalProvenance, context.originalProvenance)
         XCTAssertEqual(promotion.destination.kind, .assetEvidence); XCTAssertEqual(promotion.destination.destinationRevision, 7)
         let destinations = try CapturePromotionDestinationKindV1.allCases.map { try f.destinationResolver.resolveCapturePromotionDestination(workspaceID: f.workspaceID, kind: $0, destinationID: f.destinationResolver.id(for: $0)) }
         XCTAssertEqual(destinations.map(\.kind), CapturePromotionDestinationKindV1.allCases)
-        XCTAssertNotNil(try f.journal.receipt(mutationID: promotion.mutationID))
+        XCTAssertEqual(try f.journal.receipt(mutationID: promotion.mutationID)?.postImages.map(\.semanticSHA256).sorted(), receipt.semanticSHA256s)
         XCTAssertEqual(try f.context.fetch(FetchDescriptor<CaptureInboxItemRowV1>()).count, 4)
         XCTAssertEqual(try f.context.fetch(FetchDescriptor<CapturePromotionRowV1>()).count, 1)
         XCTAssertEqual(try f.context.fetch(FetchDescriptor<FastSurveyInboxMutationReceiptRowV1>()).count, 4)
@@ -83,12 +140,15 @@ final class V9_75FastSurveyInboxTests: XCTestCase {
         _ = try f.commit(.putInboxItem(item), mutationID: item.mutationID)
         let first = try f.snippet(title: "Valve note", body: "Inspect valve body.")
         _ = try f.commit(.putSnippet(first), mutationID: first.mutationID)
+        XCTAssertEqual(try f.journal.receipt(mutationID: first.mutationID)?.postImages.map(\.semanticSHA256), [first.snippetSHA256])
         let insertion = try f.insertion(snippet: first)
         let insertionReceipt = try f.commit(.insertSnippet(insertion, first), mutationID: insertion.mutationID)
         let edited = try f.snippet(title: "Valve note", body: "Inspect valve body and seal.", predecessor: first)
         _ = try f.commit(.putSnippet(edited), mutationID: edited.mutationID)
+        XCTAssertEqual(try f.lifecycle.report().activeSnippetCount, 1, "an edit replaces the current snippet view")
         let retired = try f.snippet(title: edited.title, body: edited.body, state: .retired, predecessor: edited)
         _ = try f.commit(.putSnippet(retired), mutationID: retired.mutationID)
+        XCTAssertEqual(try f.lifecycle.report().activeSnippetCount, 0, "retirement leaves no active current snippet")
         guard case let .insertionPreview(preview) = try f.coordinator.previewInsertion(snippet: edited, targetDraftID: UUID(), targetDraftRevision: 3) else { return XCTFail("explicit preview expected") }
         XCTAssertEqual(preview.snippetRevision, 2); XCTAssertEqual(preview.insertionText, edited.body)
         XCTAssertFalse(preview.automaticallyAnswers); XCTAssertFalse(preview.createsDirectObservation); XCTAssertTrue(preview.requiresExplicitBasisAndSave)
@@ -103,12 +163,20 @@ final class V9_75FastSurveyInboxTests: XCTestCase {
         guard case let .snippetInsertion(saved) = try f.lifecycle.search(try .init(workspaceID: f.workspaceID, target: .snippetInsertion(insertion.insertionEventID))) else { return XCTFail("saved insertion expected") }
         XCTAssertEqual(saved.insertion, insertion)
         XCTAssertEqual(try f.context.fetch(FetchDescriptor<SnippetRowV1>()).count, 3)
-        XCTAssertEqual(try f.context.fetch(FetchDescriptor<FastSurveyInboxMutationReceiptRowV1>()).count, 4)
+        XCTAssertEqual(try f.context.fetch(FetchDescriptor<FastSurveyInboxMutationReceiptRowV1>()).count, 5)
         XCTAssertEqual(try f.context.fetch(FetchDescriptor<SnippetRowV1>()).map { try $0.value() }.sorted { $0.revision < $1.revision }, [first, edited, retired])
         guard case let .inboxItems(items) = try f.lifecycle.search(try .init(workspaceID: f.workspaceID, target: .unassignedItems)) else { return XCTFail("unassigned item expected") }
         XCTAssertEqual(items, [.unassigned(item)]); XCTAssertEqual(f.coordinator.cancel(), .cancelled)
         let retained = try FastSurveyInboxReviewSelectionV1(workspaceID: f.workspaceID, items: [item], action: .retainUnassigned)
         XCTAssertEqual(retained.disposition, .noMutation); XCTAssertFalse(FastSurveyInboxReviewSelectionV1.isPersistent)
+        XCTAssertNoThrow(try f.journal.validateAll())
+        let predecessor = try XCTUnwrap(try f.context.fetch(FetchDescriptor<SnippetRowV1>())
+            .first { $0.snippetEventID == edited.snippetEventID })
+        f.context.delete(predecessor)
+        try f.context.save()
+        XCTAssertThrowsError(try f.journal.checkpointV2ForTesting(),
+                             "a terminal snippet cannot hide a missing intermediate revision")
+        XCTAssertThrowsError(try f.journal.validateAll())
     }
 
     func testV23P04C11H01DuplicatePromotionStaleDestinationMissingContentAndSnippetSubstitutionFailClosed() async throws {
@@ -149,7 +217,10 @@ final class V9_75FastSurveyInboxTests: XCTestCase {
         for boundary in MutationJournalFaultBoundaryV1.allCases {
             let f = try C11Fixture(failOnceAt: boundary), item = try await f.item(label: "capture-\(boundary.rawValue)")
             let command = try f.command(.putInboxItem(item), mutationID: item.mutationID)
-            XCTAssertThrowsError(try f.lifecycle.replay(command))
+            XCTAssertThrowsError(try f.lifecycle.replay(command)) { error in
+                XCTAssertEqual(error as? MutationJournalFailureV1, .injected(boundary),
+                    "C11.capture.\(boundary.rawValue): \(String(reflecting: type(of: error))) \(error)")
+            }
             XCTAssertEqual(try Data(contentsOf: f.contentURL(item)), Data([1, 2, 3, 4]))
             let savedBeforeRecovery = boundary == .afterSaveBeforeReturn
             XCTAssertEqual(try f.context.fetch(FetchDescriptor<CaptureInboxItemRowV1>()).count, savedBeforeRecovery ? 1 : 0)
@@ -169,7 +240,10 @@ final class V9_75FastSurveyInboxTests: XCTestCase {
             let runtime = try f.runtime(failOnceAt: boundary)
             let (promotion, promoted) = try f.promotion(source: source, kind: .correctiveWorkEvidence)
             let command = try f.command(.promote(promotion, promoted), mutationID: promotion.mutationID, using: runtime.writer)
-            XCTAssertThrowsError(try runtime.lifecycle.replay(command))
+            XCTAssertThrowsError(try runtime.lifecycle.replay(command)) { error in
+                XCTAssertEqual(error as? MutationJournalFailureV1, .injected(boundary),
+                    "C11.promotion.\(boundary.rawValue): \(String(reflecting: type(of: error))) \(error)")
+            }
             XCTAssertEqual(try Data(contentsOf: f.contentURL(source)), Data([1, 2, 3, 4]))
             let savedBeforeRecovery = boundary == .afterSaveBeforeReturn
             XCTAssertEqual(try f.context.fetch(FetchDescriptor<CapturePromotionRowV1>()).count, savedBeforeRecovery ? 1 : 0)
@@ -226,9 +300,26 @@ final class V9_75FastSurveyInboxTests: XCTestCase {
         let report = try f.lifecycle.report(); XCTAssertEqual(report.completedInspectionContribution, 0); XCTAssertEqual(report.unassignedInboxCount, 1); XCTAssertEqual(report.promotionCount, 1)
         XCTAssertTrue(FastSurveyInboxSchemaMigrationBoundaryV1.validate()); XCTAssertEqual(FastSurveyInboxSchemaV1.modelTypes.count, 5); XCTAssertEqual(FastSurveyInboxSchemaV1.totalSchemaModelCount, 158)
         try f.lifecycle.delete(); try FastSurveyInboxKernelDeletionEraseEnrollmentV1.validate()
+        XCTAssertEqual(try f.lifecycle.snapshot(), snapshot, "ordinary deletion policy retains immutable inbox history")
+        XCTAssertEqual(try f.lifecycle.report(), report)
+        XCTAssertEqual(report.promotedInboxCount, 1)
+        XCTAssertEqual(report.activeSnippetCount, 1)
+        XCTAssertNoThrow(try f.journal.validateAll())
         let empty = try C11Fixture(); try FastSurveyInboxEraseAllPolicyV1.validatePublishedEmptyGeneration(empty.context)
-        let replaySnippet = try f.snippet(title: "Replay", body: "Once")
-        let replay = try f.command(.putSnippet(replaySnippet), mutationID: replaySnippet.mutationID); XCTAssertEqual(try f.lifecycle.replay(replay), try f.lifecycle.replay(replay))
+        let replaySnippet = try empty.snippet(title: "Replay", body: "Once")
+        let replay = try empty.command(.putSnippet(replaySnippet), mutationID: replaySnippet.mutationID)
+        XCTAssertEqual(try empty.lifecycle.replay(replay), try empty.lifecycle.replay(replay))
+        try f.removeTypedRows()
+        let freshContext = ModelContext(f.context.container)
+        let retainedCounts = [try f.context.fetchCount(FetchDescriptor<CaptureInboxItemRowV1>()),
+            try f.context.fetchCount(FetchDescriptor<FastSurveyInboxMutationReceiptRowV1>())]
+        let freshCounts = [try freshContext.fetchCount(FetchDescriptor<CaptureInboxItemRowV1>()),
+            try freshContext.fetchCount(FetchDescriptor<FastSurveyInboxMutationReceiptRowV1>())]
+        print("C11.rawDeletion retained=\(retainedCounts) fresh=\(freshCounts)")
+        XCTAssertEqual(freshCounts, [0, 0], "the hostile operation must actually remove persisted typed rows")
+        XCTAssertThrowsError(try MutationJournalStoreV1(modelContext: freshContext,
+            identity: f.identity, generationID: f.generationID).validateAll(),
+            "actual out-of-writer row deletion invalidates retained receipts on a fresh read")
     }
 }
 
@@ -246,6 +337,7 @@ final class C11Fixture {
     let generationRoot: URL, evidenceStore: EvidenceBundleStore
     let destinationResolver: C11StrictDestinationResolver
     private let currentBinding: C10C11CurrentWriterBinding?
+    private let retainedContainer: ModelContainer?
 
     init(failOnceAt boundary: MutationJournalFaultBoundaryV1? = nil, hasDestinationAuthority: Bool = true,
          session: StoreGenerationSession? = nil, applicationSupportURL: URL? = nil,
@@ -253,6 +345,7 @@ final class C11Fixture {
         let modelContext: ModelContext, generation: UUID, replicaIdentity: WorkspaceReplicaIdentityV1
         let root: URL, store: MutationJournalStoreV1, canonicalWriter: WorkspaceWriterV1
         if let session {
+            retainedContainer = nil
             guard boundary == nil, hasDestinationAuthority else { throw FastSurveyInboxFailureV1.invalidValue }
             workspaceID = session.workspaceID; modelContext = session.modelContext
             generation = session.generationID; replicaIdentity = session.workspaceIdentity
@@ -263,8 +356,9 @@ final class C11Fixture {
             currentBinding = binding; store = binding.journal; canonicalWriter = binding.writer
         } else {
             currentBinding = nil; workspaceID = WorkspaceID()
-            let schema = Schema(PersistentSchemaV48.models, version: PersistentSchemaV48.versionIdentifier)
+            let schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
             let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [ModelConfiguration("C11Production", schema: schema, isStoredInMemoryOnly: true, allowsSave: true, cloudKitDatabase: .none)])
+            retainedContainer = container
             modelContext = container.mainContext
             generation = UUID()
             replicaIdentity = try WorkspaceReplicaIdentityV1(workspaceID: workspaceID, replicaID: ReplicaID(rawValue: UUID()))
@@ -323,7 +417,17 @@ final class C11Fixture {
         } else { admission = .notApplicable }
         return try .init(commandID: UUID(), workspaceID: workspaceID, expectedRevision: try expected(using: authority), mutationID: mutationID, payload: payload, admission: admission, submittedAt: date)
     }
-    func commit(_ payload: FastSurveyInboxMutationPayloadV1, mutationID: MutationIDV1) throws -> FastSurveyInboxMutationReceiptV1 { try lifecycle.replay(try command(payload, mutationID: mutationID)) }
+    private func diagnosing<T>(_ step: String, _ operation: () throws -> T) throws -> T {
+        do { return try operation() }
+        catch {
+            print("C11.\(step): \(String(reflecting: type(of: error))) \(String(reflecting: error))")
+            throw error
+        }
+    }
+    func commit(_ payload: FastSurveyInboxMutationPayloadV1, mutationID: MutationIDV1) throws -> FastSurveyInboxMutationReceiptV1 {
+        let prepared = try diagnosing("command.prepare") { try command(payload, mutationID: mutationID) }
+        return try diagnosing("command.commit") { try lifecycle.replay(prepared) }
+    }
     func captureAdmission(taps: Int = 2, elapsed: UInt64 = 5_000, protectedData: FastSurveyInboxProtectedDataStateV1 = .available) throws -> FastSurveyInboxCaptureAdmissionV1 {
         try .init(workspaceID: workspaceID, budget: .init(tapCount: taps, elapsedMilliseconds: elapsed), protectedDataState: protectedData, storagePressure: .init(workspaceID: workspaceID, currentBytes: 0, proposedAdditionalBytes: 4))
     }
@@ -346,13 +450,51 @@ final class C11Fixture {
         let formatter = ISO8601DateFormatter(); formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let createdAt = formatter.string(from: date)
         let reference = try ContentReferenceV1(workspaceID: workspaceID.rawValue.uuidString.lowercased(), contentID: contentID, byteLength: Int64(data.count), mediaType: "image/jpeg", digests: ContentDigestSetV1([digest]), byteRole: .immutableOriginal, createdAt: createdAt)
-        let provenance = try ContentOriginalProvenanceV1(provenanceID: "provenance-\(label)", workspaceID: reference.workspaceID, contentID: contentID, contentDigest: digest, origin: .humanCapture, recordedAt: reference.createdAt)
+        let provenance = try ContentOriginalProvenanceV1(provenanceID: "provenance-\(contentID)", workspaceID: reference.workspaceID, contentID: contentID, contentDigest: digest, origin: .humanCapture, recordedAt: reference.createdAt)
         let request = try DraftImmutableContentWriteRequestV1(workspaceID: workspaceID, contentID: contentID, digest: digest, byteLength: Int64(data.count), mediaType: reference.mediaType, mutationID: try mutation(), createdAt: reference.createdAt)
         let receipt = try await evidenceStore.persistImmutableOriginal(bytes: data, request: request)
         try receipt.validate(request: request, bytes: data)
-        context.insert(EvidenceFile(id: contentUUID, recordID: UUID(), purposeKey: role.rawValue.lowercased(), relativePath: receipt.relativePath, mimeType: receipt.mediaType, byteCount: Int(receipt.byteLength), sha256: receipt.digest.hexadecimalValue, createdAt: date, thumbnailRelativePath: receipt.relativePath, thumbnailByteCount: Int(receipt.byteLength), thumbnailSHA256: receipt.digest.hexadecimalValue))
-        try context.save()
+        try seedOriginalEvidence(contentID: contentUUID, role: role, relativePath: receipt.relativePath,
+            mediaType: receipt.mediaType, byteLength: Int(receipt.byteLength), sha256: receipt.digest.hexadecimalValue)
         return try .init(inboxEventID: UUID(), inboxItemID: UUID(), workspaceID: workspaceID, mediaKind: .photo, content: reference, captureRole: role, originalProvenance: provenance, observationBasis: try observation(), temporalContext: try temporal(), capturedBy: try actor(), revision: 1, mutationID: try mutation())
+    }
+
+    /// Prerequisites use the same journal protocol, without consuming the
+    /// capture operation's fault injection. No model is inserted behind the
+    /// mutable-content checkpoint after writer activation.
+    private func seedOriginalEvidence(contentID: UUID, role: CaptureInboxRoleV1,
+        relativePath: String, mediaType: String, byteLength: Int, sha256: String) throws {
+        guard currentBinding == nil else { throw FastSurveyInboxFailureV1.invalidValue }
+        let seedJournal = try MutationJournalStoreV1(modelContext: context, identity: identity,
+            generationID: generationID)
+        let seedWriter = try WorkspaceWriterV1(identity: identity, generationID: generationID,
+            initialRevision: seedJournal.currentRevision(writerInstanceID: UUID()),
+            clock: C11Clock(), idSource: C11IDs(), fileAuthority: C11Files(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: context), journalStore: seedJournal)
+        let siteID = UUID(), assetID = UUID(), recordID = UUID(), placementMutationID = try mutation()
+        _ = try diagnosing("seed.first-sign") { try seedWriter.execute(.createFirstSign(.init(siteID: siteID,
+            newSite: .init(id: siteID, label: "Capture source", address: nil, timeZoneID: nil),
+            assetID: assetID, assetLabel: "Capture source", packID: "c11.fixture",
+            packSchemaVersion: 1, packContentVersion: 1, createdAt: date,
+            initialPlacementMutationID: placementMutationID, initialPlacementEventID: UUID(),
+            initialPhysicalEpisodeID: try .init(rawValue: UUID()))), mutationID: placementMutationID) }
+        _ = try diagnosing("seed.check-draft") { try seedWriter.execute(.createCheckDraft(.init(recordID: recordID, assetID: assetID,
+            issueID: nil, parentRecordID: nil, stage: WorkflowStage.check.rawValue,
+            draftStepKey: WorkflowDraftStep.wide.rawValue, startedAt: date, observedAtUTC: date,
+            timeZoneID: nil, utcOffsetMinutes: nil, localDate: nil, localTime: nil,
+            afterDarkAcknowledgementKey: nil, afterDarkAcknowledgementCopy: nil,
+            afterDarkAcknowledgementVersion: nil, afterDarkAcknowledgementAccepted: nil,
+            safePositionAcknowledgementKey: nil, safePositionAcknowledgementCopy: nil,
+            safePositionAcknowledgementVersion: nil, safePositionAcknowledgementAccepted: nil,
+            packID: "c11.fixture", packSchemaVersion: 1, packContentVersion: 1,
+            pdfTemplateID: "c11.fixture", pdfTemplateVersion: 1,
+            observationBasis: try observation(), temporalContext: try temporal())), mutationID: mutation()) }
+        _ = try diagnosing("seed.evidence") { try seedWriter.execute(.acceptCheckEvidence(.init(evidenceID: contentID,
+            draftID: recordID, purposeKey: role.rawValue.lowercased(), relativePath: relativePath,
+            mimeType: mediaType, byteCount: byteLength, sha256: sha256,
+            thumbnailRelativePath: relativePath, thumbnailByteCount: byteLength,
+            thumbnailSHA256: sha256, nextDraftStepKey: WorkflowDraftStep.wide.rawValue,
+            createdAt: date)), mutationID: mutation()) }
     }
 
     func contentURL(_ item: CaptureInboxItemV1) -> URL {
@@ -443,9 +585,24 @@ final class C11Fixture {
     }
 
     func actor() throws -> ActorSnapshotV1 { let local = try LocalActorReferenceV1(actorReferenceID: UUID(), workspaceID: workspaceID, displayName: "C11 operator"); return try .init(snapshotID: UUID(), workspaceID: workspaceID, actor: local, responsibility: .recordedBy, displayNameAtTime: local.displayName, capturedAt: date) }
-    func observation() throws -> ObservationBasisV1 { try .init(kind: .directlyObserved, method: try .init(key: "C11_FAST_SURVEY"), source: try .init(kind: .observer)) }
+    func observation() throws -> ObservationBasisV1 { try .init(kind: .directlyObserved, method: try .init(key: "c11_fast_survey"), source: try .init(kind: .observer)) }
     func temporal() throws -> TemporalContextV1 { try .init(occurredAtUTC: date, recordedAtUTC: date, localDate: nil, localTime: nil, utcOffsetSeconds: nil, ianaTimeZoneIdentifier: nil, localTimeDisposition: .unknown) }
-    func removeTypedRows() throws { try context.delete(model: CaptureInboxItemRowV1.self); try context.delete(model: CapturePromotionRowV1.self); try context.delete(model: SnippetRowV1.self); try context.delete(model: SnippetInsertionHistoryRowV1.self); try context.delete(model: FastSurveyInboxMutationReceiptRowV1.self); try context.save() }
+    func removeTypedRows() throws {
+        // SwiftData's bulk delete did not remove these in-memory fixture rows
+        // on the local runtime. Delete actual fetched instances so restore and
+        // hostile-deletion witnesses prove a real persisted state transition.
+        for row in try context.fetch(FetchDescriptor<CaptureInboxItemRowV1>()) { context.delete(row) }
+        for row in try context.fetch(FetchDescriptor<CapturePromotionRowV1>()) { context.delete(row) }
+        for row in try context.fetch(FetchDescriptor<SnippetRowV1>()) { context.delete(row) }
+        for row in try context.fetch(FetchDescriptor<SnippetInsertionHistoryRowV1>()) { context.delete(row) }
+        for row in try context.fetch(FetchDescriptor<FastSurveyInboxMutationReceiptRowV1>()) { context.delete(row) }
+        try context.save()
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<CaptureInboxItemRowV1>()), 0)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<CapturePromotionRowV1>()), 0)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<SnippetRowV1>()), 0)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<SnippetInsertionHistoryRowV1>()), 0)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<FastSurveyInboxMutationReceiptRowV1>()), 0)
+    }
 }
 
 /// This test resolver has no canned digest: its immutable answer is derived

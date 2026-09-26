@@ -56,6 +56,7 @@ final class V9_76ReinspectionExceptionQueueTests: XCTestCase {
         let command = try f.command(.putPlan(plan, nil), mutationID: plan.mutationID)
         let receipt = try f.writer.commitReinspectionException(command)
         XCTAssertEqual(receipt.semanticSHA256s, [plan.planSHA256])
+        XCTAssertEqual(try f.journal.receipt(mutationID: plan.mutationID)?.postImages.map(\.semanticSHA256), [plan.planSHA256])
         XCTAssertEqual(plan.items.flatMap(\.reasons).sorted { $0.rawValue < $1.rawValue }, ReinspectionSelectionReasonV1.allCases.sorted { $0.rawValue < $1.rawValue })
         XCTAssertTrue(plan.items.filter { !$0.reasons.contains(.policy) }.allSatisfy { $0.completionRequirement != .currentObservationOrAttestation })
         let all = try f.lifecycle.rebuild(try .init(), evaluatedAt: f.date)
@@ -86,6 +87,7 @@ final class V9_76ReinspectionExceptionQueueTests: XCTestCase {
         XCTAssertEqual(attestation.policyVersion, plan.policyVersion); XCTAssertEqual(attestation.policySHA256, plan.policySHA256)
         XCTAssertFalse(attestation.createsFreshObservation); XCTAssertFalse(ReinspectionExceptionLifecycleV1.priorEvidenceCreatesFreshObservation)
         XCTAssertEqual(receipt.semanticSHA256s, [attestation.attestationSHA256])
+        XCTAssertEqual(try f.journal.receipt(mutationID: attestation.mutationID)?.postImages.map(\.semanticSHA256), [attestation.attestationSHA256])
         guard case let .attestation(found) = try f.lifecycle.query(try .init(workspaceID: f.workspaceID, target: .attestation(attestation.attestationID)), evaluatedAt: f.date) else { return XCTFail("typed attestation expected") }
         XCTAssertEqual(found, attestation)
     }
@@ -157,6 +159,24 @@ final class V9_76ReinspectionExceptionQueueTests: XCTestCase {
         XCTAssertEqual(interrupted.authority.queueSources.count, 9)
         related.failRead = false
         XCTAssertEqual(try interrupted.lifecycle.rebuild(try .init(), evaluatedAt: interrupted.date).count, 9)
+    }
+
+    func testReinspectionRecoveryRejectsMissingEffectOrTypedReceipt() throws {
+        for removeEffect in [false, true] {
+            let fixture = try C12Fixture(), plan = try fixture.plan(matrix: false)
+            let command = try fixture.command(.putPlan(plan, nil), mutationID: plan.mutationID)
+            _ = try fixture.writer.commitReinspectionException(command)
+            try fixture.assertReceiptParity(command)
+            if removeEffect {
+                let row = try XCTUnwrap(try fixture.context.fetch(FetchDescriptor<ReinspectionPlanRowV1>()).first)
+                fixture.context.delete(row)
+            } else {
+                let row = try XCTUnwrap(try fixture.context.fetch(FetchDescriptor<ReinspectionExceptionMutationReceiptRowV1>()).first)
+                fixture.context.delete(row)
+            }
+            try fixture.context.save()
+            XCTAssertThrowsError(try MutationReceiptRecoveryServiceV1(store: fixture.journal).recoverBeforeWriterActivation())
+        }
     }
 
     func testV23P04C12R01RestoredCanonicalSourcesRebuildExactQueueDecisionsReasonsAndUnresolvedCounts() throws {
@@ -374,14 +394,26 @@ final class V9_76ReinspectionExceptionQueueTests: XCTestCase {
         let change = try c12JournalChange(
             sourceRuntime.journal.exportSnapshot(), mutationID: accepted.acknowledgement.mutationID
         )
+        XCTAssertNil(change.reversalBasis)
+        XCTAssertNil(change.portableReversalPlan)
+        XCTAssertNoThrow(try change.validate(), "the frozen optional plan contract accepts nil")
         guard case let .applyReinspectionException(sourceCommand) = change.envelope.command,
               case let .recordAcknowledgement(sourceAcknowledgement, _, _) = sourceCommand.payload else {
             return XCTFail("source acknowledgement command expected")
         }
 
         let destination = try C12Fixture(workspaceID: sourceRuntime.workspaceID)
+        let existingPlan = try destination.plan(matrix: false)
+        _ = try destination.commit(.putPlan(existingPlan, nil), mutationID: existingPlan.mutationID)
+        let beforeImport = try destination.writer.currentRevision()
         destination.providers.forEach { $0.isResolved = true }
         let first = try destination.writer.executeImported(change)
+        let expectedBefore = try ReinspectionExceptionMutationCommandV1.canonicalExpectedRevision(
+            WorkspaceExpectedRevisionV1(snapshot: beforeImport), for: sourceCommand.payload)
+        XCTAssertEqual(first.before.revision, beforeImport.revision)
+        XCTAssertEqual(first.before.entityRevisions, expectedBefore.entityRevisions)
+        XCTAssertEqual(first.before.entityRevisions.filter { $0.revision > 0 }, beforeImport.entityRevisions)
+        XCTAssertEqual(first.before.entityRevisions.filter { $0.revision == 0 }.count, 1)
         let receiptCount = try destination.journal.exportSnapshot().receipts.count
         let restarted = try destination.runtime()
         let exactReplay = try restarted.writer.executeImported(change)
@@ -400,7 +432,8 @@ final class V9_76ReinspectionExceptionQueueTests: XCTestCase {
         XCTAssertEqual(try rows.map { try $0.value() }, [sourceAcknowledgement])
         XCTAssertEqual(sourceAcknowledgement.recordedAt, accepted.acknowledgement.recordedAt)
         XCTAssertEqual(sourceAcknowledgement.acknowledgementSHA256, accepted.acknowledgement.acknowledgementSHA256)
-        let destinationPair = try XCTUnwrap(destination.journal.reinspectionExceptionRecoveryPairs().first)
+        let destinationPair = try XCTUnwrap(destination.journal.reinspectionExceptionRecoveryPairs()
+            .first { $0.command.commandID == sourceCommand.commandID })
         XCTAssertEqual(destinationPair.command.commandID, sourceCommand.commandID)
         XCTAssertEqual(destinationPair.command.payload, sourceCommand.payload)
         XCTAssertEqual(destinationPair.command.submittedAt, sourceCommand.submittedAt)
@@ -418,6 +451,70 @@ final class V9_76ReinspectionExceptionQueueTests: XCTestCase {
                           exactReplay.before.writerInstanceID)
         XCTAssertTrue(destination.providers.allSatisfy(\.isResolved),
                       "accepted historical import must not require today's unresolved frontier")
+
+        // Continue local → imported → local → imported work, then reopen.
+        let successorPlan = try ReinspectionPlanV1(planEventID: UUID(), planID: existingPlan.planID,
+            workspaceID: destination.workspaceID, revision: 2, predecessor: existingPlan,
+            policyVersion: existingPlan.policyVersion, policySHA256: existingPlan.policySHA256,
+            items: existingPlan.items, plannedBy: destination.actor(), plannedAt: destination.date,
+            mutationID: destination.mutation())
+        _ = try restarted.writer.commitReinspectionException(destination.command(
+            .putPlan(successorPlan, existingPlan), mutationID: successorPlan.mutationID,
+            writer: restarted.writer))
+        let secondSource = try XCTUnwrap(sourceRuntime.authority.queueSources.first {
+            $0.logicalExceptionKey != source.logicalExceptionKey
+        })
+        let secondAccepted = try sourceRuntime.writer.commitExceptionQueueAcknowledgement(
+            sourceRuntime.intent(source: secondSource), providers: sourceRuntime.providers)
+        let secondChange = try c12JournalChange(sourceRuntime.journal.exportSnapshot(),
+            mutationID: secondAccepted.acknowledgement.mutationID)
+        let secondImport = try restarted.writer.executeImported(secondChange)
+        let reopened = try destination.runtime()
+        let mixedHistory = try reopened.journal.exportSnapshot()
+        XCTAssertEqual(mixedHistory.workspaceRevision, 4)
+        XCTAssertEqual(mixedHistory.receipts.count, 4)
+        XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(mixedHistory))
+        XCTAssertEqual(try reopened.writer.executeImported(change).effect, first.effect)
+        XCTAssertEqual(try reopened.writer.executeImported(secondChange).effect, secondImport.effect)
+        XCTAssertEqual(try reopened.journal.exportSnapshot(), mixedHistory)
+
+        // Keep valid per-receipt digests and +1 transitions while corrupting
+        // only workspace continuity: one duplicate revision and one gap.
+        let acceptedRecord = try XCTUnwrap(mixedHistory.receipts.first {
+            (try? MutationReceiptV1.decodeCanonical(from: $0.receiptData).mutationID)
+                == secondChange.receipt.mutationID
+        })
+        let originalEnvelope = try MutationEnvelopeV1.decodeCanonical(from: acceptedRecord.envelopeData)
+        let originalReceipt = try MutationReceiptV1.decodeCanonical(from: acceptedRecord.receiptData)
+        guard case let .applyReinspectionException(originalCommand) = originalEnvelope.command else {
+            return XCTFail("imported C12 command expected")
+        }
+        for invalidExpected in [UInt64(2), UInt64(4)] {
+            let expected = try WorkspaceExpectedRevisionV1(workspaceID: destination.workspaceID,
+                generationID: destination.generationID, writerInstanceID: originalCommand.expectedRevision.writerInstanceID,
+                workspaceRevision: invalidExpected, entityRevisions: originalEnvelope.expectedRevision.entityRevisions)
+            let command = try ReinspectionExceptionMutationCommandV1(commandID: originalCommand.commandID,
+                workspaceID: destination.workspaceID, expectedRevision: expected,
+                mutationID: originalCommand.mutationID, payload: originalCommand.payload,
+                submittedAt: originalCommand.submittedAt)
+            let envelope = try MutationEnvelopeV1(request: .init(mutationID: command.mutationID,
+                expectedRevision: expected, command: .applyReinspectionException(command)),
+                identity: destination.identity, sourceKind: .importedHistory)
+            let resulting = try WorkspaceExpectedRevisionV1(workspaceID: destination.workspaceID,
+                generationID: destination.generationID, writerInstanceID: expected.writerInstanceID,
+                workspaceRevision: invalidExpected + 1, entityRevisions: originalReceipt.resultingRevision.entityRevisions)
+            let receipt = try MutationReceiptV1(identity: originalReceipt.identity, envelope: envelope,
+                resultingRevision: MutationPortableExpectedRevisionV1(resulting),
+                postImages: originalReceipt.postImages, committedAt: originalReceipt.committedAt)
+            XCTAssertNoThrow(try receipt.validate())
+            let changedRecord = MutationHistoryReceiptRecordV1(envelopeData: try envelope.canonicalData(),
+                receiptData: try receipt.canonicalData(), reversalBasisData: nil, semanticReversalData: nil)
+            let hostile = MutationHistorySnapshotV1(workspaceRevision: invalidExpected + 1,
+                lastLocalSequence: mixedHistory.lastLocalSequence,
+                receipts: mixedHistory.receipts.map { $0 == acceptedRecord ? changedRecord : $0 },
+                quarantines: mixedHistory.quarantines, entityRevisions: mixedHistory.entityRevisions)
+            XCTAssertThrowsError(try MutationJournalStoreV1.validateImportedSnapshot(hostile))
+        }
     }
 
     func testV23P04C12T05CanonicalExpectedRevisionEnrollsOnlyAbsentTargetAndRetainsFullSnapshotCAS() throws {
@@ -545,6 +642,83 @@ final class V9_76ReinspectionExceptionQueueTests: XCTestCase {
         XCTAssertEqual(after.receipts, baseline.receipts)
         XCTAssertEqual(after.quarantines, baseline.quarantines)
         XCTAssertEqual(after.entityRevisions, baseline.entityRevisions)
+        let reopened = try f.runtime()
+        XCTAssertNoThrow(try reopened.journal.validateAll())
+        XCTAssertEqual(try reopened.journal.exportSnapshot().receipts, baseline.receipts)
+        let predecessorRow = try XCTUnwrap(try f.context.fetch(FetchDescriptor<ExceptionQueueAcknowledgementRowV1>())
+            .first { $0.acknowledgementID == first.acknowledgement.acknowledgementID })
+        f.context.delete(predecessorRow)
+        try f.context.save()
+        XCTAssertThrowsError(try reopened.journal.checkpointV2ForTesting(),
+                             "a terminal acknowledgement cannot hide a missing historical revision")
+        XCTAssertThrowsError(try reopened.journal.validateAll())
+    }
+
+    func testJournalChangeOptionalReversalPlanChecksPresentRevisionAgainstCommittedReceipt() throws {
+        let f = try C12Fixture()
+        let mutationID = try f.mutation(), siteID = UUID(), assetID = UUID(), placementID = UUID()
+        let targets = try [WorkspaceEntityIdentityV1(kind: .site, id: siteID),
+                           WorkspaceEntityIdentityV1(kind: .asset, id: assetID),
+                           WorkspaceEntityIdentityV1(kind: .assetPlacementEvent, id: placementID)]
+        let current = try f.writer.currentRevision()
+        let expected = try WorkspaceExpectedRevisionV1(workspaceID: f.workspaceID,
+            generationID: f.generationID, writerInstanceID: current.writerInstanceID,
+            workspaceRevision: current.revision,
+            entityRevisions: targets.map { .init(identity: $0, revision: 0) })
+        let command = WorkspaceCommandV1.createFirstSign(.init(siteID: siteID,
+            newSite: .init(id: siteID, label: "Reversible site", address: nil, timeZoneID: nil),
+            assetID: assetID, assetLabel: "Reversible asset", packID: "c12.fixture",
+            packSchemaVersion: 1, packContentVersion: 1, createdAt: f.date,
+            initialPlacementMutationID: mutationID, initialPlacementEventID: placementID,
+            initialPhysicalEpisodeID: try .init(rawValue: UUID())))
+        let compensation = WorkspaceCommandV1.archiveEntities(.init(identities: targets.filter { $0.kind != .assetPlacementEvent },
+            reason: "Reverse the test's first-sign creation"))
+        let plan = try SemanticReversalPlanV1(mutationID: mutationID, commandKind: command.kind,
+            expectedRevision: expected, prospectiveTargets: targets, requiredSemanticValues: [],
+            contentReferences: [], dependencyGraph: [], conflicts: [], compensatingCommands: [compensation])
+        _ = try f.writer.execute(.init(mutationID: mutationID, expectedRevision: expected, command: command),
+                                 reversalPlan: plan)
+        let row = try XCTUnwrap(try f.journal.exportSnapshot().receipts.first {
+            (try? MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData).mutationID) == mutationID
+        })
+        let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+        let receipt = try MutationReceiptV1.decodeCanonical(from: row.receiptData)
+        let basis = try XCTUnwrap(try f.journal.reversalBasis(mutationID: mutationID))
+        let policy = try ConflictPolicyV1(policyID: "c12.reversal.exact-revision", rule: .exactRevisionManual)
+        let changes = try receipt.postImages.map {
+            try EntityChangeV1(postImage: $0, conflictPolicy: policy, conflictIdentity: nil)
+        }
+        func change(expectedRevision: MutationPortableExpectedRevisionV1) throws -> JournalChangeV1 {
+            let portable = try PortableReversalPlanV1(basis: basis, expectedRevision: expectedRevision,
+                                                      compensatingCommands: plan.compensatingCommands)
+            return try JournalChangeV1(envelope: envelope, receipt: receipt, entityChanges: changes,
+                reversalBasis: basis, portableReversalPlan: portable, semanticReversalReceipt: nil,
+                contentReferences: [])
+        }
+        XCTAssertNoThrow(try change(expectedRevision: receipt.resultingRevision))
+        XCTAssertNotEqual(receipt.expectedRevision, receipt.resultingRevision)
+        XCTAssertThrowsError(try change(expectedRevision: receipt.expectedRevision)) {
+            XCTAssertEqual($0 as? ChangeJournalFailureV1, .tamperedBatch)
+        }
+    }
+
+    func testReinspectionPlanSuccessorCheckpointRejectsMissingPredecessor() throws {
+        let f = try C12Fixture(), first = try f.plan(matrix: false)
+        _ = try f.commit(.putPlan(first, nil), mutationID: first.mutationID)
+        let successor = try ReinspectionPlanV1(planEventID: UUID(), planID: first.planID,
+            workspaceID: f.workspaceID, revision: 2, predecessor: first,
+            policyVersion: first.policyVersion, policySHA256: first.policySHA256, items: first.items,
+            plannedBy: f.actor(), plannedAt: f.date, mutationID: f.mutation())
+        _ = try f.commit(.putPlan(successor, first), mutationID: successor.mutationID)
+        let reopened = try f.runtime()
+        XCTAssertNoThrow(try reopened.journal.validateAll())
+        XCTAssertEqual(try f.context.fetch(FetchDescriptor<ReinspectionPlanRowV1>()).count, 2)
+        let predecessor = try XCTUnwrap(try f.context.fetch(FetchDescriptor<ReinspectionPlanRowV1>())
+            .first { $0.planEventID == first.planEventID })
+        f.context.delete(predecessor)
+        try f.context.save()
+        XCTAssertThrowsError(try reopened.journal.checkpointV2ForTesting())
+        XCTAssertThrowsError(try reopened.journal.validateAll())
     }
 }
 
@@ -611,7 +785,7 @@ private final class C12Fixture {
 
     init(workspaceID requestedWorkspaceID: WorkspaceID? = nil,
          failOnceAt boundary: MutationJournalFaultBoundaryV1? = nil) throws {
-        let workspace = requestedWorkspaceID ?? WorkspaceID(), schema = Schema(PersistentSchemaV49.models, version: PersistentSchemaV49.versionIdentifier)
+        let workspace = requestedWorkspaceID ?? WorkspaceID(), schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
         let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [ModelConfiguration("C12Production", schema: schema, isStoredInMemoryOnly: true, allowsSave: true, cloudKitDatabase: .none)])
         self.container = container
         let modelContext = container.mainContext; modelContext.autosaveEnabled = false
@@ -649,7 +823,7 @@ private final class C12Fixture {
 
     func mutation() throws -> MutationIDV1 { try .init(rawValue: UUID()) }
     func actor() throws -> ActorSnapshotV1 { let local = try LocalActorReferenceV1(actorReferenceID: UUID(), workspaceID: workspaceID, displayName: "C12 inspector"); return try .init(snapshotID: UUID(), workspaceID: workspaceID, actor: local, responsibility: .recordedBy, displayNameAtTime: local.displayName, capturedAt: date) }
-    func observation() throws -> ObservationBasisV1 { try .init(kind: .directlyObserved, method: try .init(key: "C12_REINSPECTION"), source: try .init(kind: .observer)) }
+    func observation() throws -> ObservationBasisV1 { try .init(kind: .directlyObserved, method: try .init(key: "c12_reinspection"), source: try .init(kind: .observer)) }
     func command(_ payload: ReinspectionExceptionMutationPayloadV1, mutationID: MutationIDV1, writer authority: WorkspaceWriterV1? = nil) throws -> ReinspectionExceptionMutationCommandV1 {
         let selected = authority ?? writer
         return try .init(commandID: UUID(), workspaceID: workspaceID, expectedRevision: WorkspaceExpectedRevisionV1(snapshot: try selected.currentRevision()), mutationID: mutationID, payload: payload, submittedAt: date)
