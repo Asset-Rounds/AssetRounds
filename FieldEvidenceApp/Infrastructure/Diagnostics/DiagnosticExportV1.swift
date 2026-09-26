@@ -2311,7 +2311,8 @@ struct C49WorkResourceDiagnosticMetadataV1: Codable, Equatable, Sendable {
     let projectionSHA256: String
     let sourceRecordCount: Int
     let durationMinutes: Int
-    let materialTotals: [C49MaterialTotalProjectionV1]
+    // Diagnostic metadata must not retain source descriptions, units or quantities.
+    let materialTotalCount: Int
     let currencies: [String]
     let audience: String
     let directCostPreviewIncluded: Bool
@@ -2323,7 +2324,7 @@ struct C49WorkResourceDiagnosticMetadataV1: Codable, Equatable, Sendable {
         projectionSHA256 = projection.projectionSHA256
         sourceRecordCount = projection.sourceRecordIDs.count
         durationMinutes = projection.durationMinutes
-        materialTotals = projection.materialTotals
+        materialTotalCount = projection.materialTotals.count
         currencies = projection.directCostPreview.totalsByCurrency.map(\.currencyCode)
         audience = projection.directCostPreview.audience.rawValue
         directCostPreviewIncluded = projection.directCostPreview.included
@@ -2335,14 +2336,7 @@ struct C49WorkResourceDiagnosticMetadataV1: Codable, Equatable, Sendable {
         guard projectionSHA256.count == 64,
               sourceRecordCount >= 0,
               durationMinutes >= 0,
-              materialTotals == materialTotals.sorted(by: {
-                  ($0.description, $0.unit ?? "") < ($1.description, $1.unit ?? "")
-              }),
-              materialTotals.allSatisfy({ (try? C49MaterialTotalProjectionV1(
-                  description: $0.description,
-                  unit: $0.unit,
-                  quantity: $0.quantity
-              )) != nil }),
+              materialTotalCount >= 0,
               currencies == currencies.sorted(),
               Set(currencies).count == currencies.count,
               !audience.isEmpty,

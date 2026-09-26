@@ -8544,6 +8544,93 @@ final class MutationJournalStoreV1 {
             try value.validate()
             guard value.id == id else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
             return try image(value)
+        case .actorSnapshot:
+            guard let row = try one(records.partyAccountability.filter({
+                $0.kind == .actorSnapshot && $0.id == id
+            })) else { return try absent() }
+            let value = try PartyAccountabilitySnapshotCodecV1.decode(
+                ActorSnapshotV1.self, from: row.canonicalData)
+            guard row.workspaceID == workspaceID.rawValue, row.revision == nil,
+                  value.snapshotID == id, value.workspaceID == workspaceID else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            return try image(value)
+        case .promotedPackageRelease, .packageSandboxRun, .packagePromotionReceipt,
+             .activePackageRegistryPointer:
+            let kind: V17BackupPackageEvolutionRecordV1.Kind
+            switch identity.kind {
+            case .promotedPackageRelease: kind = .promotedRelease
+            case .packageSandboxRun: kind = .sandboxRun
+            case .packagePromotionReceipt: kind = .promotionReceipt
+            default: kind = .activePointer
+            }
+            guard let row = try one(records.packageEvolution.filter({
+                $0.kind == kind && $0.id == id
+            })) else { return try absent() }
+            guard row.workspaceID == workspaceID.rawValue, row.revision == revision else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            switch kind {
+            case .promotedRelease:
+                let value = try PackageEvolutionCanonicalCodecV1.decode(
+                    PromotedPackageReleaseV1.self, from: row.canonicalData)
+                try value.validate()
+                guard value.releaseRecordID == id, value.workspaceID == workspaceID,
+                      value.revision == revision else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                return .promotedPackageRelease(id: id, concurrencyIdentity: identity,
+                    revision: revision, semanticSHA256: value.releaseRecordSHA256)
+            case .sandboxRun:
+                let value = try PackageEvolutionCanonicalCodecV1.decode(
+                    PackageSandboxRunV1.self, from: row.canonicalData)
+                try value.validate()
+                guard value.runID == id, value.workspaceID == workspaceID,
+                      value.revision == revision else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                return .packageSandboxRun(id: id, concurrencyIdentity: identity,
+                    revision: revision, semanticSHA256: value.runSHA256)
+            case .promotionReceipt:
+                let value = try PackageEvolutionCanonicalCodecV1.decode(
+                    PackagePromotionReceiptV1.self, from: row.canonicalData)
+                try value.validate()
+                guard value.receiptID == id, value.workspaceID == workspaceID,
+                      value.revision == revision else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                return .packagePromotionReceipt(id: id, concurrencyIdentity: identity,
+                    revision: revision, semanticSHA256: value.receiptSHA256)
+            case .activePointer:
+                let value = try PackageEvolutionCanonicalCodecV1.decode(
+                    ActivePackageRegistryPointerV1.self, from: row.canonicalData)
+                try value.validate()
+                guard value.pointerID == id, value.workspaceID == workspaceID,
+                      value.revision == revision else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                return .activePackageRegistryPointer(id: id,
+                    concurrencyIdentity: try WorkspaceEntityIdentityV1(
+                        kind: identity.kind, id: value.supersedesPointerID ?? id),
+                    revision: revision, semanticSHA256: value.pointerSHA256)
+            }
+        case .roundSession:
+            let values = records.roundSessions.filter {
+                $0.workspaceID == workspaceID && $0.sessionID == id
+            }.sorted {
+                ($0.revision, $0.mutationID.rawValue.uuidString)
+                    < ($1.revision, $1.mutationID.rawValue.uuidString)
+            }
+            guard !values.isEmpty else { return try absent() }
+            // Validate the entire normalized history before selecting its
+            // terminal. A foreign original cannot prove a destination row.
+            _ = try RoundSessionHistoryValidatorV1.validate(
+                values, workspaceID: workspaceID, sessionID: id)
+            guard let value = values.last, value.revision == revision else {
+                return try absent()
+            }
+            return .roundSession(id: id, concurrencyIdentity: identity,
+                revision: revision, semanticSHA256: value.sessionSHA256)
         case .savedSmartView:
             guard let row = try one(records.savedSmartViews.filter({ $0.id == id })) else { return try absent() }
             return try image(row.descriptor())

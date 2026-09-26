@@ -175,14 +175,14 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
         let localActor = try LocalActorReferenceV1(actorReferenceID: UUID(), workspaceID: workspace, displayName: "Query actor")
         let actor = try ActorSnapshotV1(snapshotID: UUID(), workspaceID: workspace, actor: localActor,
             responsibility: .recordedBy, displayNameAtTime: localActor.displayName, capturedAt: now)
-        let key = try MyDayKeyV1(workspaceID: workspace, civilDate: .init(year: 2026, month: 9, day: 11), ianaTimeZoneIdentifier: "UTC")
+        let key = try MyDayKeyV1(workspaceID: workspace, civilDate: .init(year: 2026, month: 9, day: 11), ianaTimeZoneIdentifier: "America/New_York")
         let item = try MyDayItemV1(membershipID: UUID(), reference: .roundSession(workspaceID: workspace,
             sessionID: UUID(), revision: 1, sessionSHA256: String(repeating: "a", count: 64)), manualOrder: 0)
         let first = try MyDayPlanV1(planID: UUID(), key: key, items: [item], revision: 1,
             mutationID: .init(rawValue: UUID()), authoredBy: actor, authoredAt: now)
         let second = try MyDayPlanV1(planID: first.planID, key: key, items: [item], predecessor: first, revision: 2,
             mutationID: .init(rawValue: UUID()), authoredBy: actor, authoredAt: now)
-        let nextKey = try MyDayKeyV1(workspaceID: workspace, civilDate: .init(year: 2026, month: 9, day: 12), ianaTimeZoneIdentifier: "UTC")
+        let nextKey = try MyDayKeyV1(workspaceID: workspace, civilDate: .init(year: 2026, month: 9, day: 12), ianaTimeZoneIdentifier: "America/New_York")
         let target = try MyDayPlanV1(planID: UUID(), key: nextKey, items: [item], revision: 1,
             mutationID: .init(rawValue: UUID()), authoredBy: actor, authoredAt: now)
         let carry = try MyDayCarryoverPlanV1(sourcePlan: second, targetKey: nextKey, membershipIDs: [item.membershipID])
@@ -213,12 +213,22 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
             let localActor = try LocalActorReferenceV1(actorReferenceID: UUID(), workspaceID: workspace, displayName: "Query actor")
             let actor = try ActorSnapshotV1(snapshotID: UUID(), workspaceID: workspace, actor: localActor,
                 responsibility: .recordedBy, displayNameAtTime: localActor.displayName, capturedAt: now)
-            let key = try MyDayKeyV1(workspaceID: workspace, civilDate: .init(year: 2026, month: 9, day: 11), ianaTimeZoneIdentifier: "UTC")
+            let key = try MyDayKeyV1(workspaceID: workspace, civilDate: .init(year: 2026, month: 9, day: 11), ianaTimeZoneIdentifier: "America/New_York")
             let first = try MyDayPlanV1(planID: UUID(), key: key, items: [], revision: 1,
                 mutationID: .init(rawValue: UUID()), authoredBy: actor, authoredAt: now)
+            XCTAssertEqual(TimeZone(identifier: key.ianaTimeZoneIdentifier)?.identifier,
+                           key.ianaTimeZoneIdentifier)
             let row = try MyDayPlanRowV1(first)
-            if hostile == "canonical" { row.canonicalData.append(0x20) }
             harness.context.insert(row)
+            try harness.context.save()
+            let adapter = WorkspaceWriterAdapterV1(modelContext: harness.context)
+            if hostile != "foreign" {
+                let identity = try WorkspaceEntityIdentityV1(kind: .myDayPlan, id: first.planID)
+                XCTAssertEqual(try adapter.queryExisting(identities: [identity]).identities, [identity])
+                XCTAssertEqual(try row.value(), first)
+                XCTAssertFalse(harness.context.hasChanges)
+            }
+            if hostile == "canonical" { row.canonicalData.append(0x20) }
             if hostile == "duplicate" {
                 let duplicate = try MyDayPlanRowV1(first)
                 // A distinct physical key prevents SwiftData's unique-key upsert
@@ -235,7 +245,6 @@ final class V10_02MutationEnvelopeReceiptTests: XCTestCase {
             }
             try harness.context.save()
             let before = try harness.context.fetch(FetchDescriptor<MyDayPlanRowV1>()).map(\.canonicalData)
-            let adapter = WorkspaceWriterAdapterV1(modelContext: harness.context)
             XCTAssertThrowsError(try adapter.queryExisting(identities: [.init(kind: .myDayPlan, id: first.planID)]), hostile)
             XCTAssertEqual(try harness.context.fetch(FetchDescriptor<MyDayPlanRowV1>()).map(\.canonicalData), before)
             XCTAssertFalse(harness.context.hasChanges)

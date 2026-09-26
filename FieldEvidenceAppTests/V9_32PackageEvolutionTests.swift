@@ -853,6 +853,37 @@ final class V9_32PackageEvolutionTests: XCTestCase {
             XCTAssertEqual(try lifecycle.applyPromotion(bundle), bundle.receipt)
             XCTAssertEqual(try journal.exportSnapshot(), beforeReplay)
         }
+#if DEBUG
+        // The real writer has accepted revision2 with predecessor concurrency.
+        // Planning the same workspace must preserve its receipt-backed nil;
+        // using the pointer's own ID as concurrency would falsely project it.
+        let projectionRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("C18-successor-projection-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: projectionRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: projectionRoot) }
+        let projectionService = try BackupRestoreService(applicationSupportURL: projectionRoot)
+        let projectionRecords = try projectionService.c55CurrentRecordsForTesting(in: context)
+        let originalHistory = try XCTUnwrap(projectionRecords.mutationHistory)
+        let secondIdentity = try WorkspaceEntityIdentityV1(kind: .activePackageRegistryPointer,
+            id: second.resultingPointer.pointerID)
+        let originalSecond = try XCTUnwrap(originalHistory.entityRevisions.first {
+            $0.identity == secondIdentity })
+        XCTAssertEqual(originalSecond.revision, 2)
+        XCTAssertNil(originalSecond.externalProjectionSHA256)
+        let projectedHistory = try MutationJournalStoreV1.planningCoreRestoreHistory(
+            in: projectionRecords, workspaceID: identity.workspaceID)
+        let projectedSecond = try XCTUnwrap(projectedHistory.entityRevisions.first {
+            $0.identity == secondIdentity })
+        XCTAssertEqual(projectedSecond, originalSecond)
+        XCTAssertNil(projectedSecond.externalProjectionSHA256)
+        XCTAssertEqual(projectedHistory.receipts, originalHistory.receipts)
+        XCTAssertEqual(projectedHistory.quarantines, originalHistory.quarantines)
+        XCTAssertEqual(projectedHistory.workspaceRevision, originalHistory.workspaceRevision)
+        XCTAssertEqual(projectedHistory.lastLocalSequence, originalHistory.lastLocalSequence)
+        XCTAssertEqual(projectedHistory.entityRevisions, originalHistory.entityRevisions.sorted {
+            $0.identity.stableKey < $1.identity.stableKey })
+        XCTAssertEqual(projectionRecords.mutationHistory, originalHistory)
+#endif
         let beforeStale = try journal.exportSnapshot()
         XCTAssertThrowsError(try lifecycle.applyPromotion(stale))
         XCTAssertEqual(try journal.exportSnapshot(), beforeStale)

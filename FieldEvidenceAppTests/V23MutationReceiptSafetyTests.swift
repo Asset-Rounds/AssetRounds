@@ -1407,11 +1407,66 @@ extension V23MutationReceiptSafetyTests {
                 row.envelopeSHA256 = String(repeating: "0", count: 64)
                 try harness.context.save()
             default:
-                let changed = try fixture.resolution(target: nil, workspaceRevision: 99,
+                // A mismatched absence CAS is invalid before replay comparison;
+                // it cannot stand in for a valid changed-envelope quarantine.
+                let invalid = try fixture.resolution(target: nil, workspaceRevision: 99,
                     mutationID: mutation.mutationID)
+                XCTAssertThrowsError(try harness.writer.commitFieldDraft(invalid)) {
+                    XCTAssertEqual($0 as? WorkspaceMutationContractFailureV1, .invalidPlan)
+                }
+                XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationQuarantineRow>()), 0)
+                XCTAssertNotNil(try harness.writer.fieldDraftEvidence(mutationID: mutation.mutationID))
+                guard case let .resolveConflict(original) = mutation.postImage,
+                      case let .myDay(basis) = original.reviewedTargetBasis else {
+                    return XCTFail("Expected reviewed My Day resolution")
+                }
+                let prior = original.successorCheckpoint
+                let changedCheckpoint = try FieldDraftCheckpointV1(
+                    draftID: prior.draftID, workspaceID: prior.workspaceID,
+                    scope: prior.scope, purpose: prior.purpose, codec: prior.codec,
+                    baseCanonicalRevision: prior.baseCanonicalRevision, draftRevision: prior.draftRevision,
+                    payloadData: prior.payloadData, stageIDs: prior.stageIDs,
+                    resumeAnchor: prior.resumeAnchor, state: prior.state,
+                    lastDurableMutationID: prior.lastDurableMutationID,
+                    lastReceiptSHA256: prior.lastReceiptSHA256,
+                    updatedAt: prior.updatedAt.addingTimeInterval(1), mutationID: prior.mutationID)
+                let changedResolution = try ReviewedDraftConflictResolutionV1(
+                    plan: original.plan, expectedCheckpoint: original.expectedCheckpoint,
+                    reviewedTargetBasis: basis, successorCheckpoint: changedCheckpoint)
+                let changed = try FieldDraftMutationV1(workspaceID: mutation.workspaceID,
+                    expectedRevision: mutation.expectedRevision,
+                    expectedBaseCanonicalRevision: mutation.expectedBaseCanonicalRevision,
+                    mutationID: mutation.mutationID, postImage: .resolveConflict(changedResolution))
+                let row = try XCTUnwrap(harness.context.fetch(FetchDescriptor<MutationReceiptRow>()).first {
+                    $0.mutationID == mutation.mutationID.rawValue
+                })
+                let originalEnvelopeData = row.envelopeData, originalReceiptData = row.receiptData
+                let originalEnvelope = try MutationEnvelopeV1.decodeCanonical(from: originalEnvelopeData)
+                let checkpointRow = try XCTUnwrap(harness.context.fetch(FetchDescriptor<FieldDraftCheckpointRow>()).first)
+                let originalCheckpointData = checkpointRow.canonicalData
+                let expected = try WorkspaceExpectedRevisionV1(
+                    workspaceID: originalEnvelope.expectedRevision.workspaceID,
+                    generationID: originalEnvelope.expectedRevision.generationID,
+                    writerInstanceID: harness.writerInstanceID,
+                    workspaceRevision: originalEnvelope.expectedRevision.workspaceRevision,
+                    entityRevisions: originalEnvelope.expectedRevision.entityRevisions)
+                let changedEnvelope = try MutationEnvelopeV1(request: .init(
+                    mutationID: changed.mutationID, expectedRevision: expected,
+                    command: .applyFieldDraft(changed)), identity: harness.identity)
+                try changedEnvelope.validate()
+                XCTAssertEqual(changedEnvelope.mutationID, originalEnvelope.mutationID)
+                XCTAssertEqual(changedEnvelope.expectedRevision, originalEnvelope.expectedRevision)
+                XCTAssertEqual(changedResolution.reviewedTargetBasis, original.reviewedTargetBasis)
+                XCTAssertEqual(try changed.concurrencyIdentities, try mutation.concurrencyIdentities)
+                XCTAssertNotEqual(try changedEnvelope.canonicalSHA256(), try originalEnvelope.canonicalSHA256())
                 XCTAssertThrowsError(try harness.writer.commitFieldDraft(changed)) {
                     XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .mutationIDQuarantined)
                 }
+                XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationQuarantineRow>()), 1)
+                XCTAssertEqual(row.envelopeData, originalEnvelopeData)
+                XCTAssertEqual(row.receiptData, originalReceiptData)
+                XCTAssertEqual(checkpointRow.canonicalData, originalCheckpointData)
+                XCTAssertFalse(harness.context.hasChanges)
             }
             XCTAssertThrowsError(try harness.writer.fieldDraftEvidence(mutationID: mutation.mutationID))
             XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 3)
@@ -1597,9 +1652,66 @@ extension V23MutationReceiptSafetyTests {
                 row.envelopeSHA256 = String(repeating: "0", count: 64)
                 try harness.context.save()
             default:
-                let changed = try fixture.resolution(target: nil, workspaceRevision: 99,
+                // A mismatched absence CAS is invalid before replay comparison;
+                // it cannot stand in for a valid changed-envelope quarantine.
+                let invalid = try fixture.resolution(target: nil, workspaceRevision: 99,
                     mutationID: mutation.mutationID)
-                XCTAssertThrowsError(try harness.writer.commitFieldDraft(changed))
+                XCTAssertThrowsError(try harness.writer.commitFieldDraft(invalid)) {
+                    XCTAssertEqual($0 as? WorkspaceMutationContractFailureV1, .invalidPlan)
+                }
+                XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationQuarantineRow>()), 0)
+                XCTAssertNotNil(try harness.writer.reviewedFieldDraftResolutionEvidence(mutationID: mutation.mutationID))
+                guard case let .resolveConflict(original) = mutation.postImage,
+                      case let .myDay(basis) = original.reviewedTargetBasis else {
+                    return XCTFail("Expected reviewed My Day resolution")
+                }
+                let prior = original.successorCheckpoint
+                let changedCheckpoint = try FieldDraftCheckpointV1(
+                    draftID: prior.draftID, workspaceID: prior.workspaceID,
+                    scope: prior.scope, purpose: prior.purpose, codec: prior.codec,
+                    baseCanonicalRevision: prior.baseCanonicalRevision, draftRevision: prior.draftRevision,
+                    payloadData: prior.payloadData, stageIDs: prior.stageIDs,
+                    resumeAnchor: prior.resumeAnchor, state: prior.state,
+                    lastDurableMutationID: prior.lastDurableMutationID,
+                    lastReceiptSHA256: prior.lastReceiptSHA256,
+                    updatedAt: prior.updatedAt.addingTimeInterval(1), mutationID: prior.mutationID)
+                let changedResolution = try ReviewedDraftConflictResolutionV1(
+                    plan: original.plan, expectedCheckpoint: original.expectedCheckpoint,
+                    reviewedTargetBasis: basis, successorCheckpoint: changedCheckpoint)
+                let changed = try FieldDraftMutationV1(workspaceID: mutation.workspaceID,
+                    expectedRevision: mutation.expectedRevision,
+                    expectedBaseCanonicalRevision: mutation.expectedBaseCanonicalRevision,
+                    mutationID: mutation.mutationID, postImage: .resolveConflict(changedResolution))
+                let row = try XCTUnwrap(harness.context.fetch(FetchDescriptor<MutationReceiptRow>()).first {
+                    $0.mutationID == mutation.mutationID.rawValue
+                })
+                let originalEnvelopeData = row.envelopeData, originalReceiptData = row.receiptData
+                let originalEnvelope = try MutationEnvelopeV1.decodeCanonical(from: originalEnvelopeData)
+                let checkpointRow = try XCTUnwrap(harness.context.fetch(FetchDescriptor<FieldDraftCheckpointRow>()).first)
+                let originalCheckpointData = checkpointRow.canonicalData
+                let expected = try WorkspaceExpectedRevisionV1(
+                    workspaceID: originalEnvelope.expectedRevision.workspaceID,
+                    generationID: originalEnvelope.expectedRevision.generationID,
+                    writerInstanceID: harness.writerInstanceID,
+                    workspaceRevision: originalEnvelope.expectedRevision.workspaceRevision,
+                    entityRevisions: originalEnvelope.expectedRevision.entityRevisions)
+                let changedEnvelope = try MutationEnvelopeV1(request: .init(
+                    mutationID: changed.mutationID, expectedRevision: expected,
+                    command: .applyFieldDraft(changed)), identity: harness.identity)
+                try changedEnvelope.validate()
+                XCTAssertEqual(changedEnvelope.mutationID, originalEnvelope.mutationID)
+                XCTAssertEqual(changedEnvelope.expectedRevision, originalEnvelope.expectedRevision)
+                XCTAssertEqual(changedResolution.reviewedTargetBasis, original.reviewedTargetBasis)
+                XCTAssertEqual(try changed.concurrencyIdentities, try mutation.concurrencyIdentities)
+                XCTAssertNotEqual(try changedEnvelope.canonicalSHA256(), try originalEnvelope.canonicalSHA256())
+                XCTAssertThrowsError(try harness.writer.commitFieldDraft(changed)) {
+                    XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .mutationIDQuarantined)
+                }
+                XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationQuarantineRow>()), 1)
+                XCTAssertEqual(row.envelopeData, originalEnvelopeData)
+                XCTAssertEqual(row.receiptData, originalReceiptData)
+                XCTAssertEqual(checkpointRow.canonicalData, originalCheckpointData)
+                XCTAssertFalse(harness.context.hasChanges)
             }
             XCTAssertThrowsError(try harness.writer.reviewedFieldDraftResolutionEvidence(mutationID: mutation.mutationID))
             XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<MutationReceiptRow>()), 3)

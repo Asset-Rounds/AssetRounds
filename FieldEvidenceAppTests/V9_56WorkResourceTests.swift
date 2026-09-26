@@ -557,6 +557,40 @@ final class V9_56WorkResourceTests: XCTestCase {
         )) { error in
             XCTAssertEqual(error as? C49WorkResourceProjectionFailureV1, .arithmeticOverflow)
         }
+        let maximumSnapshot = try WorkResourceSnapshotV1(entry: maximum)
+        let oneSnapshot = try WorkResourceSnapshotV1(entry: one)
+        let maximumTotals = try WorkResourceTotalsProjectionV1(snapshots: [maximumSnapshot])
+        XCTAssertEqual(maximumTotals.directCostByCurrency["USD"], Int64.max)
+        let maximumReport = try C49WorkResourceReportProjectionV1(
+            workspaceID: workspaceID, snapshots: [maximumSnapshot])
+        XCTAssertEqual(maximumReport.directCostPreview.totalsByCurrency.first?.mantissa, Int64.max)
+        XCTAssertThrowsError(try WorkResourceTotalsProjectionV1(snapshots: [maximumSnapshot, oneSnapshot])) {
+            XCTAssertEqual($0 as? WorkResourceContractFailureV1, .arithmeticOverflow)
+        }
+
+        // Malformed snapshot identity must not be converted to arithmetic overflow.
+        var corruptSnapshot = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(maximumSnapshot)) as? [String: Any])
+        corruptSnapshot["snapshotSHA256"] = String(repeating: "0", count: 64)
+        let corrupt = try JSONDecoder().decode(WorkResourceSnapshotV1.self,
+            from: JSONSerialization.data(withJSONObject: corruptSnapshot))
+        XCTAssertThrowsError(try WorkResourceTotalsProjectionV1(snapshots: [corrupt])) {
+            XCTAssertEqual($0 as? WorkResourceContractFailureV1, .invalidDigest)
+        }
+        XCTAssertThrowsError(try C49WorkResourceReportProjectionV1(workspaceID: workspaceID, snapshots: [corrupt])) {
+            XCTAssertEqual($0 as? C49WorkResourceProjectionFailureV1, .invalidSnapshot)
+        }
+        let firstSuccessor = try makeEntry(disposition: .superseded,
+            expectedRevision: usd.revision, revision: usd.revision + 1, supersedes: usd)
+        let competingSuccessor = try makeEntry(disposition: .superseded,
+            expectedRevision: usd.revision, revision: usd.revision + 1, supersedes: usd)
+        try firstSuccessor.validateSuccessor(of: usd)
+        try competingSuccessor.validateSuccessor(of: usd)
+        XCTAssertThrowsError(try C49WorkResourceReportProjectionV1(workspaceID: workspaceID,
+            snapshots: [WorkResourceSnapshotV1(entry: usd), WorkResourceSnapshotV1(entry: firstSuccessor),
+                        WorkResourceSnapshotV1(entry: competingSuccessor)])) {
+            XCTAssertEqual($0 as? WorkResourceContractFailureV1, .invalidTransition)
+        }
     }
 
     func testV23P03C49G01MaterialTotalsUseExactDescriptionUnitAndNormalizeScale() throws {
@@ -583,30 +617,88 @@ final class V9_56WorkResourceTests: XCTestCase {
         )
         XCTAssertThrowsError(try WorkResourceTotalsProjectionV1(
             snapshots: [WorkResourceSnapshotV1(entry: makeEntry(duration: nil, materials: [overflowing], directCost: nil))]
-        ))
+        )) { error in
+            XCTAssertEqual(error as? WorkResourceContractFailureV1, .arithmeticOverflow)
+        }
+        let overflowSnapshot = try WorkResourceSnapshotV1(entry: makeEntry(
+            duration: nil, materials: [overflowing], directCost: nil))
+        XCTAssertThrowsError(try C49WorkResourceReportProjectionV1(
+            workspaceID: workspaceID, snapshots: [overflowSnapshot])) {
+            XCTAssertEqual($0 as? C49WorkResourceProjectionFailureV1, .arithmeticOverflow)
+        }
+        let maximumLine = try ManualMaterialLineV1(description: "Sum overflow",
+            quantity: ExactDecimalQuantityV1(mantissa: Int64.max, scale: 3))
+        let anotherLine = try ManualMaterialLineV1(description: "Sum overflow",
+            quantity: ExactDecimalQuantityV1(mantissa: 1, scale: 3))
+        let additionSnapshot = try WorkResourceSnapshotV1(entry: makeEntry(
+            duration: nil, materials: [maximumLine, anotherLine], directCost: nil))
+        XCTAssertThrowsError(try WorkResourceTotalsProjectionV1(snapshots: [additionSnapshot])) {
+            XCTAssertEqual($0 as? WorkResourceContractFailureV1, .arithmeticOverflow)
+        }
     }
 
     func testV23P03C49H01SearchAndDiagnosticExportsAreDerivedAndCostSafe() throws {
+        let material = try ManualMaterialLineV1(description: "Conduit privacy canary",
+            quantity: ExactDecimalQuantityV1(mantissa: 1_250, scale: 3), unit: "private-unit-canary")
+        let snapshot = try WorkResourceSnapshotV1(entry: makeEntry(
+            materials: [material], visibility: .customerSafe))
         let report = try C49WorkResourceReportProjectionV1(
             workspaceID: workspaceID,
-            snapshots: [WorkResourceSnapshotV1(entry: makeEntry())],
+            snapshots: [snapshot],
             audience: .customerSafe
         )
         let search = try C49WorkResourceSearchBoundaryV1.projection(report)
         XCTAssertEqual(search.workspaceID, workspaceID)
-        XCTAssertTrue(search.terms.contains("Conduit"))
+        XCTAssertTrue(search.terms.contains(material.description))
         XCTAssertFalse(search.terms.contains("USD"))
         try search.validate()
+
+        let privateLine = try ManualMaterialLineV1(description: "Internal material canary",
+            quantity: ExactDecimalQuantityV1(mantissa: 1, scale: 0), unit: "m")
+        let privateReport = try C49WorkResourceReportProjectionV1(
+            workspaceID: workspaceID,
+            snapshots: [WorkResourceSnapshotV1(entry: makeEntry(materials: [privateLine], visibility: .internalOnly))],
+            audience: .customerSafe)
+        XCTAssertEqual(privateReport.durationMinutes, 0)
+        XCTAssertTrue(privateReport.materials.isEmpty)
+        XCTAssertFalse(privateReport.directCostPreview.included)
+        XCTAssertTrue(privateReport.directCostPreview.totalsByCurrency.isEmpty)
+        let privateSearch = try C49WorkResourceSearchBoundaryV1.projection(privateReport)
+        XCTAssertFalse(privateSearch.terms.contains("Internal material canary"))
+        XCTAssertFalse(privateSearch.terms.contains("USD"))
+        try privateSearch.validate()
 
         let diagnostic = try C49WorkResourceDiagnosticBoundaryV1.metadata(report)
         XCTAssertFalse(diagnostic.directCostPreviewIncluded)
         XCTAssertTrue(diagnostic.currencies.isEmpty)
         XCTAssertFalse(diagnostic.rawStockClaims)
         XCTAssertFalse(diagnostic.liveInventoryClaims)
-        let bytes = try C49WorkResourceDiagnosticBoundaryV1.encode(report)
-        let text = try XCTUnwrap(String(data: bytes, encoding: .utf8))
-        XCTAssertFalse(text.contains("2500"))
-        XCTAssertFalse(text.contains("Conduit"), "diagnostics carry counts and hashes, not source material text")
+        let costPreview = try C49WorkResourceReportProjectionV1(workspaceID: workspaceID,
+            snapshots: [snapshot], audience: .customerSafe, includeDirectCostPreview: true)
+        XCTAssertEqual(costPreview.directCostPreview.totalsByCurrency.first?.mantissa, 2_500)
+        XCTAssertEqual(report.materialTotals.first?.description, material.description)
+        XCTAssertEqual(report.materialTotals.first?.unit, material.unit)
+        for source in [report, costPreview] {
+            let metadata = try C49WorkResourceDiagnosticBoundaryV1.metadata(source)
+            XCTAssertEqual(metadata.sourceRecordCount, 1)
+            XCTAssertEqual(metadata.materialTotalCount, 1)
+            XCTAssertEqual(metadata.projectionSHA256, source.projectionSHA256)
+            let bytes = try C49WorkResourceDiagnosticBoundaryV1.encode(source)
+            XCTAssertEqual(bytes, try C49WorkResourceDiagnosticBoundaryV1.encode(source))
+            let text = try XCTUnwrap(String(data: bytes, encoding: .utf8))
+            XCTAssertFalse(text.contains("Conduit"), "diagnostics carry counts and hashes, not source material text")
+            XCTAssertFalse(text.contains(material.description))
+            XCTAssertFalse(text.contains(try XCTUnwrap(material.unit)))
+            let fields = try XCTUnwrap(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+            XCTAssertEqual(Set(fields.keys), Set([
+                "projectionSHA256", "sourceRecordCount", "durationMinutes", "materialTotalCount",
+                "currencies", "audience", "directCostPreviewIncluded", "rawStockClaims", "liveInventoryClaims"
+            ]))
+            // Inspect numeric values, not hex digest substrings that may contain 2500.
+            XCTAssertFalse(fields.values.compactMap { $0 as? NSNumber }.contains { $0.int64Value == 2_500 })
+            XCTAssertEqual(fields["materialTotalCount"] as? Int, 1)
+            XCTAssertEqual(fields["projectionSHA256"] as? String, source.projectionSHA256)
+        }
     }
 
     func testV23P03C49CurrentHeadProjectionNeverDoubleCountsReferencedPredecessor() throws {

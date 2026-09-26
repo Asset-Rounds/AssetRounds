@@ -2421,9 +2421,123 @@ private extension S6_2BackupExportTests {
         }
     }
 
+    private enum CloneProjectionOracleError: Error {
+        case normalizedSourceDTOSeamRequiresDebugBuild
+    }
+    private struct CloneProjectionBasis<Value: Codable>: Codable {
+        let identity: WorkspaceEntityIdentityV1
+        let revision: UInt64
+        let value: Value
+    }
+    private struct CloneAssetProjection: Codable {
+        let asset: V4BackupAssetDTO
+        let semantic: AssetSemanticPersistentSnapshotV1
+    }
+    private struct CloneWorkflowProjection: Codable {
+        let record: V4BackupWorkflowRecordDTO
+        let requirementAssurance: RequirementAssuranceSnapshotV1?
+    }
+
+    @MainActor
+    func configurationCloneExpectedProjections(
+        package: ValidatedV4BackupPackageV1, oldSession: StoreGenerationSession,
+        restored: StoreGenerationSession, applicationSupportURL: URL
+    ) throws -> [WorkspaceEntityIdentityV1: String] {
+#if DEBUG
+        // Only allocated identity comes from the installed session. Every
+        // expected payload comes from the independently retained source stage;
+        // no destination row or planned history digest is an expected value.
+        let decision = try RestoreIdentityDecisionV1.decide(.init(mode: .clone,
+            source: .init(workspaceID: package.manifest.source.workspaceID,
+                replicaID: package.manifest.source.replicaID),
+            oldPointer: .init(generationID: oldSession.generationID,
+                generationManifestSHA256: String(repeating: "0", count: 64),
+                workspaceID: oldSession.workspaceID.rawValue,
+                replicaID: oldSession.workspaceIdentity.replicaID.rawValue),
+            targetGenerationID: restored.generationID,
+            targetGenerationManifestSHA256: String(repeating: "0", count: 64),
+            allocatedWorkspaceID: restored.workspaceID.rawValue,
+            allocatedReplicaID: restored.workspaceIdentity.replicaID.rawValue))
+        let service = try BackupRestoreService(applicationSupportURL: applicationSupportURL)
+        let records = try service.c55RecordsForMaterializationForTesting(package.records,
+            members: package.members, identityDecision: decision,
+            legacyWorkspaceID: restored.workspaceID.rawValue, partsStockOperationID: UUID())
+        let source = try XCTUnwrap(package.records.mutationHistory)
+        var result: [WorkspaceEntityIdentityV1: String] = [:]
+        for terminal in source.entityRevisions {
+            let id = terminal.identity.id
+            func wrapped<Value: Codable>(_ value: Value) throws -> String {
+                try WorkspaceMutationCanonicalV1.sha256(CloneProjectionBasis(
+                    identity: terminal.identity, revision: terminal.revision, value: value))
+            }
+            switch terminal.identity.kind {
+            case .site:
+                result[terminal.identity] = try wrapped(XCTUnwrap(records.sites.first { $0.id == id }))
+            case .asset:
+                // This photo corpus owns no C39 semantic rows. Fail explicitly
+                // if it grows, rather than silently hashing an incomplete asset.
+                XCTAssertTrue(records.assetSemantics.isEmpty)
+                let semantic = try AssetSemanticPersistentSnapshotV1(workspaceID: restored.workspaceID,
+                    assetID: id, kindBindings: [], workflowCapabilityBindings: [],
+                    productIdentities: [], lifecycleEvents: [], successorLinks: [], workSubjectScopes: [])
+                result[terminal.identity] = try wrapped(CloneAssetProjection(
+                    asset: XCTUnwrap(records.assets.first { $0.id == id }), semantic: semantic))
+            case .assetPlacementEvent:
+                let row = try XCTUnwrap(records.assetPlacementEvents.first { $0.id == id })
+                result[terminal.identity] = try wrapped(LocationPersistenceCodecV1.decode(
+                    AssetPlacementEventV1.self, from: row.canonicalData))
+            case .workflowRecord:
+                let assurance = try records.requirementAssurance.first {
+                    $0.workflowRecordID == id }?.snapshot()
+                result[terminal.identity] = try wrapped(CloneWorkflowProjection(
+                    record: XCTUnwrap(records.workflowRecords.first { $0.id == id }),
+                    requirementAssurance: assurance))
+            case .evidenceFile:
+                result[terminal.identity] = try wrapped(XCTUnwrap(records.evidenceFiles.first { $0.id == id }))
+            case .actorSnapshot:
+                let row = try XCTUnwrap(records.partyAccountability.first {
+                    $0.kind == .actorSnapshot && $0.id == id })
+                result[terminal.identity] = try wrapped(PartyAccountabilitySnapshotCodecV1.decode(
+                    ActorSnapshotV1.self, from: row.canonicalData))
+            case .roundSession:
+                let values = records.roundSessions.filter { $0.sessionID == id }
+                    .sorted { $0.revision < $1.revision }
+                let value = try XCTUnwrap(RoundSessionHistoryValidatorV1.validate(
+                    values, workspaceID: restored.workspaceID, sessionID: id))
+                XCTAssertEqual(value.revision, terminal.revision)
+                result[terminal.identity] = value.sessionSHA256
+            case .promotedPackageRelease, .packageSandboxRun, .packagePromotionReceipt,
+                 .activePackageRegistryPointer:
+                let row = try XCTUnwrap(records.packageEvolution.first { $0.id == id })
+                switch row.kind {
+                case .promotedRelease:
+                    result[terminal.identity] = try PackageEvolutionCanonicalCodecV1.decode(
+                        PromotedPackageReleaseV1.self, from: row.canonicalData).releaseRecordSHA256
+                case .sandboxRun:
+                    result[terminal.identity] = try PackageEvolutionCanonicalCodecV1.decode(
+                        PackageSandboxRunV1.self, from: row.canonicalData).runSHA256
+                case .promotionReceipt:
+                    result[terminal.identity] = try PackageEvolutionCanonicalCodecV1.decode(
+                        PackagePromotionReceiptV1.self, from: row.canonicalData).receiptSHA256
+                case .activePointer:
+                    result[terminal.identity] = try PackageEvolutionCanonicalCodecV1.decode(
+                        ActivePackageRegistryPointerV1.self, from: row.canonicalData).pointerSHA256
+                }
+            default: break // All other families still require complete source-row equality.
+            }
+        }
+        return result
+#else
+        // Release-configured tests must fail explicitly rather than silently
+        // dropping the clone-history assertions when this seam is unavailable.
+        throw CloneProjectionOracleError.normalizedSourceDTOSeamRequiresDebugBuild
+#endif
+    }
+
     func assertConfigurationCloneHistoryPreserved(
         source: MutationHistorySnapshotV1,
         destination: MutationHistorySnapshotV1,
+        expectedProjections: [WorkspaceEntityIdentityV1: String],
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws {
@@ -2438,7 +2552,9 @@ private extension S6_2BackupExportTests {
         XCTAssertEqual(destination.entityRevisions.map(\.revision), source.entityRevisions.map(\.revision),
             file: file, line: line)
         // Independent literal clone exclusion, not the production projector.
-        // Preserve the complete terminal-entry equality for every other family.
+        // Live rows are authorized destination projections; their exact hashes
+        // are derived independently from normalized source DTOs. Uncovered
+        // families retain the complete source terminal-entry equality.
         let omittedKinds: Set<WorkspaceEntityKindV1> = [.fieldDraftCheckpoint, .attachmentStagingItem,
             .draftCommitSaga, .draftContentReservation, .draftCommitReceipt, .draftDiscardReceipt]
         for (original, revision) in zip(source.entityRevisions, destination.entityRevisions) {
@@ -2446,6 +2562,8 @@ private extension S6_2BackupExportTests {
                 XCTAssertEqual(revision.externalProjectionSHA256,
                     try MutationJournalStoreV1.restoreTombstoneSHA256(
                         identity: original.identity, revision: original.revision), file: file, line: line)
+            } else if let expected = expectedProjections[original.identity] {
+                XCTAssertEqual(revision.externalProjectionSHA256, expected, file: file, line: line)
             } else {
                 XCTAssertEqual(revision, original, file: file, line: line)
             }
@@ -2748,7 +2866,10 @@ private extension S6_2BackupExportTests {
         let destinationHistory = try XCTUnwrap(clonedRecords.mutationHistory, label)
         try assertConfigurationCloneHistoryPreserved(
             source: sourceMutationHistory,
-            destination: destinationHistory
+            destination: destinationHistory,
+            expectedProjections: configurationCloneExpectedProjections(
+                package: referencePackage, oldSession: target.session,
+                restored: restored, applicationSupportURL: target.applicationSupportURL)
         )
         XCTAssertTrue(
             Set(destinationHistory.receipts.map(\.receiptData)).isDisjoint(with:
@@ -5365,6 +5486,189 @@ extension S6_2BackupExportTests {
 }
 
 extension S6_2BackupExportTests {
+#if DEBUG
+    @MainActor
+    func assertAuthenticCloneProjectionPlanning(
+        package: ValidatedV4BackupPackageV1, applicationSupportURL: URL,
+        sourceWorkspaceID: WorkspaceID
+    ) throws {
+        let kinds: Set<WorkspaceEntityKindV1> = [.actorSnapshot, .promotedPackageRelease,
+            .packageSandboxRun, .packagePromotionReceipt, .activePackageRegistryPointer,
+            .roundSession]
+        let original = try XCTUnwrap(package.records.mutationHistory)
+        let sourcePlan = try MutationJournalStoreV1.planningCoreRestoreHistory(
+            in: package.records, workspaceID: sourceWorkspaceID)
+        XCTAssertEqual(sourcePlan.entityRevisions.filter { kinds.contains($0.identity.kind) },
+            original.entityRevisions.filter { kinds.contains($0.identity.kind) }
+                .sorted { $0.identity.stableKey < $1.identity.stableKey })
+        XCTAssertEqual(Set(original.entityRevisions.filter {
+            kinds.contains($0.identity.kind) && $0.externalProjectionSHA256 == nil
+        }.map { $0.identity.kind }), kinds)
+
+        let digest = String(repeating: "a", count: 64)
+        let decision = try RestoreIdentityDecisionV1.decide(.init(
+            mode: .clone,
+            source: .init(workspaceID: sourceWorkspaceID.rawValue, replicaID: package.manifest.source.replicaID),
+            oldPointer: .init(generationID: UUID(), generationManifestSHA256: digest,
+                workspaceID: sourceWorkspaceID.rawValue, replicaID: UUID()),
+            targetGenerationID: UUID(), targetGenerationManifestSHA256: digest,
+            allocatedWorkspaceID: UUID(), allocatedReplicaID: UUID()))
+        let target = WorkspaceID(rawValue: decision.targetPointer.workspaceID)
+        let service = try BackupRestoreService(applicationSupportURL: applicationSupportURL)
+        let normalized = try service.c55RecordsForMaterializationForTesting(
+            package.records, members: package.members, identityDecision: decision,
+            legacyWorkspaceID: target.rawValue, partsStockOperationID: UUID())
+        let planned = try XCTUnwrap(normalized.mutationHistory)
+        // Expected hashes are derived from normalized DTOs, before any database
+        // materialization, with independent domain-specific digest formulas.
+        struct ActorBasis: Codable {
+            let identity: WorkspaceEntityIdentityV1
+            let revision: UInt64
+            let value: ActorSnapshotV1
+        }
+        var expected: [WorkspaceEntityIdentityV1: String] = [:]
+        for terminal in planned.entityRevisions where kinds.contains(terminal.identity.kind) {
+            let id = terminal.identity.id
+            switch terminal.identity.kind {
+            case .actorSnapshot:
+                let row = try XCTUnwrap(normalized.partyAccountability.first {
+                    $0.kind == .actorSnapshot && $0.id == id })
+                let value = try PartyAccountabilitySnapshotCodecV1.decode(
+                    ActorSnapshotV1.self, from: row.canonicalData)
+                XCTAssertEqual(value.workspaceID, target)
+                expected[terminal.identity] = try WorkspaceMutationCanonicalV1.sha256(
+                    ActorBasis(identity: terminal.identity, revision: terminal.revision, value: value))
+            case .roundSession:
+                let values = normalized.roundSessions.filter { $0.sessionID == id }
+                    .sorted { $0.revision < $1.revision }
+                _ = try RoundSessionHistoryValidatorV1.validate(
+                    values, workspaceID: target, sessionID: id)
+                let last = try XCTUnwrap(values.last)
+                XCTAssertEqual(last.revision, terminal.revision)
+                expected[terminal.identity] = last.sessionSHA256
+            default:
+                let row = try XCTUnwrap(normalized.packageEvolution.first { $0.id == id })
+                XCTAssertEqual(row.workspaceID, target.rawValue)
+                switch row.kind {
+                case .promotedRelease:
+                    expected[terminal.identity] = try PackageEvolutionCanonicalCodecV1.decode(
+                        PromotedPackageReleaseV1.self, from: row.canonicalData).releaseRecordSHA256
+                case .sandboxRun:
+                    expected[terminal.identity] = try PackageEvolutionCanonicalCodecV1.decode(
+                        PackageSandboxRunV1.self, from: row.canonicalData).runSHA256
+                case .promotionReceipt:
+                    expected[terminal.identity] = try PackageEvolutionCanonicalCodecV1.decode(
+                        PackagePromotionReceiptV1.self, from: row.canonicalData).receiptSHA256
+                case .activePointer:
+                    expected[terminal.identity] = try PackageEvolutionCanonicalCodecV1.decode(
+                        ActivePackageRegistryPointerV1.self, from: row.canonicalData).pointerSHA256
+                }
+            }
+            XCTAssertEqual(terminal.externalProjectionSHA256, expected[terminal.identity])
+        }
+        XCTAssertEqual(Set(expected.keys.map(\.kind)), kinds)
+        XCTAssertEqual(planned.receipts, original.receipts)
+        XCTAssertEqual(planned.quarantines, original.quarantines)
+        XCTAssertEqual(sourcePlan.workspaceRevision, original.workspaceRevision)
+        XCTAssertEqual(sourcePlan.lastLocalSequence, original.lastLocalSequence)
+        let targetReceipts = try original.receipts.map {
+            try MutationReceiptV1.decodeCanonical(from: $0.receiptData)
+        }.filter { $0.identity.workspaceID == target }
+        XCTAssertTrue(targetReceipts.isEmpty)
+        XCTAssertEqual(planned.workspaceRevision, 0) // no destination receipt frontier
+        XCTAssertEqual(planned.lastLocalSequence, 0) // clone's separate replica rule
+        for row in planned.entityRevisions {
+            XCTAssertEqual(row.revision, original.entityRevisions.first {
+                $0.identity == row.identity }?.revision)
+        }
+        let repeated = try MutationJournalStoreV1.planningCoreRestoreHistory(
+            in: normalized, workspaceID: target)
+        XCTAssertEqual(repeated, planned)
+        XCTAssertEqual(package.records.mutationHistory, original)
+
+        func replacing<T: Encodable>(_ key: String, with value: T,
+                                     in records: V4BackupRecordsV1) throws -> V4BackupRecordsV1 {
+            let encoder = JSONEncoder()
+            var object = try XCTUnwrap(JSONSerialization.jsonObject(
+                with: encoder.encode(records)) as? [String: Any])
+            object[key] = try JSONSerialization.jsonObject(with: encoder.encode(value))
+            return try JSONDecoder().decode(V4BackupRecordsV1.self,
+                from: JSONSerialization.data(withJSONObject: object))
+        }
+        func rejects(_ records: V4BackupRecordsV1) {
+            XCTAssertThrowsError(try MutationJournalStoreV1.planningCoreRestoreHistory(
+                in: records, workspaceID: target))
+        }
+        let actorRow = try XCTUnwrap(normalized.partyAccountability.first { $0.kind == .actorSnapshot })
+        rejects(try replacing("partyAccountability", with: normalized.partyAccountability + [actorRow], in: normalized))
+        let wrongActor = V9BackupPartyAccountabilityRecordV1(kind: actorRow.kind,
+            id: actorRow.id, workspaceID: sourceWorkspaceID.rawValue,
+            revision: actorRow.revision, canonicalData: actorRow.canonicalData)
+        rejects(try replacing("partyAccountability", with: normalized.partyAccountability.map {
+            $0.id == actorRow.id ? wrongActor : $0 }, in: normalized))
+        var actorObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: actorRow.canonicalData) as? [String: Any])
+        actorObject["snapshotSHA256"] = String(repeating: "0", count: 64)
+        let corruptActor = V9BackupPartyAccountabilityRecordV1(kind: actorRow.kind,
+            id: actorRow.id, workspaceID: actorRow.workspaceID, revision: actorRow.revision,
+            canonicalData: try JSONSerialization.data(withJSONObject: actorObject,
+                options: [.sortedKeys, .withoutEscapingSlashes]))
+        rejects(try replacing("partyAccountability", with: normalized.partyAccountability.map {
+            $0.id == actorRow.id ? corruptActor : $0 }, in: normalized))
+        for row in normalized.packageEvolution {
+            rejects(try replacing("packageEvolution", with: normalized.packageEvolution + [row], in: normalized))
+            let wrongRevision = V17BackupPackageEvolutionRecordV1(kind: row.kind, id: row.id,
+                workspaceID: row.workspaceID, revision: row.revision + 1, canonicalData: row.canonicalData)
+            rejects(try replacing("packageEvolution", with: normalized.packageEvolution.map {
+                $0.id == row.id ? wrongRevision : $0 }, in: normalized))
+            var object = try XCTUnwrap(JSONSerialization.jsonObject(with: row.canonicalData) as? [String: Any])
+            let digestKey: String
+            switch row.kind {
+            case .promotedRelease: digestKey = "releaseRecordSHA256"
+            case .sandboxRun: digestKey = "runSHA256"
+            case .promotionReceipt: digestKey = "receiptSHA256"
+            case .activePointer: digestKey = "pointerSHA256"
+            }
+            object[digestKey] = String(repeating: "0", count: 64)
+            let corrupt = V17BackupPackageEvolutionRecordV1(kind: row.kind, id: row.id,
+                workspaceID: row.workspaceID, revision: row.revision,
+                canonicalData: try JSONSerialization.data(withJSONObject: object,
+                    options: [.sortedKeys, .withoutEscapingSlashes]))
+            rejects(try replacing("packageEvolution", with: normalized.packageEvolution.map {
+                $0.id == row.id ? corrupt : $0 }, in: normalized))
+        }
+        let round = try XCTUnwrap(normalized.roundSessions.first)
+        rejects(try replacing("roundSessions", with: normalized.roundSessions + [round], in: normalized))
+        // A pure two-node chain proves numeric terminal selection and rejects
+        // a missing predecessor; it does not mint an accepted mutation receipt.
+        let first = try XCTUnwrap(normalized.roundSessions.first { $0.revision == 1 })
+        let second = try RoundSessionV1(workspaceID: target, sessionID: first.sessionID,
+            predecessor: first, revision: 2, mutationID: .init(rawValue: UUID()),
+            state: .draft, transition: .reviseSelection, items: first.items,
+            recordedBy: first.recordedBy, recordedAt: first.recordedAt)
+        try second.validateSuccessor(of: first)
+        let chainIdentity = try WorkspaceEntityIdentityV1(kind: .roundSession, id: first.sessionID)
+        let chainHistory = MutationHistorySnapshotV1(workspaceRevision: 0, lastLocalSequence: 0,
+            receipts: [], quarantines: [], entityRevisions: [
+                .init(identity: chainIdentity, revision: 2, externalProjectionSHA256: nil)])
+        let chainBase = try replacing("mutationHistory", with: chainHistory, in: normalized)
+        let chain = try replacing("roundSessions", with: [second, first], in: chainBase)
+        let chainPlan = try MutationJournalStoreV1.planningCoreRestoreHistory(in: chain, workspaceID: target)
+        XCTAssertEqual(chainPlan.entityRevisions.first?.externalProjectionSHA256, second.sessionSHA256)
+        let missingPredecessor = try replacing("roundSessions", with: [second], in: chainBase)
+        rejects(missingPredecessor)
+        // Omission has the existing restore tombstone meaning. It must never
+        // reuse the foreign original receipt's live RoundSession digest.
+        let absentRound = try replacing("roundSessions", with: [RoundSessionV1](), in: normalized)
+        let absentPlan = try MutationJournalStoreV1.planningCoreRestoreHistory(
+            in: absentRound, workspaceID: target)
+        let roundIdentity = try WorkspaceEntityIdentityV1(kind: .roundSession, id: round.sessionID)
+        let terminal = try XCTUnwrap(absentPlan.entityRevisions.first { $0.identity == roundIdentity })
+        XCTAssertEqual(terminal.externalProjectionSHA256,
+            try MutationJournalStoreV1.restoreTombstoneSHA256(identity: roundIdentity, revision: terminal.revision))
+    }
+#endif
+
     @MainActor
     func testConfigurationCloneAcceptsEveryAuthenticPhotoPhaseAndOmitsOperationalFamily() async throws {
         for (index, phase) in ConfigurationClonePhotoPhase.allCases.enumerated() {
@@ -5421,6 +5725,13 @@ extension S6_2BackupExportTests {
                 )
                 let package = try importer.stageAndValidate(selectedPackageURL: archive)
                 defer { try? importer.discard(package) }
+#if DEBUG
+                if index == 0 {
+                    try assertAuthenticCloneProjectionPlanning(package: package,
+                        applicationSupportURL: packageHost.applicationSupportURL,
+                        sourceWorkspaceID: h.workspaceID)
+                }
+#endif
                 let sourceHistory = try CheckRunnerPhotoBackupHistoryV1.project(
                     source: package.manifest.source,
                     records: package.records
@@ -5804,7 +6115,10 @@ extension S6_2BackupExportTests {
                         XCTAssertTrue(records.fieldDrafts.isEmpty)
                         try assertConfigurationCloneHistoryPreserved(
                             source: try XCTUnwrap(targetPackage.records.mutationHistory),
-                            destination: try XCTUnwrap(records.mutationHistory))
+                            destination: try XCTUnwrap(records.mutationHistory),
+                            expectedProjections: configurationCloneExpectedProjections(
+                                package: stagedPackage, oldSession: current.session,
+                                restored: restored, applicationSupportURL: current.root))
                     } else {
                         do {
                             _ = try await service.restore(validatedPackage: targetPackage,

@@ -2547,10 +2547,15 @@ enum C50AuthoritativePrivacyTestSupport {
             displayNameAtTime: "C50 privacy reviewer",
             capturedAt: instant.addingTimeInterval(1)
         )
+        let authorActor = try LocalActorReferenceV1(
+            actorReferenceID: UUID(uuidString: "c5000000-0000-4000-8000-000000000013")!,
+            workspaceID: workspaceID,
+            displayName: "C50 privacy author"
+        )
         let author = try ActorSnapshotV1(
             snapshotID: UUID(uuidString: "c5000000-0000-4000-8000-000000000012")!,
             workspaceID: workspaceID,
-            actor: actor,
+            actor: authorActor,
             responsibility: .performedBy,
             displayNameAtTime: "C50 privacy author",
             capturedAt: instant
@@ -2625,6 +2630,16 @@ enum C50AuthoritativePrivacyTestSupport {
 
 final class C50PortableReviewAdapterRegressionBoundaryTests: XCTestCase {
     func testC50ReceivesOnlyValidatedDerivedPortableReviewState() throws {
+        let workspace = WorkspaceID(rawValue: UUID(uuidString: "48000000-0000-4000-8000-000000000060")!)
+        let reviewer = try LocalActorReferenceV1(
+            actorReferenceID: UUID(uuidString: "c5000000-0000-4000-8000-000000000010")!,
+            workspaceID: workspace, displayName: "C50 privacy reviewer")
+        XCTAssertThrowsError(try ActorSnapshotV1(
+            snapshotID: UUID(uuidString: "c5000000-0000-4000-8000-000000000012")!,
+            workspaceID: workspace, actor: reviewer, responsibility: .performedBy,
+            displayNameAtTime: "C50 privacy author", capturedAt: Date(timeIntervalSince1970: 1_900_000_000))) {
+            XCTAssertEqual($0 as? PartyAccountabilityFailureV1, .digestMismatch)
+        }
         let approval = try C50AuthoritativePrivacyTestSupport.approval(
             workspaceID: WorkspaceID(rawValue: UUID(
                 uuidString: "48000000-0000-4000-8000-000000000060"

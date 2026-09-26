@@ -3,7 +3,7 @@ import Foundation
 /// C49's canonical fact is append-only manual work-resource truth. It has no
 /// inventory, timer, payroll, accounting, tax, estimate, invoice, or currency
 /// conversion authority.
-enum WorkResourceContractFailureV1: Error, Equatable, Sendable { case invalidValue, invalidDigest, invalidRevision, invalidTransition, crossWorkspace }
+enum WorkResourceContractFailureV1: Error, Equatable, Sendable { case invalidValue, invalidDigest, invalidRevision, invalidTransition, crossWorkspace, arithmeticOverflow }
 
 private enum WorkResourceCanonicalV1 {
     static func digest<T: Encodable>(_ value: T) throws -> String { try WorkspaceMutationCanonicalV1.sha256(value) }
@@ -237,7 +237,7 @@ struct WorkResourceTotalsProjectionV1: Codable, Equatable, Sendable {
                 entry.materials.count
             )
             guard !durationOverflow, !linesOverflow else {
-                throw WorkResourceContractFailureV1.invalidValue
+                throw WorkResourceContractFailureV1.arithmeticOverflow
             }
             duration = nextDuration
             materialLines = nextLines
@@ -251,17 +251,17 @@ struct WorkResourceTotalsProjectionV1: Codable, Equatable, Sendable {
                 default: throw WorkResourceContractFailureV1.invalidValue
                 }
                 let (normalized, normalizeOverflow) = line.quantity.mantissa.multipliedReportingOverflow(by: scaleMultiplier)
-                guard !normalizeOverflow else { throw WorkResourceContractFailureV1.invalidValue }
+                guard !normalizeOverflow else { throw WorkResourceContractFailureV1.arithmeticOverflow }
                 let key = line.description + "\u{0}" + (line.unit ?? "")
                 let current = materials[key]?.mantissa ?? 0
                 let (next, additionOverflow) = current.addingReportingOverflow(normalized)
-                guard !additionOverflow else { throw WorkResourceContractFailureV1.invalidValue }
+                guard !additionOverflow else { throw WorkResourceContractFailureV1.arithmeticOverflow }
                 materials[key] = (line.description, line.unit, next)
             }
             if visibility == .internalFull, let cost = entry.directCost {
                 let current = costs[cost.amount.currencyCode, default: 0]
                 let (nextCost, costOverflow) = current.addingReportingOverflow(cost.amount.mantissa)
-                guard !costOverflow else { throw WorkResourceContractFailureV1.invalidValue }
+                guard !costOverflow else { throw WorkResourceContractFailureV1.arithmeticOverflow }
                 costs[cost.amount.currencyCode] = nextCost
             }
         }

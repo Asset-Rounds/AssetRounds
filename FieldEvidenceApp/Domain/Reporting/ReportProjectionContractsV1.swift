@@ -5894,10 +5894,17 @@ struct C49WorkResourceReportProjectionV1: Codable, Equatable, Sendable {
         // separately privacy-gated direct-cost preview below.
         let totalsVisibility: WorkResourceTotalsVisibilityV1 =
             audience == .customerSafe ? .customerSafe : .internalFull
-        let canonicalTotals = try WorkResourceTotalsProjectionV1(
-            snapshots: snapshots,
-            visibility: totalsVisibility
-        )
+        let canonicalTotals: WorkResourceTotalsProjectionV1
+        do {
+            canonicalTotals = try WorkResourceTotalsProjectionV1(
+                snapshots: snapshots,
+                visibility: totalsVisibility
+            )
+        } catch WorkResourceContractFailureV1.arithmeticOverflow {
+            // Preserve the report's public arithmetic boundary without
+            // reclassifying invalid snapshots, values or predecessor chains.
+            throw C49WorkResourceProjectionFailureV1.arithmeticOverflow
+        }
         let duration = canonicalTotals.durationMinutes
         let materialTotals = try Self.materialTotals(canonicalTotals.materialTotals)
         let allCosts = currentHeads.compactMap { snapshot -> (entry: DirectCostEntryV1, visibility: WorkResourceVisibilityPolicyV1)? in
