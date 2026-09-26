@@ -1,10 +1,8 @@
-Current native execution and audited outcomes: [ACTIVE_BRIEF](ACTIVE_BRIEF.md#current-critical-path). Reuse its head/run/evidence references; this navigation record grants no acceptance and does not replace the controlling requirements or the coverage ledger.
+# V23 phased merge readiness
 
-Follow [ACTIVE_BRIEF](ACTIVE_BRIEF.md#current-critical-path) for the current dependency-ready batch and exact native question. Retain all recorded startup, Erase publication, restore history and golden file-policy diagnostic obligations, their closed method membership and hosted acceptance gates.
+Current development state and exact native outcomes: [ACTIVE_BRIEF](ACTIVE_BRIEF.md). Batch evidence and independent verdicts: [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md). Open obligations: [VERIFICATION_DUE](VERIFICATION_DUE.md). This ledger defines phase scope; development results never establish acceptance.
 
-Source/index/route reviews do not establish hosted functional acceptance. Complete functional coverage, qualified required execution kinds, critical visuals/human review and final-main gates remain open. Qualified GitHub can satisfy provider coverage alone; explicitly listed noncritical polish remains due before release.
-
-Current navigation checkpoint, 2026-09-23. [CURRENT_INTEGRATION](CURRENT_INTEGRATION.md) controls scope and acceptance; [VERIFICATION_DUE](VERIFICATION_DUE.md) retains detailed obligations. Historical S10 is the accepted base, not a new workstream.
+As of 2026-09-26, Phase 1 is not merge-ready. Integration checkpoint `ea571505` is pushed; accepted S10 main remains `b1d04ae5`. Restore/history, Erase and report-production obligations remain open. AJ1 performance and AK1 localization successors are in development verification. All five same-head gates and genuine owner review remain required.
 
 ## Phased merge (owner decision 2026-09-25)
 
@@ -69,7 +67,7 @@ Inventory basis (read-only census at 31126e9, 2026-09-25; retained in the sessio
 
 | Workstream | What remains | Completion evidence |
 | --- | --- | --- |
-| Current native question | Recovery2 now passes on audited35923229533/c1c1b3a. Reconcile and qualify retained C36 saved-review9 plus field5 combined batch; preserve full28same-head obligations. Follow ACTIVE_BRIEF for exact source and evidence. Preserve earlier diagnoses instead of copying stale outcomes into this checklist. | Sole collection and root audit of each original; required source/index/commit gates before a causal successor. |
+| Current native question | Follow ACTIVE_BRIEF for the current frozen development candidates and actual results. AI1 recovery/photo9/9 passes locally, while its restore/transport selections retain five failures; isolated report production and current AJ1/AK1 follow-ups have separate source bindings. Earlier startup, C36, notification and full-coverage obligations remain due. | Sole collection, exact executed-selector/source audit and risk-appropriate independent review of each coherent checkpoint; all required same-head gates before main. |
 | Production adoption | Finish C36 destination/restore correspondence, Release-authorized staging review writes, cross-workspace photo-child remapping and authenticated retained review/photo closure; child/finalizer recovery; Work/Round field, scene, focus and resume flows; lifecycle/codec/backup registration. Resolution and confirmed discard already have production-service/AppAccess implementation, but complete user journeys remain due. | Real entry through the existing writer/service to durable effect and visible result, including populated stores, cold recovery and denied/no-effect cases. |
 | Replacement and fork history | Reconcile the remaining C55 replacement and C57 fork/mixed-history work and its owned drafts. | Original-history preservation plus paired functional, backup and restore results. |
 | Complete functional coverage | Reconcile frozen requirements and later regressions using VERIFICATION_DUE. The committed selector pool is not the final coverage ceiling; enrollment, execution, artifact integrity and acceptance are separate. | Complete retained functional/compatibility evidence on the final candidate; no credit for unselected tests or older heads. |
@@ -80,12 +78,12 @@ Inventory basis (read-only census at 31126e9, 2026-09-25; retained in the sessio
 
 ## Execution order
 
-1. Recovery2 now passes with complete audited evidence on c1c1b3a; full28 remains due. Follow ACTIVE_BRIEF for the next dependency-ready combined C36 batch. C36 saved-review/discard source and exact9 enrollment are prepared in isolation; complete full qualification and combined review before adoption. Reminder UI route is completing local qualification and requires explicit UI-budget authority after review. All final same-head, human, provider and main gates remain open.
-2. Continue production integration from the frozen capture/lifecycle contracts; use retained phase timings when an evidenced performance question blocks that work. Keep one collector per original.
-3. Complete the remaining production journeys and enroll their missing regressions. Parallelize only disjoint, dependency-ready work on existing qualified capacity.
-4. Freeze one complete candidate; collect all merge-required coverage and critical affected-state/human reviews, then advance and verify main. Close explicitly deferred noncritical polish and all other release obligations before release.
+1. Complete the current bounded local compile/affected-test cycles. Address proven restore, migration, ownership and report-production prerequisites by family, preserving historical failures and exact evidence scope.
+2. Integrate reviewed candidates through small coherent integration-branch checkpoints. Keep subsequent work isolated while a checkpoint runs; use affected verification and repeat full development coverage after meaningful stabilization.
+3. Freeze a Phase 1 candidate only after its required functionality and data-safety work are complete. Pass every unit partition, qualified critical UI evidence, independent integration review and genuine owner screenshot review on that candidate.
+4. Fast-forward main non-force, then perform exact-main verification on the pinned GitHub route. Continue the later feature ledger under AGENTS.md; unfinished features stay gated until their phase requirements pass, and full V23 scope remains required before release.
 
-Avoid checkpoint-only intermediate commits when they would create an untested parent. Prepare the next causal batch while an immutable, source-bound run executes; audit that original before its successor. Reuse unchanged evidence and qualified mechanical checks, not unverified assumptions or old native passes.
+Root alone commits, pushes and dispatches. Reuse relevant helper context and unchanged evidence only within its exact scope. No local or hosted development result becomes gate evidence. Integration cadence follows owner decisions 21–23 in AGENTS.md; the historical slower checkpoint rule is superseded.
 
 Merging is separate from release. Card135 stays owner-only/skipped; minimum-runtime and physical verification stay DEFERRED; `releaseReady=false`. No signing, distribution or submission is authorized here.
 

@@ -83,10 +83,19 @@ final class V23RepetitiveCaptureProgressDraftPayloadV2Tests: XCTestCase {
         let fixture = try ProgressFixture(count: 2), disk = try ProgressDisk(workspaceID: fixture.workspace)
         defer { disk.removeClosedFiles() }
         let source = try fixture.source()
+        var proofReadsByNodeCount: [(nodes: Int, reads: Int)] = []
         let pending = try disk.withSession { session -> FieldDraftCheckpointV1 in
             _ = try session.writer.commitRoundSession(fixture.creationMutation)
             _ = try session.writer.commitRoundSession(fixture.activationMutation)
             _ = try session.adapter.persistRepetitiveCaptureProgressSource(source)
+            let initialProofReads = disk.fenceProbe.reads
+            let initialPasses = session.journal.fullValidationPassCountForTesting
+            let initial = try session.adapter.reviewedRepetitiveCaptureProgress(
+                workspaceID: fixture.workspace, sourceDraftID: source.draftID)
+            proofReadsByNodeCount.append((initial.nodes.count, disk.fenceProbe.reads - initialProofReads))
+            XCTAssertTrue(initial.nodes.isEmpty)
+            XCTAssertEqual(session.journal.fullValidationPassCountForTesting - initialPasses, 1)
+            XCTAssertEqual(initial, try disk.legacyProgressRead(context: session.context, sourceDraftID: source.draftID))
             let first = fixture.active.items[0]
             let visit = try fixture.mutation(from: fixture.active, itemID: first.itemID, transition: .visitItem)
             let entry = try fixture.progressCheckpoint(fixture.step(source: source, expected: fixture.active, itemID: first.itemID, action: .enter, mutation: visit))
@@ -109,8 +118,11 @@ final class V23RepetitiveCaptureProgressDraftPayloadV2Tests: XCTestCase {
         try disk.withSession { session in
             let before = try session.writer.currentRevision()
             let passes = session.journal.fullValidationPassCountForTesting
+            let recoveredProofReads = disk.fenceProbe.reads
             let recovered = try session.adapter.reviewedRepetitiveCaptureProgress(workspaceID: fixture.workspace, sourceDraftID: source.draftID)
             XCTAssertEqual(session.journal.fullValidationPassCountForTesting - passes, 1)
+            proofReadsByNodeCount.append((recovered.nodes.count, disk.fenceProbe.reads - recoveredProofReads))
+            XCTAssertEqual(recovered, try disk.legacyProgressRead(context: session.context, sourceDraftID: source.draftID))
             let last = try XCTUnwrap(recovered.nodes.last)
             XCTAssertEqual(last.checkpoint, pending)
             XCTAssertTrue(last.isPendingRoundEffect)
@@ -124,7 +136,16 @@ final class V23RepetitiveCaptureProgressDraftPayloadV2Tests: XCTestCase {
                 expected: mutation.session, itemID: mutation.session.items[1].itemID, action: .defer, mutation: deferMutation))
             _ = try session.adapter.persistRepetitiveCaptureProgressStep(next)
             _ = try session.writer.commitRoundSession(deferMutation)
+            let finalProofReads = disk.fenceProbe.reads
+            let finalPasses = session.journal.fullValidationPassCountForTesting
             let final = try session.adapter.reviewedRepetitiveCaptureProgress(workspaceID: fixture.workspace, sourceDraftID: source.draftID)
+            proofReadsByNodeCount.append((final.nodes.count, disk.fenceProbe.reads - finalProofReads))
+            XCTAssertEqual(session.journal.fullValidationPassCountForTesting - finalPasses, 1)
+            XCTAssertEqual(proofReadsByNodeCount.map { $0.nodes }, [0, 3, 4])
+            let entryExitReads = try XCTUnwrap(proofReadsByNodeCount.first?.reads)
+            XCTAssertGreaterThan(entryExitReads, 1)
+            XCTAssertTrue(proofReadsByNodeCount.allSatisfy { $0.reads == entryExitReads },
+                          "Boundary proof work must not grow with authenticated progress nodes: \(proofReadsByNodeCount)")
             XCTAssertEqual(final.nodes.count, 4)
             XCTAssertNil(final.nodes.last?.step.navigationItemID)
             XCTAssertEqual(final.currentRound.items.map(\.disposition), [.visited, .deferred])
@@ -209,6 +230,58 @@ final class V23RepetitiveCaptureProgressDraftPayloadV2Tests: XCTestCase {
                 }
                 disk.fenceProbe.failOnRead = nil
             }
+            // A domain failure happens after fence entry but before its normal
+            // exit proof. The original error survives, while the surrounding
+            // reusable lease must be invalidated even without a fence error.
+            let historyBeforeDomainFailure = try session.journal.exportSnapshot()
+            let missingSourceID = UUID()
+            XCTAssertThrowsError(try disk.legacyProgressRead(
+                context: session.context, sourceDraftID: missingSourceID)) {
+                XCTAssertEqual($0 as? ScanToWorkFailureV1, .stale)
+            }
+            try session.writer.withProvenLease {
+                XCTAssertThrowsError(try session.adapter.reviewedRepetitiveCaptureProgress(
+                    workspaceID: fixture.workspace, sourceDraftID: missingSourceID)) {
+                    XCTAssertEqual($0 as? ScanToWorkFailureV1, .stale)
+                }
+                let freshProofReads = disk.fenceProbe.reads
+                XCTAssertEqual(try session.writer.currentRevision(), before)
+                XCTAssertGreaterThan(disk.fenceProbe.reads, freshProofReads)
+                disk.fenceProbe.failOnRead = disk.fenceProbe.reads + 1
+                defer { disk.fenceProbe.failOnRead = nil }
+                XCTAssertThrowsError(try session.writer.currentRevision()) {
+                    XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .persistenceFailed)
+                }
+            }
+            XCTAssertEqual(try session.journal.exportSnapshot(), historyBeforeDomainFailure)
+            XCTAssertFalse(session.context.hasChanges)
+
+            // Successful reads may reuse the enclosing proof, but the actual
+            // fixed read still proves its own entry AND exit. Fail that exit
+            // and verify the same enclosing scope cannot keep trusting it.
+            try session.writer.withProvenLease {
+                let start = disk.fenceProbe.reads
+                XCTAssertEqual(try session.adapter.reviewedRepetitiveCaptureProgress(
+                    workspaceID: fixture.workspace, sourceDraftID: source.draftID), final)
+                let scopedBoundaryReads = disk.fenceProbe.reads - start
+                XCTAssertGreaterThan(scopedBoundaryReads, 1)
+                let proved = disk.fenceProbe.reads
+                XCTAssertEqual(try session.writer.currentRevision(), before)
+                XCTAssertEqual(disk.fenceProbe.reads, proved)
+                disk.fenceProbe.failOnRead = proved + scopedBoundaryReads
+                defer { disk.fenceProbe.failOnRead = nil }
+                XCTAssertThrowsError(try session.adapter.reviewedRepetitiveCaptureProgress(
+                    workspaceID: fixture.workspace, sourceDraftID: source.draftID)) {
+                    XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .persistenceFailed)
+                }
+                disk.fenceProbe.failOnRead = disk.fenceProbe.reads + 1
+                XCTAssertThrowsError(try session.writer.currentRevision()) {
+                    XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .persistenceFailed)
+                }
+            }
+            XCTAssertEqual(try session.journal.exportSnapshot(), historyBeforeDomainFailure)
+            XCTAssertEqual(try session.adapter.reviewedRepetitiveCaptureProgress(
+                workspaceID: fixture.workspace, sourceDraftID: source.draftID), final)
             let wrongContext = ModelContext(session.context.container)
             XCTAssertThrowsError(try session.writer.reviewedRepetitiveCaptureProgressInReadScope(
                 workspaceID: fixture.workspace, sourceDraftID: source.draftID, modelContext: wrongContext)) {
@@ -230,6 +303,10 @@ final class V23RepetitiveCaptureProgressDraftPayloadV2Tests: XCTestCase {
             session.context.insert(try FieldDraftCheckpointRow(source)); try session.context.save()
             XCTAssertThrowsError(try session.adapter.reviewedRepetitiveCaptureProgress(workspaceID: fixture.workspace, sourceDraftID: source.draftID))
             session.writer.invalidate()
+            XCTAssertThrowsError(try session.adapter.reviewedRepetitiveCaptureProgress(
+                workspaceID: fixture.workspace, sourceDraftID: source.draftID)) {
+                XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .writerInvalidated)
+            }
             XCTAssertThrowsError(try session.adapter.persistRepetitiveCaptureProgressSource(source))
         }
     }
@@ -552,6 +629,22 @@ private final class ProgressDisk {
             return try body(.init(context: context, writer: writer, journal: journal,
                 adapter: .init(writer: writer, journal: journal, modelContext: context)))
         }
+    }
+    /// Data/error equivalence only: this DEBUG maintenance reader deliberately
+    /// exercises the unchanged adapter fallback, never canonical lease authority.
+    func legacyProgressRead(context: ModelContext, sourceDraftID: UUID) throws
+        -> ReviewedRepetitiveCaptureProgressChainV2 {
+        let journal = try MutationJournalStoreV1(modelContext: context, identity: identity,
+            generationID: generationID, allowStateBootstrap: false)
+        let instance = UUID()
+        let writer = try WorkspaceWriterV1(identity: identity, generationID: generationID,
+            initialRevision: journal.currentRevision(writerInstanceID: instance), clock: ProgressClock(),
+            idSource: ProgressIDs(instance: instance), fileAuthority: ProgressFiles(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: context), journalStore: journal)
+        defer { writer.invalidate() }
+        let adapter = FieldDraftLifecycleAdapterV1(writer: writer, journal: journal, modelContext: context)
+        return try adapter.reviewedRepetitiveCaptureProgress(
+            workspaceID: identity.workspaceID, sourceDraftID: sourceDraftID)
     }
     func removeClosedFiles() { try? FileManager.default.removeItem(at: root) }
 }

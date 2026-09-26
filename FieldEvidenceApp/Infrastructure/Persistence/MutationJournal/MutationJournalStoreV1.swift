@@ -2442,9 +2442,10 @@ final class MutationJournalStoreV1 {
                     historicalAuthority: nil, retainDecodedRows: true)
 
                 // Keep absence subject to quarantine denial just like checkedReceipt.
-                // No caller-provided callback or mutation runs in this read interval.
+                // The outer fence holds G for this fixed synchronous read. These
+                // local callbacks do not suspend or run caller-provided work;
+                // their data checks reuse that interval's lease proof only.
                 @MainActor func checkedRow(_ mutationID: MutationIDV1) throws -> ValidatedReceiptRow? {
-                    try validateCurrentWriterLease()
                     let key = MutationWorkspaceKeyV1.value(workspaceID: workspaceID, mutationID: mutationID)
                     guard try modelContext.fetch(FetchDescriptor<MutationQuarantineRow>(
                         predicate: #Predicate { $0.workspaceMutationKey == key }
@@ -2453,7 +2454,7 @@ final class MutationJournalStoreV1 {
                 }
                 @MainActor func authenticatedCheckpoint(_ workspace: WorkspaceID, _ draftID: UUID) throws
                     -> (FieldDraftCheckpointV1, MutationReceiptV1) {
-                    _ = try currentRevision(writerInstanceID: writerInstanceID)
+                    _ = try storedRevision(writerInstanceID: writerInstanceID)
                     let id = draftID
                     let rows = try modelContext.fetch(FetchDescriptor<FieldDraftCheckpointRow>(
                         predicate: #Predicate { $0.draftID == id }))
@@ -2477,7 +2478,7 @@ final class MutationJournalStoreV1 {
                     workspaceID: workspaceID, sourceDraftID: sourceDraftID,
                     authenticatedProgressCheckpoint: { try authenticatedCheckpoint($0, $1) },
                     progressRoundHistory: { workspace, session in
-                        _ = try self.currentRevision(writerInstanceID: writerInstanceID)
+                        _ = try self.storedRevision(writerInstanceID: writerInstanceID)
                         let history = try WorkspaceWriterAdapterV1(modelContext: self.modelContext)
                             .roundSessionHistory(workspaceID: workspace, sessionID: session)
                         _ = try RoundSessionHistoryValidatorV1.validate(history, workspaceID: workspace, sessionID: session)
@@ -2500,7 +2501,7 @@ final class MutationJournalStoreV1 {
                         return try rows.map { try $0.value() }.filter { $0.purpose == .repetitiveCapture && $0.codec == release }
                     },
                     durableReceipt: { mutationID in
-                        _ = try self.currentRevision(writerInstanceID: writerInstanceID)
+                        _ = try self.storedRevision(writerInstanceID: writerInstanceID)
                         return try checkedRow(mutationID)?.receipt
                     })
                 guard !modelContext.hasChanges,
@@ -2515,6 +2516,12 @@ final class MutationJournalStoreV1 {
                 throw mappedFenceFailure(registryFailure)
             }
             throw WorkspaceMutationFailureV1.persistenceFailed
+        } catch {
+            // A domain failure skips the fence's successful-exit reproof. Do
+            // not let an enclosing reusable lease scope trust that interval;
+            // its next access must prove authority afresh. Preserve this error.
+            provenWriterLeaseInvalidated = true
+            throw error
         }
     }
 
