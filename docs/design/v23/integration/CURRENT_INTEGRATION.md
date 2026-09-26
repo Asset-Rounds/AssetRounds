@@ -4035,3 +4035,29 @@ Local: build-for-testing SUCCEEDED. S2 `testInvalidGenerationLedgerFailsClosed�
   - "View diagnostics" reuses DiagnosticExportView, read-only.
 - **Review.** Independent reviewer (Claude Opus 5.5, read-only, not an author): APPROVE. R1 and R3 are satisfied. R2 is an open obligation before the phase gate (see VERIFICATION_DUE). Compile risk LOW.
 
+## Batch R: restore staging root, test isolation, maintenance salvage (2026-09-26; restore part restricted)
+
+- **Restore (product, restricted).**
+  - `BackupRestoreService.restoreStagingRootIdentity(generationID:)` anchors the registered FieldEvidenceRestore staging generation: no-follow, requireStagingGeneration, directory fstat.
+  - It is used by clone final media, photo-member materialization and the photo restore authority. `EvidenceBundleStore.generationNamespace` routes only those owners to FieldEvidenceRestore.
+  - Every clone-with-media restore previously threw invalidAuthority.
+- **Test isolation.**
+  - A DEBUG-only `PrivateSystemDiscoveryIndexStoreV1.resetDurableStateForTestingV1()`, called before every test by the test-bundle principal class UnitTestIsolationObserverV1 (INFOPLIST_KEY_NSPrincipalClass on the test target only; the call is #if DEBUG).
+  - S6_4 sources are seeded through createFirstSign: 36 → 24 failures.
+  - R2 helper `assertCanonicalWriterActivatesV1`.
+- **Maintenance salvage (product).** "Save photos and reports" plain-files export from maintenance:
+  - read-only, with O_NOFOLLOW openat and fstat along the whole chain;
+  - EXIF/GPS-bearing photos skipped;
+  - detached work with a busy state; empty and failure statuses;
+  - temp folder deleted after sharing;
+  - labelled as not a backup.
+  "View diagnostics" came in batch Q.
+- **Copy-freeze re-pins** (signed off by the reviewer): S10.3 literals F776F6B2… → D6638A75…; S10.4 projected literals 62C727B0… → 9BF4A43C….
+  - Provenance: the tests' own algorithm reproduces F776F6B2 at 779b21f1.
+  - Delta: docs/design/v23/integration/s10-3-copy-freeze-delta-v23.json (maintenance literals only; no removals).
+- **Review.** Independent reviewer (Claude Opus 5.5, read-only, not an author): APPROVE WITH CHANGES; salvage R1–R3, the privacy check and the #if DEBUG guard are resolved and confirmed. Compile risk LOW.
+- **R2 restore proof:** the S6_4 authorized empty install and the V1→V53 upgrade pass writer activation under checkpoint v2.
+- **Pre-existing failures,** matching sweep 36168198155: S2 ×3, S10_4 pinned overlay, V9_22 ×13, S9_1 ×14.
+
+Development sweep 36194519822 (75533db, batch M): coverage exact, all 3,453 executed. 2,969 passed, 456 failed, 22 interrupted, 6 skipped (previous sweep: 2,774 / 499 / 167). Wall time 6.4 h, sharing the 5 GitHub macOS slots with 36198946000.
+

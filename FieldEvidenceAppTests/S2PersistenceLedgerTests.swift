@@ -810,6 +810,100 @@ final class S2PersistenceLedgerTests: XCTestCase {
         XCTAssertThrowsError(try StoreSessionCoordinator(validatingSession: session))
     }
 
+    /// Plain-files salvage from maintenance: the user's photos and report PDFs
+    /// from the last accepted generation, byte-identical, with readable names,
+    /// no writes to Application Support, no writer, and a labelled button.
+    @MainActor
+    func testCorruptReceiptHistoryMaintenanceSalvageSavesPhotosAndReportsReadOnly() async throws {
+        let root = try makeStartupApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        try seedCorruptReceiptHistoryStore(root)
+        let generationRoot = try StoreGenerationFactory(applicationSupportURL: root)
+            .openOrBootstrapCurrent().generationRootURL
+        let photoID = UUID(), reportID = UUID()
+        // A canonical normalized original (JFIF APP0 only) and a PDF.
+        let photo = Data([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00,
+                          0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xff, 0xda, 0x00, 0x02, 0x01, 0x02, 0xff, 0xd9])
+        let report = Data("%PDF-1.7 salvage".utf8)
+        // A photo still carrying EXIF (APP1, e.g. GPS) is never salvaged.
+        let exifDirectory = generationRoot.appendingPathComponent("evidence/\(UUID().uuidString.lowercased())")
+        try fileManager.createDirectory(at: exifDirectory, withIntermediateDirectories: true)
+        try Data([0xff, 0xd8, 0xff, 0xe1, 0x00, 0x08, 0x45, 0x78, 0x69, 0x66, 0x00, 0x00,
+                  0xff, 0xda, 0x00, 0x02, 0xff, 0xd9]).write(to: exifDirectory.appendingPathComponent("original.jpg"))
+        let photoDirectory = generationRoot.appendingPathComponent("evidence/\(photoID.uuidString.lowercased())")
+        try fileManager.createDirectory(at: photoDirectory, withIntermediateDirectories: true)
+        try photo.write(to: photoDirectory.appendingPathComponent("original.jpg"))
+        try Data("thumb".utf8).write(to: photoDirectory.appendingPathComponent("thumbnail.jpg"))
+        let pdfs = generationRoot.appendingPathComponent("pdfs")
+        try fileManager.createDirectory(at: pdfs, withIntermediateDirectories: true)
+        try report.write(to: pdfs.appendingPathComponent("\(reportID.uuidString.lowercased()).pdf"))
+        // Hostile or foreign entries are skipped, never followed.
+        try fileManager.createDirectory(at: generationRoot.appendingPathComponent("evidence/not-an-id"),
+                                        withIntermediateDirectories: true)
+        try fileManager.createSymbolicLink(at: pdfs.appendingPathComponent("\(UUID().uuidString.lowercased()).pdf"),
+                                           withDestinationURL: root.appendingPathComponent("FieldEvidenceData/current.json"))
+
+        let router = StartupRouter(applicationSupportURL: root)
+        await router.retryChecks()
+        guard case .maintenance = router.route else { return XCTFail("Expected maintenance, got \(router.route)") }
+        let data = root.appendingPathComponent("FieldEvidenceData", isDirectory: true)
+        let before = try directoryFacts(data)
+
+        let salvage = MaintenanceSalvageExportV1(applicationSupportURL: root)
+        XCTAssertThrowsError(try salvage.materialize(into: root.appendingPathComponent("inside"))) {
+            XCTAssertEqual($0 as? MaintenanceSalvageExportV1.Failure, .unsafeDestination)
+        }
+        let parent = fileManager.temporaryDirectory.appendingPathComponent("salvage-\(UUID().uuidString)")
+        try fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: parent) }
+        let result = try salvage.materialize(into: parent)
+        XCTAssertEqual(result.folder.lastPathComponent, "AssetRounds Photos and Reports")
+        XCTAssertEqual(result.saved.map(\.kind), [.photo, .report])
+        XCTAssertEqual(result.saved.map(\.id), [photoID, reportID])
+        let names = try fileManager.contentsOfDirectory(atPath: result.folder.path).sorted()
+        XCTAssertEqual(names.count, 2)
+        XCTAssertTrue(names[0].hasPrefix("Photo ") && names[0].hasSuffix(" \(photoID.uuidString.lowercased().prefix(8)).jpg"), names[0])
+        XCTAssertTrue(names[1].hasPrefix("Report ") && names[1].hasSuffix(" \(reportID.uuidString.lowercased().prefix(8)).pdf"), names[1])
+        XCTAssertEqual(try Data(contentsOf: result.folder.appendingPathComponent(names[0])), photo)
+        XCTAssertEqual(try Data(contentsOf: result.folder.appendingPathComponent(names[1])), report)
+        for name in names { XCTAssertFalse(name.contains("/") || name.contains("FieldEvidence"), name) }
+        XCTAssertEqual(try directoryFacts(data), before, "salvage must not write the store")
+        // The damaged store still cannot open a writer (open or install fails closed).
+        XCTAssertThrowsError(try StoreSessionCoordinator(validatingSession:
+            StoreGenerationFactory(applicationSupportURL: root).openOrBootstrapCurrent()))
+
+        XCTAssertEqual(StartupMaintenanceView.savePhotosAndReportsButtonText, "Save photos and reports")
+        XCTAssertEqual(StartupMaintenanceView.savePhotosAndReportsHintText,
+            "Saves copies of your photos and report PDFs as ordinary files. This is not a backup and cannot be restored.")
+        XCTAssertEqual(StartupMaintenanceView.savePhotosAndReportsAccessibilityIdentifier,
+                       "s2.maintenance.save-photos-and-reports")
+    }
+
+    /// The save action never ends silently: with no photos or reports it
+    /// reports a brief status, writes nothing and creates no folder.
+    @MainActor
+    func testMaintenanceSalvageWithNothingToSaveReportsStatus() async throws {
+        let root = try makeStartupApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        try seedCorruptReceiptHistoryStore(root)
+        let data = root.appendingPathComponent("FieldEvidenceData", isDirectory: true)
+        let before = try directoryFacts(data)
+        let parent = fileManager.temporaryDirectory.appendingPathComponent("salvage-\(UUID().uuidString)")
+        try fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: parent) }
+        XCTAssertThrowsError(try MaintenanceSalvageExportV1(applicationSupportURL: root).materialize(into: parent)) {
+            XCTAssertEqual($0 as? MaintenanceSalvageExportV1.Failure, .nothingToSave)
+            XCTAssertEqual(StartupMaintenanceView.salvageStatusText(for: $0),
+                           "No photos or reports were found to save.")
+        }
+        XCTAssertEqual(StartupMaintenanceView.salvageStatusText(for: CocoaError(.fileWriteNoPermission)),
+                       "Photos and reports could not be saved. Try again.")
+        XCTAssertEqual(StartupMaintenanceView.salvageStatusAccessibilityIdentifier,
+                       "s2.maintenance.save-photos-and-reports.status")
+        XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: parent.path), [])
+        XCTAssertEqual(try directoryFacts(data), before)
+    }
+
     private func directoryFacts(_ url: URL) throws -> [String: Data] {
         var facts: [String: Data] = [:]
         let keys: [URLResourceKey] = [.isRegularFileKey]

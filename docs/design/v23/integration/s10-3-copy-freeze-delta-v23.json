@@ -38,8 +38,8 @@
         "sha256": "5CDFCFAA51AF9289B1D97B78B2B1A35668B3F1DDA5EA0D6CB0D66D34DD8D2E44"
       },
       "candidate": {
-        "base_commit": "826be4f5a4a94339257c6450ea7d3d84f441a231",
-        "sha256": "F776F6B2EC6C76D70F141D72D3C30D34FDFF63270BF3ECBDFDD2B1F17AB452EF"
+        "base_commit": "779b21f1fd523be01c36782677466de2606e7e86",
+        "sha256": "D6638A7571332E437BDFCC92004E80F49111FF3A2E251B721DC0087638B6B8BA"
       }
     },
     "s10_4_projected_literals": {
@@ -52,8 +52,8 @@
         "sha256": "1FC7F5B8D24E0B2F0A1111A4F21495C40CA3A306A708EB3CA0CAE0760A562D26"
       },
       "candidate": {
-        "base_commit": "826be4f5a4a94339257c6450ea7d3d84f441a231",
-        "sha256": "62C727B0A93E2B9361706420AAA4389C7747B4603013D0E1ABD606546BFF31EA"
+        "base_commit": "779b21f1fd523be01c36782677466de2606e7e86",
+        "sha256": "9BF4A43C14EE9B1172B6B0E18C8279A1DF8410BFDC0DE9908026BE2A22C5782E"
       }
     }
   },
@@ -419,6 +419,42 @@
             "\"arrow.clockwise\"",
             "\"v23.migration.awaiting-validation.retry\"",
             "\"v23.migration.awaiting-validation.screen\""
+          ],
+          "removed": []
+        }
+      ]
+    },
+    {
+      "from": "779b21f1fd523be01c36782677466de2606e7e86",
+      "to": "candidate (maintenance support and salvage, owner decisions 14 and 18; blueprint :10987)",
+      "cause": "Maintenance/export/support: the maintenance screen adds the Settings 'View diagnostics' entry and the plain-files 'Save photos and reports' salvage (not a backup) with its hint, busy and status copy and accessibility identifiers; the host adds the salvage temporary-folder prefix. Literal digest recomputed from the real bytes with the test's own algorithm (F776F6B2... held at 779b21f1). The S10.4 projected-literal digest (62C727B0...31EA at 779b21f1) moves by the same per-file delta; SignsRootView is untouched.",
+      "import_changes": [],
+      "literal_changes": [
+        {
+          "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+          "added": [
+            "\"MaintenanceSalvage-\"",
+            "\"MaintenanceSalvage-\\(UUID().uuidString)\""
+          ],
+          "removed": []
+        },
+        {
+          "path": "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+          "added": [
+            "\"\"",
+            "\"No photos or reports were found to save.\"",
+            "\"Photos and reports could not be saved. Try again.\"",
+            "\"Preparing photos and reports…\"",
+            "\"Preparing photos and reports…\"",
+            "\"Previews privacy-safe local counters and bounded system diagnostics before saving\"",
+            "\"Save photos and reports\"",
+            "\"Save photos and reports\"",
+            "\"Saves copies of your photos and report PDFs as ordinary files. This is not a backup and cannot be restored.\"",
+            "\"View diagnostics\"",
+            "\"View diagnostics\"",
+            "\"s2.maintenance.save-photos-and-reports\"",
+            "\"s2.maintenance.save-photos-and-reports.status\"",
+            "\"s2.maintenance.view-diagnostics\""
           ],
           "removed": []
         }

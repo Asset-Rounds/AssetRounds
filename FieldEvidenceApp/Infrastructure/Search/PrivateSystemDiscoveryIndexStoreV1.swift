@@ -440,6 +440,18 @@ actor PrivateSystemDiscoveryIndexStoreV1: PrivateSystemDiscoveryIndexLifecyclePo
         }
     }
 
+#if DEBUG
+    /// DEBUG-only test seam: clears this process-wide store's durable client
+    /// state and global journal so each test starts from an empty journal.
+    /// Production never calls it; operation identities stay fail-closed.
+    func resetDurableStateForTestingV1() async throws {
+        try await serialized {
+            try store.save(.empty); try globalStore.saveGlobal(.empty)
+            value = .empty; globalJournal = .empty
+        }
+    }
+#endif
+
     private func serialized<T: Sendable>(_ body: () async throws -> T) async throws -> T {
         guard !mutating else { throw PrivateSystemDiscoveryFailureV1.unavailable }
         mutating = true; defer { mutating = false }; return try await body()

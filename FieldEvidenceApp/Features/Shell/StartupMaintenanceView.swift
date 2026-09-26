@@ -44,12 +44,30 @@ struct StartupMaintenanceView: View {
     /// maintenance/export/support). Reuses the Settings diagnostics label.
     static let viewDiagnosticsButtonText = "View diagnostics"
     static let viewDiagnosticsAccessibilityIdentifier = "s2.maintenance.view-diagnostics"
+    /// Plain-files salvage when no backup can be produced. Not a backup.
+    static let savePhotosAndReportsButtonText = "Save photos and reports"
+    static let savePhotosAndReportsHintText = "Saves copies of your photos and report PDFs as ordinary files. This is not a backup and cannot be restored."
+    static let savePhotosAndReportsAccessibilityIdentifier = "s2.maintenance.save-photos-and-reports"
+    static let salvageNothingFoundText = "No photos or reports were found to save."
+    static let salvageFailedText = "Photos and reports could not be saved. Try again."
+    static let salvageStatusAccessibilityIdentifier = "s2.maintenance.save-photos-and-reports.status"
+    static let salvageInProgressText = "Preparing photos and reports…"
+
+    /// The save action never ends silently: an empty inventory and a failed
+    /// copy each map to a brief status.
+    static func salvageStatusText(for error: Error) -> String {
+        (error as? MaintenanceSalvageExportV1.Failure) == .nothingToSave
+            ? salvageNothingFoundText : salvageFailedText
+    }
 
     let reason: StartupMaintenanceReason
     let retryChecks: () -> Void
     let restoreDataBackup: (() -> Void)?
     let eraseAll: (() -> Void)?
     let viewDiagnostics: (() -> Void)?
+    let savePhotosAndReports: (() -> Void)?
+    let salvageStatus: String?
+    let salvageInProgress: Bool
 
     @State private var showsRecoverySteps = false
 
@@ -58,13 +76,19 @@ struct StartupMaintenanceView: View {
         retryChecks: @escaping () -> Void,
         restoreDataBackup: (() -> Void)? = nil,
         eraseAll: (() -> Void)? = nil,
-        viewDiagnostics: (() -> Void)? = nil
+        viewDiagnostics: (() -> Void)? = nil,
+        savePhotosAndReports: (() -> Void)? = nil,
+        salvageStatus: String? = nil,
+        salvageInProgress: Bool = false
     ) {
         self.reason = reason
         self.retryChecks = retryChecks
         self.restoreDataBackup = restoreDataBackup
         self.eraseAll = eraseAll
         self.viewDiagnostics = viewDiagnostics
+        self.savePhotosAndReports = savePhotosAndReports
+        self.salvageStatus = salvageStatus
+        self.salvageInProgress = salvageInProgress
     }
 
     var body: some View {
@@ -101,6 +125,35 @@ struct StartupMaintenanceView: View {
                         AssetRoundsSecondaryAction("Erase All", action: eraseAll)
                             .accessibilityLabel("Erase All")
                             .accessibilityIdentifier(Self.eraseAccessibilityIdentifier)
+                    }
+
+                    if let savePhotosAndReports {
+                        AssetRoundsSecondaryAction(action: savePhotosAndReports) {
+                            if salvageInProgress {
+                                HStack(spacing: DesignTokens.Spacing.space8) {
+                                    ProgressView()
+                                    Text("Preparing photos and reports…")
+                                }
+                            } else {
+                                Text("Save photos and reports")
+                            }
+                        }
+                            .disabled(salvageInProgress)
+                            .accessibilityLabel(Self.savePhotosAndReportsButtonText)
+                            .accessibilityValue(salvageInProgress ? Self.salvageInProgressText : "")
+                            .accessibilityHint(Self.savePhotosAndReportsHintText)
+                            .accessibilityIdentifier(Self.savePhotosAndReportsAccessibilityIdentifier)
+                        Text(Self.savePhotosAndReportsHintText)
+                            .font(DesignTokens.Typography.secondaryBody)
+                            .foregroundStyle(DesignTokens.SemanticColors.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if let salvageStatus {
+                            Text(salvageStatus)
+                                .font(DesignTokens.Typography.secondaryBody)
+                                .foregroundStyle(DesignTokens.SemanticColors.warning)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityIdentifier(Self.salvageStatusAccessibilityIdentifier)
+                        }
                     }
 
                     if let viewDiagnostics {

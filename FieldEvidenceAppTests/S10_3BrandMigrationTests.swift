@@ -254,10 +254,13 @@ final class S10_3BrandMigrationTests: XCTestCase {
         // renamed the Signs tab to Assets and added Today and Work (commit aa0dc10, required
         // by BLUEPRINT:9654) and added durable capture, C43 response, Reports and erase copy.
         // Phase 1 UI tests then added the DEBUG-only local-auth UI-test hook literals to
-        // FieldEvidenceAppApp.swift (B67BFF5F…C95B before that edit).
+        // FieldEvidenceAppApp.swift (B67BFF5F…C95B before that edit). Maintenance support and
+        // salvage (owner decisions 14 and 18) then added the maintenance "View diagnostics" and
+        // "Save photos and reports" copy (F776F6B2…52EF held at 779b21f1); the per-file delta is in
+        // the same JSON record.
         XCTAssertEqual(
             literalDigest,
-            "F776F6B2EC6C76D70F141D72D3C30D34FDFF63270BF3ECBDFDD2B1F17AB452EF",
+            "D6638A7571332E437BDFCC92004E80F49111FF3A2E251B721DC0087638B6B8BA",
             "Released copy, accessibility identifiers, symbols, or fixed product facts drifted"
         )
         let delta = try json("docs/design/v23/integration/s10-3-copy-freeze-delta-v23.json")

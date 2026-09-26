@@ -11660,13 +11660,32 @@ private extension BackupRestoreService {
         }
     }
 
+    /// Anchored identity of this restore's private staging generation
+    /// (`FieldEvidenceRestore/generations/<id>`): opened with no-follow
+    /// descriptors from Application Support and proved to be the registered
+    /// staging generation. `ReportPDFAnchoredFile.rootIdentity` admits only the
+    /// live `FieldEvidenceData` namespace and must not be used here.
+    private func restoreStagingRootIdentity(generationID: UUID) throws -> ReportPDFAnchoredFile.RootIdentity {
+        try withPinnedDirectory(root: applicationSupportURL,
+            relativePath: "FieldEvidenceRestore/generations/\(canonical(generationID))", createMissing: false,
+            authorityCheck: { try self.generationAuthority.requireStagingGeneration(id: generationID) }
+        ) { descriptor, verify, _ in
+            try verify()
+            var facts = stat()
+            guard Darwin.fstat(descriptor, &facts) == 0, (facts.st_mode & S_IFMT) == S_IFDIR else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            return ReportPDFAnchoredFile.RootIdentity(device: facts.st_dev, inode: facts.st_ino)
+        }
+    }
+
     private func materializeConfigurationCloneFinalMedia(
         _ members: [String: CheckRunnerPhotoBackupRestorePlanV1.GenerationMember],
         package: ValidatedV4BackupPackageV1, generationID: UUID,
         validateCurrent: @MainActor () async throws -> Void) async throws {
         let root = generationFactory.restoreStagingGenerationURL(id: generationID)
         let authority = ConfigurationCloneFinalMediaGenerationAuthorityV1(generationID: generationID,
-            rootURL: root, rootIdentity: try ReportPDFAnchoredFile.rootIdentity(at: root),
+            rootURL: root, rootIdentity: try restoreStagingRootIdentity(generationID: generationID),
             members: members.keys.sorted().compactMap { members[$0] }, memberSource: .package(package.members),
             maximumMemberByteCount: package.members.maximumMemberByteCount)
         try await EvidenceBundleStore(cloneFinalMediaGeneration: authority).restoreConfigurationCloneFinalMediaGeneration()
@@ -12063,7 +12082,7 @@ private extension BackupRestoreService {
     private func materializePhotoMembers(_ photo: PhotoRestorePreparation,
         validateCurrent: @MainActor () async throws -> Void) async throws {
         let root = generationFactory.restoreStagingGenerationURL(id: photo.core.newGenerationID)
-        let rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: root)
+        let rootIdentity = try restoreStagingRootIdentity(generationID: photo.core.newGenerationID)
         var written: [String: CheckRunnerPhotoBackupRestorePlanV1.GenerationMember] = [:]
         guard photo.sources.count == photo.plans.count else { throw BackupRestoreServiceError.invalidPackage }
         for (index, plan) in photo.plans.enumerated() {
@@ -12698,17 +12717,7 @@ private extension BackupRestoreService {
                 return bytes
             }
         let root = generationFactory.restoreStagingGenerationURL(id: generationID)
-        let identity = try withPinnedDirectory(root: applicationSupportURL,
-            relativePath: "FieldEvidenceRestore/generations/\(canonical(generationID))", createMissing: false,
-            authorityCheck: { try self.generationAuthority.requireStagingGeneration(id: generationID) }
-        ) { descriptor, verify, _ in
-            try verify()
-            var facts = stat()
-            guard Darwin.fstat(descriptor, &facts) == 0, (facts.st_mode & S_IFMT) == S_IFDIR else {
-                throw BackupRestoreServiceError.invalidPackage
-            }
-            return ReportPDFAnchoredFile.RootIdentity(device: facts.st_dev, inode: facts.st_ino)
-        }
+        let identity = try restoreStagingRootIdentity(generationID: generationID)
         return .init(generationID: generationID, rootURL: root, rootIdentity: identity,
             children: history.children, plan: plan, memberSource: .package(package.members))
     }

@@ -510,6 +510,9 @@ private struct MaintenanceRestoreHost: View {
 
     @State private var showsRestore = false
     @State private var showsDiagnostics = false
+    @State private var salvageShare: MaintenanceSalvageShareV1?
+    @State private var salvageStatus: String?
+    @State private var salvageInProgress = false
     @State private var showsErase = false
     @State private var eraseCoordinator: StoreSessionCoordinator?
 
@@ -523,8 +526,14 @@ private struct MaintenanceRestoreHost: View {
             eraseAll: eraseAction,
             // Read-only support export: the diagnostics sidecar only; no
             // writer, store session or lease is needed or opened.
-            viewDiagnostics: { showsDiagnostics = true }
+            viewDiagnostics: { showsDiagnostics = true },
+            savePhotosAndReports: { prepareSalvage() },
+            salvageStatus: salvageStatus,
+            salvageInProgress: salvageInProgress
         )
+        .sheet(item: $salvageShare, onDismiss: removeSalvageCopies) { share in
+            MaintenanceSalvageShareSheetV1(urls: share.urls) { salvageShare = nil }
+        }
         .sheet(isPresented: $showsDiagnostics) {
             NavigationStack {
                 DiagnosticExportView(
@@ -564,6 +573,44 @@ private struct MaintenanceRestoreHost: View {
                 )
             }
         }
+    }
+
+    /// Read-only salvage of photos and report PDFs into a fresh temporary
+    /// folder, prepared off the main actor and shared as ordinary files. Opens
+    /// no session, writer or lease. The copies are deleted when sharing ends.
+    private func prepareSalvage() {
+        guard !salvageInProgress else { return }
+        salvageInProgress = true
+        salvageStatus = nil
+        let support = applicationSupportURL
+        Task { @MainActor in
+            let result = await Task.detached(priority: .userInitiated) { () -> Result<(URL, URL), Error> in
+                let fileManager = FileManager.default
+                let parent = fileManager.temporaryDirectory
+                    .appendingPathComponent("MaintenanceSalvage-\(UUID().uuidString)", isDirectory: true)
+                do {
+                    try fileManager.createDirectory(at: parent, withIntermediateDirectories: false)
+                    let folder = try MaintenanceSalvageExportV1(applicationSupportURL: support)
+                        .materialize(into: parent).folder
+                    return .success((parent, folder))
+                } catch {
+                    try? fileManager.removeItem(at: parent)
+                    return .failure(error)
+                }
+            }.value
+            salvageInProgress = false
+            switch result {
+            case let .success((parent, folder)):
+                salvageShare = MaintenanceSalvageShareV1(urls: [folder], parent: parent)
+            case let .failure(error):
+                salvageStatus = StartupMaintenanceView.salvageStatusText(for: error)
+            }
+        }
+    }
+
+    /// Privacy: the temporary copies never outlive the share sheet.
+    private func removeSalvageCopies() {
+        MaintenanceSalvageShareV1.removeAll()
     }
 
     private var restoreAction: (() -> Void)? {
@@ -638,4 +685,34 @@ private struct EraseCleanupPendingView: View {
             SignsRootView.welcomeScreenAccessibilityIdentifier
         )
     }
+}
+
+private struct MaintenanceSalvageShareV1: Identifiable {
+    let id = UUID()
+    let urls: [URL]
+    let parent: URL
+
+    /// Removes every salvage temporary folder (the one just shared and any
+    /// left by an interrupted earlier attempt).
+    static func removeAll(fileManager: FileManager = .default) {
+        let temporary = fileManager.temporaryDirectory
+        for name in (try? fileManager.contentsOfDirectory(atPath: temporary.path)) ?? []
+            where name.hasPrefix("MaintenanceSalvage-") {
+            try? fileManager.removeItem(at: temporary.appendingPathComponent(name, isDirectory: true))
+        }
+    }
+}
+
+/// The standard share sheet (Save to Files, AirDrop, Mail) for the salvage folder.
+private struct MaintenanceSalvageShareSheetV1: UIViewControllerRepresentable {
+    let urls: [URL]
+    let completed: () -> Void
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: urls, applicationActivities: nil)
+        controller.completionWithItemsHandler = { _, _, _, _ in completed() }
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

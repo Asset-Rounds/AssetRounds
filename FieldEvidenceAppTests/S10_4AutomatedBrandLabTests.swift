@@ -27870,10 +27870,12 @@ final class S10_4AutomatedBrandLabTests: XCTestCase {
         // Re-pinned for the V23 Phase 1 candidate. S10.4 E and accepted main held
         // 1FC7F5B8…2D26; the V23 literal additions/removals are listed per file in
         // docs/design/v23/integration/s10-3-copy-freeze-delta-v23.json (projected_literal_changes).
-        // DA743BA5…937E before the Phase 1 DEBUG local-auth UI-test hook in FieldEvidenceAppApp.
+        // DA743BA5…937E before the Phase 1 DEBUG local-auth UI-test hook in FieldEvidenceAppApp;
+        // 62C727B0…31EA at 779b21f1, before the maintenance "View diagnostics" and "Save photos
+        // and reports" copy (owner decisions 14 and 18; delta in the same JSON record).
         XCTAssertEqual(
             Data(canonical.utf8).sha256,
-            "62C727B0A93E2B9361706420AAA4389C7747B4603013D0E1ABD606546BFF31EA"
+            "9BF4A43C14EE9B1172B6B0E18C8279A1DF8410BFDC0DE9908026BE2A22C5782E"
         )
     }
 

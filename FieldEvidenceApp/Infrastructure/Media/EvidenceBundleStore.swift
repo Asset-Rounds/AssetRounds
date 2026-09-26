@@ -3813,7 +3813,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         let dataRootURL = generationsURL.deletingLastPathComponent()
         let applicationSupportURL = dataRootURL.deletingLastPathComponent()
         let generationName = root.lastPathComponent
-        let namespace = photoRestoreGenerationAuthority == nil ? "FieldEvidenceData" : "FieldEvidenceRestore"
+        let namespace = generationNamespace
         guard generationsURL.lastPathComponent == "generations",
               dataRootURL.lastPathComponent == namespace,
               let generationID = UUID(uuidString: generationName),
@@ -3896,6 +3896,13 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         _ = Darwin.close(authority.applicationSupportDescriptor)
     }
 
+    /// Restore owners (photo restore and configuration-clone final media)
+    /// write only into their private `FieldEvidenceRestore` staging generation.
+    nonisolated private var generationNamespace: String {
+        photoRestoreGenerationAuthority != nil || cloneFinalMediaGenerationAuthority != nil
+            ? "FieldEvidenceRestore" : "FieldEvidenceData"
+    }
+
     nonisolated private func reproveGenerationRoot(_ authority: GenerationRootAuthority) throws {
         guard try directoryIdentity(authority.applicationSupportDescriptor)
                 == authority.applicationSupportIdentity,
@@ -3907,7 +3914,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
                 == authority.generationIdentity,
               try directoryIdentity(
                 parent: authority.applicationSupportDescriptor,
-                name: photoRestoreGenerationAuthority == nil ? "FieldEvidenceData" : "FieldEvidenceRestore"
+                name: generationNamespace
               ) == authority.dataRootIdentity,
               try directoryIdentity(
                 parent: authority.dataRootDescriptor,

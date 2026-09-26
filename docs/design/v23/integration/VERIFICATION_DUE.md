@@ -259,4 +259,28 @@ The production photo journey takes priority over another isolated foundation. So
   - Run S6_4, V9_04, V9_03, the C55 parts-stock and MyDay restore tests, and the batch O V1→V53 upgrade test, each followed by `StoreSessionCoordinator(validatingSession:)` on the restored or upgraded store.
   - Triage the 6 V9_05 restore-identity failures. Any receiptHistoryCorrupt or post-restore checkpoint mismatch belongs to v2.
 - Maintenance reason: `.finalizationInconsistent` is a broad bucket for journal-integrity failures. A dedicated reason would change the closed maintenance vocabulary and copy; owner call.
+- Batch Q R2 progress (wt/r2 6af77358, test-only, not yet pushed): helper `assertCanonicalWriterActivatesV1` (opens a validating coordinator).
+  - The V1→V53 upgrade passes it after both launches.
+  - Zero receiptHistoryCorrupt and zero v2 false alarms anywhere.
+  - The S6_4 golden/authorized/C32 and C55 parts-stock restore tests fail earlier (invalidIdentity/invalidPackage; PrivateSystemDiscovery invalidValue), so their activation check isn't reached yet.
+  - No MyDay restore test exists; V9_04 has no restore path.
+  - V9_05 failures are invalidIdentity, marker 53≠8 and dataGenerationMissing; none is v2.
+  - 110× `GenerationLeaseRegistryV1.failure verify() line=3430 errno=2` points at the lease-registry family. It's being diagnosed next.
+- Restore invalidIdentity family, diagnosed (test isolation, not product):
+  - `PrivateSystemDiscoveryIndexStoreV1.globalCommitted` throws invalidValue because the discovery global journal lives at the process-wide Application Support path (PrivateSystemDiscovery/client-state-v1.json), not the test root. Tests reuse fixed restore/operation UUIDs, so entries from earlier tests or runs collide.
+  - Affects V9_05 (active replacement, C42, A01, G01, R01), the C55 public-replacement journeys and likely S6_4 C32. Production uses random operation IDs.
+  - NEXT: inject a per-test discovery store (or reset it in setUp) in the shared harness. Also release sessions and registries before deleting test roots; the 110× verify errno=2 lines are teardown noise.
+  - The S6_4 golden empty restore fails separately at L1894 (prepareRestoreStagingGenerationManifest, invalidIdentity); not traced yet.
+  - wt/r2 6af77358 (R2 helper, test-only) is to be integrated with that fix.
+- Configuration-clone readback (design item, restricted restore). 26 restores in 14 S6_4 clone tests fail readback because `entityRevisions[].externalProjectionSHA256` differs for fieldDraftCheckpoint/attachmentStagingItem: expected comes from the source receipt post-image, actual from the new store's import derivation.
+  - Omitting those revisions was tried and withdrawn. It conflicts with the frozen C36/C52 "cloneOrForkPreservesHistory" and with the journal invariant that every receipt post-image has its terminal revision (C52/C53 enrollment validation).
+  - Direction: preserve the source history exactly, carrying the source digests, while keeping relaunch validateTerminalRows consistent for draft rows that clone drops (e.g. an explicit dropped/tombstone semantic).
+  - Needs a design pass before implementation.
+  - The focused clone-media test is blocked: the S6_2 mixed fixture fails with invalidPackage in recordsForMaterialization, and the S6_4 clone fixture has no photos.
+- Batch Q R2, restore half: PROVEN on the batch R build (development, iOS 26.5).
+  - S6_4 testRestoreAccessAuthorizedCallerCompletesPhysicalEmptyInstall passes including assertCanonicalWriterActivatesV1.
+  - The V1→V53 upgrade passes it after both launches (V23StoreSemantic 7/7).
+  - No writer-activation failures and no crashes.
+  - Still open: MyDay restore (no test exists), V9_04/V9_03, and the golden restore L1894 (fails earlier).
+- Owner gate-4 screenshot checklist additions: the maintenance screen with "View diagnostics" and "Save photos and reports" (idle, busy, empty status, failure status) and the corrupt-store maintenance route.
 

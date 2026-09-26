@@ -1007,6 +1007,7 @@ final class V23StoreSemanticValidationTests: XCTestCase {
             .framedSemanticDigestForTesting(in: session.modelContext), manifest.semanticSHA256)
         let complete = try XCTUnwrap(control.load())
         XCTAssertEqual(complete.phase, .complete)
+        assertCanonicalWriterActivatesV1(session, "\(label): upgraded V53 store after both launches")
         // Completed schema-1 history stays readable; it is never re-hashed.
         var history = complete; history.schemaVersion = 1
         XCTAssertNoThrow(try history.validate())

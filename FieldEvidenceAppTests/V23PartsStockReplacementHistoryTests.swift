@@ -1804,6 +1804,7 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
                 generationID: restoredSession.generationID,
                 allowStateBootstrap: false
             ).exportSnapshot().receipts.isEmpty)
+            assertCanonicalWriterActivatesV1(restoredSession, "C55 parts-stock replacement restore")
             restoredGenerationID = restoredSession.generationID
         }
         let reopened = try publicReplacementStep("cold-open") {

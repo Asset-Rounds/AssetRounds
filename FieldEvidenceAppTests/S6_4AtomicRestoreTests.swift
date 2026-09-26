@@ -827,6 +827,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
         let reopened = try harness.factory.openOrBootstrapCurrent()
         XCTAssertEqual(reopened.generationID, restored.generationID)
         XCTAssertEqual(try reopened.modelContext.fetchCount(FetchDescriptor<Asset>()), 1)
+        assertCanonicalWriterActivatesV1(reopened, "S6_4 golden empty restore")
     }
 
     @MainActor
@@ -888,6 +889,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
         XCTAssertGreaterThan(validationCalls, 1)
         XCTAssertEqual(try restored.modelContext.fetchCount(FetchDescriptor<Site>()), 1)
         XCTAssertNil(try RestoreIntentStore(applicationSupportURL: harness.support).load())
+        assertCanonicalWriterActivatesV1(restored, "S6_4 authorized physical empty install")
     }
 
     @MainActor
@@ -2104,22 +2106,31 @@ private extension S6_4AtomicRestoreTests {
             applicationSupportURL: support
         ).openOrBootstrapCurrent()
         let siteID = uuid("64000000-0000-0000-0000-000000000001")
-        session.modelContext.insert(Site(
-            id: siteID,
-            label: "North lot",
-            address: siteAddress,
-            timeZoneID: "America/New_York",
-            createdAt: Date(timeIntervalSince1970: 1_786_708_800)
-        ))
-        session.modelContext.insert(Asset(
-            id: uuid("64000000-0000-0000-0000-000000000002"),
-            siteID: siteID,
-            packID: SignPack.illuminatedSignV1.packID,
-            packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
-            packContentVersion: SignPack.illuminatedSignV1.contentVersion,
-            label: "Pylon sign",
-            createdAt: Date(timeIntervalSince1970: 1_786_708_801)
-        ))
+        // The source site and sign enter through the canonical writer so the
+        // journal's mutable-semantic checkpoint covers them; direct inserts
+        // make export's journal validation fail closed.
+        let coordinator = try StoreSessionCoordinator(validatingSession: session)
+        do {
+            let mutation = try MutationIDV1(rawValue: uuid("64000000-0000-0000-0000-000000000003"))
+            _ = try coordinator.workspaceWriter.execute(.createFirstSign(.init(
+                siteID: siteID,
+                newSite: .init(id: siteID, label: "North lot", address: siteAddress,
+                               timeZoneID: "America/New_York"),
+                assetID: uuid("64000000-0000-0000-0000-000000000002"), assetLabel: "Pylon sign",
+                packID: SignPack.illuminatedSignV1.packID,
+                packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
+                packContentVersion: SignPack.illuminatedSignV1.contentVersion,
+                createdAt: Date(timeIntervalSince1970: 1_786_708_800),
+                initialPlacementMutationID: mutation,
+                initialPlacementEventID: uuid("64000000-0000-0000-0000-000000000004"),
+                initialPhysicalEpisodeID: .init(rawValue: uuid("64000000-0000-0000-0000-000000000005"))
+            )), mutationID: mutation)
+        } catch {
+            try? coordinator.invalidateAndReleaseWriter()
+            throw error
+        }
+        try coordinator.invalidateAndReleaseWriter()
+        try session.reproofAfterSave()
         try seed?(session)
         try session.modelContext.save()
         let destination = root.appendingPathComponent(
@@ -2703,6 +2714,7 @@ extension S6_4AtomicRestoreTests {
             mode: .clone
         )
         try assertHistoricSourceProvenance(in: cloned)
+        assertCanonicalWriterActivatesV1(cloned, "S6_4 C32 clone restore")
 
         let cloneExportDirectory = chainHarness.root.appendingPathComponent(
             "c32-historic-clone-export",
@@ -2735,6 +2747,7 @@ extension S6_4AtomicRestoreTests {
         )
         XCTAssertNotEqual(forked.workspaceID, cloned.workspaceID)
         try assertHistoricSourceProvenance(in: forked)
+        assertCanonicalWriterActivatesV1(forked, "S6_4 C32 fork restore")
 
         let forkExportDirectory = chainHarness.root.appendingPathComponent(
             "c32-historic-fork-export",
