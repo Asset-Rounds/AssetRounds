@@ -1096,8 +1096,12 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
             try h.closeCoordinator()
             let router = StartupRouter(applicationSupportURL: h.root,
                 entitlementRuntime: self.isolatedStartupRuntime)
+            defer {
+                if let session = router.maintenanceRestoreSession { h.observeCleanupOwner(session) }
+            }
             var observedPreparation = false
-            router.beforeCurrentMediaCleanupForTesting = { _ in
+            router.beforeCurrentMediaCleanupForTesting = { context in
+                h.observeCleanupOwner(context)
                 observedPreparation = true
                 try FileManager.default.moveItem(at: seeded.orphanOriginalURL,
                     to: h.root.appendingPathComponent("retained-orphan-original.jpg"))
@@ -1108,6 +1112,7 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
             try router.bindStartupAccessGate(gate)
             try await router.startIfNeeded(accessGate: gate)
             guard case .maintenance(.mediaInconsistent) = router.route else {
+                if let session = router.maintenanceRestoreSession { h.observeCleanupOwner(session) }
                 router.failClosedPDFRecovery()
                 return XCTFail("Same-byte inode substitution must fail closed")
             }
@@ -1115,6 +1120,7 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
             XCTAssertTrue(observedPreparation)
             XCTAssertEqual(try Data(contentsOf: seeded.ownedOriginalURL), seeded.ownedOriginalBytes)
             XCTAssertEqual(try Data(contentsOf: seeded.ownedThumbnailURL), seeded.ownedThumbnailBytes)
+            if let session = router.maintenanceRestoreSession { h.observeCleanupOwner(session) }
             router.failClosedPDFRecovery()
         }
 
@@ -1124,8 +1130,12 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
             try h.closeCoordinator()
             let router = StartupRouter(applicationSupportURL: h.root,
                 entitlementRuntime: self.isolatedStartupRuntime)
+            defer {
+                if let session = router.maintenanceRestoreSession { h.observeCleanupOwner(session) }
+            }
             var observedPreparation = false
             router.beforeCurrentMediaCleanupForTesting = { context in
+                h.observeCleanupOwner(context)
                 observedPreparation = true
                 let row = try XCTUnwrap(context.fetch(FetchDescriptor<EvidenceFile>()).first)
                 row.purposeKey = "hostile_changed_ownership"
@@ -1135,6 +1145,7 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
             try router.bindStartupAccessGate(gate)
             try await router.startIfNeeded(accessGate: gate)
             guard case .maintenance(.mediaInconsistent) = router.route else {
+                if let session = router.maintenanceRestoreSession { h.observeCleanupOwner(session) }
                 router.failClosedPDFRecovery()
                 return XCTFail("Changed canonical ownership must fail before cleanup")
             }
@@ -1142,6 +1153,7 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
             XCTAssertTrue(observedPreparation)
             XCTAssertEqual(try Data(contentsOf: seeded.ownedOriginalURL), seeded.ownedOriginalBytes)
             XCTAssertEqual(try Data(contentsOf: seeded.ownedThumbnailURL), seeded.ownedThumbnailBytes)
+            if let session = router.maintenanceRestoreSession { h.observeCleanupOwner(session) }
             router.failClosedPDFRecovery()
         }
 
@@ -1155,8 +1167,12 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
             XCTAssertEqual(unlock, .authenticated)
             let router = StartupRouter(applicationSupportURL: h.root,
                 entitlementRuntime: self.isolatedStartupRuntime)
+            defer {
+                if let session = router.maintenanceRestoreSession { h.observeCleanupOwner(session) }
+            }
             var observedPreparation = false
-            router.beforeCurrentMediaCleanupForTesting = { _ in
+            router.beforeCurrentMediaCleanupForTesting = { context in
+                h.observeCleanupOwner(context)
                 observedPreparation = true
                 await gate.lock(reason: .returnedFromBackground)
             }
@@ -1171,6 +1187,7 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
             XCTAssertTrue(observedPreparation)
             XCTAssertEqual(try Data(contentsOf: seeded.ownedOriginalURL), seeded.ownedOriginalBytes)
             XCTAssertEqual(try Data(contentsOf: seeded.ownedThumbnailURL), seeded.ownedThumbnailBytes)
+            if let session = router.maintenanceRestoreSession { h.observeCleanupOwner(session) }
             router.failClosedPDFRecovery()
         }
 
@@ -1196,8 +1213,12 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
             let router = StartupRouter(applicationSupportURL: h.root,
                 entitlementRuntime: self.isolatedStartupRuntime,
                 lifecycleProfileRegistry: try WorkspacePackageLifecycleProfileRegistryV1(profiles: [h.profile]))
+            defer {
+                if let session = router.maintenanceRestoreSession { h.observeCleanupOwner(session) }
+            }
             var observedPreparation = false
-            router.beforeCurrentMediaCleanupForTesting = { _ in
+            router.beforeCurrentMediaCleanupForTesting = { context in
+                h.observeCleanupOwner(context)
                 observedPreparation = true
                 await gate.sceneBecameInactive()
             }
@@ -1212,6 +1233,7 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
             XCTAssertTrue(fileManager.fileExists(atPath: seeded.orphanOriginalURL.path))
             XCTAssertEqual(try Data(contentsOf: seeded.ownedOriginalURL), seeded.ownedOriginalBytes)
             XCTAssertEqual(try Data(contentsOf: seeded.ownedThumbnailURL), seeded.ownedThumbnailBytes)
+            if let session = router.maintenanceRestoreSession { h.observeCleanupOwner(session) }
             router.failClosedPDFRecovery()
         }
     }
@@ -1630,13 +1652,19 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         let router = StartupRouter(applicationSupportURL: h.root,
             entitlementRuntime: isolatedStartupRuntime,
             lifecycleProfileRegistry: try WorkspacePackageLifecycleProfileRegistryV1(profiles: [h.profile]))
+        defer {
+            if let session = router.maintenanceRestoreSession { h.observeCleanupOwner(session) }
+        }
+        router.beforeCurrentMediaCleanupForTesting = { context in h.observeCleanupOwner(context) }
         let gate = startupGate(clock: h.clock)
         try router.bindStartupAccessGate(gate)
         try await router.startIfNeeded(accessGate: gate)
         guard case let .ready(owner, _, _) = router.route else {
+            if let session = router.maintenanceRestoreSession { h.observeCleanupOwner(session) }
             router.failClosedPDFRecovery()
             throw StartupMaintenanceReason.mediaInconsistent
         }
+        h.observeCleanupOwner(owner)
         return (router, owner)
     }
 

@@ -163,7 +163,7 @@ private enum C30EvidenceContextTestSupport {
         try PairedObservationReferenceV1(
             workspaceID: context.workspaceID,
             evidenceID: context.evidenceID,
-            evidenceSHA256: context.contextSHA256,
+            evidenceSHA256: context.evidenceSHA256,
             evidenceRevision: context.evidenceRevision,
             assetID: context.assetID,
             assetRevision: assetRevision ?? context.assetRevision,
@@ -569,6 +569,63 @@ final class V9_45EvidenceContextTests: XCTestCase {
             mutationSlot: 55,
             linkSlot: 56
         )
+        func records(_ contexts: [EvidenceContextV1], _ links: [PairedObservationLinkV1]) throws
+            -> [V30BackupEvidenceContextRecordV1] {
+            try C30EvidenceContextBackupEncoderV1.encode(.init(contexts: contexts, pairedObservationLinks: links))
+        }
+        // These are pure family/package-closure probes. They do not manufacture
+        // a validated archive or an accepted mutation receipt.
+        func packageRecords(_ rows: [V30BackupEvidenceContextRecordV1]) -> V4BackupRecordsV1 {
+            .init(assets: [], evidenceFiles: [], issues: [], packets: [], recordsSchemaVersion: 29,
+                reports: [], sites: [], workflowRecords: [],
+                evidenceContexts: rows.filter { $0.kind == .evidenceContext },
+                pairedObservationLinks: rows.filter { $0.kind == .pairedObservationLink })
+        }
+        func changedReference(_ value: PairedObservationReferenceV1,
+                              digest: String? = nil, purposeRevision: UInt64? = nil) throws
+            -> PairedObservationReferenceV1 {
+            var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(value)) as? [String: Any])
+            if let digest { object["evidenceSHA256"] = digest }
+            if let purposeRevision { object["purposeRevision"] = purposeRevision }
+            let result = try JSONDecoder().decode(PairedObservationReferenceV1.self,
+                from: JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]))
+            try result.validate()
+            return result
+        }
+        let completeRows = try records([firstContext, secondContext], [backupLink])
+        let decoded = try C30EvidenceContextBackupDecoderV1.decode(completeRows)
+        XCTAssertEqual(Set(decoded.contexts.map(\.contextID)), [firstContext.contextID, secondContext.contextID])
+        XCTAssertEqual(decoded.pairedObservationLinks, [backupLink])
+        XCTAssertNoThrow(try packageRecords(completeRows).validateC30EvidenceContextClosure())
+        XCTAssertNoThrow(try C30EvidenceContextPackageValidationV1.validate(packageRecords(completeRows)))
+        XCTAssertNotEqual(firstContext.contextSHA256, firstContext.evidenceSHA256)
+        XCTAssertEqual(first.evidenceSHA256, firstContext.evidenceSHA256)
+
+        // The previous fixture confused these two different digest meanings.
+        // Preserve that mistake as an explicit negative, not a relaxed guard.
+        let wrongDigestLink = try C30EvidenceContextTestSupport.pair(workspaceID: workspace,
+            first: changedReference(first, digest: firstContext.contextSHA256),
+            second: C30EvidenceContextTestSupport.reference(secondContext), mutationSlot: 70, linkSlot: 71)
+        let wrongDigestRows = try records([firstContext, secondContext], [wrongDigestLink])
+        XCTAssertThrowsError(try C30EvidenceContextBackupDecoderV1.decode(wrongDigestRows))
+        XCTAssertThrowsError(try C30EvidenceContextPackageValidationV1.validate(packageRecords(wrongDigestRows)))
+        XCTAssertThrowsError(try C30EvidenceContextReportReferenceV1(context: firstContext, pairedObservation: wrongDigestLink))
+
+        // Context revisions share endpoint facts; this must not become an
+        // exactly-one-context rule or discard retained predecessor history.
+        let contextSuccessor = try C30EvidenceContextTestSupport.context(workspaceID: workspace,
+            evidenceID: firstContext.evidenceID, assetID: assetID, condition: .coveredDayCondition,
+            predecessor: firstContext, revision: 2, mutationSlot: 72, contextSlot: 73)
+        let pairSuccessor = try C30EvidenceContextTestSupport.pair(workspaceID: workspace,
+            first: backupLink.first, second: backupLink.second, predecessor: backupLink,
+            revision: 2, mutationSlot: 74, linkSlot: 75)
+        let retainedRows = try records([firstContext, contextSuccessor, secondContext], [backupLink, pairSuccessor])
+        XCTAssertEqual(try C30EvidenceContextBackupDecoderV1.decode(retainedRows).contexts.count, 3)
+        XCTAssertEqual(try C30EvidenceContextBackupDecoderV1.decode(retainedRows).pairedObservationLinks.count, 2)
+        XCTAssertNoThrow(try packageRecords(retainedRows).validateC30EvidenceContextClosure())
+        XCTAssertNoThrow(try C30EvidenceContextBackupDecoderV1.decode([]))
+        XCTAssertNoThrow(try C30EvidenceContextBackupDecoderV1.decode(records([firstContext], [])))
+
         let danglingRecord = try C30EvidenceContextBackupEncoderV1.encode(backupLink)
         XCTAssertThrowsError(
             try C30EvidenceContextBackupDecoderV1.decode([danglingRecord])
@@ -655,6 +712,45 @@ final class V9_45EvidenceContextTests: XCTestCase {
             mutationSlot: 65,
             linkSlot: 66
         )
+        // Each independently complete graph is valid. Only their combination
+        // reuses firstContext's evidence for a second historical purpose.
+        let conditionRows = try records([firstContext, secondContext], [conditionPair])
+        let controlRows = try records([firstContext, purposeContext], [controlPair])
+        XCTAssertNoThrow(try C30EvidenceContextBackupDecoderV1.decode(conditionRows))
+        XCTAssertNoThrow(try C30EvidenceContextBackupDecoderV1.decode(controlRows))
+        let independentContext = try C30EvidenceContextTestSupport.context(workspaceID: workspace,
+            evidenceID: "C30_INDEPENDENT_PHOTO", assetID: assetID, condition: .unknown,
+            mutationSlot: 78, contextSlot: 79)
+        let independentPair = try C30EvidenceContextTestSupport.pair(workspaceID: workspace,
+            first: C30EvidenceContextTestSupport.reference(purposeContext, purpose: .controlStateComparison),
+            second: C30EvidenceContextTestSupport.reference(independentContext, purpose: .controlStateComparison),
+            mutationSlot: 80, linkSlot: 81)
+        XCTAssertEqual(independentContext.evidenceSHA256, firstContext.evidenceSHA256)
+        let separateIdentityRows = try records([firstContext, secondContext, purposeContext, independentContext],
+            [conditionPair, independentPair])
+        XCTAssertNoThrow(try C30EvidenceContextBackupDecoderV1.decode(separateIdentityRows))
+        XCTAssertNoThrow(try packageRecords(separateIdentityRows).validateC30EvidenceContextClosure())
+        // A recorded mismatch remains explicit historical comparison data.
+        // Full-set decoding must not silently impose the writer's separate
+        // compatible-pair acceptance requirement on all intrinsic values.
+        let mismatchPair = try C30EvidenceContextTestSupport.pair(workspaceID: workspace,
+            first: first, second: C30EvidenceContextTestSupport.reference(secondContext, viewpointCharacter: "a"),
+            mutationSlot: 82, linkSlot: 83)
+        XCTAssertEqual(mismatchPair.mismatchReasons, [.viewpointMismatch])
+        XCTAssertThrowsError(try mismatchPair.validateCompatiblePair())
+        XCTAssertNoThrow(try C30EvidenceContextBackupDecoderV1.decode(records([firstContext, secondContext], [mismatchPair])))
+
+        let revisedPurposePair = try C30EvidenceContextTestSupport.pair(workspaceID: workspace,
+            first: changedReference(C30EvidenceContextTestSupport.reference(firstContext), purposeRevision: 2),
+            second: changedReference(C30EvidenceContextTestSupport.reference(purposeContext), purposeRevision: 2),
+            mutationSlot: 76, linkSlot: 77)
+        let revisedPurposeRows = try records([firstContext, purposeContext], [revisedPurposePair])
+        XCTAssertNoThrow(try C30EvidenceContextBackupDecoderV1.decode(revisedPurposeRows))
+        let conflictRevisionRows = try records([firstContext, secondContext, purposeContext], [conditionPair, revisedPurposePair])
+        XCTAssertThrowsError(try C30EvidenceContextBackupDecoderV1.decode(conflictRevisionRows))
+        XCTAssertThrowsError(try packageRecords(conflictRevisionRows).validateC30EvidenceContextClosure())
+        XCTAssertThrowsError(try C30EvidenceContextPackageValidationV1.validate(packageRecords(conflictRevisionRows)))
+
         let purposeRows = try C30EvidenceContextBackupEncoderV1.encode(
             EvidenceContextBackupRecordSetV1(
                 contexts: [firstContext, secondContext, purposeContext],
@@ -664,6 +760,8 @@ final class V9_45EvidenceContextTests: XCTestCase {
         XCTAssertThrowsError(
             try C30EvidenceContextBackupDecoderV1.decode(purposeRows)
         )
+        XCTAssertThrowsError(try packageRecords(purposeRows).validateC30EvidenceContextClosure())
+        XCTAssertThrowsError(try C30EvidenceContextPackageValidationV1.validate(packageRecords(purposeRows)))
 
         XCTAssertThrowsError(
             try C30EvidenceContextTestSupport.context(

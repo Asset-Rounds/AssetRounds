@@ -8,7 +8,19 @@ import XCTest
 @MainActor
 final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
     func testCaptureSourceUsesAuthenticatedEntryAndClosedCanonicalRoundTripWithoutEffects() async throws {
+        weak var completedContext: ModelContext?
+        var completedRoot: URL?
         try await withAsyncFrozenBeginFixture("capture-source", entry: .check, storedTimeZoneID: "America/Chicago") { h in
+            completedContext = h.context
+            completedRoot = h.root
+            let retainedProbe = FrozenBeginLifetimeProbe()
+            retainedProbe.observe(h)
+            XCTAssertThrowsError(try retainedProbe.finish(root: h.root)) { error in
+                guard case FrozenBeginLifetimeProbe.Failure.retainedStore = error else {
+                    return XCTFail("Unexpected live-store cleanup error: \(error)")
+                }
+            }
+            XCTAssertTrue(FileManager.default.fileExists(atPath: h.root.path))
             let before = try h.snapshot()
             let idCalls = h.ids.callCount
             let source = try h.captureSource()
@@ -258,6 +270,24 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             XCTAssertThrowsError(try hostileAuthority.validate(command: hostileCommand))
 
         }
+        XCTAssertNil(completedContext)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: try XCTUnwrap(completedRoot).path))
+
+        enum BodyFailure: Error { case expected }
+        weak var failedContext: ModelContext?
+        var failedRoot: URL?
+        XCTAssertThrowsError(try withFrozenBeginFixture("cleanup-body-error", entry: .check,
+            storedTimeZoneID: "America/Chicago") { h in
+            failedContext = h.context
+            failedRoot = h.root
+            throw BodyFailure.expected
+        }) { error in
+            guard case BodyFailure.expected = error else {
+                return XCTFail("Cleanup replaced the original body error: \(error)")
+            }
+        }
+        XCTAssertNil(failedContext)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: try XCTUnwrap(failedRoot).path))
     }
 
     func testPrepareCheckFreezesStoredZoneCompleteCommandAndSourceCASWithoutEffects() async throws {
@@ -1004,36 +1034,109 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
     }
 }
 
+// The probe owns no store object. It survives the scoped body solely to
+// prove that teardown cannot unlink a live SQLite container or context.
+@MainActor
+final class FrozenBeginLifetimeProbe {
+    weak var fixture: FrozenBeginFixture?
+    weak var coordinator: StoreSessionCoordinator?
+    weak var session: StoreGenerationSession?
+    weak var context: ModelContext?
+    weak var container: ModelContainer?
+
+    enum Failure: Error { case retainedStore }
+
+    @MainActor
+    private final class AdditionalStore {
+        weak var session: StoreGenerationSession?
+        weak var coordinator: StoreSessionCoordinator?
+        weak var context: ModelContext?
+        weak var container: ModelContainer?
+        init(context: ModelContext) {
+            self.context = context
+            container = context.container
+        }
+        var isDrained: Bool { session == nil && coordinator == nil && context == nil && container == nil }
+    }
+    private var additionalStores: [AdditionalStore] = []
+
+    func observeAdditional(_ value: StoreGenerationSession) {
+        let store = AdditionalStore(context: value.modelContext)
+        store.session = value
+        additionalStores.append(store)
+    }
+
+    func observeAdditional(_ value: StoreSessionCoordinator) {
+        let store = AdditionalStore(context: value.modelContext)
+        store.coordinator = value
+        additionalStores.append(store)
+    }
+
+    func observeAdditional(_ value: ModelContext) {
+        additionalStores.append(AdditionalStore(context: value))
+    }
+
+    func observe(_ value: StoreGenerationSession) {
+        session = value
+        context = value.modelContext
+        container = value.modelContext.container
+    }
+
+    func observe(_ value: FrozenBeginFixture) {
+        fixture = value
+        coordinator = value.coordinator
+        observe(value.session)
+    }
+
+    func finish(root: URL, registerRootTeardown: (@MainActor (URL) -> Void)? = nil) throws {
+        guard fixture == nil, coordinator == nil, session == nil,
+              context == nil, container == nil,
+              additionalStores.allSatisfy(\.isDrained) else {
+            print("FrozenBegin.teardown retained fixture=\(fixture != nil) coordinator=\(coordinator != nil) session=\(session != nil) context=\(context != nil) container=\(container != nil) additionalStores=\(additionalStores.filter { !$0.isDrained }.count) root=\(root.path)")
+            throw Failure.retainedStore
+        }
+        if let registerRootTeardown {
+            // Transfer only the path, after ownership has actually drained.
+            registerRootTeardown(root)
+        } else if FileManager.default.fileExists(atPath: root.path) {
+            try FileManager.default.removeItem(at: root)
+        }
+    }
+}
+
 @MainActor
 func withFrozenBeginFixture<Value>(
     _ label: String, entry: CheckRunnerRequestedEntryV1, storedTimeZoneID: String?,
     _ body: (FrozenBeginFixture) throws -> Value
 ) throws -> Value {
-    var root: URL?
-    do {
-        let value = try autoreleasepool { () throws -> Value in
-            let fixtureRoot = FileManager.default.temporaryDirectory.appendingPathComponent(
-                "V23-frozen-begin-\(label)-\(UUID().uuidString)", isDirectory: true
-            )
-            root = fixtureRoot
-            let fixture = try FrozenBeginFixture(
-                root: fixtureRoot, entry: entry, storedTimeZoneID: storedTimeZoneID
-            )
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+        "V23-frozen-begin-\(label)-\(UUID().uuidString)", isDirectory: true)
+    let lifetime = FrozenBeginLifetimeProbe()
+    let result = Result {
+        try autoreleasepool {
+            let fixture = try FrozenBeginFixture(root: root, entry: entry,
+                storedTimeZoneID: storedTimeZoneID, lifetime: lifetime)
+            lifetime.observe(fixture)
             do {
                 let value = try body(fixture)
                 try fixture.closeCoordinator()
                 return value
             } catch {
-                try? fixture.closeCoordinator()
+                do { try fixture.closeCoordinator() }
+                catch { XCTFail("FrozenBegin.teardown.close: \(error)") }
                 throw error
             }
         }
-        if let root { try FileManager.default.removeItem(at: root) }
-        return value
-    } catch {
-        if let root { try? FileManager.default.removeItem(at: root) }
+    }
+    do { try lifetime.finish(root: root) }
+    catch {
+        if case .failure(let original) = result {
+            XCTFail("FrozenBegin.teardown after body failure: \(error)")
+            throw original
+        }
         throw error
     }
+    return try result.get()
 }
 
 @MainActor
@@ -1044,56 +1147,54 @@ func withAsyncFrozenBeginFixture<Value>(
     registerRootTeardown: (@MainActor (URL) -> Void)? = nil,
     _ body: (FrozenBeginFixture) async throws -> Value
 ) async throws -> Value {
-    var root: URL?
-    do {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+        "V23-frozen-begin-\(label)-\(UUID().uuidString)", isDirectory: true)
+    let lifetime = FrozenBeginLifetimeProbe()
+
+    // No live fixture or body-local owner can survive in the outer cleanup
+    // frame unless it escapes; the weak probe detects that on both outcomes.
+    @MainActor
+    func runScope() async throws -> Value {
         diagnosticPhase?("fixture.init.begin")
-        let fixtureRoot = FileManager.default.temporaryDirectory.appendingPathComponent(
-            "V23-frozen-begin-\(label)-\(UUID().uuidString)", isDirectory: true
-        )
-        root = fixtureRoot
-        // A caller may transfer filesystem cleanup to after-test teardown.
-        // Register before construction can fail; pass only the owned root URL.
-        registerRootTeardown?(fixtureRoot)
         let support: URL
         if appDirectoryLayout {
-            // Production startup requires an existing sibling Caches directory.
-            // Keep both directories inside this fixture's unique owned root.
-            support = fixtureRoot.appendingPathComponent("Application Support", isDirectory: true)
-            let caches = fixtureRoot.appendingPathComponent("Caches", isDirectory: true)
-            try FileManager.default.createDirectory(at: caches, withIntermediateDirectories: true)
-        } else {
-            support = fixtureRoot
-        }
+            support = root.appendingPathComponent("Application Support", isDirectory: true)
+            try FileManager.default.createDirectory(at: root.appendingPathComponent("Caches", isDirectory: true),
+                withIntermediateDirectories: true)
+        } else { support = root }
         let fixture = try await FrozenBeginFixture.withAcceptedPromotion(
-            root: support, entry: entry, storedTimeZoneID: storedTimeZoneID
-        )
+            root: support, entry: entry, storedTimeZoneID: storedTimeZoneID, lifetime: lifetime)
+        lifetime.observe(fixture)
         diagnosticPhase?("fixture.init.end")
-        let value: Value
         do {
             diagnosticPhase?("fixture.body.begin")
-            value = try await body(fixture)
+            let value = try await body(fixture)
             diagnosticPhase?("fixture.body.end")
             diagnosticPhase?("fixture.close.begin")
             try fixture.closeCoordinator()
             diagnosticPhase?("fixture.close.end")
+            return value
         } catch {
             diagnosticPhase?("fixture.body-or-close.error")
-            diagnosticPhase?("fixture.error-close.begin")
-            try? fixture.closeCoordinator()
-            diagnosticPhase?("fixture.error-close.end")
+            do { try fixture.closeCoordinator() }
+            catch { XCTFail("FrozenBegin.teardown.close: \(error)") }
             throw error
         }
-        diagnosticPhase?("fixture.remove.begin")
-        if registerRootTeardown == nil, let root { try FileManager.default.removeItem(at: root) }
-        diagnosticPhase?("fixture.remove.end")
-        return value
-    } catch {
-        diagnosticPhase?("fixture.error")
-        diagnosticPhase?("fixture.error-remove.begin")
-        if registerRootTeardown == nil, let root { try? FileManager.default.removeItem(at: root) }
-        diagnosticPhase?("fixture.error-remove.end")
+    }
+    let result: Result<Value, Error>
+    do { result = .success(try await runScope()) }
+    catch { result = .failure(error) }
+    diagnosticPhase?("fixture.drain.begin")
+    do { try lifetime.finish(root: root, registerRootTeardown: registerRootTeardown) }
+    catch {
+        if case .failure(let original) = result {
+            XCTFail("FrozenBegin.teardown after body failure: \(error)")
+            throw original
+        }
         throw error
     }
+    diagnosticPhase?("fixture.drain.end")
+    return try result.get()
 }
 
 @MainActor
@@ -1142,6 +1243,22 @@ final class FrozenBeginFixture {
     let recheckParentID: UUID?
     var read: ProductionRepetitiveCaptureReadV2
     private var coordinatorClosed = false
+    private let cleanupLifetime: FrozenBeginLifetimeProbe?
+
+    func observeCleanupOwner(_ value: StoreGenerationSession) {
+        guard let cleanupLifetime else { return XCTFail("FrozenBegin missing cleanup lifetime") }
+        cleanupLifetime.observeAdditional(value)
+    }
+
+    func observeCleanupOwner(_ value: StoreSessionCoordinator) {
+        guard let cleanupLifetime else { return XCTFail("FrozenBegin missing cleanup lifetime") }
+        cleanupLifetime.observeAdditional(value)
+    }
+
+    func observeCleanupOwner(_ value: ModelContext) {
+        guard let cleanupLifetime else { return XCTFail("FrozenBegin missing cleanup lifetime") }
+        cleanupLifetime.observeAdditional(value)
+    }
 
     var context: ModelContext { session.modelContext }
     var workspaceID: WorkspaceID { session.workspaceID }
@@ -1165,19 +1282,21 @@ final class FrozenBeginFixture {
     /// Async export/recovery fixtures need the complete accepted package
     /// history, not the isolated published row used by synchronous unit cases.
     static func withAcceptedPromotion(root: URL, entry: CheckRunnerRequestedEntryV1,
-        storedTimeZoneID: String?) async throws -> FrozenBeginFixture {
+        storedTimeZoneID: String?, lifetime: FrozenBeginLifetimeProbe? = nil) async throws -> FrozenBeginFixture {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let identity = try WorkspaceReplicaIdentityV1(
             workspaceID: WorkspaceID(rawValue: beginPreparationUUID(10_001)),
             replicaID: ReplicaID(rawValue: beginPreparationUUID(10_002)))
         let factory = StoreGenerationFactory(applicationSupportURL: root,
             pointerEnrichmentIdentity: identity)
-        let session = try factory.openOrBootstrapCurrent()
+        let session = try autoreleasepool { try factory.openOrBootstrapCurrent() }
+        lifetime?.observe(session)
         let ids = FrozenBeginCountingIDs()
         let clock = FrozenBeginClock(value: Date(timeIntervalSince1970: 1_789_500_000.4567))
         let coordinator = try StoreSessionCoordinator(validatingSession: session,
             clock: clock, idSource: ids,
             lifecycleProfileRegistry: WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        lifetime?.coordinator = coordinator
         do {
             let release = try frozenBeginShippingRelease(stage: entry.stage)
             let journal = try MutationJournalStoreV1(modelContext: session.modelContext,
@@ -1205,20 +1324,24 @@ final class FrozenBeginFixture {
             try journal.validateAll()
             return try FrozenBeginFixture(root: root, entry: entry, storedTimeZoneID: storedTimeZoneID,
                 prepared: .init(factory: factory, session: session, coordinator: coordinator,
-                    ids: ids, clock: clock, promoted: promoted))
+                    ids: ids, clock: clock, promoted: promoted), lifetime: lifetime)
         } catch {
-            try? coordinator.invalidateAndReleaseWriter()
+            do { try coordinator.invalidateAndReleaseWriter() }
+            catch { XCTFail("FrozenBegin.teardown.partial-promotion: \(error)") }
             throw error
         }
     }
 
-    convenience init(root: URL, entry: CheckRunnerRequestedEntryV1, storedTimeZoneID: String?) throws {
-        try self.init(root: root, entry: entry, storedTimeZoneID: storedTimeZoneID, prepared: nil)
+    convenience init(root: URL, entry: CheckRunnerRequestedEntryV1, storedTimeZoneID: String?,
+        lifetime: FrozenBeginLifetimeProbe? = nil) throws {
+        try self.init(root: root, entry: entry, storedTimeZoneID: storedTimeZoneID,
+            prepared: nil, lifetime: lifetime)
     }
 
     private init(root: URL, entry: CheckRunnerRequestedEntryV1, storedTimeZoneID: String?,
-        prepared: PreparedPromotion?) throws {
+        prepared: PreparedPromotion?, lifetime: FrozenBeginLifetimeProbe? = nil) throws {
         self.root = root
+        cleanupLifetime = lifetime
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let identity = try WorkspaceReplicaIdentityV1(
             workspaceID: WorkspaceID(rawValue: beginPreparationUUID(10_001)),
@@ -1230,6 +1353,7 @@ final class FrozenBeginFixture {
         factory = localFactory
         let localSession = try prepared?.session ?? localFactory.openOrBootstrapCurrent()
         session = localSession
+        lifetime?.observe(localSession)
         let localIDs = prepared?.ids ?? FrozenBeginCountingIDs()
         ids = localIDs
         let localClock = prepared?.clock ?? FrozenBeginClock(value: Date(timeIntervalSince1970: 1_789_500_000.4567))
@@ -1240,6 +1364,14 @@ final class FrozenBeginFixture {
             lifecycleProfileRegistry: registry
         )
         coordinator = localCoordinator
+        lifetime?.coordinator = localCoordinator
+        var initialized = false
+        defer {
+            if !initialized {
+                do { try localCoordinator.invalidateAndReleaseWriter() }
+                catch { XCTFail("FrozenBegin.teardown.partial-init: \(error)") }
+            }
+        }
         let localProfile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(
             package: .illuminatedSignV1
         )
@@ -1356,6 +1488,7 @@ final class FrozenBeginFixture {
         )
         _ = try localCoordinator.workspaceWriter.sourceMutationHistorySnapshot()
         XCTAssertFalse(localSession.modelContext.hasChanges)
+        initialized = true
     }
 
     /// Installs one production-shaped parent/child commit using this fixture's

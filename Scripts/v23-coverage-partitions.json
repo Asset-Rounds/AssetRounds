@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "c66da7f50abfc8d440b75fdf548bbdb9e2d99782",
+  "generatedAtHead": "aab6d3036a7a3b8a968465a93546342e091b7e1a",
   "sweepOrder": [
     "S01",
     "S02",
@@ -44,7 +44,7 @@
     {
       "id": "S02",
       "tier": "D50C",
-      "estimatedSeconds": 1509.0,
+      "estimatedSeconds": 1569.0,
       "selectors": [
         "FieldEvidenceAppTests/C27S82TypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorV901VersionedSchemaIdentity/testC33V901VersionedSchemaIdentityCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -202,6 +202,7 @@
         "FieldEvidenceAppTests/V9_40SurveySessionTests/testV23P03C34ExplicitSurveyResumeRestoresTheStableSessionRoute",
         "FieldEvidenceAppTests/V9_40SurveySessionTests/testV23P03C37TypedPoseContractAnchor",
         "FieldEvidenceAppTests/V9_40SurveySessionTests/testZeroSurveyIdentitiesRejectAndCaptureSuccessorsRequireExactReferences",
+        "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testC33PersistentClipReusesAcceptedShippingPackageWithoutRepromotion",
         "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testV23P03C33A01TypedLimitsAnchorsAndReplaceableDerivativesRemainBounded",
         "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testV23P03C33G01ReviewedClipPromotesImmutableContentAndOneCanonicalMutation",
         "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testV23P03C33H01InvalidMediaStaleAuthorityAndHostileRuntimeStatesFailClosed",

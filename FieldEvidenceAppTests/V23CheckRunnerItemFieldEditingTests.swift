@@ -58,6 +58,7 @@ final class V23CheckRunnerItemFieldEditingTests: XCTestCase {
                 await editor.retire()
                 try h.closeCoordinator()
                 let reopenedSession = try h.factory.openOrBootstrapCurrent()
+                h.observeCleanupOwner(reopenedSession)
                 let reopened = try StoreSessionCoordinator(validatingSession: reopenedSession,
                     clock: h.clock, idSource: h.ids,
                     lifecycleProfileRegistry: h.coordinator.lifecycleProfileRegistry)
@@ -574,6 +575,7 @@ final class V23CheckRunnerItemFieldEditingTests: XCTestCase {
             let created = try originalService.create(source: h.captureSource(), preflight: .init())
             try h.closeCoordinator()
             let reopenedSession = try h.factory.openOrBootstrapCurrent()
+            h.observeCleanupOwner(reopenedSession)
             let reopened = try StoreSessionCoordinator(validatingSessionForTesting: reopenedSession,
                 clock: h.clock, idSource: h.ids,
                 lifecycleProfileRegistry: h.coordinator.lifecycleProfileRegistry,

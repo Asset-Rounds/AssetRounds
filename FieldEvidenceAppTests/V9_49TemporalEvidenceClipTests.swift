@@ -570,6 +570,15 @@ enum C33TemporalEvidenceTestSupport {
     }
 
     @MainActor
+    static func packageClosure(in context: ModelContext) throws -> PackageEvolutionLifecycleClosureV1 {
+        try PackageEvolutionLifecycleClosureV1(
+            promotedReleases: context.fetch(FetchDescriptor<PromotedPackageReleaseRow>()).map { try $0.value() },
+            sandboxRuns: context.fetch(FetchDescriptor<PackageSandboxRunRow>()).map { try $0.value() },
+            promotionReceipts: context.fetch(FetchDescriptor<PackagePromotionReceiptRow>()).map { try $0.value() },
+            activePointers: context.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>()).map { try $0.value() })
+    }
+
+    @MainActor
     static func commitPersistentClip(
         in session: StoreGenerationSession,
         slot: Int
@@ -578,9 +587,71 @@ enum C33TemporalEvidenceTestSupport {
         do {
             let fixture = try clip(slot: slot, workspaceID: session.workspaceID,
                 reportProjection: .typedLinkOnly, requiresTranscript: true)
+            phase = "acquire-canonical-writer"
+            let coordinator = try StoreSessionCoordinator(validatingSession: session,
+                clock: C33TemporalEvidenceClock(value: fixture.clip.acceptedAt))
+            defer { XCTAssertNoThrow(try coordinator.invalidateAndReleaseWriter()) }
+            let writer = coordinator.workspaceWriter
+            let store = try MutationJournalStoreV1(modelContext: session.modelContext,
+                identity: session.workspaceIdentity, generationID: session.generationID)
+            phase = "resolve-accepted-package"
+            let historyBefore = try store.exportSnapshot()
+            let allPackagesBefore = try packageClosure(in: session.modelContext)
+            let packages = PackageEvolutionLifecycleAdapterV1(writer: writer, journal: store,
+                modelContext: session.modelContext)
+            let candidatePackage = try C26SurveySessionTestSupport.packageRelease()
+            let pointerBefore = try packages.activePointer(workspaceID: session.workspaceID,
+                packageID: candidatePackage.packageID)
+            let promotionBefore: PackageEvolutionLifecycleClosureV1?
+            let package: InspectionPackageReleaseV1
+            if let pointer = pointerBefore {
+                let closure = try XCTUnwrap(packages.acceptedLifecycleClosure(mutationID: pointer.mutationID))
+                try closure.validate()
+                let promoted = try XCTUnwrap(closure.promotedReleases.first)
+                guard closure.promotedReleases.count == 1,
+                      promoted.workspaceID == session.workspaceID,
+                      promoted.releaseRecordID == pointer.activeReleaseRecordID,
+                      promoted.releaseRecordSHA256 == pointer.activeReleaseRecordSHA256,
+                      promoted.packageRelease.packageID == candidatePackage.packageID,
+                      promoted.packageRelease.packageReleaseID == pointer.activePackageReleaseID,
+                      closure.activePointers.contains(pointer),
+                      closure.promotionReceipts.count == 1,
+                      closure.promotionReceipts[0].receiptID == pointer.promotionReceiptID,
+                      closure.promotionReceipts[0].mutationID == pointer.mutationID,
+                      allPackagesBefore.promotedReleases.filter({
+                          $0.packageRelease.packageReleaseID == pointer.activePackageReleaseID
+                      }) == [promoted] else {
+                    throw CanonicalWriterSeedingV1.SeedingFailure.promotionReceiptMismatch
+                }
+                promotionBefore = closure
+                package = promoted.packageRelease
+            } else {
+                guard !allPackagesBefore.promotedReleases.contains(where: {
+                    $0.workspaceID == session.workspaceID && $0.packageRelease.packageID == candidatePackage.packageID
+                }), !allPackagesBefore.activePointers.contains(where: {
+                    $0.workspaceID == session.workspaceID && $0.packageID == candidatePackage.packageID
+                }) else {
+                    throw CanonicalWriterSeedingV1.SeedingFailure.promotionReceiptMismatch
+                }
+                promotionBefore = nil
+                package = candidatePackage
+            }
             let definition = try C26SurveySessionTestSupport.release(
                 releaseSlot: 330, workspaceID: session.workspaceID)
-            let package = try C26SurveySessionTestSupport.packageRelease()
+            // This uncommitted template adopts the actual accepted package;
+            // it is not a promotion or a rebound of persisted profile history.
+            let basis = fixture.profile
+            let profile = try TemporalEvidenceLimitProfileV1(
+                profileID: basis.profileID, revision: basis.revision,
+                packageRelease: SurveyPackageReleaseReferenceV1(package),
+                definitionRelease: SurveyDefinitionReleaseReferenceV1(definition),
+                audio: basis.audio, video: basis.video,
+                maximumClipsPerRequirement: basis.maximumClipsPerRequirement,
+                maximumClipsPerSession: basis.maximumClipsPerSession,
+                minimumFreeByteCount: basis.minimumFreeByteCount,
+                reportProjection: basis.reportProjection,
+                requiresAccessibleDescription: basis.requiresAccessibleDescription,
+                requiresManualTranscript: basis.requiresManualTranscript)
             let provisional = try C26SurveySessionTestSupport.provisional(workspaceID: session.workspaceID)
             let survey = try C26SurveySessionTestSupport.session(
                 authority: C26SurveySessionTestSupport.authority(for: definition, package: package),
@@ -588,7 +659,8 @@ enum C33TemporalEvidenceTestSupport {
                 state: .draft, transition: .create, revision: 1, actorSlot: 601)
             let fact = try XCTUnwrap(definition.sections.flatMap(\.facts).first)
             XCTAssertEqual(fixture.profile.definitionRelease, try SurveyDefinitionReleaseReferenceV1(definition))
-            XCTAssertEqual(fixture.profile.packageRelease, try SurveyPackageReleaseReferenceV1(package))
+            XCTAssertEqual(profile.packageRelease, try SurveyPackageReleaseReferenceV1(package))
+            XCTAssertEqual(profile.packageRelease, survey.authority.packageRelease)
             let original = fixture.clip
             // The standalone contract fixture intentionally has no persisted
             // survey authority. This disk fixture binds to the real producer's
@@ -599,23 +671,31 @@ enum C33TemporalEvidenceTestSupport {
                     definitionRelease: survey.authority.definitionRelease, factID: fact.factID,
                     repeatCoordinates: []),
                 original: original.original, originalProvenance: original.originalProvenance,
-                locator: original.locator, facts: original.facts, profile: fixture.profile,
+                locator: original.locator, facts: original.facts, profile: profile,
                 accessibleDescription: original.accessibleDescription, manualTranscript: original.manualTranscript,
                 recordedBy: original.recordedBy, capturedAt: original.capturedAt, acceptedAt: original.acceptedAt,
                 revision: original.revision, mutationID: original.mutationID)
             let review = try self.review(for: value)
-            phase = "acquire-canonical-writer"
-            let coordinator = try StoreSessionCoordinator(validatingSession: session,
-                clock: C33TemporalEvidenceClock(value: value.acceptedAt))
-            defer { XCTAssertNoThrow(try coordinator.invalidateAndReleaseWriter()) }
-            let writer = coordinator.workspaceWriter
-            let store = try MutationJournalStoreV1(modelContext: session.modelContext,
-                identity: session.workspaceIdentity, generationID: session.generationID)
             phase = "seed-survey-authority"
-            try await CanonicalWriterSeedingV1.seedSurveySession(definition: definition, package: package,
-                provisional: provisional, session: survey,
-                promotionActor: C26SurveySessionTestSupport.actor(workspaceID: session.workspaceID, slot: 8_002),
-                writer: writer, journal: store, context: session.modelContext, promotedAt: value.acceptedAt)
+            if promotionBefore == nil {
+                try await CanonicalWriterSeedingV1.seedSurveySession(definition: definition, package: package,
+                    provisional: provisional, session: survey,
+                    promotionActor: C26SurveySessionTestSupport.actor(workspaceID: session.workspaceID, slot: 8_002),
+                    writer: writer, journal: store, context: session.modelContext, promotedAt: value.acceptedAt)
+            } else {
+                phase = "append-survey-actors-under-accepted-package"
+                try CanonicalWriterSeedingV1.appendActors([definition.authoredBy, provisional.createdBy,
+                    survey.startedBy, survey.lastTransitionBy], writer: writer)
+                phase = "commit-survey-definition-under-accepted-package"
+                try CanonicalWriterSeedingV1.commitSurveyDefinitionDraft(definition, writer: writer)
+                phase = "commit-provisional-under-accepted-package"
+                _ = try writer.commitSurveySession(.init(workspaceID: session.workspaceID,
+                    mutationID: provisional.mutationID, payload: .applyProvisionalSubject(provisional)))
+                phase = "commit-survey-under-accepted-package"
+                _ = try writer.commitSurveySession(.init(workspaceID: session.workspaceID,
+                    mutationID: survey.mutationID,
+                    payload: .applySession(survey, definition: definition, publication: nil)))
+            }
             try CanonicalWriterSeedingV1.appendActors([value.recordedBy, review.reviewer], writer: writer)
             phase = "verify-admitted-authority"
             let surveys = try session.modelContext.fetch(FetchDescriptor<SurveySessionRow>()).map { try $0.value() }
@@ -623,13 +703,17 @@ enum C33TemporalEvidenceTestSupport {
             let definitions = try session.modelContext.fetch(FetchDescriptor<SurveyDefinitionReleaseRow>())
                 .map { try $0.value() }
             XCTAssertEqual(definitions.filter { $0.releaseID == definition.releaseID }, [definition])
-            let packages = PackageEvolutionLifecycleAdapterV1(writer: writer, journal: store,
-                modelContext: session.modelContext)
             let pointer = try XCTUnwrap(packages.activePointer(workspaceID: session.workspaceID,
                 packageID: package.packageID))
             let promotion = try XCTUnwrap(packages.acceptedLifecycleClosure(mutationID: pointer.mutationID))
             try promotion.validate()
-            XCTAssertEqual(promotion.activePointers, [pointer])
+            if let promotionBefore {
+                XCTAssertEqual(pointer, pointerBefore)
+                XCTAssertEqual(promotion, promotionBefore)
+                XCTAssertEqual(try packageClosure(in: session.modelContext), allPackagesBefore)
+            } else {
+                XCTAssertEqual(promotion.activePointers, [pointer])
+            }
             XCTAssertEqual(promotion.promotedReleases.map(\.packageRelease), [package])
             phase = "persist-immutable-original"
             let digest = try XCTUnwrap(value.original.digests.digest(for: .sha256))
@@ -656,6 +740,27 @@ enum C33TemporalEvidenceTestSupport {
             XCTAssertEqual(try Data(contentsOf: session.generationRootURL.appendingPathComponent(
                 TemporalEvidenceBackupMemberV1.original(for: value))), bytes(for: value.facts.kind))
             try store.validateAll()
+            let historyAfter = try store.exportSnapshot()
+            XCTAssertEqual(Array(historyAfter.receipts.prefix(historyBefore.receipts.count)), historyBefore.receipts)
+            XCTAssertEqual(historyAfter.quarantines, historyBefore.quarantines)
+            if promotionBefore != nil {
+                XCTAssertEqual(try packageClosure(in: session.modelContext), allPackagesBefore)
+                let appended = Array(historyAfter.receipts.dropFirst(historyBefore.receipts.count))
+                for record in appended {
+                    let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+                    switch envelope.command {
+                    case .applyPartyAccountability, .applySurveyDefinition, .applySurveySession, .applyTemporalEvidence:
+                        break
+                    default:
+                        XCTFail("unexpected command while reusing accepted package")
+                        throw CanonicalWriterSeedingV1.SeedingFailure.promotionReceiptMismatch
+                    }
+                }
+                XCTAssertEqual(historyAfter.workspaceRevision,
+                    historyBefore.workspaceRevision + UInt64(appended.count))
+                XCTAssertEqual(historyAfter.lastLocalSequence,
+                    historyBefore.lastLocalSequence + UInt64(appended.count))
+            }
             XCTAssertFalse(session.modelContext.hasChanges)
             return (value, receipt)
         } catch {
@@ -780,10 +885,16 @@ enum C33TemporalEvidenceTestSupport {
             ).stageAndValidate(selectedPackageURL: package)
             XCTAssertEqual(validated.records.temporalEvidence.count, 1)
             XCTAssertEqual(validated.members[try TemporalEvidenceBackupMemberV1.original(for: source.clip)], sourceBytes)
-            let restored = try await BackupRestoreService(
+            let restorer = try BackupRestoreService(
                 applicationSupportURL: support,
                 storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })
-            ).restore(
+            )
+            #if DEBUG
+            restorer.restorePhaseDiagnosticForTesting = { phase in
+                print("C33R01[\(slot)] mode=\(mode) phase=\(phase)")
+            }
+            #endif
+            let restored = try await restorer.restore(
                 validatedPackage: validated,
                 currentModelContext: current.modelContext,
                 currentGenerationID: current.generationID,
@@ -1700,6 +1811,102 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
         XCTAssertEqual(TemporalEvidencePersistenceEnrollmentV1.writer, "SOLE_CANONICAL_WORKSPACE_WRITER")
         XCTAssertEqual(TemporalEvidencePersistenceEnrollmentV1.scratchPersistence, "NONPERSISTENT_BACKUP_EXCLUDED")
         XCTAssertFalse(TemporalEvidencePersistenceEnrollmentV1.secondByteStoreAllowed)
+    }
+
+    @MainActor
+    func testC33PersistentClipReusesAcceptedShippingPackageWithoutRepromotion() async throws {
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+            .appendingPathComponent("C33-active-package-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        addTeardownBlock { [root] in try? FileManager.default.removeItem(at: root) }
+        let session = try StoreGenerationFactory(applicationSupportURL: root).openOrBootstrapCurrent()
+        let shipping = try frozenBeginShippingRelease(stage: .check)
+        let oldCandidate = try C26SurveySessionTestSupport.packageRelease()
+        let forbiddenDiff = try PackageSemanticDifferV1.diff(source: shipping, target: oldCandidate)
+        XCTAssertEqual(shipping.packageContentVersion, oldCandidate.packageContentVersion)
+        XCTAssertNotEqual(forbiddenDiff.source.workflowID, forbiddenDiff.target.workflowID)
+        XCTAssertEqual(forbiddenDiff.classification, .invalid)
+        do {
+            let coordinator = try StoreSessionCoordinator(validatingSession: session)
+            defer { XCTAssertNoThrow(try coordinator.invalidateAndReleaseWriter()) }
+            let journal = try MutationJournalStoreV1(modelContext: session.modelContext,
+                identity: session.workspaceIdentity, generationID: session.generationID)
+            try await CanonicalWriterSeedingV1.promotePackage(shipping,
+                workspaceID: session.workspaceID,
+                actor: C26SurveySessionTestSupport.actor(workspaceID: session.workspaceID, slot: 8_003),
+                writer: coordinator.workspaceWriter, journal: journal, context: session.modelContext,
+                promotedAt: C33TemporalEvidenceTestSupport.fixedDate,
+                ids: .fresh())
+        }
+        let journal = try MutationJournalStoreV1(modelContext: session.modelContext,
+            identity: session.workspaceIdentity, generationID: session.generationID, allowStateBootstrap: false)
+        let before = try journal.exportSnapshot()
+        let packageBefore = try C33TemporalEvidenceTestSupport.packageClosure(in: session.modelContext)
+        func packageBytes() throws -> [[Data]] {
+            [try session.modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>()).map(\.canonicalData),
+             try session.modelContext.fetch(FetchDescriptor<PackageSandboxRunRow>()).map(\.canonicalData),
+             try session.modelContext.fetch(FetchDescriptor<PackagePromotionReceiptRow>()).map(\.canonicalData),
+             try session.modelContext.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>()).map(\.canonicalData)]
+                .map { $0.sorted { $0.lexicographicallyPrecedes($1) } }
+        }
+        let packageBytesBefore = try packageBytes()
+        XCTAssertEqual(packageBefore.promotedReleases.map(\.packageRelease), [shipping])
+        XCTAssertEqual(packageBefore.sandboxRuns.count, 1)
+        XCTAssertEqual(packageBefore.promotionReceipts.count, 1)
+        XCTAssertEqual(packageBefore.activePointers.count, 1)
+        let result = try await C33TemporalEvidenceTestSupport.commitPersistentClip(in: session, slot: 880)
+        let after = try journal.exportSnapshot()
+        XCTAssertEqual(Array(after.receipts.prefix(before.receipts.count)), before.receipts)
+        XCTAssertEqual(after.quarantines, before.quarantines)
+        XCTAssertEqual(try C33TemporalEvidenceTestSupport.packageClosure(in: session.modelContext), packageBefore)
+        XCTAssertEqual(try packageBytes(), packageBytesBefore)
+        let priorIdentities = Set(before.entityRevisions.map(\.identity))
+        XCTAssertEqual(after.entityRevisions.filter { priorIdentities.contains($0.identity) }, before.entityRevisions)
+        let appended = Array(after.receipts.dropFirst(before.receipts.count))
+        var temporalMutationIDs: [MutationIDV1] = []
+        for record in appended {
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+            switch envelope.command {
+            case .applyPartyAccountability, .applySurveyDefinition, .applySurveySession:
+                break
+            case .applyTemporalEvidence:
+                temporalMutationIDs.append(envelope.mutationID)
+            default:
+                XCTFail("unexpected appended command while reusing shipping package")
+            }
+        }
+        XCTAssertEqual(temporalMutationIDs, [result.clip.mutationID])
+        XCTAssertEqual(after.workspaceRevision, before.workspaceRevision + UInt64(appended.count))
+        XCTAssertEqual(after.lastLocalSequence, before.lastLocalSequence + UInt64(appended.count))
+        let surveys = try session.modelContext.fetch(FetchDescriptor<SurveySessionRow>()).map { try $0.value() }
+        let survey = try XCTUnwrap(surveys.first)
+        XCTAssertEqual(surveys.count, 1)
+        XCTAssertEqual(survey.authority.packageRelease, try SurveyPackageReleaseReferenceV1(shipping))
+        XCTAssertEqual(result.clip.limitProfile.packageRelease, survey.authority.packageRelease)
+        XCTAssertEqual(result.clip.target.sessionID, survey.sessionID)
+        XCTAssertEqual(result.clip.target.sessionRevision, survey.revision)
+        XCTAssertEqual(result.clip.target.sessionSHA256, survey.sessionSHA256)
+        let basis = try C33TemporalEvidenceTestSupport.profile(workspaceID: session.workspaceID,
+            reportProjection: .typedLinkOnly, requiresTranscript: true)
+        XCTAssertEqual(result.clip.limitProfile.profileID, basis.profileID)
+        XCTAssertEqual(result.clip.limitProfile.revision, basis.revision)
+        XCTAssertEqual(result.clip.limitProfile.definitionRelease, basis.definitionRelease)
+        XCTAssertEqual(result.clip.limitProfile.audio, basis.audio)
+        XCTAssertEqual(result.clip.limitProfile.video, basis.video)
+        XCTAssertEqual(result.clip.limitProfile.maximumClipsPerRequirement, basis.maximumClipsPerRequirement)
+        XCTAssertEqual(result.clip.limitProfile.maximumClipsPerSession, basis.maximumClipsPerSession)
+        XCTAssertEqual(result.clip.limitProfile.minimumFreeByteCount, basis.minimumFreeByteCount)
+        XCTAssertEqual(result.clip.limitProfile.reportProjection, basis.reportProjection)
+        XCTAssertEqual(result.clip.limitProfile.requiresAccessibleDescription, basis.requiresAccessibleDescription)
+        XCTAssertEqual(result.clip.limitProfile.requiresManualTranscript, basis.requiresManualTranscript)
+        XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>())
+            .map { try $0.value() }, [result.clip])
+        XCTAssertEqual(result.receipt.mutationReceipt.mutationID, result.clip.mutationID)
+        XCTAssertEqual(try Data(contentsOf: session.generationRootURL.appendingPathComponent(
+            TemporalEvidenceBackupMemberV1.original(for: result.clip))),
+            C33TemporalEvidenceTestSupport.bytes(for: result.clip.facts.kind))
+        try journal.validateAll()
+        XCTAssertFalse(session.modelContext.hasChanges)
     }
 
     @MainActor

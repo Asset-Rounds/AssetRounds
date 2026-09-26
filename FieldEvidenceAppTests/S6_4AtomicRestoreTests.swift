@@ -38,7 +38,14 @@ final class S6_4AtomicRestoreTests: XCTestCase {
     @MainActor
     func testRoundArchiveStagingPreservesVersionAndAuthorityBoundaries() throws {
         let harness = try makeHarness("round-archive-staging")
-        defer { try? fileManager.removeItem(at: harness.root) }
+        // Exercise the actual cleanup gate with a genuinely live store.
+        XCTAssertThrowsError(try fixtureLifetime.removeRootIfDrained(harness.root)) { error in
+            guard case S6_4FixtureLifetimeV1.Failure.retainedStore = error else {
+                return XCTFail("Unexpected live-store cleanup error: \(error)")
+            }
+        }
+        XCTAssertTrue(fileManager.fileExists(atPath: harness.root.path))
+
         let authority = try harness.factory.makeRestoreGenerationAuthority()
         let originalID = harness.session.generationID
         let digest = String(repeating: "a", count: 64)
@@ -89,7 +96,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
     @MainActor
     func testOwnedGenerationCleanupDoesNotApplyGenerationGrammarToImportPackages() throws {
         let harness = try makeHarness("owned-grammar-import-separation")
-        defer { try? fileManager.removeItem(at: harness.root) }
+
         let authority = try harness.factory.makeRestoreGenerationAuthority()
         let packageName = "inventory-import-package"
         let package = harness.support.appendingPathComponent("FieldEvidenceRestore/staging/\(packageName)")
@@ -130,7 +137,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
     @MainActor
     func testV23P03C40TypedRowPersistsAsAtomicRestoreUnit() throws {
         let harness = try makeHarness("c40-row")
-        defer { try? fileManager.removeItem(at: harness.root) }
+
         let source = try C40BackupLifecycleTestValues.source(
             workspace: harness.session.workspaceIdentity.workspaceID.rawValue
         )
@@ -147,6 +154,16 @@ final class S6_4AtomicRestoreTests: XCTestCase {
     }
 
     private let fileManager = FileManager.default
+    @MainActor private lazy var fixtureLifetime = S6_4FixtureLifetimeV1()
+
+    @MainActor
+    private func registerFixtureRoot(_ root: URL) {
+        let lifetime = fixtureLifetime
+        guard lifetime.register(root) else { return }
+        addTeardownBlock { [root, lifetime] in
+            try await MainActor.run { try lifetime.removeRootIfDrained(root) }
+        }
+    }
 
     private func assertPhotoRestoreManifestProofAdmitsOnlyExactAuthenticatedPendingPairs() throws {
         let predecessorID = uuid("64000000-0000-4000-8000-00000000f101")
@@ -790,7 +807,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
     func testGoldenEmptyRestoreSwitchesValidatedGenerationAndRetiresOld() async throws {
         try await assertProofBoundOffActorRestoreFactoryJourney()
         let harness = try makeHarness("golden")
-        defer { try? fileManager.removeItem(at: harness.root) }
+
         let package = try makeSourcePackage(in: harness.root, name: "source")
         let sourceBytes = try tree(package)
         let validated = try importPackage(package, into: harness.session)
@@ -808,7 +825,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
             currentModelContext: harness.session.modelContext,
             currentGenerationID: oldID,
             currentGenerationRootURL: harness.session.generationRootURL
-        )
+        ).recordingFixtureLifetime(in: self.fixtureLifetime)
 
         XCTAssertEqual(restored.generationID, uuid("64000000-0000-0000-0000-000000000101"))
         XCTAssertEqual(try harness.factory.currentGenerationID(), restored.generationID)
@@ -824,7 +841,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
         ))
         XCTAssertEqual(try tree(package), sourceBytes)
 
-        let reopened = try harness.factory.openOrBootstrapCurrent()
+        let reopened = try harness.factory.openOrBootstrapCurrent().recordingFixtureLifetime(in: self.fixtureLifetime)
         XCTAssertEqual(reopened.generationID, restored.generationID)
         XCTAssertEqual(try reopened.modelContext.fetchCount(FetchDescriptor<Asset>()), 1)
         assertCanonicalWriterActivatesV1(reopened, "S6_4 golden empty restore")
@@ -833,7 +850,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
     @MainActor
     func testRestoreAccessDenialBeforePrivateReadsLeavesImportedStateUntouched() async throws {
         let harness = try makeHarness("restore-access-initial-denial")
-        defer { try? fileManager.removeItem(at: harness.root) }
+
         let package = try makeSourcePackage(in: harness.root, name: "source")
         let validated = try importPackage(package, into: harness.session)
         var validationCalls = 0
@@ -855,7 +872,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
                     validationCalls += 1
                     throw AppAccessContractFailureV1.accessDenied
                 }
-            )
+            ).recordingFixtureLifetime(in: self.fixtureLifetime)
         } verify: { error in
             XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
         }
@@ -869,7 +886,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
     @MainActor
     func testRestoreAccessAuthorizedCallerCompletesPhysicalEmptyInstall() async throws {
         let harness = try makeHarness("restore-access-authorized")
-        defer { try? fileManager.removeItem(at: harness.root) }
+
         let package = try makeSourcePackage(in: harness.root, name: "source")
         let validated = try importPackage(package, into: harness.session)
         var validationCalls = 0
@@ -885,7 +902,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
             currentGenerationID: harness.session.generationID,
             currentGenerationRootURL: harness.session.generationRootURL,
             validateAccess: { validationCalls += 1 }
-        )
+        ).recordingFixtureLifetime(in: self.fixtureLifetime)
 
         XCTAssertEqual(restored.generationID, newGenerationID)
         XCTAssertGreaterThan(validationCalls, 1)
@@ -898,10 +915,6 @@ final class S6_4AtomicRestoreTests: XCTestCase {
     func testRestoreAccessRejectsRevokedAndRegrantedGateAfterSuspendedDocumentResolution() async throws {
         let source = try makeHarness("restore-access-aba-source")
         let target = try makeHarness("restore-access-aba-target")
-        defer {
-            try? fileManager.removeItem(at: source.root)
-            try? fileManager.removeItem(at: target.root)
-        }
         let accessiblePackage = try await makeAccessibleDocumentPackage(in: source.root)
         let package = accessiblePackage.package
         let validated = try importPackage(package, into: target.session)
@@ -925,7 +938,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
                         throw AppAccessContractFailureV1.accessDenied
                     }
                 }
-            )
+            ).recordingFixtureLifetime(in: self.fixtureLifetime)
         } verify: { error in
             XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied)
         }
@@ -955,7 +968,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
                 validateAccess: {
                     try await gate.validateContentRead(token, for: .backupImport)
                 }
-            )
+            ).recordingFixtureLifetime(in: self.fixtureLifetime)
         }
         await resolver.waitUntilRequested()
         await gate.sceneBecameInactive()
@@ -985,7 +998,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
         ]
         for (offset, point) in BackupRestoreFailurePoint.allCases.enumerated() {
             let harness = try makeHarness("phase-\(offset)")
-            defer { try? fileManager.removeItem(at: harness.root) }
+
             let package = try makeSourcePackage(in: harness.root, name: "source")
             let validated = try importPackage(package, into: harness.session)
             let oldID = harness.session.generationID
@@ -1007,7 +1020,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
                     currentModelContext: harness.session.modelContext,
                     currentGenerationID: oldID,
                     currentGenerationRootURL: harness.session.generationRootURL
-                )
+                ).recordingFixtureLifetime(in: self.fixtureLifetime)
             } verify: { error in
                 XCTAssertEqual(error as? BackupRestoreServiceError, .injectedFailure)
             }
@@ -1033,12 +1046,12 @@ final class S6_4AtomicRestoreTests: XCTestCase {
                 hostileSidecar.append(0x20)
                 try hostileSidecar.write(to: portableSidecarURL, options: .atomic)
                 try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: portableSidecarURL)
-                XCTAssertThrowsError(try recovery.reconcileAtStartup())
+                XCTAssertThrowsError(try recovery.reconcileAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime))
                 try exactSidecar.write(to: portableSidecarURL, options: .atomic)
                 try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: portableSidecarURL)
             }
             let recoveredNew = try await recovery
-                .reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+                .reconcileRestoreAndPrivateSystemDiscoveryAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime)
             let expectedID = oldOutcome.contains(point) ? oldID : newID
             XCTAssertEqual(try harness.factory.currentGenerationID(), expectedID, "\(point)")
             if oldOutcome.contains(point) {
@@ -1057,7 +1070,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
                 )
             }
             let noFurtherRecovery = try await recovery
-                .reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+                .reconcileRestoreAndPrivateSystemDiscoveryAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime)
             XCTAssertNil(noFurtherRecovery, "\(point)")
             XCTAssertFalse(fileManager.fileExists(atPath: portableSidecarURL.path), "\(point)")
             XCTAssertFalse(fileManager.fileExists(
@@ -1074,7 +1087,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
     @MainActor
     func testDirtyNonemptyAndImpossibleRecoveryFailClosed() async throws {
         let dirty = try makeHarness("dirty")
-        defer { try? fileManager.removeItem(at: dirty.root) }
+
         let package = try makeSourcePackage(in: dirty.root, name: "source")
         let validated = try importPackage(package, into: dirty.session)
         dirty.session.modelContext.insert(Site(label: "Unsaved"))
@@ -1085,7 +1098,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
                 currentModelContext: dirty.session.modelContext,
                 currentGenerationID: dirty.session.generationID,
                 currentGenerationRootURL: dirty.session.generationRootURL
-            )
+            ).recordingFixtureLifetime(in: self.fixtureLifetime)
         } verify: { error in
             XCTAssertEqual(error as? BackupRestoreServiceError, .contextHasChanges)
         }
@@ -1097,7 +1110,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
         ).discard(validated)
 
         let malformed = try makeHarness("impossible")
-        defer { try? fileManager.removeItem(at: malformed.root) }
+
         let missingNew = uuid("64000000-0000-0000-0000-000000000301")
         let intent = RestoreIntentV1(
             newGenerationID: missingNew,
@@ -1115,7 +1128,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
         let before = try tree(malformed.session.generationRootURL)
         XCTAssertThrowsError(try BackupRestoreService(
             applicationSupportURL: malformed.support
-        ).reconcileAtStartup())
+        ).reconcileAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime))
         XCTAssertEqual(try malformed.factory.currentGenerationID(), malformed.session.generationID)
         XCTAssertEqual(try tree(malformed.session.generationRootURL), before)
         XCTAssertEqual(try store.load(), intent)
@@ -1124,7 +1137,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
     @MainActor
     func testRecoveryRejectsReplacedRestoreGenerationAncestorWithoutDeleting() async throws {
         let harness = try makeHarness("ancestor-replacement")
-        defer { try? fileManager.removeItem(at: harness.root) }
+
         let package = try makeSourcePackage(in: harness.root, name: "source")
         let validated = try importPackage(package, into: harness.session)
         let newID = uuid("64000000-0000-0000-0000-000000000401")
@@ -1144,7 +1157,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
                 currentModelContext: harness.session.modelContext,
                 currentGenerationID: harness.session.generationID,
                 currentGenerationRootURL: harness.session.generationRootURL
-            )
+            ).recordingFixtureLifetime(in: self.fixtureLifetime)
         } verify: { error in
             XCTAssertEqual(error as? BackupRestoreServiceError, .injectedFailure)
         }
@@ -1169,7 +1182,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
         let markerBytes = Data("unowned".utf8)
         try markerBytes.write(to: marker)
 
-        XCTAssertThrowsError(try recovery.reconcileAtStartup())
+        XCTAssertThrowsError(try recovery.reconcileAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime))
         XCTAssertEqual(
             try harness.factory.currentGenerationID(),
             harness.session.generationID
@@ -1185,7 +1198,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
     @MainActor
     func testRecoveryRejectsUnexpectedInstalledGenerationBytesWithoutAdoption() async throws {
         let harness = try makeHarness("unexpected-installed-byte")
-        defer { try? fileManager.removeItem(at: harness.root) }
+
         let package = try makeSourcePackage(in: harness.root, name: "source")
         let validated = try importPackage(package, into: harness.session)
         let newID = uuid("64000000-0000-0000-0000-000000000501")
@@ -1205,7 +1218,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
                 currentModelContext: harness.session.modelContext,
                 currentGenerationID: harness.session.generationID,
                 currentGenerationRootURL: harness.session.generationRootURL
-            )
+            ).recordingFixtureLifetime(in: self.fixtureLifetime)
         } verify: { error in
             XCTAssertEqual(error as? BackupRestoreServiceError, .injectedFailure)
         }
@@ -1218,7 +1231,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
             applicationSupportURL: harness.support
         )
 
-        XCTAssertThrowsError(try recovery.reconcileAtStartup())
+        XCTAssertThrowsError(try recovery.reconcileAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime))
         XCTAssertEqual(
             try harness.factory.currentGenerationID(),
             harness.session.generationID
@@ -1233,7 +1246,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
     @MainActor
     func testRecoveryRejectsReplacedDataAncestorBeforePointerMutation() async throws {
         let harness = try makeHarness("data-ancestor-replacement")
-        defer { try? fileManager.removeItem(at: harness.root) }
+
         let package = try makeSourcePackage(in: harness.root, name: "source")
         let validated = try importPackage(package, into: harness.session)
         let newID = uuid("64000000-0000-0000-0000-000000000601")
@@ -1253,7 +1266,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
                 currentModelContext: harness.session.modelContext,
                 currentGenerationID: harness.session.generationID,
                 currentGenerationRootURL: harness.session.generationRootURL
-            )
+            ).recordingFixtureLifetime(in: self.fixtureLifetime)
         } verify: { error in
             XCTAssertEqual(error as? BackupRestoreServiceError, .injectedFailure)
         }
@@ -1279,7 +1292,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
         let markerBytes = Data("unowned data root".utf8)
         try markerBytes.write(to: marker)
 
-        XCTAssertThrowsError(try recovery.reconcileAtStartup())
+        XCTAssertThrowsError(try recovery.reconcileAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime))
         XCTAssertEqual(try tree(detachedData), detachedBefore)
         XCTAssertEqual(try Data(contentsOf: marker), markerBytes)
         XCTAssertEqual(
@@ -1291,7 +1304,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
     @MainActor
     func testRecoveryResumesExactCurrentPointerPreRenameTemp() async throws {
         let harness = try makeHarness("current-pointer-temp")
-        defer { try? fileManager.removeItem(at: harness.root) }
+
         let package = try makeSourcePackage(in: harness.root, name: "source")
         let validated = try importPackage(package, into: harness.session)
         let newID = uuid("64000000-0000-0000-0000-000000000701")
@@ -1311,7 +1324,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
                 currentModelContext: harness.session.modelContext,
                 currentGenerationID: harness.session.generationID,
                 currentGenerationRootURL: harness.session.generationRootURL
-            )
+            ).recordingFixtureLifetime(in: self.fixtureLifetime)
         } verify: { error in
             XCTAssertEqual(error as? BackupRestoreServiceError, .injectedFailure)
         }
@@ -1325,7 +1338,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
 
         let recovered = try BackupRestoreService(
             applicationSupportURL: harness.support
-        ).reconcileAtStartup()
+        ).reconcileAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime)
         XCTAssertEqual(recovered?.generationID, newID)
         XCTAssertEqual(try harness.factory.currentGenerationID(), newID)
         XCTAssertFalse(fileManager.fileExists(atPath: temporary.path))
@@ -1334,7 +1347,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
     @MainActor
     func testRecoveryResumesExactRetiredPointerPreRenameTemp() async throws {
         let harness = try makeHarness("retired-pointer-temp")
-        defer { try? fileManager.removeItem(at: harness.root) }
+
         let package = try makeSourcePackage(in: harness.root, name: "source")
         let validated = try importPackage(package, into: harness.session)
         let oldID = harness.session.generationID
@@ -1355,7 +1368,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
                 currentModelContext: harness.session.modelContext,
                 currentGenerationID: oldID,
                 currentGenerationRootURL: harness.session.generationRootURL
-            )
+            ).recordingFixtureLifetime(in: self.fixtureLifetime)
         } verify: { error in
             XCTAssertEqual(error as? BackupRestoreServiceError, .injectedFailure)
         }
@@ -1369,7 +1382,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
 
         let recovered = try BackupRestoreService(
             applicationSupportURL: harness.support
-        ).reconcileAtStartup()
+        ).reconcileAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime)
         XCTAssertEqual(recovered?.generationID, newID)
         XCTAssertEqual(try harness.factory.retiredGenerationIDs(), [oldID])
         XCTAssertFalse(fileManager.fileExists(atPath: temporary.path))
@@ -1378,7 +1391,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
     @MainActor
     func testRecoveryRejectsImpossibleRetiredStateBeforeMutation() async throws {
         let harness = try makeHarness("retired-state-mismatch")
-        defer { try? fileManager.removeItem(at: harness.root) }
+
         let package = try makeSourcePackage(in: harness.root, name: "source")
         let validated = try importPackage(package, into: harness.session)
         let oldID = harness.session.generationID
@@ -1399,7 +1412,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
                 currentModelContext: harness.session.modelContext,
                 currentGenerationID: oldID,
                 currentGenerationRootURL: harness.session.generationRootURL
-            )
+            ).recordingFixtureLifetime(in: self.fixtureLifetime)
         } verify: { error in
             XCTAssertEqual(error as? BackupRestoreServiceError, .injectedFailure)
         }
@@ -1416,7 +1429,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
 
         XCTAssertThrowsError(try BackupRestoreService(
             applicationSupportURL: harness.support
-        ).reconcileAtStartup())
+        ).reconcileAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime))
         XCTAssertEqual(try tree(dataRoot), before)
         XCTAssertEqual(
             try RestoreIntentStore(applicationSupportURL: harness.support).load(),
@@ -1430,7 +1443,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
             let harness = try makeHarness(
                 extraIsInstalled ? "extra-installed" : "extra-staged"
             )
-            defer { try? fileManager.removeItem(at: harness.root) }
+
             let package = try makeSourcePackage(in: harness.root, name: "source")
             let validated = try importPackage(package, into: harness.session)
             let newID = extraIsInstalled
@@ -1454,7 +1467,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
                     currentModelContext: harness.session.modelContext,
                     currentGenerationID: harness.session.generationID,
                     currentGenerationRootURL: harness.session.generationRootURL
-                )
+                ).recordingFixtureLifetime(in: self.fixtureLifetime)
             } verify: { error in
                 XCTAssertEqual(error as? BackupRestoreServiceError, .injectedFailure)
             }
@@ -1490,7 +1503,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
                 applicationSupportURL: harness.support
             ).load()
 
-            XCTAssertThrowsError(try recovery.reconcileAtStartup())
+            XCTAssertThrowsError(try recovery.reconcileAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime))
             XCTAssertEqual(try tree(harness.support), before)
             XCTAssertEqual(
                 try RestoreIntentStore(applicationSupportURL: harness.support).load(),
@@ -1502,7 +1515,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
     @MainActor
     func testPreparedRecoveryRejectsUnexpectedStagedMemberWithoutDeletion() async throws {
         let harness = try makeHarness("unexpected-staged-member")
-        defer { try? fileManager.removeItem(at: harness.root) }
+
         let package = try makeSourcePackage(in: harness.root, name: "source")
         let validated = try importPackage(package, into: harness.session)
         let newID = uuid("64000000-0000-0000-0000-000000000c01")
@@ -1522,7 +1535,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
                 currentModelContext: harness.session.modelContext,
                 currentGenerationID: harness.session.generationID,
                 currentGenerationRootURL: harness.session.generationRootURL
-            )
+            ).recordingFixtureLifetime(in: self.fixtureLifetime)
         } verify: { error in
             XCTAssertEqual(error as? BackupRestoreServiceError, .injectedFailure)
         }
@@ -1537,7 +1550,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
             applicationSupportURL: harness.support
         ).load()
 
-        XCTAssertThrowsError(try recovery.reconcileAtStartup())
+        XCTAssertThrowsError(try recovery.reconcileAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime))
         XCTAssertEqual(try tree(harness.support), before)
         XCTAssertEqual(
             try RestoreIntentStore(applicationSupportURL: harness.support).load(),
@@ -1548,7 +1561,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
     @MainActor
     func testActiveEraseAuthorityBlocksRestoreWithoutMutation() async throws {
         let harness = try makeHarness("active-erase")
-        defer { try? fileManager.removeItem(at: harness.root) }
+
         let package = try makeSourcePackage(in: harness.root, name: "source")
         let packageBefore = try tree(package)
         let validated = try importPackage(package, into: harness.session)
@@ -1574,7 +1587,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
                 currentModelContext: harness.session.modelContext,
                 currentGenerationID: harness.session.generationID,
                 currentGenerationRootURL: harness.session.generationRootURL
-            )
+            ).recordingFixtureLifetime(in: self.fixtureLifetime)
         } verify: { _ in }
         XCTAssertEqual(try tree(harness.support), supportBefore)
         XCTAssertEqual(try tree(package), packageBefore)
@@ -1590,7 +1603,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
     @MainActor
     func testExtraImportStageBlocksRestoreWithoutMutation() async throws {
         let harness = try makeHarness("extra-import-stage")
-        defer { try? fileManager.removeItem(at: harness.root) }
+
         let package = try makeSourcePackage(in: harness.root, name: "source")
         let packageBefore = try tree(package)
         let validated = try importPackage(package, into: harness.session)
@@ -1611,7 +1624,7 @@ final class S6_4AtomicRestoreTests: XCTestCase {
                 currentModelContext: harness.session.modelContext,
                 currentGenerationID: harness.session.generationID,
                 currentGenerationRootURL: harness.session.generationRootURL
-            )
+            ).recordingFixtureLifetime(in: self.fixtureLifetime)
         } verify: { _ in }
         XCTAssertEqual(try tree(harness.support), supportBefore)
         XCTAssertEqual(try tree(package), packageBefore)
@@ -1728,17 +1741,20 @@ private extension S6_4AtomicRestoreTests {
             "S6_4-\(name)-\(UUID().uuidString)",
             isDirectory: true
         )
+        registerFixtureRoot(root)
         let support = root.appendingPathComponent("Application Support", isDirectory: true)
         try fileManager.createDirectory(at: support, withIntermediateDirectories: true)
         let factory = StoreGenerationFactory(applicationSupportURL: support)
-        let session = try factory.openOrBootstrapCurrent()
+        let session = try autoreleasepool {
+            try factory.openOrBootstrapCurrent().recordingFixtureLifetime(in: self.fixtureLifetime)
+        }
         return Harness(root: root, support: support, factory: factory, session: session)
     }
 
     @MainActor
     func assertProofBoundOffActorRestoreFactoryJourney() async throws {
         let harness = try makeHarness("proof-bound-off-actor-factory")
-        defer { try? fileManager.removeItem(at: harness.root) }
+
         let authority = try harness.factory.makeRestoreGenerationAuthority()
         let oldID = harness.session.generationID
         let newID = uuid("64000000-0000-4000-8000-00000000fa01")
@@ -1997,7 +2013,7 @@ private extension S6_4AtomicRestoreTests {
     func assertRestorePointerPublicationScope() throws {
         for scenario in ["no-call", "before-throw", "caught-denial", "cas-failure", "repeated", "after-throw", "success"] {
             let harness = try makeHarness("pointer-scope-\(scenario)")
-            defer { try? fileManager.removeItem(at: harness.root) }
+
             let authority = try harness.factory.makeRestoreGenerationAuthority()
             let oldID = harness.session.generationID, newID = UUID()
             try harness.factory.createRestoreStagingGeneration(id: newID, authority: authority,
@@ -2099,54 +2115,57 @@ private extension S6_4AtomicRestoreTests {
         siteAddress: String? = nil,
         seed: ((StoreGenerationSession) throws -> Void)? = nil
     ) throws -> URL {
-        let support = root.appendingPathComponent(
-            "\(name)-support",
-            isDirectory: true
-        )
-        try fileManager.createDirectory(at: support, withIntermediateDirectories: true)
-        let session = try StoreGenerationFactory(
-            applicationSupportURL: support
-        ).openOrBootstrapCurrent()
-        let siteID = uuid("64000000-0000-0000-0000-000000000001")
-        // The source site and sign enter through the canonical writer so the
-        // journal's mutable-semantic checkpoint covers them; direct inserts
-        // make export's journal validation fail closed.
-        let coordinator = try StoreSessionCoordinator(validatingSession: session)
-        do {
-            let mutation = try MutationIDV1(rawValue: uuid("64000000-0000-0000-0000-000000000003"))
-            _ = try coordinator.workspaceWriter.execute(.createFirstSign(.init(
-                siteID: siteID,
-                newSite: .init(id: siteID, label: "North lot", address: siteAddress,
-                               timeZoneID: "America/New_York"),
-                assetID: uuid("64000000-0000-0000-0000-000000000002"), assetLabel: "Pylon sign",
-                packID: SignPack.illuminatedSignV1.packID,
-                packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
-                packContentVersion: SignPack.illuminatedSignV1.contentVersion,
-                createdAt: Date(timeIntervalSince1970: 1_786_708_800),
-                initialPlacementMutationID: mutation,
-                initialPlacementEventID: uuid("64000000-0000-0000-0000-000000000004"),
-                initialPhysicalEpisodeID: .init(rawValue: uuid("64000000-0000-0000-0000-000000000005"))
-            )), mutationID: mutation)
-        } catch {
-            try? coordinator.invalidateAndReleaseWriter()
-            throw error
+        return try autoreleasepool {
+            registerFixtureRoot(root)
+            let support = root.appendingPathComponent(
+                "\(name)-support",
+                isDirectory: true
+            )
+            try fileManager.createDirectory(at: support, withIntermediateDirectories: true)
+            let session = try StoreGenerationFactory(
+                applicationSupportURL: support
+            ).openOrBootstrapCurrent().recordingFixtureLifetime(in: self.fixtureLifetime)
+            let siteID = uuid("64000000-0000-0000-0000-000000000001")
+            // The source site and sign enter through the canonical writer so the
+            // journal's mutable-semantic checkpoint covers them; direct inserts
+            // make export's journal validation fail closed.
+            let coordinator = try StoreSessionCoordinator(validatingSession: session)
+            do {
+                let mutation = try MutationIDV1(rawValue: uuid("64000000-0000-0000-0000-000000000003"))
+                _ = try coordinator.workspaceWriter.execute(.createFirstSign(.init(
+                    siteID: siteID,
+                    newSite: .init(id: siteID, label: "North lot", address: siteAddress,
+                                   timeZoneID: "America/New_York"),
+                    assetID: uuid("64000000-0000-0000-0000-000000000002"), assetLabel: "Pylon sign",
+                    packID: SignPack.illuminatedSignV1.packID,
+                    packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
+                    packContentVersion: SignPack.illuminatedSignV1.contentVersion,
+                    createdAt: Date(timeIntervalSince1970: 1_786_708_800),
+                    initialPlacementMutationID: mutation,
+                    initialPlacementEventID: uuid("64000000-0000-0000-0000-000000000004"),
+                    initialPhysicalEpisodeID: .init(rawValue: uuid("64000000-0000-0000-0000-000000000005"))
+                )), mutationID: mutation)
+            } catch {
+                try? coordinator.invalidateAndReleaseWriter()
+                throw error
+            }
+            try coordinator.invalidateAndReleaseWriter()
+            try session.reproofAfterSave()
+            try seed?(session)
+            try session.modelContext.save()
+            let destination = root.appendingPathComponent(
+                "\(name)-export",
+                isDirectory: true
+            )
+            try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+            let exporter = BackupExportService(
+                modelContext: session.modelContext,
+                generationRootURL: session.generationRootURL,
+                now: { Date(timeIntervalSince1970: 1_786_708_900) }
+            )
+            let preview = try exporter.prepare()
+            return try exporter.export(previewID: preview.id, to: destination)
         }
-        try coordinator.invalidateAndReleaseWriter()
-        try session.reproofAfterSave()
-        try seed?(session)
-        try session.modelContext.save()
-        let destination = root.appendingPathComponent(
-            "\(name)-export",
-            isDirectory: true
-        )
-        try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
-        let exporter = BackupExportService(
-            modelContext: session.modelContext,
-            generationRootURL: session.generationRootURL,
-            now: { Date(timeIntervalSince1970: 1_786_708_900) }
-        )
-        let preview = try exporter.prepare()
-        return try exporter.export(previewID: preview.id, to: destination)
     }
 
     @MainActor
@@ -2233,9 +2252,10 @@ private extension S6_4AtomicRestoreTests {
 
     @MainActor
     func makeAccessibleDocumentPackage(in root: URL) async throws -> AccessibleDocumentPackageFixture {
+        registerFixtureRoot(root)
         let support = root.appendingPathComponent("accessible-document-source", isDirectory: true)
         try fileManager.createDirectory(at: support, withIntermediateDirectories: true)
-        let session = try StoreGenerationFactory(applicationSupportURL: support).openOrBootstrapCurrent()
+        let session = try StoreGenerationFactory(applicationSupportURL: support).openOrBootstrapCurrent().recordingFixtureLifetime(in: self.fixtureLifetime)
         let coordinator = try StoreSessionCoordinator(validatingSession: session)
         var writerReleased = false
         defer {
@@ -2496,9 +2516,7 @@ extension S6_4AtomicRestoreTests {
     @MainActor
     func testC32SeededAcceptanceFixtureRejectsLaterDirectMutationWithoutCheckpointAdoption() throws {
         let harness = try makeHarness("c32-seeded-checkpoint-drift")
-        addTeardownBlock { [root = harness.root] in
-            try? FileManager.default.removeItem(at: root)
-        }
+
         _ = try C32AssistanceTestSupport.commitPersistentAcceptance(
             in: harness.session,
             slot: 619
@@ -2533,9 +2551,7 @@ extension S6_4AtomicRestoreTests {
             .fork
         ].enumerated() {
             let harness = try makeHarness("c32-real-restore-\(offset)")
-            addTeardownBlock { [root = harness.root] in
-                try? FileManager.default.removeItem(at: root)
-            }
+
             var sourceReceipt: AssistanceAcceptanceReceiptV1?
             var sourceAcceptanceBytes: Data?
             var sourceEnvelopeBytes: Data?
@@ -2578,7 +2594,7 @@ extension S6_4AtomicRestoreTests {
                 currentGenerationID: harness.session.generationID,
                 currentGenerationRootURL: harness.session.generationRootURL,
                 mode: mode
-            )
+            ).recordingFixtureLifetime(in: self.fixtureLifetime)
             let acceptanceRows = try restored.modelContext.fetch(
                 FetchDescriptor<AssistanceAcceptanceReceiptRow>()
             )
@@ -2628,9 +2644,7 @@ extension S6_4AtomicRestoreTests {
         }
 
         let chainHarness = try makeHarness("c32-historic-chain")
-        addTeardownBlock { [root = chainHarness.root] in
-            try? FileManager.default.removeItem(at: root)
-        }
+
         var originalReceipt: AssistanceAcceptanceReceiptV1?
         var originalAcceptanceBytes: Data?
         var originalEnvelopeBytes: Data?
@@ -2714,7 +2728,7 @@ extension S6_4AtomicRestoreTests {
             currentGenerationID: chainHarness.session.generationID,
             currentGenerationRootURL: chainHarness.session.generationRootURL,
             mode: .clone
-        )
+        ).recordingFixtureLifetime(in: self.fixtureLifetime)
         try assertHistoricSourceProvenance(in: cloned)
         assertCanonicalWriterActivatesV1(cloned, "S6_4 C32 clone restore")
 
@@ -2746,7 +2760,7 @@ extension S6_4AtomicRestoreTests {
             currentGenerationID: cloned.generationID,
             currentGenerationRootURL: cloned.generationRootURL,
             mode: .fork
-        )
+        ).recordingFixtureLifetime(in: self.fixtureLifetime)
         XCTAssertNotEqual(forked.workspaceID, cloned.workspaceID)
         try assertHistoricSourceProvenance(in: forked)
         assertCanonicalWriterActivatesV1(forked, "S6_4 C32 fork restore")
@@ -2771,9 +2785,7 @@ extension S6_4AtomicRestoreTests {
         )
 
         let ordinaryHarness = try makeHarness("c32-historic-chain-empty-install")
-        addTeardownBlock { [root = ordinaryHarness.root] in
-            try? FileManager.default.removeItem(at: root)
-        }
+
         let ordinaryRestored = try await BackupRestoreService(
             applicationSupportURL: ordinaryHarness.support,
             storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })
@@ -2783,7 +2795,7 @@ extension S6_4AtomicRestoreTests {
             currentGenerationID: ordinaryHarness.session.generationID,
             currentGenerationRootURL: ordinaryHarness.session.generationRootURL,
             mode: .emptyInstall
-        )
+        ).recordingFixtureLifetime(in: self.fixtureLifetime)
         try assertHistoricSourceProvenance(
             in: ordinaryRestored,
             expectedCurrentWorkspaceID: forked.workspaceID
@@ -2820,12 +2832,12 @@ extension S6_4AtomicRestoreTests {
             "c33-real-backup-\(UUID().uuidString)",
             isDirectory: true
         )
-        defer { try? fileManager.removeItem(at: sourceRoot) }
+        registerFixtureRoot(sourceRoot)
         let sourceSupport = sourceRoot.appendingPathComponent("Application Support", isDirectory: true)
         try fileManager.createDirectory(at: sourceSupport, withIntermediateDirectories: true)
         let sourceSession = try StoreGenerationFactory(
             applicationSupportURL: sourceSupport
-        ).openOrBootstrapCurrent()
+        ).openOrBootstrapCurrent().recordingFixtureLifetime(in: self.fixtureLifetime)
         let source = try await C33TemporalEvidenceTestSupport.commitPersistentClip(
             in: sourceSession,
             slot: 730
@@ -2875,7 +2887,7 @@ extension S6_4AtomicRestoreTests {
             .fork
         ].enumerated() {
             let harness = try makeHarness("c33-real-restore-\(offset)")
-            defer { try? fileManager.removeItem(at: harness.root) }
+
             let validated = try importPackage(package, into: harness.session)
             XCTAssertEqual(validated.manifest.source.persistentSchemaVersion, 33)
             XCTAssertEqual(validated.records.recordsSchemaVersion, 32)
@@ -2945,7 +2957,7 @@ extension S6_4AtomicRestoreTests {
                         currentGenerationID: harness.session.generationID,
                         currentGenerationRootURL: harness.session.generationRootURL,
                         mode: .emptyInstall
-                    )
+                    ).recordingFixtureLifetime(in: self.fixtureLifetime)
                     XCTFail("mismatched temporal record/envelope pair restored")
                 } catch { }
                 XCTAssertEqual(
@@ -2965,7 +2977,7 @@ extension S6_4AtomicRestoreTests {
                 currentGenerationID: harness.session.generationID,
                 currentGenerationRootURL: harness.session.generationRootURL,
                 mode: mode
-            )
+            ).recordingFixtureLifetime(in: self.fixtureLifetime)
             let rows = try restored.modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>())
             XCTAssertEqual(rows.count, 1)
             let clip = try XCTUnwrap(rows.first).value()
@@ -3146,7 +3158,7 @@ extension S6_4AtomicRestoreTests {
         for (offset, receipt) in receipts.enumerated() {
             let payload = try CrossMarketCanonicalV1.data(receipt).base64EncodedString()
             let harness = try makeHarness("c42-atomic-\(offset)")
-            defer { try? fileManager.removeItem(at: harness.root) }
+
             let package = try makeSourcePackage(
                 in: harness.root,
                 name: "c42-source-\(offset)",
@@ -3162,7 +3174,7 @@ extension S6_4AtomicRestoreTests {
                 currentGenerationID: harness.session.generationID,
                 currentGenerationRootURL: harness.session.generationRootURL,
                 mode: .emptyInstall
-            )
+            ).recordingFixtureLifetime(in: self.fixtureLifetime)
             let restoredPayload = try XCTUnwrap(
                 restoredSession.modelContext.fetch(FetchDescriptor<Site>()).first?.address
             )
@@ -3186,9 +3198,6 @@ extension S6_4AtomicRestoreTests {
         let source = try makeHarness("c13-source")
         let probe = try makeHarness("c13-probe")
         let target = try makeHarness("c13-target")
-        defer {
-            for harness in [source, probe, target] { try? fileManager.removeItem(at: harness.root) }
-        }
         let session = source.session
         let registry = try source.factory.makeGenerationLeaseRegistry()
         let epoch = try XCTUnwrap(session.generationEpoch)
@@ -3364,8 +3373,8 @@ extension S6_4AtomicRestoreTests {
             storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })).restore(
                 validatedPackage: validated, currentModelContext: target.session.modelContext,
                 currentGenerationID: target.session.generationID,
-                currentGenerationRootURL: target.session.generationRootURL, mode: .emptyInstall)
-        let reopened = try target.factory.openOrBootstrapCurrent()
+                currentGenerationRootURL: target.session.generationRootURL, mode: .emptyInstall).recordingFixtureLifetime(in: self.fixtureLifetime)
+        let reopened = try target.factory.openOrBootstrapCurrent().recordingFixtureLifetime(in: self.fixtureLifetime)
         XCTAssertEqual(reopened.generationID, restored.generationID)
         XCTAssertNotEqual(reopened.generationID, target.session.generationID)
         let context = reopened.modelContext
@@ -3381,7 +3390,7 @@ extension S6_4AtomicRestoreTests {
             generationID: reopened.generationID, allowStateBootstrap: false).validateAll()
         for mode in [BackupRestoreMode.clone, .fork] {
             let rejected = try makeHarness("c13-reject-\(mode.rawValue)")
-            defer { try? fileManager.removeItem(at: rejected.root) }
+
             let sentinelSiteID = UUID(), sentinelAssetID = UUID(), sentinelPlacementID = UUID()
             let destinationRegistry = try rejected.factory.makeGenerationLeaseRegistry()
             let destinationEpoch = try XCTUnwrap(rejected.session.generationEpoch)
@@ -3435,12 +3444,12 @@ extension S6_4AtomicRestoreTests {
                     storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })).restore(
                         validatedPackage: staged, currentModelContext: rejected.session.modelContext,
                         currentGenerationID: rejected.session.generationID,
-                        currentGenerationRootURL: rejected.session.generationRootURL, mode: mode)
+                        currentGenerationRootURL: rejected.session.generationRootURL, mode: mode).recordingFixtureLifetime(in: self.fixtureLifetime)
                 XCTFail("Populated C13 must not clone or fork")
             } catch {
                 XCTAssertEqual(error as? BackupRestoreServiceError, .invalidRestoreAuthority)
             }
-            XCTAssertEqual(try rejected.factory.openOrBootstrapCurrent().generationID, rejected.session.generationID)
+            XCTAssertEqual(try rejected.factory.openOrBootstrapCurrent().recordingFixtureLifetime(in: self.fixtureLifetime).generationID, rejected.session.generationID)
             XCTAssertEqual(try rejected.session.modelContext.fetch(FetchDescriptor<Site>()).map(\.id), [sentinelSiteID])
             XCTAssertEqual(try rejected.session.modelContext.fetch(FetchDescriptor<Site>()).map(\.label), ["Preserved destination"])
             XCTAssertEqual(try rejected.session.modelContext.fetch(FetchDescriptor<Asset>()).map(\.id), [sentinelAssetID])
@@ -3669,7 +3678,7 @@ extension S6_4AtomicRestoreTests {
     @MainActor
     func testPreparedRestorePublishesRealDraftBytesAndRequiresBindingBeforeCleanup() async throws {
         let source = try makeHarness("draft-publication-source")
-        defer { try? fileManager.removeItem(at: source.root) }
+
         let session = source.session
         let workspace = session.workspaceIdentity.workspaceID
         let date = Date(timeIntervalSince1970: 1_800_000_000)
@@ -3727,7 +3736,7 @@ extension S6_4AtomicRestoreTests {
         let package = try exporter.export(previewID: preview.id, to: destination)
         for point in [BackupRestoreFailurePoint.afterPreparedWrite, .beforeGenerationInstall] {
             let target = try makeHarness("draft-publication-\(point)")
-            defer { try? fileManager.removeItem(at: target.root) }
+
             let validated = try importPackage(package, into: target.session)
             XCTAssertEqual(validated.records.fieldDrafts.count, 2)
             let restoreID = UUID(), newGenerationID = UUID()
@@ -3738,7 +3747,7 @@ extension S6_4AtomicRestoreTests {
                 _ = try await service.restore(validatedPackage: validated,
                     currentModelContext: target.session.modelContext,
                     currentGenerationID: target.session.generationID,
-                    currentGenerationRootURL: target.session.generationRootURL)
+                    currentGenerationRootURL: target.session.generationRootURL).recordingFixtureLifetime(in: self.fixtureLifetime)
             } verify: { error in
                 XCTAssertEqual(error as? BackupRestoreServiceError, .injectedFailure)
             }
@@ -3757,7 +3766,7 @@ extension S6_4AtomicRestoreTests {
                 try Data("{}".utf8).write(to: bindingURL, options: .atomic)
                 try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: bindingURL)
                 let packageBefore = try tree(validated.stagedPackageURL)
-                XCTAssertThrowsError(try recovery.reconcileAtStartup())
+                XCTAssertThrowsError(try recovery.reconcileAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime))
                 XCTAssertEqual(try tree(validated.stagedPackageURL), packageBefore)
                 XCTAssertEqual(try intentStore.load(), intent)
                 try fileManager.removeItem(at: bindingURL)
@@ -3783,7 +3792,7 @@ extension S6_4AtomicRestoreTests {
             // Startup owns the derived-state cleanup and intent retirement;
             // recovery must go through the production async bridge.
             let noFurtherRecovery = try await recovery
-                .reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+                .reconcileRestoreAndPrivateSystemDiscoveryAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime)
             XCTAssertNil(noFurtherRecovery)
             XCTAssertEqual(try target.factory.currentGenerationID(), target.session.generationID)
             XCTAssertFalse(fileManager.fileExists(atPath: validated.stagedPackageURL.path))
@@ -3801,7 +3810,7 @@ extension S6_4AtomicRestoreTests {
             XCTAssertEqual(retained, bytes)
             XCTAssertEqual(try target.session.modelContext.fetchCount(FetchDescriptor<AttachmentStagingItemRow>()), 0)
             let noFurtherRecoveryAgain = try await recovery
-                .reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+                .reconcileRestoreAndPrivateSystemDiscoveryAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime)
             XCTAssertNil(noFurtherRecoveryAgain)
             let retainedAgain = try await reopened.data(stageID: item.stageID)
             XCTAssertEqual(retainedAgain, bytes)
@@ -3813,9 +3822,7 @@ extension S6_4AtomicRestoreTests {
     @MainActor
     func testConfigurationCloneEmptyRootsRecoverAcrossPublicationBoundaries() async throws {
         let source = try makeHarness("clone-empty-boundaries-source")
-        addTeardownBlock { [root = source.root] in
-            try? FileManager.default.removeItem(at: root)
-        }
+
         let draft = try await makeConfigurationCloneDraftPackage(in: source)
         let archive = try Data(contentsOf: draft.package)
         let points: [BackupRestoreFailurePoint] = [
@@ -3824,9 +3831,7 @@ extension S6_4AtomicRestoreTests {
         for existingEmptyRoot in [false, true] {
             for point in points {
                 let target = try makeHarness("clone-empty-\(existingEmptyRoot)-\(point)")
-                addTeardownBlock { [root = target.root] in
-                    try? FileManager.default.removeItem(at: root)
-                }
+
                 if existingEmptyRoot {
                     _ = try DraftAttachmentStagingAdapterV1(applicationSupportURL: target.support,
                         workspaceID: target.session.workspaceID)
@@ -3839,12 +3844,12 @@ extension S6_4AtomicRestoreTests {
                     _ = try await service.restore(validatedPackage: validated,
                         currentModelContext: target.session.modelContext,
                         currentGenerationID: target.session.generationID,
-                        currentGenerationRootURL: target.session.generationRootURL, mode: .clone)
+                        currentGenerationRootURL: target.session.generationRootURL, mode: .clone).recordingFixtureLifetime(in: self.fixtureLifetime)
                 } verify: { XCTAssertEqual($0 as? BackupRestoreServiceError, .injectedFailure) }
                 let intents = try RestoreIntentStore(applicationSupportURL: target.support)
                 let intent = try XCTUnwrap(intents.load())
                 let recovery = try BackupRestoreService(applicationSupportURL: target.support)
-                let synchronous = try recovery.reconcileAtStartup()
+                let synchronous = try recovery.reconcileAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime)
                 if point == .afterPreparedWrite || point == .beforeGenerationInstall {
                     XCTAssertNil(synchronous)
                     XCTAssertEqual(try target.factory.currentGenerationID(), target.session.generationID)
@@ -3859,10 +3864,10 @@ extension S6_4AtomicRestoreTests {
                         source: validated.records, projected: projected, identity: cloneIdentity)
                     try assertNoConfigurationCloneDraftRows(in: selected.modelContext)
                     XCTAssertEqual(try intents.load()?.phase, .newGenerationValidated)
-                    let completed = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+                    let completed = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime)
                     XCTAssertEqual(completed?.generationID, selected.generationID)
                     XCTAssertNil(try intents.load())
-                    let reopened = try target.factory.openOrBootstrapCurrent()
+                    let reopened = try target.factory.openOrBootstrapCurrent().recordingFixtureLifetime(in: self.fixtureLifetime)
                     XCTAssertEqual(reopened.generationID, selected.generationID)
                     try assertNoConfigurationCloneDraftRows(in: reopened.modelContext)
                 }
@@ -3877,15 +3882,11 @@ extension S6_4AtomicRestoreTests {
     @MainActor
     func testConfigurationCloneColdRecoveryRejectsNewStagingWithoutDeletingIt() async throws {
         let source = try makeHarness("clone-cold-stage-source")
-        addTeardownBlock { [root = source.root] in
-            try? FileManager.default.removeItem(at: root)
-        }
+
         let draft = try await makeConfigurationCloneDraftPackage(in: source)
         for point in [BackupRestoreFailurePoint.afterPreparedWrite, .afterPointerSwitch] {
             let target = try makeHarness("clone-cold-stage-\(point)")
-            addTeardownBlock { [root = target.root] in
-                try? FileManager.default.removeItem(at: root)
-            }
+
             let validated = try importPackage(draft.package, into: target.session)
             let service = try BackupRestoreService(applicationSupportURL: target.support,
                 failureInjection: .init(failOnceAt: point))
@@ -3893,7 +3894,7 @@ extension S6_4AtomicRestoreTests {
                 _ = try await service.restore(validatedPackage: validated,
                     currentModelContext: target.session.modelContext,
                     currentGenerationID: target.session.generationID,
-                    currentGenerationRootURL: target.session.generationRootURL, mode: .clone)
+                    currentGenerationRootURL: target.session.generationRootURL, mode: .clone).recordingFixtureLifetime(in: self.fixtureLifetime)
             } verify: { XCTAssertEqual($0 as? BackupRestoreServiceError, .injectedFailure) }
             let staging = try DraftAttachmentStagingAdapterV1(applicationSupportURL: target.support,
                 workspaceID: target.session.workspaceID)
@@ -3905,9 +3906,9 @@ extension S6_4AtomicRestoreTests {
             let intents = try RestoreIntentStore(applicationSupportURL: target.support)
             let intent = try XCTUnwrap(intents.load())
             let recovery = try BackupRestoreService(applicationSupportURL: target.support)
-            XCTAssertThrowsError(try recovery.reconcileAtStartup())
+            XCTAssertThrowsError(try recovery.reconcileAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime))
             await XCTAssertThrowsErrorAsync {
-                _ = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+                _ = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime)
             } verify: { _ in }
             XCTAssertEqual(try intents.load(), intent)
             XCTAssertEqual(try target.factory.currentGenerationID(), currentID)
@@ -3921,15 +3922,11 @@ extension S6_4AtomicRestoreTests {
     @MainActor
     func testConfigurationCloneRechecksAccessCancellationAndRootAfterMediaCopy() async throws {
         let source = try makeHarness("clone-media-boundary-source")
-        addTeardownBlock { [root = source.root] in
-            try? FileManager.default.removeItem(at: root)
-        }
+
         let draft = try await makeConfigurationCloneDraftPackage(in: source)
         for scenario in ["access", "cancellation", "staging"] {
             let target = try makeHarness("clone-media-boundary-\(scenario)")
-            addTeardownBlock { [root = target.root] in
-                try? FileManager.default.removeItem(at: root)
-            }
+
             let validated = try importPackage(draft.package, into: target.session)
             let service = try BackupRestoreService(applicationSupportURL: target.support)
             let currentBefore = try tree(target.session.generationRootURL)
@@ -3956,7 +3953,7 @@ extension S6_4AtomicRestoreTests {
                     currentGenerationRootURL: target.session.generationRootURL, mode: .clone,
                     validateAccess: {
                         if !accessAllowed { throw AppAccessContractFailureV1.accessDenied }
-                    })
+                    }).recordingFixtureLifetime(in: self.fixtureLifetime)
             }
             await XCTAssertThrowsErrorAsync { _ = try await operation.value } verify: { error in
                 if scenario == "access" { XCTAssertEqual(error as? AppAccessContractFailureV1, .accessDenied) }
@@ -3978,10 +3975,6 @@ extension S6_4AtomicRestoreTests {
     func testConfigurationCloneRetainsIntentWhenStagingChangesDuringFinalColdCleanup() async throws {
         let source = try makeHarness("clone-final-cold-source")
         let target = try makeHarness("clone-final-cold-target")
-        addTeardownBlock { [sourceRoot = source.root, targetRoot = target.root] in
-            try? FileManager.default.removeItem(at: sourceRoot)
-            try? FileManager.default.removeItem(at: targetRoot)
-        }
         let draft = try await makeConfigurationCloneDraftPackage(in: source)
         let staging = try DraftAttachmentStagingAdapterV1(applicationSupportURL: target.support,
             workspaceID: target.session.workspaceID)
@@ -3992,7 +3985,7 @@ extension S6_4AtomicRestoreTests {
             _ = try await service.restore(validatedPackage: validated,
                 currentModelContext: target.session.modelContext,
                 currentGenerationID: target.session.generationID,
-                currentGenerationRootURL: target.session.generationRootURL, mode: .clone)
+                currentGenerationRootURL: target.session.generationRootURL, mode: .clone).recordingFixtureLifetime(in: self.fixtureLifetime)
         } verify: { XCTAssertEqual($0 as? BackupRestoreServiceError, .injectedFailure) }
         let intents = try RestoreIntentStore(applicationSupportURL: target.support)
         let original = try XCTUnwrap(intents.load())
@@ -4005,7 +3998,7 @@ extension S6_4AtomicRestoreTests {
                 workspaceID: target.session.workspaceID, attachmentKind: .file)
         }
         await XCTAssertThrowsErrorAsync {
-            _ = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+            _ = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime)
         } verify: { _ in }
         let staged = try XCTUnwrap(item)
         let retained = try await staging.data(stageID: staged.stageID)
@@ -4014,7 +4007,7 @@ extension S6_4AtomicRestoreTests {
         XCTAssertEqual(try target.factory.currentGenerationID(), original.newGenerationID)
         let after = try tree(target.support)
         recovery.configurationCloneObservationForTesting = nil
-        XCTAssertThrowsError(try recovery.reconcileAtStartup())
+        XCTAssertThrowsError(try recovery.reconcileAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime))
         XCTAssertEqual(try tree(target.support), after)
         try await assertConfigurationCloneDraftSourceUnchanged(source, draft: draft)
     }
@@ -4022,7 +4015,7 @@ extension S6_4AtomicRestoreTests {
     @MainActor
     func testConfigurationCloneFrozenEvidenceValidationIsBoundedAndRejectsHostileFiles() async throws {
         let target = try makeHarness("clone-bounded-evidence")
-        defer { try? fileManager.removeItem(at: target.root) }
+
         let service = try BackupRestoreService(applicationSupportURL: target.support)
         let root = target.session.generationRootURL
         let path = "frozen-evidence.jpg", url = root.appendingPathComponent(path)
@@ -4071,11 +4064,11 @@ extension S6_4AtomicRestoreTests {
     @MainActor
     func testConfigurationCloneOmitsDraftRowsAndStagedBytesWithoutChangingSource() async throws {
         let source = try makeHarness("configuration-clone-draft-source")
-        defer { try? fileManager.removeItem(at: source.root) }
+
         let draft = try await makeConfigurationCloneDraftPackage(in: source)
         let archiveBefore = try Data(contentsOf: draft.package)
         let target = try makeHarness("configuration-clone-draft-target")
-        defer { try? fileManager.removeItem(at: target.root) }
+
         let validated = try importPackage(draft.package, into: target.session)
         XCTAssertEqual(validated.records.fieldDrafts.count, 2)
         XCTAssertFalse(validated.members.keys.filter { $0.hasPrefix("draft-staging/") }.isEmpty)
@@ -4084,7 +4077,7 @@ extension S6_4AtomicRestoreTests {
         let restored = try await service.restore(validatedPackage: validated,
             currentModelContext: target.session.modelContext,
             currentGenerationID: target.session.generationID,
-            currentGenerationRootURL: target.session.generationRootURL, mode: .clone)
+            currentGenerationRootURL: target.session.generationRootURL, mode: .clone).recordingFixtureLifetime(in: self.fixtureLifetime)
 
         XCTAssertNotEqual(restored.workspaceID, source.session.workspaceID)
         try assertNoConfigurationCloneDraftRows(in: restored.modelContext)
@@ -4135,17 +4128,17 @@ extension S6_4AtomicRestoreTests {
     @MainActor
     func testEmptyInstallAndForkRetainDraftCheckpointAndOriginalBytes() async throws {
         let source = try makeHarness("non-clone-draft-source")
-        defer { try? fileManager.removeItem(at: source.root) }
+
         let draft = try await makeConfigurationCloneDraftPackage(in: source)
         for mode in [BackupRestoreMode.emptyInstall, .fork] {
             let target = try makeHarness("non-clone-draft-\(mode.rawValue)")
-            defer { try? fileManager.removeItem(at: target.root) }
+
             let validated = try importPackage(draft.package, into: target.session)
             let restored = try await BackupRestoreService(applicationSupportURL: target.support)
                 .restore(validatedPackage: validated,
                     currentModelContext: target.session.modelContext,
                     currentGenerationID: target.session.generationID,
-                    currentGenerationRootURL: target.session.generationRootURL, mode: mode)
+                    currentGenerationRootURL: target.session.generationRootURL, mode: mode).recordingFixtureLifetime(in: self.fixtureLifetime)
             let checkpoints = try restored.modelContext.fetch(FetchDescriptor<FieldDraftCheckpointRow>())
             let stages = try restored.modelContext.fetch(FetchDescriptor<AttachmentStagingItemRow>())
             XCTAssertEqual(checkpoints.count, 1)
@@ -4183,11 +4176,11 @@ extension S6_4AtomicRestoreTests {
     @MainActor
     func testConfigurationClonePreparedRecoveryNeverPublishesOmittedDraftBytes() async throws {
         let source = try makeHarness("configuration-clone-recovery-source")
-        defer { try? fileManager.removeItem(at: source.root) }
+
         let draft = try await makeConfigurationCloneDraftPackage(in: source)
         for point in [BackupRestoreFailurePoint.afterPreparedWrite, .beforeGenerationInstall] {
             let target = try makeHarness("configuration-clone-recovery-\(point)")
-            defer { try? fileManager.removeItem(at: target.root) }
+
             let validated = try importPackage(draft.package, into: target.session)
             let service = try BackupRestoreService(applicationSupportURL: target.support,
                 failureInjection: BackupRestoreFailureInjection(failOnceAt: point))
@@ -4195,7 +4188,7 @@ extension S6_4AtomicRestoreTests {
                 _ = try await service.restore(validatedPackage: validated,
                     currentModelContext: target.session.modelContext,
                     currentGenerationID: target.session.generationID,
-                    currentGenerationRootURL: target.session.generationRootURL, mode: .clone)
+                    currentGenerationRootURL: target.session.generationRootURL, mode: .clone).recordingFixtureLifetime(in: self.fixtureLifetime)
             } verify: { error in
                 XCTAssertEqual(error as? BackupRestoreServiceError, .injectedFailure)
             }
@@ -4207,7 +4200,7 @@ extension S6_4AtomicRestoreTests {
                 "FieldEvidenceRestore/draft-publication-\(intent.restoreID.uuidString.lowercased()).json")
             XCTAssertFalse(fileManager.fileExists(atPath: binding.path))
             let recovery = try BackupRestoreService(applicationSupportURL: target.support)
-            let result = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+            let result = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime)
             XCTAssertNil(result)
             XCTAssertNil(try intents.load())
             XCTAssertEqual(try target.factory.currentGenerationID(), target.session.generationID)
@@ -4354,7 +4347,7 @@ extension S6_4AtomicRestoreTests {
                     _ = try await service.restore(validatedPackage: fixture.package,
                         currentModelContext: fixture.harness.session.modelContext,
                         currentGenerationID: fixture.harness.session.generationID,
-                        currentGenerationRootURL: fixture.harness.session.generationRootURL, mode: .clone)
+                        currentGenerationRootURL: fixture.harness.session.generationRootURL, mode: .clone).recordingFixtureLifetime(in: self.fixtureLifetime)
                 } verify: { XCTAssertEqual($0 as? BackupRestoreServiceError, .injectedFailure) }
                 XCTAssertTrue(reached, label)
                 XCTAssertFalse(fileManager.fileExists(atPath: normal.path), label)
@@ -4368,7 +4361,7 @@ extension S6_4AtomicRestoreTests {
                 if slot == "terminal" {
                     // Read the committed preimage from the authentic interrupted
                     // claim, then independently hash the installed canonical store.
-                    let destination = try fixture.harness.factory.openOrBootstrapCurrent()
+                    let destination = try fixture.harness.factory.openOrBootstrapCurrent().recordingFixtureLifetime(in: self.fixtureLifetime)
                     let installed = try service.c55CurrentRecordsForTesting(in: destination.modelContext)
                     XCTAssertEqual(try BackupCanonicalEncoderV1().encodeRecords(installed).sha256,
                                    boundDestinationDigest, label)
@@ -4386,7 +4379,7 @@ extension S6_4AtomicRestoreTests {
                     continue
                 }
                 let recovery = try BackupRestoreService(applicationSupportURL: fixture.harness.support)
-                let result = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+                let result = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime)
                 if slot == "terminal" {
                     XCTAssertEqual(result?.generationID, fixture.newGenerationID, label)
                     try assertCloneRetirementFinished(fixture, label: label)
@@ -4401,7 +4394,7 @@ extension S6_4AtomicRestoreTests {
                 let stableStaging = try configurationCloneRetirementTree(
                     configurationCloneDraftRoot(fixture.harness.support))
                 let secondRecovery = try BackupRestoreService(applicationSupportURL: fixture.harness.support)
-                let secondResult = try await secondRecovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+                let secondResult = try await secondRecovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime)
                 XCTAssertNil(secondResult, label)
                 XCTAssertEqual(try fixture.harness.factory.currentGenerationID(), stablePointer, label)
                 XCTAssertEqual(try fixture.harness.factory.retiredGenerationIDs(), stableRetired, label)
@@ -4422,8 +4415,8 @@ extension S6_4AtomicRestoreTests {
             try await interruptCloneRetirement(fixture, at: step)
             XCTAssertEqual(try fixture.harness.factory.currentGenerationID(), fixture.harness.session.generationID, step)
             let recovery = try BackupRestoreService(applicationSupportURL: fixture.harness.support)
-            XCTAssertNil(try recovery.reconcileAtStartup(), step)
-            let completed = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+            XCTAssertNil(try recovery.reconcileAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime), step)
+            let completed = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime)
             XCTAssertNil(completed, step)
             try await assertCloneRetirementRolledBack(fixture, label: step)
         }
@@ -4446,10 +4439,10 @@ extension S6_4AtomicRestoreTests {
                 XCTAssertTrue(try fixture.harness.factory.retiredGenerationIDs().contains(fixture.harness.session.generationID))
             }
             let recovery = try BackupRestoreService(applicationSupportURL: fixture.harness.support)
-            let synchronous = try XCTUnwrap(recovery.reconcileAtStartup(), step)
+            let synchronous = try XCTUnwrap(recovery.reconcileAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime), step)
             XCTAssertEqual(synchronous.generationID, fixture.newGenerationID, step)
             XCTAssertEqual(try intents.load()?.phase, .newGenerationValidated, step)
-            let completed = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+            let completed = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime)
             XCTAssertEqual(completed?.generationID, fixture.newGenerationID, step)
             try assertCloneRetirementFinished(fixture, label: step)
         }
@@ -4468,8 +4461,8 @@ extension S6_4AtomicRestoreTests {
             XCTAssertEqual(fileManager.fileExists(atPath: cloneRetirementBindingURL(fixture).path),
                 step != "after-retirement-sidecar-removal", step)
             let recovery = try BackupRestoreService(applicationSupportURL: fixture.harness.support)
-            _ = try recovery.reconcileAtStartup()
-            _ = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+            _ = try recovery.reconcileAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime)
+            _ = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime)
             try assertCloneRetirementFinished(fixture, label: step)
         }
     }
@@ -4485,14 +4478,14 @@ extension S6_4AtomicRestoreTests {
             recovery.configurationCloneRetirementObservationForTesting = { label in
                 if label == step && !reached { reached = true; throw BackupRestoreServiceError.injectedFailure }
             }
-            XCTAssertThrowsError(try recovery.reconcileAtStartup(), step) {
+            XCTAssertThrowsError(try recovery.reconcileAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime), step) {
                 XCTAssertEqual($0 as? BackupRestoreServiceError, .injectedFailure, step)
             }
             XCTAssertTrue(reached, step)
             XCTAssertEqual(try fixture.harness.factory.currentGenerationID(), fixture.harness.session.generationID, step)
             XCTAssertNotNil(try RestoreIntentStore(applicationSupportURL: fixture.harness.support).load(), step)
             let reopened = try BackupRestoreService(applicationSupportURL: fixture.harness.support)
-            let completed = try await reopened.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+            let completed = try await reopened.reconcileRestoreAndPrivateSystemDiscoveryAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime)
             XCTAssertNil(completed, step)
             try await assertCloneRetirementRolledBack(fixture, label: step)
         }
@@ -4566,7 +4559,7 @@ extension S6_4AtomicRestoreTests {
                         currentGenerationRootURL: fixture.harness.session.generationRootURL,
                         mode: .clone, validateAccess: {
                             if !allowed { throw FixtureError.publicationDenied }
-                        })
+                        }).recordingFixtureLifetime(in: self.fixtureLifetime)
                 }
                 await XCTAssertThrowsErrorAsync { _ = try await operation.value } verify: { error in
                     if cancel { XCTAssertTrue(error is CancellationError) }
@@ -4590,7 +4583,7 @@ extension S6_4AtomicRestoreTests {
                     XCTAssertTrue(fileManager.fileExists(atPath: cloneRetirementPrivateRoot(fixture).path))
                     XCTAssertEqual(try fixture.harness.factory.currentGenerationID(), fixture.newGenerationID)
                     let recovery = try BackupRestoreService(applicationSupportURL: fixture.harness.support)
-                    _ = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+                    _ = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime)
                     try assertCloneRetirementFinished(fixture, label: "access-recovery")
                 }
                 try assertCloneRetirementOldCanonicalUnchanged(fixture)
@@ -4617,7 +4610,7 @@ extension S6_4AtomicRestoreTests {
             _ = try await service.restore(validatedPackage: fixture.package,
                 currentModelContext: fixture.harness.session.modelContext,
                 currentGenerationID: fixture.harness.session.generationID,
-                currentGenerationRootURL: fixture.harness.session.generationRootURL, mode: .clone)
+                currentGenerationRootURL: fixture.harness.session.generationRootURL, mode: .clone).recordingFixtureLifetime(in: self.fixtureLifetime)
         } verify: { _ in }
         let original = try XCTUnwrap(substituted)
         // EXCL capture retains the substituted inode under the original
@@ -4678,7 +4671,7 @@ extension S6_4AtomicRestoreTests {
                 _ = try await service.restore(validatedPackage: fixture.package,
                     currentModelContext: fixture.harness.session.modelContext,
                     currentGenerationID: fixture.harness.session.generationID,
-                    currentGenerationRootURL: fixture.harness.session.generationRootURL, mode: .clone)
+                    currentGenerationRootURL: fixture.harness.session.generationRootURL, mode: .clone).recordingFixtureLifetime(in: self.fixtureLifetime)
             } verify: { error in
                 XCTAssertEqual(error as? DraftAttachmentStagingFailureV1, .staleStage,
                     "Directory rename must fail the exact-vnode deletion proof")
@@ -4717,9 +4710,6 @@ private extension S6_4AtomicRestoreTests {
     @MainActor
     func makeCloneRetirementFixture(_ label: String) async throws -> CloneRetirementFixture {
         let harness = try makeHarness("retirement-\(label)")
-        // XCTest runs this after the case's live model/lease owners leave scope.
-        let root = harness.root
-        addTeardownBlock { try FileManager.default.removeItem(at: root) }
         let draft = try await makeConfigurationCloneDraftPackage(in: harness)
         let package = try importPackage(draft.package, into: harness.session)
         let inspector = try BackupRestoreService(applicationSupportURL: harness.support)
@@ -4847,7 +4837,7 @@ private extension S6_4AtomicRestoreTests {
             _ = try await service.restore(validatedPackage: fixture.package,
                 currentModelContext: fixture.harness.session.modelContext,
                 currentGenerationID: fixture.harness.session.generationID,
-                currentGenerationRootURL: fixture.harness.session.generationRootURL, mode: .clone)
+                currentGenerationRootURL: fixture.harness.session.generationRootURL, mode: .clone).recordingFixtureLifetime(in: self.fixtureLifetime)
         } verify: {
             XCTAssertEqual($0 as? BackupRestoreServiceError, .injectedFailure,
                 "\(step); actual error: \(String(reflecting: $0))")
@@ -4900,7 +4890,7 @@ private extension S6_4AtomicRestoreTests {
         XCTAssertTrue(try fileManager.contentsOfDirectory(atPath: root.appendingPathComponent("quarantine").path).isEmpty, label)
         XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("manifest.json")),
             try DraftAttachmentStagingManifestV1(entries: []).canonicalBytes(), label)
-        let destination = try fixture.harness.factory.openOrBootstrapCurrent()
+        let destination = try fixture.harness.factory.openOrBootstrapCurrent().recordingFixtureLifetime(in: self.fixtureLifetime)
         XCTAssertNotEqual(destination.workspaceID, fixture.harness.session.workspaceID, label)
         try assertNoConfigurationCloneDraftRows(in: destination.modelContext)
         let inspector = try BackupRestoreService(
@@ -4965,8 +4955,8 @@ private extension S6_4AtomicRestoreTests {
         let stageBefore = try configurationCloneRetirementTree(configurationCloneDraftRoot(fixture.harness.support))
         let metadataBefore = try cloneRetirementMetadata(fixture)
         let recovery = try BackupRestoreService(applicationSupportURL: fixture.harness.support)
-        XCTAssertThrowsError(try recovery.reconcileAtStartup(), label)
-        await XCTAssertThrowsErrorAsync { _ = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup() } verify: { _ in }
+        XCTAssertThrowsError(try recovery.reconcileAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime), label)
+        await XCTAssertThrowsErrorAsync { _ = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup().recordingFixtureLifetime(in: self.fixtureLifetime) } verify: { _ in }
         XCTAssertEqual(try intents.load(), beforeIntent, label)
         XCTAssertEqual(try Data(contentsOf: pointerURL), beforePointer, label)
         XCTAssertEqual(try fixture.harness.factory.retiredGenerationIDs(), beforeRetired, label)
@@ -5013,5 +5003,78 @@ private extension S6_4AtomicRestoreTests {
             result.append(.init(path: path + (directory ? "/" : ""), bytes: directory ? Data() : try Data(contentsOf: url)))
         }
         return result.sorted { $0.path < $1.path }
+    }
+}
+
+// Filesystem cleanup owns only exact registered paths and weak observations.
+// The test case/body owns all sessions; a leaked owner fails cleanup closed.
+@MainActor
+private final class S6_4FixtureLifetimeV1 {
+    @MainActor
+    private final class Probe {
+        weak var session: StoreGenerationSession?
+        weak var context: ModelContext?
+        weak var container: ModelContainer?
+        let generationID: UUID
+
+        init(_ value: StoreGenerationSession) {
+            session = value
+            context = value.modelContext
+            container = value.modelContext.container
+            generationID = value.generationID
+        }
+
+        var isDrained: Bool { session == nil && context == nil && container == nil }
+    }
+    enum Failure: Error { case retainedStore }
+    private var roots: [String: [Probe]] = [:]
+
+    func register(_ root: URL) -> Bool {
+        let key = root.standardizedFileURL.path
+        guard roots[key] == nil else { return false }
+        roots[key] = []
+        return true
+    }
+
+    func observe(_ session: StoreGenerationSession) {
+        let path = session.generationRootURL.standardizedFileURL.path
+        guard let root = roots.keys.filter({ path.hasPrefix($0 + "/") }).max(by: { $0.count < $1.count }) else {
+            XCTFail("S6_4.teardown unregistered session root: \(path)")
+            return
+        }
+        roots[root, default: []].append(Probe(session))
+    }
+
+    func removeRootIfDrained(_ root: URL) throws {
+        let key = root.standardizedFileURL.path
+        guard let probes = roots[key] else { return }
+        let retained = probes.filter { !$0.isDrained }
+        guard retained.isEmpty else {
+            for probe in retained {
+                print("S6_4.teardown retained generation=\(probe.generationID) session=\(probe.session != nil) context=\(probe.context != nil) container=\(probe.container != nil) root=\(key)")
+            }
+            throw Failure.retainedStore
+        }
+        if FileManager.default.fileExists(atPath: root.path) {
+            try FileManager.default.removeItem(at: root)
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.path))
+        roots.removeValue(forKey: key)
+    }
+}
+
+private extension StoreGenerationSession {
+    @MainActor
+    func recordingFixtureLifetime(in lifetime: S6_4FixtureLifetimeV1) -> StoreGenerationSession {
+        lifetime.observe(self)
+        return self
+    }
+}
+
+private extension Optional where Wrapped == StoreGenerationSession {
+    @MainActor
+    func recordingFixtureLifetime(in lifetime: S6_4FixtureLifetimeV1) -> StoreGenerationSession? {
+        if let session = self { lifetime.observe(session) }
+        return self
     }
 }

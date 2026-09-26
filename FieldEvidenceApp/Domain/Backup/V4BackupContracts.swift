@@ -5345,24 +5345,9 @@ extension V4BackupRecordsV1{
               pairedObservationLinks.allSatisfy({ $0.kind == .pairedObservationLink }) else {
             throw EvidenceContextFailureV1.referenceMismatch
         }
-        let rows = try EvidenceContextBackupRecordSetV1.decode(
+        _ = try EvidenceContextBackupRecordSetV1.decode(
             evidenceContexts + pairedObservationLinks
         )
-        let contexts = rows.contexts
-        for link in rows.pairedObservationLinks {
-            for endpoint in [link.first, link.second] {
-                guard contexts.contains(where: {
-                    $0.workspaceID == endpoint.workspaceID &&
-                    $0.evidenceID == endpoint.evidenceID &&
-                    $0.evidenceSHA256 == endpoint.evidenceSHA256 &&
-                    $0.evidenceRevision == endpoint.evidenceRevision &&
-                    $0.assetID == endpoint.assetID &&
-                    $0.assetRevision == endpoint.assetRevision
-                }) else {
-                    throw EvidenceContextFailureV1.referenceMismatch
-                }
-            }
-        }
     }
 
     func replacingAssetLocators(_ values: [V26BackupAssetLocatorRecordV1]) -> Self {
@@ -5735,6 +5720,42 @@ struct EvidenceContextBackupRecordSetV1: Sendable {
                     throw EvidenceContextFailureV1.predecessorMismatch
                 }
                 try value.validateSuccessor(of: predecessor)
+            }
+        }
+        // This decoder owns a complete canonical family, including immutable
+        // history retained by ordinary deletion. It does not require live media.
+        struct EvidenceIdentity: Hashable {
+            let workspaceID: UUID
+            let evidenceID: String
+        }
+        let contextsByEvidence = Dictionary(grouping: contexts) {
+            EvidenceIdentity(workspaceID: $0.workspaceID.rawValue, evidenceID: $0.evidenceID)
+        }
+        var purposes: [EvidenceIdentity: PairedObservationReferenceV1] = [:]
+        for link in links {
+            for endpoint in [link.first, link.second] {
+                let identity = EvidenceIdentity(workspaceID: endpoint.workspaceID.rawValue,
+                    evidenceID: endpoint.evidenceID)
+                // Multiple context revisions may legitimately retain the same
+                // immutable endpoint. At least one exact binding is required.
+                guard contextsByEvidence[identity]?.contains(where: {
+                    $0.evidenceSHA256 == endpoint.evidenceSHA256 &&
+                    $0.evidenceRevision == endpoint.evidenceRevision &&
+                    $0.assetID == endpoint.assetID &&
+                    $0.assetRevision == endpoint.assetRevision
+                }) == true else {
+                    throw EvidenceContextFailureV1.referenceMismatch
+                }
+                // Match the sole writer's historical one-photo-one-purpose
+                // rule, without treating shared bytes as shared photo identity.
+                if let prior = purposes[identity] {
+                    guard prior.purpose == endpoint.purpose,
+                          prior.purposeRevision == endpoint.purposeRevision else {
+                        throw EvidenceContextFailureV1.referenceMismatch
+                    }
+                } else {
+                    purposes[identity] = endpoint
+                }
             }
         }
         return Self(contexts: contexts, pairedObservationLinks: links)
