@@ -2505,3 +2505,272 @@ enum ReportPublicationCanonicalCodecV1 {
         }
     }
 }
+
+// MARK: - Explicit finite full-source wire (no production dispatch)
+
+enum ReportCurrentPublicationCanonicalCodecV2 {
+    static func typedBytes<T: Codable & Equatable>(_ value: T) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        encoder.dateEncodingStrategy = .deferredToDate
+        let bytes = try encoder.encode(value)
+        try bounded(bytes)
+        guard try decoder().decode(T.self, from: bytes) == value else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return bytes
+    }
+    static func encodeBasis(_ value: ReportCurrentPublicationBasisV2) throws -> Data {
+        try value.validate()
+        return try typedBytes(BasisWire(reportCurrentBasisSchemaVersion: 2, basis: value))
+    }
+    static func encode(_ value: ReportCurrentPublicationV2) throws -> EncodedReportSnapshotV1 {
+        try value.validate()
+        let bytes = try typedBytes(OuterWire(value))
+        return .init(data: bytes, sha256: CanonicalJSONV1.sha256(bytes))
+    }
+    static func decode(_ bytes: Data) throws -> ReportCurrentPublicationV2 {
+        try bounded(bytes)
+        let wire = try decoder().decode(OuterWire.self, from: bytes)
+        let value = try wire.value()
+        guard try encode(value).data == bytes else { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+        return value
+    }
+    static func decodeBasis(_ bytes: Data) throws -> ReportCurrentPublicationBasisV2 {
+        try bounded(bytes)
+        let wire = try decoder().decode(BasisWire.self, from: bytes)
+        guard wire.reportCurrentBasisSchemaVersion == 2 else { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+        try wire.basis.validate()
+        guard try encodeBasis(wire.basis) == bytes else { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+        return wire.basis
+    }
+    private static func bounded(_ bytes: Data) throws {
+        guard !bytes.isEmpty, bytes.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+    }
+    private static func decoder() -> JSONDecoder {
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .deferredToDate
+        return decoder
+    }
+    fileprivate struct BasisWire: Codable, Equatable {
+        let reportCurrentBasisSchemaVersion: Int
+        let basis: ReportCurrentPublicationBasisV2
+    }
+    fileprivate struct OuterWire: Codable, Equatable {
+        let reportCurrentPublicationSchemaVersion: Int
+        let basis: BasisWire
+        let basisSHA256: String
+        let currentAssurance: ReportEvidenceAssuranceProjectionV1?
+        init(_ value: ReportCurrentPublicationV2) {
+            reportCurrentPublicationSchemaVersion = 2
+            basis = .init(reportCurrentBasisSchemaVersion: 2, basis: value.basis)
+            basisSHA256 = value.basisSHA256; currentAssurance = value.currentAssurance
+        }
+        func value() throws -> ReportCurrentPublicationV2 {
+            guard reportCurrentPublicationSchemaVersion == 2, basis.reportCurrentBasisSchemaVersion == 2 else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            let value = try ReportCurrentPublicationV2(basis: basis.basis, currentAssurance: currentAssurance)
+            guard value.basisSHA256 == basisSHA256 else { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+            return value
+        }
+    }
+    // The original's decoder has an INITIAL-only source type. It does not first
+    // decode an arbitrary reviewed publication and reject recursion afterwards.
+    fileprivate struct InitialBasisValueWire: Codable {
+        let source: ReportInitialContentV2
+        let audience: ReportAudienceV1
+        let projectionVersion: String
+    }
+    fileprivate struct InitialBasisWire: Codable {
+        let reportCurrentBasisSchemaVersion: Int
+        let basis: InitialBasisValueWire
+    }
+    fileprivate struct InitialOuterWire: Decodable {
+        let reportCurrentPublicationSchemaVersion: Int
+        let basis: InitialBasisWire
+        let basisSHA256: String
+        let currentAssurance: ReportEvidenceAssuranceProjectionV1?
+        func value() throws -> ReportInitialPublicationV2 {
+            guard reportCurrentPublicationSchemaVersion == 2, basis.reportCurrentBasisSchemaVersion == 2 else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            let value = try ReportInitialPublicationV2(content: basis.basis.source,
+                audience: basis.basis.audience, projectionVersion: basis.basis.projectionVersion,
+                assurance: currentAssurance)
+            guard value.basisSHA256 == basisSHA256 else { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+            return value
+        }
+    }
+}
+
+// These explicit nested representations match the unchanged AH2 V1 codecs.
+// No existing decoder, file-family dispatcher or writer learns V2 admission.
+extension ReportPublicationBasisV1: Codable {
+    private enum CodingKeys: String, CodingKey { case reportBasisSchemaVersion, workspaceID, audience, projectionVersion, snapshot }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        guard try c.decode(Int.self, forKey: .reportBasisSchemaVersion) == 1,
+              let id = UUID(uuidString: try c.decode(String.self, forKey: .workspaceID)) else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        try self.init(workspaceID: WorkspaceID(rawValue: id), audience: c.decode(ReportAudienceV1.self, forKey: .audience),
+            projectionVersion: c.decode(String.self, forKey: .projectionVersion), snapshot: c.decode(ReportSnapshotV1.self, forKey: .snapshot))
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(1, forKey: .reportBasisSchemaVersion)
+        try c.encode(workspaceID.rawValue.uuidString.lowercased(), forKey: .workspaceID)
+        try c.encode(audience, forKey: .audience); try c.encode(projectionVersion, forKey: .projectionVersion)
+        try c.encode(snapshot, forKey: .snapshot)
+    }
+}
+
+extension ReportPublicationV1: Codable {
+    private enum CodingKeys: String, CodingKey { case reportPublicationSchemaVersion, basis, basisSHA256, assurance }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        guard try c.decode(Int.self, forKey: .reportPublicationSchemaVersion) == 1 else { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+        try self.init(basis: c.decode(ReportPublicationBasisV1.self, forKey: .basis),
+            assurance: c.decodeIfPresent(ReportEvidenceAssuranceProjectionV1.self, forKey: .assurance))
+        guard try c.decode(String.self, forKey: .basisSHA256) == basisSHA256 else { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(1, forKey: .reportPublicationSchemaVersion); try c.encode(basis, forKey: .basis)
+        try c.encode(basisSHA256, forKey: .basisSHA256); try c.encodeIfPresent(assurance, forKey: .assurance)
+    }
+}
+
+extension ReportInitialContentV2: Codable {
+    private enum CodingKeys: String, CodingKey { case sourceKind, value }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        switch try c.decode(String.self, forKey: .sourceKind) {
+        case "INITIAL": self = .plain(try c.decode(ReportPublicationBasisV1.self, forKey: .value))
+        case "INITIAL_COORDINATED": self = .coordinated(try c.decode(ReportInitialCoordinatedSourceV1.self, forKey: .value))
+        default: throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .plain(let value): try c.encode("INITIAL", forKey: .sourceKind); try c.encode(value, forKey: .value)
+        case .coordinated(let value): try c.encode("INITIAL_COORDINATED", forKey: .sourceKind); try c.encode(value, forKey: .value)
+        }
+    }
+}
+
+extension ReportInitialPublicationV2: Codable {
+    init(from decoder: Decoder) throws {
+        self = try ReportCurrentPublicationCanonicalCodecV2.InitialOuterWire(from: decoder).value()
+    }
+    func encode(to encoder: Encoder) throws {
+        try ReportCurrentPublicationCanonicalCodecV2.OuterWire(currentPublication()).encode(to: encoder)
+    }
+}
+
+extension ReportOriginalPublicationV2: Codable {
+    private enum CodingKeys: String, CodingKey { case originalKind, value }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        switch try c.decode(String.self, forKey: .originalKind) {
+        case "LEGACY_V1": self = .legacy(try c.decode(ReportPublicationV1.self, forKey: .value))
+        case "INITIAL_V2": self = .initial(try c.decode(ReportInitialPublicationV2.self, forKey: .value))
+        default: throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .legacy(let value): try c.encode("LEGACY_V1", forKey: .originalKind); try c.encode(value, forKey: .value)
+        case .initial(let value): try c.encode("INITIAL_V2", forKey: .originalKind); try c.encode(value, forKey: .value)
+        }
+    }
+}
+
+private struct ReportSubjectWireV2: Codable {
+    let workspaceID: UUID
+    let reportID: UUID
+    let fixedCorrectionChainRevision: UInt64
+    init(_ value: CompletedWorkSubjectKeyV1) throws {
+        guard value.family == .legacyReportSnapshot else { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+        workspaceID = value.workspaceID.rawValue; reportID = value.subjectID; fixedCorrectionChainRevision = value.subjectRevision
+    }
+    func value() throws -> CompletedWorkSubjectKeyV1 {
+        try .init(workspaceID: WorkspaceID(rawValue: workspaceID), subjectID: reportID, subjectRevision: fixedCorrectionChainRevision)
+    }
+}
+
+extension ReportReviewedSourceV2: Codable {
+    private enum CodingKeys: String, CodingKey { case original, reportSubject, history }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(original: c.decode(ReportOriginalPublicationV2.self, forKey: .original),
+            reportSubject: c.decode(ReportSubjectWireV2.self, forKey: .reportSubject).value(),
+            history: c.decode(CompletedInspectionReviewHistorySnapshotV1.self, forKey: .history))
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(original, forKey: .original); try c.encode(ReportSubjectWireV2(reportSubject), forKey: .reportSubject)
+        try c.encode(history, forKey: .history)
+    }
+}
+
+extension ReportAcceptedOriginV1: Codable {
+    private enum CodingKeys: String, CodingKey { case subject, finalization, receipt }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(subject: c.decode(ReportSubjectWireV2.self, forKey: .subject).value(),
+            finalization: c.decode(FinalizationWriterCommitBindingV1.self, forKey: .finalization),
+            receipt: c.decode(MutationReceiptV1.self, forKey: .receipt))
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(ReportSubjectWireV2(subject), forKey: .subject)
+        try c.encode(finalization, forKey: .finalization); try c.encode(receipt, forKey: .receipt)
+    }
+}
+
+extension ReportPacketAssociationV1: Codable {
+    private enum CodingKeys: String, CodingKey { case associationKind, value }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        switch try c.decode(String.self, forKey: .associationKind) {
+        case "DIRECT_INSPECTION": self = .directInspection(try c.decode(WorkPacketItemReferenceV1.self, forKey: .value))
+        case "RECORDED_RESULT": self = .recordedResult(try c.decode(WorkPacketReportResultBindingV1.self, forKey: .value))
+        default: throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .directInspection(let value): try c.encode("DIRECT_INSPECTION", forKey: .associationKind); try c.encode(value, forKey: .value)
+        case .recordedResult(let value): try c.encode("RECORDED_RESULT", forKey: .associationKind); try c.encode(value, forKey: .value)
+        }
+    }
+}
+
+extension ReportPublicationSourceV2: Codable {
+    private enum CodingKeys: String, CodingKey { case sourceKind, value }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        switch try c.decode(String.self, forKey: .sourceKind) {
+        case "INITIAL": self = .initial(try c.decode(ReportPublicationBasisV1.self, forKey: .value))
+        case "REVIEWED": self = .reviewed(try c.decode(ReportReviewedSourceV2.self, forKey: .value))
+        case "INITIAL_COORDINATED": self = .initialCoordinated(try c.decode(ReportInitialCoordinatedSourceV1.self, forKey: .value))
+        case "REVIEWED_COORDINATED": self = .reviewedCoordinated(try c.decode(ReportReviewedCoordinatedSourceV1.self, forKey: .value))
+        default: throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .initial(let value): try c.encode("INITIAL", forKey: .sourceKind); try c.encode(value, forKey: .value)
+        case .reviewed(let value): try c.encode("REVIEWED", forKey: .sourceKind); try c.encode(value, forKey: .value)
+        case .initialCoordinated(let value): try c.encode("INITIAL_COORDINATED", forKey: .sourceKind); try c.encode(value, forKey: .value)
+        case .reviewedCoordinated(let value): try c.encode("REVIEWED_COORDINATED", forKey: .sourceKind); try c.encode(value, forKey: .value)
+        }
+    }
+}

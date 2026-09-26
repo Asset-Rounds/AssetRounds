@@ -6,6 +6,8 @@
 
 - AO1 isolated full-source contract compiles and executes75methods:73PASS/2FAIL/0skip. New four-command pose positive fails existing C37 uncertainty projection; real legacy PDF service failsinvalidIdentity at an unlocated owner. All10sources and245products match; AO2 reviewed pose/diagnostic successors compile and finish75/76PASS,0skip on11 sealed inputs; sole PDF failure is validator.validate/invalidAuthority. Pure codecs do not close genuine producer, recovery, renderer, correction, transport or report-bound Erase.
 
+- AP2 isolated successor compiled and completed33actual methods:29PASS/4FAIL/0skip/crash,26sources/245products unchanged. TwoC33lifetime positives nowpass; hostilefixture setup, idempotent prune expectation, missing expected WorkPacket postimage and foreign-source lifetime remain due. This evidence is not part of pushedAN1 or acceptance.
+
 ## Current obligations — AL3 development (2026-09-26)
 
 This block supersedes status statements below only within the exact tested scope. Historical failures and every unclosed requirement remain retained; development results are not gates.
@@ -404,3 +406,10 @@ The production photo journey takes priority over another isolated foundation. So
 - AK3 corrects actual resolver-lowstorage handling and symmetric claim normalization; compiled,61/61affectedmethods PASS,0skip. Final audit/integration remain due. Earlier AK1/AK2 observations are historical and retained; shippingUI selector adoption, actualAVdevice behavior, humanreview and same-head gates remain separate obligations.
 
 - AK4 combines the exact seven reviewed AK3files with pushedAJ1; combinedbuildPASS and61/61affectednativePASS. Finalindependentcheckpointreviewpending; no all3485same-headcoverage, genuineUI, actualAVdevice or gateacceptance. C3reviewedcollectioncorrectionfresh363/42PASS remainsinactive/unqualified.
+
+
+### 2026-09-26 AO3/AP3/C6 follow-up
+
+- AO3 actual27/27PASS does not close full report lifecycle adoption. Investigate12 SQLite vnode-unlinked diagnostics observed in the four unchanged S4_2 controls; passing tests do not establish harmlessness.
+- AP3 build fails escaping diagnostic callback annotation; retain failed original and verify reviewed successor before any native execution. Six-method successor selection is census-checked, not runtime evidence.
+- C6 local unit-host external sink1/1PASS proves only that observed execution and retained bytes. Real UI-app launch/relaunch, earliest policy initialization, every relevant process/lifecycle, authoritative bounded sink/collector and pinned provider qualification remain due. Physical protection remains unverified and release-blocking; gate guards stay closed.

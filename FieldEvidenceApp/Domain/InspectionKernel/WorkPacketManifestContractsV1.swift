@@ -493,3 +493,49 @@ enum C52ServiceRequestBoundary_WorkPacketManifestContractsV1 {
     static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
     static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
 }
+
+/// REPORT is an existing generic result product, never an evidence-kind alias.
+/// These exact joins are structural; the consumer must authenticate the full
+/// finalization origin and selected packet history before accepting a write.
+struct WorkPacketReportResultBindingV1: Codable, Equatable, Sendable {
+    let item: WorkPacketItemReferenceV1
+    let releaseID: UUID
+    let handoffID: UUID?
+    let result: WorkPacketResultLinkV1
+
+    init(snapshot: CompletedWorkPacketSnapshotV1, item: WorkPacketItemReferenceV1,
+         releaseID: UUID, handoffID: UUID? = nil, result: WorkPacketResultLinkV1,
+         subject: CompletedWorkSubjectKeyV1, originalSHA256: String,
+         finalizationMutationID: MutationIDV1) throws {
+        self.item = item; self.releaseID = releaseID; self.handoffID = handoffID; self.result = result
+        try validate(snapshot: snapshot, subject: subject, originalSHA256: originalSHA256,
+                     finalizationMutationID: finalizationMutationID)
+    }
+    func validate(snapshot: CompletedWorkPacketSnapshotV1, subject: CompletedWorkSubjectKeyV1,
+                  originalSHA256: String, finalizationMutationID: MutationIDV1) throws {
+        try snapshot.validate(); try result.validate()
+        guard subject.family == .legacyReportSnapshot,
+              subject.workspaceID == snapshot.workspaceID,
+              let member = snapshot.manifest.items.first(where: { $0.itemID == item.itemID }),
+              try WorkPacketItemReferenceV1(manifest: snapshot.manifest, item: member) == item,
+              let release = snapshot.releases.first(where: { $0.releaseID == releaseID }),
+              let claim = snapshot.claims.first(where: { $0.claimID == release.claimID }),
+              let lease = snapshot.leases.first(where: { $0.leaseID == release.leaseID }),
+              release.item == item, release.resultLinks.contains(result),
+              result.resultID == subject.subjectID, result.resultRevision == subject.subjectRevision,
+              result.resultSHA256 == originalSHA256, result.resultMutationID == finalizationMutationID,
+              result.itemExpectedRevision == item.expectedRevision else {
+            throw WorkPacketFailureV1.missingResult
+        }
+        try release.validate(claim: claim, lease: lease, manifest: snapshot.manifest)
+        let candidates = snapshot.releases.flatMap(\.resultLinks) + snapshot.handoffs.flatMap(\.resultLinks)
+        guard candidates.filter({ $0.resultID == result.resultID }).allSatisfy({ $0 == result }) else {
+            throw WorkPacketFailureV1.missingResult
+        }
+        if let handoffID {
+            guard let handoff = snapshot.handoffs.first(where: { $0.handoffID == handoffID }),
+                  handoff.resultLinks.contains(result) else { throw WorkPacketFailureV1.missingResult }
+            try handoff.validate(release: release)
+        }
+    }
+}

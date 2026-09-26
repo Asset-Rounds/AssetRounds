@@ -1060,63 +1060,10 @@ struct ReportReviewedSourceV1: Equatable, Sendable {
 
     func validate() throws {
         try original.validate()
-        try history.validate()
-        let snapshot = original.basis.snapshot
-        let originalSHA256 = try ReportPublicationCanonicalCodecV1.encode(original).sha256
-        guard reportSubject.family == .legacyReportSnapshot,
-              reportSubject.workspaceID == original.basis.workspaceID,
-              reportSubject.subjectID == snapshot.reportID,
-              reportSubject.subjectRevision > 0,
-              snapshot.snapshotSchemaVersion == 3,
-              history.workspaceID == original.basis.workspaceID,
-              history.sourceSnapshotSHA256 == originalSHA256,
-              history.binding.completedSnapshotSHA256 == originalSHA256,
-              let assurance = original.assurance,
-              let accountability = snapshot.accountability,
-              snapshot.assetSemantics != nil,
-              let authority = snapshot.authorityCriterion,
-              let relationships = snapshot.functionalRelationships,
-              history.binding.c38AccountabilitySHA256 == accountability.snapshotSHA256,
-              history.binding.c40AuthorityCriterionSHA256 == authority.snapshotSHA256,
-              history.binding.c41FunctionalRelationshipsSHA256 == relationships.snapshotSHA256,
-              history.binding.c13AssuranceSHA256 == CanonicalJSONV1.sha256(
-                try ReportEvidenceAssuranceCanonicalCodecV1.encode(assurance)) else {
-            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
-        }
-        for transition in history.reviewTransitions {
-            try validateSubject(transition.subject, originalSHA256: originalSHA256)
-        }
-        for disposition in history.reviewDispositions {
-            try validateSubject(disposition.subject, originalSHA256: originalSHA256)
-        }
-        try EvidenceDetailInspectionReviewProjectionGuardV1.validateHistory(history, assurance: assurance)
-    }
-
-    private func validateSubject(_ subject: InspectionReviewSubjectReferenceV1,
-                                 originalSHA256: String) throws {
-        switch subject.kind {
-        case .reportSnapshot:
-            guard subject.workspaceID == reportSubject.workspaceID,
-                  subject.subjectID == reportSubject.subjectID.uuidString.lowercased(),
-                  subject.subjectRevision == reportSubject.subjectRevision,
-                  subject.subjectSHA256 == originalSHA256 else {
-                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
-            }
-            if let package = subject.packageRelease {
-                let pack = original.basis.snapshot.pack
-                guard package.packageID == pack.id, package.schemaVersion == pack.schemaVersion,
-                      package.contentVersion == pack.contentVersion else {
-                    throw ReportSnapshotEncodingErrorV1.invalidSnapshot
-                }
-            }
-        case .completedActivitySnapshot:
-            // A report source cannot be substituted for the distinct completed
-            // activity subject family merely because a digest matches.
-            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
-        case .finding:
-            // Existing C14 history/item/action validators retain their scope.
-            break
-        }
+        try ReportFullSourceReviewBindingV2.validate(snapshot: original.basis.snapshot,
+            workspaceID: original.basis.workspaceID, assurance: original.assurance,
+            originalSHA256: ReportPublicationCanonicalCodecV1.encode(original).sha256,
+            reportSubject: reportSubject, history: history)
     }
 
     /// A derived S10-shaped view, never a second editable or encoded source.
@@ -1189,5 +1136,625 @@ struct ReportReviewPublicationV1: Equatable, Sendable {
     init(source: ReportReviewedSourceV1) throws {
         try source.validate()
         self.source = source
+    }
+}
+
+// MARK: - Finite full-source report publications (contract only)
+
+/// These immutable values prove structure and exact cross-bindings, not that a
+/// caller acquired accepted rows. The sole producer must authenticate complete
+/// inputs/receipts and revalidate them at preview and writer boundaries.
+struct ReportInitialInputBindingV1: Codable, Equatable, Sendable {
+    let workspaceID: WorkspaceID
+    let sourceRecord: WorkflowRecordPayloadV1
+    let sourceRevision: UInt64
+
+    init(workspaceID: WorkspaceID, sourceRecord: WorkflowRecordPayloadV1,
+         sourceRevision: UInt64) throws {
+        self.workspaceID = workspaceID; self.sourceRecord = sourceRecord
+        self.sourceRevision = sourceRevision
+        try validate()
+    }
+
+    func validate() throws {
+        let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+        guard workspaceID.rawValue != zero, sourceRecord.id != zero,
+              sourceRecord.assetID != zero, sourceRecord.recordRevisionRootID != zero,
+              sourceRevision > 0, sourceRecord.schemaVersion > 0,
+              WorkflowStage(rawValue: sourceRecord.stage) != nil,
+              WorkflowState(rawValue: sourceRecord.state) != nil else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        _ = try ReportCurrentPublicationCanonicalCodecV2.typedBytes(sourceRecord)
+    }
+
+    var inputSHA256: String {
+        get throws {
+            try validate()
+            return CanonicalJSONV1.sha256(try ReportCurrentPublicationCanonicalCodecV2.typedBytes(
+                InputWire(inputKind: "report-workflow-input-v1", workspaceID: workspaceID,
+                          sourceRecord: sourceRecord, sourceRevision: sourceRevision)))
+        }
+    }
+    private struct InputWire: Codable, Equatable {
+        let inputKind: String; let workspaceID: WorkspaceID
+        let sourceRecord: WorkflowRecordPayloadV1; let sourceRevision: UInt64
+    }
+}
+
+struct ReportPacketInputSourceV1: Codable, Equatable, Sendable {
+    let snapshot: CompletedWorkPacketSnapshotV1
+    let item: WorkPacketItemReferenceV1
+    let manifestInput: ReportInitialInputBindingV1
+
+    init(snapshot: CompletedWorkPacketSnapshotV1, item: WorkPacketItemReferenceV1,
+         manifestInput: ReportInitialInputBindingV1) throws {
+        self.snapshot = snapshot; self.item = item; self.manifestInput = manifestInput
+        try validate()
+    }
+    func validate() throws {
+        try snapshot.validate(); try manifestInput.validate()
+        guard let member = snapshot.manifest.items.first(where: { $0.itemID == item.itemID }),
+              try WorkPacketItemReferenceV1(manifest: snapshot.manifest, item: member) == item,
+              snapshot.workspaceID == manifestInput.workspaceID,
+              item.itemID == manifestInput.sourceRecord.id.uuidString.lowercased(),
+              item.expectedRevision == manifestInput.sourceRevision,
+              item.itemSHA256 == (try manifestInput.inputSHA256),
+              (manifestInput.sourceRecord.stage == WorkflowStage.check.rawValue && item.itemKind == .inspection)
+                || (manifestInput.sourceRecord.stage == WorkflowStage.recheck.rawValue && item.itemKind == .operationalRecheck)
+        else { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+    }
+    func validate(current: ReportInitialInputBindingV1) throws {
+        try validate(); try current.validate()
+        let original = manifestInput.sourceRecord, latest = current.sourceRecord
+        guard current.workspaceID == manifestInput.workspaceID,
+              original.id == latest.id, original.assetID == latest.assetID,
+              original.recordRevisionRootID == latest.recordRevisionRootID,
+              original.stage == latest.stage, manifestInput.sourceRevision <= current.sourceRevision,
+              manifestInput.sourceRevision != current.sourceRevision || manifestInput == current else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        // Different revisions are NOT authorization: runtime must authenticate
+        // the entire accepted continuation and retain C15 conflict review.
+    }
+}
+
+struct ReportInitialCoordinatedSourceV1: Codable, Equatable, Sendable {
+    let initial: ReportPublicationBasisV1
+    let input: ReportInitialInputBindingV1
+    let packet: ReportPacketInputSourceV1?
+    let pose: ReportPoseHistorySourceV1?
+
+    init(initial: ReportPublicationBasisV1, input: ReportInitialInputBindingV1,
+         packet: ReportPacketInputSourceV1? = nil, pose: ReportPoseHistorySourceV1? = nil) throws {
+        self.initial = initial; self.input = input; self.packet = packet; self.pose = pose
+        try validate()
+    }
+    func validate() throws {
+        try initial.validate(); try input.validate()
+        guard packet != nil || pose != nil,
+              initial.workspaceID == input.workspaceID,
+              initial.snapshot.sourceRecordID == input.sourceRecord.id,
+              initial.snapshot.stage == input.sourceRecord.stage else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        try packet?.validate(current: input)
+        try pose?.validate(workspaceID: input.workspaceID, assetID: input.sourceRecord.assetID)
+    }
+}
+
+/// A closed initial-only content type keeps C14's original finite. No review
+/// or publication can be nested here, even when the original has packet/pose.
+enum ReportInitialContentV2: Equatable, Sendable {
+    case plain(ReportPublicationBasisV1)
+    case coordinated(ReportInitialCoordinatedSourceV1)
+
+    var basis: ReportPublicationBasisV1 {
+        switch self { case .plain(let value): return value; case .coordinated(let value): return value.initial }
+    }
+    func validate() throws {
+        switch self { case .plain(let value): try value.validate(); case .coordinated(let value): try value.validate() }
+    }
+}
+
+struct ReportInitialPublicationV2: Equatable, Sendable {
+    let content: ReportInitialContentV2
+    let audience: ReportAudienceV1
+    let projectionVersion: String
+    let basisSHA256: String
+    let assurance: ReportEvidenceAssuranceProjectionV1?
+
+    init(content: ReportInitialContentV2, audience: ReportAudienceV1,
+         projectionVersion: String, assurance: ReportEvidenceAssuranceProjectionV1? = nil) throws {
+        let value = try ReportCurrentPublicationV2(basis: .init(source: content.source,
+            audience: audience, projectionVersion: projectionVersion), currentAssurance: assurance)
+        self.content = content; self.audience = audience; self.projectionVersion = projectionVersion
+        basisSHA256 = value.basisSHA256; self.assurance = assurance
+    }
+    func currentPublication() throws -> ReportCurrentPublicationV2 {
+        let value = try ReportCurrentPublicationV2(basis: .init(source: content.source,
+            audience: audience, projectionVersion: projectionVersion), currentAssurance: assurance)
+        guard value.basisSHA256 == basisSHA256 else { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+        return value
+    }
+}
+
+extension ReportInitialContentV2 {
+    var source: ReportPublicationSourceV2 {
+        switch self { case .plain(let value): return .initial(value)
+        case .coordinated(let value): return .initialCoordinated(value) }
+    }
+}
+
+enum ReportOriginalPublicationV2: Equatable, Sendable {
+    case legacy(ReportPublicationV1)
+    case initial(ReportInitialPublicationV2)
+
+    var basis: ReportPublicationBasisV1 {
+        switch self { case .legacy(let value): return value.basis; case .initial(let value): return value.content.basis }
+    }
+    var assurance: ReportEvidenceAssuranceProjectionV1? {
+        switch self { case .legacy(let value): return value.assurance; case .initial(let value): return value.assurance }
+    }
+    func encoded() throws -> EncodedReportSnapshotV1 {
+        switch self { case .legacy(let value): return try ReportPublicationCanonicalCodecV1.encode(value)
+        case .initial(let value): return try ReportCurrentPublicationCanonicalCodecV2.encode(value.currentPublication()) }
+    }
+}
+
+struct ReportReviewedSourceV2: Equatable, Sendable {
+    let original: ReportOriginalPublicationV2
+    let reportSubject: CompletedWorkSubjectKeyV1
+    let history: CompletedInspectionReviewHistorySnapshotV1
+
+    init(original: ReportOriginalPublicationV2, reportSubject: CompletedWorkSubjectKeyV1,
+         history: CompletedInspectionReviewHistorySnapshotV1) throws {
+        self.original = original; self.reportSubject = reportSubject; self.history = history
+        try validate()
+    }
+    func validate() throws {
+        try ReportFullSourceReviewBindingV2.validate(snapshot: original.basis.snapshot,
+            workspaceID: original.basis.workspaceID, assurance: original.assurance,
+            originalSHA256: original.encoded().sha256, reportSubject: reportSubject, history: history)
+    }
+}
+
+/// Pure exact joins shared by the V2 original cases; no lineage is inferred
+/// from schema version, review count or a caller's monotonically larger number.
+enum ReportFullSourceReviewBindingV2 {
+    static func validate(snapshot: ReportSnapshotV1, workspaceID: WorkspaceID,
+                         assurance: ReportEvidenceAssuranceProjectionV1?, originalSHA256: String,
+                         reportSubject: CompletedWorkSubjectKeyV1,
+                         history: CompletedInspectionReviewHistorySnapshotV1) throws {
+        try history.validate()
+        guard reportSubject.family == .legacyReportSnapshot,
+              reportSubject.workspaceID == workspaceID, reportSubject.subjectID == snapshot.reportID,
+              reportSubject.subjectRevision > 0, snapshot.snapshotSchemaVersion == 3,
+              history.workspaceID == workspaceID, history.sourceSnapshotSHA256 == originalSHA256,
+              history.binding.completedSnapshotSHA256 == originalSHA256,
+              let assurance, let accountability = snapshot.accountability,
+              snapshot.assetSemantics != nil, let authority = snapshot.authorityCriterion,
+              let relationships = snapshot.functionalRelationships,
+              history.binding.c38AccountabilitySHA256 == accountability.snapshotSHA256,
+              history.binding.c40AuthorityCriterionSHA256 == authority.snapshotSHA256,
+              history.binding.c41FunctionalRelationshipsSHA256 == relationships.snapshotSHA256,
+              history.binding.c13AssuranceSHA256 == CanonicalJSONV1.sha256(
+                try ReportEvidenceAssuranceCanonicalCodecV1.encode(assurance)) else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        for subject in history.reviewTransitions.map(\.subject) + history.reviewDispositions.map(\.subject) {
+            switch subject.kind {
+            case .reportSnapshot:
+                guard subject.workspaceID == workspaceID,
+                      subject.subjectID == reportSubject.subjectID.uuidString.lowercased(),
+                      subject.subjectRevision == reportSubject.subjectRevision,
+                      subject.subjectSHA256 == originalSHA256 else { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+                if let package = subject.packageRelease {
+                    guard package.packageID == snapshot.pack.id,
+                          package.schemaVersion == snapshot.pack.schemaVersion,
+                          package.contentVersion == snapshot.pack.contentVersion else {
+                        throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+                    }
+                }
+            case .completedActivitySnapshot: throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            case .finding: break
+            }
+        }
+        try EvidenceDetailInspectionReviewProjectionGuardV1.validateHistory(history, assurance: assurance)
+    }
+}
+
+struct ReportAcceptedOriginV1: Equatable, Sendable {
+    let subject: CompletedWorkSubjectKeyV1
+    let finalization: FinalizationWriterCommitBindingV1
+    let receipt: MutationReceiptV1
+
+    init(subject: CompletedWorkSubjectKeyV1, finalization: FinalizationWriterCommitBindingV1,
+         receipt: MutationReceiptV1) throws {
+        self.subject = subject; self.finalization = finalization; self.receipt = receipt
+        _ = try authority()
+    }
+    func authority() throws -> FinalizationWriterAuthorityV1 {
+        let envelope = try finalization.envelope()
+        try ReportAtomicReceiptBindingV2.validate(envelope: envelope, receipt: receipt)
+        let authority: FinalizationWriterAuthorityV1?
+        switch envelope.command {
+        case .finalizeCheck(let command):
+            guard subject.subjectRevision == 1 else { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+            authority = command.writerAuthority
+        case .finalizeCorrection(let command):
+            guard subject.subjectRevision > 1 else { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+            authority = command.writerAuthority
+        default: authority = nil
+        }
+        guard let authority, subject.family == .legacyReportSnapshot,
+              subject.workspaceID == authority.workspaceID,
+              subject.subjectID == authority.payload.reportInsert?.id,
+              subject.subjectRevision > 0,
+              try receipt.postImages.map({ try $0.identity }) == authority.affectedIdentities else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        return authority
+    }
+    func validate(original: ReportOriginalPublicationV2, subject expected: CompletedWorkSubjectKeyV1) throws {
+        let authority = try authority(), snapshot = original.basis.snapshot
+        guard subject == expected, authority.workspaceID == original.basis.workspaceID,
+              authority.snapshotSHA256 == (try original.encoded().sha256),
+              authority.payload.reportInsert?.id == snapshot.reportID,
+              authority.payload.packetAfter.id == snapshot.packetID,
+              authority.payload.packetAfter.stableRootID == snapshot.stableRootID,
+              authority.payload.workflowRecordAfter.id == snapshot.sourceRecordID,
+              authority.payload.workflowRecordAfter.finalizationMutationID == receipt.mutationID.rawValue else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        if case .initial(let publication) = original,
+           case .coordinated(let source) = publication.content {
+            let before = source.input.sourceRecord, after = authority.payload.workflowRecordAfter
+            let recordIdentity = try WorkspaceEntityIdentityV1(kind: .workflowRecord, id: before.id)
+            guard before.assetID == after.assetID, before.id == after.id,
+                  before.recordRevisionRootID == after.recordRevisionRootID, before.stage == after.stage,
+                  receipt.expectedRevision.entityRevisions.first(where: { $0.identity == recordIdentity })?.revision
+                    == source.input.sourceRevision else { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+            // Matching tuple/revision is necessary, not accepted continuation.
+            // The runtime owner must still authenticate the exact draft rows.
+        }
+    }
+}
+
+/// Joins an intact envelope and receipt. This is NOT receipt authentication;
+/// runtime still verifies the original journal and canonical affected rows.
+enum ReportAtomicReceiptBindingV2 {
+    static func validate(envelope: MutationEnvelopeV1, receipt: MutationReceiptV1) throws {
+        try envelope.validate(); try receipt.validate()
+        guard receipt.identity.workspaceID == envelope.workspaceID,
+              receipt.identity.replicaID == envelope.replicaID,
+              receipt.mutationID == envelope.mutationID,
+              receipt.envelopeSHA256 == (try envelope.canonicalSHA256()),
+              receipt.commandBodySHA256 == envelope.commandBodySHA256,
+              receipt.expectedRevision == envelope.expectedRevision,
+              receipt.contentDependencyIDs == envelope.contentDependencyIDs,
+              receipt.sourceKind == envelope.sourceKind,
+              receipt.causationMutationID == envelope.causationMutationID,
+              receipt.correlationID == envelope.correlationID,
+              receipt.reversesMutationID == envelope.causationMutationID else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+    }
+}
+
+struct ReportPoseAdmissionV1: Codable, Equatable, Sendable {
+    let envelope: MutationEnvelopeV1
+    let receipt: MutationReceiptV1
+
+    init(envelope: MutationEnvelopeV1, receipt: MutationReceiptV1) throws {
+        self.envelope = envelope; self.receipt = receipt
+        _ = try poseMutation()
+    }
+    func poseMutation() throws -> PlacementPoseMutationV1 {
+        try ReportAtomicReceiptBindingV2.validate(envelope: envelope, receipt: receipt)
+        let pose: PlacementPoseMutationV1
+        switch envelope.command {
+        case .applyPlacementPose(let value):
+            _ = try PlacementPoseMutationReceiptV1(mutation: value, mutationReceipt: receipt)
+            pose = value
+        case .applyPlan(let value):
+            guard case .applyRebase(_, _, _, _, _, _, let effects) = value.payload,
+                  let effects else { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+            _ = try PlanMutationReceiptV1(mutation: value, mutationReceipt: receipt)
+            pose = effects
+        case .applyAssetPlacementChange(let plan):
+            try plan.validate()
+            try validateLocalPreview(plan.basis.expectedRevision)
+            guard let effects = try plan.placementPoseMutation else { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+            pose = effects
+            try validateLocationImages()
+        case .applyLocationHierarchyChange(let change):
+            guard try LocationHierarchyMutationV1(plan: change.plan, placementChanges: change.placementChanges) == change else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+            try change.placementChanges.forEach { try $0.validate() }
+            try validateLocalPreview(change.plan.expectedRevision)
+            guard let effects = try change.placementPoseMutation else { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+            pose = effects
+            try validateLocationImages()
+        default: throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        try pose.validate()
+        let expected = Dictionary(uniqueKeysWithValues: receipt.expectedRevision.entityRevisions.map { ($0.identity, $0.revision) })
+        guard pose.workspaceID == envelope.workspaceID, pose.mutationID == envelope.mutationID,
+              try pose.mutationPostImages.allSatisfy({ receipt.postImages.contains($0) }),
+              try pose.concurrencyIdentities.allSatisfy({ expected[$0] == (try pose.expectedRevision(for: $0)) }) else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        return pose
+    }
+    private func validateLocalPreview(_ revision: WorkspaceExpectedRevisionV1) throws {
+        switch envelope.sourceKind {
+        case .localUser, .localRecovery:
+            guard try MutationPortableExpectedRevisionV1(revision) == envelope.expectedRevision else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+        case .importedHistory, .semanticReversal:
+            // The existing writer deliberately replays original C35 plans at
+            // a destination revision; retain their original preview unchanged.
+            break
+        }
+    }
+    private func validateLocationImages() throws {
+        guard let affected = try envelope.command.canonicalLocationAffectedIdentities(),
+              try receipt.postImages.map({ try $0.identity }) == affected else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        // All non-pose images remain in the full receipt. Their authentic row
+        // effects are checked by the existing C35 owner at runtime acquisition.
+    }
+}
+
+struct ReportPoseHistorySourceV1: Codable, Equatable, Sendable {
+    let completed: CompletedPlacementPoseSnapshotV1
+    let selectedPlacementEventID: UUID
+    let admissions: [ReportPoseAdmissionV1]
+
+    init(completed: CompletedPlacementPoseSnapshotV1, selectedPlacementEventID: UUID,
+         admissions: [ReportPoseAdmissionV1]) throws {
+        self.completed = completed; self.selectedPlacementEventID = selectedPlacementEventID
+        self.admissions = admissions
+        try validate(workspaceID: completed.workspaceID, assetID: completed.assetID)
+    }
+    func history() throws -> [AssetPoseEventV1] {
+        guard !admissions.isEmpty, admissions.count <= PlacementPoseLimitsV1.maximumEventsPerClosure,
+              Set(admissions.map { $0.receipt.identity }).count == admissions.count,
+              Set(admissions.map { $0.envelope.mutationID }).count == admissions.count else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        var events: [UUID: AssetPoseEventV1] = [:]
+        var predecessors: [AssetPoseEventV1] = []
+        var selected: AssetPlacementEventV1?
+        for admission in admissions {
+            let pose = try admission.poseMutation()
+            let contributions = pose.events.filter { $0.assetID == completed.assetID }
+            guard !contributions.isEmpty, pose.workspaceID == completed.workspaceID else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+            for event in contributions {
+                guard events.updateValue(event, forKey: event.eventID) == nil else {
+                    throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+                }
+            }
+            predecessors += pose.eventPredecessors.compactMap { $0 }.filter { $0.assetID == completed.assetID }
+            for placement in pose.admissionClosure.placementEvents where placement.id == selectedPlacementEventID {
+                guard selected == nil || selected == placement else { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+                selected = placement
+            }
+        }
+        guard predecessors.allSatisfy({ events[$0.eventID] == $0 }), let selected,
+              selected.workspaceID == completed.workspaceID, selected.assetID == completed.assetID,
+              selected.physicalEpisodeID == completed.placementEpisodeID else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        let ordered = events.values.sorted { ($0.axisDescriptor.axisID.rawValue, $0.revision, $0.eventID.uuidString)
+            < ($1.axisDescriptor.axisID.rawValue, $1.revision, $1.eventID.uuidString) }
+        let tips = try AssetPoseHistoryV1.currentTip(workspaceID: completed.workspaceID,
+            assetID: completed.assetID, events: ordered)
+        guard tips.tips == completed.eventReferences,
+              completed.events.allSatisfy({ events[$0.eventID] == $0 && $0.placementEventID == selectedPlacementEventID }) else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        try completed.validate(events: completed.events)
+        return ordered
+    }
+    func validate(workspaceID: WorkspaceID, assetID: UUID) throws {
+        guard completed.workspaceID == workspaceID, completed.assetID == assetID else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        _ = try history()
+    }
+    func projection() throws -> C37PlacementPoseFrozenSnapshotV1 {
+        try .init(sourceSnapshotID: completed.snapshotID, projection: .init(
+            workspaceID: completed.workspaceID, assetID: completed.assetID,
+            events: history(), capturedAt: completed.capturedAt))
+    }
+}
+
+struct ReportPacketSourceV1: Codable, Equatable, Sendable {
+    let snapshot: CompletedWorkPacketSnapshotV1
+    let association: ReportPacketAssociationV1
+
+    func validate(origin: ReportAcceptedOriginV1, original: ReportOriginalPublicationV2) throws {
+        try snapshot.validate()
+        guard snapshot.workspaceID == origin.subject.workspaceID else { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+        let digest = try original.encoded().sha256
+        switch association {
+        case .directInspection(let item):
+            guard let member = snapshot.manifest.items.first(where: { $0.itemID == item.itemID }),
+                  try WorkPacketItemReferenceV1(manifest: snapshot.manifest, item: member) == item,
+                  item.itemKind == .inspection,
+                  item.itemID == origin.subject.subjectID.uuidString.lowercased(),
+                  item.expectedRevision == origin.subject.subjectRevision,
+                  item.itemSHA256 == digest else { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+        case .recordedResult(let binding):
+            try binding.validate(snapshot: snapshot, subject: origin.subject,
+                originalSHA256: digest, finalizationMutationID: origin.receipt.mutationID)
+        }
+    }
+}
+
+enum ReportPacketAssociationV1: Equatable, Sendable {
+    case directInspection(WorkPacketItemReferenceV1)
+    case recordedResult(WorkPacketReportResultBindingV1)
+}
+
+struct ReportReviewedCoordinatedSourceV1: Codable, Equatable, Sendable {
+    let reviewed: ReportReviewedSourceV2
+    let origin: ReportAcceptedOriginV1
+    let packet: ReportPacketSourceV1?
+    let pose: ReportPoseHistorySourceV1?
+
+    init(reviewed: ReportReviewedSourceV2, origin: ReportAcceptedOriginV1,
+         packet: ReportPacketSourceV1? = nil, pose: ReportPoseHistorySourceV1? = nil) throws {
+        self.reviewed = reviewed; self.origin = origin; self.packet = packet; self.pose = pose
+        try validate()
+    }
+    func validate() throws {
+        try reviewed.validate()
+        try origin.validate(original: reviewed.original, subject: reviewed.reportSubject)
+        guard packet != nil || pose != nil else { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+        try packet?.validate(origin: origin, original: reviewed.original)
+        try pose?.validate(workspaceID: origin.subject.workspaceID,
+            assetID: origin.authority().payload.workflowRecordAfter.assetID)
+    }
+}
+
+enum ReportPublicationSourceV2: Equatable, Sendable {
+    case initial(ReportPublicationBasisV1)
+    case reviewed(ReportReviewedSourceV2)
+    case initialCoordinated(ReportInitialCoordinatedSourceV1)
+    case reviewedCoordinated(ReportReviewedCoordinatedSourceV1)
+
+    var originalBasis: ReportPublicationBasisV1 {
+        switch self {
+        case .initial(let value): return value
+        case .initialCoordinated(let value): return value.initial
+        case .reviewed(let value): return value.original.basis
+        case .reviewedCoordinated(let value): return value.reviewed.original.basis
+        }
+    }
+    func validate() throws {
+        switch self {
+        case .initial(let value): try value.validate()
+        case .initialCoordinated(let value): try value.validate()
+        case .reviewed(let value): try value.validate()
+        case .reviewedCoordinated(let value): try value.validate()
+        }
+    }
+}
+
+struct ReportCurrentPublicationBasisV2: Codable, Equatable, Sendable {
+    let source: ReportPublicationSourceV2
+    let audience: ReportAudienceV1
+    let projectionVersion: String
+
+    init(source: ReportPublicationSourceV2, audience: ReportAudienceV1, projectionVersion: String) throws {
+        self.source = source; self.audience = audience; self.projectionVersion = projectionVersion
+        try validate()
+    }
+    func validate() throws {
+        try source.validate()
+        guard SnapshotProjectionValidationV1.validID(projectionVersion),
+              projectionVersion.utf8.count <= EvidenceAssuranceLimitsV1.maximumProjectionVersionBytes else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        switch source {
+        case .initial, .initialCoordinated:
+            guard audience == source.originalBasis.audience,
+                  projectionVersion == source.originalBasis.projectionVersion else { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+        case .reviewed, .reviewedCoordinated: break
+        }
+    }
+}
+
+struct ReportCurrentPublicationV2: Equatable, Sendable {
+    let basis: ReportCurrentPublicationBasisV2
+    let basisSHA256: String
+    let currentAssurance: ReportEvidenceAssuranceProjectionV1?
+
+    init(basis: ReportCurrentPublicationBasisV2,
+         currentAssurance: ReportEvidenceAssuranceProjectionV1? = nil) throws {
+        self.basis = basis
+        basisSHA256 = CanonicalJSONV1.sha256(try ReportCurrentPublicationCanonicalCodecV2.encodeBasis(basis))
+        self.currentAssurance = currentAssurance
+        try validate()
+    }
+    func validate() throws {
+        guard basisSHA256 == CanonicalJSONV1.sha256(try ReportCurrentPublicationCanonicalCodecV2.encodeBasis(basis)) else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        if let currentAssurance {
+            guard let audience = ReportEvidenceAssuranceProjectionPolicyV1.evidenceAudience(for: basis.audience),
+                  currentAssurance.preview.workspaceID == basis.source.originalBasis.workspaceID else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+            try currentAssurance.validate(expectedSnapshotSHA256: basisSHA256,
+                expectedProjectionVersion: basis.projectionVersion, expectedAudience: audience)
+        }
+    }
+}
+
+/// Derived private document input for the ONE existing renderer's future V2
+/// adoption. Historical and later captured sections have distinct roles. No
+/// editable summary, second renderer, or public export of receipt internals.
+struct ReportPublicationViewV2: Equatable, Sendable {
+    let base: ReportSnapshotV1
+    let initialPacket: ReportWorkPacketProjectionV1?
+    let initialPose: C37PlacementPoseFrozenSnapshotV1?
+    let history: CompletedInspectionReviewHistorySnapshotV1?
+    let laterPacket: ReportWorkPacketProjectionV1?
+    let laterPose: C37PlacementPoseFrozenSnapshotV1?
+    let historicalAssurance: ReportEvidenceAssuranceProjectionV1?
+    let currentAssurance: ReportEvidenceAssuranceProjectionV1?
+
+    fileprivate init(base: ReportSnapshotV1, initialPacket: ReportWorkPacketProjectionV1?,
+        initialPose: C37PlacementPoseFrozenSnapshotV1?, history: CompletedInspectionReviewHistorySnapshotV1?,
+        laterPacket: ReportWorkPacketProjectionV1?, laterPose: C37PlacementPoseFrozenSnapshotV1?,
+        historicalAssurance: ReportEvidenceAssuranceProjectionV1?, currentAssurance: ReportEvidenceAssuranceProjectionV1?) {
+        self.base = base; self.initialPacket = initialPacket; self.initialPose = initialPose
+        self.history = history; self.laterPacket = laterPacket; self.laterPose = laterPose
+        self.historicalAssurance = historicalAssurance; self.currentAssurance = currentAssurance
+    }
+}
+
+extension ReportCurrentPublicationV2 {
+    func view() throws -> ReportPublicationViewV2 {
+        try validate()
+        var initialPacket: ReportWorkPacketProjectionV1?
+        var initialPose: C37PlacementPoseFrozenSnapshotV1?
+        var history: CompletedInspectionReviewHistorySnapshotV1?
+        var laterPacket: ReportWorkPacketProjectionV1?
+        var laterPose: C37PlacementPoseFrozenSnapshotV1?
+        var historicalAssurance: ReportEvidenceAssuranceProjectionV1?
+        func initialSections(_ content: ReportInitialContentV2, digest: String) throws {
+            if case .coordinated(let value) = content {
+                initialPacket = try value.packet.map { try ReportWorkPacketProjectionV1(snapshot: $0.snapshot, sourceSnapshotSHA256: digest) }
+                initialPose = try value.pose?.projection()
+            }
+        }
+        func originalSections(_ reviewed: ReportReviewedSourceV2) throws {
+            history = reviewed.history; historicalAssurance = reviewed.original.assurance
+            if case .initial(let original) = reviewed.original {
+                try initialSections(original.content, digest: original.basisSHA256)
+            }
+        }
+        switch basis.source {
+        case .initial: break
+        case .initialCoordinated(let value): try initialSections(.coordinated(value), digest: basisSHA256)
+        case .reviewed(let value): try originalSections(value)
+        case .reviewedCoordinated(let value):
+            try originalSections(value.reviewed)
+            laterPacket = try value.packet.map { try ReportWorkPacketProjectionV1(snapshot: $0.snapshot, sourceSnapshotSHA256: basisSHA256) }
+            laterPose = try value.pose?.projection()
+        }
+        return .init(base: basis.source.originalBasis.snapshot, initialPacket: initialPacket,
+            initialPose: initialPose, history: history, laterPacket: laterPacket, laterPose: laterPose,
+            historicalAssurance: historicalAssurance, currentAssurance: currentAssurance)
     }
 }

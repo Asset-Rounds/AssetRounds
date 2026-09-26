@@ -83,34 +83,72 @@ final class S4_1DeterministicRendererTests: XCTestCase {
     private let fileManager = FileManager.default
 
     @MainActor
-    func testServiceProducesByteIdenticalReadyPDFsAcrossCleanRootsAndDeviceZones() throws {
-        let first = try makeHarness(label: "determinism-a")
-        let second = try makeHarness(label: "determinism-b")
+    func testServiceProducesByteIdenticalReadyPDFsAcrossCleanRootsAndDeviceZones() async throws {
+        // Preserve the historical schema1 bytes and the complete S10 layout
+        // witness independently of the authentic current-store service path.
+        let historical = try makeHarness(label: "historical-layout")
+        let historicalURL = historical.session.generationRootURL.appendingPathComponent(
+            historical.report.snapshotRelativePath)
+        let historicalBytes = try Data(contentsOf: historicalURL)
+        let historicalValidated = try SnapshotValidatorV1(modelContext: historical.session.modelContext,
+            generationRootURL: historical.session.generationRootURL).validate(report: historical.report)
+        let historicalPDF = try WorklightPDFRendererV1().render(historicalValidated)
+        XCTAssertEqual(historicalValidated.snapshot.snapshotSchemaVersion, 1)
+        XCTAssertEqual(try ReportSnapshotEncoderV1().encode(historicalValidated.snapshot).data, historicalBytes)
+        XCTAssertEqual(historicalPDF.pageCount, 2)
+        try assertInspectionContract(historicalPDF.inspection)
+        try assertIndependentPDFContract(historicalPDF.data, expectedPageCount: 2,
+            snapshotSHA256: historical.report.snapshotSHA256)
+
+        let first = try await makeCanonicalRenderHarness(label: "determinism-a")
+        defer { try? first.coordinator?.invalidateAndReleaseWriter() }
+        let second = try await makeCanonicalRenderHarness(label: "determinism-b")
         defer {
-            try? fileManager.removeItem(at: first.applicationSupportURL)
-            try? fileManager.removeItem(at: second.applicationSupportURL)
-            withExtendedLifetime((first.session, second.session)) {}
+            try? second.coordinator?.invalidateAndReleaseWriter()
         }
 
         let originalZone = NSTimeZone.default
         defer { NSTimeZone.default = originalZone }
-        let firstValidated = try SnapshotValidatorV1(
-            modelContext: first.session.modelContext,
-            generationRootURL: first.session.generationRootURL
-        ).validate(report: first.report)
+        func diagnosed<Value>(_ step: String, _ operation: () throws -> Value) rethrows -> Value {
+            do {
+                return try operation()
+            } catch {
+                print("S4_1.determinism step=\(step) errorType=\(String(reflecting: type(of: error))) error=\(error)")
+                throw error
+            }
+        }
+        let firstValidator = try diagnosed("validator.init") {
+            try SnapshotValidatorV1(
+                modelContext: first.session.modelContext,
+                generationRootURL: first.session.generationRootURL,
+                lifecycleProfile: XCTUnwrap(first.profile),
+                lifecycleDependencies: XCTUnwrap(first.dependencies)
+            )
+        }
+        let firstValidated = try diagnosed("validator.validate") {
+            try firstValidator.validate(report: first.report)
+        }
         let expectedReferencedBytes = first.evidenceRows.reduce(Int64(0)) { partial, row in
             partial + Int64(
                 row.id == Fixture.currentWideID ? row.byteCount : row.thumbnailByteCount
             )
         }
         XCTAssertEqual(firstValidated.referencedImageByteCount, expectedReferencedBytes)
-        let independentlyRendered = try WorklightPDFRendererV1().render(firstValidated)
+        XCTAssertEqual(firstValidated.snapshot.snapshotSchemaVersion, 1)
+        XCTAssertEqual(firstValidated.snapshot.history.map(\.recordID), [Fixture.checkID, Fixture.workID])
+        let independentlyRendered = try diagnosed("renderer.direct") {
+            try WorklightPDFRendererV1().render(firstValidated)
+        }
         XCTAssertEqual(independentlyRendered.pageCount, 2)
         try assertInspectionContract(independentlyRendered.inspection)
         NSTimeZone.default = try XCTUnwrap(TimeZone(identifier: "America/New_York"))
-        let firstResult = try first.service.renderPendingReport(id: Fixture.reportID)
+        let firstResult = try diagnosed("service.first") {
+            try first.service.renderPendingReport(id: Fixture.reportID)
+        }
         NSTimeZone.default = try XCTUnwrap(TimeZone(identifier: "Pacific/Auckland"))
-        let secondResult = try second.service.renderPendingReport(id: Fixture.reportID)
+        let secondResult = try diagnosed("service.second") {
+            try second.service.renderPendingReport(id: Fixture.reportID)
+        }
 
         let firstPDF = try Data(contentsOf: first.session.generationRootURL.appendingPathComponent(firstResult.pdfRelativePath))
         let secondPDF = try Data(contentsOf: second.session.generationRootURL.appendingPathComponent(secondResult.pdfRelativePath))
@@ -133,6 +171,9 @@ final class S4_1DeterministicRendererTests: XCTestCase {
             try Data(contentsOf: first.session.generationRootURL.appendingPathComponent(firstResult.pdfRelativePath)),
             firstPDF
         )
+        try validateCanonicalRenderJournal(first)
+        try validateCanonicalRenderJournal(second)
+        XCTAssertEqual(try Data(contentsOf: historicalURL), historicalBytes)
         attach(firstPDF, name: "S4.1 deterministic PDF root A")
         attach(secondPDF, name: "S4.1 deterministic PDF root B")
     }
@@ -140,15 +181,35 @@ final class S4_1DeterministicRendererTests: XCTestCase {
     @MainActor
     func testValidatorRejectsFocusedCorruptionWithoutCreatingPDF() throws {
         let harness = try makeHarness(label: "validator")
-        defer {
-            try? fileManager.removeItem(at: harness.applicationSupportURL)
-            withExtendedLifetime(harness.session) {}
-        }
         let validator = try SnapshotValidatorV1(
             modelContext: harness.session.modelContext,
             generationRootURL: harness.session.generationRootURL
         )
         XCTAssertNoThrow(try validator.validate(report: harness.report))
+
+        // A current store requires canonical companions even when its immutable
+        // report is a released schema1 document. Missing/corrupt companions may
+        // not become an implicit old-schema bypass.
+        for recordID in [Fixture.checkID, Fixture.workID, Fixture.recheckID] {
+            let companion = try ObservationAndTimeRowStoreV1.requireRow(
+                recordID: recordID, in: harness.session.modelContext)
+            let basis = companion.observationBasisV1Data
+            let temporal = companion.temporalContextV1Data
+            harness.session.modelContext.delete(companion)
+            try harness.session.modelContext.save()
+            assertValidatorFails(validator, report: harness.report)
+            let restored = try ObservationAndTimeRow(recordID: recordID,
+                observationBasisV1Data: basis, temporalContextV1Data: temporal)
+            harness.session.modelContext.insert(restored)
+            try harness.session.modelContext.save()
+            XCTAssertNoThrow(try validator.validate(report: harness.report))
+            restored.observationBasisV1Data = Data("invalid companion".utf8)
+            try harness.session.modelContext.save()
+            assertValidatorFails(validator, report: harness.report)
+            restored.observationBasisV1Data = basis
+            try harness.session.modelContext.save()
+            XCTAssertNoThrow(try validator.validate(report: harness.report))
+        }
 
         let snapshotURL = harness.session.generationRootURL.appendingPathComponent(
             harness.report.snapshotRelativePath
@@ -326,14 +387,11 @@ final class S4_1DeterministicRendererTests: XCTestCase {
         }
 
         for authority in UnexpectedAuthority.allCases {
-            let harness = try makeHarness(
+            let harness = try await makeCanonicalRenderHarness(
                 label: "authority-\(authority)",
                 capacity: { _ in Int64.max }
             )
-            defer {
-                try? fileManager.removeItem(at: harness.applicationSupportURL)
-                withExtendedLifetime(harness.session) {}
-            }
+            defer { try? harness.coordinator?.invalidateAndReleaseWriter() }
             let unexpectedURL = authority == .stage
                 ? stagingPDFURL(in: harness)
                 : finalPDFURL(in: harness)
@@ -399,6 +457,9 @@ private struct RenderHarness {
     let report: Report
     let evidenceRows: [EvidenceFile]
     let service: ReportRenderService
+    let coordinator: StoreSessionCoordinator?
+    let dependencies: WorkspacePackageLifecycleDependenciesV1?
+    let profile: WorkspacePackageLifecycleProfileV1?
 }
 
 @MainActor
@@ -427,6 +488,55 @@ private enum Fixture {
     static let historicalPacketID = UUID(uuidString: "41000000-0000-0000-0000-000000000014")!
     static let historicalStableRootID = UUID(uuidString: "41000000-0000-0000-0000-000000000015")!
     static let snapshotDate = Date(timeIntervalSince1970: 1_768_420_926)
+}
+
+private enum RendererCurrentIDs {
+    static func id(_ value: Int) -> UUID {
+        UUID(uuidString: String(format: "44000000-0000-0000-0000-%012d", value))!
+    }
+    static let placementMutation = id(1)
+    static let placementEvent = id(2)
+    static let episode = id(3)
+    static let checkFinalization = id(4)
+    static let checkReport = id(5)
+    static let workFinalization = id(6)
+    static let recheckFinalization = id(7)
+}
+
+private final class RendererFixtureClock: ApplicationClock, @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Date
+    init(_ value: Date) { self.value = value }
+    func set(_ value: Date) { lock.withLock { self.value = value } }
+    func now() -> Date { lock.withLock { value } }
+}
+
+private final class RendererFixtureIDs: ApplicationIDSource, @unchecked Sendable {
+    private let lock = NSLock()
+    private var queued: UUID?
+    private var count = 0
+    private var issued = Set<UUID>()
+    private var duplicate = false
+    func enqueue(_ value: UUID) throws {
+        try lock.withLock {
+            guard queued == nil, !issued.contains(value) else { throw RendererFixtureError.identifierSequence }
+            queued = value
+        }
+    }
+    func makeID() -> UUID {
+        lock.withLock {
+            count += 1
+            let value = queued ?? UUID(uuidString: String(format: "43000000-0000-0000-0000-%012d", count))!
+            queued = nil
+            if !issued.insert(value).inserted { duplicate = true }
+            return value
+        }
+    }
+    func requireConsumed() throws {
+        try lock.withLock {
+            guard queued == nil, !duplicate else { throw RendererFixtureError.identifierSequence }
+        }
+    }
 }
 
 private enum CurrentCapacityFixture {
@@ -460,6 +570,19 @@ private extension S4_1DeterministicRendererTests {
     }
 
     @MainActor
+    func registerRendererCleanup(root: URL, session: StoreGenerationSession) {
+        addTeardownBlock { [weak session, weak context = session.modelContext,
+                           weak container = session.modelContext.container, root] in
+            guard session == nil, context == nil, container == nil else {
+                XCTFail("S4_1 cleanup requires the complete store graph to be released")
+                return
+            }
+            guard FileManager.default.fileExists(atPath: root.path) else { return }
+            try FileManager.default.removeItem(at: root)
+        }
+    }
+
+    @MainActor
     func makeHarness(
         label: String,
         c42Projection: String? = nil,
@@ -473,13 +596,18 @@ private extension S4_1DeterministicRendererTests {
         try fileManager.createDirectory(at: appSupport, withIntermediateDirectories: false)
         let session = try StoreGenerationFactory(applicationSupportURL: appSupport)
             .openOrBootstrapCurrent()
+        registerRendererCleanup(root: appSupport, session: session)
         let context = session.modelContext
         let snapshot = try fixtureSnapshotAndRows(in: session, c42Projection: c42Projection)
+        let legacyBytes = try ReportSnapshotEncoderV1().encode(snapshot.snapshot).data
         context.insert(snapshot.site)
         context.insert(snapshot.asset)
         context.insert(snapshot.check)
         context.insert(snapshot.work)
         context.insert(snapshot.recheck)
+        for record in [snapshot.check, snapshot.work, snapshot.recheck] {
+            context.insert(try ObservationAndTimeStoreMigrationV1.row(for: record))
+        }
         context.insert(snapshot.issue)
         context.insert(snapshot.historicalPacket)
         context.insert(snapshot.packet)
@@ -489,6 +617,13 @@ private extension S4_1DeterministicRendererTests {
 
         let encoded = try ReportSnapshotEncoderV1().encode(snapshot.snapshot)
         XCTAssertEqual(encoded.sha256, snapshot.report.snapshotSHA256)
+        XCTAssertEqual(encoded.data, legacyBytes)
+        XCTAssertEqual(snapshot.snapshot.snapshotSchemaVersion, 1)
+        XCTAssertNil(snapshot.snapshot.observationBasis)
+        XCTAssertNil(snapshot.snapshot.temporalContext)
+        XCTAssertTrue(snapshot.snapshot.history.allSatisfy {
+            $0.observationBasis == nil && $0.temporalContext == nil
+        })
         let snapshotURL = session.generationRootURL.appendingPathComponent(
             snapshot.report.snapshotRelativePath
         )
@@ -508,8 +643,164 @@ private extension S4_1DeterministicRendererTests {
             session: session,
             report: snapshot.report,
             evidenceRows: snapshot.rows,
-            service: service
+            service: service,
+            coordinator: nil,
+            dependencies: nil,
+            profile: nil
         )
+    }
+
+    @MainActor
+    func makeCanonicalRenderHarness(
+        label: String,
+        capacity: @escaping StoragePreflightService.CapacityProvider = { _ in Int64.max }
+    ) async throws -> RenderHarness {
+        let appSupport = fileManager.temporaryDirectory.resolvingSymlinksInPath()
+            .appendingPathComponent("S4_1-current-render-\(label)-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: appSupport, withIntermediateDirectories: false)
+        let session = try StoreGenerationFactory(applicationSupportURL: appSupport).openOrBootstrapCurrent()
+        registerRendererCleanup(root: appSupport, session: session)
+        let context = session.modelContext
+        let clock = RendererFixtureClock(Date(timeIntervalSince1970: 1_768_420_700))
+        let ids = RendererFixtureIDs()
+        let pack = SignPack.illuminatedSignV1
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: pack)
+        let registry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        let coordinator = try StoreSessionCoordinator(validatingSession: session,
+            clock: clock, idSource: ids, lifecycleProfileRegistry: registry)
+        var phase = "create-site-and-asset"
+        do {
+            let dependencies = try coordinator.packageLifecycleDependencies(profileRegistry: registry)
+            let writer = dependencies.writer
+            let placementMutation = try MutationIDV1(rawValue: RendererCurrentIDs.placementMutation)
+            _ = try writer.execute(.createFirstSign(.init(siteID: Fixture.siteID,
+                newSite: .init(id: Fixture.siteID, label: "North Campus", address: "10 Main",
+                    timeZoneID: "America/New_York"), assetID: Fixture.assetID, assetLabel: "Monument Sign",
+                packID: pack.packID, packSchemaVersion: pack.schemaVersion,
+                packContentVersion: pack.contentVersion, createdAt: clock.now(),
+                initialPlacementMutationID: placementMutation,
+                initialPlacementEventID: RendererCurrentIDs.placementEvent,
+                initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: RendererCurrentIDs.episode))),
+                mutationID: placementMutation)
+            let runner = try CheckRunnerCoordinator(modelContext: context,
+                packageLifecycleDependencies: dependencies, packageLifecycleProfile: profile)
+            runner.configureCapture(generationRootURL: session.generationRootURL)
+
+            phase = "check.begin"
+            clock.set(Date(timeIntervalSince1970: 1_768_420_790))
+            try ids.enqueue(Fixture.checkID)
+            let check = try runner.beginCheck(assetID: Fixture.assetID, timeZoneID: nil,
+                isTimeZoneConfirmed: false, afterDarkAccepted: true, safePositionAccepted: true,
+                observedAt: clock.now())
+            XCTAssertEqual(check.id, Fixture.checkID)
+            try ids.requireConsumed()
+            for (id, width, height, seed, time) in [
+                (Fixture.historyWideID, 960, 540, UInt8(31), 1_768_420_799.0),
+                (Fixture.historyCloseID, 600, 900, UInt8(43), 1_768_420_800.0),
+            ] {
+                phase = "check.photo.\(id.uuidString.lowercased())"
+                clock.set(Date(timeIntervalSince1970: time))
+                try ids.enqueue(id)
+                let candidate = try await runner.importCandidate(assetID: Fixture.assetID,
+                    sourceData: makePNG(width: width, height: height, seed: seed), createdAt: clock.now())
+                XCTAssertEqual(candidate.id, id)
+                try ids.requireConsumed()
+                _ = try await runner.accept(candidate: candidate, assetID: Fixture.assetID)
+            }
+            phase = "check.finalize"
+            clock.set(Date(timeIntervalSince1970: 1_768_420_810))
+            _ = try await runner.finalize(assetID: Fixture.assetID,
+                selection: .visibleIssue(labelKey: "dark_section"), completedAt: clock.now(),
+                snapshotCreatedAt: clock.now(), sourceApp: SourceAppSnapshotV1(build: "41", version: "1.0"),
+                identifiers: FinalizationIdentifiers(mutationID: RendererCurrentIDs.checkFinalization,
+                    packetID: Fixture.historicalPacketID, stableRootID: Fixture.historicalStableRootID,
+                    reportID: RendererCurrentIDs.checkReport, issueID: Fixture.issueID))
+
+            phase = "work.begin"
+            let workCoordinator = try WorkCoordinator(modelContext: context, signPack: pack,
+                generationRootURL: session.generationRootURL, checkRunnerCoordinator: runner,
+                lifecycleDependencies: dependencies)
+            clock.set(Date(timeIntervalSince1970: 1_768_420_830))
+            try ids.enqueue(Fixture.workID)
+            let work = try workCoordinator.beginWork(issueID: Fixture.issueID)
+            XCTAssertEqual(work.recordID, Fixture.workID)
+            try ids.requireConsumed()
+            phase = "work.save"
+            clock.set(Date(timeIntervalSince1970: 1_768_420_860))
+            _ = try await workCoordinator.saveWork(draftID: work.recordID,
+                submission: WorkSaveSubmission(performedLocalDate: "2026-01-14",
+                    description: "Replaced the sign power supply.", note: nil,
+                    photos: [WorkPhotoSubmission(purposeKey: "work_context",
+                        sourceData: makePNG(width: 800, height: 480, seed: 79),
+                        createdAt: Date(timeIntervalSince1970: 1_768_420_850))], completedAt: clock.now()),
+                identifiers: WorkIdentifiers(mutationID: RendererCurrentIDs.workFinalization,
+                    evidenceID: Fixture.historyWorkID))
+
+            phase = "recheck.begin"
+            clock.set(Date(timeIntervalSince1970: 1_768_420_923))
+            try runner.requestRecheck(assetID: Fixture.assetID, issueID: Fixture.issueID)
+            try ids.enqueue(Fixture.recheckID)
+            let recheck = try runner.beginCheck(assetID: Fixture.assetID, timeZoneID: nil,
+                isTimeZoneConfirmed: false, afterDarkAccepted: true, safePositionAccepted: true,
+                observedAt: clock.now())
+            XCTAssertEqual(recheck.id, Fixture.recheckID)
+            try ids.requireConsumed()
+            phase = "recheck.photo"
+            clock.set(Date(timeIntervalSince1970: 1_768_420_924))
+            try ids.enqueue(Fixture.currentWideID)
+            let wide = try await runner.importCandidate(assetID: Fixture.assetID,
+                sourceData: makePNG(width: 320, height: 180, seed: 17), createdAt: clock.now())
+            XCTAssertEqual(wide.id, Fixture.currentWideID)
+            try ids.requireConsumed()
+            _ = try await runner.accept(candidate: wide, assetID: Fixture.assetID)
+            phase = "recheck.finalize"
+            clock.set(Fixture.snapshotDate)
+            let result = try await runner.finalize(assetID: Fixture.assetID,
+                selection: .couldNotVerify(reasonKey: "required_view_obstructed",
+                    note: "Access was blocked at the close-view position."),
+                completedAt: Fixture.snapshotDate, snapshotCreatedAt: Fixture.snapshotDate,
+                sourceApp: SourceAppSnapshotV1(build: "41", version: "1.0"),
+                identifiers: FinalizationIdentifiers(mutationID: RendererCurrentIDs.recheckFinalization,
+                    packetID: Fixture.packetID, stableRootID: Fixture.stableRootID,
+                    reportID: Fixture.reportID, issueID: Fixture.issueID))
+            XCTAssertEqual(result.reportID, Fixture.reportID)
+            phase = "report-and-journal.readback"
+            let report = try XCTUnwrap(context.fetch(FetchDescriptor<Report>()).first { $0.id == Fixture.reportID })
+            let evidence = try context.fetch(FetchDescriptor<EvidenceFile>())
+            XCTAssertEqual(Set(evidence.map(\.id)), Set([Fixture.currentWideID, Fixture.historyWideID,
+                Fixture.historyCloseID, Fixture.historyWorkID]))
+            XCTAssertEqual(try ObservationAndTimeRowStoreV1.validatedIndex(in: context).count, 3)
+            try ids.requireConsumed()
+            let service = try ReportRenderService(modelContext: context, lifecycleDependencies: dependencies,
+                lifecycleProfile: profile, storagePreflight: StoragePreflightService(capacityProvider: capacity))
+            let harness = RenderHarness(applicationSupportURL: appSupport, session: session,
+                report: report, evidenceRows: evidence, service: service, coordinator: coordinator,
+                dependencies: dependencies, profile: profile)
+            try validateCanonicalRenderJournal(harness)
+            return harness
+        } catch {
+            try? coordinator.invalidateAndReleaseWriter()
+            print("S4_1.current-fixture phase=\(phase) errorType=\(String(reflecting: type(of: error))) error=\(error)")
+            throw error
+        }
+    }
+
+    @MainActor
+    func validateCanonicalRenderJournal(_ harness: RenderHarness) throws {
+        _ = try XCTUnwrap(harness.coordinator)
+        let journal = try MutationJournalStoreV1(modelContext: harness.session.modelContext,
+            identity: harness.session.workspaceIdentity, generationID: harness.session.generationID,
+            allowStateBootstrap: false)
+        try journal.validateAll()
+        for (recordID, mutationID) in [(Fixture.checkID, RendererCurrentIDs.checkFinalization),
+            (Fixture.workID, RendererCurrentIDs.workFinalization),
+            (Fixture.recheckID, RendererCurrentIDs.recheckFinalization)] {
+            let record = try XCTUnwrap(harness.session.modelContext.fetch(FetchDescriptor<WorkflowRecord>())
+                .first { $0.id == recordID })
+            XCTAssertEqual(record.finalizationMutationID, mutationID)
+            let receipt = try XCTUnwrap(journal.receipt(mutationID: MutationIDV1(rawValue: mutationID)))
+            XCTAssertEqual(receipt.identity.workspaceID, harness.session.workspaceID)
+        }
     }
 
     @MainActor
@@ -523,11 +814,9 @@ private extension S4_1DeterministicRendererTests {
                 isDirectory: true
             )
         try fileManager.createDirectory(at: appSupport, withIntermediateDirectories: false)
-        addTeardownBlock { [appSupport] in
-            try? FileManager.default.removeItem(at: appSupport)
-        }
         let session = try StoreGenerationFactory(applicationSupportURL: appSupport)
             .openOrBootstrapCurrent()
+        registerRendererCleanup(root: appSupport, session: session)
         let context = session.modelContext
         let coordinator = try StoreSessionCoordinator(validatingSession: session)
         do {
@@ -1371,7 +1660,7 @@ private struct EvidenceFixture {
     let snapshot: EvidenceSnapshotV1
 }
 
-private enum RendererFixtureError: Error { case image }
+private enum RendererFixtureError: Error { case image, identifierSequence }
 
 private func collectPDFFontResource(
     _ key: UnsafePointer<CChar>,
@@ -1467,10 +1756,6 @@ extension S4_1DeterministicRendererTests {
         let projection = "\(scenario.archetypeID):\(first.normalizedResultSHA256)"
         let firstHarness = try makeHarness(label: "c42-render-a", c42Projection: projection)
         let secondHarness = try makeHarness(label: "c42-render-b", c42Projection: projection)
-        defer {
-            try? fileManager.removeItem(at: firstHarness.applicationSupportURL)
-            try? fileManager.removeItem(at: secondHarness.applicationSupportURL)
-        }
         let firstValidated = try SnapshotValidatorV1(
             modelContext: firstHarness.session.modelContext,
             generationRootURL: firstHarness.session.generationRootURL

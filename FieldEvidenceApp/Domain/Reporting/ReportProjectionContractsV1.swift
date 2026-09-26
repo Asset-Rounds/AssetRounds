@@ -4496,6 +4496,20 @@ struct C37PoseHistoryProjectionV1: Codable, Equatable, Hashable, Sendable {
             .map { (0...180_000).contains($0) } ?? true
         let hasValidVerticalUncertainty = verticalUncertaintyMilliDegrees
             .map { (0...90_000).contains($0) } ?? true
+        // UNKNOWN is also the unchanged wire representation for an absent
+        // vertical component. Only uncertainty of a present angle determines
+        // the observation label; AZIMUTH_ONLY must not invent an elevation.
+        let expectedObservationState: C37PoseObservationStateV1
+        if disposition == .notObserved {
+            expectedObservationState = .notObserved
+        } else if source == .manual {
+            expectedObservationState = .manualFallback
+        } else if horizontalUncertaintyState == .unknown
+                    || (elevationMilliDegrees != nil && verticalUncertaintyState == .unknown) {
+            expectedObservationState = .uncertaintyUnknown
+        } else {
+            expectedObservationState = .observed
+        }
         guard revision > 0,
               revision <= UInt64(Int.max),
               hasValidAzimuth,
@@ -4518,25 +4532,26 @@ struct C37PoseHistoryProjectionV1: Codable, Equatable, Hashable, Sendable {
               usesPlanRelativeFrame == (planSpatialFrameID != nil),
               usesPlanRelativeFrame == (planTransformSHA256 != nil),
               (disposition == .notObserved) == (observationState == .notObserved),
-              !(observationState == .observed &&
-                (horizontalUncertaintyState == .unknown || verticalUncertaintyState == .unknown) ) ||
-                observationState == .uncertaintyUnknown ||
-                observationState == .manualFallback ||
-                observationState == .notObserved else {
+              observationState == expectedObservationState,
+              elevationMilliDegrees != nil
+                || (verticalUncertaintyMilliDegrees == nil && verticalUncertaintyState == .unknown) else {
             throw C37PoseReportProjectionFailureV1.invalidValue
         }
         if disposition == .notObserved {
             guard referenceFrame == .unknown,
                   azimuthMilliDegrees == nil,
                   elevationMilliDegrees == nil,
+                  horizontalUncertaintyMilliDegrees == nil,
+                  verticalUncertaintyMilliDegrees == nil,
+                  horizontalUncertaintyState == .unknown,
+                  verticalUncertaintyState == .unknown,
                   notObservedReason != nil else {
                 throw C37PoseReportProjectionFailureV1.invalidValue
             }
         } else {
             guard referenceFrame != .unknown,
                   notObservedReason == nil,
-                  azimuthMilliDegrees != nil,
-                  horizontalUncertaintyState != .unknown else {
+                  azimuthMilliDegrees != nil else {
                 throw C37PoseReportProjectionFailureV1.invalidValue
             }
         }

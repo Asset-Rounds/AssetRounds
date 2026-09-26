@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "aaf9bc626468b36b32ca8cca0e5a3a846bcb7ff0",
+  "generatedAtHead": "c6438761173650987b1d89a3e0c63caba36b296d",
   "sweepOrder": [
     "S01",
     "S02",
@@ -2379,7 +2379,7 @@
     {
       "id": "S19",
       "tier": "D50C",
-      "estimatedSeconds": 2099.9,
+      "estimatedSeconds": 2459.9,
       "selectors": [
         "FieldEvidenceAppTests/C30EvidenceContextAnchorV9_17KernelPersistence/testTypedEvidenceContextContractAnchor",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorS41DeterministicRenderer/testC33S41DeterministicRendererCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -2442,6 +2442,12 @@
         "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testC26SurveySessionTypedAnchor",
         "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testLegacyC33ReportDecoderRejectsMalformedAndCrossFormatTemporalWires",
         "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testLegacyC33ReportReadbackPreservesCompleteTemporalLinksAndTypedWire",
+        "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testReportFullSourceCodecRejectsUnknownNullNonfiniteAndChangedCanonicalBytes",
+        "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testReportFullSourceInitialPacketPoseMatrixPreservesIndependentIdentities",
+        "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testReportFullSourcePoseRetainsFourAtomicCommandFamiliesAndPredecessors",
+        "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testReportFullSourceRecordedResultJoinsExactReportTupleWithoutEvidenceRelabeling",
+        "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testReportFullSourceReviewsCompleteInitialV2AndRequiresFreshWholeSourceAssurance",
+        "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testReportPoseProjectionPreservesPresentComponentsAndExplicitUnknownUncertainty",
         "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testReportPublicationBindsCompleteTemporalBasisAndSeparateOuterIdentity",
         "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testReportPublicationLeavesLegacyGoldenBytesAndAdmissionUnchanged",
         "FieldEvidenceAppTests/V9_16SnapshotProjectionTests/testReportPublicationPreservesAllLegacyOmittedTypedFamilies",

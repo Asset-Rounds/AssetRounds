@@ -2157,8 +2157,17 @@ extension V9_16SnapshotProjectionTests {
         transitionSubject: InspectionReviewSubjectReferenceV1? = nil,
         dispositionSubject: InspectionReviewSubjectReferenceV1? = nil,
         binding: CompletedInspectionReviewBindingV1? = nil) throws -> CompletedInspectionReviewHistorySnapshotV1 {
-        let snapshot = original.basis.snapshot
-        let digest = try ReportPublicationCanonicalCodecV1.encode(original).sha256
+        return try fullReportHistory(snapshot: original.basis.snapshot,
+            digest: ReportPublicationCanonicalCodecV1.encode(original).sha256,
+            assurance: XCTUnwrap(original.assurance), key: key,
+            transitionSubject: transitionSubject, dispositionSubject: dispositionSubject, binding: binding)
+    }
+
+    private func fullReportHistory(snapshot: ReportSnapshotV1, digest: String,
+        assurance: ReportEvidenceAssuranceProjectionV1, key: CompletedWorkSubjectKeyV1,
+        transitionSubject: InspectionReviewSubjectReferenceV1? = nil,
+        dispositionSubject: InspectionReviewSubjectReferenceV1? = nil,
+        binding: CompletedInspectionReviewBindingV1? = nil) throws -> CompletedInspectionReviewHistorySnapshotV1 {
         let subject = try InspectionReviewSubjectReferenceV1(workspaceID: key.workspaceID, kind: .reportSnapshot,
             subjectID: key.subjectID.uuidString.lowercased(), subjectRevision: key.subjectRevision, subjectSHA256: digest)
         let actor = try C26SurveySessionTestSupport.actor(workspaceID: key.workspaceID,
@@ -2187,7 +2196,7 @@ extension V9_16SnapshotProjectionTests {
             mutationID: C33TemporalEvidenceTestSupport.mutation(10_035))
         let exactBinding = try binding ?? CompletedInspectionReviewBindingV1(workspaceID: key.workspaceID,
             completedSnapshotSHA256: digest,
-            c13AssuranceSHA256: publicationDigest(ReportEvidenceAssuranceCanonicalCodecV1.encode(XCTUnwrap(original.assurance))),
+            c13AssuranceSHA256: publicationDigest(ReportEvidenceAssuranceCanonicalCodecV1.encode(assurance)),
             c38AccountabilitySHA256: XCTUnwrap(snapshot.accountability).snapshotSHA256,
             c40AuthorityCriterionSHA256: XCTUnwrap(snapshot.authorityCriterion).snapshotSHA256,
             c41FunctionalRelationshipsSHA256: XCTUnwrap(snapshot.functionalRelationships).snapshotSHA256)
@@ -2301,5 +2310,796 @@ extension V9_16SnapshotProjectionTests {
 
     private func publicationDigest(_ bytes: Data) -> String {
         SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+extension V9_16SnapshotProjectionTests {
+    @MainActor
+    func testReportFullSourceInitialPacketPoseMatrixPreservesIndependentIdentities() throws {
+        let base = try publicationReviewFixture().original.basis
+        let assetID = C33TemporalEvidenceTestSupport.id(11_001)
+        let input = try fullReportInput(base, assetID: assetID, revision: 2, step: "close")
+        let assigned = try fullReportInput(base, assetID: assetID, revision: 1, step: "wide")
+        let packet = try fullReportPacketInput(assigned, legacyPacketID: base.snapshot.packetID)
+        let pose = try fullReportPose(base.workspaceID, assetID: assetID)
+        XCTAssertNotEqual(packet.snapshot.manifest.packetID, base.snapshot.packetID)
+        XCTAssertEqual(packet.snapshot.manifest.items.count, 2)
+        XCTAssertNotEqual(input.sourceRevision, packet.item.expectedRevision)
+        let combinations: [(ReportPacketInputSourceV1?, ReportPoseHistorySourceV1?)] = [
+            (packet, nil), (nil, pose), (packet, pose),
+        ]
+        for (packet, pose) in combinations {
+            let source = try ReportInitialCoordinatedSourceV1(initial: base, input: input, packet: packet, pose: pose)
+            let basis = try ReportCurrentPublicationBasisV2(source: .initialCoordinated(source),
+                audience: base.audience, projectionVersion: base.projectionVersion)
+            let value = try ReportCurrentPublicationV2(basis: basis)
+            let expectedBasis = FullExpectedBasis(basis: FullExpectedBasisValue(
+                source: FullExpectedSource(sourceKind: "INITIAL_COORDINATED", value: FullExpectedCoordinated(
+                    initial: publicationExpectedBasis(base), input: input, packet: packet, pose: pose)),
+                audience: base.audience, projectionVersion: base.projectionVersion))
+            let bytes = try publicationExpectedBytes(expectedBasis)
+            XCTAssertEqual(try ReportCurrentPublicationCanonicalCodecV2.encodeBasis(basis), bytes)
+            XCTAssertEqual(value.basisSHA256, publicationDigest(bytes))
+            let expected = FullExpectedOuter(basis: expectedBasis, basisSHA256: publicationDigest(bytes), currentAssurance: nil)
+            let encoded = try ReportCurrentPublicationCanonicalCodecV2.encode(value)
+            XCTAssertEqual(encoded.data, try publicationExpectedBytes(expected))
+            XCTAssertEqual(encoded.sha256, try publicationDigest(publicationExpectedBytes(expected)))
+            XCTAssertEqual(try ReportCurrentPublicationCanonicalCodecV2.decode(encoded.data), value)
+            let view = try value.view()
+            XCTAssertEqual(view.base, base.snapshot)
+            XCTAssertEqual(view.initialPacket?.itemCount, packet?.snapshot.manifest.items.count)
+            XCTAssertEqual(view.initialPose?.projection.history.count, pose == nil ? nil : 1)
+            XCTAssertNil(view.history); XCTAssertNil(view.historicalAssurance); XCTAssertNil(view.currentAssurance)
+            XCTAssertNil(view.laterPose); XCTAssertNil(view.laterPacket)
+            XCTAssertEqual(view.base.temporalEvidenceLinks, base.snapshot.temporalEvidenceLinks)
+        }
+        XCTAssertThrowsError(try ReportInitialCoordinatedSourceV1(initial: base, input: input))
+        let conflictingSameRevision = try fullReportInput(base, assetID: assetID, revision: 1, step: "close")
+        XCTAssertThrowsError(try packet.validate(current: conflictingSameRevision))
+        let wrongAsset = try fullReportInput(base, assetID: C33TemporalEvidenceTestSupport.id(11_002), revision: 2, step: "close")
+        XCTAssertThrowsError(try packet.validate(current: wrongAsset))
+        // Pure compatibility is not an accepted continuation; the production
+        // writer/journal witness remains a separate required adoption gate.
+        try packet.validate(current: input)
+    }
+
+    @MainActor
+    func testReportFullSourceReviewsCompleteInitialV2AndRequiresFreshWholeSourceAssurance() throws {
+        let fixture = try publicationReviewFixture(), base = fixture.original.basis
+        let assetID = C33TemporalEvidenceTestSupport.id(11_100)
+        let input = try fullReportInput(base, assetID: assetID, revision: 1, step: "review")
+        let packet = try fullReportPacketInput(input, legacyPacketID: base.snapshot.packetID)
+        let pose = try fullReportPose(base.workspaceID, assetID: assetID)
+        let coordinated = try ReportInitialCoordinatedSourceV1(initial: base, input: input, packet: packet, pose: pose)
+        let preAssurance = try ReportInitialPublicationV2(content: .coordinated(coordinated),
+            audience: base.audience, projectionVersion: base.projectionVersion)
+        let initial = try ReportInitialPublicationV2(content: .coordinated(coordinated),
+            audience: base.audience, projectionVersion: base.projectionVersion,
+            assurance: publicationAssurance(basis: base, digest: preAssurance.basisSHA256))
+        let originalBytes = try ReportCurrentPublicationCanonicalCodecV2.encode(initial.currentPublication())
+        let subject = try CompletedWorkSubjectKeyV1(workspaceID: base.workspaceID,
+            subjectID: base.snapshot.reportID, subjectRevision: 1)
+        let history = try fullReportHistory(snapshot: base.snapshot, digest: originalBytes.sha256,
+            assurance: XCTUnwrap(initial.assurance), key: subject)
+        let reviewed = try ReportReviewedSourceV2(original: .initial(initial), reportSubject: subject, history: history)
+        let basis = try ReportCurrentPublicationBasisV2(source: .reviewed(reviewed), audience: base.audience,
+            projectionVersion: base.projectionVersion)
+        let unassured = try ReportCurrentPublicationV2(basis: basis)
+        XCTAssertThrowsError(try ReportCurrentPublicationV2(basis: basis, currentAssurance: initial.assurance))
+        let current = try publicationAssurance(basis: base, digest: unassured.basisSHA256)
+        let output = try ReportCurrentPublicationV2(basis: basis, currentAssurance: current)
+        let view = try output.view()
+        XCTAssertEqual(view.history, history); XCTAssertEqual(view.historicalAssurance, initial.assurance)
+        XCTAssertEqual(view.currentAssurance, current); XCTAssertNotEqual(view.currentAssurance, view.historicalAssurance)
+        XCTAssertEqual(view.initialPacket?.packetID, packet.snapshot.manifest.packetID)
+        XCTAssertEqual(view.initialPose, try pose.projection())
+        XCTAssertEqual(view.base, base.snapshot)
+        let bytes = try ReportCurrentPublicationCanonicalCodecV2.encode(output)
+        XCTAssertEqual(try ReportCurrentPublicationCanonicalCodecV2.decode(bytes.data), output)
+        XCTAssertEqual(try reviewed.original.encoded(), originalBytes)
+        XCTAssertNotEqual(bytes.sha256, originalBytes.sha256)
+        XCTAssertEqual(try ReportPublicationCanonicalCodecV1.encode(fixture.original).data,
+            try publicationExpectedBytes(publicationExpectedWire(fixture.original)))
+        // V1 and full V2 are both legitimate immutable C14 original cases.
+        let oldReviewed = try ReportReviewedSourceV2(original: .legacy(fixture.original),
+            reportSubject: fixture.key, history: fixture.history)
+        let oldOutput = try ReportCurrentPublicationV2(basis: .init(source: .reviewed(oldReviewed),
+            audience: base.audience, projectionVersion: base.projectionVersion))
+        XCTAssertEqual(try oldOutput.view().history, fixture.history)
+        XCTAssertThrowsError(try ReportReviewedSourceV2(original: .initial(initial), reportSubject: fixture.key, history: history))
+        let changedAudience = try ReportCurrentPublicationBasisV2(source: .reviewed(reviewed), audience: .internalUse,
+            projectionVersion: base.projectionVersion)
+        XCTAssertThrowsError(try ReportCurrentPublicationV2(basis: changedAudience, currentAssurance: current))
+        let changedVersion = try ReportCurrentPublicationBasisV2(source: .reviewed(reviewed), audience: base.audience,
+            projectionVersion: "report-projection-v2")
+        XCTAssertThrowsError(try ReportCurrentPublicationV2(basis: changedVersion, currentAssurance: current))
+        // A reviewed original is structurally impossible in the initial-only
+        // type and is rejected by its decoder before parsing another wrapper.
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .deferredToDate
+        XCTAssertThrowsError(try decoder.decode(ReportInitialPublicationV2.self, from: bytes.data))
+    }
+
+    @MainActor
+    func testReportFullSourceRecordedResultJoinsExactReportTupleWithoutEvidenceRelabeling() throws {
+        let fixture = try publicationReviewFixture(), base = fixture.original.basis
+        let input = try fullReportInput(base, assetID: C33TemporalEvidenceTestSupport.id(11_200), revision: 1, step: "review")
+        let packet = try fullReportPacketInput(input, legacyPacketID: base.snapshot.packetID)
+        let initialSource = try ReportInitialCoordinatedSourceV1(initial: base, input: input, packet: packet)
+        let plain = try ReportInitialPublicationV2(content: .coordinated(initialSource), audience: base.audience,
+            projectionVersion: base.projectionVersion)
+        let initial = try ReportInitialPublicationV2(content: plain.content, audience: base.audience,
+            projectionVersion: base.projectionVersion,
+            assurance: publicationAssurance(basis: base, digest: plain.basisSHA256))
+        let original = ReportOriginalPublicationV2.initial(initial)
+        let subject = try CompletedWorkSubjectKeyV1(workspaceID: base.workspaceID, subjectID: base.snapshot.reportID, subjectRevision: 1)
+        let history = try fullReportHistory(snapshot: base.snapshot, digest: original.encoded().sha256,
+            assurance: XCTUnwrap(initial.assurance), key: subject)
+        let reviewed = try ReportReviewedSourceV2(original: original, reportSubject: subject, history: history)
+        let origin = try fullReportStructuralOrigin(original: original, assetID: input.sourceRecord.assetID, subject: subject)
+        let product = try WorkPacketResultLinkV1(resultID: subject.subjectID,
+            resultMutationID: origin.receipt.mutationID, itemExpectedRevision: packet.item.expectedRevision,
+            resultRevision: subject.subjectRevision, resultSHA256: original.encoded().sha256, evidence: [])
+        let released = try fullReportRelease(packet: packet, result: product)
+        let binding = try WorkPacketReportResultBindingV1(snapshot: released.snapshot, item: packet.item,
+            releaseID: released.release.releaseID, result: product, subject: subject,
+            originalSHA256: original.encoded().sha256, finalizationMutationID: origin.receipt.mutationID)
+        let source = try ReportReviewedCoordinatedSourceV1(reviewed: reviewed, origin: origin,
+            packet: .init(snapshot: released.snapshot, association: .recordedResult(binding)))
+        let basis = try ReportCurrentPublicationBasisV2(source: .reviewedCoordinated(source),
+            audience: base.audience, projectionVersion: base.projectionVersion)
+        let output = try ReportCurrentPublicationV2(basis: basis)
+        XCTAssertEqual(try ReportCurrentPublicationCanonicalCodecV2.decode(ReportCurrentPublicationCanonicalCodecV2.encode(output).data), output)
+        XCTAssertNotEqual(released.snapshot.manifest.packetID, base.snapshot.packetID)
+        XCTAssertEqual(released.snapshot.manifest.items.count, 2)
+        XCTAssertEqual(binding.result.evidence, [])
+        XCTAssertEqual(try output.view().laterPacket?.preservedResultCount, 1)
+        XCTAssertEqual(try output.view().initialPacket?.preservedResultCount, 0)
+        XCTAssertEqual(try output.view().base, base.snapshot)
+        let wrongMutation = try C33TemporalEvidenceTestSupport.mutation(11_201)
+        XCTAssertThrowsError(try binding.validate(snapshot: released.snapshot, subject: subject,
+            originalSHA256: original.encoded().sha256, finalizationMutationID: wrongMutation))
+        XCTAssertThrowsError(try binding.validate(snapshot: released.snapshot, subject: fixture.key,
+            originalSHA256: original.encoded().sha256, finalizationMutationID: origin.receipt.mutationID))
+        XCTAssertThrowsError(try binding.validate(snapshot: released.snapshot, subject: subject,
+            originalSHA256: String(repeating: "f", count: 64), finalizationMutationID: origin.receipt.mutationID))
+        let requiringEvidence = try fullReportPacketInput(input, legacyPacketID: base.snapshot.packetID,
+            requiresEvidence: true)
+        XCTAssertThrowsError(try fullReportRelease(packet: requiringEvidence, result: product))
+        let directItem = try WorkPacketItemV1(itemID: subject.subjectID.uuidString.lowercased(), kind: .inspection,
+            expectedRevision: subject.subjectRevision, itemSHA256: original.encoded().sha256)
+        let directManifest = try WorkPacketManifestV1(manifestID: C33TemporalEvidenceTestSupport.id(11_210),
+            packetID: C33TemporalEvidenceTestSupport.id(11_211), packetVersion: 1, workspaceID: base.workspaceID,
+            items: [directItem, packet.snapshot.manifest.items.first(where: { $0.itemID == "unrelated-recheck" })!],
+            packageReleases: [], creationBasis: .explicitLocalSelection, creator: packet.snapshot.manifest.creator,
+            createdAt: packet.snapshot.createdAt, mutationID: C33TemporalEvidenceTestSupport.mutation(11_212))
+        let direct = ReportPacketSourceV1(snapshot: try .init(manifest: directManifest, claims: [], leases: [],
+            releases: [], handoffs: [], createdAt: packet.snapshot.createdAt),
+            association: .directInspection(try .init(manifest: directManifest, item: directItem)))
+        let pose = try fullReportPose(base.workspaceID, assetID: input.sourceRecord.assetID)
+        for (packetSource, poseSource) in [(Optional(direct), Optional<ReportPoseHistorySourceV1>.none),
+                                         (nil, Optional(pose)), (Optional(direct), Optional(pose))] {
+            let value = try ReportReviewedCoordinatedSourceV1(reviewed: reviewed, origin: origin,
+                packet: packetSource, pose: poseSource)
+            let frozen = try ReportCurrentPublicationV2(basis: .init(source: .reviewedCoordinated(value),
+                audience: base.audience, projectionVersion: base.projectionVersion))
+            XCTAssertEqual(try ReportCurrentPublicationCanonicalCodecV2.decode(
+                ReportCurrentPublicationCanonicalCodecV2.encode(frozen).data), frozen)
+            XCTAssertEqual(try frozen.view().history, history)
+            XCTAssertEqual(try frozen.view().laterPose, try poseSource?.projection())
+            XCTAssertEqual(try frozen.view().base, base.snapshot)
+            XCTAssertEqual(try frozen.view().historicalAssurance, initial.assurance)
+        }
+        XCTAssertThrowsError(try ReportReviewedCoordinatedSourceV1(reviewed: reviewed, origin: origin))
+        // Handoff is optional corroboration of the exact selected release and
+        // full result. It cannot substitute a different result or release.
+        let handed = try fullReportRelease(packet: packet, result: product, reason: .handoff)
+        let handoff = try WorkHandoffV1(handoffID: C33TemporalEvidenceTestSupport.id(11_220), workspaceID: base.workspaceID,
+            releaseID: handed.release.releaseID, item: packet.item, fromHolder: handed.release.holder,
+            toHolder: C26SurveySessionTestSupport.actor(workspaceID: base.workspaceID, slot: 11_221, responsibility: .assignedTo),
+            resultLinks: [product], reason: "Explicit local handoff", handedOffAt: handed.release.releasedAt.addingTimeInterval(1),
+            mutationID: C33TemporalEvidenceTestSupport.mutation(11_222))
+        let handedSnapshot = try CompletedWorkPacketSnapshotV1(manifest: handed.snapshot.manifest,
+            claims: handed.snapshot.claims, leases: handed.snapshot.leases, releases: handed.snapshot.releases,
+            handoffs: [handoff], sourceRevision: 5, createdAt: handoff.handedOffAt)
+        let handoffBinding = try WorkPacketReportResultBindingV1(snapshot: handedSnapshot, item: packet.item,
+            releaseID: handed.release.releaseID, handoffID: handoff.handoffID, result: product, subject: subject,
+            originalSHA256: original.encoded().sha256, finalizationMutationID: origin.receipt.mutationID)
+        XCTAssertEqual(handoffBinding.result, product)
+        XCTAssertThrowsError(try handoffBinding.validate(snapshot: released.snapshot, subject: subject,
+            originalSHA256: original.encoded().sha256, finalizationMutationID: origin.receipt.mutationID))
+        func releaseCopy(_ result: WorkPacketResultLinkV1, slot: Int) throws -> WorkReleaseV1 {
+            let old = released.release
+            return try .init(releaseID: C33TemporalEvidenceTestSupport.id(slot), workspaceID: old.workspaceID,
+                claimID: old.claimID, leaseID: old.leaseID, item: old.item, holder: old.holder, reason: old.reason,
+                resultLinks: [result], releasedAt: old.releasedAt, mutationID: C33TemporalEvidenceTestSupport.mutation(slot + 1))
+        }
+        func snapshot(_ additions: [WorkReleaseV1]) throws -> CompletedWorkPacketSnapshotV1 {
+            try .init(manifest: released.snapshot.manifest, claims: released.snapshot.claims, leases: released.snapshot.leases,
+                releases: released.snapshot.releases + additions, handoffs: [], sourceRevision: 6,
+                createdAt: released.snapshot.createdAt)
+        }
+        let divergent = try WorkPacketResultLinkV1(resultID: product.resultID, resultMutationID: wrongMutation,
+            itemExpectedRevision: product.itemExpectedRevision, resultRevision: product.resultRevision,
+            resultSHA256: product.resultSHA256, evidence: [])
+        let ambiguous = try snapshot([releaseCopy(divergent, slot: 11_230)])
+        XCTAssertThrowsError(try binding.validate(snapshot: ambiguous, subject: subject,
+            originalSHA256: original.encoded().sha256, finalizationMutationID: origin.receipt.mutationID))
+        let otherID = C33TemporalEvidenceTestSupport.id(11_240)
+        let otherA = try WorkPacketResultLinkV1(resultID: otherID, resultMutationID: wrongMutation,
+            itemExpectedRevision: product.itemExpectedRevision, resultRevision: 1,
+            resultSHA256: String(repeating: "a", count: 64), evidence: [])
+        let otherB = try WorkPacketResultLinkV1(resultID: otherID, resultMutationID: C33TemporalEvidenceTestSupport.mutation(11_241),
+            itemExpectedRevision: product.itemExpectedRevision, resultRevision: 2,
+            resultSHA256: String(repeating: "b", count: 64), evidence: [])
+        let unrelated = try snapshot([releaseCopy(otherA, slot: 11_242), releaseCopy(otherB, slot: 11_244)])
+        try binding.validate(snapshot: unrelated, subject: subject,
+            originalSHA256: original.encoded().sha256, finalizationMutationID: origin.receipt.mutationID)
+        XCTAssertEqual(unrelated.releases.count, 3)
+        XCTAssertGreaterThan(try ReportWorkPacketProjectionV1(snapshot: unrelated,
+            sourceSnapshotSHA256: original.encoded().sha256).collisionCount, 0)
+    }
+
+    @MainActor
+    func testReportFullSourceCodecRejectsUnknownNullNonfiniteAndChangedCanonicalBytes() throws {
+        let base = try publicationReviewFixture().original.basis
+        let value = try ReportCurrentPublicationV2(basis: .init(source: .initial(base),
+            audience: base.audience, projectionVersion: base.projectionVersion))
+        let encoded = try ReportCurrentPublicationCanonicalCodecV2.encode(value)
+        XCTAssertEqual(try ReportCurrentPublicationCanonicalCodecV2.decode(encoded.data), value)
+        XCTAssertThrowsError(try ReportSnapshotEncoderV1().decode(encoded.data))
+        XCTAssertThrowsError(try ReportPublicationCanonicalCodecV1.decode(encoded.data))
+        let text = try XCTUnwrap(String(data: encoded.data, encoding: .utf8))
+        let hostile = [" " + text, text + "\n",
+            text.replacingOccurrences(of: "\"reportCurrentPublicationSchemaVersion\":2", with: "\"reportCurrentPublicationSchemaVersion\":3"),
+            text.replacingOccurrences(of: "\"sourceKind\":\"INITIAL\"", with: "\"sourceKind\":\"UNKNOWN\""),
+            "{\"extra\":true," + text.dropFirst(),
+            "{\"currentAssurance\":null," + text.dropFirst(),
+            "{\"reportCurrentPublicationSchemaVersion\":2," + text.dropFirst(),
+        ]
+        for bytes in hostile { XCTAssertThrowsError(try ReportCurrentPublicationCanonicalCodecV2.decode(Data(bytes.utf8))) }
+        XCTAssertThrowsError(try ReportCurrentPublicationCanonicalCodecV2.typedBytes(Date(timeIntervalSinceReferenceDate: .infinity)))
+        let instant = Date(timeIntervalSinceReferenceDate: 841_694_450.0000001)
+        XCTAssertEqual(try ReportCurrentPublicationCanonicalCodecV2.typedBytes(instant), try publicationExpectedBytes(instant))
+        XCTAssertNotEqual(try ReportCurrentPublicationCanonicalCodecV2.typedBytes(instant),
+            try ReportCurrentPublicationCanonicalCodecV2.typedBytes(Date(timeIntervalSinceReferenceDate: instant.timeIntervalSinceReferenceDate.nextUp)))
+    }
+
+    private struct FullExpectedSource<Value: Encodable>: Encodable { let sourceKind: String; let value: Value }
+    private struct FullExpectedCoordinated: Encodable {
+        let initial: PublicationExpectedBasis; let input: ReportInitialInputBindingV1
+        let packet: ReportPacketInputSourceV1?; let pose: ReportPoseHistorySourceV1?
+    }
+    private struct FullExpectedBasisValue<Source: Encodable>: Encodable {
+        let source: Source; let audience: ReportAudienceV1; let projectionVersion: String
+    }
+    private struct FullExpectedBasis<Basis: Encodable>: Encodable { let reportCurrentBasisSchemaVersion = 2; let basis: Basis }
+    private struct FullExpectedOuter<Basis: Encodable>: Encodable {
+        let reportCurrentPublicationSchemaVersion = 2; let basis: Basis
+        let basisSHA256: String; let currentAssurance: ReportEvidenceAssuranceProjectionV1?
+    }
+
+    private func fullReportInput(_ base: ReportPublicationBasisV1, assetID: UUID, revision: UInt64,
+        step: String, completed: Bool = false, mutationID: UUID? = nil) throws -> ReportInitialInputBindingV1 {
+        let s = base.snapshot
+        let record = WorkflowRecordPayloadV1(id: s.sourceRecordID, schemaVersion: 1, assetID: assetID,
+            packetID: completed ? s.packetID : nil, issueID: nil, parentRecordID: nil,
+            recordRevisionRootID: s.sourceRecordID, revisesRecordID: nil, evidenceSourceRecordID: nil,
+            revisionKind: WorkflowRevisionKind.original.rawValue, stage: s.stage,
+            state: completed ? WorkflowState.completed.rawValue : WorkflowState.draft.rawValue,
+            draftStepKey: completed ? nil : step, startedAt: s.snapshotCreatedAt.addingTimeInterval(-60),
+            completedAt: completed ? s.snapshotCreatedAt : nil, observedAtUTC: s.timeContext.observedAtUTC,
+            timeZoneID: s.timeContext.timeZoneID, utcOffsetMinutes: s.timeContext.utcOffsetMinutes,
+            localDate: s.timeContext.localDate, localTime: s.timeContext.localTime,
+            afterDarkAcknowledgementKey: nil, afterDarkAcknowledgementCopy: nil,
+            afterDarkAcknowledgementVersion: nil, afterDarkAcknowledgementAccepted: nil,
+            safePositionAcknowledgementKey: nil, safePositionAcknowledgementCopy: nil,
+            safePositionAcknowledgementVersion: nil, safePositionAcknowledgementAccepted: nil,
+            packID: s.pack.id, packSchemaVersion: s.pack.schemaVersion, packContentVersion: s.pack.contentVersion,
+            pdfTemplateID: s.pdfTemplate.id, pdfTemplateVersion: s.pdfTemplate.version, outcomeKey: s.outcome,
+            couldNotVerifyKey: nil, couldNotVerifyDisplaySnapshot: nil, couldNotVerifyRegistryVersion: nil,
+            workPerformedLocalDate: nil, workDescription: nil, note: s.note, finalizationMutationID: mutationID)
+        return try .init(workspaceID: base.workspaceID, sourceRecord: record, sourceRevision: revision)
+    }
+
+    private func fullReportPacketInput(_ input: ReportInitialInputBindingV1, legacyPacketID: UUID,
+        requiresEvidence: Bool = false) throws -> ReportPacketInputSourceV1 {
+        let creator = try C26SurveySessionTestSupport.actor(workspaceID: input.workspaceID,
+            slot: 11_300, responsibility: .recordedBy)
+        let requirement = try WorkPacketEvidenceRequirementV1(requirementID: "required-completed-activity",
+            evidenceKind: .completedActivitySnapshot, minimumCount: 1)
+        let item = try WorkPacketItemV1(itemID: input.sourceRecord.id.uuidString.lowercased(), kind: .inspection,
+            expectedRevision: input.sourceRevision, itemSHA256: input.inputSHA256,
+            evidenceRequirements: requiresEvidence ? [requirement] : [])
+        let other = try WorkPacketItemV1(itemID: "unrelated-recheck", kind: .operationalRecheck,
+            expectedRevision: 7, itemSHA256: String(repeating: "b", count: 64))
+        let manifest = try WorkPacketManifestV1(manifestID: C33TemporalEvidenceTestSupport.id(11_301),
+            packetID: C33TemporalEvidenceTestSupport.id(11_302), packetVersion: 1, workspaceID: input.workspaceID,
+            items: [item, other], packageReleases: [], creationBasis: .explicitLocalSelection, creator: creator,
+            createdAt: C33TemporalEvidenceTestSupport.fixedDate, mutationID: C33TemporalEvidenceTestSupport.mutation(11_303))
+        XCTAssertNotEqual(manifest.packetID, legacyPacketID)
+        let snapshot = try CompletedWorkPacketSnapshotV1(manifest: manifest, claims: [], leases: [], releases: [],
+            handoffs: [], createdAt: C33TemporalEvidenceTestSupport.fixedDate)
+        return try .init(snapshot: snapshot, item: .init(manifest: manifest, item: item), manifestInput: input)
+    }
+
+    private func fullReportRelease(packet: ReportPacketInputSourceV1, result: WorkPacketResultLinkV1, reason: WorkReleaseReasonV1 = .completed) throws
+        -> (snapshot: CompletedWorkPacketSnapshotV1, release: WorkReleaseV1) {
+        let workspace = packet.snapshot.workspaceID, date = packet.snapshot.createdAt
+        let holder = try C26SurveySessionTestSupport.actor(workspaceID: workspace, slot: 11_310, responsibility: .assignedTo)
+        let claim = try WorkItemClaimV1(claimID: C33TemporalEvidenceTestSupport.id(11_311), workspaceID: workspace,
+            manifest: .init(packet.snapshot.manifest), item: packet.item, holder: holder, claimSequence: 1,
+            claimedAt: date, mutationID: C33TemporalEvidenceTestSupport.mutation(11_312))
+        let lease = try WorkLeaseV1(leaseID: C33TemporalEvidenceTestSupport.id(11_313), workspaceID: workspace,
+            claimID: claim.claimID, item: packet.item, holder: holder, leaseSequence: 1,
+            startsAt: date, expiresAt: date.addingTimeInterval(600), mutationID: C33TemporalEvidenceTestSupport.mutation(11_314))
+        let release = try WorkReleaseV1(releaseID: C33TemporalEvidenceTestSupport.id(11_315), workspaceID: workspace,
+            claimID: claim.claimID, leaseID: lease.leaseID, item: packet.item, holder: holder, reason: reason,
+            resultLinks: [result], releasedAt: date.addingTimeInterval(20), mutationID: C33TemporalEvidenceTestSupport.mutation(11_316))
+        try release.validate(claim: claim, lease: lease, manifest: packet.snapshot.manifest)
+        return (try .init(manifest: packet.snapshot.manifest, claims: [claim], leases: [lease], releases: [release],
+            handoffs: [], sourceRevision: 4, createdAt: date.addingTimeInterval(21)), release)
+    }
+}
+
+extension V9_16SnapshotProjectionTests {
+    // Pure command/receipt constructors prove structural joins, not journal
+    // acceptance. The production finalizer does not yet emit this V2 wire.
+    private func fullReportAtomic(workspace: WorkspaceID, mutation: MutationIDV1,
+        command: WorkspaceCommandV1, images: [MutationPostImageV1],
+        additionalLocks: [WorkspaceEntityRevisionV1] = [], sequence: UInt64 = 1,
+        sourceKind: MutationSourceKindV1 = .localUser, generation: UUID = C33TemporalEvidenceTestSupport.id(11_500)) throws
+        -> (envelope: MutationEnvelopeV1, receipt: MutationReceiptV1) {
+        let expected = try WorkspaceExpectedRevisionV1(workspaceID: workspace,
+            generationID: generation, writerInstanceID: C33TemporalEvidenceTestSupport.id(11_501),
+            workspaceRevision: sequence - 1, entityRevisions: images.map {
+                .init(identity: try $0.concurrencyIdentity, revision: $0.revision - 1)
+            } + additionalLocks)
+        let envelope = try MutationEnvelopeV1(request: .init(mutationID: mutation,
+            expectedRevision: expected, command: command), identity: .init(workspaceID: workspace,
+                replicaID: ReplicaID(rawValue: C33TemporalEvidenceTestSupport.id(11_502))), sourceKind: sourceKind)
+        let imageIDs = Set(try images.map { try $0.identity })
+        let result = try WorkspaceExpectedRevisionV1(workspaceID: workspace,
+            generationID: generation, writerInstanceID: expected.writerInstanceID,
+            workspaceRevision: sequence, entityRevisions: images.map {
+                .init(identity: try $0.identity, revision: $0.revision)
+            } + expected.entityRevisions.filter { !imageIDs.contains($0.identity) })
+        let receipt = try MutationReceiptV1(identity: .init(workspaceID: workspace,
+            replicaID: envelope.replicaID, localSequence: sequence), envelope: envelope,
+            resultingRevision: .init(result), postImages: images,
+            committedAt: C37PoseTestSupport.fixedDate.addingTimeInterval(Double(sequence)))
+        return (envelope, receipt)
+    }
+
+    private func fullReportPose(_ workspace: WorkspaceID, assetID: UUID, planRelative: Bool = false, optional: Bool = false) throws -> ReportPoseHistorySourceV1 {
+        let package = try C37PoseTestSupport.packageRelease()
+        let axis = try C37PoseTestSupport.descriptor("report", required: .azimuthOnly,
+            observationRequirement: optional ? .optional : .requiredForCompletion)
+        let (plan, page, frame) = try C37PoseTestSupport.planRevision(workspaceID: workspace)
+        let poseFrame: PoseReferenceFrameV1 = planRelative ? .planRelative(.init(planRevision: try plan.reference,
+            pageID: page.pageID, spatialFrameID: frame.frameID, acceptedTransformSHA256: try PlanAffineTransformV1(
+                m11: 1_000_000_000, m12: 0, m21: 0, m22: 1_000_000_000, tx: 0, ty: 0).transformSHA256)) : .trueBearing
+        let registry = try PoseAxisRegistryReleaseV1(packageRelease: package,
+            registry: .init(descriptors: [axis]))
+        let placement = try C37PoseTestSupport.placement(workspaceID: workspace, assetID: assetID,
+            placementID: C37PoseTestSupport.id(11_510), episode: C37PoseTestSupport.episode(11_511),
+            path: C37PoseTestSupport.locationPathSnapshot(), mutationSlot: 11_512)
+        let event = try C37PoseTestSupport.poseEvent(workspaceID: workspace, assetID: assetID,
+            descriptor: axis, eventID: C37PoseTestSupport.id(11_513),
+            pose: C37PoseTestSupport.observedPose(descriptor: axis, referenceFrame: poseFrame),
+            placementEventID: placement.id, placementEpisodeID: placement.physicalEpisodeID)
+        let pose = try PlacementPoseMutationV1(workspaceID: workspace, mutationID: event.mutationID,
+            events: [event], eventPredecessors: [nil], admissionClosure: .init(workspaceID: workspace,
+                packageRelease: package, axisRegistryRelease: registry, planRevisions: planRelative ? [plan] : [], placementEvents: [placement]))
+        let atomic = try fullReportAtomic(workspace: workspace, mutation: pose.mutationID,
+            command: .applyPlacementPose(pose), images: pose.mutationPostImages)
+        return try .init(completed: .init(snapshotID: C37PoseTestSupport.id(11_514), workspaceID: workspace,
+            assetID: assetID, placementEpisodeID: placement.physicalEpisodeID,
+            events: [event], capturedAt: event.recordedAt), selectedPlacementEventID: placement.id,
+            admissions: [.init(envelope: atomic.envelope, receipt: atomic.receipt)])
+    }
+
+    private struct FullPostImageBasis<Value: Codable>: Codable {
+        let identity: WorkspaceEntityIdentityV1; let revision: UInt64; let value: Value
+    }
+    private struct FullRecordPostImage: Codable {
+        let record: V4BackupWorkflowRecordDTO; let requirementAssurance: RequirementAssuranceSnapshotV1?
+    }
+    private func fullReportImage<Value: Codable>(_ kind: WorkspaceEntityKindV1, id: UUID,
+        revision: UInt64, value: Value) throws -> MutationPostImageV1 {
+        let sha = try WorkspaceMutationCanonicalV1.sha256(FullPostImageBasis(
+            identity: WorkspaceEntityIdentityV1(kind: kind, id: id), revision: revision, value: value))
+        switch kind {
+        case .workflowRecord: return .workflowRecord(id: id, revision: revision, semanticSHA256: sha)
+        case .packet: return .packet(id: id, revision: revision, semanticSHA256: sha)
+        case .report: return .report(id: id, revision: revision, semanticSHA256: sha)
+        default: throw WorkspaceMutationFailureV1.invalidCommand
+        }
+    }
+
+    private func fullReportStructuralOrigin(original: ReportOriginalPublicationV2, assetID: UUID,
+        subject: CompletedWorkSubjectKeyV1) throws -> ReportAcceptedOriginV1 {
+        let base = original.basis, s = base.snapshot
+        let mutation = try C33TemporalEvidenceTestSupport.mutation(11_520)
+        let record = try fullReportInput(base, assetID: assetID, revision: 2, step: "review",
+            completed: true, mutationID: mutation.rawValue).sourceRecord
+        let packet = PacketPayloadV1(id: s.packetID, schemaVersion: 1, stableRootID: s.stableRootID,
+            currentRecordID: s.sourceRecordID, evaluationCounted: true, contentDeletedAt: nil, createdAt: s.snapshotCreatedAt)
+        let report = ReportPayloadV1(id: s.reportID, schemaVersion: 1, packetID: s.packetID,
+            sourceRecordID: s.sourceRecordID, snapshotSchemaVersion: s.snapshotSchemaVersion,
+            snapshotRelativePath: "snapshots/\(s.reportID.uuidString.lowercased()).json",
+            snapshotSHA256: try original.encoded().sha256, pdfState: ReportPDFState.pending.rawValue,
+            pdfRelativePath: nil, pdfSHA256: nil, createdAt: s.snapshotCreatedAt, replacesReportID: nil)
+        let payload = FinalizationPayloadV1(issueInsert: nil, issueTransition: nil, packetAfter: packet,
+            packetBefore: nil, reportInsert: report, workflowRecordAfter: record)
+        let digest = try FinalizationContractEncoderV1().encodePayload(payload).sha256
+        let sourceBinding = FinalizationWriterSourceBindingV1(sourceRecordID: s.sourceRecordID,
+            observationBasisV1Data: try ObservationAndTimeCodecV1.encode(XCTUnwrap(s.observationBasis)),
+            temporalContextV1Data: try ObservationAndTimeCodecV1.encode(XCTUnwrap(s.temporalContext)),
+            requirementAssurance: nil)
+        let authority = FinalizationWriterAuthorityV1(workspaceID: base.workspaceID,
+            generationID: C33TemporalEvidenceTestSupport.id(11_500), payload: payload, payloadSHA256: digest,
+            snapshotRelativePath: report.snapshotRelativePath, snapshotSHA256: report.snapshotSHA256,
+            contentDigests: [], sourceBinding: sourceBinding)
+        let command = FinalizeCheckMutationV1(finalizationMutationID: mutation.rawValue, assetID: assetID,
+            recordID: s.sourceRecordID, packetID: s.packetID, reportID: s.reportID, issueID: nil,
+            semanticDigest: digest, contentDigests: [], writerAuthority: authority)
+            let recordDTO = V4BackupWorkflowRecordDTO(
+                id: record.id, schemaVersion: record.schemaVersion, assetID: record.assetID,
+                packetID: record.packetID, issueID: record.issueID,
+                parentRecordID: record.parentRecordID,
+                recordRevisionRootID: record.recordRevisionRootID,
+                revisesRecordID: record.revisesRecordID,
+                evidenceSourceRecordID: record.evidenceSourceRecordID,
+                revisionKind: record.revisionKind, stage: record.stage, state: record.state,
+                draftStepKey: record.draftStepKey, startedAt: record.startedAt,
+                completedAt: record.completedAt, observedAtUTC: record.observedAtUTC,
+                timeZoneID: record.timeZoneID, utcOffsetMinutes: record.utcOffsetMinutes,
+                localDate: record.localDate, localTime: record.localTime,
+                afterDarkAcknowledgementKey: record.afterDarkAcknowledgementKey,
+                afterDarkAcknowledgementCopy: record.afterDarkAcknowledgementCopy,
+                afterDarkAcknowledgementVersion: record.afterDarkAcknowledgementVersion,
+                afterDarkAcknowledgementAccepted: record.afterDarkAcknowledgementAccepted,
+                safePositionAcknowledgementKey: record.safePositionAcknowledgementKey,
+                safePositionAcknowledgementCopy: record.safePositionAcknowledgementCopy,
+                safePositionAcknowledgementVersion: record.safePositionAcknowledgementVersion,
+                safePositionAcknowledgementAccepted: record.safePositionAcknowledgementAccepted,
+                packID: record.packID, packSchemaVersion: record.packSchemaVersion,
+                packContentVersion: record.packContentVersion,
+                pdfTemplateID: record.pdfTemplateID, pdfTemplateVersion: record.pdfTemplateVersion,
+                outcomeKey: record.outcomeKey, couldNotVerifyKey: record.couldNotVerifyKey,
+                couldNotVerifyDisplaySnapshot: record.couldNotVerifyDisplaySnapshot,
+                couldNotVerifyRegistryVersion: record.couldNotVerifyRegistryVersion,
+                workPerformedLocalDate: record.workPerformedLocalDate,
+                workDescription: record.workDescription, note: record.note,
+                finalizationMutationID: record.finalizationMutationID,
+                observationBasisV1Data: sourceBinding.observationBasisV1Data,
+                temporalContextV1Data: sourceBinding.temporalContextV1Data
+            )
+            let recordValue = FullRecordPostImage(
+                record: recordDTO, requirementAssurance: nil
+            )
+            let packetValue = V4BackupPacketDTO(
+                id: packet.id, schemaVersion: packet.schemaVersion,
+                stableRootID: packet.stableRootID, currentRecordID: packet.currentRecordID,
+                evaluationCounted: packet.evaluationCounted,
+                contentDeletedAt: packet.contentDeletedAt, createdAt: packet.createdAt
+            )
+            let reportValue = V4BackupReportDTO(
+                id: report.id, schemaVersion: report.schemaVersion, packetID: report.packetID,
+                sourceRecordID: report.sourceRecordID,
+                snapshotSchemaVersion: report.snapshotSchemaVersion,
+                snapshotRelativePath: report.snapshotRelativePath,
+                snapshotSHA256: report.snapshotSHA256, pdfState: report.pdfState,
+                pdfRelativePath: report.pdfRelativePath, pdfSHA256: report.pdfSHA256,
+                createdAt: report.createdAt, replacesReportID: report.replacesReportID
+            )
+        let images = try [
+            fullReportImage(.workflowRecord, id: record.id, revision: 2, value: recordValue),
+            fullReportImage(.packet, id: packet.id, revision: 1, value: packetValue),
+            fullReportImage(.report, id: report.id, revision: 1, value: reportValue),
+        ]
+        let atomic = try fullReportAtomic(workspace: base.workspaceID, mutation: mutation,
+            command: .finalizeCheck(command), images: images,
+            additionalLocks: [.init(identity: WorkspaceEntityIdentityV1(kind: .asset, id: assetID), revision: 7)])
+        return try .init(subject: subject, finalization: .init(envelopeData: atomic.envelope.canonicalData(),
+            occurredAt: s.snapshotCreatedAt), receipt: atomic.receipt)
+    }
+}
+
+extension V9_16SnapshotProjectionTests {
+    @MainActor
+    func testReportFullSourcePoseRetainsFourAtomicCommandFamiliesAndPredecessors() throws {
+        let workspace = C37PoseTestSupport.workspace(90), assetID = C37PoseTestSupport.id(11_600)
+        let root = try fullReportPose(workspace, assetID: assetID, planRelative: true, optional: true)
+        let rebase = try fullReportRebasedPose(root)
+        let moved = try fullReportMovedPose(root, hierarchy: false)
+        let hierarchy = try fullReportMovedPose(root, hierarchy: true)
+        XCTAssertEqual(root.admissions[0].envelope.commandKind, .applyPlacementPose)
+        XCTAssertEqual(rebase.admissions[1].envelope.commandKind, .applyPlan)
+        XCTAssertEqual(moved.admissions[1].envelope.commandKind, .applyAssetPlacementChange)
+        XCTAssertEqual(hierarchy.admissions[1].envelope.commandKind, .applyLocationHierarchyChange)
+        for source in [rebase, moved, hierarchy] {
+            XCTAssertEqual(try source.history().count, 2)
+            XCTAssertEqual(try source.history().first, root.completed.events.first)
+            XCTAssertEqual(source.completed.events.first?.predecessor, root.completed.events.first?.reference)
+            XCTAssertEqual(source.completed.events.first?.rootObservedAt, root.completed.events.first?.rootObservedAt)
+            let leaf = try source.admissions[1].poseMutation()
+            XCTAssertGreaterThan(source.admissions[1].receipt.postImages.count, try leaf.mutationPostImages.count)
+            XCTAssertEqual(try source.projection().projection.history.count, 2)
+            let bytes = try publicationExpectedBytes(source)
+            let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .deferredToDate
+            XCTAssertEqual(try decoder.decode(ReportPoseHistorySourceV1.self, from: bytes), source)
+            XCTAssertThrowsError(try ReportPoseHistorySourceV1(completed: source.completed,
+                selectedPlacementEventID: source.selectedPlacementEventID, admissions: [source.admissions[1]]))
+            XCTAssertThrowsError(try ReportPoseHistorySourceV1(completed: source.completed,
+                selectedPlacementEventID: source.selectedPlacementEventID,
+                admissions: source.admissions + [source.admissions[0]]))
+            XCTAssertThrowsError(try ReportPoseHistorySourceV1(completed: source.completed,
+                selectedPlacementEventID: C37PoseTestSupport.id(11_699), admissions: source.admissions))
+            let second = source.admissions[1]
+            let narrowed = try fullReportAtomic(workspace: workspace, mutation: leaf.mutationID,
+                command: second.envelope.command, images: leaf.mutationPostImages, sequence: 2)
+            XCTAssertThrowsError(try ReportPoseAdmissionV1(envelope: narrowed.envelope, receipt: narrowed.receipt))
+            XCTAssertThrowsError(try ReportPoseAdmissionV1(envelope: second.envelope, receipt: root.admissions[0].receipt))
+        }
+        // The complete atomic envelopes remain unchanged, including the plan
+        // receipt and C35 asset/placement effects; they are never recast as a
+        // newly accepted direct-pose command for serialization convenience.
+        XCTAssertNotEqual(try rebase.admissions[1].envelope.canonicalData(),
+            try root.admissions[0].envelope.canonicalData())
+        for source in [moved, hierarchy] {
+            let old = source.admissions[1]
+            for sourceKind in [MutationSourceKindV1.localUser, .localRecovery] {
+                let mismatch = try fullReportAtomic(workspace: workspace, mutation: old.envelope.mutationID,
+                    command: old.envelope.command, images: old.receipt.postImages, sequence: 3, sourceKind: sourceKind)
+                try mismatch.envelope.validate(); try mismatch.receipt.validate()
+                XCTAssertThrowsError(try ReportPoseAdmissionV1(envelope: mismatch.envelope, receipt: mismatch.receipt))
+            }
+            let imported = try fullReportAtomic(workspace: workspace, mutation: old.envelope.mutationID,
+                command: old.envelope.command, images: old.receipt.postImages, sequence: 3, sourceKind: .importedHistory)
+            XCTAssertNotEqual(imported.envelope.expectedRevision, old.envelope.expectedRevision)
+            XCTAssertEqual(imported.envelope.command, old.envelope.command)
+            let preserved = try ReportPoseAdmissionV1(envelope: imported.envelope, receipt: imported.receipt)
+            XCTAssertEqual(try preserved.poseMutation(), try old.poseMutation())
+            let importedSource = try ReportPoseHistorySourceV1(completed: source.completed,
+                selectedPlacementEventID: source.selectedPlacementEventID, admissions: [source.admissions[0], preserved])
+            XCTAssertEqual(try importedSource.history(), try source.history())
+        }
+    }
+
+    private func fullReportSuccessor(_ prior: AssetPoseEventV1, mutation: MutationIDV1, slot: Int,
+        placement: AssetPlacementEventV1, pose: PlacementPoseV1, source: PoseObservationSourceV1) throws -> AssetPoseEventV1 {
+        try .init(eventID: C37PoseTestSupport.id(slot), workspaceID: prior.workspaceID,
+            assetID: prior.assetID, axisDescriptor: prior.axisDescriptor, placementEpisodeID: placement.physicalEpisodeID,
+            placementEventID: placement.id, locationPathSnapshot: placement.pathSnapshot, pose: pose, source: source,
+            rootObservationEventID: prior.rootObservationEventID, rootObservedAt: prior.rootObservedAt,
+            predecessor: prior, revision: prior.revision + 1, mutationID: mutation,
+            recordedBy: C37PoseTestSupport.actor(workspaceID: prior.workspaceID, slot: slot, responsibility: .recordedBy),
+            occurredAt: prior.recordedAt.addingTimeInterval(1), recordedAt: prior.recordedAt.addingTimeInterval(2))
+    }
+
+    private func fullReportMovedPose(_ root: ReportPoseHistorySourceV1, hierarchy: Bool) throws -> ReportPoseHistorySourceV1 {
+        let original = try root.admissions[0].poseMutation(), prior = try XCTUnwrap(original.events.first)
+        let old = try XCTUnwrap(original.admissionClosure.placementEvents.first)
+        let slot = hierarchy ? 11_630 : 11_620
+        let mutation = try C37PoseTestSupport.mutation(slot)
+        let path = try LocationPathSnapshotV1(siteID: C37PoseTestSupport.id(slot + 1), siteDisplay: "Moved site", nodes: [])
+        let placement = try AssetPlacementEventV1(id: C37PoseTestSupport.id(slot + 2), workspaceID: prior.workspaceID,
+            assetID: prior.assetID, siteID: path.siteID, locationNodeID: nil, predecessorEventID: old.id,
+            source: hierarchy ? .hierarchyRebase : .manual, physicalEpisodeID: C37PoseTestSupport.episode(slot),
+            continuity: .physicalMove, pathSnapshot: path, mutationID: mutation, occurredAt: prior.recordedAt.addingTimeInterval(1))
+        let proposed = try C37PoseTestSupport.notObservedPose(descriptor: prior.axisDescriptor, reason: .physicalMoveReobservationRequired)
+        let event = try fullReportSuccessor(prior, mutation: mutation, slot: slot + 3,
+            placement: placement, pose: proposed, source: .placementCarryForward)
+        let closure = try PlacementPoseAdmissionClosureV1(workspaceID: prior.workspaceID,
+            packageRelease: original.admissionClosure.packageRelease, axisRegistryRelease: original.admissionClosure.axisRegistryRelease,
+            planRevisions: [], placementEvents: [placement])
+        let intent = try PosePlacementDispositionIntentV1(predecessor: prior.reference, proposedPose: proposed, disposition: .markNotObserved)
+        let contribution = try PlacementChangeComponentContributionV1(componentID: "c37.report.move", componentVersion: 1,
+            warnings: [], requiredContinuityReview: false, intentSHA256: intent.intentSHA256, poseDispositionIntents: [intent])
+        let expected = try WorkspaceExpectedRevisionV1(workspaceID: prior.workspaceID,
+            generationID: C33TemporalEvidenceTestSupport.id(11_500), writerInstanceID: C33TemporalEvidenceTestSupport.id(11_501),
+            workspaceRevision: 1, entityRevisions: [
+                .init(identity: WorkspaceEntityIdentityV1(kind: .asset, id: prior.assetID), revision: 1),
+                .init(identity: WorkspaceEntityIdentityV1(kind: .assetPlacementEvent, id: placement.id), revision: 0),
+                .init(identity: WorkspaceEntityIdentityV1(kind: .assetPoseEvent, id: prior.eventID), revision: prior.revision)])
+        let basis = try AssetPlacementPreviewBasisV1(workspaceID: prior.workspaceID, expectedRevision: expected,
+            assetID: prior.assetID, currentPlacement: old, proposedSiteID: path.siteID, proposedLocationNodeID: nil,
+            proposedPath: path, source: placement.source, reviewedContinuity: .physicalMove)
+        let plan = try AssetPlacementChangePlanV1(operationID: mutation.rawValue, mutationID: mutation,
+            basis: basis, newEventID: placement.id, resultingPhysicalEpisodeID: placement.physicalEpisodeID,
+            componentContributions: [contribution], poseEvents: [event], poseEventPredecessors: [prior], poseAdmissionClosure: closure)
+        let command: WorkspaceCommandV1
+        if hierarchy {
+            let change = try LocationHierarchyChangePlanV1(operationID: mutation.rawValue, workspaceID: prior.workspaceID,
+                expectedRevision: expected, beforeNodes: [], afterNodes: [], affectedAssetIDs: [prior.assetID],
+                assetPathChanges: [.init(assetID: prior.assetID, beforePath: old.pathSnapshot, afterPath: path)],
+                immutablePlacementReferencedNodeIDs: [], consumerImpact: .init(planIDs: [], referenceIDs: [],
+                    openRoundIDs: [], scheduleIDs: [], reportConsumerIDs: []), assetBindingsChange: true,
+                operationContinuityDisposition: nil, continuityByAssetID: [prior.assetID: .physicalMove])
+            command = .applyLocationHierarchyChange(try .init(plan: change, placementChanges: [plan]))
+        } else { command = .applyAssetPlacementChange(plan) }
+        // Non-pose hashes are opaque at this pure report boundary. These are
+        // structural fixtures derived from the full plan/event, not a claim of
+        // accepted asset rows. The future writer witness must supply real rows.
+        let images = try XCTUnwrap(plan.placementPoseMutation).mutationPostImages + [
+            .asset(id: prior.assetID, revision: 2, semanticSHA256: plan.planSHA256),
+            .assetPlacementEvent(id: placement.id, revision: 1, semanticSHA256: placement.eventSHA256)]
+        let atomic = try fullReportAtomic(workspace: prior.workspaceID, mutation: mutation, command: command, images: images, sequence: 2)
+        return try .init(completed: .init(snapshotID: C37PoseTestSupport.id(slot + 4), workspaceID: prior.workspaceID,
+            assetID: prior.assetID, placementEpisodeID: placement.physicalEpisodeID, events: [event], capturedAt: event.recordedAt),
+            selectedPlacementEventID: placement.id, admissions: root.admissions + [.init(envelope: atomic.envelope, receipt: atomic.receipt)])
+    }
+
+    private func fullReportRebasedPose(_ root: ReportPoseHistorySourceV1) throws -> ReportPoseHistorySourceV1 {
+        let original = try root.admissions[0].poseMutation(), prior = try XCTUnwrap(original.events.first)
+        let placement = try XCTUnwrap(original.admissionClosure.placementEvents.first)
+        let old = try XCTUnwrap(original.admissionClosure.planRevisions.first)
+        let mutation = try C37PoseTestSupport.mutation(11_640)
+        let new = try PlanRevisionV1(planRevisionID: C37PoseTestSupport.id(11_641), workspaceID: prior.workspaceID,
+            planDocument: old.planDocument, contentBinding: old.contentBinding, pages: old.pages, spatialFrames: old.spatialFrames,
+            state: .released, predecessor: old, revision: 2, mutationID: mutation, recordedBy: old.recordedBy,
+            recordedAt: old.recordedAt.addingTimeInterval(10))
+        let transform = try PlanAffineTransformV1(m11: 1_000_000_000, m12: 0, m21: 0, m22: 1_000_000_000, tx: 0, ty: 0)
+        let frame = PlanRelativePoseFrameBindingV1(planRevision: try new.reference, pageID: old.pages[0].pageID,
+            spatialFrameID: old.spatialFrames[0].frameID, acceptedTransformSHA256: transform.transformSHA256)
+        let event = try fullReportSuccessor(prior, mutation: mutation, slot: 11_642, placement: placement,
+            pose: C37PoseTestSupport.observedPose(descriptor: prior.axisDescriptor, referenceFrame: .planRelative(frame)), source: .planRebase)
+        let effects = try PlacementPoseMutationV1(workspaceID: prior.workspaceID, mutationID: mutation,
+            events: [event], eventPredecessors: [prior], admissionClosure: .init(workspaceID: prior.workspaceID,
+                packageRelease: original.admissionClosure.packageRelease, axisRegistryRelease: original.admissionClosure.axisRegistryRelease,
+                planRevisions: [new], placementEvents: [placement]))
+        let component = PoseFrameRebaseComponentV1(policy: try .init(), currentPoseEvents: { _, _ in [] })
+        let registry = try PlanRebaseComponentRegistryV1(components: [component])
+        let preview = try RebasePreviewV1(previewID: C37PoseTestSupport.id(11_643), workspaceID: prior.workspaceID,
+            oldRevision: old.reference, newRevision: new.reference, transform: transform,
+            registrySHA256: registry.registrySHA256, registryVersion: registry.registryVersion,
+            componentDescriptors: registry.descriptors, contributions: [component.reviewedContribution(poseEffects: effects)],
+            expectedRevision: old.revision, generatedAt: new.recordedAt)
+        let reviewer = try C37PoseTestSupport.actor(workspaceID: prior.workspaceID, slot: 11_644, responsibility: .reviewedBy)
+        let commandBasis = try PlanRebaseCommandBasisV1(workspaceID: prior.workspaceID, mutationID: mutation,
+            preview: preview, newRevision: new, predecessorRevision: old, placements: [], predecessorPlacements: [],
+            receiptID: C37PoseTestSupport.id(11_645), predecessorReceipt: nil, reviewedBy: reviewer,
+            recordedAt: new.recordedAt, poseEffects: effects)
+        let receipt = try RebaseReceiptV1(receiptID: commandBasis.receiptID, preview: preview, decision: .approved,
+            resultingRevision: new.reference, resultingPlacementsSHA256: PlanRebasePreviewBuilderV1.placementSetSHA256([]),
+            canonicalPlanMutationSHA256: commandBasis.canonicalSHA256, reviewedBy: reviewer, recordedAt: new.recordedAt,
+            revision: 1, mutationID: mutation)
+        let plan = try PlanMutationV1(workspaceID: prior.workspaceID, mutationID: mutation,
+            payload: .applyRebase(newRevision: new, predecessorRevision: old, placements: [], predecessorPlacements: [],
+                receipt: receipt, predecessorReceipt: nil, poseEffects: effects))
+        let atomic = try fullReportAtomic(workspace: prior.workspaceID, mutation: mutation,
+            command: .applyPlan(plan), images: plan.mutationPostImages, sequence: 2)
+        return try .init(completed: .init(snapshotID: C37PoseTestSupport.id(11_646), workspaceID: prior.workspaceID,
+            assetID: prior.assetID, placementEpisodeID: placement.physicalEpisodeID, events: [event], capturedAt: event.recordedAt),
+            selectedPlacementEventID: placement.id, admissions: root.admissions + [.init(envelope: atomic.envelope, receipt: atomic.receipt)])
+    }
+}
+
+extension V9_16SnapshotProjectionTests {
+    @MainActor
+    func testReportPoseProjectionPreservesPresentComponentsAndExplicitUnknownUncertainty() throws {
+        let workspace = C37PoseTestSupport.workspace(91)
+        let assetID = C37PoseTestSupport.id(11_700)
+        // These are domain-valid immutable events, not accepted writer receipts.
+        // Expected labels are an independent closed table from frozen C37 law.
+        let cases: [(String, Bool, Bool, Bool, Bool, Bool, C37PoseObservationStateV1)] = [
+            ("azimuth-known", false, false, false, false, false, .observed),
+            ("azimuth-unknown", false, true, false, false, false, .uncertaintyUnknown),
+            ("two-axis-known", true, false, false, false, false, .observed),
+            ("two-axis-horizontal-unknown", true, true, false, false, false, .uncertaintyUnknown),
+            ("two-axis-vertical-unknown", true, false, true, false, false, .uncertaintyUnknown),
+            ("two-axis-both-unknown", true, true, true, false, false, .uncertaintyUnknown),
+            ("manual-known", false, false, false, true, false, .manualFallback),
+            ("manual-unknown", true, true, true, true, false, .manualFallback),
+            ("not-observed", false, false, false, false, true, .notObserved),
+        ]
+        for (index, item) in cases.enumerated() {
+            let (name, twoAxis, unknownHorizontal, unknownVertical, manual, notObserved, expectedState) = item
+            let slot = 11_710 + index * 10
+            let axis = try C37PoseTestSupport.descriptor("projection-\(index)",
+                required: twoAxis ? .azimuthAndElevation : .azimuthOnly, observationRequirement: .optional)
+            let knownHorizontal = PoseUncertaintyV1.known(try .init(kind: .horizontalUncertainty, milliDegrees: 3))
+            let knownVertical = PoseUncertaintyV1.known(try .init(kind: .verticalUncertainty, milliDegrees: 4))
+            let pose: PlacementPoseV1
+            if notObserved {
+                pose = try C37PoseTestSupport.notObservedPose(descriptor: axis, reason: .sourceUnavailable)
+            } else {
+                pose = try .init(disposition: .observed, referenceFrame: .trueBearing,
+                    azimuth: .init(kind: .azimuth, milliDegrees: 12_345),
+                    elevation: twoAxis ? .init(kind: .elevation, milliDegrees: -6_000) : nil,
+                    horizontalUncertainty: unknownHorizontal ? .unknown : knownHorizontal,
+                    verticalUncertainty: twoAxis ? (unknownVertical ? .unknown : knownVertical) : nil,
+                    descriptor: axis)
+            }
+            let original = try C37PoseTestSupport.poseEvent(workspaceID: workspace, assetID: assetID,
+                descriptor: axis, eventID: C37PoseTestSupport.id(slot), pose: pose)
+            let selected: AssetPoseEventV1
+            if manual {
+                selected = original
+            } else {
+                selected = try C37PoseTestSupport.poseEvent(workspaceID: workspace,
+                    assetID: assetID, descriptor: axis, eventID: C37PoseTestSupport.id(slot + 1),
+                    pose: pose, predecessor: original)
+            }
+            let events = manual ? [original] : [original, selected]
+            try events.forEach { try $0.validateIntrinsic() }
+            let projection = try C37PlacementPoseReportProjectionV1(workspaceID: workspace,
+                assetID: assetID, events: events, capturedAt: selected.recordedAt)
+            let leaf = try XCTUnwrap(projection.history.last)
+            XCTAssertEqual(leaf.observationState, expectedState, name)
+            XCTAssertEqual(leaf.azimuthMilliDegrees, notObserved ? nil : 12_345, name)
+            XCTAssertEqual(leaf.elevationMilliDegrees, twoAxis && !notObserved ? -6_000 : nil, name)
+            XCTAssertEqual(leaf.horizontalUncertaintyMilliDegrees, notObserved || unknownHorizontal ? nil : 3, name)
+            XCTAssertEqual(leaf.verticalUncertaintyMilliDegrees, !twoAxis || notObserved || unknownVertical ? nil : 4, name)
+            XCTAssertEqual(leaf.horizontalUncertaintyState, notObserved || unknownHorizontal ? .unknown : .known, name)
+            XCTAssertEqual(leaf.verticalUncertaintyState, !twoAxis || notObserved || unknownVertical ? .unknown : .known, name)
+            XCTAssertEqual(projection.currentTipReferences, [selected.reference], name)
+            XCTAssertEqual(projection.history.map(\.eventID), events.map(\.eventID), name)
+            try projection.validate()
+            let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .deferredToDate
+            XCTAssertEqual(try decoder.decode(C37PlacementPoseReportProjectionV1.self,
+                from: publicationExpectedBytes(projection)), projection, name)
+
+            func rejectRehashed(_ changes: [String: Any], _ reason: String) throws {
+                var leafObject = try XCTUnwrap(try publicationTypedObject(leaf) as? [String: Any])
+                for (key, value) in changes { leafObject[key] = value }
+                let changedLeaf = try decoder.decode(C37PoseHistoryProjectionV1.self,
+                    from: JSONSerialization.data(withJSONObject: leafObject, options: [.sortedKeys]))
+                var history = projection.history; history[history.count - 1] = changedLeaf
+                // Rehash the complete otherwise unchanged outer projection, so
+                // denial proves semantic validation instead of stale digest.
+                let basis = PoseProjectionExpectedBasis(projection, history: history)
+                let hashEncoder = JSONEncoder()
+                hashEncoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+                hashEncoder.dateEncodingStrategy = .millisecondsSince1970
+                let digest = SHA256.hash(data: try hashEncoder.encode(basis))
+                    .map { String(format: "%02x", $0) }.joined()
+                var outer = try XCTUnwrap(try publicationTypedObject(projection) as? [String: Any])
+                outer["history"] = try history.map { try publicationTypedObject($0) }
+                outer["projectionSHA256"] = digest
+                let hostile = try decoder.decode(C37PlacementPoseReportProjectionV1.self,
+                    from: JSONSerialization.data(withJSONObject: outer, options: [.sortedKeys]))
+                XCTAssertEqual(hostile.projectionSHA256, digest, reason)
+                XCTAssertThrowsError(try hostile.validate(), "\(name): \(reason)") { error in
+                    XCTAssertEqual(error as? C37PoseReportProjectionFailureV1, .invalidValue)
+                }
+            }
+            for wrongState in C37PoseObservationStateV1.allCases where wrongState != expectedState {
+                try rejectRehashed(["observationState": wrongState.rawValue], "wrong observation label")
+            }
+            try rejectRehashed(["horizontalUncertaintyState": "KNOWN", "horizontalUncertaintyMilliDegrees": NSNull()], "known without value")
+            try rejectRehashed(["horizontalUncertaintyState": "UNKNOWN", "horizontalUncertaintyMilliDegrees": 3], "unknown with value")
+            if !twoAxis {
+                try rejectRehashed(["verticalUncertaintyState": "KNOWN", "verticalUncertaintyMilliDegrees": 4], "absent vertical axis with value")
+            }
+            if notObserved {
+                try rejectRehashed(["azimuthMilliDegrees": 12_345], "not observed with angle")
+                try rejectRehashed(["notObservedReason": NSNull()], "not observed without reason")
+            }
+        }
+    }
+
+    private struct PoseProjectionExpectedBasis: Encodable {
+        let schemaVersion: Int
+        let projectionVersion: String
+        let workspaceID: WorkspaceID
+        let assetID: UUID
+        let currentTipReferences: [AssetPoseEventReferenceV1]
+        let history: [C37PoseHistoryProjectionV1]
+        let capturedAt: Date
+        let historyFrozen: Bool
+        let rebasePreviewIsNotApplied: Bool
+        let sensorInputAllowed: Bool
+        let networkInputAllowed: Bool
+
+        init(_ value: C37PlacementPoseReportProjectionV1, history: [C37PoseHistoryProjectionV1]) {
+            schemaVersion = value.schemaVersion; projectionVersion = value.projectionVersion
+            workspaceID = value.workspaceID; assetID = value.assetID
+            currentTipReferences = value.currentTipReferences; self.history = history
+            capturedAt = value.capturedAt; historyFrozen = value.historyFrozen
+            rebasePreviewIsNotApplied = value.rebasePreviewIsNotApplied
+            sensorInputAllowed = value.sensorInputAllowed; networkInputAllowed = value.networkInputAllowed
+        }
     }
 }
