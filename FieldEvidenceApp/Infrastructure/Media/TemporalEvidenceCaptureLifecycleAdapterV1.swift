@@ -84,9 +84,17 @@ struct InjectedTemporalEvidenceCaptureEnvironmentResolverV1:
         -> TemporalEvidenceCaptureEnvironmentV1 {
         try request.validate()
         let value = try await resolve(request)
-        try value.validate(profile: request.profile)
         guard value.workspaceID == request.workspaceID else {
             throw TemporalEvidenceCaptureFailureV1.staleSource
+        }
+        do {
+            try value.validate(profile: request.profile)
+        } catch TemporalEvidenceCaptureFailureV1.insufficientStorage {
+            guard request.manualFallback != .prohibitedByPinnedRule else {
+                throw TemporalEvidenceCaptureFailureV1.insufficientStorage
+            }
+            // Return the actual observation for the coordinator's manual path.
+            // It revalidates before any capture effect; this is not admission.
         }
         return value
     }

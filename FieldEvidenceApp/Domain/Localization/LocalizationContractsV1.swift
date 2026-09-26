@@ -3977,7 +3977,21 @@ enum AssetLocatorLocalizationPolicyV1 {
             let normalized = value.lowercased()
                 .replacingOccurrences(of: "_", with: " ")
                 .replacingOccurrences(of: "-", with: " ")
-            return prohibitedClaimPhrases.contains { normalized.contains($0) }
+            return prohibitedClaimPhrases.contains { phrase in
+                // "sent" is a delivery claim as a word, not the letters inside
+                // representation, present or consent. Separators (including
+                // punctuation, hyphens, underscores and digits) retain the
+                // prohibited word. Normalize each phrase the same way as the
+                // input so hyphenated prohibitions retain their full meaning.
+                let normalizedPhrase = phrase.lowercased()
+                    .replacingOccurrences(of: "_", with: " ")
+                    .replacingOccurrences(of: "-", with: " ")
+                if normalizedPhrase == "sent" {
+                    return normalized.split(whereSeparator: { !$0.isLetter })
+                        .contains("sent")
+                }
+                return normalized.contains(normalizedPhrase)
+            }
         }
     }
 
@@ -5239,7 +5253,11 @@ enum TemporalEvidenceLocalizationKeyV1: String, CaseIterable, Codable, Sendable 
 enum TemporalEvidenceLocalizationPolicyV1 {
     static let sourceLocale = "en"
     static let visibleLimitReasonRequired = true
-    static let interruptionStatesMustSayNothingWasSaved = true
+    // Interruption is not proof of zero persistence: complete review scratch
+    // may survive, and an interrupted acceptance may already have a receipt.
+    static let interruptedCaptureAllowsCanonicalPartialClip = false
+    static let completedReviewMustRemainRecoverable = true
+    static let interruptedAcceptanceRequiresReceiptReconciliation = true
     static let permissionDenialNamesManualFallback = true
     static let transcriptIsHumanAuthored = true
     static let stateIsNotColorOnly = true
@@ -5299,7 +5317,10 @@ enum TemporalEvidenceLocalizationPolicyV1 {
         let values = TemporalEvidenceLocalizationKeyV1.allCases
         guard values.map(\.rawValue).count == Set(values.map(\.rawValue)).count,
               values.allSatisfy({ !$0.localizationKey.rawValue.isEmpty }),
-              sourceLocale == "en", visibleLimitReasonRequired, interruptionStatesMustSayNothingWasSaved,
+              sourceLocale == "en", visibleLimitReasonRequired,
+              !interruptedCaptureAllowsCanonicalPartialClip,
+              completedReviewMustRemainRecoverable,
+              interruptedAcceptanceRequiresReceiptReconciliation,
               permissionDenialNamesManualFallback, transcriptIsHumanAuthored,
               stateIsNotColorOnly, separateAudioVideoPermissionsRequired,
               explicitUseRecordingRequired, !automaticTranscriptionOrRedactionAllowed,

@@ -411,6 +411,119 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
             )
         }
 
+        // Locator delivery vocabulary must reject the word "sent" without
+        // rejecting legitimate representation/presentation/consent labels.
+        XCTAssertNoThrow(try AssetLocatorLocalizationPolicyV1.validate())
+        for ordinary in ["Locator representation", "Representation unavailable",
+                         "Present the locator", "Consent is required", "sentinel"] {
+            XCTAssertFalse(AssetLocatorLocalizationPolicyV1.containsProhibitedClaim([ordinary]), ordinary)
+        }
+        for delivery in ["sent", "Sent successfully", "SENT: customer copy", "(sent)",
+                         "sent-to-customer", "sent_to_customer", "sent2customer",
+                         "The locator was sent to the customer.", "not sent"] {
+            XCTAssertTrue(AssetLocatorLocalizationPolicyV1.containsProhibitedClaim([delivery]), delivery)
+        }
+        for prohibited in AssetLocatorLocalizationPolicyV1.prohibitedClaimPhrases {
+            XCTAssertTrue(AssetLocatorLocalizationPolicyV1.containsProhibitedClaim([prohibited]), prohibited)
+            let separated = prohibited.replacingOccurrences(of: "-", with: " ")
+            for spelling in [prohibited.uppercased(), separated,
+                             separated.replacingOccurrences(of: " ", with: "_"),
+                             separated.replacingOccurrences(of: " ", with: "-")] {
+                XCTAssertTrue(AssetLocatorLocalizationPolicyV1.containsProhibitedClaim([spelling]), spelling)
+            }
+        }
+
+        // A predecessor publication keeps its own registry but validates all
+        // present additive entries against complete source-owned definitions.
+        let completeRegistry = try BundledLocalizationCatalogV1.completeSourceRegistry()
+        let source = try XCTUnwrap(JSONSerialization.jsonObject(with: sourceCatalogData()) as? [String: Any])
+        let sourceStrings = try XCTUnwrap(source["strings"] as? [String: Any])
+        XCTAssertEqual(Set(sourceStrings.keys), Set(completeRegistry.definitions.map(\.key.rawValue)))
+        XCTAssertEqual(try BundledLocalizationCatalogV1.composeSourceDefinitions(
+            [completeRegistry.definitions, registry.definitions]), completeRegistry)
+        XCTAssertEqual(try BundledLocalizationCatalogV1.composeSourceDefinitions(
+            [registry.definitions, completeRegistry.definitions]), completeRegistry)
+        guard case let .complete(selectedRegistry, _, _, _, _) = try BundledLocalizationCatalogV1.publish(
+            sourceCatalogBytes: sourceCatalogData(), legacy: legacy
+        ) else { return XCTFail("valid full catalog must publish the selected predecessor") }
+        XCTAssertEqual(selectedRegistry, registry)
+        let additiveKey = TemporalEvidenceLocalizationKeyV1.interrupted.localizationKey
+        XCTAssertFalse(registry.definitions.contains { $0.key == additiveKey })
+        let additive = try completeRegistry.definition(for: additiveKey)
+        let conflictingDefinitions = [
+            LocalizationKeyDefinitionV1(key: additive.key, meaningID: "different.meaning",
+                translatorComment: additive.translatorComment, englishDefaultValue: additive.englishDefaultValue,
+                arguments: [], requiredEnglishPluralCategories: [], state: .active, deprecatedFallbackKey: nil),
+            LocalizationKeyDefinitionV1(key: additive.key, meaningID: additive.meaningID,
+                translatorComment: "Different translator scope.", englishDefaultValue: additive.englishDefaultValue,
+                arguments: [], requiredEnglishPluralCategories: [], state: .active, deprecatedFallbackKey: nil),
+            LocalizationKeyDefinitionV1(key: additive.key, meaningID: additive.meaningID,
+                translatorComment: additive.translatorComment, englishDefaultValue: "Nothing was saved.",
+                arguments: [], requiredEnglishPluralCategories: [], state: .active, deprecatedFallbackKey: nil),
+        ]
+        for conflicting in conflictingDefinitions {
+            for groups in [[completeRegistry.definitions, [conflicting]], [[conflicting], completeRegistry.definitions]] {
+                XCTAssertThrowsError(try BundledLocalizationCatalogV1.composeSourceDefinitions(groups)) {
+                    XCTAssertEqual($0 as? LocalizationContractFailureV1, .incompatibleKeyReuse)
+                }
+            }
+        }
+        func rejectCatalog(_ label: String, key: String,
+                           change: (inout [String: Any]) throws -> Void) throws {
+            var strings = sourceStrings
+            var entry = try XCTUnwrap(strings[key] as? [String: Any])
+            try change(&entry)
+            strings[key] = entry
+            var root = source
+            root["strings"] = strings
+            let bytes = try JSONSerialization.data(withJSONObject: root, options: [.sortedKeys])
+            XCTAssertThrowsError(try BundledLocalizationCatalogV1.publish(
+                sourceCatalogBytes: bytes, legacy: legacy), label)
+        }
+        try rejectCatalog("additive missing comment", key: additiveKey.rawValue) { $0.removeValue(forKey: "comment") }
+        try rejectCatalog("additive comment scope drift", key: additiveKey.rawValue) { $0["comment"] = "Nothing was saved." }
+        for (key, misleading) in [
+            (TemporalEvidenceLocalizationKeyV1.interrupted.rawValue, "Clip interrupted. Nothing was saved."),
+            (C32AssistanceLocalizationKeyV1.interrupted.rawValue, "Suggestion interrupted. Nothing was saved."),
+            (TemporalEvidenceLocalizationKeyV1.reviewRequired.rawValue, "Review this clip before saving"),
+            (TemporalEvidenceLocalizationKeyV1.permissionDenied.rawValue, "You can attach any file manually."),
+            (C13LocalizationKeyV1.confirmConsolidation.rawValue, "Automatically consolidated"),
+        ] {
+            try rejectCatalog("additive meaning drift: \(key)", key: key) { entry in
+                var localizations = try XCTUnwrap(entry["localizations"] as? [String: Any])
+                var english = try XCTUnwrap(localizations["en"] as? [String: Any])
+                var unit = try XCTUnwrap(english["stringUnit"] as? [String: Any])
+                unit["value"] = misleading
+                english["stringUnit"] = unit; localizations["en"] = english; entry["localizations"] = localizations
+            }
+        }
+        try rejectCatalog("additive shipping locale drift", key: additiveKey.rawValue) { entry in
+            var languages = try XCTUnwrap(entry["localizations"] as? [String: Any])
+            languages["es"] = languages["en"]
+            entry["localizations"] = languages
+        }
+        try rejectCatalog("plural category drift", key: BundledLocalizationKeyV1.mailAttachmentCount.rawValue) { entry in
+            var languages = try XCTUnwrap(entry["localizations"] as? [String: Any])
+            var english = try XCTUnwrap(languages["en"] as? [String: Any])
+            var variations = try XCTUnwrap(english["variations"] as? [String: Any])
+            var plural = try XCTUnwrap(variations["plural"] as? [String: Any])
+            plural.removeValue(forKey: "one")
+            variations["plural"] = plural; english["variations"] = variations
+            languages["en"] = english; entry["localizations"] = languages
+        }
+        var unowned = source
+        var unownedStrings = sourceStrings
+        unownedStrings["fixture.unowned.catalog_key"] = sourceStrings[additiveKey.rawValue]
+        unowned["strings"] = unownedStrings
+        XCTAssertThrowsError(try BundledLocalizationCatalogV1.publish(
+            sourceCatalogBytes: JSONSerialization.data(withJSONObject: unowned), legacy: legacy))
+        try TemporalEvidenceLocalizationPolicyV1.validate()
+        XCTAssertFalse(TemporalEvidenceLocalizationPolicyV1.interruptedCaptureAllowsCanonicalPartialClip)
+        XCTAssertTrue(TemporalEvidenceLocalizationPolicyV1.completedReviewMustRemainRecoverable)
+        XCTAssertTrue(TemporalEvidenceLocalizationPolicyV1.interruptedAcceptanceRequiresReceiptReconciliation)
+        XCTAssertEqual(additive.englishDefaultValue, "Recording was interrupted. Review a completed recording or try again.")
+        XCTAssertTrue(additive.translatorComment.contains("canonical receipt"))
+
         let catalogKeys = Set(value.catalog.keys.map(\.key))
         for binding in value.packageBindings {
             XCTAssertEqual(Set(binding.slotKeys).count, binding.slotKeys.count)
@@ -577,7 +690,8 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
 
         let expectedKeys = Set(AssetSemanticLocalizationKeyV1.allCases.map(\.rawValue))
         let registeredKeys = Set(registry.definitions.map { $0.key.rawValue })
-        XCTAssertTrue(expectedKeys.isSubset(of: registeredKeys))
+        let predecessor = try BundledLocalizationCatalogV1.accountabilityRegistry()
+        XCTAssertEqual(registeredKeys, Set(predecessor.definitions.map(\.key.rawValue)).union(expectedKeys))
         XCTAssertEqual(
             Set(AssetSemanticLocalizationPolicyV1.keys),
             expectedKeys
@@ -595,14 +709,14 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
 
         let accessibility = try BundledLocalizationCatalogV1
             .assetSemanticAccessibilityRegistry(localization: registry)
+        let predecessorAccessibility = try BundledLocalizationCatalogV1
+            .accountabilityAccessibilityRegistry(localization: registry)
+        let ownSemanticIDs = Set(AssetSemanticAccessibilityIDV1.allCases.map(\.rawValue))
         XCTAssertEqual(
             Set(accessibility.entries.map(\.semanticID)),
-            Set(AssetSemanticAccessibilityIDV1.allCases.map(\.rawValue))
+            Set(predecessorAccessibility.entries.map(\.semanticID)).union(ownSemanticIDs)
         )
-        XCTAssertEqual(
-            Set(AssetSemanticLocalizationPolicyV1.semanticIDs),
-            Set(accessibility.entries.map(\.semanticID))
-        )
+        XCTAssertEqual(Set(AssetSemanticLocalizationPolicyV1.semanticIDs), ownSemanticIDs)
         XCTAssertTrue(accessibility.entries.allSatisfy {
             $0.dynamicSuffixPolicy == .none && $0.deprecatedAliases.isEmpty
         })
@@ -841,9 +955,13 @@ final class V9_22LocalizationAccessibilityTests: XCTestCase {
         }
         XCTAssertFalse(
             AuthorityCriterionClaimVocabularyV1.containsProhibitedClaim(
-                in: ["Observed reading", "safely recorded", "professional association"]
+                in: ["Observed reading", "safely recorded"]
             )
         )
+        // The closed C40 vocabulary forbids the whole word professional,
+        // including in otherwise ordinary phrases; substrings remain distinct.
+        XCTAssertTrue(AuthorityCriterionClaimVocabularyV1.containsProhibitedClaim(
+            in: ["professional association"]))
         XCTAssertTrue(
             AudiencePrivacyLexicalDetectorV1.containsProhibitedPattern(
                 in: ["https://authority.example/source", "file:///Users/private/source"]

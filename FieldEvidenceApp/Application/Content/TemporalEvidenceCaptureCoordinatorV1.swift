@@ -154,9 +154,18 @@ struct TemporalEvidenceCaptureStartResultV1: Equatable, Sendable {
         }
 
         let current = try await environment.currentEnvironment(for: request)
-        try current.validate(profile: request.profile)
         guard current.workspaceID == request.workspaceID else {
             throw TemporalEvidenceCaptureFailureV1.staleSource
+        }
+        do {
+            try current.validate(profile: request.profile)
+        } catch TemporalEvidenceCaptureFailureV1.insufficientStorage {
+            // Preserve strict environment admission while keeping the pinned
+            // manual path available before acquiring any capture resources.
+            guard request.manualFallback != .prohibitedByPinnedRule else {
+                throw TemporalEvidenceCaptureFailureV1.insufficientStorage
+            }
+            return TemporalEvidenceCaptureStartResultV1(fallback: request.manualFallback)
         }
 
         let limit = request.profile.limit(for: request.mediaKind)

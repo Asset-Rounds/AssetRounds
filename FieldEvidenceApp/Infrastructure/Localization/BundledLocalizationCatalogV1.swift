@@ -653,7 +653,7 @@ extension BundledLocalizationCatalogV1 {
             LocalizationKeyDefinitionV1(
                 key: try LocalizationKeyV1(key.rawValue),
                 meaningID: key.rawValue,
-                translatorComment: "C17 cautious day-lighting inventory copy; all unknown states remain explicit and no shipping UI adoption is claimed.",
+                translatorComment: sourceOwnedTranslatorComment(key.rawValue, family: "C17 cautious day-lighting inventory copy; all unknown states remain explicit and no shipping UI adoption is claimed."),
                 englishDefaultValue: key.englishDefaultValue,
                 arguments: [],
                 requiredEnglishPluralCategories: [],
@@ -743,7 +743,7 @@ extension BundledLocalizationCatalogV1 {
         let additions = try C18LightingNightLocalizationKeyV1.allCases.map { key in
             LocalizationKeyDefinitionV1(
                 key: try LocalizationKeyV1(key.rawValue), meaningID: key.rawValue,
-                translatorComment: "C18 cautious night-workflow copy; no safety, compliance, code, diagnosis, adequacy, or commissioning claim.",
+                translatorComment: sourceOwnedTranslatorComment(key.rawValue, family: "C18 cautious night-workflow copy; no safety, compliance, code, diagnosis, adequacy, or commissioning claim."),
                 englishDefaultValue: key.englishDefaultValue, arguments: [],
                 requiredEnglishPluralCategories: [], state: .active,
                 deprecatedFallbackKey: nil
@@ -3682,49 +3682,18 @@ enum BundledLocalizationCatalogV1 {
             throw LocalizationContractFailureV1.invalidValue
         }
         let registeredKeys = Set(registry.definitions.map(\.key.rawValue))
-        // The source catalog may be validated against any currently declared
-        // additive projection, while the selected registry still controls the
-        // required subset.  This keeps C16/C38 compatibility callers frozen
-        // and lets each additive typed surface publish atomically.
-        var supportedKeys = Set((try? clientCapabilityRegistry())?.definitions.map(\.key.rawValue) ?? [])
-        // C23 is an additive consumer registry. Keep source-catalog validation
-        // aware of its closed keys even when an older caller requests the
-        // predecessor registry.
-        supportedKeys.formUnion(FieldReferenceLocalizationKeyV1.allCases.map(\.rawValue))
-        // C24 is an additive accessible-document consumer registry.  Source
-        // catalog validation remains English-only and closed to these keys.
-        supportedKeys.formUnion(AccessibleDocumentLocalizationKeyV1.allCases.map(\.rawValue))
-        // C25 adds the closed activity/definition vocabulary.  It remains
-        // English-only and is accepted by the same sole source catalog.
-        supportedKeys.formUnion(SurveyDefinitionLocalizationKeyV1.allCases.map(\.rawValue))
-        // C26 adds only recorded survey-session state labels.  Answers,
-        // prompts, subject labels, actor identity, and publication payloads
-        // remain outside the source catalog and its validation surface.
-        supportedKeys.formUnion(SurveySessionLocalizationKeyV1.allCases.map(\.rawValue))
-        // C27 adds only the closed locator metadata/resolution vocabulary.
-        // Opaque input, key material, and lookup payloads never become
-        // catalog entries.
-        supportedKeys.formUnion(AssetLocatorLocalizationKeyV1.allCases.map(\.rawValue))
-        // C28 adds only frozen schedule/occurrence labels. Reminder
-        // delivery is a disposable projection and never becomes a catalog
-        // identity or completion claim.
-        supportedKeys.formUnion(ScheduleLocalizationKeyV1.allCases.map(\.rawValue))
-        // C29 adds only recorded plan/rebase labels. Preview state remains
-        // unapplied and no localization entry carries an accuracy, delivery,
-        // security, or approval claim.
-        supportedKeys.formUnion(PlanLocalizationKeyV1.allCases.map(\.rawValue))
-        // C31 adds only recorded lighting topology, observation, measurement,
-        // criterion, and stop labels. The source catalog remains English-only
-        // and rejects operational or compliance conclusions.
-        supportedKeys.formUnion(C31LightingLocalizationKeyV1.allCases.map(\.rawValue))
-        // C01 adds the closed Support & Recovery Center vocabulary. It is
-        // additive to the frozen base registry and remains English-only.
-        supportedKeys.formUnion(RecoveryCenterLocalizationKeyV1.allCases.map(\.rawValue))
+        let sourceRegistry = try completeSourceRegistry()
+        let supportedKeys = Set(sourceRegistry.definitions.map(\.key.rawValue))
         guard registeredKeys.isSubset(of: Set(strings.keys)),
               Set(strings.keys).isSubset(of: supportedKeys) else {
             throw LocalizationContractFailureV1.invalidValue
         }
         for definition in registry.definitions {
+            guard try sourceRegistry.definition(for: definition.key) == definition else {
+                throw LocalizationContractFailureV1.incompatibleKeyReuse
+            }
+        }
+        for definition in sourceRegistry.definitions where strings[definition.key.rawValue] != nil {
             let rawKey = definition.key.rawValue
             guard let rawEntry = strings[rawKey],
                   let entry = rawEntry as? [String: Any],
@@ -3732,7 +3701,7 @@ enum BundledLocalizationCatalogV1 {
                   !comment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                   let localizations = entry["localizations"] as? [String: Any],
                   Set(localizations.keys) == Set(["en"]),
-                  (try? registry.definition(for: LocalizationKeyV1(rawKey))) != nil else {
+                  (try? sourceRegistry.definition(for: LocalizationKeyV1(rawKey))) != nil else {
                 throw LocalizationContractFailureV1.missingComment
             }
             guard comment == definition.translatorComment,
@@ -3999,7 +3968,7 @@ extension BundledLocalizationCatalogV1 {
             LocalizationKeyDefinitionV1(
                 key: try LocalizationKeyV1(key.rawValue),
                 meaningID: key.rawValue,
-                translatorComment: "C16 provisional task-first shell copy; no shipping UI or S10.6 adoption claim.",
+                translatorComment: sourceOwnedTranslatorComment(key.rawValue, family: "C16 provisional task-first shell copy; no shipping UI or S10.6 adoption claim."),
                 englishDefaultValue: key.englishDefaultValue,
                 arguments: [],
                 requiredEnglishPluralCategories: [],
@@ -4041,7 +4010,7 @@ extension BundledLocalizationCatalogV1 {
             LocalizationKeyDefinitionV1(
                 key: key.localizationKey,
                 meaningID: key.rawValue,
-                translatorComment: "C14 private on-device discovery state; generic protected outcomes do not disclose private record existence.",
+                translatorComment: sourceOwnedTranslatorComment(key.rawValue, family: "C14 private on-device discovery state; generic protected outcomes do not disclose private record existence."),
                 englishDefaultValue: privateSystemDiscoveryEnglish(key),
                 arguments: [],
                 requiredEnglishPluralCategories: [],
@@ -4085,7 +4054,7 @@ extension BundledLocalizationCatalogV1 {
             LocalizationKeyDefinitionV1(
                 key: key.localizationKey,
                 meaningID: key.rawValue,
-                translatorComment: "C10 contained evidence-quality coach system copy; describes recorded warnings without an automatic requirement judgment.",
+                translatorComment: sourceOwnedTranslatorComment(key.rawValue, family: "C10 contained evidence-quality coach system copy; describes recorded warnings without an automatic requirement judgment."),
                 englishDefaultValue: evidenceQualityCoachEnglish(key),
                 arguments: [],
                 requiredEnglishPluralCategories: [],
@@ -4139,7 +4108,7 @@ extension BundledLocalizationCatalogV1 {
             LocalizationKeyDefinitionV1(
                 key: key.localizationKey,
                 meaningID: key.rawValue,
-                translatorComment: "C06 local-only offline readiness presentation. It never claims sync, upload, network, account, or remote delivery status.",
+                translatorComment: sourceOwnedTranslatorComment(key.rawValue, family: "C06 local-only offline readiness presentation. It never claims sync, upload, network, account, or remote delivery status."),
                 englishDefaultValue: offlineReadinessPreflightEnglish(key),
                 arguments: [],
                 requiredEnglishPluralCategories: [],
@@ -4181,7 +4150,7 @@ extension BundledLocalizationCatalogV1 {
             LocalizationKeyDefinitionV1(
                 key: key.localizationKey,
                 meaningID: key.rawValue,
-                translatorComment: "C03 illuminated-sign playbook presentation; visible-condition-only facts, required capture traceability, and no certification claim.",
+                translatorComment: sourceOwnedTranslatorComment(key.rawValue, family: "C03 illuminated-sign playbook presentation; visible-condition-only facts, required capture traceability, and no certification claim."),
                 englishDefaultValue: illuminatedSignPlaybookEnglish(key),
                 arguments: [],
                 requiredEnglishPluralCategories: [],
@@ -4223,7 +4192,7 @@ extension BundledLocalizationCatalogV1 {
             LocalizationKeyDefinitionV1(
                 key: key.localizationKey,
                 meaningID: key.rawValue,
-                translatorComment: "C04 shop-profile open-evidence handoff presentation; exact-byte privacy confirmation and no delivery or certification claim.",
+                translatorComment: sourceOwnedTranslatorComment(key.rawValue, family: "C04 shop-profile open-evidence handoff presentation; exact-byte privacy confirmation and no delivery or certification claim."),
                 englishDefaultValue: shopReportProfileEnglish(key),
                 arguments: [],
                 requiredEnglishPluralCategories: [],
@@ -4374,7 +4343,7 @@ extension BundledLocalizationCatalogV1 {
             LocalizationKeyDefinitionV1(
                 key: key.localizationKey,
                 meaningID: key.rawValue,
-                translatorComment: key.translatorComment,
+                translatorComment: sourceOwnedTranslatorComment(key.rawValue, family: key.translatorComment),
                 englishDefaultValue: key.englishDefaultValue,
                 arguments: [],
                 requiredEnglishPluralCategories: [],
@@ -4506,7 +4475,7 @@ extension BundledLocalizationCatalogV1 {
             LocalizationKeyDefinitionV1(
                 key: key.localizationKey,
                 meaningID: key.rawValue,
-                translatorComment: key.translatorComment,
+                translatorComment: sourceOwnedTranslatorComment(key.rawValue, family: key.translatorComment),
                 englishDefaultValue: key.englishDefaultValue,
                 arguments: [],
                 requiredEnglishPluralCategories: [],
@@ -4724,7 +4693,7 @@ extension BundledLocalizationCatalogV1 {
             LocalizationKeyDefinitionV1(
                 key: try LocalizationKeyV1(key.rawValue),
                 meaningID: key.rawValue,
-                translatorComment: key.translatorComment,
+                translatorComment: sourceOwnedTranslatorComment(key.rawValue, family: key.translatorComment),
                 englishDefaultValue: key.englishDefaultValue,
                 arguments: [],
                 requiredEnglishPluralCategories: [],
@@ -5199,7 +5168,7 @@ extension BundledLocalizationCatalogV1 {
                 bundledKey,
                 key.rawValue,
                 key.englishDefaultValue,
-                key.translatorComment
+                sourceOwnedTranslatorComment(key.rawValue, family: key.translatorComment)
             )
         }
         let registry = try LocalizationKeyRegistryV1(definitions: base.definitions + additions)
@@ -5313,7 +5282,7 @@ extension BundledLocalizationCatalogV1 {
         let additions = C32AssistanceLocalizationKeyV1.allCases.map { key in
             LocalizationKeyDefinitionV1(
                 key: key.localizationKey, meaningID: key.rawValue,
-                translatorComment: "C23 on-device OCR proposal text; proposals remain unverified until explicit field review and acceptance.",
+                translatorComment: sourceOwnedTranslatorComment(key.rawValue, family: "C23 on-device OCR proposal text; proposals remain unverified until explicit field review and acceptance."),
                 englishDefaultValue: C32AssistanceLocalizationPolicyV1.english(key),
                 arguments: [], requiredEnglishPluralCategories: [], state: .active,
                 deprecatedFallbackKey: nil
@@ -5355,7 +5324,7 @@ extension BundledLocalizationCatalogV1 {
             LocalizationKeyDefinitionV1(
                 key: key.localizationKey,
                 meaningID: key.rawValue,
-                translatorComment: "C24 on-device dictation or one-shot location proposal; unverified until explicit review and acceptance.",
+                translatorComment: sourceOwnedTranslatorComment(key.rawValue, family: "C24 on-device dictation or one-shot location proposal; unverified until explicit review and acceptance."),
                 englishDefaultValue: key.englishDefaultValue,
                 arguments: [], requiredEnglishPluralCategories: [], state: .active,
                 deprecatedFallbackKey: nil
@@ -5410,7 +5379,7 @@ extension BundledLocalizationCatalogV1 {
             existing.contains(key.localizationKey) ? nil : LocalizationKeyDefinitionV1(
                 key: key.localizationKey,
                 meaningID: key.rawValue,
-                translatorComment: "C25 bounded offline temporal evidence capture; recording is explicit, foreground-only, reviewed, and never uploaded or automatically transcribed.",
+                translatorComment: sourceOwnedTranslatorComment(key.rawValue, family: "C25 bounded offline temporal evidence capture; recording is explicit, foreground-only, reviewed, and never uploaded or automatically transcribed."),
                 englishDefaultValue: TemporalEvidenceLocalizationPolicyV1.english(key),
                 arguments: [], requiredEnglishPluralCategories: [], state: .active,
                 deprecatedFallbackKey: nil
@@ -5566,7 +5535,7 @@ extension BundledLocalizationCatalogV1 {
             LocalizationKeyDefinitionV1(
                 key: try LocalizationKeyV1(key.rawValue),
                 meaningID: key.rawValue,
-                translatorComment: "C49 bounded manual work-resource label; direct cost remains internal by default.",
+                translatorComment: sourceOwnedTranslatorComment(key.rawValue, family: "C49 bounded manual work-resource label; direct cost remains internal by default."),
                 englishDefaultValue: key.englishDefaultValue,
                 arguments: [],
                 requiredEnglishPluralCategories: [],
@@ -5669,7 +5638,7 @@ extension BundledLocalizationCatalogV1 {
                 LocalizationKeyDefinitionV1(
                     key: try LocalizationKeyV1(key.rawValue),
                     meaningID: key.rawValue,
-                    translatorComment: "C52 local service-request state; no delivery, emergency, identity, urgency, or SLA claim.",
+                    translatorComment: sourceOwnedTranslatorComment(key.rawValue, family: "C52 local service-request state; no delivery, emergency, identity, urgency, or SLA claim."),
                     englishDefaultValue: key.englishDefaultValue,
                     arguments: [],
                     requiredEnglishPluralCategories: [],
@@ -5795,7 +5764,7 @@ extension BundledLocalizationCatalogV1 {
                 LocalizationKeyDefinitionV1(
                     key: try LocalizationKeyV1(key.rawValue),
                     meaningID: key.rawValue,
-                    translatorComment: "C53 recorded reliability state; no verified identity, uptime, safety, compliance, or release-to-service claim.",
+                    translatorComment: sourceOwnedTranslatorComment(key.rawValue, family: "C53 recorded reliability state; no verified identity, uptime, safety, compliance, or release-to-service claim."),
                     englishDefaultValue: key.englishDefaultValue,
                     arguments: [],
                     requiredEnglishPluralCategories: [],
@@ -5868,7 +5837,7 @@ extension BundledLocalizationCatalogV1 {
             LocalizationKeyDefinitionV1(
                 key: key.localizationKey,
                 meaningID: key.rawValue,
-                translatorComment: "C09 display-safe operations dashboard text; no internal identity, raw reason, uptime, safety, compliance, or release-to-service claim.",
+                translatorComment: sourceOwnedTranslatorComment(key.rawValue, family: "C09 display-safe operations dashboard text; no internal identity, raw reason, uptime, safety, compliance, or release-to-service claim."),
                 englishDefaultValue: operationsDashboardEnglish(key),
                 arguments: [],
                 requiredEnglishPluralCategories: [],
@@ -5976,7 +5945,7 @@ extension BundledLocalizationCatalogV1 {
             LocalizationKeyDefinitionV1(
                 key: key.localizationKey,
                 meaningID: key.rawValue,
-                translatorComment: "C02 evidence curation presentation text; immutable originals, reversible derivatives, and no causal or compliance claim.",
+                translatorComment: sourceOwnedTranslatorComment(key.rawValue, family: "C02 evidence curation presentation text; immutable originals, reversible derivatives, and no causal or compliance claim."),
                 englishDefaultValue: evidenceCurationEnglish(key),
                 arguments: [],
                 requiredEnglishPluralCategories: [],
@@ -6012,7 +5981,7 @@ extension BundledLocalizationCatalogV1 {
             LocalizationKeyDefinitionV1(
                 key: key.localizationKey,
                 meaningID: key.rawValue,
-                translatorComment: "C21 scan-to-work state; do not imply authorization, automatic start, saved work, pose direction, or camera-only availability.",
+                translatorComment: sourceOwnedTranslatorComment(key.rawValue, family: "C21 scan-to-work state; do not imply authorization, automatic start, saved work, pose direction, or camera-only availability."),
                 englishDefaultValue: key.englishDefaultValue,
                 arguments: [],
                 requiredEnglishPluralCategories: [],
@@ -6050,4 +6019,771 @@ extension BundledLocalizationCatalogV1 {
         }
         return try base.appending(entries, localization: localization)
     }
+}
+
+extension BundledLocalizationCatalogV1 {
+    /// Complete source-owned vocabulary. Compatibility publication still returns
+    /// its selected predecessor registry; every catalog entry is validated against
+    /// its owning full definition, never admitted from the resource being checked.
+    static func completeSourceRegistry() throws -> LocalizationKeyRegistryV1 {
+        let registries = try [
+            c18LightingNightRegistry(),
+            c16ShellRegistry(),
+            privateSystemDiscoveryRegistry(),
+            evidenceQualityCoachRegistry(),
+            roundSessionRegistry(),
+            offlineReadinessPreflightRegistry(),
+            illuminatedSignPlaybookRegistry(),
+            shopReportProfileRegistry(),
+            operatingContextRegistry(),
+            planRegistry(),
+            lightingRegistry(),
+            temporalEvidenceCaptureRegistry(),
+            workResourceRegistry(),
+            serviceRequestRegistry(),
+            assetServiceReliabilityRegistry(),
+            operationsDashboardRegistry(),
+            recoveryCenterRegistry(),
+            evidenceCurationRegistry(),
+        ]
+        return try composeSourceDefinitions(registries.map(\.definitions) + [supplementalSourceDefinitions()])
+    }
+
+    /// Identical inherited definitions may recur across additive branches.
+    /// Any disagreement, including meaning, comments or defaults, fails closed.
+    static func composeSourceDefinitions(_ groups: [[LocalizationKeyDefinitionV1]]) throws -> LocalizationKeyRegistryV1 {
+        var definitions: [LocalizationKeyV1: LocalizationKeyDefinitionV1] = [:]
+        for group in groups {
+            for definition in group {
+                try definition.validate()
+                if let previous = definitions[definition.key] {
+                    guard previous == definition else {
+                        throw LocalizationContractFailureV1.incompatibleKeyReuse
+                    }
+                } else {
+                    definitions[definition.key] = definition
+                }
+            }
+        }
+        return try LocalizationKeyRegistryV1(definitions: Array(definitions.values))
+    }
+
+    private static func supplementalSourceDefinitions() throws -> [LocalizationKeyDefinitionV1] {
+        try C34RouteLocalizationContractV1.validate()
+        try FastSurveyInboxLocalizationPolicyV1.validate()
+        var definitions: [LocalizationKeyDefinitionV1] = []
+        definitions += try ActivityContractLocalizationKeyV2.allCases.map { key in
+            try supplementalSourceDefinition(key.rawValue, english: activityContractEnglish(key))
+        }
+        definitions += try AssetLabelLocalizationKeyV1.allCases.map { key in
+            try supplementalSourceDefinition(key.rawValue, english: assetLabelEnglish(key))
+        }
+        definitions += try C12LocalizationKeyV1.allCases.map { key in
+            try supplementalSourceDefinition(key.rawValue, english: key.english)
+        }
+        definitions += try C13LocalizationKeyV1.allCases.map { key in
+            try supplementalSourceDefinition(key.rawValue, english: key.english)
+        }
+        definitions += try C34RouteLocalizationKeyV1.allCases.map { key in
+            try supplementalSourceDefinition(key.rawValue, english: C34RouteLocalizationContractV1.english(key))
+        }
+        definitions += try C48PortableReviewLocalizationKeyV1.allCases.map { key in
+            try supplementalSourceDefinition(key.rawValue, english: portableReviewEnglish(key))
+        }
+        definitions += try C50IncumbentFileExchangeLocalizationKeyV1.allCases.map { key in
+            try supplementalSourceDefinition(key.rawValue, english: incumbentFileExchangeEnglish(key))
+        }
+        definitions += try FastSurveyInboxLocalizationKeyV1.allCases.map { key in
+            try supplementalSourceDefinition(key.rawValue, english: key.english)
+        }
+        definitions += try ImportBulkPreviewLocalizationKeyV1.allCases.map { key in
+            try supplementalSourceDefinition(key.rawValue, english: key.english)
+        }
+        definitions += try OperationalContactLocalizationKeyV1.allCases.map { key in
+            try supplementalSourceDefinition(key.rawValue, english: operationalContactEnglish(key))
+        }
+        return definitions
+    }
+
+    private static func supplementalSourceDefinition(_ rawKey: String, english: String) throws -> LocalizationKeyDefinitionV1 {
+        guard let comment = supplementalSourceComments[rawKey] else {
+            throw LocalizationContractFailureV1.missingComment
+        }
+        return LocalizationKeyDefinitionV1(key: try LocalizationKeyV1(rawKey),
+            meaningID: rawKey, translatorComment: comment, englishDefaultValue: english,
+            arguments: [], requiredEnglishPluralCategories: [], state: .active, deprecatedFallbackKey: nil)
+    }
+
+    // Fixed owner-reviewed translator guidance; this table never supplies English
+    // values or key admission. Each closed owning enum above supplies both.
+    private static let supplementalSourceComments: [String: String] = [
+        "activity.contract.claim_boundary": "C47 truthful completion boundary.",
+        "activity.contract.deferred": "C47 truthful deferred state.",
+        "activity.contract.field_complete": "C47 field work state; not an approval claim.",
+        "activity.contract.installation": "C47 independent installation activity family name.",
+        "activity.contract.no_plan_fallback": "C47 complete no-plan fallback; manual selection is required and scanning is not.",
+        "activity.contract.punch_review": "C47 standalone punch-review activity family name.",
+        "activity.contract.ready_for_review": "C47 review readiness state; not approved or certified.",
+        "activity.contract.unable_to_complete": "C47 truthful unable-to-complete state.",
+        "asset_label.active_exact_reprint": "C45 exact-current binding state.",
+        "asset_label.blocked_missing_release": "C45 fail-closed state when immutable rendering inputs are unavailable.",
+        "asset_label.claim_boundary": "C45 truthful output boundary.",
+        "asset_label.explicit_start": "C45 explicit Start action required after preview.",
+        "asset_label.generated": "C45 local generation state; no print or delivery claim.",
+        "asset_label.handed_off": "C45 system handoff state; no print or delivery claim.",
+        "asset_label.historic_export_only": "C45 historic state after identity or locator drift.",
+        "asset_label.manual_short_code": "C45 manual entry remains available beside camera resolution.",
+        "asset_label.preview": "C45 accessible preview heading; preview does not start generation.",
+        "c12.queue.acknowledge": "C12 recorded reinspection and attention-queue presentation; previews do not mutate facts and acknowledgement requires explicit action.",
+        "c12.queue.acknowledged": "C12 recorded reinspection and attention-queue presentation; previews do not mutate facts and acknowledgement requires explicit action.",
+        "c12.queue.deduplicated": "C12 recorded reinspection and attention-queue presentation; previews do not mutate facts and acknowledgement requires explicit action.",
+        "c12.queue.disclosure": "C12 recorded reinspection and attention-queue presentation; previews do not mutate facts and acknowledgement requires explicit action.",
+        "c12.queue.heading": "C12 recorded reinspection and attention-queue presentation; previews do not mutate facts and acknowledgement requires explicit action.",
+        "c12.queue.not_acknowledged": "C12 recorded reinspection and attention-queue presentation; previews do not mutate facts and acknowledgement requires explicit action.",
+        "c12.queue.preview": "C12 recorded reinspection and attention-queue presentation; previews do not mutate facts and acknowledgement requires explicit action.",
+        "c12.queue.severity": "C12 recorded reinspection and attention-queue presentation; previews do not mutate facts and acknowledgement requires explicit action.",
+        "c12.queue.unavailable": "C12 recorded reinspection and attention-queue presentation; previews do not mutate facts and acknowledgement requires explicit action.",
+        "c12.reduced_motion": "C12 recorded reinspection and attention-queue presentation; previews do not mutate facts and acknowledgement requires explicit action.",
+        "c12.reinspection.disclosure": "C12 recorded reinspection and attention-queue presentation; previews do not mutate facts and acknowledgement requires explicit action.",
+        "c12.reinspection.fresh": "C12 recorded reinspection and attention-queue presentation; previews do not mutate facts and acknowledgement requires explicit action.",
+        "c12.reinspection.heading": "C12 recorded reinspection and attention-queue presentation; previews do not mutate facts and acknowledgement requires explicit action.",
+        "c12.reinspection.unchanged": "C12 recorded reinspection and attention-queue presentation; previews do not mutate facts and acknowledgement requires explicit action.",
+        "c12.state.empty": "C12 recorded reinspection and attention-queue presentation; previews do not mutate facts and acknowledgement requires explicit action.",
+        "c12.state.error": "C12 recorded reinspection and attention-queue presentation; previews do not mutate facts and acknowledgement requires explicit action.",
+        "c12.state.interrupted": "C12 recorded reinspection and attention-queue presentation; previews do not mutate facts and acknowledgement requires explicit action.",
+        "c12.state.offline": "C12 recorded reinspection and attention-queue presentation; previews do not mutate facts and acknowledgement requires explicit action.",
+        "c12.state.protected": "C12 recorded reinspection and attention-queue presentation; previews do not mutate facts and acknowledgement requires explicit action.",
+        "c12.state.storage": "C12 recorded reinspection and attention-queue presentation; previews do not mutate facts and acknowledgement requires explicit action.",
+        "c13.identity.accepted": "C13 local identity review; ambiguity and historic aliases remain explicit and consolidation requires user confirmation.",
+        "c13.identity.ambiguity": "C13 local identity review; ambiguity and historic aliases remain explicit and consolidation requires user confirmation.",
+        "c13.identity.confirm_consolidation": "C13 local identity review; ambiguity and historic aliases remain explicit and consolidation requires user confirmation.",
+        "c13.identity.confirmation": "C13 local identity review; ambiguity and historic aliases remain explicit and consolidation requires user confirmation.",
+        "c13.identity.handoff": "C13 local identity review; ambiguity and historic aliases remain explicit and consolidation requires user confirmation.",
+        "c13.identity.heading": "C13 local identity review; ambiguity and historic aliases remain explicit and consolidation requires user confirmation.",
+        "c13.identity.historic_alias": "C13 local identity review; ambiguity and historic aliases remain explicit and consolidation requires user confirmation.",
+        "c13.identity.interrupted": "C13 local identity review; ambiguity and historic aliases remain explicit and consolidation requires user confirmation.",
+        "c13.identity.no_automatic_mutation": "C13 local identity review; ambiguity and historic aliases remain explicit and consolidation requires user confirmation.",
+        "c13.identity.reduced_motion": "C13 local identity review; ambiguity and historic aliases remain explicit and consolidation requires user confirmation.",
+        "c13.identity.stale_conflict": "C13 local identity review; ambiguity and historic aliases remain explicit and consolidation requires user confirmation.",
+        "fast.inbox.capture": "C11 local fast-inbox capture and review; captured snippets are not accepted field facts or completion.",
+        "fast.inbox.heading": "C11 local fast-inbox capture and review; captured snippets are not accepted field facts or completion.",
+        "fast.inbox.local_only": "C11 local fast-inbox capture and review; captured snippets are not accepted field facts or completion.",
+        "fast.inbox.no_acceptance": "C11 local fast-inbox capture and review; captured snippets are not accepted field facts or completion.",
+        "fast.inbox.not_promoted": "C11 local fast-inbox capture and review; captured snippets are not accepted field facts or completion.",
+        "fast.inbox.preview_only": "C11 local fast-inbox capture and review; captured snippets are not accepted field facts or completion.",
+        "fast.inbox.promoted": "C11 local fast-inbox capture and review; captured snippets are not accepted field facts or completion.",
+        "fast.inbox.reduced_motion": "C11 local fast-inbox capture and review; captured snippets are not accepted field facts or completion.",
+        "fast.inbox.review": "C11 local fast-inbox capture and review; captured snippets are not accepted field facts or completion.",
+        "fast.inbox.snippet": "C11 local fast-inbox capture and review; captured snippets are not accepted field facts or completion.",
+        "fast.inbox.state.collision": "C11 local fast-inbox capture and review; captured snippets are not accepted field facts or completion.",
+        "fast.inbox.state.inbox": "C11 local fast-inbox capture and review; captured snippets are not accepted field facts or completion.",
+        "fast.inbox.state.protected": "C11 local fast-inbox capture and review; captured snippets are not accepted field facts or completion.",
+        "fast.inbox.state.recovery": "C11 local fast-inbox capture and review; captured snippets are not accepted field facts or completion.",
+        "fast.inbox.state.storage": "C11 local fast-inbox capture and review; captured snippets are not accepted field facts or completion.",
+        "fast.inbox.state.unassigned": "C11 local fast-inbox capture and review; captured snippets are not accepted field facts or completion.",
+        "import.preview.all_or_nothing": "C08 import preview and reviewed bulk-mutation state; previews are zero-write and do not establish identity or receipts.",
+        "import.preview.ambiguous": "C08 import preview and reviewed bulk-mutation state; previews are zero-write and do not establish identity or receipts.",
+        "import.preview.chunked": "C08 import preview and reviewed bulk-mutation state; previews are zero-write and do not establish identity or receipts.",
+        "import.preview.conflict": "C08 import preview and reviewed bulk-mutation state; previews are zero-write and do not establish identity or receipts.",
+        "import.preview.create": "C08 import preview and reviewed bulk-mutation state; previews are zero-write and do not establish identity or receipts.",
+        "import.preview.duplicate": "C08 import preview and reviewed bulk-mutation state; previews are zero-write and do not establish identity or receipts.",
+        "import.preview.heading": "C08 import preview and reviewed bulk-mutation state; previews are zero-write and do not establish identity or receipts.",
+        "import.preview.identity_disclosure": "C08 import preview and reviewed bulk-mutation state; previews are zero-write and do not establish identity or receipts.",
+        "import.preview.interrupted": "C08 import preview and reviewed bulk-mutation state; previews are zero-write and do not establish identity or receipts.",
+        "import.preview.invalid": "C08 import preview and reviewed bulk-mutation state; previews are zero-write and do not establish identity or receipts.",
+        "import.preview.mapping": "C08 import preview and reviewed bulk-mutation state; previews are zero-write and do not establish identity or receipts.",
+        "import.preview.no_receipt_claim": "C08 import preview and reviewed bulk-mutation state; previews are zero-write and do not establish identity or receipts.",
+        "import.preview.no_write": "C08 import preview and reviewed bulk-mutation state; previews are zero-write and do not establish identity or receipts.",
+        "import.preview.partial": "C08 import preview and reviewed bulk-mutation state; previews are zero-write and do not establish identity or receipts.",
+        "import.preview.plan": "C08 import preview and reviewed bulk-mutation state; previews are zero-write and do not establish identity or receipts.",
+        "import.preview.schema": "C08 import preview and reviewed bulk-mutation state; previews are zero-write and do not establish identity or receipts.",
+        "import.preview.skipped": "C08 import preview and reviewed bulk-mutation state; previews are zero-write and do not establish identity or receipts.",
+        "import.preview.source": "C08 import preview and reviewed bulk-mutation state; previews are zero-write and do not establish identity or receipts.",
+        "import.preview.stale": "C08 import preview and reviewed bulk-mutation state; previews are zero-write and do not establish identity or receipts.",
+        "import.preview.unchanged": "C08 import preview and reviewed bulk-mutation state; previews are zero-write and do not establish identity or receipts.",
+        "import.preview.unsupported": "C08 import preview and reviewed bulk-mutation state; previews are zero-write and do not establish identity or receipts.",
+        "import.preview.update": "C08 import preview and reviewed bulk-mutation state; previews are zero-write and do not establish identity or receipts.",
+        "incumbent_file_exchange.availability_unknown": "C50 truthful callback-loss result; external file availability is unknown.",
+        "incumbent_file_exchange.disabled": "C50 truthful zero-profile state; no provider is named or implied.",
+        "incumbent_file_exchange.file_created": "C50 local file callback result; never means synced, delivered, or provider-accepted.",
+        "incumbent_file_exchange.preview_zero_write": "C50 preview state explicitly promises zero canonical writes.",
+        "incumbent_file_exchange.quarantined": "C50 fail-closed file result; quarantine is scratch-only and no canonical effect occurred.",
+        "navigation.route.fallback.action": "C34 action that opens the validated safe route destination.",
+        "navigation.route.fallback.heading": "C34 heading shown when a restored route safely falls back.",
+        "navigation.route.fallback.reason.corrupt_snapshot": "C34 safe fallback reason for unreadable device-operational route state.",
+        "navigation.route.fallback.reason.deleted_or_tombstoned": "C34 safe fallback reason for an unavailable stable target.",
+        "navigation.route.fallback.reason.invalid_target": "C34 safe fallback reason for an invalid typed target.",
+        "navigation.route.fallback.reason.protected_data_unavailable": "C34 safe fallback reason while protected data is unavailable.",
+        "navigation.route.fallback.reason.retired_or_missing_package": "C34 safe fallback reason for a retired or missing package surface.",
+        "navigation.route.fallback.reason.revoked_availability": "C34 safe fallback reason for revoked feature availability.",
+        "navigation.route.fallback.reason.stale_revision": "C34 safe fallback reason for stale revision-bound navigation.",
+        "navigation.route.fallback.reason.unsupported_snapshot_version": "C34 safe fallback reason for a future device-operational route-state version.",
+        "navigation.route.fallback.reason.wrong_workspace": "C34 safe fallback reason for a route bound to another workspace.",
+        "operational_contact.action.call": "C46 explicit action for the selected operational phone contact.",
+        "operational_contact.action.directions": "C46 explicit action; opens system directions for the reviewed site.",
+        "operational_contact.action.email": "C46 explicit action for the selected operational email contact; no subject or body is prefilled.",
+        "operational_contact.action.text": "C46 explicit action for the selected operational phone contact.",
+        "operational_contact.handoff.cancelled": "C46 cancellation before the OS handoff.",
+        "operational_contact.handoff.claim_boundary": "C46 truthful platform-outcome boundary.",
+        "operational_contact.handoff.handed_off": "C46 OS presentation result only; does not mean sent, delivered, connected, or arrived.",
+        "operational_contact.handoff.opens_system_app": "C46 accessibility hint; no outcome claim.",
+        "operational_contact.handoff.system_rejected": "C46 one-call OS rejection result; no alternate target or retry is implied.",
+        "operational_contact.handoff.system_unavailable": "C46 foreground/system availability result; no retry is implied.",
+        "operational_contact.handoff.target_invalid": "C46 fail-closed target result.",
+        "operational_contact.handoff.target_missing": "C46 live requery result.",
+        "operational_contact.handoff.target_stale": "C46 exact-revision requery result requiring fresh review.",
+        "portable_review.capability.forwardable_warning": "C48 cleartext capability warning; possession proves no identity or delivery.",
+        "portable_review.response.acknowledged": "C48 recorded acknowledgment disposition; it does not finalize work.",
+        "portable_review.response.approved": "C48 self-asserted approval response; no verified customer approval claim.",
+        "portable_review.response.changes_requested": "C48 recorded changes-requested disposition.",
+        "portable_review.response.history_only": "C48 immutable response history; it cannot reopen or rewrite current work.",
+        "portable_review.response.not_verified": "C48 explicit trust boundary for a self-asserted external response.",
+        "portable_review.response.recorded": "C48 recorded response state; does not claim delivery, identity, or approval.",
+    ]
+}
+
+
+extension BundledLocalizationCatalogV1 {
+    /// Carry material per-key guidance forward alongside the owning family's
+    /// restrictions. Neither comments nor this table admit catalog keys.
+    private static func sourceOwnedTranslatorComment(_ rawKey: String, family: String) -> String {
+        guard let detail = sourceOwnedTranslatorDetails[rawKey] else { return family }
+        return family + " " + detail
+    }
+
+    private static let sourceOwnedTranslatorDetails: [String: String] = [
+        "assistance.dictation.action.accept": "C24 explicit reviewed transcript acceptance.",
+        "assistance.dictation.action.cancel": "C24 explicit dictation cancellation.",
+        "assistance.dictation.action.edit": "C24 explicit transcript edit action.",
+        "assistance.dictation.action.start": "C24 explicit on-device dictation action.",
+        "assistance.dictation.audio_interrupted": "C24 interrupted dictation state.",
+        "assistance.dictation.heading": "C24 dictation heading.",
+        "assistance.dictation.listening": "C24 on-device listening status.",
+        "assistance.dictation.manual_entry": "C24 complete manual dictation fallback.",
+        "assistance.dictation.permission_denied": "C24 dictation permission fallback.",
+        "assistance.dictation.scratch_cleanup": "C24 audio/transcript scratch cleanup.",
+        "assistance.dictation.transcript.unverified": "C24 unverified transcript label.",
+        "assistance.dictation.unsupported_locale": "C24 unsupported locale fallback.",
+        "assistance.dictation_location.accepted_reviewed_fact": "C24 accepted reviewed fact label.",
+        "assistance.dictation_location.access_locked": "C24 app access lock state.",
+        "assistance.dictation_location.error_focus": "C24 deterministic error focus label.",
+        "assistance.dictation_location.heading": "C24 assistance heading.",
+        "assistance.dictation_location.manual_fallback": "C24 shared complete manual fallback.",
+        "assistance.dictation_location.no_automatic_write": "C24 no automatic write boundary.",
+        "assistance.location.action.accept": "C24 reviewed location acceptance.",
+        "assistance.location.action.capture_once": "C24 explicit one-shot location action.",
+        "assistance.location.action.reject": "C24 location proposal rejection.",
+        "assistance.location.action.review": "C24 location review action.",
+        "assistance.location.heading": "C24 one-shot location heading.",
+        "assistance.location.locating": "C24 location capture status.",
+        "assistance.location.permission_denied": "C24 location permission fallback.",
+        "assistance.location.poor_accuracy": "C24 poor accuracy fallback.",
+        "assistance.location.proposal.unverified": "C24 unverified location proposal label.",
+        "assistance.location.services_unavailable": "C24 disabled location services fallback.",
+        "assistance.location.stale_target": "C24 stale location target recovery.",
+        "assistance.location.timeout": "C24 one-shot location timeout.",
+        "assistance.manual.available": "C32 truthful fallback label used when optional assistance is disabled, unavailable, denied, revoked, or interrupted.",
+        "assistance.ocr.accepted_reviewed_fact": "C23 accepted reviewed fact label.",
+        "assistance.ocr.access_locked": "C23 app access lock state.",
+        "assistance.ocr.action.extract": "C23 explicit OCR request action.",
+        "assistance.ocr.cancelled": "C23 cancellation state without partial acceptance.",
+        "assistance.ocr.capability_unavailable": "C23 capability-disabled state.",
+        "assistance.ocr.conflict": "C23 field conflict warning.",
+        "assistance.ocr.custom_words_nontruth": "C23 customWords limitation.",
+        "assistance.ocr.error_focus": "C23 deterministic error focus label.",
+        "assistance.ocr.field.accept": "C23 explicit per-field accept action.",
+        "assistance.ocr.field.edit": "C23 explicit per-field edit action.",
+        "assistance.ocr.field.reject": "C23 explicit per-field reject action.",
+        "assistance.ocr.heading": "C23 OCR proposal heading.",
+        "assistance.ocr.language": "C23 requested recognition language label.",
+        "assistance.ocr.low_confidence": "C23 low-confidence review warning; confidence is not truth.",
+        "assistance.ocr.manual_entry": "C23 complete manual field path.",
+        "assistance.ocr.memory_pressure": "C23 memory pressure fallback.",
+        "assistance.ocr.no_automatic_write": "C23 zero automatic-write boundary.",
+        "assistance.ocr.scratch_cleanup": "C23 scratch cleanup status.",
+        "assistance.ocr.source_crop": "C23 bounded source crop label.",
+        "assistance.ocr.stale_target": "C23 stale target recovery.",
+        "assistance.ocr.supported": "C23 supported on-device OCR state.",
+        "assistance.ocr.unsupported_device": "C23 unsupported device state.",
+        "assistance.ocr.unsupported_language": "C23 unsupported language with manual fallback.",
+        "assistance.permission.denied": "C32 non-color permission state; optional assistance is unavailable and manual entry remains available.",
+        "assistance.proposal.accept": "C32 action that accepts a reviewed value through the canonical expected-revision writer.",
+        "assistance.proposal.expired": "C32 status shown when a proposal can no longer be accepted because its reviewed context changed.",
+        "assistance.proposal.reject": "C32 action that discards an ephemeral proposal and its scratch data without retaining a rejected-suggestion corpus.",
+        "assistance.proposal.review": "C32 action that opens explicit review without writing the proposed value.",
+        "assistance.proposal.unverified": "C32 status for an ephemeral assistance value that has not been reviewed or accepted as a canonical fact.",
+        "evidence.curation.item.move_earlier": "C02 accessible explicit-order control.",
+        "evidence.curation.item.move_later": "C02 accessible explicit-order control.",
+        "evidence.curation.item.retake": "C02 reviewed evidence retake action; stages a new immutable original and never overwrites history.",
+        "evidence.quality.coach.heading": "C10 contained coach heading.",
+        "evidence.quality.coach.introduction": "C10 truthful review scope.",
+        "illuminated.playbook.capture.close_detail": "C03 released capture purpose.",
+        "illuminated.playbook.capture.complete": "C03 capture status.",
+        "illuminated.playbook.capture.heading": "C03 capture traceability presentation.",
+        "illuminated.playbook.capture.missing": "C03 capture status.",
+        "illuminated.playbook.capture.required": "C03 capture status.",
+        "illuminated.playbook.capture.wide_context": "C03 released capture purpose.",
+        "illuminated.playbook.capture.work_context": "C03 optional capture purpose, shown only when the released pack supplies it.",
+        "illuminated.playbook.color_mismatch": "C03 exact released playbook label.",
+        "illuminated.playbook.dark_section": "C03 exact released playbook label.",
+        "illuminated.playbook.dim_or_uneven": "C03 exact released playbook label.",
+        "illuminated.playbook.disclaimer": "C03 exact visible-condition, non-certification disclaimer.",
+        "illuminated.playbook.facts.checked_time": "C03 structured report fact label.",
+        "illuminated.playbook.facts.could_not_verify_reason": "C03 structured report fact label.",
+        "illuminated.playbook.facts.heading": "C03 structured report-fact presentation.",
+        "illuminated.playbook.facts.outcome": "C03 structured report fact label.",
+        "illuminated.playbook.facts.outcome.could_not_verify": "C03 released outcome label.",
+        "illuminated.playbook.facts.outcome.no_visible_issue": "C03 released outcome label.",
+        "illuminated.playbook.facts.outcome.visible_issue": "C03 released outcome label.",
+        "illuminated.playbook.facts.report_trace": "C03 traceability presentation.",
+        "illuminated.playbook.facts.selected_condition": "C03 structured report fact label.",
+        "illuminated.playbook.facts.stage": "C03 structured report fact label.",
+        "illuminated.playbook.facts.stage.check": "C03 released stage label.",
+        "illuminated.playbook.facts.stage.recheck": "C03 released stage label.",
+        "illuminated.playbook.facts.visible_conditions_only": "C03 claims boundary.",
+        "illuminated.playbook.flicker_or_intermittent": "C03 exact released playbook label.",
+        "illuminated.playbook.general_visible_condition": "C03 exact released playbook label.",
+        "illuminated.playbook.heading": "C03 illuminated-sign playbook presentation; visible-condition-only facts and no certification claim.",
+        "illuminated.playbook.list.heading": "C03 illuminated-sign playbook presentation; visible-condition-only facts and no certification claim.",
+        "illuminated.playbook.list.selected": "C03 selected-playbook state; this is not capture completion.",
+        "illuminated.playbook.other_visible_condition": "C03 exact released playbook label.",
+        "illuminated.playbook.physical_damage": "C03 exact released playbook label.",
+        "illuminated.playbook.pose.heading": "C03 typed pose-editor heading.",
+        "illuminated.playbook.pose.review_required": "C03 typed pose completion boundary.",
+        "illuminated.playbook.pose.reviewed": "C03 typed pose state; no bare direction is displayed.",
+        "illuminated.playbook.pose.unavailable": "C03 fail-closed pose state.",
+        "illuminated.playbook.preflight.after_dark": "C03 preflight guidance; it does not claim system verification or an accepted acknowledgement.",
+        "illuminated.playbook.preflight.heading": "C03 preflight presentation.",
+        "illuminated.playbook.preflight.safe_authorized_position": "C03 preflight guidance; it does not claim system verification or an accepted acknowledgement.",
+        "illuminated.playbook.retake.disclosure": "C03 immutable history disclosure.",
+        "illuminated.playbook.state.blocked": "C03 fail-closed state.",
+        "illuminated.playbook.state.cancelled": "C03 cancellation state; no completed result is claimed.",
+        "illuminated.playbook.state.low_storage": "C03 storage failure state.",
+        "illuminated.playbook.state.offline_ready": "C03 local readiness state.",
+        "illuminated.playbook.state.permission_denied": "C03 permission failure state.",
+        "illuminated.playbook.state.protected_data_unavailable": "C03 protected-data failure state.",
+        "illuminated.playbook.state.recovered": "C03 recovered checkpoint presentation; it does not claim completion.",
+        "illuminated.playbook.state.recovery_required": "C03 deterministic recovery state.",
+        "lighting.day_inventory.claim_boundary": "C17 observation-only claim boundary.",
+        "lighting.day_inventory.daylight_caution": "C17 cautious daylight observation boundary.",
+        "lighting.day_inventory.daylight_observation": "C17 records daylight energized state as observation only.",
+        "lighting.day_inventory.night_followup": "C17 stable day-to-night follow-up label.",
+        "lighting.day_inventory.offline.blocked": "C17 derived local readiness failure with explicit safe action.",
+        "lighting.day_inventory.offline.ready": "C17 derived local readiness state; no safety or completion claim.",
+        "lighting.day_inventory.safety_stop": "C17 reason-bearing safety stop heading; no authorization claim.",
+        "lighting.day_inventory.safety_stop_detail": "C17 hard-stop copy precedes unsafe or energized work.",
+        "lighting.day_inventory.state.not_applicable": "C17 explicit not-applicable condition; never rendered as pass.",
+        "lighting.day_inventory.state.not_observed": "C17 explicit not-observed condition; never rendered as pass.",
+        "lighting.day_inventory.state.unknown": "C17 explicit unknown condition; never rendered as pass.",
+        "lighting.day_inventory.title": "C17 exterior-lighting daylight inventory title.",
+        "lighting.night_workflow.claim_boundary": "C18 cautious report limitation.",
+        "lighting.night_workflow.expected_state": "C18 expected state remains separate from observation.",
+        "lighting.night_workflow.group.retains_children": "C18 group never removes child history or closure obligations.",
+        "lighting.night_workflow.issue.open": "C18 open issue state.",
+        "lighting.night_workflow.issue.reopened": "C18 recurrence appends a reopen state.",
+        "lighting.night_workflow.issue.resolved": "C18 recorded-scope resolution; not a safety or compliance conclusion.",
+        "lighting.night_workflow.observed_state": "C18 observed state does not imply diagnosis.",
+        "lighting.night_workflow.offline.blocked": "C18 derived readiness failure.",
+        "lighting.night_workflow.offline.ready": "C18 derived readiness; no safety claim.",
+        "lighting.night_workflow.state.inconclusive": "C18 explicit inconclusive result.",
+        "lighting.night_workflow.state.unknown": "C18 explicit unknown result.",
+        "lighting.night_workflow.title": "C18 night workflow title.",
+        "operations_dashboard.asset_name": "Label that isolates optional user-authored asset content from system state copy.",
+        "operations_dashboard.correct_exposure": "Action that delegates an exposure or coverage correction to the C09 coordinator.",
+        "operations_dashboard.correct_exposure.hint": "Accessibility hint for the exposure correction action.",
+        "operations_dashboard.definition_version": "Label for the deterministic metric-definition version.",
+        "operations_dashboard.exposure.heading": "Heading for recorded exposure and coverage review.",
+        "operations_dashboard.exposure.qualified": "Qualified recorded exposure status.",
+        "operations_dashboard.exposure.unavailable": "Unqualified recorded exposure status.",
+        "operations_dashboard.heading": "Heading for the non-adopted local operations dashboard.",
+        "operations_dashboard.introduction": "Explains that values need recorded qualifying evidence.",
+        "operations_dashboard.metric.full_interruption_availability": "Display name for the typed full-interruption availability metric.",
+        "operations_dashboard.metric.mtbf": "Display name for the typed mean-time-between-failures metric.",
+        "operations_dashboard.metric.unavailable": "Truthful unavailable status for an unqualified reliability metric.",
+        "operations_dashboard.metrics.heading": "Heading for qualified local reliability projections.",
+        "operations_dashboard.provenance.corrected": "Typed timeline provenance for a correction.",
+        "operations_dashboard.provenance.recorded": "Typed timeline provenance for a recorded source event.",
+        "operations_dashboard.provenance.superseded": "Typed timeline provenance for a superseded event.",
+        "operations_dashboard.review_exposure": "Action that opens read-only exposure and coverage review.",
+        "operations_dashboard.review_exposure.hint": "Accessibility hint for exposure review.",
+        "operations_dashboard.review_metric_details": "Action that asks the coordinator to present metric-definition detail.",
+        "operations_dashboard.review_metric_details.hint": "Accessibility hint for metric detail.",
+        "operations_dashboard.timeline.corrective_work": "Typed timeline event for canonical corrective work.",
+        "operations_dashboard.timeline.empty": "Truthful empty state for the display-safe service timeline.",
+        "operations_dashboard.timeline.evidence_association": "Typed timeline event for canonical evidence association.",
+        "operations_dashboard.timeline.explicit_asset_change": "Typed timeline event for a canonical asset change.",
+        "operations_dashboard.timeline.finding": "Typed timeline event for a canonical finding.",
+        "operations_dashboard.timeline.heading": "Heading for asset service history and provenance.",
+        "operations_dashboard.timeline.impact_segment": "Typed timeline event for a C53 service-impact segment.",
+        "operations_dashboard.timeline.incident": "Typed timeline event for a C53 asset-service incident.",
+        "operations_dashboard.timeline.inspection": "Typed timeline event for a canonical inspection.",
+        "operations_dashboard.timeline.placement_change": "Typed timeline event for a C37 placement change.",
+        "operations_dashboard.timeline.qualified_exposure": "Typed timeline event for C53 qualified service exposure.",
+        "operations_dashboard.timeline.recheck": "Typed timeline event for a canonical recheck.",
+        "operations_dashboard.timeline.report": "Typed timeline event for a canonical report.",
+        "operations_dashboard.unavailable.cancelled": "Truthful unavailable reason after cancellation.",
+        "operations_dashboard.unavailable.data": "Truthful unavailable reason for unavailable recorded data.",
+        "operations_dashboard.unavailable.missing_coverage": "Truthful unavailable reason for incomplete coverage.",
+        "operations_dashboard.unavailable.missing_qualified_exposure": "Truthful unavailable reason for missing qualified exposure.",
+        "operations_dashboard.unavailable.no_qualifying_failure_start": "Truthful unavailable reason for no qualifying failure start.",
+        "operations_dashboard.unavailable.no_reason": "Fallback when the projection did not provide a display-safe unavailable reason.",
+        "operations_dashboard.unavailable.protected_data": "Truthful unavailable reason for protected data lock.",
+        "private.system.discovery.intent.manual-fallback": "Generic C14 manual fallback without record disclosure.",
+        "private.system.discovery.intent.open-assets": "C14 read-only foreground App Intent title.",
+        "private.system.discovery.intent.open-reports": "C14 read-only foreground App Intent title.",
+        "private.system.discovery.intent.open-today": "C14 read-only foreground App Intent title.",
+        "private.system.discovery.intent.unavailable": "Generic C14 unavailable outcome that intentionally reveals no record existence.",
+        "private.system.discovery.intent.unlock-required": "Generic C14 protected-data outcome that intentionally reveals no record existence.",
+        "private.system.discovery.settings.disabled": "C14 default-off discovery state.",
+        "private.system.discovery.settings.disclosure": "C14 disclosure that discovery is private, opt-in, and restricted to selected real workspaces.",
+        "private.system.discovery.settings.heading": "C14 private on-device system discovery settings heading.",
+        "private.system.discovery.settings.indexing-toggle": "C14 opt-in private on-device discovery setting.",
+        "private.system.discovery.settings.practice-excluded": "C14 policy disclosure that Practice is excluded.",
+        "private.system.discovery.settings.unavailable": "C14 capability-unavailable discovery state.",
+        "round.offline_readiness.cancel": "C06 cancel action.",
+        "round.offline_readiness.fallback.approved_manual_procedure": "C06 local-only fallback.",
+        "round.offline_readiness.fallback.contact_supervisor": "C06 local-only fallback.",
+        "round.offline_readiness.fallback.defer_field_work": "C06 local-only fallback.",
+        "round.offline_readiness.fallback.do_not_start": "C06 local-only fallback.",
+        "round.offline_readiness.heading": "C06 local-only offline-readiness heading.",
+        "round.offline_readiness.loading": "C06 local-only loading state.",
+        "round.offline_readiness.local_only_disclosure": "C06 no sync/upload/network/account claim.",
+        "round.offline_readiness.manual_fallback": "C06 manual fallback label.",
+        "round.offline_readiness.not_safe_to_start_or_close": "C06 non-ready safety boundary.",
+        "round.offline_readiness.optional": "C06 optional requirement label.",
+        "round.offline_readiness.reason.clock_or_time_zone_changed": "C06 clock drift reason.",
+        "round.offline_readiness.reason.clock_uncheckable": "C06 clock reason.",
+        "round.offline_readiness.reason.corrupt_mandatory_content": "C06 required corrupt content reason.",
+        "round.offline_readiness.reason.corrupt_optional_content": "C06 optional corrupt content reason.",
+        "round.offline_readiness.reason.field_reference_unavailable": "C06 field-reference reason.",
+        "round.offline_readiness.reason.guidance_reference_mismatch": "C06 guidance mismatch reason.",
+        "round.offline_readiness.reason.insufficient_storage": "C06 storage reason.",
+        "round.offline_readiness.reason.missing_mandatory_content": "C06 required content reason.",
+        "round.offline_readiness.reason.missing_optional_content": "C06 optional content reason.",
+        "round.offline_readiness.reason.package_mismatch": "C06 exact package mismatch reason.",
+        "round.offline_readiness.reason.partial_mandatory_content": "C06 required partial content reason.",
+        "round.offline_readiness.reason.partial_optional_content": "C06 optional partial content reason.",
+        "round.offline_readiness.reason.protected_data_unavailable": "C06 protected-data reason.",
+        "round.offline_readiness.reason.selected_asset_mismatch": "C06 asset mismatch reason.",
+        "round.offline_readiness.reason.source_binding_drift": "C06 source drift reason.",
+        "round.offline_readiness.reason.storage_arithmetic_overflow": "C06 storage reason.",
+        "round.offline_readiness.reason.storage_uncheckable": "C06 storage reason.",
+        "round.offline_readiness.reason.wrong_workspace_content": "C06 wrong-workspace reason.",
+        "round.offline_readiness.reasons.heading": "C06 exact reason label.",
+        "round.offline_readiness.rebuild": "C06 rebuild action.",
+        "round.offline_readiness.rebuild_unavailable": "C06 no-coordinator action boundary.",
+        "round.offline_readiness.remediation": "C06 remediation label.",
+        "round.offline_readiness.remediation.check_clock": "C06 remediation.",
+        "round.offline_readiness.remediation.check_storage": "C06 remediation.",
+        "round.offline_readiness.remediation.free_storage": "C06 remediation.",
+        "round.offline_readiness.remediation.rebuild": "C06 remediation.",
+        "round.offline_readiness.remediation.reselect_assets": "C06 remediation.",
+        "round.offline_readiness.remediation.restore_content": "C06 remediation.",
+        "round.offline_readiness.remediation.restore_field_reference": "C06 remediation.",
+        "round.offline_readiness.remediation.restore_guidance": "C06 remediation.",
+        "round.offline_readiness.remediation.restore_package": "C06 remediation.",
+        "round.offline_readiness.remediation.unlock": "C06 remediation.",
+        "round.offline_readiness.required": "C06 required requirement label.",
+        "round.offline_readiness.requirements.heading": "C06 requirements heading.",
+        "round.offline_readiness.safe_to_close": "C06 ready-only local close claim.",
+        "round.offline_readiness.safe_to_start": "C06 ready-only local start claim.",
+        "round.offline_readiness.state.blocked": "C06 blocked local-only state.",
+        "round.offline_readiness.state.ready": "C06 ready local-only state.",
+        "round.offline_readiness.state.stale": "C06 stale local-only state.",
+        "round.offline_readiness.state.warning": "C06 warning local-only state.",
+        "round.offline_readiness.unavailable": "C06 unavailable state; no safety claim.",
+        "scan.work.accessibility.error_focus": "C21 error focus announcement.",
+        "scan.work.accessibility.reduced_motion": "C21 Reduce Motion state remains textual.",
+        "scan.work.action.manual": "C21 complete manual fallback action.",
+        "scan.work.action.resume": "C21 exact recorded resume action.",
+        "scan.work.action.scan": "C21 optional camera scan action.",
+        "scan.work.action.search": "C21 local asset search fallback action.",
+        "scan.work.action.start": "C21 sole explicit start action.",
+        "scan.work.batch.counts": "C21 textual batch counts.",
+        "scan.work.batch.review": "C21 explicit batch review before mutation.",
+        "scan.work.camera.unavailable": "C21 unsupported or unavailable camera state.",
+        "scan.work.heading": "C21 scan-to-work heading.",
+        "scan.work.input.damaged": "C21 damaged code with manual recovery.",
+        "scan.work.input.revoked": "C21 revoked locator state.",
+        "scan.work.next.complete": "C21 atomic Complete and Next action.",
+        "scan.work.next.defer": "C21 atomic Defer and Next action.",
+        "scan.work.next.keep_open": "C21 atomic Keep open and Next action.",
+        "scan.work.outcome.already_in_round": "C21 ALREADY_IN_ROUND resolver outcome.",
+        "scan.work.outcome.ambiguous": "C21 AMBIGUOUS resolver outcome.",
+        "scan.work.outcome.duplicate_in_selection": "C21 DUPLICATE_IN_SELECTION resolver outcome.",
+        "scan.work.outcome.foreign": "C21 FOREIGN resolver outcome without exposing foreign data.",
+        "scan.work.outcome.not_found": "C21 NOT_FOUND local resolver outcome.",
+        "scan.work.outcome.not_offline_ready": "C21 NOT_OFFLINE_READY resolver outcome.",
+        "scan.work.outcome.ready": "C21 READY resolver outcome.",
+        "scan.work.outcome.retired_or_replaced": "C21 RETIRED_OR_REPLACED resolver outcome.",
+        "scan.work.outcome.stale": "C21 STALE resolver outcome.",
+        "scan.work.permission.denied": "C21 camera denial with complete fallback.",
+        "scan.work.permission.purpose": "C21 camera purpose and complete fallback disclosure.",
+        "scan.work.pose.no_mutation": "C21 scan and preview never infer or mutate pose.",
+        "scan.work.pose.preserved": "C21 qualified pose parity disclosure.",
+        "scan.work.preview.asset": "C21 stable resolved asset label.",
+        "scan.work.preview.asset_changed": "C21 stale preview after asset revision change.",
+        "scan.work.preview.multiple_work_items": "C21 two-or-more matching work item choice.",
+        "scan.work.preview.only": "C21 preview is explicitly zero-write.",
+        "scan.work.preview.packet_incomplete": "C21 incomplete offline packet state.",
+        "scan.work.preview.required_work": "C21 required available work label.",
+        "scan.work.preview.site_context": "C21 site and context label.",
+        "scan.work.readiness.blocked": "C21 blocked local readiness text, not color-only.",
+        "scan.work.readiness.ready": "C21 local readiness text, not color-only.",
+        "scan.work.setup.nonsemantic_only": "C21 same-setup restriction forbids semantic copying.",
+        "scan.work.state.interrupted": "C21 exact next-item interruption recovery state.",
+        "scan.work.state.start_failed": "C21 failed explicit start with no success claim.",
+        "service_reliability.cause.unverified": "C53 cause assessment is recorded provenance only; it does not verify identity, diagnosis, or responsibility.",
+        "service_reliability.exposure.qualified": "C53 qualified exposure is an explicit interval input and does not claim uptime or release to service.",
+        "service_reliability.incident.recorded": "C53 records an observed operational-impact incident without inferring cause, safety, compliance, or service release.",
+        "service_reliability.metric.unavailable": "C53 reliability metrics remain unavailable when exposure, coverage, intervals, origin, or exclusions do not qualify.",
+        "service_reliability.restoration.recorded": "C53 restoration is recorded evidence only and does not imply safety, compliance, approval, or release to service.",
+        "service_request.contact.unverified": "C52 requester contact is a self-asserted, unverified value.",
+        "service_request.duplicate.suggestion": "C52 duplicate projection is suggestion-only and requires explicit review.",
+        "service_request.intake.manual": "C52 local manual intake label; it does not claim delivery or emergency handling.",
+        "service_request.state.accepted": "C52 local disposition state after explicit acceptance.",
+        "service_request.state.declined": "C52 local disposition state after an explicit decline reason.",
+        "service_request.state.history_only": "C52 history-only state; it does not imply current work or delivery.",
+        "service_request.state.untriaged": "C52 local state awaiting explicit review and disposition.",
+        "service_request.status.no_delivery_claim": "C52 status wording records local state without claiming delivery confirmation.",
+        "service_request.urgency.self_asserted": "C52 urgency is supplied by the requester and is not verified by AssetRounds.",
+        "shell.availability.available": "C16 textual available state.",
+        "shell.availability.heading": "C16 reason-bearing availability heading.",
+        "shell.availability.reason": "C16 reason label; availability never relies on color alone.",
+        "shell.availability.reason.app-locked": "C16 app-lock reason without content disclosure.",
+        "shell.availability.reason.available": "C16 explicit available reason.",
+        "shell.availability.reason.disabled-by-policy": "C16 disabled-by-policy reason.",
+        "shell.availability.reason.permission-not-granted": "C16 permission denial reason.",
+        "shell.availability.reason.practice-workspace-required": "C16 practice-workspace requirement.",
+        "shell.availability.reason.protected-data-unavailable": "C16 protected-data reason without content disclosure.",
+        "shell.availability.reason.real-workspace-required": "C16 real-workspace requirement.",
+        "shell.availability.reason.reconciliation-pending": "C16 provisional shell state pending accepted S10.6 reconciliation.",
+        "shell.availability.reason.source-unavailable": "C16 local source unavailable reason.",
+        "shell.availability.reason.stale-source": "C16 stale local source reason.",
+        "shell.availability.reason.unsupported": "C16 unsupported capability reason.",
+        "shell.availability.unavailable": "C16 textual unavailable state.",
+        "shell.help.action": "C16 contextual help action.",
+        "shell.help.body": "C16 contextual help body.",
+        "shell.help.title": "C16 contextual help entry title.",
+        "shell.practice.share.cancel": "C16 Practice sharing cancellation action.",
+        "shell.practice.share.confirm": "C16 explicit Practice sharing action.",
+        "shell.practice.share.message": "C16 Practice sharing limitation.",
+        "shell.practice.share.title": "C16 explicit Practice sharing confirmation title.",
+        "shell.practice.watermark": "C16 required visible and spoken Practice watermark.",
+        "shell.product-changes.body": "C16 product changes entry body.",
+        "shell.product-changes.title": "C16 product changes entry title.",
+        "shell.resume.action": "C16 durable resume action.",
+        "shell.resume.title": "C16 durable resume title.",
+        "shell.root.assets.hint": "C16 Assets root accessibility hint.",
+        "shell.root.assets.title": "C16 provisional third task-first shell root.",
+        "shell.root.reports.hint": "C16 Reports root accessibility hint.",
+        "shell.root.reports.title": "C16 provisional fourth task-first shell root.",
+        "shell.root.today.hint": "C16 Today root accessibility hint.",
+        "shell.root.today.title": "C16 provisional first task-first shell root.",
+        "shell.root.work.hint": "C16 Work root accessibility hint.",
+        "shell.root.work.title": "C16 provisional second task-first shell root.",
+        "shell.starter-workspace.action": "C16 explicit starter workspace creation action.",
+        "shell.starter-workspace.title": "C16 starter workspace title.",
+        "shop.profile.activation.heading": "C04 activation label.",
+        "shop.profile.activation.off": "C04 activation state.",
+        "shop.profile.activation.on": "C04 activation state.",
+        "shop.profile.audience.heading": "C04 audience label.",
+        "shop.profile.confirmation.heading": "C04 final confirmation heading.",
+        "shop.profile.confirmation.recorded": "C04 confirmation state.",
+        "shop.profile.confirmation.required": "C04 confirmation gate.",
+        "shop.profile.default_off": "C04 default-off presentation.",
+        "shop.profile.detector.blocked": "C04 blocking detector state.",
+        "shop.profile.detector.heading": "C04 audience privacy detector heading.",
+        "shop.profile.detector.pass": "C04 passing detector state.",
+        "shop.profile.handoff.available": "C04 typed receipt state.",
+        "shop.profile.handoff.heading": "C04 handoff heading.",
+        "shop.profile.heading": "C04 shop-profile open-evidence handoff presentation.",
+        "shop.profile.limitations": "C04 no-certification limitation.",
+        "shop.profile.no_delivery_claim": "C04 no delivery claim boundary.",
+        "shop.profile.packaging.combined": "C04 packaging disposition.",
+        "shop.profile.packaging.heading": "C04 packaging label.",
+        "shop.profile.packaging.separate": "C04 packaging disposition.",
+        "shop.profile.preset.heading": "C04 preset label.",
+        "shop.profile.preview.digest": "C04 digest value label.",
+        "shop.profile.preview.exact_bytes": "C04 exact-byte value label.",
+        "shop.profile.preview.heading": "C04 exact-byte preview heading.",
+        "shop.profile.profile.heading": "C04 profile presentation.",
+        "shop.profile.recovery.required": "C04 recovery state.",
+        "shop.profile.retry": "C04 retry action.",
+        "shop.profile.semantic_text.heading": "C04 semantic text alternative heading.",
+        "shop.profile.status.cancelled": "C04 cancellation state.",
+        "shop.profile.status.low_storage": "C04 storage state.",
+        "shop.profile.status.protected_data": "C04 protected-data state.",
+        "shop.profile.status.stale": "C04 stale preview state.",
+        "shop.profile.status.unavailable": "C04 failed preparation state.",
+        "temporal_evidence.action.delete": "C25 explicit review delete action.",
+        "temporal_evidence.action.pause": "C25 review pause action.",
+        "temporal_evidence.action.play": "C25 review playback action.",
+        "temporal_evidence.action.record_audio": "C25 explicit foreground audio capture action.",
+        "temporal_evidence.action.record_video": "C25 explicit foreground video capture action.",
+        "temporal_evidence.action.retake": "C25 explicit retake action; the prior accepted original remains immutable.",
+        "temporal_evidence.action.scrub": "C25 named time-position control.",
+        "temporal_evidence.action.stop": "C25 recording stop action.",
+        "temporal_evidence.action.use_recording": "C25 sole explicit action that may request canonical acceptance after review.",
+        "temporal_evidence.backgrounded": "C25 foreground-only boundary.",
+        "temporal_evidence.caption": "C25 human-authored recording caption.",
+        "temporal_evidence.codec.unavailable": "C25 unavailable codec with manual fallback.",
+        "temporal_evidence.consent.explicit": "C25 consent boundary; capture never starts implicitly.",
+        "temporal_evidence.description": "C25 human-authored accessible recording description.",
+        "temporal_evidence.description.required": "C33 accessible-description review requirement.",
+        "temporal_evidence.disk_full": "C25 disk-full failure with no partial canonical clip.",
+        "temporal_evidence.kind.audio": "C33 non-color media-kind label.",
+        "temporal_evidence.kind.video": "C33 non-color media-kind label.",
+        "temporal_evidence.limit.bytes": "C33 truthful hard-stop reason.",
+        "temporal_evidence.limit.codec": "C25 unsupported codec state without a compatibility claim.",
+        "temporal_evidence.limit.count": "C25 deterministic package or session recording-count stop.",
+        "temporal_evidence.limit.duration": "C33 truthful hard-stop reason.",
+        "temporal_evidence.limit.resolution": "C25 bounded video resolution state.",
+        "temporal_evidence.limit.storage": "C33 low-storage state that does not claim a partial save.",
+        "temporal_evidence.manual_import": "C33 manual/offline fallback while live recording remains deferred.",
+        "temporal_evidence.permission.camera.purpose": "C25 purpose copy for the independent video permission matrix.",
+        "temporal_evidence.permission.microphone.purpose": "C25 purpose copy for the independent microphone permission.",
+        "temporal_evidence.permission.revoked": "C25 mid-recording permission revocation with no partial-save claim.",
+        "temporal_evidence.protected_data.unavailable": "C25 protected-data lock state.",
+        "temporal_evidence.purpose": "C25 purpose-bound evidence field.",
+        "temporal_evidence.recovery": "C25 interruption recovery action.",
+        "temporal_evidence.report.link": "C25 report link to separately stored bounded media.",
+        "temporal_evidence.report.poster": "C25 accessible poster-image label; original media is not embedded by default.",
+        "temporal_evidence.report.waveform": "C25 accessible audio waveform label; original audio is not embedded by default.",
+        "temporal_evidence.review_required": "C33 status before a bounded clip can be accepted into canonical evidence.",
+        "temporal_evidence.state.recording": "C25 visible and spoken non-color recording state.",
+        "temporal_evidence.state.stopped": "C25 visible and spoken stopped state.",
+        "temporal_evidence.time_anchor": "C25 time-coded anchor action.",
+        "temporal_evidence.transcript.required": "C33 human-authored transcript review requirement; no automatic transcription claim.",
+        "work_resource.internal_only": "C49 direct cost is internal by default and must not leak into customer-safe output.",
+        "temporal_evidence.cancelled": "C33 cancellation state with truthful canonical-save status. Use only after successful terminal cancellation of the current unaccepted review; do not describe prior evidence or an unresolved acceptance outcome as unsaved.",
+        "temporal_evidence.permission.denied": "C33 permission-denial fallback without initiating a capture runtime. Name a manual alternative only when the pinned rule permits that path; denied capture does not grant arbitrary file-import permission.",
+        "lighting.claim.boundary": "English-only C31 claim boundary; no operational, safety, security, ADA, IES, or compliance conclusion.",
+        "lighting.claim.criterion": "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+        "lighting.claim.derived": "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+        "lighting.claim.external_reference": "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+        "lighting.claim.measured": "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+        "lighting.claim.observed": "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+        "lighting.claim.unavailable": "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+        "lighting.history.frozen": "English-only C31 historic display label; final report interpretation remains immutable.",
+        "lighting.issue.open": "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+        "lighting.issue.recorded": "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+        "lighting.issue.resolved": "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+        "lighting.issue.superseded": "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+        "lighting.manual_offline": "English-only C31 manual/offline path label; no sensor, network, or remote-delivery claim.",
+        "lighting.measurement.calibration": "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+        "lighting.measurement.heading": "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+        "lighting.measurement.illuminance": "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+        "lighting.observation.heading": "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+        "lighting.observation.recorded": "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+        "lighting.safety.next_step": "English-only C31 actionable label for reviewing recorded references; it does not grant authority or claim delivery.",
+        "lighting.safety.stop": "English-only C31 label for a recorded stop state; it does not grant authority or make a safety conclusion.",
+        "lighting.system.control_groups": "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+        "lighting.system.heading": "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+        "lighting.system.luminaires": "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+        "lighting.system.topology": "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+        "lighting.system.zones": "English-only C31 label for recorded lighting facts; no operational, safety, security, ADA, IES, or compliance conclusion.",
+        "plan.history.open_original_revision": "C19 historic report action bound to its original revision, never latest.",
+        "plan.offline.historic_read_only": "C19 historic plan revision is readable but never substituted for current work.",
+        "plan.offline.missing_plan": "C19 reason-bearing readiness failure for an absent exact plan revision.",
+        "plan.offline.missing_reference": "C19 reason-bearing readiness failure for missing reference bytes.",
+        "plan.offline.not_applicable": "C19 explicit absence: the package rule does not require a plan for this work item.",
+        "plan.offline.openability_failed": "C19 reason-bearing readiness failure after local openability validation.",
+        "plan.offline.protected_data_unavailable": "C19 reason-bearing readiness failure while protected local data is unavailable.",
+        "plan.offline.ready": "C19 derived readiness; not a durable ready flag.",
+        "plan.offline.reference_unavailable": "C19 reason-bearing readiness failure for stale lifecycle state.",
+        "plan.offline.storage_insufficient": "C19 reason-bearing readiness failure for local capacity.",
+        "plan.page.navigation": "C19 accessible page navigation heading.",
+        "plan.placement.create": "C19 plan placement creation action.",
+        "plan.placement.item": "C19 exact label key carried by each ordered accessible placement.",
+        "plan.placement.link": "C19 action linking recorded work to an exact placement.",
+        "plan.placement.list": "C19 accessible ordered placement list heading.",
+        "plan.placement.move": "C19 plan placement move action.",
+        "plan.placement.row": "C19 accessible placement row label.",
+        "plan.rebase.approve": "C19 explicit rebase approval action.",
+        "plan.rebase.reject": "C19 explicit rebase rejection action.",
+        "plan.rebase.review": "C19 explicit rebase review heading; preview remains unapplied.",
+        "plan.thumbnail.navigation": "C19 accessible thumbnail navigation heading.",
+        "plan.viewport.not_physical_direction": "C19 non-visual boundary: viewport and display rotation are presentation only.",
+        "plan.work_surface.resume": "C19 contextual resume action.",
+        "plan.work_surface.route.assets": "C19 contextual route to the plan list under Assets.",
+        "plan.work_surface.route.work": "C19 contextual plan route for the selected work item.",
+        "schedule.accessibility.error_focus": "C22 deterministic error-focus label.",
+        "schedule.accessibility.reduced_motion": "C22 Reduce Motion state remains textual.",
+        "schedule.action.end": "C22 explicit schedule end action.",
+        "schedule.action.pause": "C22 explicit schedule pause action.",
+        "schedule.action.resume": "C22 explicit schedule resume action.",
+        "schedule.action.save": "C22 explicit schedule save action.",
+        "schedule.action.start_once": "C22 occurrence start-once action.",
+        "schedule.duration_window": "C22 schedule duration and due-window label.",
+        "schedule.editor": "C22 recurring schedule editor heading.",
+        "schedule.editor.review": "C22 explicit review before schedule save.",
+        "schedule.exception_behavior": "C22 exception behavior label.",
+        "schedule.horizon.bounded": "C22 bounded occurrence generation disclosure.",
+        "schedule.interruption": "C22 interrupted canonical update state.",
+        "schedule.offline.partial": "C22 partial local packet state.",
+        "schedule.offline.ready": "C22 exact local readiness state.",
+        "schedule.offline.reason": "C22 actionable offline readiness reason.",
+        "schedule.recovery.same_mutation": "C22 idempotent same-MutationID recovery action.",
+        "schedule.reminder.denied": "C22 reminder denial preserves complete Today queue.",
+        "schedule.reminder.evicted": "C22 OS reminder eviction does not change due truth.",
+        "schedule.reminder.opt_in": "C22 optional local reminder permission action.",
+        "schedule.reminder.reconciled": "C22 derived reminder reconciliation state.",
+        "schedule.scope": "C22 schedule scope label.",
+        "schedule.time_zone.visible": "C22 visible schedule time-zone label.",
+        "schedule.today.reason": "C22 reason-bearing Today queue label.",
+        "schedule.work.current": "C22 current scheduled work heading.",
+        "schedule.work.upcoming": "C22 upcoming scheduled work heading.",
+        "survey.template.action.duplicate": "C20 duplicate action always creates a new draft identity.",
+        "survey.template.action.export": "C20 bounded template archive export action.",
+        "survey.template.action.import_as_draft": "C20 quarantined import always creates a new draft identity.",
+        "survey.template.action.publish": "C20 explicit atomic template publication action.",
+        "survey.template.action.report": "C20 immutable publication report action.",
+        "survey.template.action.resume": "C20 exact-context survey resume action.",
+        "survey.template.action.retire": "C20 explicit immutable template retirement action.",
+        "survey.template.action.review": "C20 recorded-fact review action.",
+        "survey.template.action.run": "C20 explicit survey start action.",
+        "survey.template.claim_boundary": "C20 survey output is typed fact collection, never pass/fail.",
+        "survey.template.compatibility.active_work_pinned": "C20 in-flight work retains exact recorded release authority.",
+        "survey.template.compatibility.additive_draft_safe": "C20 additive draft-only adoption state.",
+        "survey.template.compatibility.blocked": "C20 incompatible or invalid semantic change state.",
+        "survey.template.compatibility.draft_migration_required": "C20 review-required draft migration state.",
+        "survey.template.compatibility.no_change": "C20 exact semantic-preview compatibility state.",
+        "survey.template.interruption": "C20 interruption guidance makes no partial success claim.",
+        "survey.template.library.browse": "C20 browse action over bounded survey templates.",
+        "survey.template.library.favorites": "C20 device-local favorite template list.",
+        "survey.template.library.heading": "C20 guided-survey template library heading.",
+        "survey.template.library.recents": "C20 device-local recent template list.",
+        "survey.template.library.search": "C20 local derived template search action.",
+        "survey.template.manual_path": "C20 complete manual path remains available when optional proposals are absent.",
+        "survey.template.primary_action": "C20 exactly one primary next action label.",
+        "survey.template.promotion.conflict": "C20 provisional-subject promotion conflict requires explicit review.",
+        "survey.template.report.frozen": "C20 finalized report remains bound to its exact source release.",
+        "survey.template.review.conflict": "C20 factual review conflict requires explicit review without implying pass or fail.",
+        "survey.template.semantic_preview": "C20 semantic change preview; it is not applied automatically.",
+        "assistance.interrupted": "C32 interruption state; no proposed value was saved and the manual path remains available. Use only for interrupted text extraction before acceptance; never for an interrupted accept operation or receipt recovery.",
+        "evidence.curation.derivative.manifest_ready": "C02 evidence curation presentation text; a manifest is not presented as visual output.",
+        "evidence.curation.derivative.visual_ready": "C02 evidence curation presentation text; only a completed typed visual derivative receipt may use this state.",
+        "evidence.curation.derivative.visual_unavailable": "C02 evidence curation presentation text; no completed typed visual derivative is available.",
+        "evidence.curation.item.remove_from_work": "C02 successor-sequence action; it removes an item from current work/report use without deleting evidence history.",
+        "evidence.curation.item.remove_history_disclosure": "C02 truthful disclosure for removal from current work/report use.",
+        "evidence.curation.item.retake.review_required": "C02 retake disclosure requiring renewed review for media-dependent descriptive text.",
+        "evidence.curation.metadata.unavailable": "C02 evidence curation presentation text; fail-closed when no validated C05 metadata sequence binds this preview.",
+        "evidence.curation.role.after": "C02 evidence curation presentation text; released C05 evidence role, never a legal or causal label.",
+        "evidence.curation.role.before": "C02 evidence curation presentation text; released C05 evidence role, never a legal or causal label.",
+        "evidence.curation.role.context": "C02 evidence curation presentation text; released C05 evidence role, never a legal or causal label.",
+        "evidence.curation.role.detail": "C02 evidence curation presentation text; released C05 evidence role, never a legal or causal label.",
+        "evidence.curation.role.heading": "C02 evidence curation presentation text; released C05 evidence role, never a legal or causal label.",
+        "evidence.curation.role.other": "C02 evidence curation presentation text; released C05 evidence role, never a legal or causal label.",
+        "service_reliability.segment.impact": "C53 impact kind remains explicit; degraded and intermittent segments receive no invented availability weight.",
+        "service_request.intake.portable": "C52 cleartext portable intake label; it does not claim delivery or authentication.",
+        "temporal_evidence.interrupted": "C33 interruption state with truthful canonical-save status. A complete pending review may remain recoverable; reconcile any interrupted acceptance against its canonical receipt before claiming an outcome.",
+        "work_resource.customer_safe": "C49 customer-safe cost wording is available only after explicit preview selection and validation.",
+        "work_resource.direct_cost.internal": "C49 direct cost is entered manually and internal by default; no tax, rates, markup, or invoice calculation.",
+        "work_resource.direct_cost_preview": "C49 direct cost preview requires explicit selection; it is not a tax, rate, markup, or invoice calculation.",
+        "work_resource.duration": "C49 manually entered duration; no live or background timer.",
+        "work_resource.duration.manual": "C49 duration is entered manually in whole minutes; no live or background timer.",
+        "work_resource.material": "C49 manually entered material; not a catalog or live inventory balance.",
+        "work_resource.no_live_inventory_claim": "C49 manual entries are not inventory balances or a live inventory claim.",
+    ]
 }

@@ -382,3 +382,5 @@ The production photo journey takes priority over another isolated foundation. So
 - AK2 successor compiled and59/61affectedmethods pass with2retained failures: strengthenedclaim normalizationH01, and captureA01 beforecoordinatorcatch. I01 realroot/cold recovery passes. Same full source/product bindings retained; AK3 must verify actualadapter and fullclaim correction, with full61selection and all gates stilldue.
 
 - AK3 corrects actual resolver-lowstorage handling and symmetric claim normalization; compiled,61/61affectedmethods PASS,0skip. Final audit/integration remain due. Earlier AK1/AK2 observations are historical and retained; shippingUI selector adoption, actualAVdevice behavior, humanreview and same-head gates remain separate obligations.
+
+- AK4 combines the exact seven reviewed AK3files with pushedAJ1; combinedbuildPASS and61/61affectednativePASS. Finalindependentcheckpointreviewpending; no all3485same-headcoverage, genuineUI, actualAVdevice or gateacceptance. C3reviewedcollectioncorrectionfresh363/42PASS remainsinactive/unqualified.

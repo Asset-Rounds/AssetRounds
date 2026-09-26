@@ -108,6 +108,139 @@ final class V9_88TemporalEvidenceCaptureTests: XCTestCase {
         let lowStorageResult = try await lowStorage.start(audio.request)
         XCTAssertEqual(lowStorageResult.disposition, .manualFallback)
         XCTAssertEqual(lowStorageResult.fallback, .textOrPhoto)
+
+        @MainActor func assertNoEffects(_ scratch: C25Scratch, _ runtime: C25Runtime,
+                                       _ canonical: C25Canonical, _ trace: C25Trace) async {
+            let acquisitions = await scratch.acquisitionCount()
+            let writes = await scratch.writeRecords()
+            let finishes = await scratch.finishDispositions()
+            let captures = await runtime.captureCount()
+            let stops = await runtime.stopReasons()
+            let events = await trace.values()
+            XCTAssertEqual(acquisitions, 0)
+            XCTAssertTrue(writes.isEmpty)
+            XCTAssertTrue(finishes.isEmpty)
+            XCTAssertEqual(captures, 0)
+            XCTAssertTrue(stops.isEmpty)
+            XCTAssertEqual(canonical.useCount, 0)
+            XCTAssertEqual(canonical.terminalCount, 0)
+            XCTAssertEqual(canonical.recoveryCount, 0)
+            XCTAssertEqual(events.first, "access")
+        }
+        for kind in [TemporalEvidenceMediaKindV1.audio, .video] {
+            for manual in [TemporalEvidenceManualFallbackV1.textOrPhoto, .prohibitedByPinnedRule] {
+                let bundle = try C25Support.bundle(kind: kind, slot: 940, manualFallback: manual)
+                let minimum = bundle.request.profile.minimumFreeByteCount
+                let reserve = minimum + bundle.request.profile.limit(for: kind).maximumByteCount
+                for capacity in [minimum - 1, minimum, reserve - 1, reserve] {
+                    let trace = C25Trace(), scratch = C25Scratch(), runtime = C25Runtime()
+                    let canonical = C25Canonical(operationID: bundle.clip.mutationID.rawValue)
+                    let coordinator = C25Support.coordinator(
+                        bundle: bundle, trace: trace, canonical: canonical,
+                        runtime: runtime, scratch: scratch, availableBytes: capacity
+                    )
+                    if capacity < reserve, manual == .prohibitedByPinnedRule {
+                        await XCTAssertThrowsErrorAsync(try await coordinator.start(bundle.request)) {
+                            XCTAssertEqual($0 as? TemporalEvidenceCaptureFailureV1, .insufficientStorage)
+                        }
+                    } else {
+                        let result = try await coordinator.start(bundle.request)
+                        if capacity < reserve {
+                            XCTAssertEqual(result.disposition, .manualFallback)
+                            XCTAssertEqual(result.fallback, .textOrPhoto)
+                            XCTAssertNil(result.review)
+                        } else {
+                            XCTAssertEqual(result.disposition, .reviewRequired)
+                            XCTAssertNotNil(result.review)
+                            XCTAssertNil(result.fallback)
+                            let captures = await runtime.captureCount()
+                            let acquisitions = await scratch.acquisitionCount()
+                            XCTAssertEqual(captures, 1)
+                            XCTAssertEqual(acquisitions, 1)
+                        }
+                    }
+                    if capacity < reserve { await assertNoEffects(scratch, runtime, canonical, trace) }
+                }
+            }
+        }
+        // Low capacity must never turn a different environment rejection into fallback.
+        for boundary in ["workspace", "invalid", "foreground", "protected", "requirement", "session"] {
+            let trace = C25Trace(), scratch = C25Scratch(), runtime = C25Runtime()
+            let canonical = C25Canonical(operationID: audio.clip.mutationID.rawValue)
+            let profile = audio.request.profile
+            let expected: TemporalEvidenceCaptureFailureV1
+            switch boundary {
+            case "workspace": expected = .staleSource
+            case "invalid": expected = .invalidValue
+            case "foreground": expected = .notForeground
+            case "protected": expected = .protectedDataUnavailable
+            default: expected = .limitExceeded
+            }
+            let otherWorkspace = try WorkspaceID(rawValue: UUID())
+            let environment = TemporalEvidenceCaptureEnvironmentV1(
+                workspaceID: boundary == "workspace" ? otherWorkspace : audio.clip.workspaceID,
+                isForeground: boundary != "foreground", protectedDataAvailable: boundary != "protected",
+                availableByteCount: profile.minimumFreeByteCount - 1,
+                clipsForRequirement: boundary == "invalid" ? -1 :
+                    (boundary == "requirement" ? profile.maximumClipsPerRequirement : 0),
+                clipsForSession: boundary == "requirement" ? profile.maximumClipsPerRequirement :
+                    (boundary == "session" ? profile.maximumClipsPerSession : 0),
+                observedAt: audio.request.requestedAt
+            )
+            let resolver = InjectedTemporalEvidenceCaptureEnvironmentResolverV1 { _ in environment }
+            await XCTAssertThrowsErrorAsync(try await resolver.currentEnvironment(for: audio.request)) {
+                XCTAssertEqual($0 as? TemporalEvidenceCaptureFailureV1, expected, boundary)
+            }
+            let coordinator = C25Support.coordinator(
+                bundle: audio, trace: trace, canonical: canonical, runtime: runtime,
+                scratch: scratch, environmentOverride: environment
+            )
+            await XCTAssertThrowsErrorAsync(try await coordinator.start(audio.request)) {
+                XCTAssertEqual($0 as? TemporalEvidenceCaptureFailureV1, expected, boundary)
+            }
+            await assertNoEffects(scratch, runtime, canonical, trace)
+        }
+
+        // The resolver may return observed low space only for the permitted manual path.
+        // Full environment validation continues to deny capture at the same capacity.
+        let lowObservation = TemporalEvidenceCaptureEnvironmentV1(
+            workspaceID: audio.clip.workspaceID, isForeground: true,
+            protectedDataAvailable: true,
+            availableByteCount: audio.request.profile.minimumFreeByteCount - 1,
+            clipsForRequirement: 0, clipsForSession: 0, observedAt: audio.request.requestedAt
+        )
+        let lowResolver = InjectedTemporalEvidenceCaptureEnvironmentResolverV1 { _ in lowObservation }
+        let observed = try await lowResolver.currentEnvironment(for: audio.request)
+        XCTAssertEqual(observed, lowObservation)
+        XCTAssertThrowsError(try observed.validate(profile: audio.request.profile)) {
+            XCTAssertEqual($0 as? TemporalEvidenceCaptureFailureV1, .insufficientStorage)
+        }
+        let authorized = try TemporalEvidenceCapturePermissionMatrixV1(
+            mediaKind: .audio,
+            states: [CapabilityIDV1.audioCapture, .microphone].map {
+                try CapabilityStateV1(capabilityID: $0, permission: .authorized,
+                                      runtime: .available, observedAt: audio.request.requestedAt)
+            }
+        )
+        let lease = CapabilityScratchLeaseV1(
+            leaseID: audio.request.leaseID, purpose: .capture,
+            relativeDirectory: "scratch/\(audio.request.leaseID.uuidString.lowercased())"
+        )
+        XCTAssertThrowsError(try TemporalEvidenceRuntimeCaptureRequestV1(
+            request: audio.request, permissionMatrix: authorized, environment: observed, lease: lease
+        )) { XCTAssertEqual($0 as? TemporalEvidenceCaptureFailureV1, .insufficientStorage) }
+        let prohibited = try C25Support.bundle(kind: .audio, slot: 940,
+                                               manualFallback: .prohibitedByPinnedRule)
+        await XCTAssertThrowsErrorAsync(try await lowResolver.currentEnvironment(for: prohibited.request)) {
+            XCTAssertEqual($0 as? TemporalEvidenceCaptureFailureV1, .insufficientStorage)
+        }
+        // A closure failure has no authenticated observation and must not become fallback.
+        let failingResolver = InjectedTemporalEvidenceCaptureEnvironmentResolverV1 { _ in
+            throw TemporalEvidenceCaptureFailureV1.insufficientStorage
+        }
+        await XCTAssertThrowsErrorAsync(try await failingResolver.currentEnvironment(for: audio.request)) {
+            XCTAssertEqual($0 as? TemporalEvidenceCaptureFailureV1, .insufficientStorage)
+        }
     }
 
     func testV23P04C25H01HostileCodecResolutionDurationSizeCountAndProhibitedProcessing() throws {
@@ -220,12 +353,31 @@ final class V9_88TemporalEvidenceCaptureTests: XCTestCase {
             binding: recoveryReview.scratchBinding,
             state: .prepared
         )
-        let directory = FileManager.default.temporaryDirectory
+        let directory = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
             .appendingPathComponent("V23-P04-C25-\(UUID().uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
         let effects = C25RecoveryEffects()
+        // The journal owns only operational descendants of an existing generation.
+        XCTAssertThrowsError(try TemporalEvidencePromotionRecoveryFileAdapterV1(
+            generationRootURL: directory, workspaceID: recoveryBundle.clip.workspaceID,
+            verify: { _, _, _ in await effects.verify() },
+            remove: { _, _, _ in await effects.remove() }
+        )) { XCTAssertEqual($0 as? TemporalEvidenceContractFailureV1, .invalidValue) }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+        addTeardownBlock { try FileManager.default.removeItem(at: directory) }
+        let realRoot = directory.appendingPathComponent("generation", isDirectory: true)
+        try FileManager.default.createDirectory(at: realRoot, withIntermediateDirectories: false)
+        let alias = directory.appendingPathComponent("alias", isDirectory: true)
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: realRoot)
+        XCTAssertThrowsError(try TemporalEvidencePromotionRecoveryFileAdapterV1(
+            generationRootURL: alias, workspaceID: recoveryBundle.clip.workspaceID,
+            verify: { _, _, _ in await effects.verify() },
+            remove: { _, _, _ in await effects.remove() }
+        )) { XCTAssertEqual($0 as? TemporalEvidenceContractFailureV1, .invalidValue) }
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: realRoot.path), [])
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: alias.path), realRoot.path)
         let store = try TemporalEvidencePromotionRecoveryFileAdapterV1(
-            generationRootURL: directory,
+            generationRootURL: realRoot,
             workspaceID: recoveryBundle.clip.workspaceID,
             verify: { _, _, _ in await effects.verify() },
             remove: { _, _, _ in await effects.remove() }
@@ -233,7 +385,7 @@ final class V9_88TemporalEvidenceCaptureTests: XCTestCase {
         try await store.prepare(reservation)
         try await store.prepare(reservation)
         let reopenedPrepared = try TemporalEvidencePromotionRecoveryFileAdapterV1(
-            generationRootURL: directory,
+            generationRootURL: realRoot,
             workspaceID: recoveryBundle.clip.workspaceID,
             verify: { _, _, _ in await effects.verify() },
             remove: { _, _, _ in await effects.remove() }
@@ -242,7 +394,7 @@ final class V9_88TemporalEvidenceCaptureTests: XCTestCase {
         XCTAssertEqual(preparedPending, [reservation])
         try await reopenedPrepared.transition(reservation, to: .originalPromoted)
         let reopenedPromoted = try TemporalEvidencePromotionRecoveryFileAdapterV1(
-            generationRootURL: directory,
+            generationRootURL: realRoot,
             workspaceID: recoveryBundle.clip.workspaceID,
             verify: { _, _, _ in await effects.verify() },
             remove: { _, _, _ in await effects.remove() }
@@ -256,6 +408,10 @@ final class V9_88TemporalEvidenceCaptureTests: XCTestCase {
         let removalCount = await effects.removeCount()
         XCTAssertTrue(finishedPending.isEmpty)
         XCTAssertEqual(removalCount, 1)
+        let journal = realRoot.appendingPathComponent("operational/temporal-evidence-promotion-v1")
+        let manifestName = recoveryBundle.clip.workspaceID.rawValue.uuidString.lowercased() + ".json"
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: journal.path), [manifestName])
+        XCTAssertEqual(try Data(contentsOf: journal.appendingPathComponent(manifestName)), Data("[]".utf8))
     }
 
     func testV23P04C25R01ReportPosterMetadataLinkAndLifecycleRecovery() throws {
@@ -372,7 +528,8 @@ private struct C25Bundle {
 }
 
 private enum C25Support {
-    static func bundle(kind: TemporalEvidenceMediaKindV1, slot: Int) throws -> C25Bundle {
+    static func bundle(kind: TemporalEvidenceMediaKindV1, slot: Int,
+                       manualFallback: TemporalEvidenceManualFallbackV1 = .textOrPhoto) throws -> C25Bundle {
         let value = try C33TemporalEvidenceTestSupport.clip(slot: slot, kind: kind)
         let actor = try C26SurveySessionTestSupport.actor(
             workspaceID: value.clip.workspaceID, slot: slot + 5, responsibility: .recordedBy
@@ -392,7 +549,7 @@ private enum C25Support {
             mutationID: value.clip.mutationID,
             leaseID: C33TemporalEvidenceTestSupport.id(slot + 8),
             contentID: value.clip.original.contentID, consent: consent,
-            manualFallback: .textOrPhoto, requestedAt: value.clip.capturedAt
+            manualFallback: manualFallback, requestedAt: value.clip.capturedAt
         )
         return C25Bundle(clip: value.clip, request: request)
     }
@@ -404,7 +561,8 @@ private enum C25Support {
         canonical: C25Canonical,
         runtime: C25Runtime,
         scratch: C25Scratch = C25Scratch(),
-        availableBytes: UInt64? = nil
+        availableBytes: UInt64? = nil,
+        environmentOverride: TemporalEvidenceCaptureEnvironmentV1? = nil
     ) -> TemporalEvidenceCaptureCoordinatorV1 {
         let required = bundle.request.mediaKind == .audio
             ? [CapabilityIDV1.audioCapture, .microphone]
@@ -419,7 +577,7 @@ private enum C25Support {
                 let (requiredAvailableBytes, overflow) = request.profile.minimumFreeByteCount
                     .addingReportingOverflow(selectedLimit.maximumByteCount)
                 guard !overflow else { throw TemporalEvidenceCaptureFailureV1.limitExceeded }
-                return TemporalEvidenceCaptureEnvironmentV1(
+                return environmentOverride ?? TemporalEvidenceCaptureEnvironmentV1(
                     workspaceID: request.workspaceID, isForeground: true,
                     protectedDataAvailable: true,
                     availableByteCount: availableBytes ?? requiredAvailableBytes,
@@ -486,7 +644,10 @@ private actor C25Scratch: TemporalEvidenceCaptureScratchManagingV1 {
     private var namesByLease: [UUID: String] = [:]
     private var writes: [WriteRecord] = []
     private var reads = 0
+    private var acquisitions = 0
+    func acquisitionCount() -> Int { acquisitions }
     func acquire(_ request: CapabilityScratchLeaseRequestV1) async throws -> CapabilityScratchLeaseV1 {
+        acquisitions += 1
         operations[request.leaseID] = request.operationID
         return CapabilityScratchLeaseV1(
             leaseID: request.leaseID, purpose: request.purpose,
