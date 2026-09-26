@@ -9417,8 +9417,12 @@ struct StoreGenerationFactory {
 
     @MainActor
     func currentGenerationEpoch() throws -> GenerationEpochV1 {
+        // One restore authority (and so one root-protection proof) for this
+        // read; currentGenerationPointerV3 still re-reads the pointer through it.
+        let authority = try makeRestoreGenerationAuthority()
         let pointer = try currentGenerationPointerV3(
-            expectedGenerationID: currentGenerationID()
+            expectedGenerationID: currentGenerationID(authority: authority),
+            authority: authority
         )
         guard let generationID = canonicalUUID(from: pointer.generationID) else {
             throw StoreGenerationFailure.dataPointerInvalid

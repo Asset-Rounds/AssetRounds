@@ -1217,7 +1217,9 @@ final class StoreMigrationJournalStoreV1 {
         guard manifest.generationID == targetGenerationID else {
             throw StoreMigrationFailure.invalidIdentity
         }
-        try protectFile(.journal, name: name, expected: captured.identity)
+        // readRegularFile already protected and verified this exact identity as
+        // .journal (manifest names map to .journal) and proved the snapshot
+        // stable across the read, so a second protectFile here was duplicate work.
         return manifest
     }
 
@@ -1241,7 +1243,7 @@ final class StoreMigrationJournalStoreV1 {
         guard manifest.generationID == targetGenerationID else {
             throw StoreMigrationFailure.invalidIdentity
         }
-        try protectFile(.journal, name: name, expected: captured.identity)
+        // Already protected and verified by readRegularFile for this identity.
         return (
             manifest,
             StoreMigrationCanonicalJSONV1.sha256(captured.data)

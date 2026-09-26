@@ -9,7 +9,7 @@ import XCTest
 
 final class C45CameraRecoveryCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityCameraAndManualConsumeSameOpaqueGrammar() {
-        XCTAssertEqual(Set(LocatorInputSourceV1.allCases), [.camera, .manual, .imported])
+        XCTAssertEqual(Set(LocatorInputSourceV1.allCases), [.camera, .manual, .imported, .search])
         XCTAssertEqual(AssetLabelOpaqueQRPayloadV1.prefix, "AR1")
         XCTAssertEqual(LabelGenerationStartDecisionV1.allCases, [.explicitStartRequired])
     }
@@ -332,7 +332,7 @@ final class S3_6CameraRecoveryTests: XCTestCase {
 
 final class C27S36TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
-        XCTAssertEqual(LocatorInputSourceV1.allCases, [.camera, .manual, .imported])
+        XCTAssertEqual(LocatorInputSourceV1.allCases, [.camera, .manual, .imported, .search])
         XCTAssertEqual(AssetLocatorLimitsV1.maximumInputBytes, 1_024)
         XCTAssertFalse(AssetLocatorLifecycleAdapterV1.resolutionStartsWork)
     }

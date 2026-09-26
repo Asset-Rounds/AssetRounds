@@ -2166,6 +2166,10 @@ final class BackupRestoreService {
             let cloneStagingProof = clone?.emptyProof
             let cloneFinalMedia = mode == .clone
                 ? try configurationCloneFinalMedia(package: validatedPackage, records: expectedRecords) : [:]
+            if mode == .clone, let history = expectedRecords.mutationHistory {
+                expectedRecords = replacingPhotoRestoreHistory(in: expectedRecords,
+                    with: try ConfigurationCloneOperationalFamilyV1.projectingDroppedRevisions(history))
+            }
             traceRestorePhase("materialize")
             try materialize(
                 validatedPackage,
@@ -19019,4 +19023,39 @@ private func attributedRestorePackageFailureV1(line: UInt) -> BackupRestoreServi
 private struct RestoreReviewClockV1: ApplicationClock {
     let value: Date
     func now() -> Date { value }
+}
+
+/// Configuration clone omits the operational field-draft family's rows
+/// (blueprint configuration-clone exclusion, line 13985) while preserving
+/// immutable history (blueprint line 186) and the journal's terminal-row
+/// invariants: receipts and terminal revisions stay
+/// verbatim. `externalProjectionSHA256` is the authorized projection of the
+/// destination's current rows, and for a dropped row that is its restore
+/// tombstone, exactly what the journal import and relaunch
+/// `validateTerminalRows` derive. One predicate names the dropped kinds.
+enum ConfigurationCloneOperationalFamilyV1 {
+    static let droppedKinds: Set<WorkspaceEntityKindV1> = [
+        .fieldDraftCheckpoint, .attachmentStagingItem, .draftCommitSaga,
+        .draftContentReservation, .draftCommitReceipt, .draftDiscardReceipt,
+    ]
+
+    static func drops(_ kind: WorkspaceEntityKindV1) -> Bool { droppedKinds.contains(kind) }
+
+    static func projectingDroppedRevisions(
+        _ history: MutationHistorySnapshotV1
+    ) throws -> MutationHistorySnapshotV1 {
+        MutationHistorySnapshotV1(
+            workspaceRevision: history.workspaceRevision,
+            lastLocalSequence: history.lastLocalSequence,
+            receipts: history.receipts,
+            quarantines: history.quarantines,
+            entityRevisions: try history.entityRevisions.map { value in
+                guard drops(value.identity.kind) else { return value }
+                return MutationHistoryEntityRevisionV1(
+                    identity: value.identity, revision: value.revision,
+                    externalProjectionSHA256: try MutationJournalStoreV1.restoreTombstoneSHA256(
+                        identity: value.identity, revision: value.revision))
+            }
+        )
+    }
 }

@@ -46,8 +46,21 @@ enum CanonicalWriterSeedingV1 {
             _ = try writer.execute(.applyPartyAccountability(.appendActorSnapshot(actor)),
                 mutationID: ids.actorMutationID)
         }
-        let diff = try PackageSemanticDifferV1.diff(source: release, target: release)
         let adapter = PackageEvolutionLifecycleAdapterV1(writer: writer, journal: journal, modelContext: context)
+        // A package that is already active is promoted as a forward fix of the
+        // current pointer, exactly as production requires.
+        let predecessor = try adapter.activePointer(workspaceID: workspaceID, packageID: release.packageID)
+        let source: InspectionPackageReleaseV1
+        if let predecessor {
+            let recordID = predecessor.activeReleaseRecordID
+            let rows = try context.fetch(FetchDescriptor<PromotedPackageReleaseRow>())
+                .map { try $0.value() }.filter { $0.releaseRecordID == recordID }
+            guard rows.count == 1, let prior = rows.first else { throw SeedingFailure.promotionReceiptMismatch }
+            source = prior.packageRelease
+        } else {
+            source = release
+        }
+        let diff = try PackageSemanticDifferV1.diff(source: source, target: release)
         let runner = PackageSandboxRunnerV1(activationObserver: SeedingPackageObserver(adapter: adapter))
         let sandbox = try await runner.run(runID: ids.sandboxRunID, workspaceID: workspaceID,
             release: release, semanticDiff: diff,
@@ -62,14 +75,17 @@ enum CanonicalWriterSeedingV1 {
         let pointer = try ActivePackageRegistryPointerV1(pointerID: ids.pointerID, workspaceID: workspaceID,
             packageID: release.packageID, activeReleaseRecordID: promoted.releaseRecordID,
             promotionReceiptID: ids.receiptID, activePackageReleaseID: release.packageReleaseID,
-            activeReleaseRecordSHA256: promoted.releaseRecordSHA256, revision: 1, mutationID: ids.mutationID)
+            activeReleaseRecordSHA256: promoted.releaseRecordSHA256,
+            supersedesPointerID: predecessor?.pointerID, revision: (predecessor?.revision ?? 0) + 1,
+            mutationID: ids.mutationID)
         let receipt = try PackagePromotionReceiptV1(receiptID: ids.receiptID, workspaceID: workspaceID,
-            promotedRelease: promoted, sandboxRun: sandbox, diff: diff, predecessorPointer: nil,
+            promotedRelease: promoted, sandboxRun: sandbox, diff: diff, predecessorPointer: predecessor,
             resultingPointer: pointer, actor: actor, exactHead: sandbox.exactHead,
-            operation: .initialActivation, rollbackCompatibility: .activatedForwardFixRequired,
+            operation: predecessor == nil ? .initialActivation : .postActivationForwardFix,
+            rollbackCompatibility: .activatedForwardFixRequired,
             mutationID: ids.mutationID, recordedAt: promotedAt)
         let bundle = PackagePromotionAtomicBundleV1(promotedRelease: promoted, sandboxRun: sandbox,
-            semanticDiff: diff, predecessorPointer: nil, resultingPointer: pointer, actor: actor,
+            semanticDiff: diff, predecessorPointer: predecessor, resultingPointer: pointer, actor: actor,
             receipt: receipt)
         guard try adapter.applyPromotion(bundle) == receipt else {
             throw SeedingFailure.promotionReceiptMismatch

@@ -683,7 +683,7 @@ final class S4_2PDFRecoveryTests: XCTestCase {
 
 final class C27S42TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
-        XCTAssertEqual(LocatorInputSourceV1.allCases.count, 3)
+        XCTAssertEqual(LocatorInputSourceV1.allCases, [.camera, .manual, .imported, .search])
         XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
         XCTAssertFalse(AssetLocatorLifecycleAdapterV1.resolutionStartsWork)
     }

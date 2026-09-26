@@ -406,7 +406,7 @@ final class S4_4HistoryComparisonTests: XCTestCase {
 final class C27S44TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(LocatorBindingActionV1.allCases.count, 6)
-        XCTAssertEqual(LocatorInputSourceV1.allCases.count, 3)
+        XCTAssertEqual(LocatorInputSourceV1.allCases, [.camera, .manual, .imported, .search])
         XCTAssertFalse(AssetLocatorLifecycleAdapterV1.resolutionStartsWork)
     }
 }

@@ -4086,6 +4086,23 @@ extension S6_4AtomicRestoreTests {
 
         XCTAssertNotEqual(restored.workspaceID, source.session.workspaceID)
         try assertNoConfigurationCloneDraftRows(in: restored.modelContext)
+        // Blueprint immutable history and configuration-clone exclusion:
+        // dropped draft rows keep receipts and terminal revisions under the
+        // journal's invariants, projected as restore tombstones.
+        let history = try MutationJournalStoreV1(modelContext: restored.modelContext,
+            identity: restored.workspaceIdentity, generationID: restored.generationID,
+            allowStateBootstrap: false).exportSnapshot()
+        let dropped = history.entityRevisions.filter {
+            ConfigurationCloneOperationalFamilyV1.drops($0.identity.kind)
+        }
+        XCTAssertEqual(Set(dropped.map { $0.identity.kind }),
+                       Set<WorkspaceEntityKindV1>([.fieldDraftCheckpoint, .attachmentStagingItem]))
+        for revision in dropped {
+            XCTAssertEqual(revision.externalProjectionSHA256, try MutationJournalStoreV1.restoreTombstoneSHA256(
+                identity: revision.identity, revision: revision.revision))
+        }
+        // Relaunch validation (validateTerminalRows) accepts the cloned store.
+        assertCanonicalWriterActivatesV1(restored, "S6_4 configuration clone with omitted drafts")
         XCTAssertFalse(fileManager.fileExists(atPath: configurationCloneDraftRoot(target.support).path))
         XCTAssertNil(try RestoreIntentStore(applicationSupportURL: target.support).load())
         XCTAssertEqual(try Data(contentsOf: draft.package), archiveBefore)

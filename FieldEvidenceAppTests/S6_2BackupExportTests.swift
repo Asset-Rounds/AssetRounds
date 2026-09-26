@@ -1904,7 +1904,7 @@ final class S6_2BackupExportTests: XCTestCase {
 final class C27S62TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(PersistentSchemaV26.models.count, 94)
-        XCTAssertEqual(LocatorInputSourceV1.allCases.count, 3)
+        XCTAssertEqual(LocatorInputSourceV1.allCases, [.camera, .manual, .imported, .search])
         XCTAssertFalse(AssetLocatorLifecycleAdapterV1.resolutionGrantsAccess)
     }
 }

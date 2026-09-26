@@ -7,7 +7,7 @@ V23 becomes the base app and includes the accepted S10 app. It keeps S10's look,
 ## Where to work
 
 - Until Phase 1 merges, work on branch `codex/v23-s10-integration-20260910`. After that, work on `main`.
-- The primary development machine is the owner's cloud Mac, running Claude Code with Xcode 26.6 and the iOS 26.2 (23C54) Simulator. Setup is in `docs/design/v23/integration/MAC_HANDOFF.md`.
+- The primary development machine is the owner's cloud Mac, running Codex with Xcode 26.6. Local development uses the installed iOS 26.5 Simulator; gates retain iOS 26.2 (23C54) on GitHub. Setup is in `docs/design/v23/integration/MAC_HANDOFF.md`.
 - The Windows checkout `C:\AssetRounds-v23-s10-integration` holds about 55 uncommitted owner drafts. Never reset, delete, overwrite or reformat them, and never stage them without the owner's say-so. In every checkout, preserve owner drafts, untracked work, frozen branches, V30 and the coordination ledger.
 - Start every session with `docs/design/v23/integration/ACTIVE_BRIEF.md`. Then use:
   - `CURRENT_INTEGRATION.md` for batch detail;
@@ -71,7 +71,7 @@ Functional, privacy, accessibility or unusable-state defects block a phase. Nonc
 
 - **Root session.** It diagnoses, implements understood fixes, integrates, and alone commits, pushes and dispatches.
 - **Helpers.** Use as many as speed delivery. Each gets one bounded question and disjoint files, or read-only scope. Implementation helpers work in worktrees created by root at the exact head. Watch usage limits: typically 2–4 helpers at a time.
-- **Independent review.** Every consequential batch gets one independent Claude reviewer. The reviewer is read-only and never the author. Corrections go back to the same reviewer, and verdicts are recorded in CURRENT_INTEGRATION along with the reviewer model. Reviewers always assess compile risk. Automated checks are never labelled as independent review.
+- **Independent review.** Every consequential batch gets one independent GPT-6 Astra reviewer. The reviewer is read-only and never the author. Corrections go back to the same reviewer, and verdicts are recorded in CURRENT_INTEGRATION along with the reviewer model. Reviewers always assess compile risk. Automated checks are never labelled as independent review.
 - **Compile first.** Compile new Swift on the Mac, or with one development batch, before fanning out native runs.
 - **Failures.**
   - Fix failures by family, in batches.
@@ -97,13 +97,13 @@ Functional, privacy, accessibility or unusable-state defects block a phase. Nonc
 
 ## Model and effort
 
-The owner sets the session model and effort in the app. As of 2026-09-25 evening it is Opus 5.5 at Medium (lowered from High to save usage); the owner may raise it later. Claude subagents inherit the session level. Repository policy never changes these settings.
+The owner sets the session model and effort in the app. On 2026-09-26 the owner moved all Claude roles to GPT-6 Astra, including the independent reviewer. Codex helpers use `gpt-6-astra` at `high` under the retained Codex routing rule. Repository policy never changes the primary session settings.
 
 Helper budget (owner, 2026-09-25, lowered the same evening to save 5-hour usage): at most 5 concurrent active subagents plus the root session (raised by the owner on 2026-09-26); an idle reviewer does not count until it is working. Before a helper is retired, it writes a short handoff note (scratchpad or VERIFICATION_DUE) so its knowledge can be reused. Reuse an existing helper that already holds the relevant context (continue it with SendMessage) before spawning a new one, to save tokens. The owner may raise the limit again if the 5-hour usage allows. Use the Mac's 16 GB and CPU fully within that limit; up to about 3 concurrent Xcode builds, the CPU being the practical limit.
 
 ## Owner decisions in force (2026-09-24/25)
 
-1. The independent reviewer is a separate Claude subagent that never authors what it approves.
+1. The independent reviewer is a separate GPT-6 Astra subagent that never authors what it approves (owner updated 2026-09-26).
 2. My Day fork history: the bounded normalized-history amendment (`.codex-temp/my-day-fork-lineage/FORK_COMPATIBILITY_AMENDMENT.md`) is approved.
 3. RUI1 UI budget is approved.
 4. Full coverage uses a shared build per head with test-only partitions of up to 3,000 s, five at a time. One early development sweep runs first, and the final same-head sweep is still required.
@@ -134,5 +134,7 @@ Owner decisions, 2026-09-25 (cloud Mac session):
     Gates, frozen design and the boundaries above still govern.
 
 ## History
+
+Owner decision, 2026-09-26: use GPT-6 Astra for every role previously assigned to Claude. Up to 6–7 helpers are authorized subject to configured capacity; this Codex session supports five helpers plus root. The independent reviewer remains read-only and separate from the authors. Historical Claude verdicts and their model attribution are preserved.
 
 Earlier instructions are preserved verbatim in `docs/execution/AGENTS_HISTORY_20260911.md` and `docs/execution/AGENTS_HISTORY_20260925.md`. This file supersedes them wherever they conflict. Enduring safety and gate constraints in those files, such as not adding packages, targets, capabilities or entitlements without authority, stay in force unless this file explicitly changes them. Codex routing rules (`gpt-6-astra`) apply only if work returns to Codex.

@@ -8650,16 +8650,19 @@ final class MutationJournalStoreV1 {
         switch identity.kind {
         case .entityAliasLink:
             let values = try modelContext.fetch(FetchDescriptor<EntityAliasLinkRowV1>()).map { try $0.value() }
-            guard let value = try exactlyOneOrAbsent(values.filter { $0.linkEventID == identity.id && $0.revision == revision }) else {
+            // C13 fix (owner decision 14, for review): the post-image is keyed by the writer's concurrency
+            // identity (alias entity) and carries the link's own digest, the value the typed receipt binds
+            // (EntityIdentityResolutionMutationPayloadV1.semanticSHA256s), as typed post-images do elsewhere.
+            guard let value = try exactlyOneOrAbsent(values.filter { $0.alias.identity.id == identity.id && $0.revision == revision }) else {
                 return try tombstone(identity, revision)
             }
-            return try semanticPostImage(identity, revision, value)
+            return try Self.postImage(identity: identity, revision: revision, digest: value.linkSHA256)
         case .entityConsolidationReceipt:
             let values = try modelContext.fetch(FetchDescriptor<EntityConsolidationReceiptRowV1>()).map { try $0.value() }
-            guard let value = try exactlyOneOrAbsent(values.filter { $0.consolidationReceiptID == identity.id && $0.revision == revision }) else {
+            guard let value = try exactlyOneOrAbsent(values.filter { $0.source.identity.id == identity.id && $0.revision == revision }) else {
                 return try tombstone(identity, revision)
             }
-            return try semanticPostImage(identity, revision, value)
+            return try Self.postImage(identity: identity, revision: revision, digest: value.receiptSHA256)
         default:
             throw WorkspaceMutationFailureV1.invalidCommand
         }

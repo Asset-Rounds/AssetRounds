@@ -388,6 +388,8 @@ final class V9_55PortableReviewTests: XCTestCase {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(
             "V9_55-integration-envelope-\(UUID().uuidString)", isDirectory: true
         )
+        // The store requires an existing Application Support parent, as on device.
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let storeRoot = root.appendingPathComponent(
             PortableExchangeSessionStoreLayoutV2.directoryName, isDirectory: true
@@ -576,6 +578,8 @@ final class V9_55PortableReviewTests: XCTestCase {
             let root = FileManager.default.temporaryDirectory.appendingPathComponent(
                 "V9_55-cleanup-publish-\(operation)-\(UUID().uuidString)", isDirectory: true
             )
+            // The store requires an existing Application Support parent, as on device.
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: root) }
             let (id, workspaceID, original, oldEnvelope, oldImmutableBytes, quarantine, quarantineBytes) = try await prepare(
                 root: root, suffix: "\(operation)"
@@ -619,6 +623,8 @@ final class V9_55PortableReviewTests: XCTestCase {
             let root = FileManager.default.temporaryDirectory.appendingPathComponent(
                 "V9_55-cleanup-replay-\(operation)-\(UUID().uuidString)", isDirectory: true
             )
+            // The store requires an existing Application Support parent, as on device.
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: root) }
             let (id, workspaceID, original, _, _, quarantine, _) = try await prepare(root: root, suffix: "replay-\(operation)")
             let rootURL = root.appendingPathComponent(PortableExchangeSessionStoreLayoutV2.directoryName)
@@ -712,6 +718,8 @@ final class V9_55PortableReviewTests: XCTestCase {
             let root = FileManager.default.temporaryDirectory.appendingPathComponent(
                 "V9_55-cleanup-integrity-\(suffix)-\(UUID().uuidString)", isDirectory: true
             )
+            // The store requires an existing Application Support parent, as on device.
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
             let store = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
             let record = try await store.stage(PortableExchangeSessionStageInputV2(
                 publicRequestID: "cleanup-integrity-\(suffix)",
@@ -815,6 +823,8 @@ final class V9_55PortableReviewTests: XCTestCase {
             let root = FileManager.default.temporaryDirectory.appendingPathComponent(
                 "V9_55-cleanup-partial-erase-\(UUID().uuidString)", isDirectory: true
             )
+            // The store requires an existing Application Support parent, as on device.
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: root) }
             let initial = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
             let record = try await initial.stage(PortableExchangeSessionStageInputV2(
@@ -872,6 +882,8 @@ final class V9_55PortableReviewTests: XCTestCase {
             let root = FileManager.default.temporaryDirectory.appendingPathComponent(
                 "V9_55-cleanup-seam-\(UUID().uuidString)", isDirectory: true
             )
+            // The store requires an existing Application Support parent, as on device.
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: root) }
             let initial = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
             let record = try await initial.stage(PortableExchangeSessionStageInputV2(
@@ -913,6 +925,8 @@ final class V9_55PortableReviewTests: XCTestCase {
             let root = FileManager.default.temporaryDirectory.appendingPathComponent(
                 "V9_55-cleanup-legacy-\(suffix)-\(UUID().uuidString)", isDirectory: true
             )
+            // The store requires an existing Application Support parent, as on device.
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
             let store = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
             _ = try await store.stage(PortableExchangeSessionStageInputV2(
                 publicRequestID: "cleanup-legacy-\(suffix)", workspaceID: UUID(),
@@ -998,6 +1012,8 @@ final class V9_55PortableReviewTests: XCTestCase {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(
             "V9_55-cleanup-alias-\(UUID().uuidString)", isDirectory: true
         )
+        // The store requires an existing Application Support parent, as on device.
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let initial = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
         let staged = try await initial.stage(PortableExchangeSessionStageInputV2(
@@ -1080,6 +1096,8 @@ final class V9_55PortableReviewTests: XCTestCase {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(
             "V9_55-cleanup-capacity-\(UUID().uuidString)", isDirectory: true
         )
+        // The store requires an existing Application Support parent, as on device.
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
         let initial = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
@@ -1132,6 +1150,10 @@ final class V9_55PortableReviewTests: XCTestCase {
         let substitutionRoot = FileManager.default.temporaryDirectory.appendingPathComponent(
             "V9_55-cleanup-live-substitution-\(UUID().uuidString)", isDirectory: true
         )
+
+        // The store requires an existing Application Support parent, as on device.
+
+        try FileManager.default.createDirectory(at: substitutionRoot, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: substitutionRoot) }
         let source = try PortableExchangeSessionStoreV2(applicationSupportURL: substitutionRoot)
         let record = try await source.stage(PortableExchangeSessionStageInputV2(
@@ -1782,6 +1804,8 @@ final class V9_55PortableReviewTests: XCTestCase {
             "V9_55-C48-prepared-clone-\(UUID().uuidString)",
             isDirectory: true
         )
+        // The store requires an existing Application Support parent, as on device.
+        try FileManager.default.createDirectory(at: preparedRoot, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: preparedRoot) }
         let preparedStore = try PortableExchangeSessionStoreV2(applicationSupportURL: preparedRoot)
         let preparedSessionID = UUID(uuidString: "48000000-0000-4000-8000-000000000050")!
@@ -1902,6 +1926,8 @@ final class V9_55PortableReviewTests: XCTestCase {
             "V9_55-C48-capability-removal-\(UUID().uuidString)",
             isDirectory: true
         )
+        // The store requires an existing Application Support parent, as on device.
+        try FileManager.default.createDirectory(at: removalRoot, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: removalRoot) }
         let removalStore = try PortableExchangeSessionStoreV2(applicationSupportURL: removalRoot)
         let retainedID = UUID(uuidString: "48000000-0000-4000-8000-000000000054")!
@@ -2020,6 +2046,8 @@ final class V9_55PortableReviewTests: XCTestCase {
             "V9_55-C48-preview-\(UUID().uuidString)",
             isDirectory: true
         )
+        // The store requires an existing Application Support parent, as on device.
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
         let store = try PortableExchangeSessionStoreV2(applicationSupportURL: root)
@@ -2247,6 +2275,10 @@ final class V9_55PortableReviewTests: XCTestCase {
             "V9_55-C48-static-recovery-\(UUID().uuidString)",
             isDirectory: true
         )
+
+        // The store requires an existing Application Support parent, as on device.
+
+        try FileManager.default.createDirectory(at: recoveryRoot, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: recoveryRoot) }
         let recoveryOperationID = UUID(uuidString: "48000000-0000-4000-8000-000000000042")!
         let recoveryGenerationID = UUID(uuidString: "48000000-0000-4000-8000-000000000043")!
@@ -2294,6 +2326,10 @@ final class V9_55PortableReviewTests: XCTestCase {
             "V9_55-C48-static-clone-recovery-\(UUID().uuidString)",
             isDirectory: true
         )
+
+        // The store requires an existing Application Support parent, as on device.
+
+        try FileManager.default.createDirectory(at: cloneRecoveryRoot, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: cloneRecoveryRoot) }
         _ = try PortableExchangeSessionStoreV2.restoreSnapshotForRecovery(
             applicationSupportURL: cloneRecoveryRoot,

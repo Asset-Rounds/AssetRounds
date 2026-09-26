@@ -463,14 +463,26 @@ private actor C41ReadAuthentication: LocalAuthenticationClient {
             ])
         let release = try InspectionPackageReleasePublisherV1.publish(
             InspectionPackageReleasePublisherV1.test(.makeDraft(package: package, workflow: workflow))).release
-        let promoted = try PromotedPackageReleaseV1(releaseRecordID: C41.id(seed), workspaceID: store.workspaceID,
-            packageRelease: release, mutationID: C41.mutation(seed + 1), promotedAt: C41.now)
-        coordinator.modelContext.insert(try PromotedPackageReleaseRow(promoted))
-        coordinator.modelContext.insert(Site(id: C41.id(seed + 2), label: "Readiness site", createdAt: C41.now))
-        coordinator.modelContext.insert(Asset(id: C41.id(seed + 3), siteID: C41.id(seed + 2),
-            packID: package.packageID, packSchemaVersion: package.schemaVersion, packContentVersion: package.contentVersion,
-            label: "Readiness asset", createdAt: C41.now))
-        try coordinator.modelContext.save()
+        // Package promotion and the site/asset go through the canonical writer;
+        // directly inserted rows carry no entity revision and the journal's
+        // semantic checkpoint rejects the next commit.
+        let journal = try MutationJournalStoreV1(modelContext: coordinator.modelContext,
+            identity: store.workspaceIdentity, generationID: store.generationID)
+        let promoted = try await CanonicalWriterSeedingV1.promotePackage(release, workspaceID: store.workspaceID,
+            actor: recorder, writer: coordinator.workspaceWriter, journal: journal, context: coordinator.modelContext,
+            promotedAt: C41.now, ids: .init(releaseRecordID: C41.id(seed), sandboxRunID: UUID(), pointerID: UUID(),
+                receiptID: UUID(), mutationID: C41.mutation(seed + 1), actorMutationID: C41.mutation(seed + 1)),
+            appendActor: false)
+        let signMutation = try C41.mutation(seed + 8)
+        _ = try coordinator.workspaceWriter.execute(.createFirstSign(.init(
+            siteID: C41.id(seed + 2),
+            newSite: .init(id: C41.id(seed + 2), label: "Readiness site", address: nil, timeZoneID: "UTC"),
+            assetID: C41.id(seed + 3), assetLabel: "Readiness asset",
+            packID: package.packageID, packSchemaVersion: package.schemaVersion,
+            packContentVersion: package.contentVersion, createdAt: C41.now,
+            initialPlacementMutationID: signMutation, initialPlacementEventID: C41.id(seed + 9),
+            initialPhysicalEpisodeID: .init(rawValue: C41.id(seed + 10))
+        )), mutationID: signMutation)
         let bytes = Data("actual protected readiness original \(seed)".utf8)
         let reference: ContentReferenceV1?
         let request: DraftImmutableContentWriteRequestV1?

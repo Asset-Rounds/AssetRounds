@@ -297,3 +297,11 @@ The production photo journey takes priority over another isolated foundation. So
   - These are the same family as the fixed C13 post-image binding (4c4fce74): typed receipts vs the generic post-image digest.
 - Still open: V9_104 H01 (:1757) and I01 (reviewed-draft baseline); V9_55 R01 :2410; V9_18 ×12 (4 recheck CancellationError at :129 plus 8 one-offs).
 
+
+## Codex takeover and batch T follow-ups (2026-09-26)
+
+- Batch T integrated the five retained local branches; local build passed. Combined development result: 56/61 pass, with the four V9_104 and one V9_55 failures retained above. C13, changed anchors, clone omitted-drafts/writer activation and stale-writer scope passed locally, not as gates.
+- Clone history follow-up before phase gates: exercise all six omitted operational kinds and exact receipt/quarantine preservation; current added native witness covers checkpoint and staging item. General authority is blueprint immutable history/configuration-clone exclusion and journal terminal invariants, not C52's service-request-only flag.
+- Correction to prior clone triage: retained FrozenEvidence test passed; its logged directory rejection is the hostile control. Eight retirement tests remain failing; owned-unlink pin drift is source-proven and requires precise native attribution plus a guarded correction.
+- Mac tooling suite currently fails three checks: two ZIP fixture mode losses and an obsolete BF6 class census after four O/Q methods were added. Repair fixtures while retaining real Git dirty-mode rejection, closed historical selection and exact full coverage.
+- Windows-only originals and owner drafts remain preserved there; the Mac does not contain `C55_REVERSAL_RESTORE_DECISION.md` or the scratch fork amendment at their referenced paths. Obtain the authoritative material before dependent work; do not reconstruct owner decisions from summaries.

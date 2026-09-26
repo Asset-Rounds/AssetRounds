@@ -989,7 +989,7 @@ final class V9_19LocalSearchTests: XCTestCase {
 
 final class C27V919TypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
-        XCTAssertEqual(LocatorInputSourceV1.allCases.count, 3)
+        XCTAssertEqual(LocatorInputSourceV1.allCases, [.camera, .manual, .imported, .search])
         XCTAssertEqual(AssetLocatorLimitsV1.maximumInputBytes, 1_024)
         XCTAssertFalse(AssetLocatorLifecycleAdapterV1.resolutionGrantsAccess)
     }

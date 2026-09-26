@@ -5158,26 +5158,35 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
                     return try row.value(assessment: assessments[0]).workspaceID
                 }
             case .entityAliasLink:
-                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<EntityAliasLinkRowV1>()).filter { $0.linkEventID == id }) { row in
-                    let value = try row.value()
-                    let values = try modelContext.fetch(FetchDescriptor<EntityAliasLinkRowV1>()).map { try $0.value() }
-                        .filter { $0.alias.identity == value.alias.identity }
-                    _ = try validatedEntityAliasHistory(values, identity: value.alias.identity,
-                        workspaceID: value.workspaceID, maximumResults: values.count)
-                    return value.workspaceID
-                }
+                // C13 fix (owner decision 14, for review): the writer's concurrency identity is the alias
+                // entity (not the link event), whose history is a revision chain; it exists when non-empty.
+                let chain = try modelContext.fetch(FetchDescriptor<EntityAliasLinkRowV1>()).map { try $0.value() }
+                    .filter { $0.alias.identity.id == id }
+                if let first = chain.first {
+                    _ = try validatedEntityAliasHistory(chain, identity: first.alias.identity,
+                        workspaceID: first.workspaceID, maximumResults: chain.count)
+                    guard try chain.allSatisfy({ $0.workspaceID == (try currentWorkspaceID()) }) else {
+                        throw WorkspaceMutationFailureV1.persistenceFailed
+                    }
+                    exists = true
+                } else { exists = false }
             case .entityConsolidationReceipt:
-                exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<EntityConsolidationReceiptRowV1>()).filter { $0.receiptID == id }) { row in
-                    let value = try row.value()
-                    let values = try modelContext.fetch(FetchDescriptor<EntityConsolidationReceiptRowV1>()).map { try $0.value() }
-                    let root = try consolidationRoot(for: value, values: values)
+                // C13 fix (owner decision 14, for review): keyed by the source entity, as the writer's
+                // concurrency identity is; every receipt for that source must sit on one validated chain.
+                let values = try modelContext.fetch(FetchDescriptor<EntityConsolidationReceiptRowV1>()).map { try $0.value() }
+                let bySource = values.filter { $0.source.identity.id == id }
+                if let first = bySource.first {
+                    let root = try consolidationRoot(for: first, values: values)
                     let chain = try validatedEntityConsolidationHistory(root: root, values: values, maximumResults: values.count)
-                    guard chain.allSatisfy({ $0.workspaceID == value.workspaceID }) else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                    guard Set(bySource.map(\.consolidationReceiptID)).isSubset(of: Set(chain.map(\.consolidationReceiptID))),
+                          try chain.allSatisfy({ $0.workspaceID == (try currentWorkspaceID()) }) else {
+                        throw WorkspaceMutationFailureV1.persistenceFailed
+                    }
                     for index in chain.indices {
                         try chain[index].validate(predecessor: index == chain.startIndex ? nil : chain[index - 1])
                     }
-                    return value.workspaceID
-                }
+                    exists = true
+                } else { exists = false }
             case .privacyRegion:
                 exists = try queryUniqueRows(modelContext.fetch(FetchDescriptor<PrivacyRegionRow>()).filter { $0.regionID == id }) { try $0.value().workspaceID }
             case .privacyTransformManifest:

@@ -1120,7 +1120,11 @@ final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_38Accessib
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_38AccessibleDocumentTests_swift.legacyInspectionTruthIsNotRewritten)
         XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_38AccessibleDocumentTests_swift.threeReceiptIsolationIsRequired)
         XCTAssertFalse(ActivityContractPersistenceEnrollmentV2.completionClaimsCommissioningComplianceApprovalOrCertification)
-        XCTAssertEqual(Set(ActivityContractPersistenceEnrollmentV2.nonpersistentFamilies).count, 3)
+        XCTAssertEqual(Set(ActivityContractPersistenceEnrollmentV2.nonpersistentFamilies),
+                       ["SharedActivityEnvelopeReceiptV1", "InstallationActivityContractReceiptV1",
+                        "PunchActivityContractReceiptV1", "NoPlanFallbackV1"])
+        XCTAssertEqual(ActivityContractPersistenceEnrollmentV2.nonpersistentFamilies
+            .filter { $0.hasSuffix("ReceiptV1") }.count, 3)
     }
 }
 

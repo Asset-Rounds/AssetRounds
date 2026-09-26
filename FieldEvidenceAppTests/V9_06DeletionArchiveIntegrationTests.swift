@@ -464,7 +464,7 @@ final class V9_06DeletionArchiveIntegrationTests: XCTestCase {
 final class C27V906ArchiveTypedLocatorAnchorTests: XCTestCase {
     func testAssetLocatorContractAnchor() throws {
         XCTAssertEqual(AssetLocatorLimitsV1.maximumCandidates, 32)
-        XCTAssertEqual(LocatorInputSourceV1.allCases.count, 3)
+        XCTAssertEqual(LocatorInputSourceV1.allCases, [.camera, .manual, .imported, .search])
         XCTAssertFalse(AssetLocatorLifecycleAdapterV1.scanMutatesCanonicalState)
     }
 }
