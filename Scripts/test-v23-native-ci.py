@@ -3389,8 +3389,16 @@ class FieldAutosaveBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
                 current_bytes = worker_before_live_host_d50(self, current_bytes)
             elif path == 'Scripts/test-smoke.sh':
                 current_bytes = test_smoke_before_shared_coverage(current_bytes)
-            self.assertEqual(current_bytes, subprocess.check_output(
-                ['git', 'show', self.source_parent + ':' + path], cwd=ROOT), path)
+            historical_bytes = subprocess.check_output(
+                ['git', 'show', self.source_parent + ':' + path], cwd=ROOT)
+            if path == 'Scripts/v23-selection-generator.py':
+                # Brace-span amendment: exact new bytes and unchanged historic
+                # baseline are pinned; all route/output comparisons below remain.
+                self.assertEqual((CI.sha256(current_bytes), CI.sha256(historical_bytes)), (
+                    '4A987864E3046E165C35BB8AF1278A693C83A4BB90D2D398E81D528CFF2C1C2A',
+                    '6142626CDA16B75E051D463F124AB584F1E32CD87F7829AFE2A43AFC8DF3789F'), path)
+            else:
+                self.assertEqual(current_bytes, historical_bytes, path)
         identifiers = re.findall(r'^          - ([a-z0-9.-]+)$', re.search(
             r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)',
             (ROOT / '.github/workflows/ios-ci.yml').read_text()).group(1), re.M)
@@ -3729,7 +3737,15 @@ class NotificationScheduleEraseBuild30DiagnosticTests(ReplacementPartitionDiagno
             current_bytes = (ROOT / path).read_bytes()
             if path == '.github/workflows/ios-ci-worker.yml':
                 current_bytes = worker_before_interruption_build_order(self, current_bytes)
-            self.assertEqual(current_bytes, frozen(path), path)
+            historical_bytes = frozen(path)
+            if path == 'Scripts/v23-selection-generator.py':
+                # Brace-span amendment: exact new bytes and unchanged historic
+                # baseline are pinned; all route/output comparisons below remain.
+                self.assertEqual((CI.sha256(current_bytes), CI.sha256(historical_bytes)), (
+                    '4A987864E3046E165C35BB8AF1278A693C83A4BB90D2D398E81D528CFF2C1C2A',
+                    '6142626CDA16B75E051D463F124AB584F1E32CD87F7829AFE2A43AFC8DF3789F'), path)
+            else:
+                self.assertEqual(current_bytes, historical_bytes, path)
 
     def test_foreign_checkout_original_identity_and_worker_dispatch_inputs_fail(self):
         for stage in ('dispatch', 'worker'):
@@ -3940,7 +3956,15 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
                         self.assertEqual(profile['excludedSelectors'], [])
                         del profile['excludedSelectors']
                 current_bytes = CI.canonical(manifest)
-            self.assertEqual(current_bytes, frozen(path), path)
+            historical_bytes = frozen(path)
+            if path == 'Scripts/v23-selection-generator.py':
+                # Brace-span amendment: exact new bytes and unchanged historic
+                # baseline are pinned; all route/output comparisons below remain.
+                self.assertEqual((CI.sha256(current_bytes), CI.sha256(historical_bytes)), (
+                    '4A987864E3046E165C35BB8AF1278A693C83A4BB90D2D398E81D528CFF2C1C2A',
+                    '6142626CDA16B75E051D463F124AB584F1E32CD87F7829AFE2A43AFC8DF3789F'), path)
+            else:
+                self.assertEqual(current_bytes, historical_bytes, path)
         prior = json.loads(frozen('Scripts/ci-selection.json'))
         prior_map = json.loads(frozen(CI.SELECTION_MAP_PATH))
         workflow = frozen('.github/workflows/ios-ci.yml')

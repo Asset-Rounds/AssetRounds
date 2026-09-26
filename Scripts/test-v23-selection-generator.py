@@ -16,6 +16,7 @@ ACTIVITY_CODEC_SELECTORS = ['FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolu
 import copy
 import hashlib
 import importlib.util
+import itertools
 import json
 import re
 from pathlib import Path
@@ -1202,6 +1203,90 @@ class GeneratorTests(unittest.TestCase):
                 with self.assertRaises(generator.ManifestError):
                     self.generate_source_case("class FixtureTests: XCTestCase {\n" + hidden + "\n}")
                 self.assertEqual(self.generate_source_case("class FixtureTests: XCTestCase {\n" + hidden + "\n" + method + "\n}")[2]["selectorCount"], 1)
+
+
+class BraceDepthSpanTests(unittest.TestCase):
+    @staticmethod
+    def reference(source):
+        # Incumbent per-character algorithm, retained as an independent oracle
+        # for the span implementation and its first-error behavior.
+        depths, depth = [], 0
+        for character in source:
+            depths.append(depth)
+            if character == '{':
+                depth += 1
+            elif character == '}':
+                depth -= 1
+                if depth < 0:
+                    raise generator.ManifestError('unmatched Swift closing brace')
+        if depth != 0:
+            raise generator.ManifestError('unclosed Swift brace')
+        return depths
+
+    def assert_reference(self, source):
+        try:
+            expected = self.reference(source)
+        except generator.ManifestError as error:
+            with self.assertRaises(generator.ManifestError) as result:
+                generator._brace_depths(source)
+            self.assertEqual(str(result.exception), str(error))
+        else:
+            actual = generator._brace_depths(source)
+            self.assertIs(type(actual), list)
+            self.assertEqual(len(actual), len(source))
+            self.assertEqual(actual, expected)
+
+    def test_exact_opening_and_closing_positions_and_first_error_are_preserved(self):
+        for source, expected in (('', []), ('x', [0]), ('{}', [0, 1]),
+                ('{{}}', [0, 1, 2, 1]), ('{}{}', [0, 1, 0, 1]),
+                ('a{b}c', [0, 0, 1, 1, 0])):
+            with self.subTest(source=source):
+                self.assertEqual(generator._brace_depths(source), expected)
+        for source, error in (('}', 'unmatched Swift closing brace'),
+                ('}{', 'unmatched Swift closing brace'),
+                ('{{}}}{', 'unmatched Swift closing brace'),
+                ('{', 'unclosed Swift brace'), ('{}{{}', 'unclosed Swift brace')):
+            with self.subTest(source=source), self.assertRaises(generator.ManifestError) as result:
+                generator._brace_depths(source)
+            self.assertEqual(str(result.exception), error)
+
+    def test_every_short_brace_pattern_matches_the_per_character_reference(self):
+        for length in range(7):
+            for characters in itertools.product('{}x', repeat=length):
+                source = ''.join(characters)
+                with self.subTest(source=source):
+                    self.assert_reference(source)
+
+    def test_unicode_no_brace_long_spans_and_deep_nesting_keep_codepoint_indexes(self):
+        prefix = 'é漢🧪e\u0301\r\n\t\0'
+        for source in (prefix, prefix + '{}' + prefix,
+                prefix + '{' + prefix + '{' + prefix + '}}' + prefix,
+                'x' * 100_000, 'x' * 4096 + '{' + prefix * 512 + '}' + 'y' * 4096,
+                '{' * 10_000 + prefix + '}' * 10_000,
+                '{' * 10_000 + prefix + '}' * 9999,
+                '{' * 10_000 + prefix + '}' * 10_001,
+                prefix + '}{', '{' + prefix):
+            with self.subTest(length=len(source), prefix=source[:20]):
+                self.assert_reference(source)
+
+    def test_returned_lists_are_fresh_and_masked_swift_class_depths_stay_exact(self):
+        source = ('class FixtureTests: XCTestCase {\n'
+                  ' let text = "} fake {"\n /* } nested /* { */ } */\n'
+                  ' struct Nested { func testNested() {} }\n'
+                  '#if false\n func hidden() { }\n#endif\n'
+                  ' func testSelected() {}\n}\n')
+        masked = generator._active_swift(generator._mask_swift_noncode(source))
+        self.assert_reference(masked)
+        first = generator._brace_depths(masked)
+        first[:] = [-1]
+        self.assertEqual(generator._brace_depths(masked), self.reference(masked))
+        base, bodies = generator._class_bodies(masked, 'FixtureTests', ('testSelected',))
+        self.assertEqual(base, 'XCTestCase')
+        generator._verify_methods(bodies, 'FixtureTests', ['testSelected'])
+        for method in ('testNested', 'hidden'):
+            with self.subTest(method=method), self.assertRaisesRegex(
+                    generator.ManifestError, 'missing or duplicate source method'):
+                generator._verify_methods(bodies, 'FixtureTests', [method])
 
 
 class DiagnosticPartitionTests(unittest.TestCase):

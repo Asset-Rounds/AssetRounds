@@ -353,13 +353,19 @@ def _active_swift(masked: str) -> str:
 def _brace_depths(masked: str):
     depths = []
     depth = 0
-    for character in masked:
-        depths.append(depth)
-        if character == "{":
+    offset = 0
+    for brace in re.finditer(r"[{}]", masked):
+        # Every position through this brace has the previous depth. Build that
+        # span in C instead of appending once per non-brace source character.
+        stop = brace.start() + 1
+        depths.extend([depth] * (stop - offset))
+        offset = stop
+        if brace.group() == "{":
             depth += 1
-        elif character == "}":
+        else:
             depth -= 1
             require(depth >= 0, "unmatched Swift closing brace")
+    depths.extend([depth] * (len(masked) - offset))
     require(depth == 0, "unclosed Swift brace")
     return depths
 
