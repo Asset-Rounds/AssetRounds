@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import signal
 import stat
 import subprocess
 import sys
@@ -167,7 +168,7 @@ def command(artifact, environment):
             "-configuration", "Debug", "-destination", e["CI_DESTINATION"],
             "-derivedDataPath", str(PurePosixPath(e["RUNNER_TEMP"]) / "FieldEvidenceDerivedData"),
             "-resultBundlePath", str(artifact / "UISmoke.xcresult"),
-            "-parallel-testing-enabled", "NO", "-test-iterations", "1",
+            "-parallel-testing-enabled", "NO",
             *["-only-testing:" + s for s in UI], "CODE_SIGNING_ALLOWED=NO", "test-without-building"]
 
 
@@ -280,7 +281,7 @@ def original_results(artifact):
 
 
 def retained_environment(argv):
-    require(type(argv) is list and len(argv) == 22 and all(type(x) is str for x in argv),
+    require(type(argv) is list and len(argv) == 20 and all(type(x) is str for x in argv),
             "closed command argument census")
     derived, result = PurePosixPath(argv[10]), PurePosixPath(argv[12])
     require(re.fullmatch(r"platform=iOS Simulator,id=" + UUID, argv[8])
@@ -317,7 +318,11 @@ def verify(root, artifact, admission, selected, native, environment=None, *, com
                 "exact no-rebuild UI command")
     final = regular(artifact / "ui-final.png")
     require(final == regular(artifact / rows[-1]["image"]), "explicit last catalogue state alias")
-    return {"schema": "v23-rui1-review.v1", "head": admission["head"], "runID": admission["runID"],
+    phase1 = {}
+    if "phase1Gate" in admission:
+        phase1 = {"phase1PlanSHA256": admission["phase1Gate"]["planSHA256"],
+                  "phase1UIFinalizationSHA256": sha(regular(artifact / "phase1-ui-diagnostics/phase1-ui-finalization.json"))}
+    return {"schema": "v23-rui1-review.v1", **phase1, "head": admission["head"], "runID": admission["runID"],
             "runAttempt": admission["runAttempt"], "selectionSHA256": admission["selectionSHA256"],
             "catalogueSHA256": selected["uiBatch"]["catalogueSHA256"], "uiMethods": actual,
             "attachmentManifestSHA256": sha(regular(artifact / "rui1-original-attachments/manifest.json")),
@@ -369,6 +374,62 @@ def collected_review(root, artifact, native, expected_head, expected_run):
     return proof
 
 
+def phase1_run_and_export(root, artifact, admission, native, args, runner):
+    """Gate-only finalizer. Existing outer process-group watchdog keeps ownership.
+
+    A signal collects with the existing three-second interrupted bound and never
+    yields successful evidence. No sleep, forced flush, detached child or new
+    watchdog budget is introduced. End snapshots alone do not prove UI lifetimes.
+    """
+    native.phase1_observation_identity(root, artifact, admission)
+    status, exported, outcomes = None, 1, 1
+    received, finalizing = [], False
+    class Interrupted(BaseException):
+        pass
+    def interrupted(signum, _frame):
+        received.append(signum)
+        if not finalizing:
+            raise Interrupted()
+    handled = (signal.SIGHUP, signal.SIGINT, signal.SIGTERM)
+    previous = {sig: signal.getsignal(sig) for sig in handled}
+    for sig in handled:
+        signal.signal(sig, interrupted)
+    try:
+        try:
+            status = subprocess.run(args, env=dict(os.environ, **runner)).returncode
+            result = artifact / "UISmoke.xcresult"
+            if result.is_dir():
+                exported = subprocess.run(["xcrun", "xcresulttool", "export", "attachments", "--path", str(result),
+                    "--output-path", str(artifact / "rui1-original-attachments")]).returncode
+                with (artifact / "ui-test-results.json").open("xb") as stream:
+                    outcomes = subprocess.run(["xcrun", "xcresulttool", "get", "test-results", "tests", "--path",
+                                               str(result), "--compact"], stdout=stream).returncode
+        except Interrupted:
+            status = status if status else 128 + received[0]
+        except Exception:
+            if status:
+                raise SystemExit(status)
+            raise
+        finally:
+            finalizing = True
+            # Failure in transport cannot hide an already failing native original.
+            # It still leaves the early transport status or missing final receipt,
+            # which the retained verifier refuses.
+            try:
+                native.phase1_collect_ui_snapshot(root, artifact, admission, os.environ,
+                    exit_status=status, interrupted=bool(received) or status is None or status < 0)
+            except Exception:
+                if status:
+                    raise SystemExit(status)
+                raise
+        if received:
+            raise SystemExit(status if status else 128 + received[0])
+        return status, exported, outcomes
+    finally:
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
+
+
 def run(root, artifact):
     native = load(root, "Scripts/v23-native-ci.py", "rui_native")
     selected, record = native.selected_input(root, os.environ)
@@ -389,17 +450,20 @@ def run(root, artifact):
         **{k: admission[k] for k in ("head", "runID", "runAttempt")},
         "admissionSHA256": sha(native.canonical(admission)), "argv": args, "runnerEnvironment": runner,
         "acceptance": False, "releaseReady": False}))
-    status = subprocess.run(args, env=dict(os.environ, **runner)).returncode
-    result = artifact / "UISmoke.xcresult"
-    # Retain failed originals too; extraction never changes the XCTest exit status.
-    if result.is_dir():
-        exported = subprocess.run(["xcrun", "xcresulttool", "export", "attachments", "--path", str(result),
-                                   "--output-path", str(artifact / "rui1-original-attachments")]).returncode
-        with (artifact / "ui-test-results.json").open("xb") as stream:
-            outcomes = subprocess.run(["xcrun", "xcresulttool", "get", "test-results", "tests", "--path",
-                                       str(result), "--compact"], stdout=stream).returncode
+    if "phase1Gate" in admission:
+        status, exported, outcomes = phase1_run_and_export(root, artifact, admission, native, args, runner)
     else:
-        exported = outcomes = 1
+        status = subprocess.run(args, env=dict(os.environ, **runner)).returncode
+        result = artifact / "UISmoke.xcresult"
+        # Retain failed originals too; extraction never changes the XCTest exit status.
+        if result.is_dir():
+            exported = subprocess.run(["xcrun", "xcresulttool", "export", "attachments", "--path", str(result),
+                                       "--output-path", str(artifact / "rui1-original-attachments")]).returncode
+            with (artifact / "ui-test-results.json").open("xb") as stream:
+                outcomes = subprocess.run(["xcrun", "xcresulttool", "get", "test-results", "tests", "--path",
+                                           str(result), "--compact"], stdout=stream).returncode
+        else:
+            exported = outcomes = 1
     if status:
         raise SystemExit(status)
     require(exported == 0 and outcomes == 0, "original UI export failed")

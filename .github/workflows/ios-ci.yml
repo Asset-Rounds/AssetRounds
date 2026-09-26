@@ -222,6 +222,11 @@ on:
         options:
           - gate
           - development
+      v23_phase1_gate_plan:
+        description: Reserved canonical Phase 1 gate plan; admission remains disabled pending end-to-end review
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read

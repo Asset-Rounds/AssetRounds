@@ -1065,9 +1065,161 @@ def _require_collection_time(started, monotonic, work_seconds):
         raise _DiagnosticCollectionDeadline("diagnostic collection deadline")
 
 
+
+PHASE1_DIAGNOSTIC_INTERVAL = "phase1-diagnostic-copy-interval.json"
+PHASE1_DIAGNOSTIC_INTERVAL_SCHEMA = "v23-phase1-diagnostic-copy-interval.v1"
+
+
+def phase1_diagnostic_mode(root, artifact, environment, admission_artifact, remaining):
+    """Read actual event/admission under the incumbent deadline; never accept a mode flag."""
+    parent = artifact if admission_artifact is None else Path(admission_artifact)
+    admission_path = parent / "native-admission.json"
+    event_path = environment.get("GITHUB_EVENT_PATH")
+    if event_path is None and not admission_path.exists() and not admission_path.is_symlink() and admission_artifact is None:
+        return None
+    gate = load_phase1_gates(root)
+    raw = gate.regular_bytes(Path(event_path), limit=gate.MAX_EVENT_BYTES) if event_path is not None else None
+    plan, _ = gate.plan_from_event(raw) if raw is not None else (None, None)
+    record = (gate.decode(gate.regular_bytes(admission_path, limit=PHASE1_WITNESS_BYTES), limit=PHASE1_WITNESS_BYTES)
+              if admission_path.exists() or admission_path.is_symlink() else None)
+    marked = type(record) is dict and "phase1Gate" in record
+    if plan is None:
+        require(not marked and admission_artifact is None, "Phase1 diagnostic event/admission missing")
+        return None
+    require(type(record) is dict and marked, "Phase1 diagnostic gate admission missing")
+    require(environment.get("CI_ARTIFACT_DIR") == str(parent)
+            and parent.is_dir() and not parent.is_symlink(), "Phase1 diagnostic admitted artifact owner")
+    phase = "unit" if admission_artifact is None else "ui"
+    require(phase == "unit" or artifact == parent / "phase1-ui-diagnostics", "Phase1 diagnostic UI snapshot owner")
+    binding, event_raw, _, selection_record = phase1_worker_context(root, environment, remaining=remaining)
+    require(all(record.get(key) == value for key, value in selection_record.items()), "Phase1 diagnostic selected admission")
+    require(record["phase1Gate"] == binding and event_raw == raw
+            and (phase != "ui" or record.get("selectionID") == UI_BATCH_SELECTION_ID), "Phase1 diagnostic original event/admission")
+    for name, expected in (("phase1-original-event.json", event_raw), ("phase1-gate-plan.json", gate.canonical(plan)),
+                           ("phase1-event-binding.json", gate.canonical(binding))):
+        require(gate.regular_bytes(parent / name, limit=gate.MAX_EVENT_BYTES) == expected,
+                "Phase1 diagnostic retained event changed")
+    require(all(record.get(key) == value for key, value in source_binding(root).items()), "Phase1 diagnostic protocol source")
+    identity = phase1_observation_identity(root, parent, record)
+    require(remaining() > 0, "Phase1 diagnostic binding deadline")
+    return {"identity": identity, "phase": phase, "before": None, "after": None, "error": None}
+
+
+def phase1_diagnostic_stat(info, *, file=False):
+    require(stat.S_ISREG(info.st_mode) if file else stat.S_ISDIR(info.st_mode), "Phase1 diagnostic source type")
+    value = {"device": info.st_dev, "inode": info.st_ino, "mode": info.st_mode, "links": info.st_nlink}
+    if file:
+        require(info.st_nlink == 1 and 0 <= info.st_size <= SIMULATOR_DIAGNOSTIC_MAX_FILE_BYTES,
+                "Phase1 diagnostic source file links/size")
+        value.update(bytes=info.st_size, modifiedNS=info.st_mtime_ns, changedNS=info.st_ctime_ns)
+    return value
+
+
+def phase1_diagnostic_census(container, check):
+    """Bounded exact source snapshot. No scan/read/stat failure can omit a stream."""
+    check()
+    require(container.is_absolute() and container.resolve(strict=True) == container, "Phase1 diagnostic physical container")
+    container_id = phase1_diagnostic_stat(container.lstat())
+    leaf = container / SIMULATOR_DIAGNOSTIC_APP_DIRECTORY
+    def names():
+        check()
+        entries = []
+        with os.scandir(leaf) as scan:
+            for entry in scan:
+                check()
+                entries.append(entry.name)
+                require(len(entries) <= SIMULATOR_DIAGNOSTIC_MAX_FILES, "Phase1 diagnostic source census bound")
+        return sorted(entries)
+    def directory_identity():
+        # exists()/is_dir() may suppress permission and other lookup errors.
+        # Only actual ENOENT in the validated plain directory chain means absent.
+        current = container
+        for component in Path(SIMULATOR_DIAGNOSTIC_APP_DIRECTORY).parts:
+            check()
+            current = current / component
+            try:
+                info = current.lstat()
+            except FileNotFoundError:
+                return None
+            phase1_diagnostic_stat(info)
+        require(leaf.resolve(strict=True) == leaf, "Phase1 diagnostic physical journal directory")
+        return phase1_diagnostic_stat(info)
+    leaf_id = directory_identity()
+    listed = names() if leaf_id is not None else []
+    files, total = [], 0
+    for name in listed:
+        check()
+        require(re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\.jsonl", name), "Phase1 diagnostic source name")
+        path = leaf / name
+        identity = phase1_diagnostic_stat(path.lstat(), file=True)
+        total += identity["bytes"]
+        require(total <= SIMULATOR_DIAGNOSTIC_MAX_TOTAL_BYTES, "Phase1 diagnostic source total bytes")
+        digest, count = hashlib.sha256(), 0
+        with path.open("rb", buffering=0) as stream:
+            require(phase1_diagnostic_stat(os.fstat(stream.fileno()), file=True) == identity,
+                    "Phase1 diagnostic opened source changed")
+            while True:
+                check()
+                chunk = stream.read(SIMULATOR_DIAGNOSTIC_COPY_CHUNK_BYTES)
+                if not chunk:
+                    break
+                count += len(chunk)
+                require(count <= identity["bytes"], "Phase1 diagnostic source grew during census")
+                digest.update(chunk)
+            require(phase1_diagnostic_stat(os.fstat(stream.fileno()), file=True) == identity,
+                    "Phase1 diagnostic source changed during census")
+        require(count == identity["bytes"] and phase1_diagnostic_stat(path.lstat(), file=True) == identity,
+                "Phase1 diagnostic named source changed")
+        files.append({"name": name, "identity": identity, "sha256": digest.hexdigest().upper()})
+    check()
+    require(phase1_diagnostic_stat(container.lstat()) == container_id, "Phase1 diagnostic container changed during census")
+    if leaf_id is None:
+        require(directory_identity() is None, "Phase1 diagnostic directory appeared during census")
+    else:
+        require(directory_identity() == leaf_id and names() == listed,
+                "Phase1 diagnostic directory changed during census")
+        require(all(phase1_diagnostic_stat((leaf / item["name"]).lstat(), file=True) == item["identity"] for item in files),
+                "Phase1 diagnostic census file changed")
+    check()
+    return {"containerPath": str(container), "containerIdentity": container_id,
+            "directoryPath": str(leaf), "directoryIdentity": leaf_id, "files": files}
+
+
+def phase1_diagnostic_lookup(environment, run, remaining, lookup_seconds):
+    result = run(["xcrun", "simctl", "get_app_container", environment["CI_SIMULATOR_UDID"],
+                  SIMULATOR_DIAGNOSTIC_APP_BUNDLE_ID, "data"], capture_output=True, text=True,
+                 timeout=min(lookup_seconds, remaining()), check=False)
+    require(remaining() > 0 and result.returncode == 0 and result.stderr == ""
+            and result.stdout.endswith("\n") and result.stdout.count("\n") == 1, "Phase1 diagnostic final container lookup")
+    return Path(result.stdout[:-1])
+
+
 def collect_simulator_diagnostic_transport(root, artifact, environment, interrupted=False,
+                                           run=None, monotonic=time.monotonic, read_chunk=None,
+                                           phase1_admission_artifact=None, _started=None):
+    """Select actual gate provenance within the same collection clock, never by a bool."""
+    require(type(interrupted) is bool, "diagnostic interruption mode")
+    started = monotonic() if _started is None else _started
+    require(type(started) in (int, float) and math.isfinite(started) and started <= monotonic(), "diagnostic original start")
+    work = SIMULATOR_DIAGNOSTIC_INTERRUPTED_WORK_SECONDS if interrupted else SIMULATOR_DIAGNOSTIC_WORK_SECONDS
+    def remaining():
+        _require_collection_time(started, monotonic, work)
+        return work - (monotonic() - started)
+    session = None
+    try:
+        with _diagnostic_real_time_limit(remaining()):
+            session = phase1_diagnostic_mode(root, artifact, environment, phase1_admission_artifact, remaining)
+    except (_DiagnosticCollectionDeadline, OSError, subprocess.SubprocessError, ValueError, TypeError, KeyError) as error:
+        session = {"identity": None, "phase": "ui" if phase1_admission_artifact is not None else "unit",
+                   "before": None, "after": None, "error": "Phase1 diagnostic binding incomplete: " + str(error)[:1000]}
+    return _collect_simulator_diagnostic_transport(root, artifact, environment, interrupted=interrupted,
+        run=run or subprocess.run, monotonic=monotonic, read_chunk=read_chunk,
+        _phase1=session, _started=started if session is not None else None)
+
+
+def _collect_simulator_diagnostic_transport(root, artifact, environment, interrupted=False,
                                            run=subprocess.run, monotonic=time.monotonic,
-                                           read_chunk=None):
+                                           read_chunk=None, _phase1=None, _started=None):
     """Collect closed app-container originals; never parse, repair, or infer a PASS."""
     require(type(interrupted) is bool, "diagnostic interruption mode")
     collection_seconds = (SIMULATOR_DIAGNOSTIC_INTERRUPTED_COLLECTION_SECONDS if interrupted
@@ -1076,7 +1228,7 @@ def collect_simulator_diagnostic_transport(root, artifact, environment, interrup
                     else SIMULATOR_DIAGNOSTIC_WORK_SECONDS)
     lookup_seconds = (SIMULATOR_DIAGNOSTIC_INTERRUPTED_LOOKUP_SECONDS if interrupted
                       else SIMULATOR_DIAGNOSTIC_LOOKUP_SECONDS)
-    started = monotonic()
+    started = monotonic() if _started is None else _started
     source_path = root / SIMULATOR_DIAGNOSTIC_SOURCE_PATH
     source_sha = None
     udid = environment.get("CI_SIMULATOR_UDID")
@@ -1101,7 +1253,12 @@ def collect_simulator_diagnostic_transport(root, artifact, environment, interrup
     originals = []
     active = None
     require(artifact.is_dir() and not artifact.is_symlink(), "diagnostic artifact directory")
-    _write_transport_status(artifact, base)
+    if _phase1 is None:
+        _write_transport_status(artifact, base)
+    else:
+        with _diagnostic_real_time_limit(collection_seconds - (monotonic() - started)):
+            _write_transport_status(artifact, base)
+            _require_collection_time(started, monotonic, collection_seconds)
     def retain(status, error):
         base.update({
             "status": status,
@@ -1147,13 +1304,20 @@ def collect_simulator_diagnostic_transport(root, artifact, environment, interrup
                     "diagnostic app container")
             require(container.resolve(strict=True) == container, "diagnostic physical app container")
             leaf = container / SIMULATOR_DIAGNOSTIC_APP_DIRECTORY
-            if leaf.exists() or leaf.is_symlink():
-                require(leaf.is_dir() and not leaf.is_symlink() and leaf.resolve(strict=True) == leaf,
-                        "unsafe diagnostic app directory")
-                entries = sorted(leaf.iterdir(), key=lambda value: value.name)
+            if _phase1 is None:
+                if leaf.exists() or leaf.is_symlink():
+                    require(leaf.is_dir() and not leaf.is_symlink() and leaf.resolve(strict=True) == leaf,
+                            "unsafe diagnostic app directory")
+                    entries = sorted(leaf.iterdir(), key=lambda value: value.name)
+                else:
+                    entries = []
+                require(len(entries) <= SIMULATOR_DIAGNOSTIC_MAX_FILES, "diagnostic transport file count")
             else:
-                entries = []
-            require(len(entries) <= SIMULATOR_DIAGNOSTIC_MAX_FILES, "diagnostic transport file count")
+                # Even an unresolved gate session must enumerate with the bound.
+                # Never materialize the legacy directory list before this census.
+                _phase1["before"] = phase1_diagnostic_census(container,
+                    lambda: _require_collection_time(started, monotonic, work_seconds))
+                entries = [leaf / item["name"] for item in _phase1["before"]["files"]]
             output_dir.mkdir(mode=0o700)
             total = 0
             name_pattern = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\.jsonl")
@@ -1172,6 +1336,9 @@ def collect_simulator_diagnostic_transport(root, artifact, environment, interrup
                 digest = hashlib.sha256()
                 active = {"name": source.name, "bytes": 0, "sha256": digest.hexdigest().upper()}
                 with source.open("rb", buffering=0) as incoming, target.open("xb", buffering=0) as outgoing:
+                    if _phase1 is not None:
+                        require(phase1_diagnostic_stat(os.fstat(incoming.fileno()), file=True)
+                                == phase1_diagnostic_stat(info, file=True), "Phase1 diagnostic opened copy source changed")
                     while True:
                         _require_collection_time(started, monotonic, work_seconds)
                         chunk = reader(incoming, SIMULATOR_DIAGNOSTIC_COPY_CHUNK_BYTES)
@@ -1201,6 +1368,18 @@ def collect_simulator_diagnostic_transport(root, artifact, environment, interrup
                 require(originals[-1]["bytes"] == info.st_size,
                         "diagnostic transport copy size")
             _require_collection_time(started, monotonic, work_seconds)
+            if _phase1 is not None:
+                require(_phase1["error"] is None, _phase1["error"] or "Phase1 diagnostic binding")
+                def remaining():
+                    _require_collection_time(started, monotonic, work_seconds)
+                    return work_seconds - (monotonic() - started)
+                final_container = phase1_diagnostic_lookup(environment, run, remaining, lookup_seconds)
+                _phase1["after"] = phase1_diagnostic_census(final_container,
+                    lambda: _require_collection_time(started, monotonic, work_seconds))
+                require(_phase1["before"] == _phase1["after"], "Phase1 diagnostic source/container changed during copy")
+                expected = [{"name": item["name"], "bytes": item["identity"]["bytes"], "sha256": item["sha256"]}
+                            for item in _phase1["before"]["files"]]
+                require(expected == originals, "Phase1 diagnostic retained copy differs from source census")
             base.update({
                 "status": "INTERRUPTED" if interrupted else ("AVAILABLE" if originals else "ZERO_USE"),
                 "files": originals,
@@ -1217,11 +1396,26 @@ def collect_simulator_diagnostic_transport(root, artifact, environment, interrup
         base["status"] = "INTERRUPTED" if interrupted else (
             "UNAVAILABLE" if "unavailable" in str(error) else "UNSAFE")
         base["error"] = str(error)
+        if _phase1 is not None:
+            _phase1["error"] = str(error)[:1000]
         base["files"] = originals
         base["fileCount"] = len(originals)
         base["totalBytes"] = sum(value["bytes"] for value in originals)
         base["inventorySHA256"] = sha256(canonical(originals))
-    _write_transport_status(artifact, base, replace=True)
+    if _phase1 is None:
+        _write_transport_status(artifact, base, replace=True)
+    else:
+        # This uses only the incumbent reserved margin, never a fresh deadline.
+        with _diagnostic_real_time_limit(collection_seconds - (monotonic() - started)):
+            _require_collection_time(started, monotonic, collection_seconds)
+            _write_transport_status(artifact, base, replace=True)
+            value = {"schema": PHASE1_DIAGNOSTIC_INTERVAL_SCHEMA, **_phase1,
+                "status": "COPY_INTERVAL_OBSERVED" if not interrupted and _phase1["error"] is None else "INCOMPLETE",
+                "interrupted": interrupted, "collectionBoundSeconds": collection_seconds, "workBoundSeconds": work_seconds,
+                "preReceiptElapsedSeconds": monotonic() - started,
+                "transportSHA256": sha256(canonical(base)), "copyIntervalOnly": True, "allLifetimesProven": False}
+            load_phase1_gates(root).write_immutable(artifact / PHASE1_DIAGNOSTIC_INTERVAL, canonical(value))
+            _require_collection_time(started, monotonic, collection_seconds)
     return base
 
 
@@ -1454,6 +1648,209 @@ def persist_simulator_diagnostic_observations(root, artifact, record):
     if parse_error is not None:
         raise ValueError("invalid V23 native evidence: simulator diagnostic transport parse") from parse_error
     return evidence
+
+
+def phase1_collect_ui_snapshot(root, artifact, record, environment, *, exit_status, interrupted):
+    """Second immutable phase; all setup/binding/copy/fsync shares the existing budget."""
+    started = time.monotonic()
+    require(type(interrupted) is bool, "Phase1 UI interruption mode")
+    bound = SIMULATOR_DIAGNOSTIC_INTERRUPTED_COLLECTION_SECONDS if interrupted else SIMULATOR_DIAGNOSTIC_COLLECTION_SECONDS
+    work = SIMULATOR_DIAGNOSTIC_INTERRUPTED_WORK_SECONDS if interrupted else SIMULATOR_DIAGNOSTIC_WORK_SECONDS
+    with _diagnostic_real_time_limit(work - (time.monotonic() - started)):
+        identity = phase1_observation_identity(root, artifact, record)
+        require(record.get("selectionID") == UI_BATCH_SELECTION_ID
+                and (exit_status is None or type(exit_status) is int), "Phase1 UI finalization identity")
+        snapshot = artifact / "phase1-ui-diagnostics"
+        snapshot.mkdir(mode=0o700)
+        gate = load_phase1_gates(root)
+        write_new_evidence(snapshot / "simulator-selection.txt", gate.regular_bytes(artifact / "simulator-selection.txt"))
+        _require_collection_time(started, time.monotonic, work)
+    transport = collect_simulator_diagnostic_transport(root, snapshot, environment, interrupted=interrupted,
+        phase1_admission_artifact=artifact, _started=started)
+    with _diagnostic_real_time_limit(bound - (time.monotonic() - started)):
+        value = {"schema": "v23-phase1-ui-finalization.v1", **identity,
+                 "phase": "ui", "nativeExitStatus": exit_status, "interrupted": interrupted,
+                 "transportSHA256": sha256(gate.regular_bytes(snapshot / SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS,
+                                                              limit=PHASE1_WITNESS_BYTES)),
+                 "transportStatus": transport["status"], "allLifetimesProven": False,
+                 "countsAreTotalInvocations": False, "trailingRepeatCountsMayBeUnobserved": True}
+        gate.write_immutable(snapshot / "phase1-ui-finalization.json", canonical(value))
+        _require_collection_time(started, time.monotonic, bound)
+    if exit_status == 0 and not interrupted:
+        require(transport["status"] in ("AVAILABLE", "ZERO_USE"), "Phase1 UI diagnostic transport incomplete")
+    return value
+
+
+def phase1_seal_ui_log(root, artifact, record):
+    """Called after the outer tee exits, never seal a live partial console log."""
+    gate = load_phase1_gates(root)
+    snapshot = artifact / "phase1-ui-diagnostics"
+    require(snapshot.is_dir() and not snapshot.is_symlink(), "Phase1 UI final snapshot")
+    write_new_evidence(snapshot / "test-smoke.log",
+                       gate.regular_bytes(artifact / "ui-smoke.log", limit=SHARED_MAX_TEST_LOG_BYTES))
+    return persist_simulator_diagnostic_observations(root, snapshot, record)
+
+
+
+def phase1_retained_diagnostic_interval(root, artifact, snapshot, record, phase, transport):
+    """Recompute a bound copy interval, never reopen the original app container."""
+    gate = load_phase1_gates(root)
+    raw = gate.regular_bytes(snapshot / PHASE1_DIAGNOSTIC_INTERVAL, limit=PHASE1_WITNESS_BYTES)
+    value = gate.decode(raw, limit=PHASE1_WITNESS_BYTES)
+    require(type(value) is dict and set(value) == {"schema", "identity", "phase", "before", "after", "error",
+        "status", "interrupted", "collectionBoundSeconds", "workBoundSeconds", "preReceiptElapsedSeconds",
+        "transportSHA256", "copyIntervalOnly", "allLifetimesProven"}, "Phase1 closed diagnostic interval")
+    gate.exact({key: value[key] for key in ("schema", "identity", "phase", "error", "status", "interrupted",
+               "collectionBoundSeconds", "workBoundSeconds", "transportSHA256", "copyIntervalOnly", "allLifetimesProven")},
+        {"schema": PHASE1_DIAGNOSTIC_INTERVAL_SCHEMA, "identity": phase1_observation_identity(root, artifact, record),
+         "phase": phase, "error": None, "status": "COPY_INTERVAL_OBSERVED", "interrupted": False,
+         "collectionBoundSeconds": SIMULATOR_DIAGNOSTIC_COLLECTION_SECONDS, "workBoundSeconds": SIMULATOR_DIAGNOSTIC_WORK_SECONDS,
+         "transportSHA256": sha256(canonical(transport)), "copyIntervalOnly": True, "allLifetimesProven": False},
+         "Phase1 diagnostic interval identity/status/budget")
+    elapsed = value["preReceiptElapsedSeconds"]
+    require(type(elapsed) in (int, float) and math.isfinite(elapsed)
+            and 0 <= elapsed < SIMULATOR_DIAGNOSTIC_COLLECTION_SECONDS, "Phase1 diagnostic measured interval")
+    gate.exact(value["before"], value["after"], "Phase1 diagnostic source interval changed")
+    census = value["before"]
+    require(type(census) is dict and set(census) == {"containerPath", "containerIdentity", "directoryPath", "directoryIdentity", "files"},
+            "Phase1 closed source census")
+    for key in ("containerPath", "directoryPath"):
+        path = census[key]
+        require(type(path) is str and path.startswith("/") and "\x00" not in path
+                and all(p not in (".", "..") for p in path.split("/")), "Phase1 source census path")
+    require(census["directoryPath"] == census["containerPath"].rstrip("/") + "/" + SIMULATOR_DIAGNOSTIC_APP_DIRECTORY,
+            "Phase1 source journal owner")
+    def identity(item, file=False):
+        keys = {"device", "inode", "mode", "links"} | ({"bytes", "modifiedNS", "changedNS"} if file else set())
+        require(type(item) is dict and set(item) == keys and all(type(v) is int and v >= 0 for v in item.values())
+                and item["inode"] > 0 and item["links"] > 0
+                and (stat.S_ISREG(item["mode"]) if file else stat.S_ISDIR(item["mode"])), "Phase1 retained source identity")
+        if file:
+            require(item["links"] == 1 and item["bytes"] <= SIMULATOR_DIAGNOSTIC_MAX_FILE_BYTES,
+                    "Phase1 retained source links/size")
+    identity(census["containerIdentity"])
+    if census["directoryIdentity"] is not None:
+        identity(census["directoryIdentity"])
+    files = census["files"]
+    require(type(files) is list and len(files) <= SIMULATOR_DIAGNOSTIC_MAX_FILES
+            and (census["directoryIdentity"] is not None or not files), "Phase1 retained source census bound")
+    expected, names = [], []
+    for item in files:
+        require(type(item) is dict and set(item) == {"name", "identity", "sha256"}
+                and type(item["name"]) is str
+                and re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\.jsonl", item["name"])
+                and gate.digest(item["sha256"]), "Phase1 retained stream census")
+        identity(item["identity"], file=True)
+        expected.append({"name": item["name"], "bytes": item["identity"]["bytes"], "sha256": item["sha256"]})
+        names.append(item["name"])
+    require(names == sorted(set(names)) and sum(i["bytes"] for i in expected) <= SIMULATOR_DIAGNOSTIC_MAX_TOTAL_BYTES,
+            "Phase1 retained complete stream census")
+    gate.exact(expected, transport["files"], "Phase1 retained copy/source census")
+    # The existing strict transport parser checks the actual copied files and
+    # their complete framed bytes, not just this observation's inventory hash.
+    return {"observationSHA256": sha256(raw), "copyIntervalOnly": True, "allLifetimesProven": False}
+
+def phase1_retained_diagnostic_facts(root, artifact, record, expected_binding):
+    """Pure retained facts, never functional qualification or invocation totals.
+
+    The caller must first authenticate expected_binding against the original
+    event, root attempt and API identity. Complete worker/collector activation is
+    deliberately disabled. This primitive cannot prove unobserved app lifetimes
+    or replace the independently reviewed cold execution/retention proof.
+    """
+    gate = load_phase1_gates(root)
+    require(type(expected_binding) is dict and expected_binding.get("schema") == gate.EVENT_SCHEMA,
+            "Phase1 expected event binding")
+    plan = gate.validate_plan(expected_binding.get("plan"))
+    require(record.get("phase1Gate") == expected_binding
+            and expected_binding.get("planSHA256") == gate.sha(gate.canonical(plan))
+            and (record.get("head"), record.get("ref"), record.get("runID"), record.get("runAttempt"))
+            == (plan["head"], plan["ref"], expected_binding.get("runID"), "1")
+            and expected_binding.get("functionalQualification") == gate.PENDING,
+            "Phase1 diagnostic original binding")
+    require(record.get("selectionID") == plan["selection"], "Phase1 diagnostic selection")
+    role = shared_role(record) if plan["selection"] == SHARED_SELECTION_ID else "rui1"
+    if role == "producer":
+        require(not any((artifact / name).exists() or (artifact / name).is_symlink() for name in (
+            "test-smoke.log", "UnitTests.xcresult", "unit-test-results.json",
+            SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS, SIMULATOR_DIAGNOSTIC_OUTPUT, "phase1-ui-diagnostics")),
+            "Phase1 producer has no test diagnostics")
+        return {"schema": "v23-phase1-retained-diagnostics.v1", "planSHA256": expected_binding["planSHA256"],
+                "status": "NOT_APPLICABLE_BUILD_ONLY", "phases": {}, "uniqueRetainedFrames": 0,
+                "countsAsPerKindProtectionSuccess": False, "functionalQualification": gate.PENDING,
+                "simulatorProtection": "UNSUPPORTED", "physicalProtection": "UNVERIFIED/DEFERRED",
+                "physicalProtectionReleaseBlocker": True, "providerQualification": False,
+                "acceptance": False, "releaseReady": False}
+    phases = [("unit", artifact, "test-smoke.log")]
+    if role == "rui1":
+        phases.append(("ui", artifact / "phase1-ui-diagnostics", "ui-smoke.log"))
+    else:
+        require(not (artifact / "phase1-ui-diagnostics").exists()
+                and not (artifact / "phase1-ui-diagnostics").is_symlink(), "unexpected Phase1 UI diagnostics")
+    facts, frames, streams_by_phase = {}, {}, {}
+    for phase, snapshot, original_log in phases:
+        require(snapshot.is_dir() and not snapshot.is_symlink(), "Phase1 " + phase + " diagnostic snapshot")
+        raw_log = gate.regular_bytes(artifact / original_log, limit=SHARED_MAX_TEST_LOG_BYTES)
+        require(b"V23_PROTECTED_FILE_DIAGNOSTIC_JOURNAL_FAILURE" not in raw_log,
+                "Phase1 " + phase + " diagnostic writer failure/poison")
+        if phase == "ui":
+            final_raw = gate.regular_bytes(snapshot / "phase1-ui-finalization.json", limit=PHASE1_WITNESS_BYTES)
+            final = gate.decode(final_raw, limit=PHASE1_WITNESS_BYTES)
+            identity = phase1_observation_identity(root, artifact, record)
+            expected_final = {"schema": "v23-phase1-ui-finalization.v1", **identity,
+                "phase": "ui", "nativeExitStatus": 0, "interrupted": False,
+                "transportSHA256": sha256(gate.regular_bytes(snapshot / SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS,
+                                                             limit=PHASE1_WITNESS_BYTES)),
+                "transportStatus": read_json(snapshot / SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS)["status"],
+                "allLifetimesProven": False, "countsAreTotalInvocations": False,
+                "trailingRepeatCountsMayBeUnobserved": True}
+            gate.exact(final, expected_final, "Phase1 completed UI finalization")
+            # A sealed byte alias lets the unchanged strict parser read its closed
+            # log name. It cannot substitute the earlier unit log for the UI log.
+            require(gate.regular_bytes(snapshot / "test-smoke.log", limit=SHARED_MAX_TEST_LOG_BYTES) == raw_log,
+                    "Phase1 UI original log alias")
+            require(gate.regular_bytes(snapshot / "simulator-selection.txt")
+                    == gate.regular_bytes(artifact / "simulator-selection.txt"), "Phase1 UI Simulator binding")
+        evidence, error = simulator_diagnostic_observations(root, snapshot, record)
+        require(error is None and evidence["parseStatus"] == "PASS"
+                and evidence["testLog"]["availability"] == "AVAILABLE",
+                "Phase1 " + phase + " complete emitted diagnostic transport")
+        require(read_json(snapshot / SIMULATOR_DIAGNOSTIC_OUTPUT) == evidence,
+                "Phase1 " + phase + " retained diagnostic recomputation")
+        require(evidence["transport"].get("schema") == SIMULATOR_DIAGNOSTIC_TRANSPORT_SCHEMA
+                and evidence["transport"].get("collectionMode") == "completed",
+                "Phase1 " + phase + " completed original transport")
+        interval = phase1_retained_diagnostic_interval(root, artifact, snapshot, record, phase, evidence["transport"])
+        phase_frames = {}
+        for frame in evidence.get("rawRecords", []):
+            key = (frame["streamID"], frame["sequence"])
+            require(key not in phase_frames, "Phase1 duplicate diagnostic frame")
+            phase_frames[key] = frame
+            require(key not in frames or frames[key] == frame, "Phase1 substituted diagnostic prefix")
+        streams_by_phase[phase] = {key[0] for key in phase_frames}
+        if phase == "ui":
+            # Streams absent after an installation/erase remain retained in the
+            # immutable unit snapshot. Any stream that survives must retain its
+            # complete prior prefix. Cold review must establish lifecycle scope.
+            require(all(key in phase_frames for key in frames if key[0] in streams_by_phase[phase]),
+                    "Phase1 truncated surviving diagnostic stream")
+        frames.update(phase_frames)
+        facts[phase] = {"copyInterval": interval, "originalLog": original_log, "originalLogSHA256": sha256(raw_log),
+                       "transportSHA256": sha256((snapshot / SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS).read_bytes()),
+                       "observationsSHA256": sha256(canonical(evidence)), "retainedFrames": len(phase_frames),
+                       "retainedOccurrences": evidence["occurrenceCount"],
+                       "zeroUseObserved": evidence["zeroUseObserved"]}
+    return {"schema": "v23-phase1-retained-diagnostics.v1", "planSHA256": expected_binding["planSHA256"],
+            "status": "COMPLETE_RETAINED_EMITTED_TRANSPORT", "phases": facts,
+            "uniqueRetainedFrames": len(frames),
+            "unitStreamsRetainedOnlyInEarlierSnapshot": sorted(streams_by_phase["unit"] - streams_by_phase.get("ui", set()))
+                if role == "rui1" else [],
+            "phaseOccurrenceCountsAreAdditive": False, "countsAreTotalInvocations": False,
+            "trailingRepeatCountsMayBeUnobserved": True, "allLifetimesProven": False,
+            "countsAsPerKindProtectionSuccess": False, "simulatorProtection": "UNSUPPORTED",
+            "physicalProtection": "UNVERIFIED/DEFERRED", "physicalProtectionReleaseBlocker": True,
+            "providerQualification": False, "acceptance": False, "releaseReady": False,
+            "functionalQualification": gate.PENDING}
 
 
 def development_batch_question(value):
@@ -2521,11 +2918,63 @@ def selected_input(root, environment):
     return selected, record
 
 
+def load_phase1_gates(root):
+    path = root / "Scripts/v23-phase1-gates.py"
+    require(path.is_file() and not path.is_symlink(), "Phase1 contract source")
+    spec = importlib.util.spec_from_file_location("v23_phase1_gates_native", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def refuse_inactive_phase1_event(root, environment):
+    """A manual workflow invocation cannot bypass the inactive dispatcher guard.
+
+    Empty/absent plan keeps existing native admission and output unchanged. No
+    environment-only plan or protection override can activate this route.
+    """
+    event_path = environment.get("GITHUB_EVENT_PATH")
+    if event_path is None:
+        return
+    gate = load_phase1_gates(root)
+    plan, _ = gate.plan_from_event(gate.regular_bytes(Path(event_path), limit=gate.MAX_EVENT_BYTES))
+    if plan is not None:
+        binding, _, _, _ = phase1_worker_context(root, environment)
+        gate.refuse_dispatch()
+        return binding  # Dormant until the independently reviewed activation change.
+
+
+def phase1_worker_context(root, environment, *, remaining=None):
+    """Read actual caller event and checkout facts, not caller-supplied hashes.
+
+    Used by the retained-proof caller as well as the future admitted worker. It
+    does not create an original or bypass refuse_inactive_phase1_event.
+    """
+    gate = load_phase1_gates(root)
+    event_path = environment.get("GITHUB_EVENT_PATH")
+    require(type(event_path) is str and event_path, "Phase1 actual caller event path")
+    raw = gate.regular_bytes(Path(event_path), limit=gate.MAX_EVENT_BYTES)
+    plan, _ = gate.plan_from_event(raw)
+    require(plan is not None, "Phase1 actual caller plan")
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True,
+                                   **({"timeout": remaining()} if remaining is not None else {})).strip()
+    tree = subprocess.check_output(["git", "rev-parse", "HEAD^{tree}"], cwd=root, text=True,
+                                   **({"timeout": remaining()} if remaining is not None else {})).strip()
+    selected, selection_record = selected_input(root, environment)
+    require(selection_record["selectionID"] == plan["selection"], "Phase1 actual worker selection")
+    resolved = shared_selection(root) if plan["selection"] == SHARED_SELECTION_ID else selected
+    sources = {path: sha256(gate.regular_bytes(root / path, limit=PHASE1_WITNESS_BYTES)) for path in gate.SOURCES}
+    binding = gate.bind_original_event(raw, environment, head=head, tree=tree,
+                                      resolved_bytes=canonical(resolved), sources=sources)
+    return binding, raw, selected, selection_record
+
+
 def admission(selection, environment, checkout_head, stage, selection_record=None, root=None):
     """Validate actual source inputs. Return None only for unchanged legacy routes."""
     e = environment
     if root is None:
         root = Path(__file__).resolve().parents[1]
+    phase1_binding = refuse_inactive_phase1_event(root, e)
     if selection_record is None:
         selection_record = {"selectionID": DEFAULT_SELECTION_ID,
                             "selectionSHA256": sha256(canonical(selection)), "selectionMapSHA256": ""}
@@ -2688,6 +3137,7 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
                                            cwd=root, text=True).strip()
             require(tree == expected_tree, "no-index unchanged app/tests/project")
     return {"contractID": CONTRACT, "taskID": TASK, "repository": REPOSITORY,
+            **({"phase1Gate": phase1_binding} if phase1_binding is not None else {}),
             "ref": e["GITHUB_REF"], "head": head, "runID": e["GITHUB_RUN_ID"],
             "runAttempt": e["GITHUB_RUN_ATTEMPT"], "executionLane": lane,
             "runnerProvider": provider, "runnerLabel": label, **selection_record,
@@ -3185,6 +3635,412 @@ def shared_metadata_identity(root, record, artifact, environment):
             "developmentOnly": True, "acceptance": False}
 
 
+PHASE1_WITNESS_SCHEMA = "v23-phase1-shared-live-observation.v1"
+PHASE1_WITNESS_STAGES = ("seal", "restore", "before", "after")
+PHASE1_WITNESS_BYTES = 32 * 1024 * 1024
+PHASE1_WITNESS_ENTRIES = 100000
+PHASE1_ACTIVITY_TOTAL_BYTES = 128 * 1024 * 1024
+
+
+def phase1_observation_identity(root, artifact, record):
+    """Source binding only; root/API authentication remains the collector's duty."""
+    gate = load_phase1_gates(root)
+    binding = record.get("phase1Gate")
+    require(type(binding) is dict and binding.get("schema") == gate.EVENT_SCHEMA,
+            "Phase1 live observation event")
+    plan = gate.validate_plan(binding.get("plan"))
+    require((record.get("head"), record.get("gitTree"), record.get("ref"), record.get("selectionID"))
+            == (plan["head"], plan["tree"], plan["ref"], plan["selection"])
+            and binding.get("planSHA256") == gate.sha(gate.canonical(plan))
+            and binding.get("runID") == record.get("runID")
+            and record.get("runAttempt") == binding.get("runAttempt") == "1"
+            and binding.get("functionalQualification") == gate.PENDING,
+            "Phase1 live observation original identity")
+    require(plan["sources"] == {path: sha256(gate.regular_bytes(root / path, limit=PHASE1_WITNESS_BYTES))
+                                 for path in gate.SOURCES}, "Phase1 live observation source closure")
+    require(gate.regular_bytes(artifact / "native-admission.json", limit=PHASE1_WITNESS_BYTES)
+            == canonical(record), "Phase1 live observation admission bytes")
+    return {"eventBindingSHA256": sha256(gate.canonical(binding)),
+            "admissionSHA256": sha256(canonical(record)), "planSHA256": binding["planSHA256"],
+            "head": record["head"], "gitTree": record["gitTree"], "ref": record["ref"],
+            "runID": record["runID"], "runAttempt": "1", "sourceSHA256": plan["sources"],
+            "functionalQualification": gate.PENDING, "executionScope": "phase1-functional-gate",
+            "offlineFilesystemReplay": False, "simulatorProtection": "UNSUPPORTED",
+            "physicalProtection": "UNVERIFIED/DEFERRED", "physicalProtectionReleaseBlocker": True,
+            "acceptance": False, "providerQualification": False, "releaseReady": False}
+
+
+def phase1_relative_path(value):
+    require(type(value) is str and value and "\\" not in value and "\x00" not in value
+            and not value.startswith("/") and all(part not in ("", ".", "..") for part in value.split("/")),
+            "Phase1 retained relative path")
+    return value
+
+
+def phase1_inventory(entries, *, products=False):
+    """Closed retained census. Never silently truncate or treat links as files."""
+    require(type(entries) is list and len(entries) <= PHASE1_WITNESS_ENTRIES,
+            "Phase1 complete inventory bound")
+    prior, folded = None, set()
+    for entry in entries:
+        require(type(entry) is dict, "Phase1 inventory entry")
+        path = phase1_relative_path(entry.get("path"))
+        require((prior is None or prior < path) and path.casefold() not in folded,
+                "Phase1 inventory order or duplicate")
+        prior = path
+        folded.add(path.casefold())
+        kind = entry.get("type")
+        keys = {"path", "type"} | ({"mode"} if products else set())
+        if kind == "file":
+            keys |= {"size", "sha256"}
+            require(type(entry.get("size")) is int and entry["size"] >= 0
+                    and type(entry.get("sha256")) is str
+                    and re.fullmatch(r"[0-9A-F]{64}", entry["sha256"]), "Phase1 inventory file")
+        else:
+            require(kind == "directory", "Phase1 inventory nonregular entry")
+        require(set(entry) == keys, "Phase1 inventory closed keys")
+        if products:
+            require(type(entry["mode"]) is int and 0 <= entry["mode"] <= 0o777,
+                    "Phase1 inventory mode")
+    require(len(canonical(entries)) <= PHASE1_WITNESS_BYTES, "Phase1 complete inventory byte bound")
+    return entries
+
+
+def phase1_live_inventory(root, kernel, *, products=False, skip=None):
+    """Gate-local census: scan/stat/read errors propagate, including denied children.
+
+    Keep the legacy walkers and receipts unchanged. Products use their existing
+    kernel schema and limits; DerivedData excludes only the product subtree.
+    This witnesses the live tree, not a later offline filesystem replay.
+    """
+    root_stat = root.lstat()
+    require(stat.S_ISDIR(root_stat.st_mode) and root.resolve() == root, "Phase1 census root")
+    entries, pending, folded, total = [], [(root, root_stat)], set(), 0
+    member_limit = min(PHASE1_WITNESS_ENTRIES, kernel["MAX_MEMBERS"]) if products else PHASE1_WITNESS_ENTRIES
+    while pending:
+        directory, expected = pending.pop()
+        current = directory.lstat()
+        require(stat.S_ISDIR(current.st_mode) and (current.st_dev, current.st_ino)
+                == (expected.st_dev, expected.st_ino), "Phase1 census directory changed")
+        # os.walk/rglob may swallow scandir errors and return a partial tree.
+        children = []
+        with os.scandir(directory) as scan:
+            for child in scan:
+                children.append(child)
+                require(len(children) + len(entries) <= member_limit + (1 if skip else 0),
+                        "Phase1 live census member bound")
+        for child in sorted(children, key=lambda item: item.name):
+            path = directory / child.name
+            info = path.lstat()
+            relative = path.relative_to(root).as_posix()
+            phase1_relative_path(relative)
+            require(relative.casefold() not in folded, "Phase1 live census case collision")
+            folded.add(relative.casefold())
+            require(stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode),
+                    "Phase1 live census nonregular entry")
+            if path == skip:
+                require(stat.S_ISDIR(info.st_mode), "Phase1 census excluded product root")
+                continue
+            entry = {"path": relative, "type": "directory"}
+            if products:
+                kernel["safe_relative"](relative)
+                require(not stat.S_IMODE(info.st_mode) & 0o7000, "Phase1 census special permissions")
+                entry["mode"] = stat.S_IMODE(info.st_mode)
+            if stat.S_ISDIR(info.st_mode):
+                pending.append((path, info))
+            else:
+                total += info.st_size
+                require(not products or total <= kernel["MAX_ARCHIVE_BYTES"], "Phase1 live census byte bound")
+                digest = hashlib.sha256()
+                with path.open("rb") as stream:
+                    opened = os.fstat(stream.fileno())
+                    require(stat.S_ISREG(opened.st_mode) and
+                            (opened.st_dev, opened.st_ino, opened.st_size, opened.st_mtime_ns)
+                            == (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns),
+                            "Phase1 census file changed before read")
+                    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                        digest.update(chunk)
+                    after = os.fstat(stream.fileno())
+                    require((after.st_size, after.st_mtime_ns) == (info.st_size, info.st_mtime_ns),
+                            "Phase1 census file changed during read")
+                entry.update(type="file", size=info.st_size, sha256=digest.hexdigest().upper())
+            entries.append(entry)
+            require(len(entries) <= member_limit, "Phase1 live census member bound")
+    return phase1_inventory(sorted(entries, key=lambda item: item["path"]), products=products)
+
+
+def phase1_product_inventory(root, kernel):
+    entries = phase1_live_inventory(root, kernel, products=True)
+    require(entries == kernel["inventory"](root), "Phase1 product census differs from kernel")
+    return entries
+
+
+def phase1_derived_inventory(root, kernel):
+    entries = phase1_live_inventory(root, kernel, skip=root / "Build/Products")
+    inventory = {item["path"]: {key: value for key, value in item.items() if key != "path"} for item in entries}
+    require(inventory == shared_derived_inventory(root), "Phase1 DerivedData census differs from fingerprint")
+    return inventory
+
+
+def phase1_tar_census(path, kernel):
+    entries = []
+    with tarfile.open(path, "r:") as archive:
+        for member in archive:
+            require(len(entries) < PHASE1_WITNESS_ENTRIES, "Phase1 archive census bound")
+            require(member.name.startswith("FieldEvidencePayload/"), "Phase1 archive root")
+            relative = phase1_relative_path(member.name.removeprefix("FieldEvidencePayload/"))
+            require(member.isdir() or member.isreg(), "Phase1 archive nonregular member")
+            require(member.size == 0 if member.isdir() else member.size >= 0, "Phase1 archive member size")
+            entries.append({"path": relative, "type": "directory" if member.isdir() else "file",
+                            "size": member.size, "mode": member.mode})
+    require(0 < len(entries) <= kernel["MAX_MEMBERS"] and len(canonical(entries)) <= PHASE1_WITNESS_BYTES,
+            "Phase1 complete archive census")
+    require([item["path"] for item in entries] == sorted({item["path"] for item in entries}),
+            "Phase1 archive census order or duplicate")
+    return entries
+
+
+def phase1_shared_live_observation(root, artifact, record, environment, stage, kernel,
+                                   *, source_before=None):
+    """Bounded live witness at an existing successful kernel/checkpoint boundary.
+
+    Raw payloads retain their existing retention policy. These observations name
+    live checks; their hashes cannot substitute for authenticated artifact origin.
+    Legacy development receipts are retained as protocol facts, never relabelled.
+    """
+    require(stage in PHASE1_WITNESS_STAGES, "Phase1 live observation stage")
+    identity = phase1_observation_identity(root, artifact, record)
+    role = shared_role(record)
+    require((stage == "seal") == (role == "producer"), "Phase1 live observation role")
+    temp = Path(environment["RUNNER_TEMP"])
+    payload = temp / SHARED_PAYLOAD_DIRECTORY if stage == "seal" else temp
+    entries = phase1_product_inventory(payload / kernel["ROOT_LABEL"], kernel)
+    products = shared_products_binding(kernel, payload)
+    require(kernel["object_sha"](entries) == products["treeSHA256"], "Phase1 live product inventory changed")
+    metadata = read_json(artifact / SHARED_PAYLOAD_METADATA)
+    require(products == metadata["products"], "Phase1 live products differ from producer")
+    value = {"schema": PHASE1_WITNESS_SCHEMA, **identity, "stage": stage, "role": role,
+             "partitionID": record[SHARED_KEY].get("partitionID"), "workspace": str(root),
+             "runnerTemp": str(temp), "artifactDirectory": str(artifact),
+             "payloadArtifactName": record[SHARED_KEY]["payloadArtifactName"],
+             "metadataSHA256": sha256((artifact / SHARED_PAYLOAD_METADATA).read_bytes()),
+             "products": products, "productInventory": entries}
+    if stage in ("seal", "restore"):
+        receipt_name = SHARED_PAYLOAD_RECEIPT if stage == "seal" else SHARED_RESTORE_RECEIPT
+        receipt = read_json(artifact / receipt_name)
+        tar = temp / (SHARED_TRANSPORT_DIRECTORY if stage == "seal" else SHARED_DOWNLOAD_DIRECTORY) / SHARED_TAR
+        require(receipt["archive"] == {"name": SHARED_TAR, "bytes": tar.stat().st_size,
+                                       "sha256": kernel["sha256_file"](tar)}, "Phase1 observed payload archive")
+        value.update(archive=receipt["archive"], archiveMemberCensus=phase1_tar_census(tar, kernel),
+                     receiptSHA256=sha256((artifact / receipt_name).read_bytes()))
+        if stage == "seal":
+            after = phase1_product_inventory(temp / "FieldEvidenceDerivedData/Build/Products", kernel)
+            require(source_before == after, "Phase1 original products changed while sealing")
+            value.update(sourceProductInventory=after, sourceUnchangedDuringSeal=True,
+                         testsExecuted=0, diagnostics="NOT_APPLICABLE_BUILD_ONLY")
+        else:
+            value.update(safeExtractionObserved=True, extractionKernelSHA256=identity["sourceSHA256"][SHARED_PAYLOAD_KERNEL])
+    else:
+        inventory = phase1_derived_inventory(temp / "FieldEvidenceDerivedData", kernel)
+        value["derivedDataInventory"] = phase1_inventory([dict(inventory[p], path=p) for p in sorted(inventory)])
+        value["fingerprintSHA256"] = sha256((artifact / ("v23-shared-fingerprint-" + stage + ".json")).read_bytes())
+        value["activityLogs"] = []
+        if stage == "after":
+            directory = artifact / "phase1-activity-logs"
+            directory.mkdir(mode=0o700)
+            total = 0
+            gate = load_phase1_gates(root)
+            for entry in value["derivedDataInventory"]:
+                if not (entry["path"].startswith("Logs/Build/") and entry["path"].endswith(".xcactivitylog")
+                        and entry["type"] == "file"):
+                    continue
+                total += entry["size"]
+                require(total <= PHASE1_ACTIVITY_TOTAL_BYTES, "Phase1 activity log retention bound")
+                raw = gate.regular_bytes(temp / "FieldEvidenceDerivedData" / entry["path"],
+                                         limit=PHASE1_ACTIVITY_TOTAL_BYTES)
+                require(len(raw) == entry["size"] and sha256(raw) == entry["sha256"],
+                        "Phase1 activity log changed during retention")
+                name = "%06d.xcactivitylog" % len(value["activityLogs"])
+                write_new_evidence(directory / name, raw)
+                require(shared_activity_log_compile_step(directory / name) is None,
+                        "Phase1 retained activity log compile evidence")
+                value["activityLogs"].append({"sourcePath": entry["path"], "retainedPath": name,
+                                              "bytes": len(raw), "sha256": sha256(raw)})
+            require(inventory == phase1_derived_inventory(temp / "FieldEvidenceDerivedData", kernel),
+                    "Phase1 DerivedData changed during retention")
+    raw = canonical(value)
+    require(len(raw) <= PHASE1_WITNESS_BYTES, "Phase1 complete live observation byte bound")
+    with (artifact / ("phase1-shared-live-" + stage + ".json")).open("xb") as stream:
+        stream.write(raw)
+        stream.flush()
+        os.fsync(stream.fileno())
+    return value
+
+
+def phase1_retained_shared_facts(root, artifact, record, expected_binding):
+    """Recompute retained facts, without opening original runner temp/payload paths.
+
+    The caller first authenticates expected_binding, artifact digests and the sole
+    root attempt. This function is not that authentication or cold qualification.
+    """
+    gate = load_phase1_gates(root)
+    require(record.get("phase1Gate") == expected_binding, "Phase1 shared expected original")
+    identity = phase1_observation_identity(root, artifact, record)
+    kernel = load_payload_kernel(root)
+    role = shared_role(record)
+    stages = ("seal",) if role == "producer" else ("restore", "before", "after")
+    metadata_raw = gate.regular_bytes(artifact / SHARED_PAYLOAD_METADATA, limit=PHASE1_WITNESS_BYTES)
+    metadata = gate.decode(metadata_raw, limit=PHASE1_WITNESS_BYTES)
+    require(all(metadata.get(key) == record.get(key) for key in ("repository", "ref", "head", "gitTree", "runID", "runAttempt"))
+            and metadata.get("payloadArtifactName") == record[SHARED_KEY]["payloadArtifactName"]
+            and metadata.get("planSHA256") == record[SHARED_KEY]["planSHA256"]
+            and metadata.get("partitionsSHA256") == record[SHARED_KEY]["partitionsSHA256"],
+            "Phase1 retained payload original identity")
+    observations = {}
+    for stage in stages:
+        raw = gate.regular_bytes(artifact / ("phase1-shared-live-" + stage + ".json"), limit=PHASE1_WITNESS_BYTES)
+        value = gate.decode(raw, limit=PHASE1_WITNESS_BYTES)
+        keys = {"schema", *identity, "stage", "role", "partitionID", "workspace", "runnerTemp",
+                "artifactDirectory", "payloadArtifactName", "metadataSHA256", "products", "productInventory"}
+        keys |= ({"archive", "archiveMemberCensus", "receiptSHA256"} if stage in ("seal", "restore")
+                 else {"derivedDataInventory", "fingerprintSHA256", "activityLogs"})
+        keys |= ({"sourceProductInventory", "sourceUnchangedDuringSeal", "testsExecuted", "diagnostics"}
+                 if stage == "seal" else {"safeExtractionObserved", "extractionKernelSHA256"}
+                 if stage == "restore" else set())
+        require(type(value) is dict and set(value) == keys and value["schema"] == PHASE1_WITNESS_SCHEMA,
+                "Phase1 closed live observation")
+        gate.exact({key: value[key] for key in identity}, identity, "Phase1 live observation identity")
+        require((value["stage"], value["role"], value["partitionID"], value["payloadArtifactName"])
+                == (stage, role, record[SHARED_KEY].get("partitionID"), record[SHARED_KEY]["payloadArtifactName"])
+                and value["metadataSHA256"] == sha256(metadata_raw), "Phase1 observation payload/role")
+        for name in ("workspace", "runnerTemp", "artifactDirectory"):
+            require(type(value[name]) is str and value[name].startswith("/") and "\x00" not in value[name]
+                    and all(part not in (".", "..") for part in value[name].split("/")),
+                    "Phase1 original runner path spelling")
+        require(value["workspace"] == metadata.get("workspace"), "Phase1 original workspace binding")
+        if observations:
+            require(all(value[key] == observations[stages[0]][key]
+                        for key in ("workspace", "runnerTemp", "artifactDirectory")),
+                    "Phase1 inconsistent live runner paths")
+        entries = phase1_inventory(value["productInventory"], products=True)
+        products = value["products"]
+        require(products == metadata["products"] and kernel["object_sha"](entries) == products["treeSHA256"]
+                and len(entries) == products["entryCount"]
+                and sum(item.get("size", 0) for item in entries) == products["fileBytes"],
+                "Phase1 retained product inventory binding")
+        xctestruns = [entry for entry in entries if entry["path"].endswith(".xctestrun") and entry["type"] == "file"]
+        require(len(xctestruns) == 1 and (xctestruns[0]["path"], xctestruns[0]["sha256"])
+                == (products["xctestrunPath"], products["xctestrunSHA256"]), "Phase1 retained xctestrun binding")
+        if stage in ("seal", "restore"):
+            receipt_name = SHARED_PAYLOAD_RECEIPT if stage == "seal" else SHARED_RESTORE_RECEIPT
+            receipt_raw = gate.regular_bytes(artifact / receipt_name, limit=PHASE1_WITNESS_BYTES)
+            receipt = gate.decode(receipt_raw, limit=PHASE1_WITNESS_BYTES)
+            require(value["receiptSHA256"] == sha256(receipt_raw) and value["archive"] == receipt["archive"]
+                    and receipt["metadataSHA256"] == value["metadataSHA256"]
+                    and receipt["productsTreeSHA256"] == products["treeSHA256"], "Phase1 retained payload receipt")
+            census = value["archiveMemberCensus"]
+            require(type(census) is list and 0 < len(census) <= PHASE1_WITNESS_ENTRIES,
+                    "Phase1 retained archive census bound")
+            paths = []
+            for item in census:
+                require(type(item) is dict and set(item) == {"path", "type", "size", "mode"}
+                        and item["type"] in ("file", "directory")
+                        and type(item["size"]) is int and item["size"] >= 0
+                        and (item["type"] != "directory" or item["size"] == 0)
+                        and type(item["mode"]) is int and 0 <= item["mode"] <= 0o777,
+                        "Phase1 retained archive member")
+                paths.append(phase1_relative_path(item["path"]))
+            require(paths == sorted(set(paths)) and len({p.casefold() for p in paths}) == len(paths),
+                    "Phase1 retained archive order/duplicate")
+            by_path = {item["path"]: item for item in census}
+            expected_paths = {"FieldEvidenceDerivedData", "FieldEvidenceDerivedData/Build", kernel["ROOT_LABEL"],
+                              SHARED_PAYLOAD_METADATA}
+            for item in entries:
+                path = kernel["ROOT_LABEL"] + "/" + item["path"]
+                expected_paths.add(path)
+                require(by_path.get(path) == {"path": path, "type": item["type"], "mode": item["mode"],
+                                               "size": item.get("size", 0)}, "Phase1 archive/product census")
+            require(set(paths) == expected_paths
+                    and by_path[SHARED_PAYLOAD_METADATA]["type"] == "file"
+                    and by_path[SHARED_PAYLOAD_METADATA]["size"] == len(metadata_raw)
+                    and all(by_path[p]["type"] == "directory" for p in
+                            ("FieldEvidenceDerivedData", "FieldEvidenceDerivedData/Build", kernel["ROOT_LABEL"])),
+                    "Phase1 complete payload root census")
+            if stage == "seal":
+                phase1_inventory(value["sourceProductInventory"], products=True)
+                require(value["sourceUnchangedDuringSeal"] is True and type(value["testsExecuted"]) is int
+                        and value["testsExecuted"] == 0 and value["diagnostics"] == "NOT_APPLICABLE_BUILD_ONLY",
+                        "Phase1 build-only seal observation")
+            else:
+                require(value["safeExtractionObserved"] is True
+                        and value["extractionKernelSHA256"] == identity["sourceSHA256"][SHARED_PAYLOAD_KERNEL],
+                        "Phase1 observed extraction kernel")
+        else:
+            inventory = phase1_inventory(value["derivedDataInventory"])
+            fingerprint_raw = gate.regular_bytes(artifact / ("v23-shared-fingerprint-" + stage + ".json"),
+                                                 limit=PHASE1_WITNESS_BYTES)
+            fingerprint = gate.decode(fingerprint_raw, limit=PHASE1_WITNESS_BYTES)
+            require(value["fingerprintSHA256"] == sha256(fingerprint_raw)
+                    and fingerprint.get("phase") == stage and fingerprint.get("matchesProducer") is True
+                    and fingerprint.get("buildEvidence") == [] and fingerprint.get("error") is None
+                    and fingerprint.get("productsTreeSHA256") == products["treeSHA256"]
+                    and fingerprint.get("xctestrunSHA256") == products["xctestrunSHA256"]
+                    and fingerprint.get("entryCount") == len(entries), "Phase1 retained fingerprint")
+            if stage == "before":
+                require(fingerprint.get("derivedDataEntries") == inventory and value["activityLogs"] == [],
+                        "Phase1 retained before inventory")
+                require(not any(item["path"] == prefix or item["path"].startswith(prefix + "/")
+                                for item in inventory for prefix in ("Logs/Build", "Build/Intermediates.noindex")),
+                        "Phase1 retained before build tree")
+            else:
+                require(fingerprint.get("matchesBefore") is True, "Phase1 retained products changed")
+                before = {item["path"]: {k: v for k, v in item.items() if k != "path"}
+                          for item in observations["before"]["derivedDataInventory"]}
+                after = {item["path"]: {k: v for k, v in item.items() if k != "path"} for item in inventory}
+                delta_raw = gate.regular_bytes(artifact / SHARED_DERIVED_DATA_DELTA, limit=PHASE1_WITNESS_BYTES)
+                delta = gate.decode(delta_raw, limit=PHASE1_WITNESS_BYTES)
+                expected_delta = shared_derived_delta(before, after)
+                require(all(delta.get(k) == v for k, v in expected_delta.items())
+                        and delta.get("beforeEntryCount") == len(before) and delta.get("afterEntryCount") == len(after)
+                        and delta.get("compileEvidence") == []
+                        and fingerprint["derivedDataDelta"]["sha256"] == sha256(delta_raw),
+                        "Phase1 complete retained DerivedData delta")
+                # Lists in the legacy delta can be capped. Full retained inventories
+                # above are authoritative for this recomputation, not capped lists.
+                require(not any(item["path"].startswith("Build/Intermediates")
+                                and item["path"].endswith(SHARED_COMPILE_OUTPUT_SUFFIXES) for item in inventory),
+                        "Phase1 retained compile output")
+                logs = [item for item in inventory if item["path"].startswith("Logs/Build/")
+                        and item["path"].endswith(".xcactivitylog") and item["type"] == "file"]
+                require(type(value["activityLogs"]) is list and len(value["activityLogs"]) == len(logs),
+                        "Phase1 complete retained activity logs")
+                total = 0
+                for index, (entry, retained) in enumerate(zip(logs, value["activityLogs"])):
+                    name = "%06d.xcactivitylog" % index
+                    require(retained == {"sourcePath": entry["path"], "retainedPath": name,
+                                         "bytes": entry["size"], "sha256": entry["sha256"]},
+                            "Phase1 activity log identity")
+                    total += entry["size"]
+                    require(total <= PHASE1_ACTIVITY_TOTAL_BYTES, "Phase1 retained activity byte bound")
+                    path = artifact / "phase1-activity-logs" / name
+                    log_raw = gate.regular_bytes(path, limit=PHASE1_ACTIVITY_TOTAL_BYTES)
+                    require(len(log_raw) == entry["size"] and sha256(log_raw) == entry["sha256"]
+                            and shared_activity_log_compile_step(path) is None, "Phase1 retained activity scan")
+                directory = artifact / "phase1-activity-logs"
+                require(directory.is_dir() and not directory.is_symlink()
+                        and sorted(p.name for p in directory.iterdir()) == ["%06d.xcactivitylog" % i for i in range(len(logs))],
+                        "Phase1 activity log directory census")
+                require(shared_test_log_compile_lines(artifact / "test-smoke.log") == []
+                        and not shared_local_build_artifacts(artifact), "Phase1 retained no-rebuild log/artifact scan")
+        observations[stage] = value
+    require(all(value["products"] == observations[stages[0]]["products"] for value in observations.values()),
+            "Phase1 products changed between observations")
+    return {"schema": "v23-phase1-retained-shared-facts.v1", **identity, "role": role,
+            "status": "COMPLETE_RETAINED_SHARED_OBSERVATIONS",
+            "liveObservationSHA256": {stage: sha256(canonical(value)) for stage, value in observations.items()},
+            "payloadArchiveRetained": False, "liveChecksIndependentlyReexecuted": False}
+
+
 def write_new_evidence(path, raw):
     with path.open("xb") as stream:
         stream.write(raw)
@@ -3201,6 +4057,8 @@ def shared_seal(root, artifact, record, environment, kernel=None):
             "shared producer has no test evidence")
     temp = Path(environment["RUNNER_TEMP"])
     source_products = temp / "FieldEvidenceDerivedData" / "Build" / "Products"
+    phase1_source_before = (phase1_product_inventory(source_products, kernel)
+                           if "phase1Gate" in record else None)
     payload_root = temp / SHARED_PAYLOAD_DIRECTORY
     transport = temp / SHARED_TRANSPORT_DIRECTORY
     require(not any(path.exists() or path.is_symlink() for path in (payload_root, transport)),
@@ -3227,6 +4085,9 @@ def shared_seal(root, artifact, record, environment, kernel=None):
                "runAttempt": record["runAttempt"], "developmentOnly": True, "acceptance": False}
     write_new_evidence(artifact / SHARED_PAYLOAD_METADATA, metadata_bytes)
     write_new_evidence(artifact / SHARED_PAYLOAD_RECEIPT, canonical(receipt))
+    if "phase1Gate" in record:
+        phase1_shared_live_observation(root, artifact, record, environment, "seal", kernel,
+                                       source_before=phase1_source_before)
     return receipt
 
 
@@ -3280,6 +4141,8 @@ def shared_restore(root, artifact, record, environment, kernel=None):
                "developmentOnly": True, "acceptance": False}
     write_new_evidence(artifact / SHARED_PAYLOAD_METADATA, metadata_bytes)
     write_new_evidence(artifact / SHARED_RESTORE_RECEIPT, canonical(receipt))
+    if "phase1Gate" in record:
+        phase1_shared_live_observation(root, artifact, record, environment, "restore", kernel)
     return receipt
 
 
@@ -3347,6 +4210,8 @@ def shared_fingerprint(root, artifact, record, environment, phase, kernel=None):
     require(not build_evidence, "shared consumer build evidence present: " + ", ".join(build_evidence))
     require(value["matchesProducer"], "shared products differ from the producer's")
     require(phase == "before" or value["matchesBefore"], "shared products changed during the tests")
+    if "phase1Gate" in record:
+        phase1_shared_live_observation(root, artifact, record, environment, phase, kernel)
     return value
 
 
@@ -3535,6 +4400,13 @@ def verify_checkpoint(root, artifact, record, selection, environment, *, retaine
                 and activation.count("benchmark_phase=established") == activation.count("activation_exit=0")
                 and activation.count("cache=true") == activation.count("activation_exit=0")
                 and activation.count("cache_push=true") == activation.count("activation_exit=0"), "cache activation")
+    if "phase1Gate" in record:
+        if record["selectionID"] == UI_BATCH_SELECTION_ID and retained_command_artifact is None:
+            phase1_seal_ui_log(root, artifact, record)
+        build_order["phase1DiagnosticFacts"] = phase1_retained_diagnostic_facts(
+            root, artifact, record, record["phase1Gate"])
+        if role in ("producer", "consumer"):
+            build_order["phase1SharedFacts"] = phase1_retained_shared_facts(root, artifact, record, record["phase1Gate"])
     return {**record, **build_order, "recordType": "validated-native-checkpoint", "executedUnitMethods": units,
             "executedUIMethods": ui, "simulator": simulator, "provider": provider, "sdk": sdk,
             "simulatorFileProtectionDiagnostics": diagnostic_evidence,
@@ -3543,15 +4415,470 @@ def verify_checkpoint(root, artifact, record, selection, environment, *, retaine
             "acceptance": False, "releaseReady": False}
 
 
+def phase1_workflow_steps(root, relative, job="verify"):
+    """Read the closed source layout, not a general YAML/expression interpreter."""
+    text = (root / relative).read_text(encoding="utf-8")
+    jobs = re.split(r"(?m)^  ([a-zA-Z0-9_-]+):\n", text.split("\njobs:\n", 1)[1])
+    blocks = dict(zip(jobs[1::2], jobs[2::2]))
+    require(job in blocks, "Phase1 source job")
+    block = blocks[job]
+    require("continue-on-error:" not in block, "Phase1 source permits ignored failure")
+    parts = re.split(r"(?m)^      - name: (.+)\n", block)
+    require(len(parts) > 1, "Phase1 source steps")
+    steps = []
+    for name, body in zip(parts[1::2], parts[2::2]):
+        command = re.search(r"(?m)^        run: (.+)\n", body)
+        script = None
+        if command:
+            if command[1] == "|":
+                lines = []
+                for line in body[command.end():].splitlines():
+                    if line and not line.startswith("          "):
+                        break
+                    lines.append(line[10:] if line else "")
+                script = "\n".join(lines).rstrip()
+            else:
+                script = command[1]
+            require(script, "Phase1 empty source command")
+        action = re.search(r"(?m)^        uses: ([^\s]+)", body)
+        steps.append({"name": name, "script": script, "action": action[1] if action else None,
+                      "bodySHA256": sha256(body.encode()), "body": body})
+    require(len({s["name"] for s in steps}) == len(steps), "Phase1 source duplicate step")
+    return steps
+
+
+def phase1_job_names(root, plan, resolved):
+    source = (root / ".github/workflows/ios-ci.yml").read_text(encoding="utf-8")
+    def name(job):
+        found = re.findall(r"(?m)^  " + re.escape(job) + r":\n    name: (.+)$", source)
+        require(len(found) == 1, "Phase1 source caller name")
+        return found[0]
+    names = {"selection": name("shared-selection")}
+    if plan["selection"] == SHARED_SELECTION_ID:
+        names["producer"] = name("v23-shared-producer") + " / verify"
+        for partition in resolved[SHARED_KEY]["partitionIDs"]:
+            names[partition] = name("v23-shared-consumer").replace("${{ matrix.partition_id }}", partition) + " / verify"
+    else:
+        names["rui1"] = name("github-shard").replace("${{ inputs.s10_4_shard_id }}", "none").replace(
+            "${{ inputs.s10_4_shared_segment_id }}", "none") + " / verify"
+    require(all("${{" not in n for n in names.values()), "Phase1 unresolved caller name")
+    return names
+
+
+def phase1_job_execution_facts(root, directory, plan, resolved, run_id):
+    """Recompute execution facts from the sole collector's authenticated job logs.
+
+    Only collect_phase1 fetches these fixed repository/job endpoints. This local
+    verifier checks retained facts; a dictionary/hash alone is not API authority.
+    """
+    gate = load_phase1_gates(root)
+    jobs = gate.decode(gate.regular_bytes(directory / "jobs.json", limit=PHASE1_WITNESS_BYTES),
+                       limit=PHASE1_WITNESS_BYTES)["jobs"]
+    names = phase1_job_names(root, plan, resolved)
+    require(type(jobs) is list and len(jobs) <= 500 and all(type(j) is dict for j in jobs)
+            and len({j.get("id") for j in jobs}) == len(jobs)
+            and len({j.get("name") for j in jobs}) == len(jobs), "Phase1 unique job census")
+    by_name = {job["name"]: job for job in jobs}
+    require(set(names.values()) <= set(by_name), "Phase1 complete source-derived active job census")
+    for job in jobs:
+        require(type(job.get("id")) is int and job["id"] > 0
+                and type(job.get("run_id")) is int and job["run_id"] == run_id
+                and type(job.get("run_attempt")) is int and job["run_attempt"] == 1
+                and job.get("head_sha") == plan["head"] and job.get("status") == "completed",
+                "Phase1 original job identity")
+        if job["name"] not in names.values():
+            require(job.get("conclusion") == "skipped" and not job.get("steps"),
+                    "Phase1 unexpected executed job")
+    rui_required = {"Prepare evidence directory", "Check out the exact revision", "Validate task selection and timeout tier",
+        "Verify pinned toolchain, shared scheme, and simulator", "Verify setup budget before build",
+        "Boot selected Simulator", "Await selected Simulator boot", "Build unsigned simulator app", "Run targeted tests",
+        "Run task-authorized UI smoke", "Begin evidence-finalization budget", "Validate required build and test evidence",
+        "Validate exact ordinary integration native checkpoint", "Remove owned isolated Simulator", "Hash collected evidence",
+        "Recheck evidence-finalization budget", "Verify selected total budget before upload", "Upload build evidence"}
+    facts = {}
+    for label, name in names.items():
+        job = by_name[name]
+        require(job.get("conclusion") == "success", "Phase1 required job failed/interrupted")
+        relative = (".github/workflows/ios-ci.yml" if label == "selection" else
+                    ".github/workflows/ios-ci-worker.yml" if label == "rui1" else ".github/workflows/ios-ci-shared-worker.yml")
+        source_steps = phase1_workflow_steps(root, relative, "shared-selection" if label == "selection" else "verify")
+        required = set()
+        for step in source_steps:
+            if label == "selection":
+                active = step["name"] in {"Check out the exact revision", "Validate ordinary V23 native acceptance selection",
+                                          "Validate closed shared selection and original dependencies"}
+            elif label == "rui1":
+                active = step["name"] in rui_required
+            else:
+                condition = re.search(r"(?m)^        if: (.+)$", step["body"])
+                active = (not condition or "inputs.v23_shared_role" not in condition[1]
+                          or ("'producer'" if label == "producer" else "'consumer'") in condition[1])
+            if active:
+                required.add(step["name"])
+        if label == "rui1":
+            require(required == rui_required, "Phase1 RUI1 source step census changed")
+        observed = job.get("steps")
+        require(type(observed) is list and all(type(s) is dict for s in observed)
+                and len({s.get("name") for s in observed}) == len(observed)
+                and all(type(s.get("number")) is int and s["number"] > 0 for s in observed)
+                and [s["number"] for s in observed] == sorted({s["number"] for s in observed}),
+                "Phase1 unique ordered step census")
+        by_step = {s["name"]: s for s in observed}
+        source_names = [s["name"] for s in source_steps]
+        require(set(source_names) <= set(by_step), "Phase1 missing source step outcome")
+        require([s["name"] for s in observed if s["name"] in source_names] == source_names,
+                "Phase1 source step order")
+        framework = {"Set up job", "Complete job"} | {"Post " + s["name"] for s in source_steps if s["action"]}
+        active_framework = {"Set up job", "Complete job"} | {
+            "Post " + s["name"] for s in source_steps if s["action"] and s["name"] in required}
+        require(set(by_step) <= set(source_names) | framework
+                and {"Set up job", "Complete job"} <= set(by_step), "Phase1 unexpected/missing framework step")
+        for step in observed:
+            require(step.get("status") == "completed" and step.get("conclusion") ==
+                    ("success" if step["name"] in required | active_framework else "skipped"),
+                    "Phase1 failed/interrupted/bypassed/unexpected step " + step["name"])
+        log = gate.regular_bytes(directory / "phase1-job-logs" / (str(job["id"]) + ".log"), limit=256 * 1024 * 1024)
+        text = log.decode("utf-8-sig")
+        text = re.sub(r"(?m)^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z ", "", text)
+        text = re.sub(r"\x1b\[[0-9;]*m", "", text)
+        commands, cursor = [], 0
+        for step in source_steps:
+            if step["name"] not in required:
+                continue
+            if step["script"]:
+                require("${{" not in step["script"], "Phase1 active source command requires unsupported interpolation")
+                pattern = "##[group]Run " + step["script"].splitlines()[0] + "\n" + step["script"] + "\n"
+                require(text.count(pattern) == 1, "Phase1 exact executed source command " + step["name"])
+                position = text.index(pattern)
+                require(position >= cursor, "Phase1 executed command order")
+                end = text.find("##[endgroup]", position + len(pattern))
+                envelope = text[position + len(pattern):end]
+                require(end >= 0 and "shell: /bin/bash --noprofile --norc -e -o pipefail {0}" in envelope
+                        and "##[group]" not in envelope, "Phase1 incomplete command envelope")
+                cursor = end
+                wanted_env = {"CI_ARTIFACT_DIR", "CI_DESTINATION", "CI_SIMULATOR_UDID", "CI_SETUP_ARTIFACT_TIMEOUT_SECONDS",
+                              "CI_BUILD_TIMEOUT_SECONDS", "CI_TEST_TIMEOUT_SECONDS", "CI_UI_TIMEOUT_SECONDS",
+                              "CI_TOTAL_BUDGET_SECONDS", "NATIVE_SELECTION_ID", "CONFIGURATION", "DEVELOPER_DIR"}
+                pairs = re.findall(r"(?m)^  ([A-Z_]+): (.*)$", text[position + len(pattern):end])
+                env = unique_pairs([(key, value) for key, value in pairs if key in wanted_env])
+                numeric = {}
+                if step["name"] == "Verify selected total budget before upload":
+                    output_end = text.find("##[group]Run ", end + 1)
+                    output = text[end:output_end if output_end >= 0 else len(text)]
+                    numeric = unique_pairs(re.findall(r"(?m)^(elapsed_seconds|total_budget_seconds)=([0-9]+)$", output))
+                    require(set(numeric) == {"elapsed_seconds", "total_budget_seconds"}, "Phase1 complete total budget output")
+                commands.append({"step": step["name"], "bodySHA256": step["bodySHA256"],
+                                 "scriptSHA256": sha256(step["script"].encode()), "environment": env, "numericFacts": numeric})
+            elif step["action"]:
+                pattern = "##[group]Run " + step["action"] + "\n"
+                count = sum(s["name"] in required and s["action"] == step["action"] for s in source_steps)
+                position = text.find(pattern, cursor)
+                end = text.find("##[endgroup]", position + len(pattern)) if position >= 0 else -1
+                require(text.count(pattern) == count and position >= cursor and end >= 0
+                        and "##[group]" not in text[position + len(pattern):end],
+                        "Phase1 exact executed action " + step["name"])
+                cursor = end
+        facts[label] = {"jobID": job["id"], "name": name, "workflowSourceSHA256": sha256((root / relative).read_bytes()),
+                        "jobLogSHA256": sha256(log), "commands": commands, "requiredSteps": sorted(required),
+                        "finalizationBudgetPredicatePassed": label != "selection", "finalizationNumericElapsedAvailable": False}
+    return facts
+
+
+def phase1_worker_execution_facts(root, artifact, record, selected, label, job):
+    """Retained execution/command facts, never a local native execution replay."""
+    from pathlib import PurePosixPath
+    gate = load_phase1_gates(root)
+    for name in ("runner-provider.txt", "native-sdk.txt", "xcode-version.txt", "simulator-selection.txt"):
+        gate.regular_bytes(artifact / name, limit=32768)
+    provider = key_values(artifact / "runner-provider.txt")
+    require(provider.get("provider") == record.get("runnerProvider") == "github"
+            and provider.get("label") == record.get("runnerLabel") == "macos-26"
+            and provider.get("runner_architecture") == "ARM64" and provider.get("uname_architecture") == "arm64"
+            and provider.get("developer_dir") == "/Applications/Xcode_26.6.app/Contents/Developer",
+            "Phase1 observed runner/toolchain")
+    require((artifact / "xcode-version.txt").read_text().splitlines() == ["Xcode 26.6", "Build version 17F113"],
+            "Phase1 observed Xcode")
+    sdk = key_values(artifact / "native-sdk.txt")
+    require(sdk == {"sdk": "iphonesimulator", "version": "26.5", "build": "23F81a"}, "Phase1 observed SDK")
+    simulator = key_values(artifact / "simulator-selection.txt")
+    require((simulator.get("runtime"), simulator.get("runtime_build"), simulator.get("name"), simulator.get("initial_state"))
+            == ("iOS 26.2", "23C54", "iPhone 17", "Shutdown")
+            and re.fullmatch(r"[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}", simulator.get("udid", "")),
+            "Phase1 observed owned Simulator")
+    if label == "rui1":
+        environment, original_artifact = load_ui_evidence(root).retained_environment(read_json(artifact / "rui1-command.json")["argv"])
+    else:
+        witness = read_json(artifact / ("phase1-shared-live-seal.json" if label == "producer" else "phase1-shared-live-restore.json"))
+        original_artifact = PurePosixPath(witness["artifactDirectory"])
+        environment = {"PROJECT_PATH": "FieldEvidenceApp.xcodeproj", "SCHEME": "FieldEvidenceApp", "CONFIGURATION": "Debug",
+                       "CODE_SIGNING_ALLOWED": "NO", "CI_SIMULATOR_UDID": simulator["udid"],
+                       "CI_DESTINATION": "platform=iOS Simulator,id=" + simulator["udid"],
+                       "CI_ARTIFACT_DIR": str(original_artifact), "RUNNER_TEMP": witness["runnerTemp"]}
+    require(environment["CI_SIMULATOR_UDID"] == simulator["udid"], "Phase1 original command Simulator identity")
+    timeout_env = dict(zip(("CI_SETUP_ARTIFACT_TIMEOUT_SECONDS", "CI_BUILD_TIMEOUT_SECONDS", "CI_TEST_TIMEOUT_SECONDS",
+                           "CI_UI_TIMEOUT_SECONDS", "CI_TOTAL_BUDGET_SECONDS"),
+                          (str(selected[key]) for key in BUDGET_KEYS)))
+    commands = {item["step"]: item for item in job["commands"]}
+    checked_steps = ["Recheck evidence-finalization budget", "Verify selected total budget before upload",
+                     "Validate required build and test evidence", "Validate exact ordinary integration native checkpoint"]
+    if label != "producer":
+        checked_steps.append("Run targeted tests")
+    if label in ("producer", "rui1"):
+        checked_steps.append("Build unsigned simulator app")
+    if label == "rui1":
+        checked_steps.append("Run task-authorized UI smoke")
+    for name in checked_steps:
+        require(name in commands, "Phase1 source command proof missing " + name)
+        observed = commands[name]["environment"]
+        require(all(observed.get(k) == v for k, v in timeout_env.items())
+                and observed.get("CI_ARTIFACT_DIR") == str(original_artifact)
+                and observed.get("NATIVE_SELECTION_ID") == record["selectionID"]
+                and observed.get("CONFIGURATION") == "Debug"
+                and observed.get("DEVELOPER_DIR") == provider["developer_dir"], "Phase1 actual command budget/configuration inputs")
+    def numbers(name, keys):
+        gate.regular_bytes(artifact / name, limit=4096)
+        value = key_values(artifact / name)
+        require(set(value) == set(keys) and all(re.fullmatch(r"[0-9]+", v) for v in value.values()),
+                "Phase1 complete numeric budget " + name)
+        return {key: int(v) for key, v in value.items()}
+    limit = selected["setupArtifactTimeoutSeconds"]
+    setup = numbers("setup-budget.txt", ("setup_elapsed_seconds", "setup_budget_seconds"))
+    require(setup["setup_elapsed_seconds"] <= setup["setup_budget_seconds"] == limit, "Phase1 setup budget")
+    setup_elapsed = setup["setup_elapsed_seconds"]
+    restore = None
+    if label not in ("producer", "rui1"):
+        restore = numbers("v23-shared-restore-budget.txt", ("shared_restore_setup_elapsed_seconds",))
+        require(setup_elapsed <= restore["shared_restore_setup_elapsed_seconds"] <= limit, "Phase1 restore setup budget")
+        setup_elapsed = restore["shared_restore_setup_elapsed_seconds"]
+    artifact_budget = numbers("artifact-budget.txt", ("setup_elapsed_seconds", "artifact_elapsed_seconds",
+                                                     "setup_artifact_elapsed_seconds", "setup_artifact_budget_seconds"))
+    require(artifact_budget["setup_elapsed_seconds"] == setup_elapsed
+            and artifact_budget["setup_artifact_budget_seconds"] == limit
+            and setup_elapsed + artifact_budget["artifact_elapsed_seconds"] == artifact_budget["setup_artifact_elapsed_seconds"] <= limit,
+            "Phase1 artifact finalization budget")
+    total = {k: int(v) for k, v in commands["Verify selected total budget before upload"]["numericFacts"].items()}
+    require(total.get("total_budget_seconds") == selected["totalBudgetSeconds"]
+            and total.get("elapsed_seconds", -1) >= setup_elapsed
+            and total["elapsed_seconds"] <= total["total_budget_seconds"], "Phase1 total budget")
+    build = None
+    if label in ("producer", "rui1"):
+        build = verify_no_index_build(root, artifact, record, environment, command_artifact=original_artifact)
+    unit_command = None
+    if label != "producer":
+        expected = [provider["developer_dir"] + "/usr/bin/xcodebuild", "-project", "FieldEvidenceApp.xcodeproj",
+                    "-scheme", "FieldEvidenceApp", "-configuration", "Debug", "-destination", environment["CI_DESTINATION"],
+                    "-derivedDataPath", str(PurePosixPath(environment["RUNNER_TEMP"]) / "FieldEvidenceDerivedData"),
+                    "-resultBundlePath", str(original_artifact / "UnitTests.xcresult"),
+                    *["-only-testing:" + value for value in selected["unitTestSelectors"]],
+                    "CODE_SIGNING_ALLOWED=NO", "test-without-building"]
+        raw_log = gate.regular_bytes(artifact / "test-smoke.log", limit=SHARED_MAX_TEST_LOG_BYTES)
+        log = raw_log.decode("utf-8")
+        lines = log.splitlines()
+        invocations = [i for i, line in enumerate(lines) if line.strip() == "Command line invocation:"]
+        require(len(invocations) == 1 and invocations[0] + 1 < len(lines)
+                and shlex.split(lines[invocations[0] + 1].strip()) == expected
+                and sum(line.strip() == "** TEST EXECUTE SUCCEEDED **" for line in lines) == 1
+                and not shared_test_log_compile_lines(artifact / "test-smoke.log"),
+                "Phase1 exact successful no-rebuild unit invocation")
+        unit_command = {"argv": expected, "logSHA256": sha256(raw_log),
+                        "exporterSourceSHA256": sha256((root / "Scripts/validate-required-evidence.sh").read_bytes()),
+                        "structuredResultSHA256": sha256((artifact / "unit-test-results.json").read_bytes()),
+                        "exportReexecutedOffline": False}
+    checkpoint = read_json(artifact / "native-checkpoint.json")
+    require(checkpoint.get("recordType") == "validated-native-checkpoint"
+            and all(checkpoint.get(k) == v for k, v in record.items())
+            and checkpoint.get("provider") == provider and checkpoint.get("simulator") == simulator and checkpoint.get("sdk") == sdk
+            and checkpoint.get("releaseReady") is False and checkpoint.get("acceptance") is False,
+            "Phase1 original live checkpoint binding")
+    require(checkpoint.get("executedUnitMethods") == ([] if label == "producer" else sorted(selected["unitTestSelectors"]))
+            and checkpoint.get("executedUIMethods") == sorted(selected["uiTestSelectors"]),
+            "Phase1 live checkpoint complete method census")
+    forbidden = (("test-smoke.log", "UnitTests.xcresult", "unit-test-results.json") if label == "producer" else
+                 ("build-smoke.log", "Build.xcresult", NO_INDEX_RECEIPT) if label != "rui1" else ())
+    require(not any((artifact / name).exists() or (artifact / name).is_symlink() for name in forbidden),
+            "Phase1 unexpected role execution evidence")
+    return {"jobID": job["jobID"], "jobLogSHA256": job["jobLogSHA256"], "build": build, "unitCommand": unit_command,
+            "budgets": {"setup": setup, "restore": restore, "artifact": artifact_budget, "total": total,
+                        "finalizationPredicatePassed": True, "finalizationNumericElapsedAvailable": False},
+            "simulator": simulator, "checkpointSHA256": sha256((artifact / "native-checkpoint.json").read_bytes()),
+            "offlineNativeExecution": False}
+
+
+def phase1_payload_execution_facts(root, directory, plan, resolved, run_id, jobs):
+    """Join the API payload identity to source-bound producer/consumer originals.
+
+    The ZIP digest is distinct from the inner TAR digest. The payload ZIP is
+    deliberately not downloaded by this collector or replayed offline.
+    """
+    gate = load_phase1_gates(root)
+    listing = gate.decode(gate.regular_bytes(directory / "artifacts.json", limit=PHASE1_WITNESS_BYTES),
+                          limit=PHASE1_WITNESS_BYTES)["artifacts"]
+    require(type(listing) is list and all(type(a) is dict for a in listing)
+            and len({a.get("name") for a in listing}) == len(listing), "Phase1 API artifact census")
+    for item in listing:
+        origin = item.get("workflow_run", {})
+        require(type(item.get("id")) is int and item["id"] > 0 and item.get("expired") is False
+                and type(item.get("digest")) is str and re.fullmatch(r"sha256:[0-9a-f]{64}", item["digest"])
+                and type(origin) is dict and type(origin.get("id")) is int and origin["id"] == run_id
+                and origin.get("head_sha") == plan["head"]
+                and origin.get("head_branch") == plan["ref"].removeprefix("refs/heads/"), "Phase1 original API artifact identity")
+    prefix = "ios-ci-native-github-" + plan["selection"]
+    if plan["selection"] != SHARED_SELECTION_ID:
+        expected = {prefix + "-%d-1" % run_id}
+        require({a.get("name") for a in listing} == expected, "Phase1 exact RUI1 artifact census")
+        return {"payloadRequired": False}
+    payload_name = "v23-shared-payload-%d-1-%s" % (run_id, plan["head"])
+    expected = {payload_name, prefix + "-producer-%d-1" % run_id}
+    expected.update(prefix + "-consumer-%s-%d-1" % (p, run_id) for p in resolved[SHARED_KEY]["partitionIDs"])
+    require({a.get("name") for a in listing} == expected, "Phase1 exact shared artifact census")
+    payload = next(a for a in listing if a["name"] == payload_name)
+    require(type(payload.get("id")) is int and payload["id"] > 0
+            and type(payload.get("digest")) is str and re.fullmatch(r"sha256:[0-9a-f]{64}", payload["digest"])
+            and payload.get("expired") is False and type(payload.get("size_in_bytes")) is int and payload["size_in_bytes"] > 0,
+            "Phase1 retained payload API identity")
+    producer = directory / "artifacts/producer"
+    metadata = gate.regular_bytes(producer / SHARED_PAYLOAD_METADATA, limit=PHASE1_WITNESS_BYTES)
+    archive = read_json(producer / "phase1-shared-live-seal.json")["archive"]
+    for partition in resolved[SHARED_KEY]["partitionIDs"]:
+        consumer = directory / "artifacts" / partition
+        require(gate.regular_bytes(consumer / SHARED_PAYLOAD_METADATA, limit=PHASE1_WITNESS_BYTES) == metadata
+                and read_json(consumer / "phase1-shared-live-restore.json")["archive"] == archive,
+                "Phase1 same producer TAR and metadata for every consumer")
+        log = gate.regular_bytes(directory / "phase1-job-logs" / (str(jobs[partition]["jobID"]) + ".log"),
+                                 limit=256 * 1024 * 1024).decode("utf-8-sig")
+        expected_line = "- %s (ID: %d, Size: %d, Expected Digest: %s)" % (
+            payload_name, payload["id"], payload["size_in_bytes"], payload["digest"])
+        require(log.count(expected_line) == 1
+                and log.count("SHA256 digest of downloaded artifact is " + payload["digest"].removeprefix("sha256:")) == 1
+                and log.count("Artifact download completed successfully.") == 1,
+                "Phase1 actual consumer downloaded exact authenticated payload")
+    return {"payloadRequired": True, "payloadArtifactID": payload["id"], "zipSHA256": payload["digest"],
+            "downloadedByCollector": False, "archive": archive, "metadataSHA256": sha256(metadata),
+            "everyConsumerBound": True, "offlinePayloadReplay": False}
+
+
+def phase1_retained_worker_chain(root, request_path):
+    """Exact-source subprocess entry point used only after authenticated collection.
+
+    Its request carries locations, not authority. The enclosing collector retains
+    the fetched API responses and authenticated ZIPs and binds this output in the
+    original manifest. Remaining full-proof predicates deliberately stay pending.
+    """
+    gate = load_phase1_gates(root)
+    request = gate.decode(gate.regular_bytes(request_path))
+    require(type(request) is dict and set(request) == {"schema", "runID", "planSHA256"}
+            and request["schema"] == "v23-phase1-retained-chain-request.v1"
+            and type(request["runID"]) is int and request["runID"] > 0, "Phase1 retained chain request")
+    directory = request_path.parent
+    registration = gate.decode(gate.regular_bytes(directory / "phase1-registration.json"))
+    plan = gate.validate_plan(registration.get("plan"))
+    require(gate.sha(gate.canonical(plan)) == request["planSHA256"] == registration.get("planSHA256"),
+            "Phase1 retained chain registered plan")
+    sources = {p: gate.sha(gate.regular_bytes(root / p, limit=PHASE1_WITNESS_BYTES)) for p in gate.SOURCES}
+    gate.exact(sources, plan["sources"], "Phase1 exact archived verifier/source closure")
+    resolved = shared_selection(root) if plan["selection"] == SHARED_SELECTION_ID else load_ui_evidence(root).selection(root)
+    api_run = gate.decode(gate.regular_bytes(directory / "run-attempt-1.json", limit=PHASE1_WITNESS_BYTES),
+                          limit=PHASE1_WITNESS_BYTES)
+    require(api_run.get("id") == request["runID"], "Phase1 retained chain API run")
+    labels = (["producer"] + resolved[SHARED_KEY]["partitionIDs"]
+              if plan["selection"] == SHARED_SELECTION_ID else ["rui1"])
+    artifacts = directory / "artifacts"
+    require(artifacts.is_dir() and not artifacts.is_symlink()
+            and sorted(p.name for p in artifacts.iterdir()) == sorted(labels), "Phase1 complete worker artifact census")
+    facts, first_event, units = {}, None, []
+    execution = {"status": "INCOMPLETE", "jobs": {}, "workers": {}, "problems": []}
+    try:
+        require(api_run.get("status") == "completed" and api_run.get("conclusion") == "success",
+                "Phase1 original execution did not succeed")
+        execution["jobs"] = phase1_job_execution_facts(root, directory, plan, resolved, request["runID"])
+    except (ValueError, OSError, KeyError, TypeError) as error:
+        execution["problems"].append("job/command proof: " + str(error)[:1000])
+    for label in labels:
+        artifact = artifacts / label
+        require(artifact.is_dir() and not artifact.is_symlink(), "Phase1 regular worker artifact")
+        record = gate.decode(gate.regular_bytes(artifact / "native-admission.json", limit=PHASE1_WITNESS_BYTES),
+                             limit=PHASE1_WITNESS_BYTES)
+        binding = gate.decode(gate.regular_bytes(artifact / "phase1-event-binding.json", limit=gate.MAX_EVENT_BYTES),
+                              limit=gate.MAX_EVENT_BYTES)
+        event = gate.regular_bytes(artifact / "phase1-original-event.json", limit=gate.MAX_EVENT_BYTES)
+        require(gate.regular_bytes(artifact / "phase1-gate-plan.json") == gate.canonical(plan)
+                and record.get("phase1Gate") == binding, "Phase1 original worker plan/admission")
+        gate.verify_collected_event(binding, registered_plan_bytes=gate.canonical(plan), original_event_bytes=event,
+            api_run=api_run, tree=plan["tree"], resolved_bytes=canonical(resolved), sources=sources)
+        require(first_event is None or event == first_event, "Phase1 workers received different dispatch events")
+        first_event = event
+        require(all(record.get(k) == v for k, v in source_binding(root).items()), "Phase1 exact native protocol binding")
+        selected = shared_selection(root, label) if label not in ("producer", "rui1") else resolved
+        require(gate.regular_bytes(artifact / "ci-selection.selected.json", limit=PHASE1_WITNESS_BYTES)
+                == canonical(selected) and record.get("selectionSHA256") == sha256(canonical(selected)),
+                "Phase1 exact worker selection")
+        if label != "rui1":
+            require(shared_role(record) == ("producer" if label == "producer" else "consumer")
+                    and (label == "producer" or record[SHARED_KEY].get("partitionID") == label),
+                    "Phase1 exact worker role/partition")
+        diagnostic = phase1_retained_diagnostic_facts(root, artifact, record, binding)
+        shared = phase1_retained_shared_facts(root, artifact, record, binding) if label != "rui1" else None
+        executed = [] if label == "producer" else executed_methods(read_json(artifact / "unit-test-results.json"),
+            selected["unitTestSelectors"], "FieldEvidenceAppTests", "Unit test bundle")
+        units.extend(executed)
+        if label == "rui1":
+            from types import SimpleNamespace
+            native = SimpleNamespace(source_binding=source_binding, verify_checkpoint=verify_checkpoint,
+                                     executed_methods=executed_methods, canonical=canonical)
+            load_ui_evidence(root).collected_review(root, artifact, native, plan["head"], str(request["runID"]))
+        # This hashes retained XCResult bytes only; it does not perform an
+        # xcresulttool export or pretend to revisit a vanished live filesystem.
+        kernel = load_payload_kernel(root)
+        result_names = ["Build.xcresult"] if label == "producer" else (["Build.xcresult", "UnitTests.xcresult", "UISmoke.xcresult"]
+                                                                     if label == "rui1" else ["UnitTests.xcresult"])
+        inventories = {}
+        for name in result_names:
+            require((artifact / name).is_dir() and not (artifact / name).is_symlink(), "Phase1 raw result directory")
+            inventory = phase1_product_inventory((artifact / name).resolve(), kernel)
+            require(any(item["type"] == "file" and item["size"] > 0 for item in inventory), "Phase1 nonempty raw result inventory")
+            inventories[name] = {"entries": inventory, "inventorySHA256": kernel["object_sha"](inventory)}
+        facts[label] = {"eventBindingSHA256": sha256(canonical(binding)), "diagnostics": diagnostic,
+                        "shared": shared, "executedUnitMethods": executed, "rawResultInventories": inventories}
+        if execution["jobs"]:
+            try:
+                execution["workers"][label] = phase1_worker_execution_facts(
+                    root, artifact, record, selected, label, execution["jobs"][label])
+            except (ValueError, OSError, KeyError, TypeError) as error:
+                execution["problems"].append(label + " execution proof: " + str(error)[:1000])
+        require(len(canonical(facts)) <= PHASE1_WITNESS_BYTES, "Phase1 retained worker facts bound")
+    require(len(units) == len(set(units)) and set(units) == set(resolved["unitTestSelectors"]),
+            "Phase1 complete every-method unit union")
+    if execution["jobs"]:
+        try:
+            execution["payload"] = phase1_payload_execution_facts(root, directory, plan, resolved,
+                                                                 request["runID"], execution["jobs"])
+        except (ValueError, OSError, KeyError, TypeError) as error:
+            execution["problems"].append("payload/artifact proof: " + str(error)[:1000])
+    if not execution["problems"] and set(execution["workers"]) == set(labels):
+        execution["status"] = "RETAINED_EXECUTION_FACTS_VERIFIED"
+    require(len(canonical(execution)) <= PHASE1_WITNESS_BYTES, "Phase1 execution facts bound")
+    return {"schema": "v23-phase1-retained-worker-chain.v1", "status": "INCOMPLETE",
+        "runID": request["runID"], "planSHA256": request["planSHA256"], "workers": facts, "executionProof": execution,
+        "pendingPredicates": (["complete retained execution facts"] if execution["status"] == "INCOMPLETE" else [])
+                             + ["independent cold payload/no-rebuild and emitted-stream retention review", "closed qualification lifecycle"],
+        "functionalQualification": gate.PENDING, "acceptance": False, "providerQualification": False,
+        "releaseReady": False}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("admit", "verify", "select", "collect-diagnostics", "observe-build-before-boot", "record-no-index-build",
-                                            "shared-seal", "shared-restore", "shared-fingerprint"))
+                                            "shared-seal", "shared-restore", "shared-fingerprint", "phase1-retained-chain"))
     parser.add_argument("--stage", choices=("dispatch", "worker"), default="worker")
     parser.add_argument("--output")
     parser.add_argument("--interrupted", action="store_true")
     parser.add_argument("--phase", choices=SHARED_FINGERPRINT_PHASES)
+    parser.add_argument("--phase1-request", type=Path)
     args = parser.parse_args()
+    if args.command == "phase1-retained-chain":
+        require(args.phase1_request is not None, "Phase1 retained caller request")
+        print(json.dumps(phase1_retained_worker_chain(Path(__file__).resolve().parents[1], args.phase1_request), sort_keys=True))
+        return
     root = Path(os.environ["GITHUB_WORKSPACE"]).resolve()
     if args.command == "collect-diagnostics":
         artifact = Path(os.environ["CI_ARTIFACT_DIR"])
@@ -3599,6 +4926,17 @@ def main():
     record["gitTree"] = subprocess.check_output(["git", "rev-parse", "HEAD^{tree}"], cwd=root, text=True).strip()
     artifact = Path(os.environ["CI_ARTIFACT_DIR"])
     require(artifact.is_dir() and not artifact.is_symlink(), "artifact directory")
+    if "phase1Gate" in record:
+        binding, event_raw, _, _ = phase1_worker_context(root, os.environ)
+        require(binding == record["phase1Gate"], "Phase1 worker context changed")
+        originals = {"phase1-gate-plan.json": canonical(binding["plan"]),
+                     "phase1-event-binding.json": canonical(binding), "phase1-original-event.json": event_raw}
+        for relative, raw in originals.items():
+            if args.command == "admit":
+                write_new_evidence(artifact / relative, raw)
+            else:
+                require(load_phase1_gates(root).regular_bytes(artifact / relative, limit=1024 * 1024) == raw,
+                        "Phase1 worker original event changed")
     if args.command == "observe-build-before-boot":
         raise SystemExit(observe_build_before_boot(root, artifact, record, os.environ))
     if args.command == "record-no-index-build":

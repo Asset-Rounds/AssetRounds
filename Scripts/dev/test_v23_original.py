@@ -2200,5 +2200,1151 @@ class ParallelSharedSweepTests(unittest.TestCase):
         self.assertNotIn("git_bytes", [call[0] for call in harness.calls])
 
 
+class Phase1RegistrationTests(unittest.TestCase):
+    """Synthetic pending intent only; no approval or native evidence is fabricated."""
+
+    def fixture(self, purpose=None):
+        gate = NEW.phase1_gates()
+        sources = {path: gate.sha((REPO_ROOT / path).read_bytes()) for path in gate.SOURCES}
+        selected = {"unitTestSelectors": ["SyntheticTests/Test/testOnly"], "uiTestSelectors": []}
+        value = gate.make_plan(purpose=purpose or gate.CANDIDATE, head=HEAD, tree="9" * 40,
+                              selection=gate.SHARED, resolved_bytes=gate.canonical(selected), sources=sources,
+                              requested_at="2026-09-26T12:00:00Z")
+        return gate, value, selected
+
+    def invoke(self, root, gate, value, selected, *, records=(), attempts=(), remote=None,
+               main_head=None, unknown=False, source_changed=False):
+        plan_file = root / "synthetic-plan.json"
+        plan_file.write_bytes(gate.canonical(value))
+        attempt_dir = root / "v23-original-attempts"
+        attempt_dir.mkdir(exist_ok=True)
+        for name in attempts:
+            (attempt_dir / name).write_text("synthetic failed or ambiguous attempt")
+        calls = []
+
+        def fake_run(*argv):
+            calls.append(argv)
+            if argv == ("git", "fetch", "--quiet", "origin", NEW.BRANCH, "main"):
+                return ""
+            values = {"HEAD": HEAD, f"origin/{NEW.BRANCH}": remote or HEAD,
+                      "origin/main": main_head or gate.BASE_MAIN, f"{HEAD}^{{tree}}": "9" * 40}
+            if argv[:2] == ("git", "rev-parse"):
+                return values[argv[2]] + "\n"
+            raise AssertionError(argv)
+
+        def committed_bytes(*argv):
+            self.assertEqual(argv[0], "show")
+            path = argv[1].split(":", 1)[1]
+            raw = (REPO_ROOT / path).read_bytes()
+            return raw + b"changed" if source_changed and path == gate.COLLECTOR else raw
+
+        with evidence_root(NEW, root), mock.patch.object(NEW, "run", fake_run), \
+                mock.patch.object(NEW, "git_bytes", committed_bytes), \
+                mock.patch.object(NEW, "ledger", return_value=list(records)), \
+                mock.patch.object(NEW, "resolve_selection", return_value=(selected, gate.sha(gate.canonical(selected)))), \
+                mock.patch.object(NEW, "runs_for", return_value=[{"id": 999}] if unknown else []), \
+                contextlib.redirect_stdout(io.StringIO()):
+            result = NEW.preregister_phase1(plan_file)
+        return result, calls
+
+    def test_registers_pending_exact_source_without_dispatch_or_attempt(self):
+        gate, value, selected = self.fixture()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record, calls = self.invoke(root, gate, value, selected)
+            self.assertFalse(record["dispatchEnabled"])
+            self.assertEqual(record["functionalQualification"], gate.PENDING)
+            self.assertEqual(list((root / "v23-original-attempts").iterdir()), [])
+            self.assertFalse((root / "v23-original-ledger.jsonl").exists())
+            self.assertEqual(calls[0], ("git", "fetch", "--quiet", "origin", NEW.BRANCH, "main"))
+            self.assertTrue(all(call[0] == "git" for call in calls))
+            path = root / "v23-phase1-plans" / (gate.original_stem(value) + ".json")
+            original = path.read_bytes()
+            with self.assertRaisesRegex(SystemExit, "already exists"):
+                self.invoke(root, gate, value, selected)
+            self.assertEqual(path.read_bytes(), original)
+
+    def test_moved_refs_source_unknown_runs_and_legacy_originals_refused(self):
+        gate, value, selected = self.fixture()
+        variants = ({"remote": "8" * 40}, {"main_head": "8" * 40}, {"unknown": True},
+                    {"source_changed": True},
+                    {"records": [{"head": HEAD, "selection": gate.SHARED, "kind": "development", "runID": 1}]},
+                    {"attempts": [HEAD + "-" + gate.SHARED + ".json"]})
+        for variant in variants:
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                with self.assertRaises(SystemExit):
+                    self.invoke(root, gate, value, selected, **variant)
+                self.assertFalse((root / "v23-phase1-plans").exists())
+
+    def test_exact_main_registration_refuses_before_any_network(self):
+        gate, value, _ = self.fixture(NEW.phase1_gates().EXACT_MAIN)
+        with tempfile.TemporaryDirectory() as temporary:
+            plan_file = Path(temporary) / "synthetic-main-plan.json"
+            plan_file.write_bytes(gate.canonical(value))
+            with mock.patch.object(NEW, "run") as run:
+                with self.assertRaisesRegex(SystemExit, "prerequisites are not implemented"):
+                    NEW.preregister_phase1(plan_file)
+                run.assert_not_called()
+
+    def test_every_new_phase1_dispatch_refuses_before_any_effect(self):
+        for kind in (None, "gate", "development"):
+            for plan in ("missing.json", "", "synthetic-plan.json"):
+                with self.subTest(kind=kind, plan=plan), mock.patch.object(NEW, "run") as run, \
+                        mock.patch.object(NEW, "write_new") as write, mock.patch.object(NEW, "append_ledger") as ledger:
+                    with self.assertRaisesRegex(SystemExit, "dispatch disabled"):
+                        NEW.dispatch(NEW.SHARED_SELECTION_ID, kind, phase1_plan=plan)
+                    run.assert_not_called()
+                    write.assert_not_called()
+                    ledger.assert_not_called()
+
+
+def synthetic_phase1_observations(gate, plan):
+    """Test-only API responses, never root authority or real evidence."""
+    return {"repository": {"id": 77, "full_name": REPO},
+            "workflow": {"id": 7, "path": NEW.WORKFLOW_PATH, "state": "active"},
+            "refs": {"integration": {"ref": gate.INTEGRATION_REF, "object": {"type": "commit", "sha": plan["head"]}},
+                     "main": {"ref": "refs/heads/main", "object": {"type": "commit", "sha": gate.BASE_MAIN}}},
+            "headRuns": {"total_count": 0, "workflow_runs": []},
+            "activeRuns": {status: {"total_count": 0, "workflow_runs": []} for status in gate.ACTIVE_RUN_STATUSES}}
+
+
+class Phase1AttemptLifecycleTests(unittest.TestCase):
+    """Actual dormant caller flow; only Git/API/process boundaries are synthetic."""
+
+    def fixture(self, base, shared=False):
+        gate, directory, attempt_path, observed, artifacts, calls, downloads, commands = Phase1CollectionCallerTests.fixture(self, base, shared)
+        attempt = gate.decode(attempt_path.read_bytes(), limit=gate.MAX_ATTEMPT_BYTES)
+        plan = gate.parse_plan(attempt["planBytes"].encode())
+        plan_path = base / "synthetic-candidate-plan.json"
+        plan_path.write_bytes(gate.canonical(plan))
+        shutil.rmtree(NEW.phase1_lifecycle_directory(gate, plan))
+        attempt_path.unlink()
+        shutil.rmtree(directory)
+        NEW.LEDGER.write_bytes(b"")
+        observations = synthetic_phase1_observations(gate, plan)
+        state = {"runs": [], "requests": [], "effect": "success", "publish": True, "observations": observations,
+                 "observed": observed, "beforeRuns": [], "requestHook": None}
+        original_api, original_process = NEW.api, NEW.subprocess.run
+        def api(endpoint):
+            calls.append(endpoint)
+            if endpoint == f"repos/{REPO}":
+                return copy.deepcopy(observations["repository"])
+            if endpoint == f"repos/{REPO}/actions/workflows/{NEW.WORKFLOW}":
+                return copy.deepcopy(observations["workflow"])
+            for key, ref in (("integration", NEW.BRANCH), ("main", "main")):
+                if endpoint == f"repos/{REPO}/git/ref/heads/{ref}":
+                    return copy.deepcopy(observations["refs"][key])
+            for status in gate.ACTIVE_RUN_STATUSES:
+                if endpoint == f"repos/{REPO}/actions/runs?status={status}&per_page={NEW.PAGE_SIZE}&page=1":
+                    return copy.deepcopy(observations["activeRuns"][status])
+            prefix = f"repos/{REPO}/actions/runs?head_sha={HEAD}&per_page={NEW.PAGE_SIZE}&page="
+            if endpoint.startswith(prefix):
+                page = int(endpoint.removeprefix(prefix))
+                rows = state["runs"] if state["requests"] else state["beforeRuns"]
+                return {"total_count": len(rows), "workflow_runs": copy.deepcopy(rows[(page-1)*NEW.PAGE_SIZE:page*NEW.PAGE_SIZE])}
+            for row in state["runs"]:
+                if row["id"] != RUN and endpoint == f"repos/{REPO}/actions/runs/{row['id']}":
+                    return copy.deepcopy(row)
+            return original_api(endpoint)
+        def git_run(*args):
+            self.assertEqual(args[0], "git")
+            if args[1] in ("fetch", "diff"):
+                return ""
+            self.assertEqual(args[1], "rev-parse")
+            if args[2].endswith("^{tree}"):
+                return plan["tree"] + "\n"
+            if args[2] == "origin/main":
+                return observations["refs"]["main"]["object"]["sha"] + "\n"
+            if args[2] == "origin/" + NEW.BRANCH:
+                return observations["refs"]["integration"]["object"]["sha"] + "\n"
+            self.assertEqual(args[2], "HEAD")
+            return HEAD + "\n"
+        def process(argv, **kwargs):
+            if argv[:3] != ["gh", "workflow", "run"]:
+                return original_process(argv, **kwargs)
+            # The real exclusive writer completed before the only remote effect.
+            consumed = gate.decode(attempt_path.read_bytes(), limit=gate.MAX_ATTEMPT_BYTES)
+            registration = (base / "v23-phase1-plans" / (gate.original_stem(plan) + ".json")).read_bytes()
+            gate.validate_attempt(consumed, plan, registration)
+            self.assertEqual(argv, gate.dispatch_argv(plan, 7))
+            self.assertEqual(kwargs["input"], gate.canonical(gate.dispatch_inputs(plan)))
+            self.assertFalse(kwargs["check"])
+            self.assertEqual(kwargs["cwd"], NEW.ROOT)
+            state["requests"].append(copy.deepcopy(consumed))
+            if state["publish"]:
+                state["runs"] = copy.deepcopy(state["beforeRuns"]) + [copy.deepcopy(observed)]
+            if state["requestHook"]:
+                state["requestHook"]()
+            if state["effect"] == "crash":
+                raise KeyboardInterrupt("synthetic interruption after remote effect")
+            if state["effect"] == "uncertain":
+                raise OSError("synthetic response lost after remote effect")
+            return subprocess.CompletedProcess(argv, 0 if state["effect"] == "success" else 1, b"synthetic CLI output", b"")
+        stack = contextlib.ExitStack()
+        for name, replacement in (("api", api), ("run", git_run), ("phase1_gates", lambda: gate),
+                                  ("phase1_timestamp", lambda: "2026-09-26T12:01:00Z")):
+            stack.enter_context(mock.patch.object(NEW, name, replacement))
+        stack.enter_context(mock.patch.object(NEW.subprocess, "run", process))
+        # The only authorization bypass is explicit and confined to this test.
+        stack.enter_context(mock.patch.object(gate, "refuse_dispatch", return_value=None))
+        self.addCleanup(stack.close)
+        return gate, plan, plan_path, attempt_path, directory, state, calls
+
+    def invoke(self, plan, path):
+        return NEW.dispatch(plan["selection"], "gate", phase1_plan=path)
+
+    def test_real_dormant_entry_and_discovery_refuse_before_all_effects(self):
+        with mock.patch.object(NEW, "api") as api, mock.patch.object(NEW, "run") as run:
+            for discover in (False, True):
+                with self.assertRaisesRegex(ValueError, "dispatch disabled"):
+                    NEW.phase1_candidate_lifecycle("missing", discover=discover)
+            api.assert_not_called(); run.assert_not_called()
+
+    def test_actual_attempt_writer_discovery_and_collector_reader_agree_for_both_routes(self):
+        for shared in (False, True):
+            with self.subTest(shared=shared), tempfile.TemporaryDirectory() as temporary:
+                gate, plan, path, attempt, directory, state, _ = self.fixture(Path(temporary).resolve(), shared)
+                record = self.invoke(plan, path)
+                self.assertEqual(len(state["requests"]), 1)
+                self.assertEqual(record["functionalQualification"], gate.PENDING)
+                before = attempt.read_bytes()
+                NEW.phase1_original_context(RUN)  # actual reader, no schema stub
+                with self.assertRaisesRegex(SystemExit, "INCOMPLETE"):
+                    NEW.collect(RUN, False)
+                self.assertEqual(json.loads((directory / "phase1-lifecycle.json").read_bytes())["history"][0]["status"],
+                                 "DISCOVERED_PENDING_PROOF")
+                with self.assertRaisesRegex(SystemExit, "already consumed"):
+                    self.invoke(plan, path)
+                self.assertEqual(attempt.read_bytes(), before)
+                self.assertEqual(len(state["requests"]), 1)
+
+    def test_zero_then_unique_discovery_is_append_only_and_never_redispatches(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, plan, path, attempt, directory, state, _ = self.fixture(Path(temporary).resolve())
+            state["publish"] = False
+            with self.assertRaisesRegex(SystemExit, "AWAITING_ORIGINAL"):
+                self.invoke(plan, path)
+            history = NEW.phase1_lifecycle_directory(gate, plan)
+            first = (history / "000000.json").read_bytes()
+            state["runs"] = [state["observed"]]
+            record = NEW.phase1_candidate_lifecycle(path, discover=True)
+            immutable_record = (directory / "dispatch.json").read_bytes()
+            NEW.phase1_candidate_lifecycle(path, discover=True)
+            self.assertEqual((directory / "dispatch.json").read_bytes(), immutable_record)
+            self.assertEqual((history / "000000.json").read_bytes(), first)
+            self.assertEqual(len(state["requests"]), 1)
+            self.assertEqual(len(NEW.ledger_dispatches()), 1)
+            self.assertEqual(record["runID"], RUN)
+            NEW.phase1_original_context(RUN)
+
+    def test_uncertain_or_interrupted_request_consumes_and_retains_later_run_without_attribution(self):
+        for effect in ("uncertain", "nonzero", "crash"):
+            with self.subTest(effect=effect), tempfile.TemporaryDirectory() as temporary:
+                gate, plan, path, attempt, directory, state, _ = self.fixture(Path(temporary).resolve())
+                state["effect"] = effect
+                with self.assertRaises(KeyboardInterrupt if effect == "crash" else SystemExit):
+                    self.invoke(plan, path)
+                before = attempt.read_bytes()
+                with self.assertRaisesRegex(ValueError, "ATTRIBUTION_PENDING"):
+                    NEW.phase1_candidate_lifecycle(path, discover=True)
+                receipt, entries = NEW.phase1_read_lifecycle(gate, plan, gate.decode(before, limit=gate.MAX_ATTEMPT_BYTES))
+                self.assertEqual(entries[-1]["runID"], RUN)
+                self.assertEqual(entries[-1]["status"], "ATTRIBUTION_PENDING")
+                self.assertFalse(directory.exists())
+                self.assertEqual(NEW.ledger_dispatches(), [])
+                self.assertEqual(attempt.read_bytes(), before)
+                self.assertEqual(len(state["requests"]), 1)
+                with self.assertRaisesRegex(SystemExit, "already consumed"):
+                    self.invoke(plan, path)
+
+    def test_moved_refs_ambiguous_and_nonoriginal_runs_are_retained_without_claiming_attribution(self):
+        for variant in ("moved", "multiple", "attempt2", "foreign", "repository", "oldtime"):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as temporary:
+                gate, plan, path, attempt, directory, state, _ = self.fixture(Path(temporary).resolve())
+                state["publish"] = False
+                with self.assertRaises(SystemExit): self.invoke(plan, path)
+                observed = copy.deepcopy(state["observed"])
+                if variant == "moved": state["observations"]["refs"]["integration"]["object"]["sha"] = "a" * 40
+                if variant == "attempt2": observed["run_attempt"] = 2
+                if variant == "foreign": observed["workflow_id"] = 999
+                if variant == "repository": observed["repository"]["id"] = 999
+                if variant == "oldtime": observed["created_at"] = "2026-09-26T11:00:00Z"
+                state["runs"] = [observed]
+                if variant == "multiple": state["runs"].append(dict(observed, id=RUN+1))
+                with self.assertRaisesRegex(ValueError, "ATTRIBUTION_PENDING"):
+                    NEW.phase1_candidate_lifecycle(path, discover=True)
+                state["observations"]["refs"]["integration"]["object"]["sha"] = HEAD
+                state["runs"] = [state["observed"]]
+                with self.assertRaisesRegex(ValueError, "ATTRIBUTION_PENDING"):
+                    NEW.phase1_candidate_lifecycle(path, discover=True)
+                _, entries = NEW.phase1_read_lifecycle(gate, plan, gate.decode(attempt.read_bytes(), limit=gate.MAX_ATTEMPT_BYTES))
+                self.assertTrue(any("prior attribution gap" in p for p in entries[-1]["problems"]))
+                self.assertFalse(directory.exists())
+                self.assertEqual(len(state["requests"]), 1)
+
+    def test_actual_predispatch_pagination_unknown_legacy_active_and_duplicate_census_refuse(self):
+        for variant in ("unknown-page2", "duplicate-page2", "legacy", "active", "workflow", "main", "input"):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as temporary:
+                gate, plan, path, attempt, directory, state, calls = self.fixture(Path(temporary).resolve())
+                known = {"id": RUN-1, "head_sha": HEAD}
+                if variant in ("unknown-page2", "duplicate-page2"):
+                    state["beforeRuns"] = [known, dict(known, id=RUN-2 if variant == "unknown-page2" else RUN-1)]
+                    NEW.LEDGER.write_bytes(gate.canonical({"runID": RUN-1, "head": HEAD, "selection": "unrelated", "kind": "development"}))
+                if variant == "legacy": NEW.LEDGER.write_bytes(gate.canonical({"runID": RUN-1, "head": HEAD, "selection": plan["selection"], "kind": "development"}))
+                if variant == "active": state["observations"]["activeRuns"]["queued"] = {"total_count": 1, "workflow_runs": [known]}
+                if variant == "workflow": state["observations"]["workflow"]["path"] = "other.yml"
+                if variant == "main": state["observations"]["refs"]["main"]["object"]["sha"] = "a"*40
+                if variant == "input": plan["purpose"] = gate.EXACT_MAIN; plan["ref"] = "refs/heads/main"; path.write_bytes(gate.canonical(plan))
+                with mock.patch.object(NEW, "PAGE_SIZE", 1), self.assertRaises(SystemExit): self.invoke(plan, path)
+                self.assertFalse(attempt.exists())
+                self.assertEqual(state["requests"], [])
+                if "page2" in variant: self.assertTrue(any("head_sha=" in x and x.endswith("page=2") for x in calls))
+
+    def test_actual_run_pagination_preserves_known_originals_and_collects_unique_new_one(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, plan, path, attempt, directory, state, calls = self.fixture(Path(temporary).resolve())
+            state["beforeRuns"] = [{"id": RUN-i-1, "head_sha": HEAD} for i in range(101)]
+            NEW.LEDGER.write_bytes(b"".join(gate.canonical({"runID": row["id"], "head": HEAD,
+                "selection": "synthetic-unrelated", "kind": "development"}) for row in state["beforeRuns"]))
+            record = self.invoke(plan, path)
+            self.assertEqual(record["runID"], RUN)
+            captured = gate.decode(attempt.read_bytes(), limit=gate.MAX_ATTEMPT_BYTES)
+            self.assertEqual(len(captured["knownRunIDs"]), 101)
+            self.assertEqual(captured["observations"]["headRuns"]["workflow_runs"], state["beforeRuns"])
+            self.assertGreaterEqual(sum("head_sha=" in x and x.endswith("page=2") for x in calls), 2)
+            NEW.phase1_original_context(RUN)
+
+    def test_failed_durable_consumption_never_reaches_dispatch_and_partial_is_never_reused(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, plan, path, attempt, directory, state, _ = self.fixture(Path(temporary).resolve())
+            original_fsync = gate.os.fsync
+            def fail_consumed_fsync(fd):
+                if attempt.exists(): raise OSError("synthetic consumed-file fsync uncertainty")
+                return original_fsync(fd)
+            with mock.patch.object(gate.os, "fsync", side_effect=fail_consumed_fsync):
+                with self.assertRaises(OSError): self.invoke(plan, path)
+            self.assertEqual(state["requests"], [])
+            self.assertTrue(attempt.exists())
+            before = attempt.read_bytes()
+            with self.assertRaisesRegex(SystemExit, "already consumed"): self.invoke(plan, path)
+            self.assertEqual(attempt.read_bytes(), before)
+
+    def test_direct_collection_refreshes_full_census_after_late_second_original_and_retains_safe_bytes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, plan, path, attempt, directory, state, calls = self.fixture(Path(temporary).resolve(), shared=True)
+            state["beforeRuns"] = [{"id": RUN-i-1, "head_sha": HEAD} for i in range(101)]
+            NEW.LEDGER.write_bytes(b"".join(gate.canonical({"runID": row["id"], "head": HEAD,
+                "selection": "synthetic-unrelated", "kind": "development"}) for row in state["beforeRuns"]))
+            self.invoke(plan, path)
+            consumed = attempt.read_bytes()
+            initial_calls = len(calls)
+            state["runs"].append(dict(state["observed"], id=RUN+1))
+            with self.assertRaisesRegex(SystemExit, "INCOMPLETE"): NEW.collect(RUN, False)
+            proof = json.loads((directory / "phase1-raw-proof.json").read_bytes())
+            self.assertEqual(proof["originalAttribution"]["status"], "ATTRIBUTION_PENDING")
+            self.assertTrue(proof["originalAttribution"]["retentionOnly"])
+            self.assertEqual(set(proof["artifacts"]), {"producer", "S01", "payload"})
+            self.assertTrue((directory / "run-logs.zip").is_file())
+            self.assertTrue((directory / "artifacts/S01/synthetic-only.txt").is_file())
+            self.assertGreaterEqual(sum("head_sha=" in x and x.endswith("page=2") for x in calls[initial_calls:]), 2)
+            observed = [json.loads(p.read_bytes()) for p in sorted((directory / "phase1-collection-observations").iterdir())]
+            self.assertEqual([v["phase"] for v in observed], ["begin", "end"])
+            self.assertTrue(all(v["entry"]["status"] == "ATTRIBUTION_PENDING" for v in observed))
+            self.assertFalse(proof["acceptance"])
+            self.assertEqual(attempt.read_bytes(), consumed)
+            self.assertEqual(len(state["requests"]), 1)
+            with self.assertRaisesRegex(ValueError, "attributed original"): NEW.phase1_original_context(RUN)
+
+    def test_collection_retains_attribution_gaps_for_missing_substituted_ref_or_repository_observations(self):
+        for variant in ("missing", "substituted", "head", "integration", "main", "repository"):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as temporary:
+                _, plan, path, _, directory, state, _ = self.fixture(Path(temporary).resolve())
+                self.invoke(plan, path)
+                if variant == "missing": state["runs"] = []
+                if variant == "substituted": state["runs"] = [dict(state["observed"], id=RUN+1)]
+                if variant == "head": state["runs"][0]["head_sha"] = "f"*40
+                if variant in ("integration", "main"): state["observations"]["refs"][variant]["object"]["sha"] = "f"*40
+                if variant == "repository": state["observations"]["repository"]["id"] = 999
+                with self.assertRaisesRegex(SystemExit, "INCOMPLETE"): NEW.collect(RUN, False)
+                proof = json.loads((directory / "phase1-raw-proof.json").read_bytes())
+                self.assertEqual(proof["originalAttribution"]["status"], "ATTRIBUTION_PENDING")
+                self.assertTrue((directory / "artifacts/rui1/synthetic-only.txt").is_file())
+                self.assertEqual(len(state["requests"]), 1)
+
+    def test_end_collection_census_detects_original_appearing_during_artifact_retention(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            _, plan, path, _, directory, state, _ = self.fixture(Path(temporary).resolve())
+            self.invoke(plan, path)
+            download = NEW.api_bytes
+            def late(endpoint):
+                raw = download(endpoint)
+                if "/artifacts/" in endpoint and len(state["runs"]) == 1:
+                    state["runs"].append(dict(state["observed"], id=RUN+1))
+                return raw
+            with mock.patch.object(NEW, "api_bytes", side_effect=late), self.assertRaisesRegex(SystemExit, "INCOMPLETE"):
+                NEW.collect(RUN, False)
+            observations = [json.loads(p.read_bytes()) for p in sorted((directory / "phase1-collection-observations").iterdir())]
+            self.assertEqual([v["entry"]["status"] for v in observations], ["DISCOVERED_PENDING_PROOF", "ATTRIBUTION_PENDING"])
+            self.assertEqual(json.loads((directory / "phase1-raw-proof.json").read_bytes())["originalAttribution"]["status"], "ATTRIBUTION_PENDING")
+            self.assertEqual(len(state["requests"]), 1)
+
+    def test_census_transport_partial_and_same_claim_resume_keep_prior_gap_and_originals(self):
+        for fail_scope in ("begin", "end"):
+            with self.subTest(fail_scope=fail_scope), tempfile.TemporaryDirectory() as temporary:
+                gate, plan, path, _, directory, state, _ = self.fixture(Path(temporary).resolve())
+                self.invoke(plan, path)
+                real_api, seen = NEW.api, []
+                def interrupted(endpoint):
+                    if "head_sha=" in endpoint:
+                        seen.append(endpoint)
+                        if len(seen) == (1 if fail_scope == "begin" else 2):
+                            raise subprocess.CalledProcessError(1, ["synthetic API transport interruption"])
+                    return real_api(endpoint)
+                with mock.patch.object(NEW, "api", side_effect=interrupted), self.assertRaisesRegex(SystemExit, "resume the same"):
+                    NEW.collect(RUN, False)
+                partial = directory / "phase1-collection-partials/000000.json"
+                partial_raw, claim = partial.read_bytes(), (directory / "collector.claim.json").read_bytes()
+                self.assertFalse((directory / "manifest.json").exists())
+                self.assertFalse((directory / "phase1-chain-check.log").exists())
+                self.assertTrue((directory / "artifacts/rui1/synthetic-only.txt").is_file())
+                with self.assertRaisesRegex(SystemExit, "INCOMPLETE"): NEW.collect(RUN, True)
+                self.assertEqual(partial.read_bytes(), partial_raw)
+                self.assertEqual((directory / "collector.claim.json").read_bytes(), claim)
+                self.assertEqual(json.loads((directory / "phase1-raw-proof.json").read_bytes())["originalAttribution"]["status"], "ATTRIBUTION_PENDING")
+                self.assertEqual(len(state["requests"]), 1)
+                self.assertEqual(len(list((directory / "phase1-collection-observations").iterdir())), 4)
+                if fail_scope == "end": self.assertEqual(len(list((directory / "phase1-checker-observations").iterdir())), 2)
+
+    def test_collection_second_page_transport_failure_keeps_first_page_and_independent_observations(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            _, plan, path, _, directory, state, _ = self.fixture(Path(temporary).resolve())
+            state["beforeRuns"] = [{"id": RUN-i-1, "head_sha": HEAD} for i in range(101)]
+            NEW.LEDGER.write_bytes(b"".join(json.dumps({"runID": row["id"], "head": HEAD,
+                "selection": "synthetic-unrelated", "kind": "development"}).encode()+b"\n" for row in state["beforeRuns"]))
+            self.invoke(plan, path)
+            real_api, failed = NEW.api, []
+            def second_page(endpoint):
+                if "head_sha=" in endpoint and endpoint.endswith("page=2") and not failed:
+                    failed.append(endpoint)
+                    raise subprocess.CalledProcessError(1, ["gh", "api", endpoint])
+                return real_api(endpoint)
+            with mock.patch.object(NEW, "api", side_effect=second_page), self.assertRaisesRegex(SystemExit, "resume the same"):
+                NEW.collect(RUN, False)
+            first = json.loads(sorted((directory / "phase1-collection-observations").iterdir())[0].read_bytes())["entry"]["snapshot"]
+            self.assertTrue(first["transportFailure"])
+            self.assertEqual(len(first["runPages"]), 1)
+            self.assertEqual(len(first["runPages"][0]["response"]["workflow_runs"]), 100)
+            self.assertEqual(first["repository"]["id"], 77)
+            self.assertEqual(first["refs"]["integration"]["object"]["sha"], HEAD)
+            self.assertIsNone(first["headRuns"])
+            self.assertIn("page=2", first["error"])
+            with self.assertRaisesRegex(SystemExit, "INCOMPLETE"): NEW.collect(RUN, True)
+            self.assertEqual(json.loads((directory / "phase1-raw-proof.json").read_bytes())["originalAttribution"]["status"], "ATTRIBUTION_PENDING")
+            self.assertEqual(len(state["requests"]), 1)
+
+    def test_collection_exception_still_retains_end_census_without_downloading_substituted_run(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            _, plan, path, _, directory, state, _ = self.fixture(Path(temporary).resolve())
+            self.invoke(plan, path)
+            state["observed"]["run_attempt"] = 2
+            download = NEW.api_bytes
+            with mock.patch.object(NEW, "api_bytes", wraps=download) as fetched, self.assertRaises(ValueError): NEW.collect(RUN, False)
+            fetched.assert_not_called()
+            observations = [json.loads(p.read_bytes()) for p in sorted((directory / "phase1-collection-observations").iterdir())]
+            self.assertEqual([v["phase"] for v in observations], ["begin", "end-exception"])
+            self.assertEqual(observations[-1]["entry"]["status"], "ATTRIBUTION_PENDING")
+            self.assertFalse((directory / "manifest.json").exists())
+            self.assertFalse((directory / "phase1-collector-active").exists())
+            self.assertFalse((NEW.EVIDENCE / "phase1-dispatch-active").exists())
+            self.assertEqual(len(state["requests"]), 1)
+
+    def test_original_reader_rejects_attempt_input_and_discovery_history_substitution(self):
+        for variant in ("input", "argv", "request", "chain", "missing", "legacy-schema", "tail", "page"):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as temporary:
+                gate, plan, path, attempt, directory, state, _ = self.fixture(Path(temporary).resolve())
+                self.invoke(plan, path)
+                lifecycle = NEW.phase1_lifecycle_directory(gate, plan)
+                if variant in ("input", "argv", "legacy-schema"):
+                    value = gate.decode(attempt.read_bytes(), limit=gate.MAX_ATTEMPT_BYTES)
+                    if variant == "input": value["inputBytes"] = "{}\n"
+                    if variant == "argv": value["argv"][-1] = "--rerun"
+                    if variant == "legacy-schema": value["schema"] = "v23-phase1-original-attempt.v1"
+                    attempt.write_bytes(gate.canonical(value))
+                if variant == "request":
+                    value = gate.decode((lifecycle / "request.json").read_bytes(), limit=gate.MAX_ATTEMPT_BYTES)
+                    value["exitCode"] = 1
+                    (lifecycle / "request.json").write_bytes(gate.canonical(value))
+                if variant == "chain":
+                    value = gate.decode((lifecycle / "000000.json").read_bytes(), limit=gate.MAX_ATTEMPT_BYTES)
+                    value["previousSHA256"] = "A" * 64
+                    (lifecycle / "000000.json").write_bytes(gate.canonical(value))
+                if variant == "missing": (lifecycle / "000000.json").unlink()
+                if variant == "tail":
+                    NEW.phase1_candidate_lifecycle(path, discover=True)
+                    (lifecycle / "000001.json").unlink()
+                if variant == "page":
+                    value = gate.decode((lifecycle / "000000.json").read_bytes(), limit=gate.MAX_ATTEMPT_BYTES)
+                    value["snapshot"]["runPages"][0]["response"]["workflow_runs"] = []
+                    (lifecycle / "000000.json").write_bytes(gate.canonical(value))
+                with self.assertRaises(ValueError): NEW.phase1_original_context(RUN)
+                self.assertEqual(len(state["requests"]), 1)
+
+
+class Phase1CollectionCallerTests(unittest.TestCase):
+    """Synthetic root/API originals; no native, hosted or human approval fixtures."""
+
+    def fixture(self, base, shared=False):
+        import tarfile
+        gate = NEW.phase1_gates()
+        selected = {"unitTestSelectors": ["SyntheticTests/Test/testOnly"], "uiTestSelectors": []}
+        plan = gate.make_plan(purpose=gate.CANDIDATE, head=HEAD, tree="9" * 40,
+            selection=gate.SHARED if shared else gate.RUI1, resolved_bytes=gate.canonical(selected),
+            sources={p: gate.sha((REPO_ROOT / p).read_bytes()) for p in gate.SOURCES},
+            requested_at="2026-09-26T12:00:00Z")
+        registration_dir = base / "v23-phase1-plans"
+        registration_path, _ = gate.register_candidate(plan, registration_dir)
+        observations = synthetic_phase1_observations(gate, plan)
+        attempt = gate.make_attempt(plan, registration_path.read_bytes(), collector_id="a" * 32,
+            requested_at="2026-09-26T12:01:00Z", observations=observations, ledger_bytes="", attempt_names=[])
+        attempts = base / "v23-original-attempts"
+        attempts.mkdir()
+        attempt_path = attempts / (gate.original_stem(plan) + ".json")
+        attempt_path.write_bytes(gate.canonical(attempt))
+        record = {"runID": RUN, "runAttempt": 1, "kind": "gate", "head": HEAD, "ref": plan["ref"],
+            "selection": plan["selection"], "phase1PlanBytes": gate.canonical(plan).decode(),
+            "phase1Purpose": plan["purpose"], "phase1PlanSHA256": attempt["planSHA256"],
+            "phase1AttemptSHA256": gate.sha(attempt_path.read_bytes()),
+            "phase1RegistrationSHA256": attempt["registrationSHA256"], "phase1RegistrationSchema": gate.REGISTRATION_SCHEMA,
+            "resolvedSelectionSHA256": plan["selectionSHA256"], "requestedAtUTC": attempt["requestedAtUTC"]}
+        partitions = {"partitionIDs": ["S01"]}
+        if shared:
+            record["sharedPartitions"] = partitions
+        directory = base / str(RUN)
+        directory.mkdir()
+        (directory / "dispatch.json").write_bytes(gate.canonical(record))
+        (base / "v23-original-ledger.jsonl").write_bytes(gate.canonical(record))
+        observed = {"id": RUN, "run_attempt": 1, "workflow_id": 7, "head_sha": HEAD,
+            "head_branch": NEW.BRANCH, "path": NEW.WORKFLOW_PATH, "event": "workflow_dispatch",
+            "repository": {"full_name": REPO, "id": 77}, "head_repository": {"full_name": REPO, "id": 77},
+            "created_at": "2026-09-26T12:01:01Z", "status": "completed", "conclusion": "success"}
+        # Same closed writer/reader schema as the new caller; these are explicitly
+        # synthetic protocol fixtures and do not assert a real request occurred.
+        with mock.patch.object(NEW, "ATTEMPTS", attempts), mock.patch.object(NEW, "LEDGER", base / "v23-original-ledger.jsonl"), mock.patch.object(NEW, "phase1_timestamp", return_value="2026-09-26T12:01:02Z"):
+            lifecycle = NEW.phase1_lifecycle_directory(gate, plan)
+            lifecycle.mkdir()
+            receipt = NEW.phase1_request_receipt(gate, attempt, result=subprocess.CompletedProcess(attempt["argv"], 0, b"", b""))
+            gate.write_immutable(lifecycle / "request.json", gate.canonical(receipt))
+            entry = NEW.phase1_record_discovery(gate, plan, attempt, {"refs": observations["refs"],
+                "headRuns": {"total_count": 1, "workflow_runs": [observed]}, "directRun": observed, "error": None,
+                "repository": observations["repository"], "transportFailure": False, "runPages": [{"endpoint": f"repos/{REPO}/actions/runs?head_sha={HEAD}&per_page={NEW.PAGE_SIZE}&page=1",
+                              "response": {"total_count": 1, "workflow_runs": [observed]}}]})
+        with mock.patch.object(NEW, "shared_partitions", return_value=partitions):
+            record = NEW.phase1_dispatch_record(gate, plan, attempt, selected, entry)
+        (directory / "dispatch.json").write_bytes(gate.canonical(record))
+        anchors = [row for row in map(json.loads, (base / "v23-original-ledger.jsonl").read_text().splitlines()) if "event" in row]
+        (base / "v23-original-ledger.jsonl").write_bytes(b"".join(gate.canonical(x) for x in anchors + [record]))
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr("synthetic-only.txt", "not native evidence")
+            archive.writestr("phase1-original-event.json", json.dumps({"repository": {"full_name": REPO},
+                "ref": plan["ref"], "inputs": gate.dispatch_inputs(plan)}))
+        zipped = buffer.getvalue()
+        if shared:
+            names = NEW.shared_artifact_names(RUN, HEAD, ["S01"])
+            artifact_names = [names["producer"], names["consumers"]["S01"], names["payload"]]
+        else:
+            artifact_names = [f"ios-ci-native-github-{gate.RUI1}-{RUN}-1"]
+        artifacts = [{"id": index + 20, "name": name, "expired": False, "digest": "sha256:" + sha(zipped).lower(),
+            "size_in_bytes": len(zipped), "workflow_run": {"id": RUN, "head_sha": HEAD, "head_branch": NEW.BRANCH,
+                                                           "repository_id": 77, "head_repository_id": 77}}
+            for index, name in enumerate(artifact_names)]
+        source = io.BytesIO()
+        with tarfile.open(fileobj=source, mode="w") as archive:
+            for p in gate.SOURCES:
+                archive.add(REPO_ROOT / p, arcname=p)
+        calls, downloads, commands = [], [], []
+        def api(endpoint):
+            calls.append(endpoint)
+            if endpoint == f"repos/{REPO}":
+                return copy.deepcopy(observations["repository"])
+            if endpoint == f"repos/{REPO}/git/ref/heads/{NEW.BRANCH}":
+                return copy.deepcopy(observations["refs"]["integration"])
+            if endpoint == f"repos/{REPO}/git/ref/heads/main":
+                return copy.deepcopy(observations["refs"]["main"])
+            if endpoint == f"repos/{REPO}/actions/runs?head_sha={HEAD}&per_page={NEW.PAGE_SIZE}&page=1":
+                return {"total_count": 1, "workflow_runs": [copy.deepcopy(observed)]}
+            if endpoint == f"repos/{REPO}/actions/workflows/7":
+                return {"id": 7, "path": NEW.WORKFLOW_PATH}
+            # Exercise actual pagination callers, mocking only the API boundary.
+            if endpoint == f"repos/{REPO}/actions/runs/{RUN}/attempts/1/jobs?per_page={NEW.PAGE_SIZE}&page=1":
+                return {"total_count": 1, "jobs": [{"id": 1, "run_id": RUN, "run_attempt": 1,
+                    "head_sha": HEAD, "status": "completed"}]}
+            prefix = f"repos/{REPO}/actions/runs/{RUN}/artifacts?per_page={NEW.PAGE_SIZE}&page="
+            if endpoint.startswith(prefix):
+                page = int(endpoint.removeprefix(prefix))
+                return {"total_count": len(artifacts), "artifacts": copy.deepcopy(
+                    artifacts[(page - 1) * NEW.PAGE_SIZE:page * NEW.PAGE_SIZE])}
+            self.assertIn(endpoint, (f"repos/{REPO}/actions/runs/{RUN}", f"repos/{REPO}/actions/runs/{RUN}/attempts/1"))
+            return copy.deepcopy(observed)
+        def download(endpoint):
+            downloads.append(endpoint)
+            return zipped
+        def git_bytes(*args):
+            if args[0] == "show":
+                self.assertTrue(args[1].startswith(HEAD + ":"))
+                return (REPO_ROOT / args[1].split(":", 1)[1]).read_bytes()
+            self.assertEqual(args, ("archive", "--format=tar", HEAD))
+            return source.getvalue()
+        def checked(args, **kwargs):
+            commands.append(args)
+            self.assertEqual(args[:4], [sys.executable, "-B", "Scripts/v23-native-ci.py", "phase1-retained-chain"])
+            self.assertEqual(args[-1], str((directory / "phase1-chain-request.json").resolve()))
+            self.assertTrue((Path(kwargs["cwd"]) / "Scripts/v23-native-ci.py").is_file())
+            # Deliberate failing exact-source checker: transport alone cannot complete proof.
+            return subprocess.CompletedProcess(args, 1, b"", b"synthetic missing raw native results\n")
+        stack = contextlib.ExitStack()
+        for name, replacement in (("EVIDENCE", base), ("ATTEMPTS", attempts), ("LEDGER", base / "v23-original-ledger.jsonl"),
+            ("api", api), ("api_bytes", download),
+            ("git_bytes", git_bytes), ("run", lambda *args: "9" * 40 + "\n"),
+            ("resolve_selection", lambda *args: (selected, plan["selectionSHA256"])),
+            ("shared_partitions", lambda *args: partitions)):
+            stack.enter_context(mock.patch.object(NEW, name, replacement))
+        stack.enter_context(mock.patch.object(NEW.subprocess, "run", checked))
+        stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+        self.addCleanup(stack.close)
+        return gate, directory, attempt_path, observed, artifacts, calls, downloads, commands
+
+    def test_real_collection_caller_requires_origin_and_never_downloads_payload_or_completes_transport_only(self):
+        for shared in (False, True):
+            with self.subTest(shared=shared), tempfile.TemporaryDirectory() as temporary:
+                gate, directory, _, _, artifacts, calls, downloads, commands = self.fixture(Path(temporary).resolve(), shared)
+                with self.assertRaisesRegex(SystemExit, "raw proof INCOMPLETE"):
+                    NEW.collect(RUN, False)
+                proof = json.loads((directory / "phase1-raw-proof.json").read_bytes())
+                self.assertEqual(proof["status"], "INCOMPLETE")
+                self.assertEqual(proof["functionalQualification"], gate.PENDING)
+                self.assertEqual(set(proof["dispatchInputBindings"]), {"producer", "S01"} if shared else {"rui1"})
+                self.assertFalse(proof["releaseReady"])
+                self.assertEqual(len(commands), 1)
+                manifest = json.loads((directory / "manifest.json").read_bytes())
+                self.assertNotIn("manifest.json", manifest["files"])
+                self.assertIn("run-attempt-1.json", manifest["files"])
+                self.assertIn("phase1-chain-check.log", manifest["files"])
+                self.assertFalse((directory / "phase1-collector-active").exists())
+                if shared:
+                    self.assertNotIn(f"repos/{REPO}/actions/artifacts/{artifacts[-1]['id']}/zip", downloads)
+                    self.assertFalse(proof["artifacts"]["payload"]["downloaded"])
+                with self.assertRaisesRegex(ValueError, "immutable"):
+                    NEW.collect(RUN, True)
+
+    def test_collector_joins_actual_authenticated_event_inputs_to_consumed_attempt(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, directory, _, _, artifacts, _, _, _ = self.fixture(Path(temporary).resolve())
+            original_download = NEW.api_bytes
+            def substituted(endpoint):
+                raw = original_download(endpoint)
+                if "/artifacts/" not in endpoint: return raw
+                source, target = io.BytesIO(raw), io.BytesIO()
+                with zipfile.ZipFile(source) as old, zipfile.ZipFile(target, "w") as new:
+                    for name in old.namelist():
+                        payload = old.read(name)
+                        if name == "phase1-original-event.json":
+                            event = json.loads(payload); event["inputs"]["s10_4_shared_payload_run_id"] = "999"
+                            payload = json.dumps(event).encode()
+                        new.writestr(zipfile.ZipInfo(name, ZIP_TIME), payload)
+                altered = target.getvalue()
+                return altered
+            # Authenticate the substituted ZIP as the synthetic API original;
+            # transport validity must not mask input mismatch against the attempt.
+            altered = substituted(f"repos/{REPO}/actions/artifacts/{artifacts[0]['id']}/zip")
+            artifacts[0].update(digest="sha256:" + sha(altered).lower(), size_in_bytes=len(altered))
+            with mock.patch.object(NEW, "api_bytes", side_effect=substituted), self.assertRaisesRegex(SystemExit, "INCOMPLETE"):
+                NEW.collect(RUN, False)
+            proof = json.loads((directory / "phase1-raw-proof.json").read_bytes())
+            self.assertEqual(proof["dispatchInputBindings"], {})
+            self.assertTrue(any("original dispatch input binding" in x for x in proof["problems"]))
+            self.assertTrue((directory / "artifacts/rui1/phase1-original-event.json").is_file())
+
+    def test_foreign_or_nonoriginal_api_refuses_before_downloading(self):
+        for changes in ({"run_attempt": 2}, {"run_attempt": True}, {"head_sha": "a" * 40},
+                        {"head_branch": "main"}, {"workflow_id": 9}, {"repository": {"full_name": "other/repo"}},
+                        {"head_repository": {"full_name": "other/repo"}}, {"created_at": "2026-09-25T12:00:00Z"}):
+            with self.subTest(changes=changes), tempfile.TemporaryDirectory() as temporary:
+                _, directory, _, observed, _, _, downloads, _ = self.fixture(Path(temporary).resolve())
+                observed.update(changes)
+                with self.assertRaises(ValueError):
+                    NEW.collect(RUN, False)
+                self.assertEqual(downloads, [])
+                self.assertFalse((directory / "manifest.json").exists())
+
+    def test_artifact_origin_and_digest_are_mandatory_not_caller_dictionaries(self):
+        for changes in ({"digest": None}, {"expired": "false"}, {"id": True},
+                        {"workflow_run": {"id": RUN, "head_sha": "a" * 40, "head_branch": NEW.BRANCH}},
+                        {"digest": "sha256:" + "a" * 64}):
+            with self.subTest(changes=changes), tempfile.TemporaryDirectory() as temporary:
+                _, directory, _, _, artifacts, _, _, _ = self.fixture(Path(temporary).resolve())
+                artifacts[0].update(changes)
+                # Authorized C2 failure-finalization retains a named refusal and
+                # safe originals; it must not turn an invalid artifact into proof.
+                with self.assertRaisesRegex(SystemExit, "INCOMPLETE"):
+                    NEW.collect(RUN, False)
+                proof = json.loads((directory / "phase1-raw-proof.json").read_bytes())
+                self.assertEqual(proof["status"], "INCOMPLETE")
+                self.assertEqual(proof["artifacts"], {})
+                self.assertTrue(any("artifact[0] refused" in p for p in proof["problems"]))
+                self.assertFalse((directory / "artifacts/rui1").exists())
+                self.assertTrue((directory / "manifest.json").is_file())
+
+    def test_bad_first_artifact_cannot_hide_later_safe_originals_or_download_payload(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            _, directory, _, _, artifacts, _, downloads, _ = self.fixture(Path(temporary).resolve(), shared=True)
+            artifacts[0]["digest"] = None
+            with self.assertRaisesRegex(SystemExit, "INCOMPLETE"):
+                NEW.collect(RUN, False)
+            proof = json.loads((directory / "phase1-raw-proof.json").read_bytes())
+            self.assertEqual(set(proof["artifacts"]), {"S01", "payload"})
+            self.assertFalse(proof["artifacts"]["payload"]["downloaded"])
+            self.assertFalse((directory / "artifacts/producer").exists())
+            self.assertEqual((directory / "artifacts/S01/synthetic-only.txt").read_text(), "not native evidence")
+            self.assertIn(f"repos/{REPO}/actions/jobs/1/logs", downloads)
+            self.assertNotIn(f"repos/{REPO}/actions/artifacts/{artifacts[0]['id']}/zip", downloads)
+            self.assertNotIn(f"repos/{REPO}/actions/artifacts/{artifacts[2]['id']}/zip", downloads)
+            self.assertTrue((directory / "phase1-job-logs/1.log").is_file())
+
+    def test_duplicate_artifact_ids_or_names_refuse_ambiguous_members_but_keep_other_originals(self):
+        for key in ("id", "name"):
+            with self.subTest(key=key), tempfile.TemporaryDirectory() as temporary:
+                _, directory, _, _, artifacts, _, _, _ = self.fixture(Path(temporary).resolve(), shared=True)
+                artifacts.append(dict(artifacts[0], **{("name" if key == "id" else "id"): "foreign" if key == "id" else 999}))
+                with self.assertRaisesRegex(SystemExit, "INCOMPLETE"):
+                    NEW.collect(RUN, False)
+                proof = json.loads((directory / "phase1-raw-proof.json").read_bytes())
+                self.assertEqual(set(proof["artifacts"]), {"S01", "payload"})
+                self.assertIn("duplicate artifact name or ID census", proof["problems"])
+
+    def test_actual_artifact_pagination_retains_safe_original_after_cross_page_duplicate_and_malformed_members(self):
+        with mock.patch.object(NEW, "PAGE_SIZE", 2), tempfile.TemporaryDirectory() as temporary:
+            _, directory, _, _, artifacts, calls, downloads, _ = self.fixture(Path(temporary).resolve(), shared=True)
+            duplicate = dict(artifacts[0], name="synthetic-foreign-duplicate")
+            # Duplicate producer spans pages; malformed originals remain visible.
+            artifacts.insert(1, ["synthetic malformed member"])
+            artifacts.extend([duplicate, None, {"id": ["invalid identity"], "name": {"invalid": "name"}}])
+            with mock.patch.object(NEW, "PAGE_SIZE", 2), self.assertRaisesRegex(SystemExit, "INCOMPLETE"):
+                NEW.collect(RUN, False)
+            proof = json.loads((directory / "phase1-raw-proof.json").read_bytes())
+            self.assertEqual(set(proof["artifacts"]), {"S01", "payload"})
+            self.assertIn("duplicate artifact name or ID census", proof["problems"])
+            self.assertEqual(sum("refused" in p for p in proof["problems"]), 5)
+            self.assertFalse((directory / "artifacts/producer").exists())
+            self.assertTrue((directory / "artifacts/S01/synthetic-only.txt").is_file())
+            self.assertNotIn(f"repos/{REPO}/actions/artifacts/{artifacts[0]['id']}/zip", downloads)
+            self.assertNotIn(f"repos/{REPO}/actions/artifacts/{artifacts[3]['id']}/zip", downloads)
+            prefix = f"repos/{REPO}/actions/runs/{RUN}/artifacts?per_page=2&page="
+            self.assertEqual([c for c in calls if c.startswith(prefix)],
+                             [prefix + str(p) for p in (1, 2, 3, 4, 1, 2, 3, 4)])
+            self.assertEqual(json.loads((directory / "artifacts.json").read_bytes())["artifacts"], artifacts)
+            self.assertEqual((directory / "artifacts.json").read_bytes(),
+                             (directory / "artifacts-after-collection.json").read_bytes())
+
+    def test_gate_artifact_pagination_refuses_incomplete_changed_or_unbounded_envelopes(self):
+        gate = NEW.phase1_gates()
+        cases = [([None], "API object"),
+                 ([{"total_count": True, "artifacts": []}], "total_count bound"),
+                 ([{"total_count": 4, "artifacts": []}], "total_count bound"),
+                 ([{"total_count": 1, "artifacts": None}], "bounded page"),
+                 ([{"total_count": 1, "artifacts": [None, None, None]}], "bounded page"),
+                 ([{"total_count": 1, "artifacts": [None, None]}], "exceeds total_count"),
+                 ([{"total_count": 1, "artifacts": []}], "incomplete empty page"),
+                 ([{"total_count": 3, "artifacts": [None, None]},
+                   {"total_count": 2, "artifacts": []}], "total_count changed"),
+                 ([{"total_count": 3, "artifacts": [None]},
+                   {"total_count": 3, "artifacts": [None]}], "bounded page count")]
+        for replies, expected in cases:
+            with self.subTest(expected=expected), mock.patch.object(NEW, "api", side_effect=replies), \
+                    mock.patch.object(NEW, "PAGE_SIZE", 2), mock.patch.object(NEW, "SHARED_MAX_ARTIFACTS", 3):
+                with self.assertRaisesRegex(ValueError, expected):
+                    NEW.phase1_artifact_census(gate, "synthetic/artifacts")
+
+    def test_interrupted_transport_keeps_safe_originals_and_resumes_same_claim(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            _, directory, _, _, artifacts, _, _, commands = self.fixture(Path(temporary).resolve(), shared=True)
+            original_download = NEW.api_bytes
+            def interrupted(endpoint):
+                if endpoint.endswith("/artifacts/%d/zip" % artifacts[0]["id"]):
+                    raise subprocess.CalledProcessError(1, ["synthetic transport"])
+                return original_download(endpoint)
+            with mock.patch.object(NEW, "api_bytes", side_effect=interrupted), self.assertRaisesRegex(SystemExit, "resume the same"):
+                NEW.collect(RUN, False)
+            claim = (directory / "collector.claim.json").read_bytes()
+            partial_path = directory / "phase1-collection-partials/000000.json"
+            partial_raw = partial_path.read_bytes()
+            partial = json.loads(partial_raw)
+            self.assertEqual(partial["status"], "INCOMPLETE")
+            self.assertEqual(set(partial["artifacts"]), {"S01", "payload"})
+            self.assertEqual(commands, [])
+            self.assertTrue((directory / "artifacts/S01/synthetic-only.txt").is_file())
+            self.assertFalse((directory / "manifest.json").exists())
+            with self.assertRaisesRegex(SystemExit, "raw proof INCOMPLETE"):
+                NEW.collect(RUN, True)
+            self.assertEqual((directory / "collector.claim.json").read_bytes(), claim)
+            self.assertEqual(partial_path.read_bytes(), partial_raw)
+            self.assertTrue((directory / "artifacts/producer/synthetic-only.txt").is_file())
+            self.assertTrue((directory / "manifest.json").is_file())
+            self.assertEqual(len(commands), 1)
+
+    def test_missing_consumed_attempt_refuses_before_api_and_claim_cannot_be_replaced(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            _, directory, attempt, _, _, calls, _, _ = self.fixture(Path(temporary).resolve())
+            raw = attempt.read_bytes()
+            attempt.unlink()
+            with self.assertRaises(FileNotFoundError):
+                NEW.collect(RUN, False)
+            self.assertEqual(calls, [])
+            attempt.write_bytes(raw)
+            (directory / "collector.claim.json").write_text("{}\n")
+            with self.assertRaises(ValueError):
+                NEW.collect(RUN, True)
+            self.assertEqual(calls, [])
+            with self.assertRaises(FileExistsError):
+                NEW.collect(RUN, False)
+
+    def test_nonterminal_original_retains_claim_and_resumes_without_consuming_another_original(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            _, directory, _, observed, _, _, _, _ = self.fixture(Path(temporary).resolve())
+            observed.update(status="in_progress", conclusion=None)
+            with self.assertRaisesRegex(ValueError, "not completed"):
+                NEW.collect(RUN, False)
+            self.assertTrue((directory / "collector.claim.json").exists())
+            self.assertFalse((directory / "run.json").exists())
+            observed.update(status="completed", conclusion="success")
+            with self.assertRaisesRegex(SystemExit, "INCOMPLETE"):
+                NEW.collect(RUN, True)
+
+    def test_legacy_collision_and_active_collector_refuse_without_api(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, directory, _, _, _, calls, _, _ = self.fixture(Path(temporary).resolve())
+            ledger = NEW.LEDGER.read_bytes()
+            with NEW.LEDGER.open("ab") as stream:
+                stream.write(gate.canonical({"runID": RUN - 1, "head": HEAD,
+                    "selection": gate.RUI1, "kind": "development"}))
+            with self.assertRaisesRegex(ValueError, "sole preregistered"):
+                NEW.collect(RUN, False)
+            self.assertEqual(calls, [])
+            NEW.LEDGER.write_bytes(ledger)
+            (directory / "phase1-collector-active").mkdir()
+            with self.assertRaises(FileExistsError):
+                NEW.collect(RUN, False)
+            self.assertEqual(calls, [])
+            with self.assertRaises(FileExistsError):
+                NEW.collect(RUN, True)
+            self.assertEqual(calls, [])
+
+    def test_phase1_marker_or_consumed_attempt_cannot_masquerade_as_development(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, directory, _, _, _, calls, _, _ = self.fixture(Path(temporary).resolve())
+            record = json.loads((directory / "dispatch.json").read_bytes())
+            record["kind"] = "development"
+            for marked in (True, False):
+                if not marked:
+                    record = {k: v for k, v in record.items() if not k.startswith("phase1")}
+                (directory / "dispatch.json").write_bytes(gate.canonical(record))
+                NEW.LEDGER.write_bytes(gate.canonical(record))
+                _, reason = NEW.recorded_development(RUN)
+                self.assertIn("Phase1", reason)
+                with self.assertRaisesRegex(SystemExit, "Phase1"):
+                    NEW.cancel(RUN, "synthetic forbidden cancellation")
+                self.assertEqual(calls, [])
+
+    def test_manifest_denied_child_scan_never_returns_partial_closure_and_restored_scan_succeeds(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            (root / "readable.txt").write_bytes(b"visible original")
+            denied = root / "denied"
+            denied.mkdir()
+            (denied / "original.bin").write_bytes(b"required nested original")
+            original_scandir = os.scandir
+            calls = []
+            def scandir(path):
+                calls.append(Path(path))
+                if Path(path) == denied:
+                    raise PermissionError("synthetic denied child scandir")
+                return original_scandir(path)
+            with mock.patch.object(NEW.os, "scandir", side_effect=scandir):
+                with self.assertRaisesRegex(PermissionError, "denied child"):
+                    NEW.phase1_file_manifest(root)
+            self.assertIn(root, calls)
+            self.assertIn(denied, calls)
+            self.assertEqual(NEW.phase1_file_manifest(root), {
+                "denied/original.bin": sha(b"required nested original"),
+                "readable.txt": sha(b"visible original")})
+
+    def test_zip_gate_rejects_unsafe_types_duplicates_and_file_ancestors(self):
+        import stat
+        gate = NEW.phase1_gates()
+        for names in (("../escape",), ("a", "a"), ("A", "a"), ("a", "a/b"), ("a\\b",), ("link",)):
+            with self.subTest(names=names), tempfile.TemporaryDirectory() as temporary:
+                archive = Path(temporary) / "original.zip"
+                with zipfile.ZipFile(archive, "w") as bundle:
+                    for name in names:
+                        info = zipfile.ZipInfo(name)
+                        if name == "link":
+                            info.external_attr = (stat.S_IFLNK | 0o777) << 16
+                        bundle.writestr(info, "synthetic")
+                with self.assertRaises(ValueError):
+                    NEW.phase1_zip_extract(gate, archive, Path(temporary) / "out")
+
+
+
+class Phase1ReviewRegistrationTests(unittest.TestCase):
+    """Explicit synthetic protocol mode only; no real review or approval records."""
+
+    def fixture(self, base, owner=False):
+        gate, directory, attempt_path, observed, artifacts, calls, downloads, commands = Phase1CollectionCallerTests.fixture(self, base)
+        with self.assertRaisesRegex(SystemExit, "raw proof INCOMPLETE"):
+            NEW.collect(RUN, False)
+        (base / ".phase1-test-only").write_bytes(b"SYNTHETIC PROTOCOL FIXTURES ONLY\n")
+        plan = gate.parse_plan(gate.decode(attempt_path.read_bytes(), limit=gate.MAX_ATTEMPT_BYTES)["planBytes"].encode())
+        message = base / "test-only-message.txt"
+        context = base / "test-only-context.txt"
+        message.write_bytes("SYNTHETIC TEST ONLY: approve fixture — no human approval.\r\n".encode())
+        context.write_bytes(b"SYNTHETIC TEST ONLY conversation; these are invented protocol identities.\n")
+        request = {"schema": gate.REVIEW_REQUEST_SCHEMA, "testOnly": True,
+            "subject": "rui1-cold-original", "reportedDisposition": "approve", "head": plan["head"], "tree": plan["tree"],
+            "originals": [{"runID": RUN, "manifestSHA256": gate.sha((directory / "manifest.json").read_bytes())}],
+            "gallery": None, "messageSHA256": gate.sha(message.read_bytes()), "contextSHA256": gate.sha(context.read_bytes()),
+            "messageReference": "test-only:actual-message-reference", "conversationReference": "test-only:task",
+            "messageTimestampUTC": "2026-09-26T12:02:00Z", "speakerReference": "test-only:reviewer-task",
+            "reviewer": {"model": "test-only:model", "effort": "test-only:effort", "authorReference": "test-only:author-task",
+                "independenceReference": "test-only:retained-separate-task-reference"}}
+        if owner:
+            request.update(subject="owner-critical-states", reviewer=None, speakerReference="test-only:owner")
+            artifact = directory / "artifacts/rui1"
+            cat_raw = (REPO_ROOT / gate.CATALOGUE).read_bytes()
+            catalogue = json.loads(cat_raw)
+            rows, attachments = [], {}
+            for state in catalogue["states"]:
+                row = {"stateID": state["id"], "method": state["method"], "order": state["order"]}
+                for key, suffix in (("image", "png"), ("audit", "json")):
+                    name = "test-only-gallery/" + state["id"] + "." + suffix
+                    path = artifact / name; path.parent.mkdir(exist_ok=True)
+                    path.write_bytes(("SYNTHETIC TEST ONLY " + name).encode())
+                    row[key], row[key + "SHA256"] = name, gate.sha(path.read_bytes())
+                    attachments[name] = gate.sha(path.read_bytes())
+                rows.append(row)
+            proof = {"schema": "v23-rui1-review.v1", "head": HEAD, "runID": str(RUN), "runAttempt": "1",
+                "selectionSHA256": plan["selectionSHA256"], "catalogueSHA256": gate.sha(cat_raw),
+                "humanReviewCompleted": False, "states": rows}
+            proof_raw = gate.canonical(proof)
+            (artifact / "rui1-review.json").write_bytes(proof_raw)
+            ui = load(REPO_ROOT / "Scripts/v23-ui-evidence.py", "c4_synthetic_ui_source")
+            presentation = ui.review_page(REPO_ROOT, artifact, proof)
+            (artifact / "rui1-review.html").write_bytes(presentation)
+            # This fixture is deliberately NOT a valid native result. Only the
+            # subprocess boundary below supplies synthetic checker success.
+            def checker(argv, **kwargs):
+                self.assertEqual(argv[:4], [sys.executable, "-B", "Scripts/v23-ui-evidence.py", "collect"])
+                self.assertEqual(argv[-4:], ["--expected-head", HEAD, "--expected-run", str(RUN)])
+                self.assertEqual(argv[argv.index("--artifact") + 1], str(artifact.resolve()))
+                source = Path(kwargs["cwd"])
+                self.assertEqual(gate.sha((source / "Scripts/v23-ui-evidence.py").read_bytes()), plan["sources"]["Scripts/v23-ui-evidence.py"])
+                commands.append(argv)
+                return subprocess.CompletedProcess(argv, 0, proof_raw, b"")
+            patch = mock.patch.object(NEW.subprocess, "run", checker); patch.start(); self.addCleanup(patch.stop)
+            self.reseal(gate, directory)
+            request["originals"][0]["manifestSHA256"] = gate.sha((directory / "manifest.json").read_bytes())
+            request["gallery"] = {"catalogueSHA256": gate.sha(cat_raw), "proofSHA256": gate.sha(proof_raw),
+                "presentationSHA256": gate.sha(presentation), "checklistSHA256": gate.sha(presentation),
+                "attachmentsSHA256": gate.sha(gate.canonical(attachments))}
+        request_path = base / "test-only-review-request.json"
+        request_path.write_bytes(gate.canonical(request))
+        patch = mock.patch.object(NEW, "phase1_timestamp", return_value="2026-09-26T12:05:00Z")
+        patch.start(); self.addCleanup(patch.stop)
+        return gate, directory, request, request_path, message, context, calls, commands
+
+    def reseal(self, gate, directory):
+        """Build modified synthetic fixtures only; never called on real evidence."""
+        path = directory / "manifest.json"
+        manifest = gate.decode(path.read_bytes(), limit=32 * 1024 * 1024)
+        files = NEW.phase1_file_manifest(directory); files.pop("manifest.json")
+        manifest["files"] = files
+        manifest["rawProofSHA256"] = gate.sha((directory / "phase1-raw-proof.json").read_bytes())
+        path.write_bytes(gate.canonical(manifest))
+
+    def invoke(self, request, message, context):
+        return NEW.register_phase1_review(request, message, context, test_only=True)
+
+    def test_actual_collector_to_registration_to_reader_preserves_pending_and_verbatim(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, directory, request, path, message, context, calls, _ = self.fixture(Path(temporary).resolve())
+            before = NEW.phase1_file_manifest(directory)
+            call_count = len(calls)
+            result = self.invoke(path, message, context)
+            self.assertEqual(len(calls), call_count)  # local capture never authenticates current remote authority
+            self.assertEqual(result["functionalQualification"], gate.PENDING)
+            self.assertEqual(result["retainedOriginals"][0]["originals"][0]["rawProofStatus"], "INCOMPLETE")
+            self.assertFalse(result["acceptance"])
+            self.assertEqual(NEW.phase1_file_manifest(directory), before)
+            records = NEW.phase1_read_reviews(gate, HEAD, test_only=True)
+            self.assertEqual(records[0]["messageUTF8"].encode(), message.read_bytes())
+            self.assertEqual(records[0]["contextUTF8"].encode(), context.read_bytes())
+            self.assertEqual(NEW.assess_phase1_reviews(HEAD, test_only=True), result)
+            with self.assertRaisesRegex(ValueError, "duplicate review"):
+                self.invoke(path, message, context)
+            self.assertEqual(len(NEW.phase1_read_reviews(gate, HEAD, test_only=True)), 1)
+
+    def test_owner_gallery_uses_actual_frozen_checker_caller_and_exact_bundle(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, directory, request, path, message, context, _, commands = self.fixture(Path(temporary).resolve(), owner=True)
+            result = self.invoke(path, message, context)
+            self.assertEqual(len(result["subjects"]["owner-critical-states"]), 1)
+            self.assertEqual(result["functionalQualification"], gate.PENDING)
+            records = NEW.phase1_read_reviews(gate, HEAD, test_only=True)
+            self.assertEqual(records[0]["bindings"]["gallery"], request["gallery"])
+            self.assertEqual(len([c for c in commands if c[2] == "Scripts/v23-ui-evidence.py"]), 3)
+            # Complete original closure rejects even a single replaced image.
+            image = next((directory / "artifacts/rui1/test-only-gallery").glob("*.png"))
+            image.write_bytes(b"substituted synthetic image")
+            with self.assertRaisesRegex(ValueError, "sealed original census"):
+                NEW.assess_phase1_reviews(HEAD, test_only=True)
+
+    def test_owner_fake_native_proof_cannot_pass_actual_checker(self):
+        real_process = subprocess.run
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, _, _, path, message, context, _, _ = self.fixture(Path(temporary).resolve(), owner=True)
+            with mock.patch.object(NEW.subprocess, "run", real_process):
+                with self.assertRaisesRegex(ValueError, "RUI1 checker failed"):
+                    self.invoke(path, message, context)
+            self.assertEqual(NEW.phase1_read_reviews(gate, HEAD, test_only=True), [])
+
+    def test_owner_declared_bundle_or_verifier_output_substitution_refuses(self):
+        for key in ("catalogueSHA256", "proofSHA256", "presentationSHA256", "checklistSHA256", "attachmentsSHA256"):
+            with self.subTest(key=key), tempfile.TemporaryDirectory() as temporary:
+                gate, _, request, path, message, context, _, _ = self.fixture(Path(temporary).resolve(), owner=True)
+                request["gallery"][key] = "0" * 64; path.write_bytes(gate.canonical(request))
+                with self.assertRaisesRegex(ValueError, "presented bundle"):
+                    self.invoke(path, message, context)
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, _, _, path, message, context, _, _ = self.fixture(Path(temporary).resolve(), owner=True)
+            with mock.patch.object(NEW.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, b"{}", b"")):
+                with self.assertRaisesRegex(ValueError, "verified RUI1 proof"):
+                    self.invoke(path, message, context)
+
+    def test_source_original_and_test_mode_hostiles_refuse_without_write(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, directory, request, path, message, context, _, _ = self.fixture(Path(temporary).resolve())
+            with self.assertRaisesRegex(ValueError, "test-only"):
+                NEW.register_phase1_review(path, message, context)
+            for field, value in (("head", "7" * 40), ("tree", "8" * 40), ("messageSHA256", "0" * 64),
+                ("contextSHA256", "0" * 64), ("messageReference", ""), ("subject", "shared-cold-original"),
+                ("originals", [{"runID": RUN, "manifestSHA256": "0" * 64}])):
+                with self.subTest(field=field):
+                    path.write_bytes(gate.canonical(dict(request, **{field: value})))
+                    with self.assertRaises(ValueError): self.invoke(path, message, context)
+            path.write_bytes(gate.canonical(request))
+            context.write_bytes(b"substituted context")
+            with self.assertRaisesRegex(ValueError, "context bytes"): self.invoke(path, message, context)
+            self.assertFalse((NEW.EVIDENCE / "v23-phase1-reviews" / HEAD / "000000.json").exists())
+            self.assertTrue((directory / "manifest.json").exists())
+
+    def test_conflicting_messages_and_self_review_remain_visible_pending(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, _, request, path, message, context, _, _ = self.fixture(Path(temporary).resolve())
+            self.invoke(path, message, context)
+            request.update(reportedDisposition="changes-requested", messageReference="test-only:later-response",
+                           speakerReference=request["reviewer"]["authorReference"])
+            message.write_bytes(b"SYNTHETIC TEST ONLY: changes requested.\n")
+            request["messageSHA256"] = gate.sha(message.read_bytes()); path.write_bytes(gate.canonical(request))
+            result = self.invoke(path, message, context)
+            self.assertEqual(len(result["subjects"]["rui1-cold-original"]), 2)
+            self.assertIn("rui1-cold-original", result["unresolvedSubjects"])
+            self.assertEqual(len(result["declaredIndependenceGaps"]), 1)
+            self.assertEqual(result["functionalQualification"], gate.PENDING)
+            self.assertFalse(result["acceptance"])
+
+    def test_lost_ledger_append_retains_record_and_refuses_automatic_repair(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, _, _, path, message, context, _, _ = self.fixture(Path(temporary).resolve())
+            with mock.patch.object(NEW, "phase1_append_ledger", side_effect=OSError("synthetic disk failure")):
+                with self.assertRaises(OSError): self.invoke(path, message, context)
+            record = NEW.EVIDENCE / "v23-phase1-reviews" / HEAD / "000000.json"
+            original = record.read_bytes()
+            with self.assertRaisesRegex(ValueError, "ledger-anchored"): self.invoke(path, message, context)
+            self.assertEqual(record.read_bytes(), original)
+            self.assertFalse((NEW.EVIDENCE / "phase1-dispatch-active").exists())
+
+    def test_history_deletion_truncation_empty_directory_and_symlink_refuse(self):
+        for mutation in ("delete", "truncate", "empty-directory", "link"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temporary:
+                gate, _, _, path, message, context, _, _ = self.fixture(Path(temporary).resolve())
+                self.invoke(path, message, context)
+                parent = NEW.EVIDENCE / "v23-phase1-reviews" / HEAD
+                record = parent / "000000.json"
+                if mutation == "delete": record.unlink()
+                elif mutation == "truncate": record.write_bytes(record.read_bytes()[:-8])
+                elif mutation == "empty-directory": (parent / "000001.json").mkdir()
+                else: record.unlink(); record.symlink_to(message)
+                with self.assertRaises(ValueError): NEW.assess_phase1_reviews(HEAD, test_only=True)
+
+    def test_input_replacement_and_active_lock_prevent_capture(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, _, _, path, message, context, _, _ = self.fixture(Path(temporary).resolve())
+            lock = NEW.EVIDENCE / "phase1-dispatch-active"; lock.mkdir()
+            with self.assertRaises(FileExistsError): self.invoke(path, message, context)
+            lock.rmdir()
+            original = NEW.phase1_review_bindings
+            def replace(*args):
+                result = original(*args); message.write_bytes(b"replaced during validation"); return result
+            with mock.patch.object(NEW, "phase1_review_bindings", replace):
+                with self.assertRaisesRegex(ValueError, "source bytes changed"): self.invoke(path, message, context)
+            self.assertEqual(NEW.phase1_read_reviews(gate, HEAD, test_only=True), [])
+
+    def test_duplicate_json_keys_and_denied_real_scan_refuse(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, _, request, path, message, context, _, _ = self.fixture(Path(temporary).resolve())
+            path.write_bytes(gate.canonical(request).replace(b'"schema":', b'"schema":"duplicate","schema":'))
+            with self.assertRaisesRegex(ValueError, "duplicate JSON"): self.invoke(path, message, context)
+            path.write_bytes(gate.canonical(request)); self.invoke(path, message, context)
+            original_scan = NEW.os.scandir
+            def denied(path):
+                if Path(path) == NEW.EVIDENCE / "v23-phase1-reviews" / HEAD:
+                    raise PermissionError("synthetic denied review scan")
+                return original_scan(path)
+            with mock.patch.object(NEW.os, "scandir", denied):
+                with self.assertRaises(PermissionError): NEW.assess_phase1_reviews(HEAD, test_only=True)
+            self.assertEqual(NEW.assess_phase1_reviews(HEAD, test_only=True)["functionalQualification"], gate.PENDING)
+
+
+    def test_integration_review_joins_both_actual_original_contexts(self):
+        with tempfile.TemporaryDirectory() as temporary, tempfile.TemporaryDirectory() as other_temporary:
+            base, other = Path(temporary).resolve(), Path(other_temporary).resolve()
+            gate, _, request, path, message, context, _, _ = self.fixture(base)
+            first_run, second_run = RUN, RUN + 1
+            # Separate explicitly synthetic originals use the real existing
+            # collector writer. Only Git/API/process boundaries are fixtures.
+            with mock.patch.dict(globals(), RUN=second_run):
+                _, second_dir, _, _, _, _, _, _ = Phase1CollectionCallerTests.fixture(self, other, shared=True)
+                with self.assertRaisesRegex(SystemExit, "raw proof INCOMPLETE"):
+                    NEW.collect(second_run, False)
+            shutil.copytree(second_dir, base / str(second_run))
+            for name in ("v23-phase1-plans", "v23-original-attempts"):
+                shutil.copytree(other / name, base / name, dirs_exist_ok=True)
+            with (base / "v23-original-ledger.jsonl").open("ab") as stream:
+                stream.write((other / "v23-original-ledger.jsonl").read_bytes())
+            request.update(subject="candidate-integration", originals=sorted(request["originals"] + [
+                {"runID": second_run, "manifestSHA256": gate.sha((base / str(second_run) / "manifest.json").read_bytes())}],
+                key=lambda item: item["runID"]))
+            path.write_bytes(gate.canonical(request))
+            with mock.patch.object(NEW, "EVIDENCE", base), mock.patch.object(NEW, "ATTEMPTS", base / "v23-original-attempts"), \
+                 mock.patch.object(NEW, "LEDGER", base / "v23-original-ledger.jsonl"):
+                result = self.invoke(path, message, context)
+                self.assertEqual(len(result["subjects"]["candidate-integration"]), 1)
+                bound = result["retainedOriginals"][0]["originals"]
+                self.assertEqual({item["runID"] for item in bound}, {first_run, second_run})
+                self.assertEqual({item["selection"] for item in bound}, set(gate.SELECTIONS))
+                self.assertEqual(result["functionalQualification"], gate.PENDING)
+                self.assertFalse(result["acceptance"])
+
+
 if __name__ == "__main__":
     unittest.main()

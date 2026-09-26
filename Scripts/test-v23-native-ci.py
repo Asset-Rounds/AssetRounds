@@ -61,6 +61,9 @@ RUN_KIND_INPUT_BLOCK = ('      v23_run_kind:\n'
                         'per-head concurrency groups\n'
                         '        required: false\n        default: gate\n        type: choice\n        options:\n'
                         '          - gate\n          - development\n')
+PHASE1_PLAN_INPUT_BLOCK = ('      v23_phase1_gate_plan:\n'
+                          '        description: Reserved canonical Phase 1 gate plan; admission remains disabled pending end-to-end review\n'
+                          '        required: false\n        default: ""\n        type: string\n')
 PARTITION_TIERS_OUTPUT = ('      native_shared_partition_tiers: '
                           '${{ steps.native_selection.outputs.native_shared_partition_tiers }}\n')
 CONSUMER_TIER_INPUT = ("      v23_partition_tier: ${{ fromJSON(needs.shared-selection.outputs.native_shared_partition_tiers "
@@ -79,6 +82,9 @@ RUI1_WORKER_BRANCH = '          if test "${NATIVE_SELECTION_ID:-none}" = v23-ui-
 def workflow_before_parallel_development(raw):
     """Reverse the exact RUI1 choice and owner-decision-16 caller additions."""
     text = raw.decode('utf-8') if isinstance(raw, bytes) else raw
+    # The new optional input does not change any old dispatch route. Remove only
+    # its exact independently reviewed block when comparing historical bytes.
+    text = remove_exactly_once(text, PHASE1_PLAN_INPUT_BLOCK)
     text = remove_exactly_once(text, '          - v23-ui-batch-rui1\n')
     for old, new in PARALLEL_DEVELOPMENT_REPLACEMENTS:
         text = remove_exactly_once(text, old, new)
@@ -8445,6 +8451,255 @@ class SharedCoverageRouteTests(unittest.TestCase):
         (artifact / 'native-sdk.txt').write_text('sdk=iphonesimulator\nversion=26.5\nbuild=23F81a\n')
         return e, selection, record, artifact
 
+    def phase1_live_fixture(self, base):
+        """Synthetic dormant hook tests, never root/API-authenticated originals."""
+        import gzip
+        gate = CI.load_phase1_gates(ROOT)
+        plan = gate.make_plan(purpose=gate.CANDIDATE, head=HEAD, tree="a" * 40, selection=gate.SHARED,
+            resolved_bytes=CI.canonical(self.plan), sources={p: gate.sha((ROOT / p).read_bytes()) for p in gate.SOURCES},
+            requested_at="2026-09-26T12:00:00Z")
+        binding = {"schema": gate.EVENT_SCHEMA, "plan": plan, "planSHA256": gate.sha(gate.canonical(plan)),
+                   "runID": "123", "runAttempt": "1", "functionalQualification": gate.PENDING}
+        producer = base / "producer"
+        producer.mkdir()
+        e, _, record, artifact = self.producer_fixture(producer)
+        record["phase1Gate"] = binding
+        (artifact / "native-admission.json").write_bytes(CI.canonical(record))
+        (artifact / CI.NO_INDEX_RECEIPT).write_bytes(CI.canonical(CI.no_index_build_receipt(ROOT, artifact, record, e)))
+        CI.shared_seal(ROOT, artifact, record, e, self.kernel)
+        producer_facts = (e, record, artifact)
+        consumer = base / "consumer"
+        consumer.mkdir()
+        e, _, record, artifact = self.consumer_fixture(consumer, producer / CI.SHARED_TRANSPORT_DIRECTORY)
+        record["phase1Gate"] = binding
+        (artifact / "native-admission.json").write_bytes(CI.canonical(record))
+        CI.shared_restore(ROOT, artifact, record, e, self.kernel)
+        CI.shared_fingerprint(ROOT, artifact, record, e, "before", self.kernel)
+        log = consumer / "FieldEvidenceDerivedData/Logs/Build/bookkeeping.xcactivitylog"
+        log.parent.mkdir(parents=True)
+        log.write_bytes(gzip.compress(b"test session bookkeeping only"))
+        (artifact / "test-smoke.log").write_text("** TEST EXECUTE SUCCEEDED **\n")
+        CI.shared_fingerprint(ROOT, artifact, record, e, "after", self.kernel)
+        return producer_facts, (e, record, artifact), binding
+
+    def test_phase1_live_observations_recompute_relocated_facts_without_payload_or_live_filesystem(self):
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(CI.platform, "machine", return_value="arm64"):
+            base = Path(directory).resolve()
+            producer, consumer, binding = self.phase1_live_fixture(base)
+            for label, (_, record, artifact) in (("producer", producer), ("consumer", consumer)):
+                relocated = base / (label + "-retained")
+                shutil.copytree(artifact, relocated)
+                shutil.rmtree(artifact.parent)
+                proof = CI.phase1_retained_shared_facts(ROOT, relocated, record, binding)
+                self.assertEqual(proof["status"], "COMPLETE_RETAINED_SHARED_OBSERVATIONS")
+                self.assertFalse(proof["offlineFilesystemReplay"])
+                self.assertFalse(proof["payloadArchiveRetained"])
+                self.assertFalse(proof["liveChecksIndependentlyReexecuted"])
+                self.assertEqual(proof["functionalQualification"], CI.load_phase1_gates(ROOT).PENDING)
+                self.assertEqual(proof["physicalProtection"], "UNVERIFIED/DEFERRED")
+                self.assertFalse(proof["releaseReady"])
+
+    def test_phase1_live_callers_refuse_denied_source_staged_restored_and_derived_subtrees(self):
+        # Actual seal/restore/fingerprint hooks; only the underlying child scan
+        # is denied. A readable sibling remains, so partial closure looks valid.
+        cases = (("producer/FieldEvidenceDerivedData/Build/Products", 1, "Debug-iphonesimulator"),
+                 ("producer/FieldEvidenceDerivedData/Build/Products", 2, "Debug-iphonesimulator"),
+                 ("producer/" + CI.SHARED_PAYLOAD_DIRECTORY + "/" + self.kernel["ROOT_LABEL"], 1, "Debug-iphonesimulator"),
+                 ("consumer/FieldEvidenceDerivedData/Build/Products", 1, "Debug-iphonesimulator"),
+                 ("consumer/FieldEvidenceDerivedData", 1, "Build"),
+                 ("consumer/FieldEvidenceDerivedData", 2, "Logs/Build"),
+                 ("consumer/FieldEvidenceDerivedData", 3, "Logs/Build"))
+        original_inventory, original_scan = CI.phase1_live_inventory, CI.os.scandir
+        for relative, occurrence, child in cases:
+            with self.subTest(relative=relative, occurrence=occurrence), tempfile.TemporaryDirectory() as directory:
+                base, hits, denied = Path(directory).resolve(), [], []
+                def inventory(root, kernel, **kwargs):
+                    if root == base / relative:
+                        hits.append(root)
+                    if root != base / relative or len(hits) != occurrence:
+                        return original_inventory(root, kernel, **kwargs)
+                    def scan(path):
+                        if Path(path) == root / child:
+                            denied.append(Path(path))
+                            raise PermissionError("test-only denied live subtree")
+                        return original_scan(path)
+                    with mock.patch.object(CI.os, "scandir", side_effect=scan):
+                        return original_inventory(root, kernel, **kwargs)
+                with mock.patch.object(CI, "phase1_live_inventory", side_effect=inventory), \
+                        mock.patch.object(CI.platform, "machine", return_value="arm64"), \
+                        self.assertRaisesRegex(PermissionError, "test-only denied"):
+                    self.phase1_live_fixture(base)
+                self.assertEqual(len(hits), occurrence)
+                self.assertEqual(denied, [base / relative / child])
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(CI.platform, "machine", return_value="arm64"):
+            _, (_, record, artifact), binding = self.phase1_live_fixture(Path(directory).resolve())
+            facts = CI.phase1_retained_shared_facts(ROOT, artifact, record, binding)
+            self.assertFalse(facts["offlineFilesystemReplay"])
+
+    def test_phase1_live_census_denied_child_and_restoration_preserve_original_schema(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            child = root / "denied"
+            child.mkdir()
+            (root / "readable").write_bytes(b"readable sibling")
+            (child / "original").write_bytes(b"required original")
+            expected = self.kernel["inventory"](root)
+            original_scan, visited = CI.os.scandir, []
+            def scan(path):
+                visited.append(Path(path))
+                if Path(path) == child:
+                    raise PermissionError("test-only denied census child")
+                return original_scan(path)
+            with mock.patch.object(CI.os, "scandir", side_effect=scan):
+                # Reproduce the old kernel's omission, then show the gate fails.
+                partial = self.kernel["inventory"](root)
+                self.assertNotEqual(partial, expected)
+                for products in (False, True):
+                    with self.subTest(products=products), self.assertRaises(PermissionError):
+                        CI.phase1_live_inventory(root, self.kernel, products=products)
+            self.assertIn(child, visited)
+            self.assertEqual(CI.phase1_product_inventory(root, self.kernel), expected)
+            self.assertEqual(CI.phase1_derived_inventory(root, self.kernel), CI.shared_derived_inventory(root))
+
+    def test_phase1_live_census_rejects_links_specials_bounds_and_legacy_omission(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / "original").write_bytes(b"original")
+            with mock.patch.object(CI, "PHASE1_WITNESS_ENTRIES", 0), self.assertRaisesRegex(ValueError, "bound"):
+                CI.phase1_live_inventory(root, self.kernel)
+            with self.assertRaisesRegex(ValueError, "byte bound"):
+                CI.phase1_product_inventory(root, dict(self.kernel, MAX_ARCHIVE_BYTES=1))
+            with self.assertRaisesRegex(ValueError, "differs from kernel"):
+                CI.phase1_product_inventory(root, dict(self.kernel, inventory=lambda path: []))
+            with mock.patch.object(CI, "shared_derived_inventory", return_value={}), \
+                    self.assertRaisesRegex(ValueError, "differs from fingerprint"):
+                CI.phase1_derived_inventory(root, self.kernel)
+            link = root / "link"
+            link.symlink_to(root / "original")
+            with self.assertRaisesRegex(ValueError, "nonregular"):
+                CI.phase1_live_inventory(root, self.kernel)
+            link.unlink()
+            with self.assertRaises(FileNotFoundError):
+                CI.phase1_live_inventory(link, self.kernel)
+            (root / "original").chmod(0o4755)
+            with self.assertRaisesRegex(ValueError, "special permissions"):
+                CI.phase1_product_inventory(root, self.kernel)
+            os.mkfifo(link)
+            with self.assertRaisesRegex(ValueError, "nonregular"):
+                CI.phase1_live_inventory(root, self.kernel)
+
+    def test_phase1_shared_execution_distinguishes_build_only_and_test_only_actual_facts(self):
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(CI.platform, "machine", return_value="arm64"):
+            producer, consumer, _ = self.phase1_live_fixture(Path(directory).resolve())
+            for label, (e, record, artifact) in (("producer", producer), ("S09", consumer)):
+                selected = self.plan if label == "producer" else self.shared_environment("consumer", label)[1]
+                provider = {"provider": "github", "label": "macos-26", "runner_architecture": "ARM64", "uname_architecture": "arm64",
+                            "developer_dir": "/Applications/Xcode_26.6.app/Contents/Developer"}
+                simulator = {"runtime": "iOS 26.2", "runtime_build": "23C54", "name": "iPhone 17", "initial_state": "Shutdown", "udid": UDID}
+                for name, values in (("runner-provider.txt", provider), ("simulator-selection.txt", simulator)):
+                    (artifact / name).write_text("".join(k + "=" + v + "\n" for k, v in values.items()))
+                setup_elapsed = 100 if label == "producer" else 110
+                (artifact / "setup-budget.txt").write_text("setup_elapsed_seconds=100\nsetup_budget_seconds=300\n")
+                (artifact / "artifact-budget.txt").write_text("setup_elapsed_seconds=%d\nartifact_elapsed_seconds=20\nsetup_artifact_elapsed_seconds=%d\nsetup_artifact_budget_seconds=300\n" % (setup_elapsed, setup_elapsed + 20))
+                if label != "producer":
+                    (artifact / "v23-shared-restore-budget.txt").write_text("shared_restore_setup_elapsed_seconds=110\n")
+                    argv = [provider["developer_dir"] + "/usr/bin/xcodebuild", "-project", "FieldEvidenceApp.xcodeproj", "-scheme", "FieldEvidenceApp",
+                            "-configuration", "Debug", "-destination", "platform=iOS Simulator,id=" + UDID,
+                            "-derivedDataPath", str(Path(e["RUNNER_TEMP"]) / "FieldEvidenceDerivedData"),
+                            "-resultBundlePath", str(artifact / "UnitTests.xcresult"),
+                            *["-only-testing:" + v for v in selected["unitTestSelectors"]], "CODE_SIGNING_ALLOWED=NO", "test-without-building"]
+                    (artifact / "test-smoke.log").write_text("Command line invocation:\n    " + shlex.join(argv) + "\n** TEST EXECUTE SUCCEEDED **\n")
+                    (artifact / "unit-test-results.json").write_bytes(CI.canonical({"testNodes": [{"nodeType": "Unit test bundle", "name": "FieldEvidenceAppTests",
+                        "children": [{"nodeType": "Test Case", "nodeIdentifier": v, "result": "Passed"} for v in selected["unitTestSelectors"]]}]}))
+                checkpoint = dict(record, recordType="validated-native-checkpoint", provider=provider, simulator=simulator,
+                    sdk={"sdk": "iphonesimulator", "version": "26.5", "build": "23F81a"}, releaseReady=False, acceptance=False,
+                    executedUnitMethods=[] if label == "producer" else sorted(selected["unitTestSelectors"]), executedUIMethods=[])
+                (artifact / "native-checkpoint.json").write_bytes(CI.canonical(checkpoint))
+                env = dict(zip(("CI_SETUP_ARTIFACT_TIMEOUT_SECONDS", "CI_BUILD_TIMEOUT_SECONDS", "CI_TEST_TIMEOUT_SECONDS",
+                                "CI_UI_TIMEOUT_SECONDS", "CI_TOTAL_BUDGET_SECONDS"), (str(selected[k]) for k in CI.BUDGET_KEYS)))
+                env.update(CI_ARTIFACT_DIR=str(artifact), NATIVE_SELECTION_ID=record["selectionID"], CONFIGURATION="Debug", DEVELOPER_DIR=provider["developer_dir"])
+                names = ["Recheck evidence-finalization budget", "Verify selected total budget before upload", "Validate required build and test evidence",
+                         "Validate exact ordinary integration native checkpoint", "Build unsigned simulator app" if label == "producer" else "Run targeted tests"]
+                job = {"jobID": 1, "jobLogSHA256": "A" * 64, "commands": [{"step": name, "environment": dict(env),
+                    "numericFacts": {"elapsed_seconds": "200", "total_budget_seconds": str(selected["totalBudgetSeconds"])} if name == names[1] else {}} for name in names]}
+                def verify():
+                    return CI.phase1_worker_execution_facts(ROOT, artifact, record, selected, label, job)
+                proof = verify()
+                self.assertEqual(proof["unitCommand"] is None, label == "producer")
+                self.assertEqual(proof["build"] is not None, label == "producer")
+                forbidden = artifact / ("test-smoke.log" if label == "producer" else "build-smoke.log")
+                forbidden.write_bytes(b"unexpected role execution")
+                with self.assertRaisesRegex(ValueError, "unexpected role"):
+                    verify()
+                forbidden.unlink()
+                if label != "producer":
+                    budget = artifact / "v23-shared-restore-budget.txt"
+                    budget.write_text("shared_restore_setup_elapsed_seconds=99\n")
+                    with self.assertRaisesRegex(ValueError, "restore setup budget"):
+                        verify()
+                    budget.write_text("shared_restore_setup_elapsed_seconds=110\n")
+                self.assertEqual(verify(), proof)
+
+    def test_phase1_retained_live_witness_rejects_census_identity_and_activity_substitution(self):
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(CI.platform, "machine", return_value="arm64"):
+            _, (_, record, artifact), binding = self.phase1_live_fixture(Path(directory).resolve())
+            path = artifact / "phase1-shared-live-after.json"
+            original = path.read_bytes()
+            for name, mutation in (
+                ("identity", lambda v: v.update(runAttempt="2")),
+                ("closed", lambda v: v.update(approved=True)),
+                ("products", lambda v: v["productInventory"].pop()),
+                ("derived", lambda v: v["derivedDataInventory"].pop()),
+                ("activity", lambda v: v["activityLogs"].clear()),
+                ("path", lambda v: v["activityLogs"][0].update(retainedPath="../escaped")),
+                ("duplicate", lambda v: v["derivedDataInventory"].append(v["derivedDataInventory"][0])),
+            ):
+                with self.subTest(name=name):
+                    value = json.loads(original)
+                    mutation(value)
+                    path.write_bytes(CI.canonical(value))
+                    with self.assertRaises(ValueError):
+                        CI.phase1_retained_shared_facts(ROOT, artifact, record, binding)
+            path.write_bytes(original)
+            log = artifact / "phase1-activity-logs/000000.xcactivitylog"
+            original_log = log.read_bytes()
+            log.write_bytes(b"substituted")
+            with self.assertRaisesRegex(ValueError, "activity scan"):
+                CI.phase1_retained_shared_facts(ROOT, artifact, record, binding)
+            log.write_bytes(original_log)
+            path.unlink()
+            with self.assertRaises(FileNotFoundError):
+                CI.phase1_retained_shared_facts(ROOT, artifact, record, binding)
+
+    def test_phase1_complete_inventory_rejects_links_duplicates_and_overflow(self):
+        for entries in ([{"path": "../escape", "type": "directory"}],
+                        [{"path": "safe", "type": "symlink", "target": "elsewhere"}],
+                        [{"path": "a", "type": "directory"}, {"path": "a", "type": "directory"}],
+                        [{"path": "A", "type": "directory"}, {"path": "a", "type": "directory"}],
+                        [{"path": "a", "type": "file", "size": True, "sha256": "A" * 64}]):
+            with self.subTest(entries=entries), self.assertRaises(ValueError):
+                CI.phase1_inventory(entries)
+        with mock.patch.object(CI, "PHASE1_WITNESS_ENTRIES", 1), self.assertRaisesRegex(ValueError, "bound"):
+            CI.phase1_inventory([{"path": "a", "type": "directory"}, {"path": "b", "type": "directory"}])
+        with mock.patch.object(CI, "PHASE1_WITNESS_BYTES", 1), self.assertRaisesRegex(ValueError, "bound"):
+            CI.phase1_inventory([{"path": "a", "type": "directory"}])
+
+    def test_phase1_payload_census_rejects_missing_extra_or_unsafe_member(self):
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(CI.platform, "machine", return_value="arm64"):
+            (_, record, artifact), _, binding = self.phase1_live_fixture(Path(directory).resolve())
+            path = artifact / "phase1-shared-live-seal.json"
+            raw = path.read_bytes()
+            for mutation in (lambda v: v["archiveMemberCensus"].pop(),
+                             lambda v: v["archiveMemberCensus"][0].update(path="../escape"),
+                             lambda v: v["archiveMemberCensus"][0].update(type="symlink"),
+                             lambda v: v.update(testsExecuted=True),
+                             lambda v: v.update(sourceUnchangedDuringSeal=False)):
+                value = json.loads(raw)
+                mutation(value)
+                path.write_bytes(CI.canonical(value))
+                with self.assertRaises(ValueError):
+                    CI.phase1_retained_shared_facts(ROOT, artifact, record, binding)
+
     def test_seal_restore_and_fingerprints_bind_one_exact_payload(self):
         self.assertTrue(all(callable(self.kernel[name]) for name in (
             'collect', 'inventory', 'copy_tree', 'extract_tar', 'sha256_file', 'object_sha')))
@@ -9507,7 +9762,7 @@ class RUI1RouteTests(unittest.TestCase):
         self.assertEqual(page.count('<img '), 27)
         self.assertEqual(page.count('Original accessibility audit'), 27)
         self.assertIn('No human approval or acceptance', page)
-        self.assertEqual(len(self.receipt['argv']), 22)
+        self.assertEqual(len(self.receipt['argv']), 20)
         self.assertEqual(self.receipt['argv'][-1], 'test-without-building')
         self.assertEqual([a for a in self.receipt['argv'] if a.startswith('-only-testing:')],
                          ['-only-testing:' + x for x in self.ui.UI])
@@ -9580,6 +9835,30 @@ class RUI1RouteTests(unittest.TestCase):
             with self.subTest(kind=kind), self.assertRaises(ValueError): self.verify()
         self.cases[:] = original
         self.put('ui-test-results.json', self.tree)
+        self.verify()
+
+    def test_rui1_command_uses_default_single_execution_and_rejects_repeat_controls(self):
+        # Xcode26.6/17F113 rejected -test-iterations1 before running any test.
+        # Omission selects normal single execution; it does not enable retries.
+        command = self.ui.command(self.artifact, self.env)
+        self.assertEqual(command[command.index('-parallel-testing-enabled') + 1], 'NO')
+        self.assertEqual(command[-1], 'test-without-building')
+        self.assertEqual([arg for arg in command if arg.startswith('-only-testing:')],
+                         ['-only-testing:' + method for method in self.ui.UI])
+        for flag in ('-test-iterations', '-retry-tests-on-failure', '-run-tests-until-failure',
+                     '-maximum-test-execution-time-allowance'):
+            self.assertNotIn(flag, command)
+        self.assertEqual(self.selected['uiTimeoutSeconds'], 900)
+        self.assertEqual(self.selected['totalBudgetSeconds'], 3900)
+        original = copy.deepcopy(self.receipt)
+        for controls in (['-test-iterations', '1'], ['-test-iterations', '2'],
+                         ['-retry-tests-on-failure'], ['-run-tests-until-failure']):
+            changed = copy.deepcopy(original)
+            changed['argv'][-1:-1] = controls
+            self.put('rui1-command.json', changed)
+            with self.subTest(controls=controls), self.assertRaises(ValueError):
+                self.verify()
+        self.put('rui1-command.json', original)
         self.verify()
 
     def test_command_head_audit_override_and_final_image_tampering_fail(self):
@@ -9721,6 +10000,156 @@ class RUI1RouteTests(unittest.TestCase):
     def collect_fixture(self, head=HEAD, run='123'):
         return self.ui.collected_review(ROOT, self.artifact, CI, head, run)
 
+    def phase1_worker_execution_fixture(self):
+        self.collector_fixture()
+        e = self.env
+        original_artifact = str(self.artifact)
+        unit_argv = ["/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild", "-project", "FieldEvidenceApp.xcodeproj",
+                    "-scheme", "FieldEvidenceApp", "-configuration", "Debug", "-destination", e["CI_DESTINATION"],
+                    "-derivedDataPath", str(Path(e["RUNNER_TEMP"]) / "FieldEvidenceDerivedData"),
+                    "-resultBundlePath", str(self.artifact / "UnitTests.xcresult"),
+                    *["-only-testing:" + v for v in self.selected["unitTestSelectors"]], "CODE_SIGNING_ALLOWED=NO", "test-without-building"]
+        log = self.artifact / "test-smoke.log"
+        # Synthetic command proof for this predicate, not an original runner log.
+        log.write_text("Command line invocation:\n    " + shlex.join(unit_argv) + "\n** TEST EXECUTE SUCCEEDED **\n")
+        (self.artifact / "setup-budget.txt").write_text("setup_elapsed_seconds=100\nsetup_budget_seconds=300\n")
+        (self.artifact / "artifact-budget.txt").write_text("setup_elapsed_seconds=100\nartifact_elapsed_seconds=20\nsetup_artifact_elapsed_seconds=120\nsetup_artifact_budget_seconds=300\n")
+        names = ("Recheck evidence-finalization budget", "Verify selected total budget before upload",
+                 "Validate required build and test evidence", "Validate exact ordinary integration native checkpoint",
+                 "Run targeted tests", "Build unsigned simulator app", "Run task-authorized UI smoke")
+        environment = dict(zip(("CI_SETUP_ARTIFACT_TIMEOUT_SECONDS", "CI_BUILD_TIMEOUT_SECONDS", "CI_TEST_TIMEOUT_SECONDS",
+                               "CI_UI_TIMEOUT_SECONDS", "CI_TOTAL_BUDGET_SECONDS"), (str(self.selected[k]) for k in CI.BUDGET_KEYS)))
+        environment.update(CI_ARTIFACT_DIR=original_artifact, NATIVE_SELECTION_ID=self.record["selectionID"], CONFIGURATION="Debug",
+                           DEVELOPER_DIR="/Applications/Xcode_26.6.app/Contents/Developer")
+        job = {"jobID": 99, "jobLogSHA256": "A" * 64, "commands": [{"step": name, "environment": dict(environment),
+            "numericFacts": {"elapsed_seconds": "200", "total_budget_seconds": "3900"} if name == names[1] else {}} for name in names]}
+        return job, unit_argv
+
+    def test_phase1_worker_execution_rechecks_actual_command_budget_runtime_and_checkpoint_facts(self):
+        job, unit_argv = self.phase1_worker_execution_fixture()
+        environment = dict(job["commands"][0]["environment"])
+        def verify():
+            return CI.phase1_worker_execution_facts(ROOT, self.artifact, self.record, self.selected, "rui1", job)
+        proof = verify()
+        self.assertFalse(proof["offlineNativeExecution"])
+        self.assertFalse(proof["budgets"]["finalizationNumericElapsedAvailable"])
+        self.assertEqual(proof["unitCommand"]["argv"], unit_argv)
+        self.assertFalse(proof["unitCommand"]["exportReexecutedOffline"])
+        for filename, old, new in (("setup-budget.txt", "=100", "=301"),
+                                   ("artifact-budget.txt", "=120", "=121"),
+                                   ("native-sdk.txt", "23F81a", "foreign"),
+                                   ("simulator-selection.txt", "23C54", "23F77"),
+                                   ("test-smoke.log", "test-without-building", "test"),
+                                   ("test-smoke.log", "SUCCEEDED", "FAILED")):
+            path = self.artifact / filename; raw = path.read_bytes()
+            path.write_bytes(raw.replace(old.encode(), new.encode()))
+            with self.subTest(filename=filename), self.assertRaises(ValueError):
+                verify()
+            path.write_bytes(raw)
+        job["commands"][0]["environment"]["CI_TEST_TIMEOUT_SECONDS"] = "9999"
+        with self.assertRaisesRegex(ValueError, "budget/configuration"):
+            verify()
+        job["commands"][0]["environment"]["CI_TEST_TIMEOUT_SECONDS"] = environment["CI_TEST_TIMEOUT_SECONDS"]
+        job["commands"][1]["numericFacts"]["elapsed_seconds"] = "3901"
+        with self.assertRaisesRegex(ValueError, "total budget"):
+            verify()
+        job["commands"][1]["numericFacts"]["elapsed_seconds"] = "200"
+        checkpoint = self.artifact / "native-checkpoint.json"; raw = checkpoint.read_bytes()
+        value = json.loads(raw); value["executedUnitMethods"].pop(); checkpoint.write_bytes(CI.canonical(value))
+        with self.assertRaisesRegex(ValueError, "method census"):
+            verify()
+        checkpoint.write_bytes(raw)
+        self.assertEqual(verify(), proof)
+
+    def test_phase1_actual_retained_entrypoint_binds_worker_event_and_raw_originals_but_stays_incomplete(self):
+        """End-to-end local synthetic protocol bytes; never a native/visual PASS."""
+        execution_job, _ = self.phase1_worker_execution_fixture()
+        # Reconstruct synthetic diagnostics after adding the exact command log.
+        diagnostic, error = CI.simulator_diagnostic_observations(ROOT, self.artifact, self.record)
+        self.assertIsNone(error)
+        self.put(CI.SIMULATOR_DIAGNOSTIC_OUTPUT, diagnostic)
+        gate = CI.load_phase1_gates(ROOT)
+        plan = gate.make_plan(purpose=gate.CANDIDATE, head=HEAD, tree="9" * 40, selection=gate.RUI1,
+            resolved_bytes=CI.canonical(self.selected), sources={p: gate.sha((ROOT / p).read_bytes()) for p in gate.SOURCES},
+            requested_at="2026-09-26T12:00:00Z")
+        event = gate.canonical({"repository": {"full_name": gate.REPOSITORY}, "ref": plan["ref"],
+            "inputs": {gate.PLAN_INPUT: gate.canonical(plan).decode(), "v23_run_kind": "gate",
+                "native_selection_id": gate.RUI1, "execution_lane": gate.ROUTE["executionLane"], "run_ui_smoke": "true"}})
+        e = {"GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_REPOSITORY": gate.REPOSITORY,
+             "GITHUB_REF": plan["ref"], "GITHUB_SHA": HEAD, "GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "1",
+             "GITHUB_WORKFLOW_REF": gate.REPOSITORY + "/" + gate.ROUTE["workflow"] + "@" + plan["ref"],
+             "GITHUB_WORKFLOW_SHA": HEAD}
+        binding = gate.bind_original_event(event, e, head=HEAD, tree=plan["tree"],
+            resolved_bytes=CI.canonical(self.selected), sources=plan["sources"])
+        self.record.update(phase1Gate=binding, gitTree=plan["tree"], ref=plan["ref"], repository=gate.REPOSITORY)
+        self.put("native-admission.json", self.record)
+        self.receipt["admissionSHA256"] = CI.sha256(CI.canonical(self.record))
+        self.put("rui1-command.json", self.receipt)
+        self.put(CI.NO_INDEX_RECEIPT, CI.no_index_build_receipt(ROOT, self.artifact, self.record, self.env))
+        (self.artifact / "ui-smoke.log").write_text("synthetic UI execution output\n")
+        def collect(_root, snapshot, _environment, **_kwargs):
+            diagnostic_transport(snapshot)
+            return CI.read_json(snapshot / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS)
+        with mock.patch.object(CI, "collect_simulator_diagnostic_transport", collect):
+            CI.phase1_collect_ui_snapshot(ROOT, self.artifact, self.record, self.env, exit_status=0, interrupted=False)
+        synthetic_diagnostic_interval(self.artifact, self.artifact, self.record, "unit")
+        synthetic_diagnostic_interval(self.artifact, self.artifact / "phase1-ui-diagnostics", self.record, "ui")
+        CI.phase1_seal_ui_log(ROOT, self.artifact, self.record)
+        proof = self.verify()
+        self.put("rui1-review.json", proof)
+        (self.artifact / "rui1-review.html").write_bytes(self.ui.review_page(ROOT, self.artifact, proof))
+        self.put("native-checkpoint.json", CI.verify_checkpoint(ROOT, self.artifact, self.record, self.selected,
+            self.env, retained_command_artifact=self.artifact))
+        self.put("phase1-gate-plan.json", plan)
+        self.put("phase1-event-binding.json", binding)
+        (self.artifact / "phase1-original-event.json").write_bytes(event)
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            artifact = directory / "artifacts/rui1"
+            shutil.copytree(self.artifact, artifact)
+            registration = {"schema": gate.REGISTRATION_SCHEMA, "plan": plan,
+                "planSHA256": binding["planSHA256"], "dispatchEnabled": False, "functionalQualification": gate.PENDING}
+            (directory / "phase1-registration.json").write_bytes(gate.canonical(registration))
+            (directory / "run-attempt-1.json").write_bytes(gate.canonical({"id": 123, "run_attempt": 1,
+                "head_sha": HEAD, "head_branch": plan["ref"].removeprefix("refs/heads/"),
+                "event": "workflow_dispatch", "path": gate.ROUTE["workflow"], "status": "completed", "conclusion": "success"}))
+            Phase1ExecutionProofTests().fixture(directory, execution_environment=execution_job["commands"][0]["environment"])
+            (directory / "artifacts.json").write_bytes(gate.canonical({"artifacts": [{"id": 20,
+                "name": "ios-ci-native-github-%s-123-1" % gate.RUI1, "expired": False, "digest": "sha256:" + "a" * 64,
+                "workflow_run": {"id": 123, "head_sha": HEAD, "head_branch": plan["ref"].removeprefix("refs/heads/")}}]}))
+            request = directory / "phase1-chain-request.json"
+            request.write_bytes(gate.canonical({"schema": "v23-phase1-retained-chain-request.v1",
+                "runID": 123, "planSHA256": binding["planSHA256"]}))
+            # Execute the real new CLI, which does not require a fake GITHUB_WORKSPACE.
+            checked = subprocess.run([sys.executable, str(ROOT / "Scripts/v23-native-ci.py"),
+                "phase1-retained-chain", "--phase1-request", str(request)], capture_output=True)
+            self.assertEqual(checked.returncode, 0, checked.stderr.decode())
+            result = json.loads(checked.stdout)
+            self.assertEqual(result["status"], "INCOMPLETE")
+            self.assertEqual(result["executionProof"]["problems"], [])
+            self.assertEqual(result["executionProof"]["status"], "RETAINED_EXECUTION_FACTS_VERIFIED")
+            self.assertEqual(result["functionalQualification"], gate.PENDING)
+            job_log = directory / "phase1-job-logs/2.log"
+            job_log_raw = job_log.read_bytes()
+            job_log.write_bytes(job_log_raw[:100])
+            incomplete = CI.phase1_retained_worker_chain(ROOT, request)
+            self.assertEqual(incomplete["executionProof"]["status"], "INCOMPLETE")
+            self.assertTrue(incomplete["executionProof"]["problems"])
+            job_log.write_bytes(job_log_raw)
+            self.assertEqual(set(result["workers"]["rui1"]["rawResultInventories"]),
+                             {"Build.xcresult", "UnitTests.xcresult", "UISmoke.xcresult"})
+            (artifact / "phase1-original-event.json").write_bytes(event + b" ")
+            with self.assertRaisesRegex(ValueError, "retained event bytes"):
+                CI.phase1_retained_worker_chain(ROOT, request)
+            (artifact / "phase1-original-event.json").write_bytes(event)
+            for bundle in ("Build.xcresult", "UnitTests.xcresult", "UISmoke.xcresult"):
+                path = artifact / bundle / "Data/original"
+                raw = path.read_bytes()
+                path.write_bytes(b"substituted raw result")
+                with self.subTest(bundle=bundle), self.assertRaises(ValueError):
+                    CI.phase1_retained_worker_chain(ROOT, request)
+                path.write_bytes(raw)
+
     def test_collector_requires_completed_checkpoint_and_binds_run_and_owner_page(self):
         proof, checkpoint, page = self.collector_fixture()
         before = {p.relative_to(self.artifact):p.read_bytes() for p in self.artifact.rglob('*') if p.is_file()}
@@ -9845,6 +10274,631 @@ class RUI1RouteTests(unittest.TestCase):
         self.assertLess(text.index('      - name: Run targeted tests\n'), text.index('      - name: Run task-authorized UI smoke\n'))
 
 
+class Phase1EventBoundaryTests(unittest.TestCase):
+    def test_empty_original_event_plan_preserves_exact_existing_admission(self):
+        expected = CI.admission(selection(), environment(), HEAD, "worker")
+        with tempfile.TemporaryDirectory() as directory:
+            event = Path(directory) / "github-event.json"
+            for payload in ({}, {"inputs": {}}, {"inputs": {"v23_phase1_gate_plan": ""}}):
+                event.write_bytes(CI.canonical(payload))
+                observed = CI.admission(selection(), dict(environment(), GITHUB_EVENT_PATH=str(event)), HEAD, "worker")
+                self.assertEqual(observed, expected)
+
+    def test_nonempty_plan_cannot_bypass_inactive_dispatch_by_manual_workflow(self):
+        gate = CI.load_phase1_gates(ROOT)
+        sources = {p: gate.sha((ROOT / p).read_bytes()) for p in gate.SOURCES}
+        selected = CI.load_ui_evidence(ROOT).selection(ROOT)
+        plan = gate.make_plan(purpose=gate.CANDIDATE, head=HEAD, tree="2" * 40,
+            selection=gate.RUI1, resolved_bytes=CI.canonical(selected), sources=sources,
+            requested_at="2026-09-26T12:00:00Z")
+        with tempfile.TemporaryDirectory() as directory:
+            event = Path(directory) / "github-event.json"
+            event.write_bytes(CI.canonical({"repository": {"full_name": gate.REPOSITORY}, "ref": gate.INTEGRATION_REF,
+                "inputs": {gate.PLAN_INPUT: gate.canonical(plan).decode(), "v23_run_kind": "gate",
+                    "native_selection_id": gate.RUI1, "execution_lane": gate.ROUTE["executionLane"], "run_ui_smoke": "true"}}))
+            e = dict(environment(), GITHUB_EVENT_PATH=str(event), NATIVE_SELECTION_ID=gate.RUI1,
+                     GITHUB_WORKFLOW_REF=gate.REPOSITORY + "/" + gate.ROUTE["workflow"] + "@" + gate.INTEGRATION_REF,
+                     GITHUB_WORKFLOW_SHA=HEAD)
+            with mock.patch.object(CI.subprocess, "check_output", side_effect=[HEAD + "\n", "2" * 40 + "\n"]), \
+                    self.assertRaisesRegex(ValueError, "dispatch disabled"):
+                CI.admission(selected, e, HEAD, "worker")
+
+    def test_malformed_or_unsafe_original_event_refuses_instead_of_falling_back(self):
+        with tempfile.TemporaryDirectory() as directory:
+            event = Path(directory) / "github-event.json"
+            for raw in (b"[]", b'{"inputs":{"v23_phase1_gate_plan":null}}',
+                        b'{"inputs":{"v23_phase1_gate_plan":"{}"}}', b'{"inputs":{},"inputs":{}}'):
+                event.write_bytes(raw)
+                with self.subTest(raw=raw), self.assertRaises(ValueError):
+                    CI.admission(selection(), dict(environment(), GITHUB_EVENT_PATH=str(event)), HEAD, "worker")
+            link = Path(directory) / "event-link.json"
+            link.symlink_to(event)
+            with self.assertRaisesRegex(ValueError, "symlink"):
+                CI.admission(selection(), dict(environment(), GITHUB_EVENT_PATH=str(link)), HEAD, "worker")
+
+    def test_workflow_adds_only_one_empty_string_input_and_does_not_interpolate_plan(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text()
+        self.assertEqual(workflow.count(PHASE1_PLAN_INPUT_BLOCK), 1)
+        self.assertEqual(workflow.count("v23_phase1_gate_plan"), 1)
+        for relative in (".github/workflows/ios-ci-worker.yml", SHARED_WORKER_PATH):
+            self.assertNotIn("v23_phase1_gate_plan", (ROOT / relative).read_text())
+
+
+def synthetic_diagnostic_interval(artifact, snapshot, record, phase):
+    """Test-only retained format fixture, never authenticated live/container evidence."""
+    import stat
+    transport = CI.read_json(snapshot / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS)
+    directory = {"device": 1, "inode": 2, "mode": stat.S_IFDIR | 0o700, "links": 2}
+    files = [{"name": item["name"], "sha256": item["sha256"], "identity": {
+        "device": 1, "inode": i + 10, "mode": stat.S_IFREG | 0o600, "links": 1,
+        "bytes": item["bytes"], "modifiedNS": 1, "changedNS": 1}} for i, item in enumerate(transport["files"])]
+    census = {"containerPath": "/synthetic-test-only/container", "containerIdentity": directory,
+        "directoryPath": "/synthetic-test-only/container/" + CI.SIMULATOR_DIAGNOSTIC_APP_DIRECTORY,
+        "directoryIdentity": dict(directory, inode=3), "files": files}
+    value = {"schema": CI.PHASE1_DIAGNOSTIC_INTERVAL_SCHEMA,
+        "identity": CI.phase1_observation_identity(ROOT, artifact, record), "phase": phase,
+        "before": census, "after": copy.deepcopy(census), "error": None, "status": "COPY_INTERVAL_OBSERVED",
+        "interrupted": False, "collectionBoundSeconds": 30, "workBoundSeconds": 29.5,
+        "preReceiptElapsedSeconds": 0.01, "transportSHA256": CI.sha256(CI.canonical(transport)),
+        "copyIntervalOnly": True, "allLifetimesProven": False}
+    (snapshot / CI.PHASE1_DIAGNOSTIC_INTERVAL).write_bytes(CI.canonical(value))
+
+
+class Phase1RetainedDiagnosticTests(unittest.TestCase):
+    STREAM = "00000000-0000-0000-0000-000000000010"
+
+    def test_ui_finalizer_runs_on_native_failure_and_transport_cannot_erase_failure(self):
+        from types import SimpleNamespace
+        ui = CI.load_ui_evidence(ROOT)
+        for code, collector_error in ((0, None), (42, None), (42, ValueError("transport")), (0, ValueError("transport"))):
+            with self.subTest(code=code, collector_error=bool(collector_error)), tempfile.TemporaryDirectory() as directory:
+                native = SimpleNamespace(phase1_observation_identity=mock.Mock(),
+                    phase1_collect_ui_snapshot=mock.Mock(side_effect=collector_error))
+                with mock.patch.object(ui.subprocess, "run", return_value=subprocess.CompletedProcess([], code)):
+                    if collector_error:
+                        with self.assertRaises(SystemExit if code else ValueError) as caught:
+                            ui.phase1_run_and_export(ROOT, Path(directory), {}, native, ["synthetic-only"], {})
+                        if code:
+                            self.assertEqual(caught.exception.code, code)
+                    else:
+                        self.assertEqual(ui.phase1_run_and_export(ROOT, Path(directory), {}, native,
+                                                                 ["synthetic-only"], {}), (code, 1, 1))
+                self.assertEqual(native.phase1_collect_ui_snapshot.call_args.kwargs,
+                                 {"exit_status": code, "interrupted": False})
+
+    def test_ui_signal_finalizes_interrupted_and_restores_handlers(self):
+        from types import SimpleNamespace
+        import signal
+        ui = CI.load_ui_evidence(ROOT)
+        native = SimpleNamespace(phase1_observation_identity=mock.Mock(), phase1_collect_ui_snapshot=mock.Mock())
+        handlers = {sig: signal.getsignal(sig) for sig in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM)}
+        def interrupted(*_args, **_kwargs):
+            signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(ui.subprocess, "run", side_effect=interrupted):
+            with self.assertRaises(SystemExit) as caught:
+                ui.phase1_run_and_export(ROOT, Path(directory), {}, native, ["synthetic-only"], {})
+            self.assertEqual(caught.exception.code, 128 + signal.SIGTERM)
+            self.assertEqual(native.phase1_collect_ui_snapshot.call_args.kwargs,
+                             {"exit_status": 128 + signal.SIGTERM, "interrupted": True})
+        self.assertEqual({sig: signal.getsignal(sig) for sig in handlers}, handlers)
+
+    def test_ui_export_exception_retains_original_native_failure(self):
+        from types import SimpleNamespace
+        ui = CI.load_ui_evidence(ROOT)
+        native = SimpleNamespace(phase1_observation_identity=mock.Mock(), phase1_collect_ui_snapshot=mock.Mock())
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory)
+            (artifact / "UISmoke.xcresult").mkdir()
+            with mock.patch.object(ui.subprocess, "run", side_effect=[subprocess.CompletedProcess([], 42), OSError("export")]):
+                with self.assertRaises(SystemExit) as caught:
+                    ui.phase1_run_and_export(ROOT, artifact, {}, native, ["synthetic-only"], {})
+                self.assertEqual(caught.exception.code, 42)
+            native.phase1_collect_ui_snapshot.assert_called_once()
+
+    def test_ui_finalization_receipt_missing_interrupted_or_foreign_never_completes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory)
+            record, binding = self.fixture(artifact)
+            path = artifact / "phase1-ui-diagnostics/phase1-ui-finalization.json"
+            raw = path.read_bytes()
+            for changes in ({"interrupted": True}, {"nativeExitStatus": 42}, {"nativeExitStatus": False},
+                            {"runID": "999"}, {"allLifetimesProven": True}, {"approved": True}):
+                path.write_bytes(CI.canonical(dict(json.loads(raw), **changes)))
+                with self.subTest(changes=changes), self.assertRaises(ValueError):
+                    CI.phase1_retained_diagnostic_facts(ROOT, artifact, record, binding)
+            path.unlink()
+            with self.assertRaises(FileNotFoundError):
+                CI.phase1_retained_diagnostic_facts(ROOT, artifact, record, binding)
+
+    def fixture(self, artifact, unit_payloads=None, ui_payloads=None, *, selection_id=None, role=None):
+        """Invented worker facts for this primitive, not an authenticated gate original."""
+        gate = CI.load_phase1_gates(ROOT)
+        selection_id = selection_id or gate.RUI1
+        sources = {p: gate.sha((ROOT / p).read_bytes()) for p in gate.SOURCES}
+        plan = gate.make_plan(purpose=gate.CANDIDATE, head=HEAD, tree="2" * 40,
+            selection=selection_id, resolved_bytes=CI.canonical(selection()), sources=sources,
+            requested_at="2026-09-26T12:00:00Z")
+        record = CI.admission(selection(), environment(), HEAD, "worker")
+        binding = {"schema": gate.EVENT_SCHEMA, "plan": plan, "planSHA256": gate.sha(gate.canonical(plan)),
+                   "runID": record["runID"], "runAttempt": "1", "functionalQualification": gate.PENDING}
+        record.update(selectionID=selection_id, gitTree="2" * 40, phase1Gate=binding)
+        (artifact / "native-admission.json").write_bytes(CI.canonical(record))
+        if role:
+            record[CI.SHARED_KEY] = {"role": role}
+        if role == "producer":
+            return record, binding
+        unit_payloads = [diagnostic_line()] if unit_payloads is None else unit_payloads
+        ui_payloads = unit_payloads if ui_payloads is None else ui_payloads
+        (artifact / "test-smoke.log").write_text("synthetic unit output\n")
+        diagnostic_transport(artifact, [(self.STREAM, unit_payloads)] if unit_payloads else [])
+        CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
+        synthetic_diagnostic_interval(artifact, artifact, record, "unit")
+        if selection_id == gate.RUI1:
+            snapshot = artifact / "phase1-ui-diagnostics"
+            snapshot.mkdir()
+            (artifact / "ui-smoke.log").write_text("synthetic UI output\n")
+            (snapshot / "test-smoke.log").write_bytes((artifact / "ui-smoke.log").read_bytes())
+            diagnostic_transport(snapshot, [(self.STREAM, ui_payloads)] if ui_payloads else [])
+            CI.persist_simulator_diagnostic_observations(ROOT, snapshot, record)
+            synthetic_diagnostic_interval(artifact, snapshot, record, "ui")
+            # Synthetic finalizer observation required by the new B2 transport boundary.
+            final = {"schema": "v23-phase1-ui-finalization.v1", **CI.phase1_observation_identity(ROOT, artifact, record),
+                     "phase": "ui", "nativeExitStatus": 0, "interrupted": False,
+                     "transportSHA256": CI.sha256((snapshot / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS).read_bytes()),
+                     "transportStatus": CI.read_json(snapshot / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS)["status"],
+                     "allLifetimesProven": False, "countsAreTotalInvocations": False,
+                     "trailingRepeatCountsMayBeUnobserved": True}
+            (snapshot / "phase1-ui-finalization.json").write_bytes(CI.canonical(final))
+        return record, binding
+
+    def test_unit_and_ui_duplicates_are_retained_without_double_count_or_protection_credit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory)
+            record, binding = self.fixture(artifact, ui_payloads=[diagnostic_line(), diagnostic_summary_line(occurrences=3)])
+            proof = CI.phase1_retained_diagnostic_facts(ROOT, artifact, record, binding)
+            self.assertEqual(proof["uniqueRetainedFrames"], 2)
+            self.assertEqual(proof["phases"]["unit"]["retainedOccurrences"], 1)
+            self.assertEqual(proof["phases"]["ui"]["retainedOccurrences"], 4)
+            self.assertFalse(proof["phaseOccurrenceCountsAreAdditive"])
+            self.assertFalse(proof["countsAreTotalInvocations"])
+            self.assertFalse(proof["allLifetimesProven"])
+            self.assertTrue(proof["trailingRepeatCountsMayBeUnobserved"])
+            for key in ("countsAsPerKindProtectionSuccess", "providerQualification", "acceptance", "releaseReady"):
+                self.assertFalse(proof[key])
+            self.assertEqual(proof["functionalQualification"], "PENDING_RAW_PROOF_AND_INDEPENDENT_REVIEW")
+
+    def test_missing_ui_snapshot_original_log_alias_and_writer_poison_fail(self):
+        variants = ("missing", "alias", "unit-poison", "ui-poison", "changed-observations")
+        for variant in variants:
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as directory:
+                artifact = Path(directory)
+                record, binding = self.fixture(artifact)
+                snapshot = artifact / "phase1-ui-diagnostics"
+                if variant == "missing":
+                    shutil.rmtree(snapshot)
+                elif variant == "alias":
+                    (snapshot / "test-smoke.log").write_text("unit log substituted\n")
+                elif variant.endswith("poison"):
+                    name = "test-smoke.log" if variant.startswith("unit") else "ui-smoke.log"
+                    (artifact / name).write_text("V23_PROTECTED_FILE_DIAGNOSTIC_JOURNAL_FAILURE phase=exit\n")
+                else:
+                    (snapshot / CI.SIMULATOR_DIAGNOSTIC_OUTPUT).write_text("{}")
+                with self.assertRaises((ValueError, OSError)):
+                    CI.phase1_retained_diagnostic_facts(ROOT, artifact, record, binding)
+
+    def test_substituted_or_truncated_surviving_prefix_is_rejected(self):
+        for unit, ui in (([diagnostic_line()], [diagnostic_line("scratch")]),
+                         ([diagnostic_line(), diagnostic_summary_line(occurrences=3)], [diagnostic_line()])):
+            with self.subTest(unit=unit, ui=ui), tempfile.TemporaryDirectory() as directory:
+                artifact = Path(directory)
+                record, binding = self.fixture(artifact, unit, ui)
+                with self.assertRaisesRegex(ValueError, "prefix|truncated"):
+                    CI.phase1_retained_diagnostic_facts(ROOT, artifact, record, binding)
+
+    def test_previous_snapshot_survives_later_absence_without_lifetime_claim(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory)
+            record, binding = self.fixture(artifact, ui_payloads=[])
+            before = (artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY / (self.STREAM + ".jsonl")).read_bytes()
+            proof = CI.phase1_retained_diagnostic_facts(ROOT, artifact, record, binding)
+            self.assertEqual(proof["unitStreamsRetainedOnlyInEarlierSnapshot"], [self.STREAM])
+            self.assertFalse(proof["allLifetimesProven"])
+            self.assertEqual((artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY / (self.STREAM + ".jsonl")).read_bytes(), before)
+
+    def test_zero_use_does_not_establish_protection_and_producer_has_no_test_success(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory)
+            record, binding = self.fixture(artifact, [], [])
+            proof = CI.phase1_retained_diagnostic_facts(ROOT, artifact, record, binding)
+            self.assertEqual(proof["uniqueRetainedFrames"], 0)
+            self.assertFalse(proof["countsAsPerKindProtectionSuccess"])
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory)
+            record, binding = self.fixture(artifact, selection_id=CI.SHARED_SELECTION_ID, role="producer")
+            proof = CI.phase1_retained_diagnostic_facts(ROOT, artifact, record, binding)
+            self.assertEqual(proof["status"], "NOT_APPLICABLE_BUILD_ONLY")
+            (artifact / "test-smoke.log").write_text("unexpected tests")
+            with self.assertRaisesRegex(ValueError, "producer"):
+                CI.phase1_retained_diagnostic_facts(ROOT, artifact, record, binding)
+
+    def test_tampered_raw_frames_inventory_or_interrupted_status_fail(self):
+        for variant in ("frame", "status", "inventory"):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as directory:
+                artifact = Path(directory)
+                record, binding = self.fixture(artifact)
+                snapshot = artifact / "phase1-ui-diagnostics"
+                if variant == "frame":
+                    path = snapshot / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY / (self.STREAM + ".jsonl")
+                    path.write_bytes(path.read_bytes()[:-1])
+                else:
+                    path = snapshot / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS
+                    status = json.loads(path.read_bytes())
+                    if variant == "status":
+                        status.update(status="INTERRUPTED", collectionMode="interrupted", collectionBoundSeconds=3)
+                    else:
+                        status["files"][0]["sha256"] = "A" * 64
+                    path.write_bytes(CI.canonical(status))
+                with self.assertRaises(ValueError):
+                    CI.phase1_retained_diagnostic_facts(ROOT, artifact, record, binding)
+
+
+class Phase1DiagnosticIntervalCallerTests(unittest.TestCase):
+    """Synthetic actual event/filesystem/CLI flows; Git and simctl boundaries only are fake."""
+    STREAM = "00000000-0000-0000-0000-000000000041"
+    EXTRA = "00000000-0000-0000-0000-000000000042"
+
+    def fixture(self, base, streams=True, shared=False):
+        import contextlib
+        gate = CI.load_phase1_gates(ROOT)
+        artifact, container = base / "artifact", base / "container"
+        artifact.mkdir(); container.mkdir()
+        event = base / "test-only-event.json"
+        e = dict(environment(), GITHUB_WORKSPACE=str(ROOT), GITHUB_EVENT_PATH=str(event),
+            CI_ARTIFACT_DIR=str(artifact), CI_SIMULATOR_UDID=UDID, NATIVE_SELECTION_ID=gate.RUI1,
+            GITHUB_WORKFLOW_REF=gate.REPOSITORY + "/" + gate.ROUTE["workflow"] + "@" + gate.INTEGRATION_REF,
+            GITHUB_WORKFLOW_SHA=HEAD)
+        if shared:
+            e.update(NATIVE_SELECTION_ID=gate.SHARED, V23_SHARED_ROLE="consumer", V23_PARTITION_ID="S01",
+                     V23_PAYLOAD_ARTIFACT_NAME="v23-shared-payload-123-1-" + HEAD)
+        selected, selection_record = CI.selected_input(ROOT, e)
+        resolved = CI.shared_selection(ROOT) if shared else selected
+        plan = gate.make_plan(purpose=gate.CANDIDATE, head=HEAD, tree="2" * 40,
+            selection=gate.SHARED if shared else gate.RUI1, resolved_bytes=CI.canonical(resolved),
+            sources={p: gate.sha((ROOT / p).read_bytes()) for p in gate.SOURCES}, requested_at="2026-09-26T12:00:00Z")
+        raw = gate.canonical({"repository": {"full_name": gate.REPOSITORY}, "ref": plan["ref"],
+                              "inputs": gate.dispatch_inputs(plan)})
+        event.write_bytes(raw)
+        binding = gate.bind_original_event(raw, e, head=HEAD, tree=plan["tree"],
+            resolved_bytes=gate.canonical(resolved), sources=plan["sources"])
+        record = CI.admission(selection(), environment(), HEAD, "worker")
+        record.update(selection_record)
+        record.update(CI.source_binding(ROOT))
+        record.update(phase1Gate=binding, gitTree=plan["tree"])
+        for name, data in (("native-admission.json", gate.canonical(record)), ("phase1-original-event.json", raw),
+            ("phase1-event-binding.json", gate.canonical(binding)), ("phase1-gate-plan.json", gate.canonical(plan))):
+            (artifact / name).write_bytes(data)
+        (artifact / "simulator-selection.txt").write_text("runtime=iOS 26.2\nruntime_build=23C54\nname=iPhone 17\nudid="+UDID+"\ninitial_state=Shutdown\n")
+        leaf = container / CI.SIMULATOR_DIAGNOSTIC_APP_DIRECTORY
+        frame = diagnostic_frame(self.STREAM, 1, diagnostic_line())
+        if streams:
+            leaf.mkdir(parents=True); (leaf / (self.STREAM + ".jsonl")).write_bytes(frame)
+        calls, state = [], {"container": container, "lookupHook": None}
+        def simctl(argv, **kwargs):
+            self.assertEqual(argv, ["xcrun", "simctl", "get_app_container", UDID, CI.SIMULATOR_DIAGNOSTIC_APP_BUNDLE_ID, "data"])
+            self.assertGreater(kwargs["timeout"], 0); self.assertLessEqual(kwargs["timeout"], 10)
+            calls.append((argv, kwargs))
+            if state["lookupHook"]: state["lookupHook"](len(calls))
+            return subprocess.CompletedProcess(argv, 0, str(state["container"])+"\n", "")
+        def git(argv, **kwargs):
+            self.assertIn(argv, (["git", "rev-parse", "HEAD"], ["git", "rev-parse", "HEAD^{tree}"]))
+            self.assertGreater(kwargs["timeout"], 0); self.assertLessEqual(kwargs["timeout"], 29.5)
+            return HEAD+"\n" if argv[-1] == "HEAD" else plan["tree"]+"\n"
+        stack = contextlib.ExitStack()
+        stack.enter_context(mock.patch.object(CI.subprocess, "run", simctl))
+        stack.enter_context(mock.patch.object(CI.subprocess, "check_output", git))
+        self.addCleanup(stack.close)
+        return artifact, container, leaf, record, e, calls, state, frame
+
+    def interval(self, artifact):
+        return CI.read_json(artifact / CI.PHASE1_DIAGNOSTIC_INTERVAL)
+
+    def test_actual_early_main_and_ui_finally_join_same_interval_and_deduplicate(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            a, _, _, record, e, calls, _, _ = self.fixture(Path(temporary).resolve())
+            with mock.patch.dict(os.environ, e, clear=True), mock.patch.object(sys, "argv", ["v23-native-ci.py", "collect-diagnostics"]):
+                CI.main()
+            self.assertEqual(self.interval(a)["status"], "COPY_INTERVAL_OBSERVED")
+            (a / "test-smoke.log").write_text("synthetic successful unit log\n")
+            CI.persist_simulator_diagnostic_observations(ROOT, a, record)
+            (a / "ui-smoke.log").write_text("synthetic successful UI log\n")
+            CI.phase1_collect_ui_snapshot(ROOT, a, record, e, exit_status=0, interrupted=False)
+            CI.phase1_seal_ui_log(ROOT, a, record)
+            facts = CI.phase1_retained_diagnostic_facts(ROOT, a, record, record["phase1Gate"])
+            self.assertEqual(len(calls), 4)
+            self.assertEqual(facts["uniqueRetainedFrames"], 1)
+            self.assertFalse(facts["allLifetimesProven"])
+            self.assertFalse(facts["phaseOccurrenceCountsAreAdditive"])
+            self.assertFalse(facts["countsAsPerKindProtectionSuccess"])
+            self.assertEqual(facts["functionalQualification"], "PENDING_RAW_PROOF_AND_INDEPENDENT_REVIEW")
+            for phase in ("unit", "ui"): self.assertTrue(facts["phases"][phase]["copyInterval"]["copyIntervalOnly"])
+
+    def test_actual_shared_consumer_main_binds_partition_and_retained_interval(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            a, _, _, record, e, calls, _, _ = self.fixture(Path(temporary).resolve(), shared=True)
+            with mock.patch.dict(os.environ, e, clear=True), mock.patch.object(sys, "argv", ["native", "collect-diagnostics"]):
+                CI.main()
+            (a / "test-smoke.log").write_text("synthetic shared consumer log\n")
+            CI.persist_simulator_diagnostic_observations(ROOT, a, record)
+            facts = CI.phase1_retained_diagnostic_facts(ROOT, a, record, record["phase1Gate"])
+            self.assertEqual(set(facts["phases"]), {"unit"})
+            self.assertEqual(len(calls), 2)
+            self.assertEqual(facts["uniqueRetainedFrames"], 1)
+            self.assertFalse(facts["acceptance"])
+
+    def test_actual_later_ui_container_preserves_earlier_unit_original(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            a, container, _, record, e, _, state, frame = self.fixture(Path(temporary).resolve())
+            with mock.patch.dict(os.environ, e, clear=True), mock.patch.object(sys, "argv", ["native", "collect-diagnostics"]):
+                CI.main()
+            (a / "test-smoke.log").write_text("synthetic unit log\n")
+            CI.persist_simulator_diagnostic_observations(ROOT, a, record)
+            later = container.parent / "later-container"
+            leaf = later / CI.SIMULATOR_DIAGNOSTIC_APP_DIRECTORY
+            leaf.mkdir(parents=True)
+            (leaf / (self.EXTRA + ".jsonl")).write_bytes(diagnostic_frame(self.EXTRA, 1, diagnostic_line("scratch")))
+            state["container"] = later
+            (a / "ui-smoke.log").write_text("synthetic UI log\n")
+            CI.phase1_collect_ui_snapshot(ROOT, a, record, e, exit_status=0, interrupted=False)
+            CI.phase1_seal_ui_log(ROOT, a, record)
+            facts = CI.phase1_retained_diagnostic_facts(ROOT, a, record, record["phase1Gate"])
+            self.assertEqual(facts["unitStreamsRetainedOnlyInEarlierSnapshot"], [self.STREAM])
+            self.assertEqual(facts["uniqueRetainedFrames"], 2)
+            self.assertFalse(facts["allLifetimesProven"])
+            self.assertEqual((a / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY / (self.STREAM + ".jsonl")).read_bytes(), frame)
+
+    def test_new_stream_append_disappearance_replacement_and_short_copy_refuse(self):
+        for mutation in ("new", "append", "remove", "replace", "short"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temporary:
+                a, _, leaf, record, e, _, _, frame = self.fixture(Path(temporary).resolve())
+                changed = False
+                def reader(stream, size):
+                    nonlocal changed
+                    raw = stream.read(size)
+                    if not changed:
+                        changed = True
+                        path = leaf / (self.STREAM + ".jsonl")
+                        if mutation == "new": (leaf / (self.EXTRA + ".jsonl")).write_bytes(diagnostic_frame(self.EXTRA, 1, diagnostic_line()))
+                        elif mutation == "append":
+                            with path.open("ab") as output: output.write(diagnostic_frame(self.STREAM, 2, diagnostic_summary_line(occurrences=1)))
+                        elif mutation == "remove": path.unlink()
+                        elif mutation == "replace": path.unlink(); path.write_bytes(frame)
+                        else: return b""
+                    return raw
+                status = CI.collect_simulator_diagnostic_transport(ROOT, a, e, read_chunk=reader)
+                self.assertEqual(status["status"], "UNSAFE")
+                self.assertEqual(self.interval(a)["status"], "INCOMPLETE")
+                self.assertTrue((a / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY / (self.STREAM + ".jsonl")).exists())
+                with self.assertRaises(ValueError):
+                    CI.phase1_retained_diagnostic_interval(ROOT, a, a, record, "unit", status)
+
+    def test_container_switch_and_absent_directory_appearance_refuse(self):
+        for mutation in ("container", "appearance"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temporary:
+                a, container, leaf, _, e, _, state, _ = self.fixture(Path(temporary).resolve(), streams=mutation=="container")
+                def hook(index):
+                    if index != 2: return
+                    if mutation == "container":
+                        target = container.parent / "different-container"; shutil.copytree(container, target); state["container"] = target
+                    else:
+                        leaf.mkdir(parents=True); (leaf / (self.EXTRA + ".jsonl")).write_bytes(diagnostic_frame(self.EXTRA, 1, diagnostic_line()))
+                state["lookupHook"] = hook
+                status = CI.collect_simulator_diagnostic_transport(ROOT, a, e)
+                self.assertEqual(status["status"], "UNSAFE")
+                self.assertEqual(self.interval(a)["status"], "INCOMPLETE")
+
+    def test_initial_and_final_denied_scan_fail_closed_and_restore_succeeds(self):
+        for denied_on in (1, 3):
+            with self.subTest(denied_on=denied_on), tempfile.TemporaryDirectory() as temporary:
+                a, _, leaf, _, e, _, _, _ = self.fixture(Path(temporary).resolve())
+                real_scan, count = CI.os.scandir, 0
+                def scan(path):
+                    nonlocal count
+                    if Path(path) == leaf:
+                        count += 1
+                        if count == denied_on: raise PermissionError("synthetic denied census")
+                    return real_scan(path)
+                with mock.patch.object(CI.os, "scandir", scan):
+                    status = CI.collect_simulator_diagnostic_transport(ROOT, a, e)
+                self.assertEqual(status["status"], "UNSAFE")
+                self.assertIn("denied census", self.interval(a)["error"])
+                self.assertEqual(len(CI.phase1_diagnostic_census(leaf.parents[2], lambda: None)["files"]), 1)
+
+    def test_malformed_missing_changed_gate_inputs_never_fall_back_to_legacy(self):
+        for mutation in ("malformed", "missing-admission", "missing-event", "changed-admission", "changed-retained-event"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temporary:
+                a, _, _, _, e, calls, _, _ = self.fixture(Path(temporary).resolve())
+                if mutation == "malformed": Path(e["GITHUB_EVENT_PATH"]).write_bytes(b'{"inputs":{"v23_phase1_gate_plan":"{}"}}')
+                elif mutation == "missing-admission": (a / "native-admission.json").unlink()
+                elif mutation == "missing-event": e.pop("GITHUB_EVENT_PATH")
+                elif mutation == "changed-retained-event": (a / "phase1-original-event.json").write_bytes(b"{}\n")
+                else:
+                    record = CI.read_json(a / "native-admission.json");record["phase1Gate"]["runID"]="999";(a / "native-admission.json").write_bytes(CI.canonical(record))
+                with mock.patch.dict(os.environ, e, clear=True), mock.patch.object(sys, "argv", ["native", "collect-diagnostics"]): CI.main()
+                status = CI.read_json(a / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS)
+                self.assertEqual(status["status"], "UNSAFE")
+                self.assertEqual(self.interval(a)["status"], "INCOMPLETE")
+                self.assertIsNone(self.interval(a)["identity"])
+                self.assertEqual(len(calls), 1)
+                self.assertEqual(status["fileCount"], 1)  # safe unqualified bytes survived
+
+    def test_actual_main_overfull_gate_directory_stops_at_first_excess_entry(self):
+        import contextlib
+        for malformed in (False, True):
+            with self.subTest(malformed=malformed), tempfile.TemporaryDirectory() as temporary:
+                a, _, leaf, _, e, calls, _, _ = self.fixture(Path(temporary).resolve())
+                for index in range(CI.SIMULATOR_DIAGNOSTIC_MAX_FILES + 2):
+                    (leaf / ("11111111-0000-0000-0000-%012x.jsonl" % index)).write_bytes(b"")
+                if malformed:
+                    Path(e["GITHUB_EVENT_PATH"]).write_bytes(b'{"inputs":{"v23_phase1_gate_plan":"{}"}}')
+                real_scan, real_iterdir = CI.os.scandir, Path.iterdir
+                yielded, closed = [], []
+                @contextlib.contextmanager
+                def scan(path):
+                    with real_scan(path) as entries:
+                        if Path(path) != leaf:
+                            yield entries
+                            return
+                        def counted():
+                            for entry in entries:
+                                yielded.append(entry.name)
+                                self.assertLessEqual(len(yielded), CI.SIMULATOR_DIAGNOSTIC_MAX_FILES + 1,
+                                                     "gate scanned beyond its first excess entry")
+                                yield entry
+                        try:
+                            yield counted()
+                        finally:
+                            closed.append(True)
+                def iterdir(path):
+                    if path == leaf:
+                        self.fail("gate invoked unbounded legacy directory enumeration")
+                    return real_iterdir(path)
+                with mock.patch.object(CI.os, "scandir", scan), mock.patch.object(Path, "iterdir", iterdir), \
+                     mock.patch.dict(os.environ, e, clear=True), mock.patch.object(sys, "argv", ["native", "collect-diagnostics"]):
+                    CI.main()
+                self.assertEqual(len(yielded), CI.SIMULATOR_DIAGNOSTIC_MAX_FILES + 1)
+                self.assertEqual(closed, [True])
+                self.assertEqual(len(calls), 1)
+                status = CI.read_json(a / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS)
+                self.assertEqual(status["status"], "UNSAFE")
+                self.assertEqual(status["fileCount"], 0)
+                self.assertIn("source census bound", status["error"])
+                self.assertEqual(self.interval(a)["status"], "INCOMPLETE")
+                self.assertIsNone(self.interval(a)["after"])
+
+    def test_denied_absent_directory_lookup_never_becomes_zero_use(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            a, container, leaf, _, e, _, _, _ = self.fixture(Path(temporary).resolve(), streams=False)
+            real_lstat = Path.lstat
+            def lstat(path, *args, **kwargs):
+                if path == container / "Library":
+                    raise PermissionError("synthetic denied source parent")
+                return real_lstat(path, *args, **kwargs)
+            with mock.patch.object(Path, "lstat", lstat):
+                status = CI.collect_simulator_diagnostic_transport(ROOT, a, e)
+            self.assertEqual(status["status"], "UNSAFE")
+            self.assertEqual(self.interval(a)["status"], "INCOMPLETE")
+            self.assertIn("denied source parent", self.interval(a)["error"])
+            self.assertEqual(CI.phase1_diagnostic_census(container, lambda: None)["files"], [])
+
+    def test_actual_ui_finalization_preserves_native_failure_and_safe_partial_bytes(self):
+        for native_exit in (0, 42):
+            with self.subTest(native_exit=native_exit), tempfile.TemporaryDirectory() as temporary:
+                a, _, leaf, record, e, _, state, _ = self.fixture(Path(temporary).resolve())
+                def hook(index):
+                    if index == 2:
+                        (leaf / (self.EXTRA + ".jsonl")).write_bytes(diagnostic_frame(self.EXTRA, 1, diagnostic_line()))
+                state["lookupHook"] = hook
+                if native_exit == 0:
+                    with self.assertRaisesRegex(ValueError, "transport incomplete"):
+                        CI.phase1_collect_ui_snapshot(ROOT, a, record, e, exit_status=native_exit, interrupted=False)
+                else:
+                    result = CI.phase1_collect_ui_snapshot(ROOT, a, record, e, exit_status=native_exit, interrupted=False)
+                    self.assertEqual(result["nativeExitStatus"], 42)
+                snapshot = a / "phase1-ui-diagnostics"
+                self.assertEqual(self.interval(snapshot)["status"], "INCOMPLETE")
+                self.assertEqual(CI.read_json(snapshot / "phase1-ui-finalization.json")["transportStatus"], "UNSAFE")
+                self.assertTrue((snapshot / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY / (self.STREAM + ".jsonl")).is_file())
+
+    def test_empty_plan_legacy_status_bytes_and_no_observation_remain_exact(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            a, _, _, _, e, calls, _, _ = self.fixture(Path(temporary).resolve())
+            Path(e["GITHUB_EVENT_PATH"]).write_bytes(CI.canonical({"inputs": {"v23_phase1_gate_plan": ""}}))
+            (a / "native-admission.json").unlink()
+            status = CI.collect_simulator_diagnostic_transport(ROOT, a, e)
+            self.assertEqual(status["status"], "AVAILABLE")
+            self.assertEqual(len(calls), 1)
+            self.assertFalse((a / CI.PHASE1_DIAGNOSTIC_INTERVAL).exists())
+            self.assertEqual((a / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS).read_bytes(), CI.canonical(status))
+            self.assertEqual(status["collectionBoundSeconds"], 30)
+
+    def test_same_deadline_covers_binding_final_lookup_hash_and_receipt_fsync(self):
+        for phase in ("binding", "lookup", "hash", "fsync"):
+            with self.subTest(phase=phase), tempfile.TemporaryDirectory() as temporary:
+                a, _, leaf, record, e, _, state, _ = self.fixture(Path(temporary).resolve())
+                clock = [100.0]
+                now = lambda: clock[0]
+                real_git, real_census = CI.subprocess.check_output, CI.phase1_diagnostic_census
+                def git(*args, **kwargs):
+                    result = real_git(*args, **kwargs)
+                    if phase == "binding": clock[0] = 129.6
+                    return result
+                def hook(index):
+                    if phase == "lookup" and index == 2: clock[0] = 129.6
+                state["lookupHook"] = hook
+                census_count = [0]
+                def census(container, check):
+                    census_count[0] += 1
+                    if phase == "hash" and census_count[0] == 2:
+                        def deadline_check(): clock[0] = 129.6; check()
+                        return real_census(container, deadline_check)
+                    return real_census(container, check)
+                gate = CI.load_phase1_gates(ROOT)
+                real_write = gate.write_immutable
+                def write(path, raw):
+                    result = real_write(path, raw)
+                    if phase == "fsync": clock[0] = 130.1
+                    return result
+                with mock.patch.object(CI.subprocess, "check_output", git), mock.patch.object(CI, "phase1_diagnostic_census", census), \
+                     mock.patch.object(CI, "load_phase1_gates", return_value=gate), mock.patch.object(gate, "write_immutable", write):
+                    if phase == "fsync":
+                        with self.assertRaises(CI._DiagnosticCollectionDeadline):
+                            CI.collect_simulator_diagnostic_transport(ROOT, a, e, monotonic=now)
+                    else:
+                        status = CI.collect_simulator_diagnostic_transport(ROOT, a, e, monotonic=now)
+                        self.assertEqual(status["status"], "UNSAFE")
+                        self.assertEqual(self.interval(a)["status"], "INCOMPLETE")
+                if phase in ("lookup", "hash", "fsync"):
+                    self.assertTrue((a / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY / (self.STREAM + ".jsonl")).exists())
+
+    def test_zero_use_and_interrupted_paths_never_become_protection_or_complete(self):
+        for interrupted in (False, True):
+            with self.subTest(interrupted=interrupted), tempfile.TemporaryDirectory() as temporary:
+                a, _, _, record, e, calls, _, _ = self.fixture(Path(temporary).resolve(), streams=False)
+                status = CI.collect_simulator_diagnostic_transport(ROOT, a, e, interrupted=interrupted)
+                self.assertEqual(status["status"], "INTERRUPTED" if interrupted else "ZERO_USE")
+                observation = self.interval(a)
+                self.assertEqual(observation["collectionBoundSeconds"], 3 if interrupted else 30)
+                self.assertEqual(observation["status"], "INCOMPLETE" if interrupted else "COPY_INTERVAL_OBSERVED")
+                if observation["identity"] is None:
+                    self.assertTrue(interrupted)
+                    self.assertIsNotNone(observation["error"])
+                else:
+                    self.assertFalse(observation["identity"]["acceptance"])
+                self.assertFalse(observation["allLifetimesProven"])
+                if interrupted:
+                    self.assertTrue(all(kwargs["timeout"] <= 2 for _, kwargs in calls))
+                    with self.assertRaises(ValueError): CI.phase1_retained_diagnostic_interval(ROOT, a, a, record, "unit", status)
+
+    def test_retained_interval_missing_tampered_identity_census_or_budget_refuses(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            a, _, _, record, e, _, _, _ = self.fixture(Path(temporary).resolve())
+            status = CI.collect_simulator_diagnostic_transport(ROOT, a, e)
+            path = a / CI.PHASE1_DIAGNOSTIC_INTERVAL;raw=path.read_bytes()
+            for mutation in ("identity", "census", "files", "budget", "lifetimes", "transport"):
+                changed=json.loads(raw)
+                if mutation=="identity": changed["identity"]["runID"]="999"
+                elif mutation=="census": changed["after"]["containerIdentity"]["inode"]+=1
+                elif mutation=="files": changed["before"]["files"]=[];changed["after"]["files"]=[]
+                elif mutation=="budget": changed["collectionBoundSeconds"]=31
+                elif mutation=="lifetimes": changed["allLifetimesProven"]=True
+                else: changed["transportSHA256"]="0"*64
+                path.write_bytes(CI.canonical(changed))
+                with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                    CI.phase1_retained_diagnostic_interval(ROOT, a, a, record, "unit", status)
+            path.unlink()
+            with self.assertRaises(FileNotFoundError): CI.phase1_retained_diagnostic_interval(ROOT, a, a, record, "unit", status)
+
+
 class WorkflowTemplateBudgetTests(unittest.TestCase):
     """GitHub counts each called workflow's template once per calling job; d2c1c4b failed at ~6 MiB."""
 
@@ -9866,6 +10920,155 @@ class WorkflowTemplateBudgetTests(unittest.TestCase):
         self.assertGreater(at('d2c1c4b359a44c02539545e2e6da359addd86eb8'), CALLED_TEMPLATE_MAX_BYTES)
         with self.assertRaises(AssertionError):
             called_template_bytes(workflow + '\n  extra:\n    uses: "./.github/workflows/ios-ci-worker.yml"\n', len)
+
+
+
+class Phase1ExecutionProofTests(unittest.TestCase):
+    """Synthetic protocol fixtures; never a hosted/native/qualification receipt."""
+
+    def fixture(self, directory, shared=False, execution_environment=None):
+        gate = CI.load_phase1_gates(ROOT)
+        plan = {"selection": gate.SHARED if shared else gate.RUI1, "head": HEAD}
+        resolved = {CI.SHARED_KEY: {"partitionIDs": ["S01"]}}
+        names = CI.phase1_job_names(ROOT, plan, resolved)
+        self.assertEqual(names["selection"], "Validate shared build selection and dependencies")
+        jobs, logs = [], {}
+        rui = {"Prepare evidence directory", "Check out the exact revision", "Validate task selection and timeout tier",
+            "Verify pinned toolchain, shared scheme, and simulator", "Verify setup budget before build", "Boot selected Simulator",
+            "Await selected Simulator boot", "Build unsigned simulator app", "Run targeted tests", "Run task-authorized UI smoke",
+            "Begin evidence-finalization budget", "Validate required build and test evidence", "Validate exact ordinary integration native checkpoint",
+            "Remove owned isolated Simulator", "Hash collected evidence", "Recheck evidence-finalization budget",
+            "Verify selected total budget before upload", "Upload build evidence"}
+        consumers = {"Download V23 shared coverage payload", "Verify and restore V23 shared coverage payload",
+                     "Recheck setup budget after V23 shared payload restore", "Fingerprint V23 shared products before tests",
+                     "Run targeted tests", "Fingerprint V23 shared products after tests"}
+        producers = {"Build unsigned simulator app", "Seal V23 shared coverage payload", "Upload V23 shared coverage payload"}
+        (directory / "phase1-job-logs").mkdir()
+        for index, (label, name) in enumerate(names.items(), 1):
+            source = ".github/workflows/ios-ci.yml" if label == "selection" else ".github/workflows/ios-ci-worker.yml" if label == "rui1" else ".github/workflows/ios-ci-shared-worker.yml"
+            definitions = CI.phase1_workflow_steps(ROOT, source, "shared-selection" if label == "selection" else "verify")
+            if label == "selection":
+                required = {"Check out the exact revision", "Validate ordinary V23 native acceptance selection", "Validate closed shared selection and original dependencies"}
+            elif label == "rui1":
+                required = rui
+            else:
+                required = {s["name"] for s in definitions} - (consumers if label == "producer" else producers)
+            steps = [{"name": "Set up job", "number": 1, "status": "completed", "conclusion": "success"}]
+            raw = []
+            for number, definition in enumerate(definitions, 2):
+                active = definition["name"] in required
+                steps.append({"name": definition["name"], "number": number, "status": "completed", "conclusion": "success" if active else "skipped"})
+                if not active:
+                    continue
+                if definition["script"]:
+                    script = definition["script"]
+                    env_lines = "".join("  %s: %s\n" % pair for pair in sorted((execution_environment or {"CONFIGURATION": "Debug"}).items()))
+                    raw.append("##[group]Run " + script.splitlines()[0] + "\n" + script + "\nshell: /bin/bash --noprofile --norc -e -o pipefail {0}\nenv:\n" + env_lines + "##[endgroup]\n")
+                    if definition["name"] == "Verify selected total budget before upload":
+                        raw.append("elapsed_seconds=200\ntotal_budget_seconds=3900\n")
+                elif definition["action"]:
+                    raw.append("##[group]Run " + definition["action"] + "\n##[endgroup]\n")
+            steps.append({"name": "Complete job", "number": len(steps) + 1, "status": "completed", "conclusion": "success"})
+            job = {"id": index, "name": name, "run_id": 123, "run_attempt": 1, "head_sha": HEAD,
+                   "status": "completed", "conclusion": "success", "steps": steps}
+            jobs.append(job)
+            log = directory / "phase1-job-logs" / (str(index) + ".log")
+            log.write_text("".join(raw))
+            logs[label] = log
+        (directory / "jobs.json").write_bytes(CI.canonical({"jobs": jobs}))
+        return plan, resolved, jobs, logs
+
+    def test_source_derived_jobs_and_actual_command_envelopes_bind_shared_and_rui1(self):
+        for shared in (False, True):
+            with self.subTest(shared=shared), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary).resolve()
+                plan, resolved, _, _ = self.fixture(root, shared)
+                facts = CI.phase1_job_execution_facts(ROOT, root, plan, resolved, 123)
+                self.assertEqual(set(facts), {"selection", "producer", "S01"} if shared else {"selection", "rui1"})
+                for label, fact in facts.items():
+                    self.assertFalse(fact["finalizationNumericElapsedAvailable"])
+                    self.assertEqual(fact["finalizationBudgetPredicatePassed"], label != "selection")
+
+    def test_job_proof_rejects_forged_origin_skipped_failures_duplicates_order_and_extra_execution(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            plan, resolved, jobs, _ = self.fixture(directory)
+            original = copy.deepcopy(jobs)
+            def skip(v):
+                next(s for s in v[-1]["steps"] if s["name"] == "Run targeted tests")["conclusion"] = "skipped"
+            def reorder(v):
+                v[-1]["steps"][2]["name"], v[-1]["steps"][3]["name"] = v[-1]["steps"][3]["name"], v[-1]["steps"][2]["name"]
+            mutations = (lambda v: v[-1].update(run_attempt=2), lambda v: v[-1].update(head_sha="b" * 40),
+                         lambda v: v[-1].update(conclusion="cancelled"), lambda v: v.append(copy.deepcopy(v[-1])), skip, reorder,
+                         lambda v: v.append(dict(v[-1], id=55, name="unexpected execution")),
+                         lambda v: v[-1]["steps"].pop(), lambda v: v.pop())
+            for mutation in mutations:
+                changed = copy.deepcopy(original); mutation(changed)
+                (directory / "jobs.json").write_bytes(CI.canonical({"jobs": changed}))
+                with self.assertRaises(ValueError):
+                    CI.phase1_job_execution_facts(ROOT, directory, plan, resolved, 123)
+            (directory / "jobs.json").write_bytes(CI.canonical({"jobs": original}))
+            self.assertIn("rui1", CI.phase1_job_execution_facts(ROOT, directory, plan, resolved, 123))
+
+    def test_payload_api_identity_download_digest_and_each_consumer_tar_must_agree(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            gate = CI.load_phase1_gates(ROOT)
+            plan = {"selection": gate.SHARED, "head": HEAD, "ref": "refs/heads/codex/v23-s10-integration-20260910"}
+            resolved = {CI.SHARED_KEY: {"partitionIDs": ["S01", "S02"]}}
+            prefix = "ios-ci-native-github-" + gate.SHARED
+            payload_name = "v23-shared-payload-123-1-" + HEAD
+            names = [prefix + "-producer-123-1", prefix + "-consumer-S01-123-1", prefix + "-consumer-S02-123-1", payload_name]
+            listing = [{"id": i, "name": name, "expired": False, "size_in_bytes": 100, "digest": "sha256:" + "a" * 64,
+                        "workflow_run": {"id": 123, "head_sha": HEAD, "head_branch": plan["ref"].removeprefix("refs/heads/")}}
+                       for i, name in enumerate(names, 1)]
+            api = directory / "artifacts.json"; api.write_bytes(CI.canonical({"artifacts": listing}))
+            archive = {"name": CI.SHARED_TAR, "bytes": 90, "sha256": "B" * 64}
+            for label in ("producer", "S01", "S02"):
+                artifact = directory / "artifacts" / label; artifact.mkdir(parents=True)
+                (artifact / CI.SHARED_PAYLOAD_METADATA).write_bytes(b"synthetic same producer metadata")
+                (artifact / ("phase1-shared-live-seal.json" if label == "producer" else "phase1-shared-live-restore.json")).write_bytes(CI.canonical({"archive": archive}))
+            (directory / "phase1-job-logs").mkdir()
+            jobs = {"S01": {"jobID": 101}, "S02": {"jobID": 102}}
+            for job in jobs.values():
+                (directory / "phase1-job-logs" / (str(job["jobID"]) + ".log")).write_text(
+                    "- %s (ID: 4, Size: 100, Expected Digest: sha256:%s)\nSHA256 digest of downloaded artifact is %s\nArtifact download completed successfully.\n" % (payload_name, "a" * 64, "a" * 64))
+            def verify():
+                return CI.phase1_payload_execution_facts(ROOT, directory, plan, resolved, 123, jobs)
+            proof = verify()
+            self.assertFalse(proof["downloadedByCollector"])
+            self.assertFalse(proof["offlinePayloadReplay"])
+            for relative, change in (("phase1-job-logs/102.log", lambda b: b.replace(b"ID: 4", b"ID: 5")),
+                                     ("phase1-job-logs/101.log", lambda b: b.replace(b"a" * 64, b"b" * 64)),
+                                     ("artifacts/S02/" + CI.SHARED_PAYLOAD_METADATA, lambda b: b + b"foreign"),
+                                     ("artifacts/S01/phase1-shared-live-restore.json", lambda b: b.replace(b"B" * 64, b"C" * 64))):
+                path = directory / relative; raw = path.read_bytes(); path.write_bytes(change(raw))
+                with self.subTest(relative=relative), self.assertRaises(ValueError):
+                    verify()
+                path.write_bytes(raw)
+            listing[-1]["expired"] = True; api.write_bytes(CI.canonical({"artifacts": listing}))
+            with self.assertRaises(ValueError):
+                verify()
+            listing[-1]["expired"] = False; api.write_bytes(CI.canonical({"artifacts": listing}))
+            self.assertEqual(verify(), proof)
+
+    def test_job_log_missing_truncated_substituted_command_and_duplicate_budget_fail(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            plan, resolved, _, logs = self.fixture(directory, shared=True)
+            path = logs["S01"]; raw = path.read_bytes()
+            mutations = (raw[:100], raw.replace(b"bash Scripts/test-smoke.sh", b"bash Scripts/fake-test-smoke.sh"),
+                         raw.replace(b"total_budget_seconds=3900", b"total_budget_seconds=3900\ntotal_budget_seconds=3900"),
+                         raw.replace(b"##[endgroup]", b"", 1))
+            for changed in mutations:
+                path.write_bytes(changed)
+                with self.assertRaises(ValueError):
+                    CI.phase1_job_execution_facts(ROOT, directory, plan, resolved, 123)
+            path.unlink()
+            with self.assertRaises(FileNotFoundError):
+                CI.phase1_job_execution_facts(ROOT, directory, plan, resolved, 123)
+            path.write_bytes(raw)
+            self.assertIn("S01", CI.phase1_job_execution_facts(ROOT, directory, plan, resolved, 123))
 
 
 if __name__ == "__main__":
