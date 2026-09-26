@@ -1041,6 +1041,7 @@ func withAsyncFrozenBeginFixture<Value>(
     _ label: String, entry: CheckRunnerRequestedEntryV1, storedTimeZoneID: String?,
     appDirectoryLayout: Bool = false,
     diagnosticPhase: (@MainActor (String) -> Void)? = nil,
+    registerRootTeardown: (@MainActor (URL) -> Void)? = nil,
     _ body: (FrozenBeginFixture) async throws -> Value
 ) async throws -> Value {
     var root: URL?
@@ -1050,6 +1051,9 @@ func withAsyncFrozenBeginFixture<Value>(
             "V23-frozen-begin-\(label)-\(UUID().uuidString)", isDirectory: true
         )
         root = fixtureRoot
+        // A caller may transfer filesystem cleanup to after-test teardown.
+        // Register before construction can fail; pass only the owned root URL.
+        registerRootTeardown?(fixtureRoot)
         let support: URL
         if appDirectoryLayout {
             // Production startup requires an existing sibling Caches directory.
@@ -1080,13 +1084,13 @@ func withAsyncFrozenBeginFixture<Value>(
             throw error
         }
         diagnosticPhase?("fixture.remove.begin")
-        if let root { try FileManager.default.removeItem(at: root) }
+        if registerRootTeardown == nil, let root { try FileManager.default.removeItem(at: root) }
         diagnosticPhase?("fixture.remove.end")
         return value
     } catch {
         diagnosticPhase?("fixture.error")
         diagnosticPhase?("fixture.error-remove.begin")
-        if let root { try? FileManager.default.removeItem(at: root) }
+        if registerRootTeardown == nil, let root { try? FileManager.default.removeItem(at: root) }
         diagnosticPhase?("fixture.error-remove.end")
         throw error
     }

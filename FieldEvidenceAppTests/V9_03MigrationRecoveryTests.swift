@@ -1330,7 +1330,149 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
     }
 
 #if DEBUG
-    func testEveryFaultBoundaryUsesPreWriteFallbackOrPostWriteForwardRecovery() throws {
+    func testEveryFaultBoundaryUsesPreWriteFallbackOrPostWriteForwardRecovery() async throws {
+        // CURRENT_INTEGRATION's aggregate authority preserves original fault
+        // recovery, but permits only the active release to reach consumers.
+        @MainActor
+        func recoverActive(_ factory: StoreGenerationFactory, fixture: LegacyFixture, label: String) async throws {
+            let authority = try factory.makeRestoreGenerationAuthority()
+            let control = try XCTUnwrap(StoreAggregateMigrationControlV1(applicationSupportURL: fixture.root))
+            let existing = try control.load()
+            let startsDirectlyFromV1 = try loadJournal(in: fixture.root) == nil && pointerSchema(in: fixture.root) == 1
+            let expectedSourceRelease = existing?.sourceRelease ?? (startsDirectlyFromV1 ? .v1 : .v2)
+            let expectedSourceID = expectedSourceRelease == .v1 ? fixture.sourceID : fixture.targetID
+            let expectedTargetID = expectedSourceRelease == .v1 ? fixture.targetID : fixture.v3TargetID
+            for attempt in 0..<6 {
+                let result: StoreStartupOpenResultV1
+                do { result = try await factory.openForStartup { _ in } }
+                catch {
+                    print("V9_03.supportedRecovery failed label=\(label) attempt=\(attempt) error=\(error)")
+                    throw error
+                }
+                if let aggregate = try control.load(), let frozen = aggregate.sourceCheckpoint {
+                    XCTAssertEqual(aggregate.sourceRelease, expectedSourceRelease, label)
+                    XCTAssertEqual(aggregate.sourceGenerationID, expectedSourceID, label)
+                    XCTAssertEqual(aggregate.targetGenerationID, expectedTargetID, label)
+                    let source = try authority.snapshotInstalledGeneration(id: aggregate.sourceGenerationID)
+                    XCTAssertEqual(source.files, frozen.files, label)
+                    XCTAssertEqual(source.frozenIdentityDigest, frozen.frozenIdentityDigest, label)
+                }
+                switch result {
+                case .awaitingIndependentValidation(let pending):
+                    if let original = try loadJournal(in: fixture.root) {
+                        XCTAssertEqual(original.sourceRelease, .v1, label)
+                        XCTAssertEqual(original.targetRelease, .v2, label)
+                        XCTAssertEqual(original.targetGenerationID, fixture.targetID, label)
+                        XCTAssertEqual(original.phase, .firstLaunchValidated, label)
+                        XCTAssertEqual(pending.targetGenerationID, original.targetGenerationID, label)
+                    } else {
+                        let aggregate = try XCTUnwrap(control.load(), label)
+                        XCTAssertEqual(aggregate.targetRelease, PersistentSchemaReleaseRegistryV1.activeRelease, label)
+                        XCTAssertEqual(aggregate.phase, .awaitingIndependentValidation, label)
+                        XCTAssertEqual(pending.targetGenerationID, aggregate.targetGenerationID, label)
+                    }
+                case .ready(let session):
+                    let aggregate = try XCTUnwrap(control.load(), label)
+                    XCTAssertEqual(aggregate.phase, .complete, label)
+                    XCTAssertEqual(session.generationID, aggregate.targetGenerationID, label)
+                    XCTAssertEqual(session.storeSchemaRelease, PersistentSchemaReleaseRegistryV1.activeRelease, label)
+                    XCTAssertNil(try loadJournal(in: fixture.root), label)
+                    let pointer = try factory.currentGenerationPointerV3(expectedGenerationID: session.generationID)
+                    XCTAssertEqual(pointer.storeSchemaVersion, PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major, label)
+                    try assertMigratedRows(in: session.modelContext, fixture: fixture)
+                    let markers = try session.modelContext.fetch(FetchDescriptor<PersistentSchemaReleaseMarker>())
+                    let marker = try XCTUnwrap(markers.first, label)
+                    XCTAssertEqual(markers.count, 1, label)
+                    XCTAssertEqual(marker.id, PersistentSchemaReleaseRegistryV1.v2MarkerID, label)
+                    XCTAssertEqual(marker.schemaVersion, PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major, label)
+                    XCTAssertEqual(marker.releaseID, PersistentSchemaReleaseRegistryV1.activeRelease.compatibilityID, label)
+                    XCTAssertEqual(marker.migrationID, fixture.migrationID, label)
+                    let coordinator = try StoreSessionCoordinator(validatingSession: session)
+                    defer { try? coordinator.invalidateAndReleaseWriter() }
+                    XCTAssertEqual(try coordinator.workspaceWriter.currentRevision().generationID, session.generationID, label)
+                    XCTAssertTrue(try coordinator.workspaceWriter.sourceMutationHistorySnapshot().receipts.isEmpty, label)
+                    XCTAssertEqual(try session.modelContext.fetchCount(FetchDescriptor<WorkspaceMutationStateRow>()), 1, label)
+                    XCTAssertTrue(try authority.retiredGenerationIDs().contains(aggregate.sourceGenerationID), label)
+                    return
+                }
+            }
+            XCTFail("Supported startup did not reach active writer admission: \(label)")
+        }
+
+        // Even read-only SQLite marker inspection can change SHM. Inspect an
+        // ordinary SOURCE lease copy and prove the original bytes unchanged.
+        @MainActor
+        func inspectFrozenMarker(at modelURL: URL, root: URL, migrationID: UUID,
+            release: PersistentSchemaReleaseV1, expectedJournalRows: Bool = false) throws {
+            let names = ["model.sqlite", "model.sqlite-wal", "model.sqlite-shm"]
+            let directory = modelURL.deletingLastPathComponent()
+            var originals: [String: Data] = [:]
+            for name in names where fileManager.fileExists(atPath: directory.appendingPathComponent(name).path) {
+                originals[name] = try Data(contentsOf: directory.appendingPathComponent(name))
+            }
+            let total = try originals.values.reduce(UInt64(32_768)) { sum, bytes in
+                let (total, overflow) = sum.addingReportingOverflow(UInt64(bytes.count))
+                guard !overflow else { throw StoreMigrationFailure.invalidContract }
+                return total
+            }
+            let now = Date()
+            let request = try ScratchDataLeaseRequestV1(leaseID: UUID(), purpose: .source, owner: .source,
+                ownerOperationID: migrationID, requestedByteCount: total, createdAt: now,
+                expiresAt: now.addingTimeInterval(60))
+            let scratch = try ScratchDataLeaseStoreV1(applicationSupportURL: root, clock: { now },
+                capacityProvider: { _ in Int64.max })
+            weak var retainedContainer: ModelContainer?
+            weak var retainedContext: ModelContext?
+            try scratch.withSourceReadScratch(request: request, readerIsDrained: {
+                retainedContainer == nil && retainedContext == nil
+            }) { copy in
+                for (name, data) in originals {
+                    try copy.copySQLiteFile(named: name, byteCount: UInt64(data.count)) { fd in
+                        try data.withUnsafeBytes { bytes in
+                            var offset = 0
+                            while offset < bytes.count {
+                                let count = Darwin.write(fd, bytes.baseAddress!.advanced(by: offset), bytes.count - offset)
+                                if count < 0, errno == EINTR { continue }
+                                guard count > 0 else { throw StoreMigrationFailure.invalidContract }
+                                offset += count
+                            }
+                        }
+                    }
+                }
+                try autoreleasepool {
+                    let schema = Schema(release.models, version: release.versionIdentifier)
+                    let container = try ModelContainer(for: schema, migrationPlan: nil,
+                        configurations: [ModelConfiguration("V9_03FrozenMarkerCopy", schema: schema,
+                            url: copy.modelURL, allowsSave: false, cloudKitDatabase: .none)])
+                    retainedContainer = container; retainedContext = container.mainContext
+                    container.mainContext.autosaveEnabled = false
+                    let markers = try container.mainContext.fetch(FetchDescriptor<PersistentSchemaReleaseMarker>())
+                    let marker = try XCTUnwrap(markers.first)
+                    XCTAssertEqual(markers.count, 1)
+                    XCTAssertEqual(marker.id, PersistentSchemaReleaseRegistryV1.v2MarkerID)
+                    XCTAssertEqual(marker.schemaVersion, release.versionIdentifier.major)
+                    XCTAssertEqual(marker.releaseID, release.compatibilityID)
+                    let predecessor = try PersistentSchemaReleaseRegistryV1.release(for: XCTUnwrap(release.predecessorVersionIdentifier))
+                    XCTAssertEqual(marker.predecessorReleaseID, predecessor.compatibilityID)
+                    XCTAssertEqual(marker.migrationID, migrationID)
+                    if expectedJournalRows {
+                        XCTAssertEqual(try container.mainContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), 0)
+                        XCTAssertEqual(try container.mainContext.fetchCount(FetchDescriptor<WorkspaceMutationStateRow>()), 1)
+                    }
+                    XCTAssertFalse(container.mainContext.hasChanges)
+                }
+            }
+            XCTAssertNil(retainedContainer)
+            XCTAssertNil(retainedContext)
+            for name in names {
+                let url = directory.appendingPathComponent(name)
+                XCTAssertEqual(fileManager.fileExists(atPath: url.path), originals[name] != nil, name)
+                if let bytes = originals[name] {
+                    XCTAssertEqual(try Data(contentsOf: url), bytes, name)
+                }
+            }
+        }
+
         let boundaries = StoreMigrationFaultBoundaryV1.allCases
         XCTAssertEqual(boundaries.count, 18)
 
@@ -1380,9 +1522,7 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
             var didReachInjectedBoundary = false
             for _ in 0..<4 {
                 do {
-                    var session: StoreGenerationSession? =
-                        try factory.openOrBootstrapCurrent()
-                    session = nil
+                    try autoreleasepool { _ = try factory.openOrBootstrapCurrent() }
                 } catch let failure as StoreMigrationFailure {
                     guard case .injectedFault(let actualBoundary) = failure else {
                         XCTFail(
@@ -1457,117 +1597,56 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
                 let root = presence.installed
                     ? factory.installedGenerationURL(id: fixture.targetID)
                     : factory.restoreStagingGenerationURL(id: fixture.targetID)
-                try assertMarker(
-                    at: root.appendingPathComponent("model.sqlite"),
-                    migrationID: fixture.migrationID
-                )
+                try inspectFrozenMarker(at: root.appendingPathComponent("model.sqlite"),
+                    root: fixture.root, migrationID: fixture.migrationID, release: .v2)
             }
 
-            var reachedRecoveredV3Stage = false
-            for _ in 0..<6 {
-                let session = try factory.openOrBootstrapCurrent()
-                let recoveredJournal = try XCTUnwrap(try loadJournal(in: fixture.root), boundary.rawValue)
-                if recoveredJournal.targetRelease == .v3 {
-                    XCTAssertEqual(recoveredJournal.sourceRelease, .v2, boundary.rawValue)
-                    XCTAssertEqual(recoveredJournal.sourceGenerationID, fixture.targetID, boundary.rawValue)
-                    XCTAssertEqual(recoveredJournal.targetGenerationID, fixture.v3TargetID, boundary.rawValue)
-                    XCTAssertEqual(recoveredJournal.phase, .firstLaunchValidated, boundary.rawValue)
-                    XCTAssertEqual(session.generationID, fixture.v3TargetID, boundary.rawValue)
-                    try assertMigratedRows(in: session.modelContext, fixture: fixture)
-                    try assertMarker(
-                        at: session.generationRootURL.appendingPathComponent("model.sqlite"),
-                        migrationID: fixture.migrationID,
-                        release: .v3
-                    )
-                    let pointer = try factory.currentGenerationPointerV3(expectedGenerationID: fixture.v3TargetID)
-                    XCTAssertEqual(pointer.storeSchemaVersion, 3, boundary.rawValue)
-                    XCTAssertEqual(try pointerSchema(in: fixture.root), 3, boundary.rawValue)
-                    reachedRecoveredV3Stage = true
-                    break
-                }
-                guard recoveredJournal.sourceRelease == .v1,
-                      recoveredJournal.targetRelease == .v2,
-                      recoveredJournal.targetGenerationID == fixture.targetID,
-                      recoveredJournal.phase == .firstLaunchValidated,
-                      session.generationID == fixture.targetID else {
-                    XCTFail("Unexpected recovery stage for \(boundary.rawValue): \(recoveredJournal.targetRelease)")
-                    break
-                }
-            }
-            XCTAssertTrue(reachedRecoveredV3Stage, boundary.rawValue)
+            try await recoverActive(factory, fixture: fixture, label: boundary.rawValue)
         }
 
         let markerRetry = try makeLegacyFixture(suffix: "V4MarkerRetry")
         defer { try? fileManager.removeItem(at: markerRetry.root) }
         let markerRetryCursor = ProcessCursor()
-        let advanceFactory = makeFactory(
-            fixture: markerRetry,
-            processCursor: markerRetryCursor
-        )
-        var advanced: StoreGenerationSession? = try advanceFactory.openOrBootstrapCurrent()
-        advanced = nil
-        advanced = try advanceFactory.openOrBootstrapCurrent()
-        XCTAssertEqual(try XCTUnwrap(advanced).generationID, markerRetry.v3TargetID)
-        advanced = nil
-
-        let retryFactory = makeFactory(
-            fixture: markerRetry,
-            processCursor: markerRetryCursor,
-            injection: StoreMigrationFailureInjection(failOnceAt: .afterV2Validation)
-        )
-        XCTAssertThrowsError(try retryFactory.openOrBootstrapCurrent()) {
-            XCTAssertEqual(
-                $0 as? StoreMigrationFailure,
-                .injectedFault(.afterV2Validation)
-            )
+        let retryFactory = makeFactory(fixture: markerRetry, processCursor: markerRetryCursor,
+            injection: StoreMigrationFailureInjection(aggregateFault: .afterAdjacentMarkerSave, targetRelease: .v4))
+        do {
+            _ = try await retryFactory.openForStartup { _ in }
+            XCTFail("Expected interruption after the actual V4 marker save")
+        } catch {
+            XCTAssertEqual(error as? StoreAggregateMigrationFaultBoundaryV1, .afterAdjacentMarkerSave)
         }
-        let retryStaging = retryFactory.restoreStagingGenerationURL(
-            id: markerRetry.v4TargetID
-        )
-        try assertMarker(
-            at: retryStaging.appendingPathComponent("model.sqlite"),
-            migrationID: markerRetry.migrationID,
-            release: .v4
-        )
-        var recovered: StoreGenerationSession? = try retryFactory.openOrBootstrapCurrent()
-        XCTAssertEqual(try XCTUnwrap(recovered).generationID, markerRetry.v4TargetID)
-        XCTAssertEqual(
-            try XCTUnwrap(recovered).modelContext.fetchCount(
-                FetchDescriptor<MutationReceiptRow>()
-            ),
-            0
-        )
-        XCTAssertEqual(
-            try XCTUnwrap(recovered).modelContext.fetchCount(
-                FetchDescriptor<WorkspaceMutationStateRow>()
-            ),
-            1
-        )
-        recovered = nil
-        let recoveredV4Journal = try XCTUnwrap(try loadJournal(in: markerRetry.root))
-        XCTAssertEqual(recoveredV4Journal.sourceRelease, .v3)
-        XCTAssertEqual(recoveredV4Journal.targetRelease, .v4)
-        XCTAssertEqual(recoveredV4Journal.phase, .firstLaunchValidated)
-        let recoveryProcessID = try XCTUnwrap(recoveredV4Journal.firstValidationProcessID)
-        // Reopening in the validating process tests the V4 marker retry;
-        // a distinct process would correctly begin the next V5 migration.
-        let sameProcessFactory = StoreGenerationFactory(
-            applicationSupportURL: markerRetry.root,
-            migrationIdentitySource: StoreMigrationIdentitySourceV1(
-                makeMigrationID: { markerRetry.migrationID },
-                makeGenerationID: UUID.init,
-                makeProcessID: { recoveryProcessID }
-            )
-        )
-        let secondRecovery = try sameProcessFactory.openOrBootstrapCurrent()
-        XCTAssertEqual(secondRecovery.generationID, markerRetry.v4TargetID)
-        XCTAssertEqual(try loadJournal(in: markerRetry.root), recoveredV4Journal)
-        XCTAssertEqual(
-            try secondRecovery.modelContext.fetchCount(
-                FetchDescriptor<WorkspaceMutationStateRow>()
-            ),
-            1
-        )
+        let retryControl = try XCTUnwrap(StoreAggregateMigrationControlV1(applicationSupportURL: markerRetry.root))
+        let markerJournal = try XCTUnwrap(retryControl.load())
+        XCTAssertEqual(markerJournal.currentCandidateRelease, .v3)
+        XCTAssertEqual(markerJournal.authorizedTargetRelease, .v4)
+        XCTAssertEqual(markerJournal.targetGenerationID, markerRetry.targetID)
+        let retryStaging = retryFactory.restoreStagingGenerationURL(id: markerJournal.targetGenerationID)
+        try inspectFrozenMarker(at: retryStaging.appendingPathComponent("model.sqlite"),
+            root: markerRetry.root, migrationID: markerRetry.migrationID, release: .v4, expectedJournalRows: true)
+        let first = try await retryFactory.openForStartup { _ in }
+        guard case .awaitingIndependentValidation(let pending) = first else {
+            return XCTFail("V4 marker retry must publish only the final active release, pending independent validation")
+        }
+        let recoveredJournal = try XCTUnwrap(retryControl.load())
+        XCTAssertEqual(recoveredJournal.targetGenerationID, markerJournal.targetGenerationID)
+        XCTAssertEqual(pending.targetGenerationID, markerJournal.targetGenerationID)
+        XCTAssertEqual(recoveredJournal.targetRelease, PersistentSchemaReleaseRegistryV1.activeRelease)
+        XCTAssertEqual(recoveredJournal.phase, .awaitingIndependentValidation)
+        let recoveryProcessID = try XCTUnwrap(recoveredJournal.firstValidationProcessID)
+        let sameProcessFactory = StoreGenerationFactory(applicationSupportURL: markerRetry.root,
+            migrationIdentitySource: StoreMigrationIdentitySourceV1(makeMigrationID: { markerRetry.migrationID },
+                makeGenerationID: UUID.init, makeProcessID: { recoveryProcessID }))
+        let sameProcess = try await sameProcessFactory.openForStartup { _ in }
+        guard case .awaitingIndependentValidation(let samePending) = sameProcess else {
+            return XCTFail("The validating process cannot supply independent second-launch validation")
+        }
+        XCTAssertEqual(samePending.targetGenerationID, pending.targetGenerationID)
+        XCTAssertEqual(try retryControl.load(), recoveredJournal)
+        try inspectFrozenMarker(at: retryFactory.installedGenerationURL(id: pending.targetGenerationID)
+            .appendingPathComponent("model.sqlite"), root: markerRetry.root,
+            migrationID: markerRetry.migrationID, release: PersistentSchemaReleaseRegistryV1.activeRelease,
+            expectedJournalRows: true)
+        try await recoverActive(retryFactory, fixture: markerRetry, label: "V4MarkerRetry")
 
         let exactMarkerSchema = Schema(
             PersistentSchemaV4.models,
@@ -1620,7 +1699,7 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         XCTAssertNotNil(try XCTUnwrap(exactStates.first).mutableSemanticSHA256)
     }
 
-    func testSourceCloneRecoveryReclonesButAuthorizedRecoveryIsForwardOnly() throws {
+    func testSourceCloneRecoveryReclonesButAuthorizedRecoveryIsForwardOnly() async throws {
         let sourceCloneFixture = try makeLegacyFixture(suffix: "Reclone")
         defer { try? fileManager.removeItem(at: sourceCloneFixture.root) }
         let sourceCloneCursor = ProcessCursor()
@@ -1659,32 +1738,55 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
             to: clonedModelURL,
             options: .atomic
         )
-        var firstRecovery: StoreGenerationSession? = try sourceCloneFactory
-            .openOrBootstrapCurrent()
-        firstRecovery = nil
-        var secondRecovery: StoreGenerationSession? = try sourceCloneFactory
-            .openOrBootstrapCurrent()
-        XCTAssertEqual(secondRecovery?.generationID, sourceCloneFixture.v3TargetID)
-        XCTAssertEqual(
-            try DeletionLedgerStore(
-                context: try XCTUnwrap(secondRecovery).modelContext
-            ).snapshot(),
-            .empty
-        )
-        secondRecovery = nil
-        XCTAssertEqual(try pointerSchema(in: sourceCloneFixture.root), 3)
-        let installedModelURL = sourceCloneFactory
-            .installedGenerationURL(id: sourceCloneFixture.targetID)
+        let firstRecovery = try await sourceCloneFactory.openForStartup { _ in }
+        guard case .awaitingIndependentValidation(let originalPending) = firstRecovery else {
+            return XCTFail("Original V1→V2 recovery must retain its second-launch boundary")
+        }
+        XCTAssertEqual(originalPending.targetGenerationID, sourceCloneFixture.targetID)
+        XCTAssertEqual(try loadJournal(in: sourceCloneFixture.root)?.phase, .firstLaunchValidated)
+        let secondRecovery = try await sourceCloneFactory.openForStartup { _ in }
+        guard case .awaitingIndependentValidation(let activePending) = secondRecovery else {
+            return XCTFail("Original recovery must continue through isolated active-schema startup")
+        }
+        let control = try XCTUnwrap(StoreAggregateMigrationControlV1(applicationSupportURL: sourceCloneFixture.root))
+        let published = try XCTUnwrap(control.load())
+        XCTAssertEqual(published.sourceRelease, .v2)
+        XCTAssertEqual(published.sourceGenerationID, sourceCloneFixture.targetID)
+        XCTAssertEqual(published.targetRelease, PersistentSchemaReleaseRegistryV1.activeRelease)
+        XCTAssertEqual(activePending.targetGenerationID, sourceCloneFixture.v3TargetID)
+        XCTAssertEqual(published.targetGenerationID, activePending.targetGenerationID)
+        XCTAssertEqual(published.phase, .awaitingIndependentValidation)
+        let frozen = try XCTUnwrap(published.sourceCheckpoint)
+        let sourceBeforeValidation = try sourceAuthority.snapshotInstalledGeneration(id: published.sourceGenerationID)
+        XCTAssertEqual(sourceBeforeValidation.files, frozen.files)
+        XCTAssertEqual(sourceBeforeValidation.frozenIdentityDigest, frozen.frozenIdentityDigest)
+        let installedModelURL = sourceCloneFactory.installedGenerationURL(id: sourceCloneFixture.targetID)
             .appendingPathComponent("model.sqlite", isDirectory: false)
         XCTAssertTrue(fileManager.fileExists(atPath: installedModelURL.path))
-        XCTAssertEqual(
-            try loadJournal(in: sourceCloneFixture.root)?.targetRelease,
-            .v3
-        )
-        var thirdRecovery: StoreGenerationSession? = try sourceCloneFactory
-            .openOrBootstrapCurrent()
-        thirdRecovery = nil
+        @MainActor
+        func admitRecoveredWriter() async throws {
+            let final = try await sourceCloneFactory.openForStartup { _ in }
+            guard case .ready(let session) = final else { return XCTFail("Expected independent active writer admission") }
+            try autoreleasepool {
+                XCTAssertEqual(session.generationID, activePending.targetGenerationID)
+                XCTAssertEqual(session.storeSchemaRelease, PersistentSchemaReleaseRegistryV1.activeRelease)
+                XCTAssertEqual(try DeletionLedgerStore(context: session.modelContext).snapshot(), .empty)
+                try assertMigratedRows(in: session.modelContext, fixture: sourceCloneFixture)
+                let coordinator = try StoreSessionCoordinator(validatingSession: session)
+                defer { try? coordinator.invalidateAndReleaseWriter() }
+                XCTAssertEqual(try coordinator.workspaceWriter.currentRevision().generationID, session.generationID)
+                XCTAssertTrue(try coordinator.workspaceWriter.sourceMutationHistorySnapshot().receipts.isEmpty)
+            }
+        }
+        try await admitRecoveredWriter()
+        XCTAssertEqual(try sourceCloneFactory.currentGenerationPointerV3(expectedGenerationID: activePending.targetGenerationID).storeSchemaVersion,
+            PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major)
+        XCTAssertEqual(try pointerSchema(in: sourceCloneFixture.root), 3)
         XCTAssertNil(try loadJournal(in: sourceCloneFixture.root))
+        XCTAssertEqual(try control.load()?.phase, .complete)
+        let sourceAfterValidation = try sourceAuthority.snapshotInstalledGeneration(id: published.sourceGenerationID)
+        XCTAssertEqual(sourceAfterValidation.files, frozen.files)
+        XCTAssertEqual(sourceAfterValidation.frozenIdentityDigest, frozen.frozenIdentityDigest)
 
         let authorizedFixture = try makeLegacyFixture(suffix: "ForwardOnly")
         defer { try? fileManager.removeItem(at: authorizedFixture.root) }
@@ -1709,13 +1811,11 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         try authorizedAuthority.removeStagingGeneration(
             id: authorizedFixture.targetID
         )
-        XCTAssertThrowsError(
-            try authorizedFactory.openOrBootstrapCurrent()
-        ) { error in
-            XCTAssertEqual(
-                error as? StoreMigrationFailure,
-                .maintenanceRequired(.targetUnavailable)
-            )
+        do {
+            _ = try await authorizedFactory.openForStartup { _ in }
+            XCTFail("Authorized missing candidate must not fall back to the source")
+        } catch {
+            XCTAssertEqual(error as? StoreMigrationFailure, .maintenanceRequired(.targetUnavailable))
         }
         XCTAssertEqual(try pointerSchema(in: authorizedFixture.root), 1)
         let authorizedJournal = try XCTUnwrap(

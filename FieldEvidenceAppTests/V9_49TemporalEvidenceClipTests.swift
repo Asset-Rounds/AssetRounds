@@ -574,62 +574,94 @@ enum C33TemporalEvidenceTestSupport {
         in session: StoreGenerationSession,
         slot: Int
     ) async throws -> (clip: TemporalEvidenceClipV1, receipt: TemporalEvidenceMutationReceiptV1) {
-        let fixture = try clip(
-            slot: slot,
-            workspaceID: session.workspaceID,
-            reportProjection: .typedLinkOnly,
-            requiresTranscript: true
-        )
-        let writerInstanceID = id(8_000 + slot)
-        let store = try MutationJournalStoreV1(
-            modelContext: session.modelContext,
-            identity: session.workspaceIdentity,
-            generationID: session.generationID
-        )
-        let current = try store.currentRevision(writerInstanceID: writerInstanceID)
-        let expected = try expectedRevision(
-            for: fixture.clip,
-            generationID: current.generationID,
-            writerInstanceID: current.writerInstanceID,
-            workspaceRevision: current.revision
-        )
-        let writer = try WorkspaceWriterV1(
-            identity: session.workspaceIdentity,
-            generationID: session.generationID,
-            initialRevision: current,
-            clock: C33TemporalEvidenceClock(value: fixture.clip.acceptedAt),
-            idSource: C33TemporalEvidenceIDSource(value: writerInstanceID),
-            fileAuthority: C33TemporalEvidenceFileAuthority(),
-            adapter: WorkspaceWriterAdapterV1(modelContext: session.modelContext),
-            journalStore: store
-        )
-        let digest = try XCTUnwrap(fixture.clip.original.digests.digest(for: .sha256))
-        let contentRequest = try DraftImmutableContentWriteRequestV1(
-            workspaceID: fixture.clip.workspaceID,
-            contentID: fixture.clip.original.contentID,
-            digest: digest,
-            byteLength: fixture.clip.original.byteLength,
-            mediaType: fixture.clip.original.mediaType,
-            mutationID: fixture.clip.mutationID,
-            createdAt: fixture.clip.original.createdAt
-        )
-        _ = try await EvidenceBundleStore(
-            generationRootURL: session.generationRootURL
-        ).persistImmutableOriginal(
-            bytes: bytes(for: fixture.clip.facts.kind),
-            request: contentRequest
-        )
-        let mutation = try TemporalEvidenceMutationV1(
-            workspaceID: fixture.clip.workspaceID,
-            expectedRevision: expected,
-            mutationID: fixture.clip.mutationID,
-            payload: .acceptClip(
-                fixture.clip,
-                review: C33TemporalEvidenceTestSupport.review(for: fixture.clip),
-                predecessor: nil
-            )
-        )
-        return (fixture.clip, try writer.commitTemporalEvidence(mutation))
+        var phase = "construct-authority"
+        do {
+            let fixture = try clip(slot: slot, workspaceID: session.workspaceID,
+                reportProjection: .typedLinkOnly, requiresTranscript: true)
+            let definition = try C26SurveySessionTestSupport.release(
+                releaseSlot: 330, workspaceID: session.workspaceID)
+            let package = try C26SurveySessionTestSupport.packageRelease()
+            let provisional = try C26SurveySessionTestSupport.provisional(workspaceID: session.workspaceID)
+            let survey = try C26SurveySessionTestSupport.session(
+                authority: C26SurveySessionTestSupport.authority(for: definition, package: package),
+                workspaceID: session.workspaceID, subject: .provisional(provisional.reference),
+                state: .draft, transition: .create, revision: 1, actorSlot: 601)
+            let fact = try XCTUnwrap(definition.sections.flatMap(\.facts).first)
+            XCTAssertEqual(fixture.profile.definitionRelease, try SurveyDefinitionReleaseReferenceV1(definition))
+            XCTAssertEqual(fixture.profile.packageRelease, try SurveyPackageReleaseReferenceV1(package))
+            let original = fixture.clip
+            // The standalone contract fixture intentionally has no persisted
+            // survey authority. This disk fixture binds to the real producer's
+            // admitted session and fact, never its placeholder revision/hash.
+            let value = try TemporalEvidenceClipV1(clipID: original.clipID, workspaceID: session.workspaceID,
+                target: .init(workspaceID: session.workspaceID, sessionID: survey.sessionID,
+                    sessionRevision: survey.revision, sessionSHA256: survey.sessionSHA256,
+                    definitionRelease: survey.authority.definitionRelease, factID: fact.factID,
+                    repeatCoordinates: []),
+                original: original.original, originalProvenance: original.originalProvenance,
+                locator: original.locator, facts: original.facts, profile: fixture.profile,
+                accessibleDescription: original.accessibleDescription, manualTranscript: original.manualTranscript,
+                recordedBy: original.recordedBy, capturedAt: original.capturedAt, acceptedAt: original.acceptedAt,
+                revision: original.revision, mutationID: original.mutationID)
+            let review = try self.review(for: value)
+            phase = "acquire-canonical-writer"
+            let coordinator = try StoreSessionCoordinator(validatingSession: session,
+                clock: C33TemporalEvidenceClock(value: value.acceptedAt))
+            defer { XCTAssertNoThrow(try coordinator.invalidateAndReleaseWriter()) }
+            let writer = coordinator.workspaceWriter
+            let store = try MutationJournalStoreV1(modelContext: session.modelContext,
+                identity: session.workspaceIdentity, generationID: session.generationID)
+            phase = "seed-survey-authority"
+            try await CanonicalWriterSeedingV1.seedSurveySession(definition: definition, package: package,
+                provisional: provisional, session: survey,
+                promotionActor: C26SurveySessionTestSupport.actor(workspaceID: session.workspaceID, slot: 8_002),
+                writer: writer, journal: store, context: session.modelContext, promotedAt: value.acceptedAt)
+            try CanonicalWriterSeedingV1.appendActors([value.recordedBy, review.reviewer], writer: writer)
+            phase = "verify-admitted-authority"
+            let surveys = try session.modelContext.fetch(FetchDescriptor<SurveySessionRow>()).map { try $0.value() }
+            XCTAssertEqual(surveys.filter { $0.sessionID == survey.sessionID }, [survey])
+            let definitions = try session.modelContext.fetch(FetchDescriptor<SurveyDefinitionReleaseRow>())
+                .map { try $0.value() }
+            XCTAssertEqual(definitions.filter { $0.releaseID == definition.releaseID }, [definition])
+            let packages = PackageEvolutionLifecycleAdapterV1(writer: writer, journal: store,
+                modelContext: session.modelContext)
+            let pointer = try XCTUnwrap(packages.activePointer(workspaceID: session.workspaceID,
+                packageID: package.packageID))
+            let promotion = try XCTUnwrap(packages.acceptedLifecycleClosure(mutationID: pointer.mutationID))
+            try promotion.validate()
+            XCTAssertEqual(promotion.activePointers, [pointer])
+            XCTAssertEqual(promotion.promotedReleases.map(\.packageRelease), [package])
+            phase = "persist-immutable-original"
+            let digest = try XCTUnwrap(value.original.digests.digest(for: .sha256))
+            let contentRequest = try DraftImmutableContentWriteRequestV1(
+                workspaceID: value.workspaceID, contentID: value.original.contentID,
+                digest: digest, byteLength: value.original.byteLength, mediaType: value.original.mediaType,
+                mutationID: value.mutationID, createdAt: value.original.createdAt)
+            _ = try await EvidenceBundleStore(generationRootURL: session.generationRootURL)
+                .persistImmutableOriginal(bytes: bytes(for: value.facts.kind), request: contentRequest)
+            phase = "commit-temporal-clip"
+            // Setup appends real receipts, and content persistence suspends.
+            // Obtain fresh writer authority after both before constructing CAS.
+            let current = try writer.currentRevision()
+            let expected = try expectedRevision(for: value, generationID: current.generationID,
+                writerInstanceID: current.writerInstanceID, workspaceRevision: current.revision)
+            let mutation = try TemporalEvidenceMutationV1(workspaceID: value.workspaceID,
+                expectedRevision: expected, mutationID: value.mutationID,
+                payload: .acceptClip(value, review: review, predecessor: nil))
+            let receipt = try writer.commitTemporalEvidence(mutation)
+            phase = "verify-committed-clip"
+            let clips = try session.modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>())
+                .map { try $0.value() }
+            XCTAssertEqual(clips.filter { $0.clipID == value.clipID }, [value])
+            XCTAssertEqual(try Data(contentsOf: session.generationRootURL.appendingPathComponent(
+                TemporalEvidenceBackupMemberV1.original(for: value))), bytes(for: value.facts.kind))
+            try store.validateAll()
+            XCTAssertFalse(session.modelContext.hasChanges)
+            return (value, receipt)
+        } catch {
+            print("C33PersistentClip[\(slot)] phase=\(phase) type=\(type(of: error)) error=\(error)")
+            throw error
+        }
     }
 
     @MainActor

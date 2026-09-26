@@ -2056,6 +2056,7 @@ final class BackupRestoreService {
         } else { destinationReviewPlan = nil }
         var retainedCloneGuard: ConfigurationCloneEmptyStagingGuardV1?
         var retainedCloneRetirement: ConfigurationCloneRetirementBindingV1?
+        var enteredMaterialization = false
         // Pure admission must not enter startup recovery: without a durable
         // restore owner, that recovery treats the caller's import as abandoned.
         // Keep the owned stage intact when value validation rejects the request.
@@ -2176,6 +2177,7 @@ final class BackupRestoreService {
             let cloneFinalMedia = mode == .clone
                 ? try configurationCloneFinalMedia(package: validatedPackage, records: expectedRecords) : [:]
             traceRestorePhase("materialize")
+            enteredMaterialization = true
             try materialize(
                 validatedPackage,
                 records: expectedRecords,
@@ -2671,6 +2673,9 @@ final class BackupRestoreService {
             traceRestorePhase("restore-error.access")
             throw failure.underlying
         } catch {
+            // Planning/admission denial has no restore effects to recover.
+            // Startup recovery would mistake the caller-owned import for abandoned staging.
+            guard enteredMaterialization else { throw error }
             traceRestorePhase("restore-error.recovery.begin")
             do {
                 traceRestorePhase("recovery.validate-access.begin")

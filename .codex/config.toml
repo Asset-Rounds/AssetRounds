@@ -6,15 +6,20 @@
 model = "gpt-6-astra"
 model_reasoning_effort = "xhigh"
 
-# Performance workflow active until the owner switches back; see
-# docs/execution/agent-workflows/README.md. Root stays hands-on, with up to
-# four active helpers on independent bounded work under AGENTS.md.
-# Pass gpt-6-astra/xhigh explicitly for substantive coding, diagnosis and review;
-# use Astra low for mechanical work and Luna low only for simple non-coding.
-# Capacity is not a quota. Preserve the owner's current session choices.
-# Installed CLI 0.144.5 rejects the newer default_subagent_* settings.
+# Owner-approved helper routing (2026-09-26); see AGENTS.md.
+# Root stays hands-on. Seven helpers are a ceiling, not a quota; root is excluded.
+# Reuse relevant helper context before spawning another agent.
+# Astra medium is the bounded-coding default; explicitly choose low for simple
+# mechanical coding and high for difficult or safety-critical work and reviews.
+# Explicitly select gpt-6-sol with medium/high effort for bounded non-coding
+# support. Required independent consequential reviews remain nonauthor Astra.
+# Each assignment specifies scope, owned paths, deliverable and verification.
+# Existing sessions retain their actual exposed tool capacity and model settings.
+# Validated with installed CLI 0.158.0-alpha.2.1.
 [agents]
-max_threads = 5
+max_concurrent_threads_per_session = 7
+default_subagent_model = "gpt-6-astra"
+default_subagent_reasoning_effort = "medium"
 
 [features]
 goals = true
