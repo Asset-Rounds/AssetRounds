@@ -108,11 +108,11 @@ final class S6_2BackupExportTests: XCTestCase {
     }
 
     private let fileManager = FileManager.default
+    private let startupFixtureCleanup = S6_2StartupFixtureCleanupV1()
 
     @MainActor
     func testV8ExportRejectsMissingRequirementAssuranceCompanion() async throws {
         let harness = try await makeMixedHarness("missing-assurance")
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
         let rows = try harness.session.modelContext.fetch(
             FetchDescriptor<RequirementAssuranceRow>()
         )
@@ -129,7 +129,6 @@ final class S6_2BackupExportTests: XCTestCase {
     @MainActor
     func testPopulatedQualityAndInboxSurvivePackageTransportAndPhysicalReplace() async throws {
         let harness = try await makeMixedHarness("populated-quality-inbox", currentWriterSource: true)
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
         let evidence = try harness.context.fetch(FetchDescriptor<EvidenceFile>()).sorted { $0.id.uuidString < $1.id.uuidString }
         XCTAssertGreaterThanOrEqual(evidence.count, 3)
         let quality = try C10ProductionFixture(session: harness.session, applicationSupportURL: harness.applicationSupportURL)
@@ -406,6 +405,7 @@ final class S6_2BackupExportTests: XCTestCase {
             }
         }.value
         XCTAssertTrue(observed, "the worker keeps the calling task's cancellation state")
+        try await assertProductionStartupDrainWaitsForSuspendedOwner()
     }
 
     /// A complete export of the mixed fixture (six check-runner photos) must
@@ -1313,8 +1313,7 @@ final class S6_2BackupExportTests: XCTestCase {
                 let label = "photo-claim-\(slot)-\(scenario)"
                 let fixture = try await makePhotoRestoreJourney(label)
                 let support = fixture.harness.applicationSupportURL
-                // Release all local model/reader owners before deleting their files.
-                addTeardownBlock { try FileManager.default.removeItem(at: support) }
+                // makeStartupFixtureSupport removes this path after sessions leave scope.
                 let newID = UUID(), restoreID = UUID()
                 let current = photoRestoreBindingURL(support, restoreID: restoreID)
                 let next = current.deletingLastPathComponent()
@@ -1432,7 +1431,6 @@ final class S6_2BackupExportTests: XCTestCase {
     @MainActor
     func testSixPhotoSameWorkspaceRestorePublishesCompositionAndColdRecoveryIsAtomic() async throws {
         let success = try await makePhotoRestoreJourney("live-success")
-        defer { try? fileManager.removeItem(at: success.harness.applicationSupportURL) }
         try await assertSameLengthCommonGenericCorruptionFailsBeforeEffects(success)
         try await assertRetainedReportFilesFailClosedBeforePublication(success)
         let successNewID = uuid(701), successRestoreID = uuid(702)
@@ -1487,7 +1485,6 @@ final class S6_2BackupExportTests: XCTestCase {
         ]
         for (offset, point) in points.enumerated() {
             let fixture = try await makePhotoRestoreJourney("cold-\(offset)-\(point)")
-            defer { try? fileManager.removeItem(at: fixture.harness.applicationSupportURL) }
             let newID = uuid(710 + offset * 2), restoreID = uuid(711 + offset * 2)
             let service = try BackupRestoreService(
                 applicationSupportURL: fixture.harness.applicationSupportURL,
@@ -1651,7 +1648,6 @@ final class S6_2BackupExportTests: XCTestCase {
                                 .afterPointerSwitch].enumerated() {
             let fixture = try await makeSourceEmptyPhotoRestoreJourney(
                 "source-empty-\(offset)-\(point)")
-            defer { try? fileManager.removeItem(at: fixture.harness.applicationSupportURL) }
             let newID = uuid(760 + offset * 2), restoreID = uuid(761 + offset * 2)
             let service = try BackupRestoreService(
                 applicationSupportURL: fixture.harness.applicationSupportURL,
@@ -2573,7 +2569,11 @@ private extension S6_2BackupExportTests {
     func makeStartupFixtureSupport(_ label: String) throws -> URL {
         let container = fileManager.temporaryDirectory.appendingPathComponent(
             "S6_2BackupExportTests-\(label)-\(UUID().uuidString)", isDirectory: true)
-        addTeardownBlock { [container] in
+        let cleanup = startupFixtureCleanup
+        addTeardownBlock { [container, cleanup] in
+            // Only a path and inert cleanup permission survive the test; never
+            // retain a Harness/ModelContext in a filesystem teardown closure.
+            guard cleanup.mayRemove(container) else { return }
             try? FileManager.default.removeItem(at: container)
         }
         let support = container.appendingPathComponent("Application Support", isDirectory: true)
@@ -2932,7 +2932,7 @@ private extension S6_2BackupExportTests {
             let preview = try authorized.contentAccess.withRead {
                 try exporter.prepare()
             }
-            XCTAssertEqual(preview.photoCount, 0, label)
+            XCTAssertEqual(preview.photoCount, package.records.evidenceFiles.count, label)
             let cloneArchive = try await exporter.export(
                 previewID: preview.id,
                 to: destination,
@@ -3026,12 +3026,80 @@ private extension S6_2BackupExportTests {
     }
 
     @MainActor
+    func assertProductionStartupDrainWaitsForSuspendedOwner() async throws {
+        let support = try makeStartupFixtureSupport("startup-drain")
+        let suite = "S6_2BackupExportTests.drain.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let router = StartupRouter(applicationSupportURL: support)
+        let entered = expectation(description: "Owned startup suspended before private cleanup")
+        var resume: CheckedContinuation<Void, Never>?
+        weak var suspendedContext: ModelContext?
+        var releaseImmediately = false
+        router.beforePrivatePreparationCleanupForTesting = { context in
+            suspendedContext = context
+            if releaseImmediately { return }
+            await withCheckedContinuation { continuation in
+                resume = continuation
+                entered.fulfill()
+            }
+        }
+        let session = try await ProductionCompositionRoot.makeAppAccessSession(
+            applicationSupportURL: support, startupRouter: router, defaults: defaults,
+            authenticationClient: BackupExportTestAuthentication(),
+            notificationSystem: BackupExportTestNotificationSystem())
+        let presentation = AppAccessPresentationV1(startupRouter: router, sessionFactory: { session })
+        await presentation.bootstrapIfNeeded()
+        await fulfillment(of: [entered], timeout: 30)
+        guard let suspended = resume else {
+            releaseImmediately = true
+            if !(await presentation.terminateAndDrainForTesting()) {
+                startupFixtureCleanup.retain(support.deletingLastPathComponent())
+            }
+            throw FixtureError.invalid
+        }
+        let revoked = expectation(description: "Startup cover raised during drain")
+        let cover = presentation.$permitsContentPresentation.dropFirst().filter { !$0 }.prefix(1)
+            .sink { _ in revoked.fulfill() }
+        defer { cover.cancel() }
+        var drainReturned = false
+        let drain = Task { @MainActor in
+            let result = await presentation.terminateAndDrainForTesting()
+            drainReturned = true
+            return result
+        }
+        await fulfillment(of: [revoked], timeout: 30)
+        XCTAssertFalse(drainReturned, "covered/checking is not proof that the suspended owner has returned")
+        XCTAssertNotNil(suspendedContext, "the suspended owner still holds its real store context")
+        XCTAssertTrue(fileManager.fileExists(atPath: support.path))
+        suspended.resume()
+        resume = nil
+        let drained = await drain.value
+        if !drained { startupFixtureCleanup.retain(support.deletingLastPathComponent()) }
+        XCTAssertTrue(drained)
+        XCTAssertFalse(presentation.permitsContentPresentation)
+        XCTAssertNil(presentation.backupPreviewAccess)
+        XCTAssertFalse(router.hasPendingWriterCleanup)
+        XCTAssertEqual(router.recoveryBootstrapState, .checking)
+        await presentation.bootstrapIfNeeded()
+        XCTAssertFalse(presentation.permitsContentPresentation, "a terminated test owner cannot reschedule startup")
+        XCTAssertTrue(fileManager.fileExists(atPath: support.path))
+        // Only the path-only fixture teardown removes files after these locals leave scope.
+    }
+
+    @MainActor
     func makeAuthorizedExportHarness(_ source: Harness, context: String = "",
         caller: String = #function, file: StaticString = #filePath, line: UInt = #line) async throws
         -> AuthorizedExportHarness {
         let suite = "S6_2BackupExportTests.access.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        let router = StartupRouter(applicationSupportURL: source.applicationSupportURL)
+        let router = StartupRouter(applicationSupportURL: source.applicationSupportURL) { step in
+            print("S6_2_BACKUP_ACCESS_STEP_V1 context=\(context) step=\(step)")
+        }
+        router.startupFailureDiagnosticForTesting = { detail in
+            print("S6_2_BACKUP_ACCESS_FAILURE_V1 context=\(context) \(detail)")
+        }
+        var ownedPresentation: AppAccessPresentationV1?
         do {
             let session = try await ProductionCompositionRoot.makeAppAccessSession(
                 applicationSupportURL: source.applicationSupportURL,
@@ -3042,13 +3110,15 @@ private extension S6_2BackupExportTests {
             )
             let presentation = AppAccessPresentationV1(startupRouter: router,
                 sessionFactory: { session })
+            ownedPresentation = presentation
             let published = expectation(description: "Production backup access published")
             let publication = presentation.$permitsContentPresentation
                 .filter { $0 }.prefix(1).sink { _ in published.fulfill() }
             defer { publication.cancel() }
             await presentation.bootstrapIfNeeded()
             await fulfillment(of: [published], timeout: 30)
-            let diagnostic = "backup access caller=\(caller) context=\(context)"
+            let phase = router.runtimeObservation?.phase.rawValue ?? "unobserved"
+            let diagnostic = "backup access caller=\(caller) context=\(context) phase=\(phase)"
             guard case .ready(let coordinator, _, _) = router.route else {
                 let route: String
                 switch router.route {
@@ -3073,8 +3143,12 @@ private extension S6_2BackupExportTests {
                 presentation: presentation, coordinator: coordinator,
                 contentAccess: try XCTUnwrap(presentation.backupPreviewAccess))
         } catch {
-            if case .ready(let coordinator, _, _) = router.route {
-                try? coordinator.invalidateAndReleaseWriter()
+            if let ownedPresentation {
+                let drained = await ownedPresentation.terminateAndDrainForTesting()
+                if !drained {
+                    startupFixtureCleanup.retain(source.applicationSupportURL.deletingLastPathComponent())
+                    XCTFail("backup access owner did not drain; fixture retained", file: file, line: line)
+                }
             }
             defaults.removePersistentDomain(forName: suite)
             throw error
@@ -3083,7 +3157,7 @@ private extension S6_2BackupExportTests {
 
     @MainActor
     func exportLivePackage(_ harness: Harness, directoryName: String) async throws -> URL {
-        let authorized = try await makeAuthorizedExportHarness(harness)
+        let authorized = try await makeAuthorizedExportHarness(harness, context: directoryName)
         defer { authorized.close() }
         let destination = harness.applicationSupportURL.appendingPathComponent(
             directoryName, isDirectory: true)
@@ -3650,7 +3724,6 @@ private extension S6_2BackupExportTests {
             return Harness(applicationSupportURL: support, session: restored,
                 context: restored.modelContext, countedRoots: countedRoots)
         } catch {
-            try? fileManager.removeItem(at: support)
             throw error
         }
     }
@@ -3817,7 +3890,6 @@ private extension S6_2BackupExportTests {
     @MainActor
     func makePhotoRestoreJourney(_ label: String) async throws -> PhotoRestoreJourney {
         let sourceHarness = try await makeMixedHarness("\(label)-source", sharedRaw: true)
-        defer { try? fileManager.removeItem(at: sourceHarness.applicationSupportURL) }
         do {
             // Preserve the S10 fixture and add genuine C36 histories before
             // branching. Two source children deliberately share raw bytes.
@@ -3951,7 +4023,6 @@ private extension S6_2BackupExportTests {
         -> SourceEmptyPhotoRestoreJourney {
         let sourceHarness = try await makeMixedHarness("\(label)-source",
             currentWriterSource: true, beginOnly: true, sharedRaw: true)
-        defer { try? fileManager.removeItem(at: sourceHarness.applicationSupportURL) }
         let sourceArchive = try await exportLivePackage(sourceHarness,
             directoryName: "source-empty-branch-export")
         let harness = try await installCompositionBranchBase(sourceArchive,
@@ -4003,7 +4074,6 @@ private extension S6_2BackupExportTests {
                 retainedMyDayDraftID: retainedMyDayDraftID,
                 retainedPhotoDraftIDs: retainedPhotoDraftIDs)
         } catch {
-            try? fileManager.removeItem(at: harness.applicationSupportURL)
             throw error
         }
     }
@@ -4012,13 +4082,11 @@ private extension S6_2BackupExportTests {
     func assertUnsupportedCurrentOnlyGenericCompositionFailsBeforeEffects() async throws {
         let sourceHarness = try await makeMixedHarness(
             "unsupported-current-generic-source", sharedRaw: true)
-        defer { try? fileManager.removeItem(at: sourceHarness.applicationSupportURL) }
         let branchArchive = try await exportLivePackage(sourceHarness,
             directoryName: "unsupported-current-generic-branch")
         let target = try await installCompositionBranchBase(branchArchive,
             label: "unsupported-current-generic-target",
             countedRoots: sourceHarness.countedRoots)
-        defer { try? fileManager.removeItem(at: target.applicationSupportURL) }
         let currentOnly = try await appendGenericCompositionStage(target,
             slot: 650, bytes: Data("unsupported current-only opaque C36 bytes".utf8))
         let importer = try BackupImportService(
@@ -4844,6 +4912,24 @@ private extension S6_2BackupExportTests {
     }
 }
 
+/// Test cleanup bookkeeping contains paths only, never store or task owners.
+private final class S6_2StartupFixtureCleanupV1: @unchecked Sendable {
+    private let lock = NSLock()
+    private var retainedPaths: Set<String> = []
+
+    func retain(_ container: URL) {
+        lock.lock()
+        defer { lock.unlock() }
+        retainedPaths.insert(container.standardizedFileURL.path)
+    }
+
+    func mayRemove(_ container: URL) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return !retainedPaths.contains(container.standardizedFileURL.path)
+    }
+}
+
 private enum FixtureError: Error { case invalid }
 private extension Data {
     var sha256: String { SHA256.hash(data: self).map { String(format: "%02x", $0) }.joined() }
@@ -4986,7 +5072,6 @@ extension S6_2BackupExportTests {
         let c42Bytes = try CrossMarketCanonicalV1.data(receipt)
         let payload = c42Bytes.base64EncodedString()
         let harness = try await makeMixedHarness("c42-export", siteAddress: payload)
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
         let authorized = try await makeAuthorizedExportHarness(harness)
         defer { authorized.close() }
         let destination = harness.applicationSupportURL.appendingPathComponent("c42-export", isDirectory: true)
@@ -5714,7 +5799,6 @@ extension S6_2BackupExportTests {
 
                 let packageHost = try makeConfigurationCloneTarget(
                     "source-package-\(index)")
-                defer { try? fileManager.removeItem(at: packageHost.applicationSupportURL) }
                 let importer = try BackupImportService(
                     generationRootURL: packageHost.session.generationRootURL,
                     storagePreflight: StoragePreflightService(
@@ -5777,7 +5861,6 @@ extension S6_2BackupExportTests {
                 // Retain the original empty-target route for every source
                 // photo phase before exercising populated retirement below.
                 let emptyTarget = try makeConfigurationCloneTarget("phase-\(index)")
-                defer { try? fileManager.removeItem(at: emptyTarget.applicationSupportURL) }
                 try await assertConfigurationCloneSucceeds(
                     package: package,
                     sourceArchiveURL: archive,
@@ -5830,7 +5913,6 @@ extension S6_2BackupExportTests {
 
                 if phase == .awaitingRawStage {
                     let target = try makeConfigurationCloneTarget("generic-only")
-                    defer { try? fileManager.removeItem(at: target.applicationSupportURL) }
                     let generic = try await appendGenericCompositionStage(
                         target,
                         slot: 890,
@@ -5912,7 +5994,6 @@ extension S6_2BackupExportTests {
             let archiveBytes = try Data(contentsOf: archive)
 
             let corruptTarget = try makeConfigurationCloneTarget("corrupt-member")
-            defer { try? fileManager.removeItem(at: corruptTarget.applicationSupportURL) }
             let corruptImporter = try BackupImportService(
                 generationRootURL: corruptTarget.session.generationRootURL,
                 storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
@@ -5951,7 +6032,6 @@ extension S6_2BackupExportTests {
             XCTAssertEqual(try Data(contentsOf: archive), archiveBytes)
 
             let stagedTarget = try makeConfigurationCloneTarget("populated-staging")
-            defer { try? fileManager.removeItem(at: stagedTarget.applicationSupportURL) }
             let stage = try await appendGenericCompositionStage(
                 stagedTarget,
                 slot: 860,
@@ -6035,7 +6115,6 @@ extension S6_2BackupExportTests {
             // A current awaiting child owns no staged bytes, but its complete
             // canonical history must validate before clone can omit that family.
             let emptySource = try makeConfigurationCloneTarget("empty-history-source")
-            defer { try? fileManager.removeItem(at: emptySource.applicationSupportURL) }
             let emptyArchive = try await exportLivePackage(
                 emptySource, directoryName: "configuration-clone-empty-history-source")
             let emptyArchiveBytes = try Data(contentsOf: emptyArchive)

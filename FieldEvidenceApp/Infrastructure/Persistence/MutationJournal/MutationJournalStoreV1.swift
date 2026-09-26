@@ -782,6 +782,12 @@ final class MutationJournalStoreV1 {
 
     func currentRevision(writerInstanceID: UUID) throws -> WorkspaceRevisionV1 {
         try validateCurrentWriterLease()
+        return try storedRevision(writerInstanceID: writerInstanceID)
+    }
+
+    /// The caller must hold a proved writer lease or the fixed read fence.
+    /// This is a value read, never a replacement for an authorization check.
+    private func storedRevision(writerInstanceID: UUID) throws -> WorkspaceRevisionV1 {
         let state = try requireState()
         let rows = try modelContext.fetch(FetchDescriptor<EntityMutationRevisionRow>(
             sortBy: [SortDescriptor(\.stableIdentity)]
@@ -2395,6 +2401,73 @@ final class MutationJournalStoreV1 {
                     throw WorkspaceMutationFailureV1.persistenceFailed
                 }
                 return chain
+            }
+        } catch let failure as StaleWriterFenceV1.ReadFenceFailure {
+            provenWriterLeaseInvalidated = true
+            if let registryFailure = failure.underlying as? GenerationLeaseRegistryFailureV1 {
+                throw mappedFenceFailure(registryFailure)
+            }
+            throw WorkspaceMutationFailureV1.persistenceFailed
+        }
+    }
+
+    /// Fixed observational parent authentication. No caller callback, decoded
+    /// journal cache or authority token can escape this synchronous read fence.
+    /// Finalization and noncanonical readers retain their complete old path.
+    func authenticatedCurrentCheckRunnerParentInReadScope(
+        _ checkpoint: FieldDraftCheckpointV1, context: ModelContext, writerInstanceID: UUID
+    ) throws -> CheckRunnerItemDraftPayloadV1? {
+        guard case let .canonicalWriter(fence) = accessMode else { return nil }
+        if (try? CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint).phase) == .preparedFinalization {
+            return nil
+        }
+        do {
+            return try fence.withAuthorizedRead {
+                guard context === modelContext, !modelContext.hasChanges else {
+                    throw WorkspaceMutationFailureV1.persistenceFailed
+                }
+                let before = try storedRevision(writerInstanceID: writerInstanceID)
+                guard checkpoint.workspaceID == before.workspaceID else {
+                    throw FieldDraftFailureV1.wrongWorkspace
+                }
+                let payload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint)
+                let id = checkpoint.draftID
+                let rows = try modelContext.fetch(FetchDescriptor<FieldDraftCheckpointRow>(
+                    predicate: #Predicate { $0.draftID == id }))
+                guard rows.count == 1, try rows[0].value() == checkpoint else {
+                    throw FieldDraftFailureV1.staleDraftRevision
+                }
+                let pass = try validateJournalPass(release: PersistentSchemaReleaseRegistryV1.activeRelease,
+                    historicalAuthority: nil, retainDecodedRows: true)
+                let key = MutationWorkspaceKeyV1.value(workspaceID: identity.workspaceID,
+                    mutationID: checkpoint.mutationID)
+                guard try modelContext.fetch(FetchDescriptor<MutationQuarantineRow>(
+                    predicate: #Predicate { $0.workspaceMutationKey == key })).isEmpty else {
+                    throw WorkspaceMutationFailureV1.mutationIDQuarantined
+                }
+                guard let saved = pass.decodedRows[key] else { throw FieldDraftFailureV1.staleDraftRevision }
+                let evidence = try FieldDraftCommittedEvidenceV1(envelope: saved.envelope, receipt: saved.receipt)
+                guard evidence.mutation.workspaceID == checkpoint.workspaceID,
+                      evidence.mutation.expectedRevision == checkpoint.draftRevision - 1,
+                      evidence.mutation.expectedBaseCanonicalRevision == checkpoint.baseCanonicalRevision else {
+                    throw FieldDraftFailureV1.staleDraftRevision
+                }
+                switch evidence.mutation.postImage {
+                case let .createCheckpoint(original):
+                    guard checkpoint.draftRevision == 1, original == checkpoint else {
+                        throw FieldDraftFailureV1.digestMismatch
+                    }
+                case let .reviseCheckpoint(original):
+                    guard checkpoint.draftRevision > 1, original == checkpoint else {
+                        throw FieldDraftFailureV1.digestMismatch
+                    }
+                default: throw FieldDraftFailureV1.missingReceipt
+                }
+                guard !modelContext.hasChanges,
+                      try storedRevision(writerInstanceID: writerInstanceID) == before else {
+                    throw WorkspaceMutationFailureV1.persistenceFailed
+                }
+                return payload
             }
         } catch let failure as StaleWriterFenceV1.ReadFenceFailure {
             provenWriterLeaseInvalidated = true

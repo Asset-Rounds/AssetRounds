@@ -2140,6 +2140,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         let name = deleting == nil ? target.directoryName : tombstone
         let descriptor = try openLeaseDirectory(name)
         defer { _ = Darwin.close(descriptor) }
+        guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
         var pinned = stat()
         guard Darwin.fstat(descriptor, &pinned) == 0,
               UInt64(pinned.st_dev) == target.device, UInt64(pinned.st_ino) == target.inode else {
@@ -2632,6 +2633,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             let name = deleting == nil ? originalName : tombstone
             let descriptor = try openLeaseDirectory(name)
             defer { _ = Darwin.close(descriptor) }
+            guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
             var information = stat()
             guard Darwin.fstat(descriptor, &information) == 0,
                   UInt64(information.st_dev) == value.claim.device, UInt64(information.st_ino) == value.claim.inode else {
@@ -3395,6 +3397,212 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         return .init(name: finalName, information: final)
     }
 
+    /// Synchronous SOURCE inspection uses the existing lease, root and cleanup
+    /// owner. Callers acquire their generation authority BEFORE entering here;
+    /// neither this scope nor its nonescaping body may suspend.
+    @MainActor
+    final class SourceReadDirectory {
+        fileprivate let store: ScratchDataLeaseStoreV1
+        fileprivate let lease: ScratchDataLeaseV1
+        fileprivate let descriptor: Int32
+        fileprivate let readerIsDrained: @MainActor () -> Bool
+        private var unlocked = false
+        private static let sqliteNames: Set<String> = ["model.sqlite", "model.sqlite-wal", "model.sqlite-shm"]
+        var modelURL: URL { directoryURL.appendingPathComponent("model.sqlite") }
+        private var directoryURL: URL { store.rootURL.appendingPathComponent(lease.relativeDirectory) }
+
+        fileprivate init(store: ScratchDataLeaseStoreV1, lease: ScratchDataLeaseV1,
+                         readerIsDrained: @escaping @MainActor () -> Bool) throws {
+            let fd = try store.openLeaseDirectory(lease.relativeDirectory)
+            guard flock(fd, LOCK_EX | LOCK_NB) == 0 else {
+                Darwin.close(fd); throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+            self.store = store; self.lease = lease; descriptor = fd
+            self.readerIsDrained = readerIsDrained
+        }
+        deinit { Darwin.close(descriptor) }
+
+        func verify() throws {
+            guard !unlocked, store.clock() < lease.request.expiresAt else {
+                throw ScratchDataLeaseStoreFailureV1.leaseExpired
+            }
+            try store.requireExpectedScratchLease(lease, named: lease.relativeDirectory, descriptor: descriptor)
+            let names = try store.directoryNames(descriptor)
+            guard Set(names).isSubset(of: Self.sqliteNames.union([ScratchDataLeaseStoreV1.metadataName])) else {
+                throw ScratchDataLeaseStoreFailureV1.invalidLease
+            }
+            for name in names { _ = try store.regularFileInformation(named: name, directoryDescriptor: descriptor) }
+            guard try store.payloadByteCount(directoryDescriptor: descriptor, directoryURL: directoryURL)
+                    <= lease.request.requestedByteCount else { throw ScratchDataLeaseStoreFailureV1.sizeLimitExceeded }
+        }
+
+        /// The caller streams from its independently authenticated source FD;
+        /// no whole-file Data buffer or arbitrary destination path is admitted.
+        func copySQLiteFile(named name: String, byteCount: UInt64, write: (Int32) throws -> Void) throws {
+            try verify()
+            guard Self.sqliteNames.contains(name) else { throw ScratchDataLeaseStoreFailureV1.invalidLease }
+            let current = try store.payloadByteCount(directoryDescriptor: descriptor, directoryURL: directoryURL)
+            let (total, overflow) = current.addingReportingOverflow(byteCount)
+            guard !overflow, total <= lease.request.requestedByteCount else {
+                throw ScratchDataLeaseStoreFailureV1.sizeLimitExceeded
+            }
+            let fd = Darwin.openat(descriptor, name, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, mode_t(0o600))
+            guard fd >= 0 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+            defer { Darwin.close(fd) }
+            var owned = stat()
+            guard Darwin.fstat(fd, &owned) == 0 else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            func reprove() throws {
+                try self.store.verifyLeaseDirectory(self.lease.relativeDirectory, descriptor: self.descriptor)
+                let named = try self.store.regularFileInformation(named: name, directoryDescriptor: self.descriptor)
+                var held = stat()
+                guard Darwin.fstat(fd, &held) == 0, named.st_dev == owned.st_dev, named.st_ino == owned.st_ino,
+                      held.st_dev == owned.st_dev, held.st_ino == owned.st_ino, held.st_nlink == 1 else {
+                    throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                }
+            }
+            try ProtectedFilePolicyV1.applyAndVerify(.temporaryFile, at: directoryURL.appendingPathComponent(name), authorityCheck: reprove)
+            try write(fd)
+            try reprove()
+            var final = stat()
+            guard Darwin.fstat(fd, &final) == 0, final.st_size >= 0, UInt64(final.st_size) == byteCount,
+                  Darwin.fsync(fd) == 0, Darwin.fsync(descriptor) == 0 else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+            try verify()
+        }
+
+        struct FileProof: Equatable {
+            let device: UInt64
+            let inode: UInt64
+            let byteCount: UInt64
+            let sha256: String
+            let modifiedSeconds: Int64
+            let modifiedNanoseconds: Int64
+            let changedSeconds: Int64
+            let changedNanoseconds: Int64
+        }
+
+        func verifySQLiteFile(named name: String, matches expected: FileProof) throws {
+            try verify()
+            guard Self.sqliteNames.contains(name) else { throw ScratchDataLeaseStoreFailureV1.invalidLease }
+            let named = try store.regularFileInformation(named: name, directoryDescriptor: descriptor)
+            let fd = Darwin.openat(descriptor, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+            guard fd >= 0 else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            defer { Darwin.close(fd) }
+            var held = stat()
+            guard Darwin.fstat(fd, &held) == 0,
+                  C16IngressHygieneFileIdentityV1(name: name, information: named)
+                    == C16IngressHygieneFileIdentityV1(name: name, information: held),
+                  UInt64(held.st_dev) == expected.device, UInt64(held.st_ino) == expected.inode,
+                  UInt64(held.st_size) == expected.byteCount,
+                  Int64(held.st_mtimespec.tv_sec) == expected.modifiedSeconds,
+                  Int64(held.st_mtimespec.tv_nsec) == expected.modifiedNanoseconds,
+                  Int64(held.st_ctimespec.tv_sec) == expected.changedSeconds,
+                  Int64(held.st_ctimespec.tv_nsec) == expected.changedNanoseconds else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+        }
+
+        func sqliteFileNames() throws -> Set<String> {
+            try verify()
+            return Set(try store.directoryNames(descriptor)).subtracting([ScratchDataLeaseStoreV1.metadataName])
+        }
+
+        func sqliteFileProof(named name: String) throws -> FileProof {
+            try verify()
+            guard Self.sqliteNames.contains(name) else { throw ScratchDataLeaseStoreFailureV1.invalidLease }
+            let before = try store.regularFileInformation(named: name, directoryDescriptor: descriptor)
+            let fd = Darwin.openat(descriptor, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+            guard fd >= 0 else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            defer { Darwin.close(fd) }
+            var held = stat()
+            guard Darwin.fstat(fd, &held) == 0, held.st_dev == before.st_dev, held.st_ino == before.st_ino else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+            var hash = SHA256(), count: UInt64 = 0
+            var buffer = [UInt8](repeating: 0, count: 65_536)
+            while true {
+                let read = buffer.withUnsafeMutableBytes { Darwin.read(fd, $0.baseAddress, $0.count) }
+                if read == 0 { break }
+                if read < 0, errno == EINTR { continue }
+                guard read > 0 else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+                let (next, overflow) = count.addingReportingOverflow(UInt64(read))
+                guard !overflow, next <= UInt64(before.st_size) else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+                count = next; hash.update(data: Data(buffer.prefix(read)))
+            }
+            let after = try store.regularFileInformation(named: name, directoryDescriptor: descriptor)
+            guard count == UInt64(before.st_size), Darwin.fstat(fd, &held) == 0,
+                  C16IngressHygieneFileIdentityV1(name: name, information: before)
+                    == C16IngressHygieneFileIdentityV1(name: name, information: after),
+                  C16IngressHygieneFileIdentityV1(name: name, information: before)
+                    == C16IngressHygieneFileIdentityV1(name: name, information: held) else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+            return FileProof(device: UInt64(before.st_dev), inode: UInt64(before.st_ino),
+                byteCount: count, sha256: hash.finalize().map { String(format: "%02x", $0) }.joined(),
+                modifiedSeconds: Int64(before.st_mtimespec.tv_sec), modifiedNanoseconds: Int64(before.st_mtimespec.tv_nsec),
+                changedSeconds: Int64(before.st_ctimespec.tv_sec), changedNanoseconds: Int64(before.st_ctimespec.tv_nsec))
+        }
+
+        fileprivate func closeReaderScope() throws {
+            guard readerIsDrained() else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+            // SQLite-created auxiliary files inherit protection, but apply and
+            // verify the shared temporary-file policy before terminal cleanup.
+            try store.requireExpectedScratchLease(lease, named: lease.relativeDirectory, descriptor: descriptor)
+            let names = try store.directoryNames(descriptor)
+            guard Set(names).isSubset(of: Self.sqliteNames.union([ScratchDataLeaseStoreV1.metadataName])) else {
+                throw ScratchDataLeaseStoreFailureV1.invalidLease
+            }
+            for name in names where name != ScratchDataLeaseStoreV1.metadataName {
+                let before = try store.regularFileInformation(named: name, directoryDescriptor: descriptor)
+                try ProtectedFilePolicyV1.applyAndVerify(.temporaryFile, at: directoryURL.appendingPathComponent(name)) {
+                    try self.store.verifyLeaseDirectory(self.lease.relativeDirectory, descriptor: self.descriptor)
+                    let now = try self.store.regularFileInformation(named: name, directoryDescriptor: self.descriptor)
+                    guard now.st_dev == before.st_dev, now.st_ino == before.st_ino else {
+                        throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                    }
+                }
+            }
+            guard flock(descriptor, LOCK_UN) == 0 else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            unlocked = true
+        }
+    }
+
+    // An unexpectedly retained reader keeps its directory lock until it drains
+    // or the process ends. Existing cold lease recovery remains the sole owner.
+    @MainActor private static var retainedSourceReaders: [SourceReadDirectory] = []
+
+    @MainActor
+    func withSourceReadScratch<Value>(request: ScratchDataLeaseRequestV1,
+        readerIsDrained: @escaping @MainActor () -> Bool,
+        _ read: (SourceReadDirectory) throws -> Value) throws -> Value {
+        guard request.purpose == .source, request.owner == .source else {
+            throw ScratchDataLeaseStoreFailureV1.invalidLease
+        }
+        try request.validate()
+        return try Self.filesystemLock.withLock {
+            for prior in Self.retainedSourceReaders where prior.readerIsDrained() {
+                try prior.closeReaderScope()
+                try prior.store.releaseScratchLeaseSynchronously(prior.lease, terminal: .failed)
+            }
+            Self.retainedSourceReaders.removeAll { $0.readerIsDrained() }
+            let lease = try acquireScratchLeaseSynchronously(request)
+            let directory: SourceReadDirectory
+            do { directory = try SourceReadDirectory(store: self, lease: lease, readerIsDrained: readerIsDrained) }
+            catch { try releaseScratchLeaseSynchronously(lease, terminal: .failed); throw error }
+            let result = Result { try read(directory) }
+            guard readerIsDrained() else {
+                Self.retainedSourceReaders.append(directory)
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+            try directory.closeReaderScope()
+            let terminal: ScratchDataLeaseTerminalV1
+            switch result { case .success: terminal = .completed; case .failure: terminal = .failed }
+            try releaseScratchLeaseSynchronously(lease, terminal: terminal)
+            return try result.get()
+        }
+    }
+
     func acquireScratchLease(
         _ request: ScratchDataLeaseRequestV1
     ) async throws -> ScratchDataLeaseV1 {
@@ -3659,6 +3867,9 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             let lease: ScratchDataLeaseV1
             let expiredBytes: UInt64?
             do {
+                guard flock(leaseDescriptor, LOCK_SH | LOCK_NB) == 0 else {
+                    throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                }
                 let metadataURL = child.appendingPathComponent(Self.metadataName)
                 let data = try readRegularFile(
                     named: Self.metadataName,
@@ -3866,6 +4077,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         }
         let descriptor = try openLeaseDirectory(name)
         defer { _ = Darwin.close(descriptor) }
+        guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
         if let expectedLease {
             try requireExpectedScratchLease(expectedLease, named: name, descriptor: descriptor)
         }
@@ -3914,6 +4126,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         try requireNoUnfinishedHygieneTarget(named: String(name.dropFirst(Self.deletionPrefix.count)))
         let descriptor = try openLeaseDirectory(name)
         defer { _ = Darwin.close(descriptor) }
+        guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
         if let expectedLease {
             try requireExpectedScratchLease(expectedLease, named: name, descriptor: descriptor)
         }
@@ -3973,6 +4186,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         descriptor: Int32,
         expectedFiles: [C16IngressHygieneFileIdentityV1]? = nil
     ) throws {
+        guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
         try verifyLeaseDirectory(name, descriptor: descriptor)
         if expectedFiles == nil {
             try removeInterruptedPublications(directoryDescriptor: descriptor)

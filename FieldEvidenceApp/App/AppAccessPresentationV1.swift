@@ -1285,6 +1285,41 @@ final class AppAccessPresentationV1: ObservableObject {
     private var bootstrapTask: Task<Void, Never>?
     private var lifecycleDrainTask: Task<Void, Never>?
     private var startupTask: Task<Void, Never>?
+#if DEBUG
+    private var terminatedForTesting = false
+    private var startupActionForTesting: Action?
+
+    /// Test teardown must join this owner's tasks, not infer drain from a
+    /// covered/checking route. Hard revocation remains the real authority.
+    func terminateAndDrainForTesting() async -> Bool {
+        // These handles do not own callers executing restore/unlock/erase.
+        // Capture that limitation before termination clears activeAction.
+        let hasUnjoinedAction = pendingErase != nil
+            || (activeAction != nil && activeAction !== startupActionForTesting)
+        terminatedForTesting = true
+        receive(.termination)
+        let bootstrap = bootstrapTask
+        let startup = startupTask
+        bootstrap?.cancel()
+        lifecycleDrainTask?.cancel()
+        startup?.cancel()
+        await bootstrap?.value
+        // Bootstrap can schedule the lifecycle drain before its task exits.
+        let lifecycle = lifecycleDrainTask
+        lifecycle?.cancel()
+        await lifecycle?.value
+        await startup?.value
+        let trailingLifecycle = lifecycleDrainTask
+        trailingLifecycle?.cancel()
+        await trailingLifecycle?.value
+        // Retry only the router's existing exact-owner cleanup after all task
+        // frames have returned; callers never release an arbitrary writer.
+        startupRouter.pauseForAppAccess(discardPrepared: true)
+        return !hasUnjoinedAction && pendingErase == nil && startupActionForTesting == nil
+            && bootstrapTask == nil && lifecycleDrainTask == nil && startupTask == nil
+            && !startupRouter.hasPendingWriterCleanup && !permitsContentPresentation
+    }
+#endif
     private var queuedLifecycleEvents: [QueuedLifecycleEvent] = []
     private var sceneIsActive = true
     private var presentationRevision = PresentationRevision()
@@ -1335,6 +1370,9 @@ final class AppAccessPresentationV1: ObservableObject {
     }
 
     func bootstrapIfNeeded() async {
+#if DEBUG
+        guard !terminatedForTesting else { return }
+#endif
         if session != nil {
             scheduleLifecycleDrain()
             return
@@ -1968,6 +2006,9 @@ final class AppAccessPresentationV1: ObservableObject {
     }
 
     private func scheduleEligibleStartup(_ session: ProductionAppAccessSessionV1) {
+#if DEBUG
+        guard !terminatedForTesting else { return }
+#endif
         guard startupTask == nil, activeAction == nil, pendingErase == nil, queuedLifecycleEvents.isEmpty,
               sceneIsActive, failure == nil else { return }
         let epoch = hardEpoch
@@ -1988,6 +2029,12 @@ final class AppAccessPresentationV1: ObservableObject {
                   let action = self.beginLongAction(resumesAfterInactive: true) else {
                 return
             }
+#if DEBUG
+            self.startupActionForTesting = action
+            defer {
+                if self.startupActionForTesting === action { self.startupActionForTesting = nil }
+            }
+#endif
             self.pendingAuthorizedStartup = nil
             await self.startAndPublish(session, action: action)
             self.finishLongAction(action)

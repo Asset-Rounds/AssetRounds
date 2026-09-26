@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import MetricKit
 import SwiftData
 import XCTest
@@ -949,6 +950,78 @@ final class V9_12SystemHealthOperationalDiagnosticsTests: XCTestCase {
         )
         XCTAssertTrue(FileManager.default.fileExists(atPath: collisionOriginal.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: collisionTombstone.path))
+
+        // SOURCE semantic inspection shares the existing owner, resource policy
+        // and recovery path. No live reader may lose its leased directory.
+        let readRoot = try Self.temporaryRoot("I01-source-read")
+        defer { try? FileManager.default.removeItem(at: readRoot) }
+        let readClock = V912Clock(corpus.createdAt)
+        let readStore = try ScratchDataLeaseStoreV1(applicationSupportURL: readRoot,
+            clock: { readClock.now }, capacityProvider: { _ in Int64.max })
+        let sourceBytes = Data("immutable-source".utf8)
+        let originalURL = readRoot.appendingPathComponent("original.sqlite")
+        try sourceBytes.write(to: originalURL)
+        func sourceRequest() throws -> ScratchDataLeaseRequestV1 {
+            try ScratchDataLeaseRequestV1(leaseID: UUID(), purpose: .source, owner: .source,
+                ownerOperationID: Self.id(73), requestedByteCount: UInt64(sourceBytes.count),
+                createdAt: readClock.now, expiresAt: readClock.now.addingTimeInterval(60))
+        }
+        func populate(_ directory: ScratchDataLeaseStoreV1.SourceReadDirectory) throws {
+            try directory.copySQLiteFile(named: "model.sqlite", byteCount: UInt64(sourceBytes.count)) { fd in
+                try sourceBytes.withUnsafeBytes { bytes in
+                    let written = Darwin.write(fd, bytes.baseAddress, bytes.count)
+                    guard written == bytes.count else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+                }
+            }
+        }
+        var successfulDirectory: URL?
+        let copied = try readStore.withSourceReadScratch(request: sourceRequest(), readerIsDrained: { true }) { directory in
+            successfulDirectory = directory.modelURL.deletingLastPathComponent()
+            try populate(directory)
+            XCTAssertEqual(try directory.sqliteFileProof(named: "model.sqlite").byteCount, UInt64(sourceBytes.count))
+            XCTAssertThrowsError(try directory.copySQLiteFile(named: "../escape", byteCount: 0) { _ in }) {
+                XCTAssertEqual($0 as? ScratchDataLeaseStoreFailureV1, .invalidLease)
+            }
+            XCTAssertThrowsError(try directory.copySQLiteFile(named: "model.sqlite-wal", byteCount: 1) { _ in }) {
+                XCTAssertEqual($0 as? ScratchDataLeaseStoreFailureV1, .sizeLimitExceeded)
+            }
+            return try Data(contentsOf: directory.modelURL)
+        }
+        XCTAssertEqual(copied, sourceBytes)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: try XCTUnwrap(successfulDirectory).path))
+        XCTAssertEqual(try Data(contentsOf: originalURL), sourceBytes)
+        enum SemanticReadWitness: Error { case interrupted }
+        var failedDirectory: URL?
+        XCTAssertThrowsError(try readStore.withSourceReadScratch(request: sourceRequest(), readerIsDrained: { true }) { directory in
+            failedDirectory = directory.modelURL.deletingLastPathComponent()
+            try populate(directory)
+            throw SemanticReadWitness.interrupted
+        }) { XCTAssertTrue($0 is SemanticReadWitness) }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: try XCTUnwrap(failedDirectory).path))
+
+        var drained = false
+        var retainedModel: URL?
+        XCTAssertThrowsError(try readStore.withSourceReadScratch(request: sourceRequest(), readerIsDrained: { drained }) { directory in
+            retainedModel = directory.modelURL
+            try populate(directory)
+        }) { XCTAssertEqual($0 as? ScratchDataLeaseStoreFailureV1, .leaseCollision) }
+        let retainedURL = try XCTUnwrap(retainedModel)
+        readClock.advance(seconds: 120)
+        let coldReadStore = try ScratchDataLeaseStoreV1(applicationSupportURL: readRoot,
+            clock: { readClock.now }, capacityProvider: { _ in Int64.max })
+        await XCTAssertThrowsErrorAsync(try await coldReadStore.recoverScratchLeases(),
+            equals: ScratchDataLeaseStoreFailureV1.invalidLease)
+        XCTAssertEqual(try Data(contentsOf: retainedURL), sourceBytes)
+        await XCTAssertThrowsErrorAsync(try await coldReadStore.resetScratchData(),
+            equals: ScratchDataLeaseStoreFailureV1.leaseCollision)
+        XCTAssertEqual(try Data(contentsOf: retainedURL), sourceBytes)
+        drained = true
+        try readStore.withSourceReadScratch(request: sourceRequest(), readerIsDrained: { true }) { directory in
+            try populate(directory)
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: retainedURL.deletingLastPathComponent().path))
+        XCTAssertEqual(try Data(contentsOf: originalURL), sourceBytes)
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: Self.scratchRoot(readRoot).path).isEmpty)
     }
 
     func testV9_12R01MigrationResetEraseAndBootstrapRemainDeviceLocal() async throws {

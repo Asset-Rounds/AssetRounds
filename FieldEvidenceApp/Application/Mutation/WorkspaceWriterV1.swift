@@ -2732,6 +2732,24 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             workspaceID: workspaceID, mutationID: mutationID)
     }
 
+    /// Value-only parent read under the journal's fixed synchronous fence.
+    func authenticatedCurrentCheckRunnerParentInReadScope(
+        _ checkpoint: FieldDraftCheckpointV1, modelContext: ModelContext
+    ) throws -> CheckRunnerItemDraftPayloadV1? {
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        let value = try journalStore.authenticatedCurrentCheckRunnerParentInReadScope(
+            checkpoint, context: modelContext, writerInstanceID: writerInstanceID)
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        return value
+    }
+
+#if DEBUG
+    var fullJournalValidationPassCountForTesting: UInt64? {
+        journalStore?.fullValidationPassCountForTesting
+    }
+#endif
+
     func fieldDraftEvidence(mutationID: MutationIDV1) throws -> FieldDraftCommittedEvidenceV1? {
         guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
         guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }

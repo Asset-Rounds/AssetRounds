@@ -85,6 +85,83 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             XCTAssertEqual(h.ids.callCount, idCalls)
 
             let current = try await h.persistCurrentPhotoApplicationFixture()
+            // The fixed read uses the genuine sole-writer parent and receipt on
+            // disk. Each call independently authenticates the whole journal;
+            // neither success nor rejection grants authority to a later call.
+            let writer = h.coordinator.workspaceWriter
+            let parent = current.value.parentCheckpoint
+            let authenticatedBefore = try h.snapshot()
+#if DEBUG
+            let passesBefore = try XCTUnwrap(writer.fullJournalValidationPassCountForTesting)
+#endif
+            XCTAssertEqual(try writer.authenticatedCurrentCheckRunnerParentInReadScope(
+                parent, modelContext: h.context),
+                try CheckRunnerItemDraftCodecV1.validateCheckpoint(parent))
+#if DEBUG
+            XCTAssertEqual(writer.fullJournalValidationPassCountForTesting, passesBefore + 1)
+#endif
+            XCTAssertEqual(try h.snapshot(), authenticatedBefore)
+            XCTAssertThrowsError(try writer.authenticatedCurrentCheckRunnerParentInReadScope(
+                parent, modelContext: ModelContext(h.context.container)))
+            let receiptRows = try h.context.fetch(FetchDescriptor<MutationReceiptRow>())
+            let originalParent = try XCTUnwrap(receiptRows.compactMap { row -> FieldDraftCheckpointV1? in
+                guard let envelope = try? MutationEnvelopeV1.decodeCanonical(from: row.envelopeData),
+                      let receipt = try? MutationReceiptV1.decodeCanonical(from: row.receiptData),
+                      let evidence = try? FieldDraftCommittedEvidenceV1(envelope: envelope, receipt: receipt),
+                      case let .createCheckpoint(original) = evidence.mutation.postImage,
+                      original.draftID == parent.draftID else { return nil }
+                return original
+            }.first)
+            XCTAssertLessThan(originalParent.draftRevision, parent.draftRevision)
+            XCTAssertThrowsError(try writer.authenticatedCurrentCheckRunnerParentInReadScope(
+                originalParent, modelContext: h.context)) { error in
+                XCTAssertEqual(error as? FieldDraftFailureV1, .staleDraftRevision)
+            }
+            let parentReceipt = try XCTUnwrap(receiptRows.first {
+                $0.workspaceID == parent.workspaceID.rawValue && $0.mutationID == parent.mutationID.rawValue
+            })
+            let receiptBytes = parentReceipt.receiptData
+            do {
+                defer { parentReceipt.receiptData = receiptBytes; try? h.context.save() }
+                parentReceipt.receiptData = Data("corrupt durable parent receipt".utf8)
+                try h.context.save()
+                XCTAssertFalse(h.context.hasChanges)
+                XCTAssertThrowsError(try ProductionCheckRunnerItemDraftServiceV1.authenticateCurrent(
+                    parent, writer: writer, context: h.context))
+                XCTAssertEqual(parentReceipt.receiptData, Data("corrupt durable parent receipt".utf8))
+            }
+            let quarantine = MutationQuarantineRow(workspaceID: parent.workspaceID,
+                mutationID: parent.mutationID, identityDomain: .mutationEnvelope,
+                acceptedIdentitySHA256: parentReceipt.envelopeSHA256,
+                conflictingIdentitySHA256: String(repeating: "f", count: 64),
+                detectedAt: parent.updatedAt)
+            do {
+                defer { h.context.delete(quarantine); try? h.context.save() }
+                h.context.insert(quarantine)
+                try h.context.save()
+                XCTAssertThrowsError(try ProductionCheckRunnerItemDraftServiceV1.authenticateCurrent(
+                    parent, writer: writer, context: h.context))
+                XCTAssertEqual(try h.context.fetch(FetchDescriptor<MutationQuarantineRow>()).count, 1)
+            }
+            let replacementReceipt = try MutationReceiptRow(
+                envelope: MutationEnvelopeV1.decodeCanonical(from: parentReceipt.envelopeData),
+                receipt: MutationReceiptV1.decodeCanonical(from: parentReceipt.receiptData))
+            replacementReceipt.reversalBasisData = parentReceipt.reversalBasisData
+            replacementReceipt.reversalBasisSHA256 = parentReceipt.reversalBasisSHA256
+            replacementReceipt.semanticReversalData = parentReceipt.semanticReversalData
+            do {
+                defer { h.context.insert(replacementReceipt); try? h.context.save() }
+                h.context.delete(parentReceipt)
+                try h.context.save()
+                XCTAssertFalse(h.context.hasChanges)
+                XCTAssertThrowsError(try ProductionCheckRunnerItemDraftServiceV1.authenticateCurrent(
+                    parent, writer: writer, context: h.context))
+            }
+            XCTAssertEqual(try writer.authenticatedCurrentCheckRunnerParentInReadScope(
+                parent, modelContext: h.context),
+                try CheckRunnerItemDraftCodecV1.validateCheckpoint(parent))
+            XCTAssertEqual(try h.snapshot(), authenticatedBefore)
+
             XCTAssertEqual(current.value.historicalSource, source)
             XCTAssertEqual(current.value.parentCheckpoint, current.value.parent.checkpoint)
             XCTAssertEqual(current.value.currentTarget.parent, current.value.parent)
@@ -99,6 +176,30 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
                 current.mediaValue.media.rawReference.digests.digest(for: .sha256))
             XCTAssertEqual(current.mediaValue.media.rawReference.byteLength,
                 Int64(current.sourceData.count))
+
+            // An unchanged pointer payload behind a substituted symlink still
+            // loses authority. A prior successful read cannot mask this change.
+            let pointer = h.root.appendingPathComponent("FieldEvidenceData/current.json")
+            let retainedPointer = h.root.appendingPathComponent("FieldEvidenceData/photo-auth-retained-current.json")
+            XCTAssertNotEqual(try CheckRunnerItemDraftCodecV1.validateCheckpoint(parent).phase,
+                .preparedFinalization)
+            let beforePointerChange = try h.snapshot()
+            XCTAssertNotNil(try writer.authenticatedCurrentCheckRunnerParentInReadScope(
+                parent, modelContext: h.context))
+            try FileManager.default.moveItem(at: pointer, to: retainedPointer)
+            do {
+                defer {
+                    try? FileManager.default.removeItem(at: pointer)
+                    try? FileManager.default.moveItem(at: retainedPointer, to: pointer)
+                }
+                try FileManager.default.createSymbolicLink(at: pointer, withDestinationURL: retainedPointer)
+                XCTAssertThrowsError(try ProductionCheckRunnerItemDraftServiceV1.authenticateCurrent(
+                    parent, writer: writer, context: h.context))
+            }
+            XCTAssertEqual(try writer.authenticatedCurrentCheckRunnerParentInReadScope(
+                parent, modelContext: h.context),
+                try CheckRunnerItemDraftCodecV1.validateCheckpoint(parent))
+            XCTAssertEqual(try h.snapshot(), beforePointerChange)
 
             do {
                 _ = try await h.runner.finalize(assetID: h.assetID,
@@ -155,6 +256,7 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
                 return XCTFail("Expected hostile finalization authority")
             }
             XCTAssertThrowsError(try hostileAuthority.validate(command: hostileCommand))
+
         }
     }
 
@@ -564,6 +666,8 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             site.label = "Unsaved hostile label"
             XCTAssertTrue(h.context.hasChanges)
             let before = try h.rowSnapshot()
+            XCTAssertThrowsError(try h.coordinator.workspaceWriter.authenticatedCurrentCheckRunnerParentInReadScope(
+                current.value.parentCheckpoint, modelContext: h.context))
             let idCalls = h.ids.callCount
             XCTAssertThrowsError(try h.progress.validateHistoricalCheckRunnerSource(source, read: h.read,
                 publishedRelease: h.publishedRelease, signPack: h.signPack))
@@ -602,6 +706,10 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             XCTAssertEqual(h.ids.callCount, idCalls)
             XCTAssertEqual(try h.rowSnapshot(), before)
             try h.closeCoordinator()
+            XCTAssertThrowsError(try h.coordinator.workspaceWriter.authenticatedCurrentCheckRunnerParentInReadScope(
+                current.value.parentCheckpoint, modelContext: h.context)) { error in
+                XCTAssertEqual(error as? WorkspaceMutationFailureV1, .writerInvalidated)
+            }
             XCTAssertThrowsError(try current.service.validateForPublication(current.value))
             do {
                 try await current.service.validateForPublication(current.mediaValue)

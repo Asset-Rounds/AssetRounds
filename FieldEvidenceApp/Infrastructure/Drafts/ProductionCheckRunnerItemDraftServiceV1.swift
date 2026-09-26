@@ -2205,6 +2205,10 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
     /// row or self-computed digest alone never authorizes a Begin effect.
     static func authenticateCurrent(_ checkpoint: FieldDraftCheckpointV1, writer: WorkspaceWriterV1,
                                     context: ModelContext) throws -> CheckRunnerItemDraftPayloadV1 {
+        if let payload = try writer.authenticatedCurrentCheckRunnerParentInReadScope(
+            checkpoint, modelContext: context) {
+            return payload
+        }
         try writer.validateFieldDraftReadContext(context)
         let current = try writer.currentRevision()
         guard checkpoint.workspaceID == current.workspaceID else { throw FieldDraftFailureV1.wrongWorkspace }

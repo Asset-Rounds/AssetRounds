@@ -163,7 +163,17 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         let factory = StoreGenerationFactory(applicationSupportURL: fixture.root,
             migrationIdentitySource: StoreMigrationIdentitySourceV1(makeMigrationID: UUID.init,
                 makeGenerationID: UUID.init, makeProcessID: UUID.init))
-        let first = try await factory.openForStartup { _ in }
+        let first: StoreStartupOpenResultV1
+        var originalRecoveryEntered = false
+        do {
+            first = try await factory.openForStartup { _ in originalRecoveryEntered = true }
+        } catch {
+#if DEBUG
+            let observed = try? StoreAggregateMigrationControlV1(applicationSupportURL: fixture.root)?.load()
+            print("V9_03.markerTamper.firstOpen failed recoveryEntered=\(originalRecoveryEntered) phase=\(String(describing: observed?.phase)) checkpointPresent=\(observed?.sourceCheckpoint != nil) error=\(error)")
+#endif
+            throw error
+        }
         guard case .awaitingIndependentValidation = first else { return XCTFail("Expected published awaiting target") }
         let control = try XCTUnwrap(StoreAggregateMigrationControlV1(applicationSupportURL: fixture.root))
         let journal = try XCTUnwrap(control.load())
@@ -1622,6 +1632,8 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
             )
         )
 
+        let sourceAuthority = try sourceCloneFactory.makeRestoreGenerationAuthority()
+        let original = try sourceAuthority.snapshotInstalledGeneration(id: sourceCloneFixture.sourceID)
         XCTAssertThrowsError(
             try sourceCloneFactory.openOrBootstrapCurrent()
         ) { error in
@@ -1633,6 +1645,16 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         let clonedModelURL = sourceCloneFactory
             .restoreStagingGenerationURL(id: sourceCloneFixture.targetID)
             .appendingPathComponent("model.sqlite", isDirectory: false)
+        let unchanged = try sourceAuthority.snapshotInstalledGeneration(id: sourceCloneFixture.sourceID)
+        XCTAssertEqual(unchanged.files, original.files)
+        XCTAssertEqual(unchanged.frozenIdentityDigest, original.frozenIdentityDigest)
+        // The semantic read must not touch even the cloned SHM before the
+        // sourceCloned byte certificate is rechecked on recovery.
+        for file in original.files {
+            XCTAssertEqual(try Data(contentsOf: clonedModelURL.deletingLastPathComponent().appendingPathComponent(file.relativePath)),
+                try Data(contentsOf: sourceCloneFactory.installedGenerationURL(id: sourceCloneFixture.sourceID).appendingPathComponent(file.relativePath)),
+                "Source clone changed during semantic inspection: \(file.relativePath)")
+        }
         try Data(repeating: 0xA5, count: 32).write(
             to: clonedModelURL,
             options: .atomic
@@ -1715,12 +1737,17 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
             )
         )
 
+        let authority = try factory.makeRestoreGenerationAuthority()
+        let original = try authority.snapshotInstalledGeneration(id: fixture.sourceID)
         XCTAssertThrowsError(try factory.openOrBootstrapCurrent()) { error in
             XCTAssertEqual(
                 error as? StoreMigrationFailure,
                 .injectedFault(.afterV2Validation)
             )
         }
+        let afterSemanticRead = try authority.snapshotInstalledGeneration(id: fixture.sourceID)
+        XCTAssertEqual(afterSemanticRead.files, original.files)
+        XCTAssertEqual(afterSemanticRead.frozenIdentityDigest, original.frozenIdentityDigest)
         let journal = try XCTUnwrap(try loadJournal(in: fixture.root))
         XCTAssertEqual(journal.phase, .v2Validated)
         let targetModelURL = factory
@@ -1736,6 +1763,10 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
                 .maintenanceRequired(.targetMismatch)
             )
         }
+        let afterDenial = try authority.snapshotInstalledGeneration(id: fixture.sourceID)
+        XCTAssertEqual(afterDenial.files, original.files)
+        XCTAssertEqual(afterDenial.frozenIdentityDigest, original.frozenIdentityDigest)
+        XCTAssertEqual(try Data(contentsOf: targetModelURL), mutated)
         XCTAssertEqual(try pointerSchema(in: fixture.root), 1)
         let retained = try XCTUnwrap(try loadJournal(in: fixture.root))
         XCTAssertEqual(retained.phase, .v2Validated)
@@ -1779,6 +1810,42 @@ final class V9_03MigrationRecoveryTests: XCTestCase {
         let retained = try XCTUnwrap(try loadJournal(in: fixture.root))
         XCTAssertEqual(retained.phase, .prepared)
         XCTAssertFalse(retained.targetWritePossible)
+
+        // A failed read cannot bypass the final full-byte proof. The DEBUG
+        // seam invokes the actual scoped reader and exposes only its copy URL.
+        let copyFixture = try makeLegacyFixture(suffix: "SemanticCopyExit")
+        defer { try? fileManager.removeItem(at: copyFixture.root) }
+        let copyFactory = StoreGenerationFactory(applicationSupportURL: copyFixture.root)
+        let copyAuthority = try copyFactory.makeRestoreGenerationAuthority()
+        let original = try copyAuthority.snapshotInstalledGeneration(id: copyFixture.sourceID)
+        let sourceRoot = copyFactory.installedGenerationURL(id: copyFixture.sourceID)
+        enum SemanticCopyWitness: Error { case readFailed }
+        var cleanCopyURL: URL?
+        XCTAssertThrowsError(try copyFactory.inspectLegacySemanticCopyForTesting(at: sourceRoot) { url in
+            cleanCopyURL = url
+            throw SemanticCopyWitness.readFailed
+        }) { XCTAssertTrue($0 is SemanticCopyWitness) }
+        XCTAssertFalse(fileManager.fileExists(atPath: try XCTUnwrap(cleanCopyURL).path))
+        var changedCopyURL: URL?
+        XCTAssertThrowsError(try copyFactory.inspectLegacySemanticCopyForTesting(at: sourceRoot) { url in
+            changedCopyURL = url
+            XCTAssertNotEqual(url.deletingLastPathComponent(), sourceRoot)
+            let before = try fileManager.attributesOfItem(atPath: url.path)
+            let handle = try FileHandle(forWritingTo: url)
+            try handle.seek(toOffset: 0)
+            try handle.write(contentsOf: Data([0xA5]))
+            try handle.synchronize()
+            try handle.close()
+            let after = try fileManager.attributesOfItem(atPath: url.path)
+            XCTAssertEqual(before[.systemFileNumber] as? NSNumber, after[.systemFileNumber] as? NSNumber)
+            XCTAssertEqual(before[.size] as? NSNumber, after[.size] as? NSNumber)
+            throw SemanticCopyWitness.readFailed
+        }) { XCTAssertEqual($0 as? StoreMigrationFailure, .maintenanceRequired(.sourceMismatch)) }
+        XCTAssertFalse(fileManager.fileExists(atPath: try XCTUnwrap(changedCopyURL).path))
+        let unchanged = try copyAuthority.snapshotInstalledGeneration(id: copyFixture.sourceID)
+        XCTAssertEqual(unchanged.files, original.files)
+        XCTAssertEqual(unchanged.frozenIdentityDigest, original.frozenIdentityDigest)
+
     }
 #endif
 

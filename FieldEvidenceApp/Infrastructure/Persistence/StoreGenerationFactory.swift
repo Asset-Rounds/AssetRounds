@@ -365,14 +365,15 @@ private extension StoreGenerationFactory {
                 let sourceSemantic = try adjacentDiagnosticSemanticExport(
                     at: restoreStagingGenerationURL(id: journal.targetGenerationID),
                     release: journal.sourceRelease, phase: "prepared.semantic-open",
-                    expectedFiles: sourceManifest.files, expectedTreeDigest: journal.sourceTreeDigest)
+                    expectedFiles: sourceManifest.files, expectedTreeDigest: journal.sourceTreeDigest,
+                    operationID: journal.migrationID)
 #else
-                let sourceSemantic = try semanticExport(
+                let sourceSemantic = try privateSemanticExport(
                     at: restoreStagingGenerationURL(
                         id: journal.targetGenerationID
                     ).appendingPathComponent(Self.modelStoreName),
                     release: journal.sourceRelease,
-                    markerMigrationID: nil
+                    markerMigrationID: nil, operationID: journal.migrationID
                 )
 #endif
                 if journal.sourceRelease != .v1,
@@ -438,12 +439,12 @@ private extension StoreGenerationFactory {
 #if DEBUG
                 let recoveredSourceSemantic = try adjacentDiagnosticSemanticExport(
                     at: targetRoot, release: journal.sourceRelease, phase: "sourceCloned.semantic-open",
-                    expectedFiles: nil, expectedTreeDigest: journal.sourceTreeDigest)
+                    expectedFiles: nil, expectedTreeDigest: journal.sourceTreeDigest, operationID: journal.migrationID)
 #else
-                let recoveredSourceSemantic = try semanticExport(
+                let recoveredSourceSemantic = try privateSemanticExport(
                     at: targetRoot.appendingPathComponent(Self.modelStoreName),
                     release: journal.sourceRelease,
-                    markerMigrationID: nil
+                    markerMigrationID: nil, operationID: journal.migrationID
                 )
 #endif
                 guard StoreMigrationCanonicalJSONV1.sha256(
@@ -2173,32 +2174,332 @@ private extension StoreGenerationFactory {
     @MainActor
     private func adjacentDiagnosticSemanticExport(
         at root: URL, release: PersistentSchemaReleaseV1, phase: String,
-        expectedFiles: [StoreGenerationFileDigestV1]?, expectedTreeDigest: String
+        expectedFiles: [StoreGenerationFileDigestV1]?, expectedTreeDigest: String, operationID: UUID
     ) throws -> Data {
         let before = adjacentDiagnosticFiles(at: root, phase: phase + ".before",
             expectedFiles: expectedFiles, expectedTreeDigest: expectedTreeDigest)
-        weak var retainedContainer: ModelContainer?
-        weak var retainedContext: ModelContext?
         defer {
-            print("StoreMigration.adjacent.drain phase=\(phase) containerReleased=\(retainedContainer == nil) contextReleased=\(retainedContext == nil)")
             _ = adjacentDiagnosticFiles(at: root, phase: phase + ".after",
                 expectedFiles: before, expectedTreeDigest: expectedTreeDigest)
         }
         do {
-            return try autoreleasepool {
-                let container = try openReleasedContainer(at: root.appendingPathComponent(Self.modelStoreName),
-                    release: release, markerMigrationID: nil)
-                retainedContainer = container; retainedContext = container.mainContext
-                let result = try semanticProjection(in: container.mainContext, release: release)
-                print("StoreMigration.adjacent.read phase=\(phase) contextHasChanges=\(container.mainContext.hasChanges)")
-                return result
-            }
+            return try privateSemanticExport(at: root.appendingPathComponent(Self.modelStoreName),
+                release: release, markerMigrationID: nil, operationID: operationID)
         } catch {
             print("StoreMigration.adjacent.read phase=\(phase) failed type=\(String(reflecting: type(of: error)))")
             throw error
         }
     }
 #endif
+
+    /// Exact released schema selection never opens the original SQLite store.
+    @MainActor
+    private func openReadOnlyReleasedContainer(at url: URL, release: PersistentSchemaReleaseV1,
+        markerMigrationID: UUID?, observe: (ModelContainer) -> Void) throws -> ModelContainer {
+        let type: any VersionedSchema.Type
+        switch release {
+        case .v1: type = PersistentSchemaV1.self
+        case .v2: type = PersistentSchemaV2.self
+        case .v3: type = PersistentSchemaV3.self
+        case .v4: type = PersistentSchemaV4.self
+        case .v5: type = PersistentSchemaV5.self
+        case .v6: type = PersistentSchemaV6.self
+        case .v7: type = PersistentSchemaV7.self
+        case .v8: type = PersistentSchemaV8.self
+        case .v9: type = PersistentSchemaV9.self
+        case .v10: type = PersistentSchemaV10.self
+        case .v11: type = PersistentSchemaV11.self
+        case .v12: type = PersistentSchemaV12.self
+        case .v13: type = PersistentSchemaV13.self
+        case .v14: type = PersistentSchemaV14.self
+        case .v15: type = PersistentSchemaV15.self
+        case .v16: type = PersistentSchemaV16.self
+        case .v17: type = PersistentSchemaV17.self
+        case .v18: type = PersistentSchemaV18.self
+        case .v19: type = PersistentSchemaV19.self
+        case .v20: type = PersistentSchemaV20.self
+        case .v21: type = PersistentSchemaV21.self
+        case .v22: type = PersistentSchemaV22.self
+        case .v23: type = PersistentSchemaV23.self
+        case .v24: type = PersistentSchemaV24.self
+        case .v25: type = PersistentSchemaV25.self
+        case .v26: type = PersistentSchemaV26.self
+        case .v27: type = PersistentSchemaV27.self
+        case .v28: type = PersistentSchemaV28.self
+        case .v29: type = PersistentSchemaV29.self
+        case .v30: type = PersistentSchemaV30.self
+        case .v31: type = PersistentSchemaV31.self
+        case .v32: type = PersistentSchemaV32.self
+        case .v33: type = PersistentSchemaV33.self
+        case .v34: type = PersistentSchemaV34.self
+        case .v35: type = PersistentSchemaV35.self
+        case .v36: type = PersistentSchemaV36.self
+        case .v37: type = PersistentSchemaV37.self
+        case .v38: type = PersistentSchemaV38.self
+        case .v39: type = PersistentSchemaV39.self
+        case .v40: type = PersistentSchemaV40.self
+        case .v41: type = PersistentSchemaV41.self
+        case .v42: type = PersistentSchemaV42.self
+        case .v43: type = PersistentSchemaV43.self
+        case .v44: type = PersistentSchemaV44.self
+        case .v45: type = PersistentSchemaV45.self
+        case .v46: type = PersistentSchemaV46.self
+        case .v47: type = PersistentSchemaV47.self
+        case .v48: type = PersistentSchemaV48.self
+        case .v49: type = PersistentSchemaV49.self
+        case .v50: type = PersistentSchemaV50.self
+        case .v51: type = PersistentSchemaV51.self
+        case .v52: type = PersistentSchemaV52.self
+        case .v53: type = PersistentSchemaV53.self
+        }
+        let schema = Schema(type.models, version: type.versionIdentifier)
+        let configuration = ModelConfiguration("FieldEvidenceSemanticRead", schema: schema,
+            url: url, allowsSave: false, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [configuration])
+        observe(container)
+        container.mainContext.autosaveEnabled = false
+        switch release {
+        case .v1:
+            guard markerMigrationID == nil else { throw StoreMigrationFailure.invalidContract }
+        case .v2: _ = try requireV2Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v3: _ = try requireV3Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v4: _ = try requireV4Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v5: _ = try requireV5Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v6: _ = try requireV6Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v7: _ = try requireV7Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v8: _ = try requireV8Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v9: _ = try requireV9Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v10: _ = try requireV10Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v11: _ = try requireV11Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v12: _ = try requireV12Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v13: _ = try requireV13Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v14: _ = try requireV14Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v15: _ = try requireV15Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v16: _ = try requireV16Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v17: _ = try requireV17Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v18: _ = try requireV18Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v19: _ = try requireV19Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v20: _ = try requireV20Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v21: _ = try requireV21Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v22: _ = try requireV22Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v23: _ = try requireV23Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v24: _ = try requireV24Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v25: _ = try requireV25Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v26: _ = try requireV26Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v27: _ = try requireV27Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v28: _ = try requireV28Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v29: _ = try requireV29Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v30: _ = try requireV30Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v31: _ = try requireV31Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v32: _ = try requireV32Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v33: _ = try requireV33Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v34: _ = try requireV34Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v35: _ = try requireV35Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v36: _ = try requireV36Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v37: _ = try requireV37Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v38: _ = try requireV38Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v39: _ = try requireV39Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v40: _ = try requireV40Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v41: _ = try requireV41Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v42: _ = try requireV42Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v43: _ = try requireV43Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v44: _ = try requireV44Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v45: _ = try requireV45Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v46: _ = try requireV46Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v47: _ = try requireV47Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v48: _ = try requireV48Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v49: _ = try requireV49Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v50: _ = try requireV50Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v51: _ = try requireV51Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v52: _ = try requireV52Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        case .v53: _ = try requireV53Marker(in: container.mainContext, expectedMigrationID: markerMigrationID)
+        }
+        return container
+    }
+
+    @MainActor
+    private final class SemanticReadProof {
+        let modelURL: URL
+        private let check: @MainActor () throws -> Void
+        private var active = true
+        init(modelURL: URL, check: @escaping @MainActor () throws -> Void) { self.modelURL = modelURL; self.check = check }
+        func verify() throws {
+            guard active else { throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch) }
+            try check()
+        }
+        func revoke() { active = false }
+    }
+
+    /// Caller holds G before the scratch store's synchronous lock. Full input
+    /// bytes and identities remain frozen; SQLite opens only the leased copy.
+    @MainActor
+    private func withPrivateSemanticRead<Value>(at root: URL, release: PersistentSchemaReleaseV1,
+        markerMigrationID: UUID?, operationID: UUID,
+        expectedFiles: [StoreGenerationFileDigestV1]? = nil,
+        _ read: (ModelContainer, SemanticReadProof) throws -> Value) throws -> Value {
+        let descriptor = try openOwnedDirectory(at: root)
+        defer { Darwin.close(descriptor) }
+        try verifyOwnedDirectory(at: root, descriptor: descriptor)
+        let inventory = try StoreRestoreGenerationAuthority.GenerationInventory(parent: descriptor, requireModel: true)
+        try inventory.requireSettledMigrationInput()
+        let originalFiles = try inventory.fileDigests(durable: false)
+        if let expectedFiles, originalFiles != expectedFiles {
+            throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+        }
+        let sqliteNames: Set<String> = ["model.sqlite", "model.sqlite-wal", "model.sqlite-shm"]
+        let sqlite = originalFiles.filter { sqliteNames.contains($0.relativePath) }
+        guard sqlite.contains(where: { $0.relativePath == "model.sqlite" }) else {
+            throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+        }
+        var requested: UInt64 = 0
+        for file in sqlite {
+            let (total, overflow) = requested.addingReportingOverflow(UInt64(file.byteCount))
+            guard !overflow else { throw ScratchDataLeaseStoreFailureV1.sizeLimitExceeded }
+            requested = total
+        }
+        // A missing wal-index may be created by a read-only SQLite connection.
+        // Reserve bounded auxiliary space without omitting any original bytes.
+        if !sqlite.contains(where: { $0.relativePath == "model.sqlite-shm" }) {
+            let wal = UInt64(sqlite.first(where: { $0.relativePath == "model.sqlite-wal" })?.byteCount ?? 0)
+            let (total, overflow) = requested.addingReportingOverflow(max(32_768, wal))
+            guard !overflow else { throw ScratchDataLeaseStoreFailureV1.sizeLimitExceeded }
+            requested = total
+        }
+        guard requested > 0, requested <= ScratchDataPurposeV1.source.maximumByteCount else {
+#if DEBUG
+            print("StoreMigration.semanticRead.failure phase=source-scratch-bound")
+#endif
+            throw ScratchDataLeaseStoreFailureV1.sizeLimitExceeded
+        }
+        func reproveOriginal() throws {
+            try self.verifyOwnedDirectory(at: root, descriptor: descriptor)
+            try inventory.revalidate()
+            guard try inventory.fileDigests(durable: false) == originalFiles else {
+                throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+            }
+            try inventory.revalidate()
+            try self.verifyOwnedDirectory(at: root, descriptor: descriptor)
+        }
+        let now = Date()
+        let request = try ScratchDataLeaseRequestV1(leaseID: UUID(), purpose: .source, owner: .source,
+            ownerOperationID: operationID, requestedByteCount: requested, createdAt: now,
+            expiresAt: now.addingTimeInterval(ScratchDataPurposeV1.source.maximumLifetimeSeconds))
+        let scratch = try ScratchDataLeaseStoreV1(applicationSupportURL: applicationSupportURL, clock: Date.init)
+        weak var retainedContainer: ModelContainer?
+        weak var retainedContext: ModelContext?
+        return try scratch.withSourceReadScratch(request: request, readerIsDrained: {
+            retainedContainer == nil && retainedContext == nil
+        }) { copy in
+            let outcome = Result { () throws -> Value in
+                for file in sqlite {
+                    try inventory.withFile(file.relativePath) { source, _ in
+                        try copy.copySQLiteFile(named: file.relativePath, byteCount: UInt64(file.byteCount)) { target in
+                            guard Darwin.lseek(source, 0, SEEK_SET) == 0 else {
+                                throw StoreMigrationFailure.maintenanceRequired(.sourceUnavailable)
+                            }
+                            var count = 0
+                            var hash = SHA256()
+                            var buffer = [UInt8](repeating: 0, count: 65_536)
+                            while true {
+                                let amount = buffer.withUnsafeMutableBytes { Darwin.read(source, $0.baseAddress, $0.count) }
+                                if amount == 0 { break }
+                                if amount < 0, errno == EINTR { continue }
+                                guard amount > 0 else { throw StoreMigrationFailure.maintenanceRequired(.sourceUnavailable) }
+                                let (next, overflow) = count.addingReportingOverflow(amount)
+                                guard !overflow, next <= file.byteCount else {
+                                    throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+                                }
+                                count = next
+                                let data = Data(buffer.prefix(amount)); hash.update(data: data)
+                                try data.withUnsafeBytes { bytes in
+                                    var offset = 0
+                                    while offset < bytes.count {
+                                        let written = Darwin.write(target, bytes.baseAddress!.advanced(by: offset), bytes.count - offset)
+                                        if written > 0 { offset += written }
+                                        else if written < 0, errno == EINTR { continue }
+                                        else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+                                    }
+                                }
+                            }
+                            guard count == file.byteCount,
+                                  hash.finalize().map({ String(format: "%02x", $0) }).joined() == file.sha256 else {
+                                throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+                            }
+                        }
+                    }
+                }
+                try reproveOriginal()
+                var immutableInputs: [String: ScratchDataLeaseStoreV1.SourceReadDirectory.FileProof] = [:]
+                for file in sqlite {
+                    let proof = try copy.sqliteFileProof(named: file.relativePath)
+                    guard proof.byteCount == UInt64(file.byteCount), proof.sha256 == file.sha256 else {
+                        throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+                    }
+                    if file.relativePath != "model.sqlite-shm" { immutableInputs[file.relativePath] = proof }
+                }
+                @MainActor func reproveIdentity() throws {
+                    try self.verifyOwnedDirectory(at: root, descriptor: descriptor)
+                    try inventory.revalidate()
+                    guard try copy.sqliteFileNames().subtracting(["model.sqlite-shm"]) == Set(immutableInputs.keys) else {
+                        throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+                    }
+                    for (name, proof) in immutableInputs { try copy.verifySQLiteFile(named: name, matches: proof) }
+                }
+                @MainActor func reprove() throws {
+                    try reproveOriginal()
+                    // A newly introduced WAL is not historical source input.
+                    // Only the private read's wal-index may appear or change.
+                    guard try copy.sqliteFileNames().subtracting(["model.sqlite-shm"]) == Set(immutableInputs.keys) else {
+                        throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+                    }
+                    for (name, proof) in immutableInputs {
+                        guard try copy.sqliteFileProof(named: name) == proof else {
+                            throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+                        }
+                    }
+                }
+                // Per-record capability checks reprove identities. Full byte
+                // proofs bracket this entire fixed, synchronous read below.
+                let proof = SemanticReadProof(modelURL: copy.modelURL, check: reproveIdentity)
+                defer { proof.revoke() }
+                let result = Result { try autoreleasepool {
+                    let container = try self.openReadOnlyReleasedContainer(at: copy.modelURL,
+                        release: release, markerMigrationID: markerMigrationID) { opened in
+                            retainedContainer = opened; retainedContext = opened.mainContext
+                        }
+                    let value = try read(container, proof)
+                    guard !container.mainContext.hasChanges else {
+                        throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+                    }
+                    return value
+                } }
+#if DEBUG
+                print("StoreMigration.semanticRead.drain containerReleased=\(retainedContainer == nil) contextReleased=\(retainedContext == nil)")
+#endif
+                try reprove()
+                return try result.get()
+            }
+            // Even a failed marker/read/copy cannot skip original-tree reproof.
+            try reproveOriginal()
+            return try outcome.get()
+        }
+    }
+
+    @MainActor
+    private func privateSemanticExport(at modelStoreURL: URL, release: PersistentSchemaReleaseV1,
+        markerMigrationID: UUID?, operationID: UUID) throws -> Data {
+        let registry = try makeGenerationLeaseRegistry()
+        return try registry.withNoMigrationReservation {
+            try withPrivateSemanticRead(at: modelStoreURL.deletingLastPathComponent(), release: release,
+                markerMigrationID: markerMigrationID, operationID: operationID) { container, reprove in
+                try reprove.verify()
+                let value = try semanticProjection(in: container.mainContext, release: release)
+                try reprove.verify()
+                return value
+            }
+        }
+    }
+
 
     @MainActor
     private func semanticExport(
@@ -5972,6 +6273,11 @@ private final class StoreMigrationSourceDrainProofV1 {
         self.registry = registry; context = readOnlyContainer.mainContext; container = readOnlyContainer
     }
     var isDrained: Bool { context == nil && container == nil && mutationGuard == nil }
+#if DEBUG
+    var diagnosticFacts: String {
+        "contextReleased=\(context == nil) containerReleased=\(container == nil) mutationGuardReleased=\(mutationGuard == nil)"
+    }
+#endif
 }
 
 @MainActor
@@ -13368,6 +13674,9 @@ struct StoreGenerationFactory {
         try registry.withMigrationReservation(expected: journal) { try control.reconcile() }
         guard !Self.runningAggregateRecoveries.contains(journal.upgradeID),
               Self.aggregateSourceDrains[journal.upgradeID] == nil else {
+#if DEBUG
+            print("StoreMigration.aggregate.sourceUnavailable guard=pending-source-owner phase=\(journal.phase) runningRecovery=\(Self.runningAggregateRecoveries.contains(journal.upgradeID)) drainProofPresent=\(Self.aggregateSourceDrains[journal.upgradeID] != nil) " + (Self.aggregateSourceDrains[journal.upgradeID]?.diagnosticFacts ?? ""))
+#endif
             throw StoreMigrationFailure.maintenanceRequired(.sourceUnavailable)
         }
         Self.runningAggregateRecoveries.insert(journal.upgradeID)
@@ -13379,6 +13688,9 @@ struct StoreGenerationFactory {
             await Task.yield()
             try await validateContinuation()
             guard let proof = Self.aggregateSourceDrains[journal.upgradeID], proof.isDrained else {
+#if DEBUG
+                print("StoreMigration.aggregate.sourceUnavailable guard=original-recovery-drain phase=\(journal.phase) drainProofPresent=\(Self.aggregateSourceDrains[journal.upgradeID] != nil) " + (Self.aggregateSourceDrains[journal.upgradeID]?.diagnosticFacts ?? ""))
+#endif
                 throw StoreMigrationFailure.maintenanceRequired(.sourceUnavailable)
             }
             Self.aggregateSourceDrains.removeValue(forKey: journal.upgradeID)
@@ -13407,6 +13719,9 @@ struct StoreGenerationFactory {
                   try !authority.retiredGenerationIDs().contains(sourceID) else { throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch) }
             _ = try registry.reconcileAbandonedOwners()
             guard try !registry.activeEpochs().contains(where: { $0.generationID == sourceID }) else {
+#if DEBUG
+                print("StoreMigration.aggregate.sourceUnavailable guard=active-source-epoch phase=preparing")
+#endif
                 throw StoreMigrationFailure.maintenanceRequired(.sourceUnavailable)
             }
             let release: PersistentSchemaReleaseV1
@@ -13559,22 +13874,16 @@ struct StoreGenerationFactory {
     private func captureAggregateSourceEvidence(_ journal: StoreAggregateMigrationJournalV1) throws
         -> (checkpoint: StoreMigrationSourceCheckpointV1, validated: StoreMigrationValidatedTerminalImagesV1) {
         let root = installedGenerationURL(id: journal.sourceGenerationID)
-        let modelURL = root.appendingPathComponent(Self.modelStoreName)
         let registry = try makeGenerationLeaseRegistry()
         guard let control = try StoreAggregateMigrationControlV1(applicationSupportURL: applicationSupportURL) else {
             throw StoreMigrationFailure.invalidIdentity
         }
-        let evidence = try autoreleasepool { () throws -> (String, StoreMigrationValidatedTerminalImagesV1) in
-            // Reuse the source-defined released opener to obtain its exact
-            // schema; the capability itself is a separate no-save container.
-            let schema = try autoreleasepool {
-                try openReleasedContainer(at: modelURL, release: journal.sourceRelease,
-                    markerMigrationID: journal.sourceRelease == .v1 ? nil : journal.migrationID).schema
-            }
-            let configuration = ModelConfiguration("FieldEvidenceHistoricalCheckpoint", schema: schema,
-                url: modelURL, allowsSave: false, cloudKitDatabase: .none)
-            let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [configuration])
-            container.mainContext.autosaveEnabled = false
+        let authority = try makeRestoreGenerationAuthority()
+        let beforeSnapshot = try authority.snapshotInstalledGeneration(id: journal.sourceGenerationID)
+        let beforeTree = try authority.installedTree(id: journal.sourceGenerationID)
+        let evidence = try withPrivateSemanticRead(at: root, release: journal.sourceRelease,
+            markerMigrationID: journal.sourceRelease == .v1 ? nil : journal.migrationID,
+            operationID: journal.upgradeID, expectedFiles: beforeSnapshot.files) { container, reproveCopy in
             let proof = StoreMigrationSourceDrainProofV1(readOnlyContainer: container, registry: registry)
             Self.aggregateSourceDrains[journal.upgradeID] = proof
             let capability = StoreMigrationHistoricalCheckpointAuthorityV1(container: container,
@@ -13582,10 +13891,11 @@ struct StoreGenerationFactory {
                 bindingProof: {
                     let configurations = Array(container.configurations)
                     guard configurations.count == 1,
-                          configurations[0].url.standardizedFileURL == modelURL.standardizedFileURL,
+                          configurations[0].url.standardizedFileURL == reproveCopy.modelURL.standardizedFileURL,
                           !container.mainContext.autosaveEnabled, !container.mainContext.hasChanges else {
                         throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
                     }
+                    try reproveCopy.verify()
                     try control.withOriginalSource(journal) {}
                 },
                 legacyV10BaselineProof: {
@@ -13607,12 +13917,17 @@ struct StoreGenerationFactory {
                 release: journal.sourceRelease), validated)
         }
         guard let readProof = Self.aggregateSourceDrains[journal.upgradeID], readProof.isDrained else {
+#if DEBUG
+            print("StoreMigration.aggregate.sourceUnavailable guard=historical-read-drain phase=\(journal.phase) drainProofPresent=\(Self.aggregateSourceDrains[journal.upgradeID] != nil) " + (Self.aggregateSourceDrains[journal.upgradeID]?.diagnosticFacts ?? ""))
+#endif
             throw StoreMigrationFailure.maintenanceRequired(.sourceUnavailable)
         }
         Self.aggregateSourceDrains.removeValue(forKey: journal.upgradeID)
-        let authority = try makeRestoreGenerationAuthority()
         let snapshot = try authority.snapshotInstalledGeneration(id: journal.sourceGenerationID)
         let tree = try authority.installedTree(id: journal.sourceGenerationID)
+        guard snapshot.files == beforeSnapshot.files,
+              snapshot.frozenIdentityDigest == beforeSnapshot.frozenIdentityDigest,
+              tree == beforeTree else { throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch) }
         let checkpoint = StoreMigrationSourceCheckpointV1(files: snapshot.files, directories: tree.directories.sorted(),
             frozenIdentityDigest: snapshot.frozenIdentityDigest, semanticSHA256: evidence.0)
         try checkpoint.validate()
@@ -13944,11 +14259,13 @@ struct StoreGenerationFactory {
               manifest.semanticSHA256 == journal.currentCandidateSemanticSHA256 else {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
-        let semantic: String = try autoreleasepool {
-            let container = try openReleasedContainer(
-                at: installedGenerationURL(id: journal.targetGenerationID).appendingPathComponent(Self.modelStoreName),
-                release: journal.targetRelease, markerMigrationID: journal.migrationID)
-            return try semanticDigest(in: container.mainContext, manifest: manifest)
+        let semantic: String = try withPrivateSemanticRead(
+            at: installedGenerationURL(id: journal.targetGenerationID), release: journal.targetRelease,
+            markerMigrationID: journal.migrationID, operationID: journal.upgradeID) { container, reprove in
+            try reprove.verify()
+            let value = try semanticDigest(in: container.mainContext, manifest: manifest)
+            try reprove.verify()
+            return value
         }
         guard semantic == journal.currentCandidateSemanticSHA256 else {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
@@ -15211,6 +15528,23 @@ private struct StoreSemanticExportPurposeV1 {
 
 #if DEBUG
 extension StoreGenerationFactory {
+    /// Runs the production copy/drain/exit-proof scope; tests may perturb only
+    /// their own temporary source or leased copy. No Release hook is exposed.
+    @MainActor
+    func inspectLegacySemanticCopyForTesting(at sourceRoot: URL,
+        afterRead: (URL) throws -> Void) throws {
+        let registry = try makeGenerationLeaseRegistry()
+        try registry.withNoMigrationReservation {
+            try withPrivateSemanticRead(at: sourceRoot, release: .v1,
+                markerMigrationID: nil, operationID: UUID()) { container, proof in
+                try proof.verify()
+                _ = try semanticProjection(in: container.mainContext, release: .v1)
+                try proof.verify()
+                try afterRead(proof.modelURL)
+            }
+        }
+    }
+
     /// Observes the actual validation traversal without publishing its temporary bytes.
     @MainActor
     internal func validateSemanticRowsForTesting(
