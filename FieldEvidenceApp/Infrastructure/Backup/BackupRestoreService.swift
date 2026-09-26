@@ -1380,6 +1380,7 @@ final class BackupRestoreService {
 #if DEBUG
     var configurationCloneObservationForTesting:
         (@MainActor (ConfigurationCloneRestoreObservationPointV1) async throws -> Void)?
+    var configurationCloneDestinationRecordsSHA256ForTesting: ((String) -> Void)?
     var configurationCloneRetirementObservationForTesting: ((String) throws -> Void)?
     var configurationCloneRetirementBeforeClaimForTesting: ((URL, Bool) throws -> Void)?
     var photoRawPointerObservationForTesting: ((Bool) throws -> Void)?
@@ -3955,6 +3956,8 @@ private extension BackupRestoreService {
             savedSmartViews: records.savedSmartViews,
             sites: records.sites,
             workflowRecords: records.workflowRecords,
+            evidenceContexts: records.evidenceContexts,
+            pairedObservationLinks: records.pairedObservationLinks,
             lighting: records.lighting,
             lightingDayInventoryWorkflows: records.lightingDayInventoryWorkflows,
             lightingNightWorkflows: records.lightingNightWorkflows,
@@ -5007,6 +5010,8 @@ private extension BackupRestoreService {
             reports: records.reports, requirementAssurance: assurance,
             savedSmartViews: records.savedSmartViews, sites: records.sites,
             workflowRecords: records.workflowRecords,
+            evidenceContexts: records.evidenceContexts,
+            pairedObservationLinks: records.pairedObservationLinks,
             lighting: records.lighting,
             lightingDayInventoryWorkflows: records.lightingDayInventoryWorkflows,
             lightingNightWorkflows: records.lightingNightWorkflows,
@@ -5306,6 +5311,8 @@ private extension BackupRestoreService {
             workspaceID: workspaceID,
             assetLocators: assetLocators
         )
+        let contextRecords = try rebindingEvidenceContexts(records, workspaceID: workspaceID,
+            identity: identity)
         let operationalContacts = try rebindingOperationalContacts(
             records.operationalContacts,
             destinationPartyAccountability: partyAccountability,
@@ -5346,6 +5353,8 @@ private extension BackupRestoreService {
                 savedSmartViews: savedSmartViews,
                 sites: records.sites,
                 workflowRecords: records.workflowRecords,
+                evidenceContexts: contextRecords.filter { $0.kind == .evidenceContext },
+                pairedObservationLinks: contextRecords.filter { $0.kind == .pairedObservationLink },
                 lighting: records.lighting,
                 lightingDayInventoryWorkflows: records.lightingDayInventoryWorkflows,
                 lightingNightWorkflows: records.lightingNightWorkflows,
@@ -5452,6 +5461,8 @@ private extension BackupRestoreService {
             savedSmartViews: savedSmartViews,
             sites: records.sites,
             workflowRecords: records.workflowRecords,
+            evidenceContexts: contextRecords.filter { $0.kind == .evidenceContext },
+            pairedObservationLinks: contextRecords.filter { $0.kind == .pairedObservationLink },
             lighting: records.lighting,
             lightingDayInventoryWorkflows: records.lightingDayInventoryWorkflows,
             lightingNightWorkflows: records.lightingNightWorkflows,
@@ -9639,6 +9650,62 @@ private extension BackupRestoreService {
         return reboundRecords
     }
 
+    /// Reconstruct immutable C30 history before destination hashes are frozen.
+    /// This creates no new acceptance and no active-context state.
+    func rebindingEvidenceContexts(_ records: V4BackupRecordsV1,
+        workspaceID: WorkspaceID, identity: RestoreIdentityV1) throws -> [V30BackupEvidenceContextRecordV1] {
+        let mode = identity.mode
+        try records.validateC30EvidenceContextClosure()
+        let sourceRecords = records.evidenceContexts + records.pairedObservationLinks
+        try C30EvidenceContextBackupRestorePolicyV1.validate(sourceRecords, mode: mode)
+        let source = try EvidenceContextBackupRecordSetV1.decode(sourceRecords)
+        guard !sourceRecords.isEmpty else { return [] }
+        guard let sourceWorkspaceID = identity.source.workspaceID,
+              sourceRecords.allSatisfy({ $0.workspaceID == sourceWorkspaceID }) else {
+            throw attributedRestorePackageFailureV1(line: #line)
+        }
+        if mode != .clone && mode != .fork && sourceWorkspaceID == workspaceID.rawValue {
+            return sourceRecords
+        }
+        func actor(_ value: ActorSnapshotV1) throws -> ActorSnapshotV1 {
+            let local = try LocalActorReferenceV1(actorReferenceID: value.actor.actorReferenceID,
+                workspaceID: workspaceID, partyID: value.actor.partyID, displayName: value.actor.displayName)
+            return try ActorSnapshotV1(snapshotID: value.snapshotID, workspaceID: workspaceID,
+                actor: local, responsibility: value.responsibility,
+                displayNameAtTime: value.displayNameAtTime, capturedAt: value.capturedAt)
+        }
+        var contexts: [String: EvidenceContextV1] = [:]
+        for value in source.contexts.sorted(by: { ($0.revision, $0.contextID.uuidString) < ($1.revision, $1.contextID.uuidString) }) {
+            let predecessor = value.predecessorContextSHA256.flatMap { contexts[$0] }
+            guard value.predecessorContextSHA256 == nil || predecessor != nil,
+                  contexts[value.contextSHA256] == nil else {
+                throw attributedRestorePackageFailureV1(line: #line)
+            }
+            let rebound = try value.rebound(to: workspaceID, predecessor: predecessor,
+                recordedBy: actor(value.recordedBy))
+            guard rebound.revision == value.revision else { throw attributedRestorePackageFailureV1(line: #line) }
+            contexts[value.contextSHA256] = rebound
+        }
+        var links: [String: PairedObservationLinkV1] = [:]
+        for value in source.pairedObservationLinks.sorted(by: { ($0.revision, $0.linkID.uuidString) < ($1.revision, $1.linkID.uuidString) }) {
+            let predecessor = value.predecessorLinkSHA256.flatMap { links[$0] }
+            guard value.predecessorLinkSHA256 == nil || predecessor != nil,
+                  links[value.linkSHA256] == nil else {
+                throw attributedRestorePackageFailureV1(line: #line)
+            }
+            let rebound = try value.rebound(to: workspaceID, predecessor: predecessor,
+                recordedBy: actor(value.recordedBy))
+            guard rebound.revision == value.revision else { throw attributedRestorePackageFailureV1(line: #line) }
+            links[value.linkSHA256] = rebound
+        }
+        let result = try C30EvidenceContextBackupEncoderV1.encode(.init(
+            contexts: Array(contexts.values), pairedObservationLinks: Array(links.values)))
+        _ = try EvidenceContextBackupRecordSetV1.decode(result)
+        // Endpoint identities, digests and revisions remain exactly those
+        // validated in the source; both endpoint workspaces were rebound.
+        return result
+    }
+
     /// Rebinds plan document/revision/placement history for a clone or fork.
     /// Rebase receipts are deliberately not synthesized: their preview digest
     /// is a proof over the source component registry and cannot be recreated
@@ -12001,6 +12068,9 @@ private extension BackupRestoreService {
         let manifestDigest = try await encoder.encodeManifestOffMain(package.manifest).sha256
         try await validateCurrent()
         try physical.staging.withVerificationLock {}
+#if DEBUG
+        configurationCloneDestinationRecordsSHA256ForTesting?(targetDigest)
+#endif
         return .init(physical: physical, retirementPlan: plan, currentRecordsSHA256: oldDigest,
             destinationRecordsSHA256: targetDigest, sourceManifestSHA256: manifestDigest)
     }
@@ -14001,6 +14071,11 @@ private extension BackupRestoreService {
                 throw attributedRestorePackageFailureV1(line: #line)
             }
         }
+        try records.validateC30EvidenceContextClosure()
+        let contextValues = try EvidenceContextBackupRecordSetV1.decode(
+            records.evidenceContexts + records.pairedObservationLinks)
+        for value in contextValues.contexts { context.insert(try EvidenceContextRow(value)) }
+        for value in contextValues.pairedObservationLinks { context.insert(try PairedObservationLinkRow(value)) }
         for value in records.workflowRecords {
             let observationAndTime = try observationAndTimeData(
                 for: value,
@@ -17381,6 +17456,8 @@ private extension BackupRestoreService {
             savedSmartViews: schemaVersion >= 6 ? records.savedSmartViews : [],
             sites: records.sites,
             workflowRecords: records.workflowRecords,
+            evidenceContexts: schemaVersion >= 29 ? records.evidenceContexts : [],
+            pairedObservationLinks: schemaVersion >= 29 ? records.pairedObservationLinks : [],
             lighting: schemaVersion >= 30 ? records.lighting : [],
             lightingDayInventoryWorkflows: schemaVersion >= 51
                 ? records.lightingDayInventoryWorkflows : [],
@@ -17440,6 +17517,8 @@ private extension BackupRestoreService {
             reports: actual.reports,
             sites: actual.sites,
             workflowRecords: actual.workflowRecords,
+            evidenceContexts: expected.recordsSchemaVersion >= 29 ? expected.evidenceContexts : [],
+            pairedObservationLinks: expected.recordsSchemaVersion >= 29 ? expected.pairedObservationLinks : [],
             lighting: expected.recordsSchemaVersion >= 30
                 ? expected.lighting : [],
             lightingDayInventoryWorkflows: expected.recordsSchemaVersion >= 51
@@ -17926,6 +18005,11 @@ private extension BackupRestoreService {
         includesObservationAndTime: Bool,
         format: ReadbackFormatV1?
     ) throws -> V4BackupRecordsV1 {
+        let contextValues = try EvidenceContextBackupRecordSetV1(
+            contexts: context.fetch(FetchDescriptor<EvidenceContextRow>()).map { try $0.value() },
+            pairedObservationLinks: context.fetch(FetchDescriptor<PairedObservationLinkRow>()).map { try $0.value() })
+        let contextRecords = try C30EvidenceContextBackupEncoderV1.encode(contextValues)
+        _ = try EvidenceContextBackupRecordSetV1.decode(contextRecords)
         let sites = try context.fetch(FetchDescriptor<Site>())
         let assets = try context.fetch(FetchDescriptor<Asset>())
         let workflow = try context.fetch(FetchDescriptor<WorkflowRecord>())
@@ -18500,7 +18584,7 @@ private extension BackupRestoreService {
             if case .applyServiceReliability = envelope.command { return true }
             return false
         } ?? false
-        return V4BackupRecordsV1(
+        let result = V4BackupRecordsV1(
             guidedSurveys:guidedSurveyRecords,
             assetLocators: assetLocatorRecords,
             schedules: scheduleRecords,
@@ -18811,6 +18895,8 @@ private extension BackupRestoreService {
                 }
                 return workflowDTO(record, observationAndTime: companion)
             }.sorted { canonical($0.id) < canonical($1.id) },
+            evidenceContexts: contextRecords.filter { $0.kind == .evidenceContext },
+            pairedObservationLinks: contextRecords.filter { $0.kind == .pairedObservationLink },
             lighting: lightingRecords,
             lightingDayInventoryWorkflows: lightingDayInventoryRecords,
             lightingNightWorkflows: lightingNightWorkflowRecords,
@@ -18846,6 +18932,8 @@ private extension BackupRestoreService {
             entityIdentityResolution: auxiliary.entityIdentityResolution,
             practiceWorkspaceProvenance: auxiliary.practiceWorkspaceProvenance
         )
+        try result.validateC30EvidenceContextClosure()
+        return result
     }
 
     private func planRecords(

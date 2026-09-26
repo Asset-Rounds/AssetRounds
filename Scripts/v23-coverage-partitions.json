@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "2c1d9d44ead8c44ecb194ef0fd37b93d1305c95a",
+  "generatedAtHead": "c66da7f50abfc8d440b75fdf548bbdb9e2d99782",
   "sweepOrder": [
     "S01",
     "S02",
@@ -1061,7 +1061,7 @@
     {
       "id": "S12",
       "tier": "D50C",
-      "estimatedSeconds": 1525.1,
+      "estimatedSeconds": 1765.1,
       "selectors": [
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorV903MigrationRecovery/testC33V903MigrationRecoveryCompatibilityBindsTypedTemporalEvidenceToItsOwner",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorV945EvidenceContext/testC33V945EvidenceContextCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -1074,6 +1074,10 @@
         "FieldEvidenceAppTests/S6_2BackupExportTests/testC24AccessibleDocumentTypedAnchor",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testC25SurveyDefinitionTypedAnchor",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testC26SurveySessionTypedAnchor",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testC30CanonicalContextsAndPairsCloneForkBindDestinationAndColdReadback",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testC30CanonicalContextsAndPairsExportAndRestoreSameWorkspace",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testC30ContextPairRestoreInterruptionColdRecoveryIsAtomic",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testC30ContextPairTransportRejectsBrokenClosureBeforeEffects",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testC55PartsStockCanonicalNumberBridgeRejectsFractionalNSNumberText",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testCanonicalFixturesAndExportedBundleTypeDeclaration",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testConfigurationCloneAcceptsEveryAuthenticPhotoPhaseAndOmitsOperationalFamily",

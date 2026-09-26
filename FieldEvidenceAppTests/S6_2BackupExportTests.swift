@@ -6376,3 +6376,378 @@ extension S6_2BackupExportTests {
         }
     }
 }
+
+@MainActor
+private extension S6_2BackupExportTests {
+    struct C30TransportFixture {
+        let harness: Harness
+        let archive: URL
+        let contexts: [EvidenceContextV1]
+        let pairs: [PairedObservationLinkV1]
+        let history: MutationHistorySnapshotV1
+    }
+
+    func c30Actor(_ source: ActorSnapshotV1, workspace: WorkspaceID) throws -> ActorSnapshotV1 {
+        let local = try LocalActorReferenceV1(actorReferenceID: source.actor.actorReferenceID,
+            workspaceID: workspace, partyID: source.actor.partyID, displayName: source.actor.displayName)
+        return try ActorSnapshotV1(snapshotID: source.snapshotID, workspaceID: workspace,
+            actor: local, responsibility: source.responsibility, displayNameAtTime: source.displayNameAtTime,
+            capturedAt: source.capturedAt)
+    }
+
+    func c30Successor(_ source: EvidenceContextV1) throws -> EvidenceContextV1 {
+        try EvidenceContextV1(contextID: UUID(), workspaceID: source.workspaceID,
+            evidenceID: source.evidenceID, evidenceSHA256: source.evidenceSHA256,
+            evidenceRevision: source.evidenceRevision, assetID: source.assetID, assetRevision: source.assetRevision,
+            temporalContext: source.temporalContext,
+            userObserved: .init(condition: .coveredDayCondition, observationNoteCode: "C30_EXPLICIT_SUCCESSOR"),
+            derivedSolar: source.derivedSolar, controlExpectation: source.controlExpectation,
+            predecessor: source, revision: source.revision + 1, mutationID: .init(rawValue: UUID()),
+            recordedBy: source.recordedBy, recordedAt: source.recordedAt.addingTimeInterval(1))
+    }
+
+    func makeC30TransportFixture(_ label: String) async throws -> C30TransportFixture {
+        let harness = try await makeMixedHarness("c30-\(label)", currentWriterSource: true)
+        let owner = try StoreSessionCoordinator(validatingSession: harness.session)
+        defer { XCTAssertNoThrow(try owner.invalidateAndReleaseWriter()) }
+        let writer = owner.workspaceWriter
+        let workspace = harness.session.workspaceID
+        let time = Date(timeIntervalSince1970: 1_800_000_000)
+        let local = try LocalActorReferenceV1(actorReferenceID: UUID(), workspaceID: workspace,
+            displayName: "C30 transport recorder")
+        let actor = try ActorSnapshotV1(snapshotID: UUID(), workspaceID: workspace, actor: local,
+            responsibility: .recordedBy, displayNameAtTime: local.displayName, capturedAt: time)
+        _ = try writer.execute(.applyPartyAccountability(.appendActorSnapshot(actor)),
+            mutationID: .init(rawValue: UUID()))
+        let asset = try XCTUnwrap(harness.context.fetch(FetchDescriptor<Asset>()).first)
+        let workflowIDs = Set(try harness.context.fetch(FetchDescriptor<WorkflowRecord>())
+            .filter { $0.assetID == asset.id }.map(\.id))
+        let evidence = try harness.context.fetch(FetchDescriptor<EvidenceFile>())
+            .filter { workflowIDs.contains($0.recordID) }.sorted { $0.id.uuidString < $1.id.uuidString }
+        XCTAssertGreaterThanOrEqual(evidence.count, 2)
+        let basis = try writer.currentRevision()
+        func revision(_ kind: WorkspaceEntityKindV1, _ id: UUID) throws -> UInt64 {
+            try XCTUnwrap(basis.entityRevisions.first { $0.identity.kind == kind && $0.identity.id == id }).revision
+        }
+        let temporal = try TemporalContextV1(occurredAtUTC: time, recordedAtUTC: time,
+            localDate: "2027-01-15", localTime: "08:00:00", utcOffsetSeconds: 0,
+            ianaTimeZoneIdentifier: "UTC", localTimeDisposition: .unambiguous)
+        let solar = try OfflineSolarCalculatorV1.calculate(.init(location: .init(
+            latitudeMicrodegrees: 40_000_000, longitudeMicrodegrees: -74_000_000,
+            locationBasisSHA256: String(repeating: "a", count: 64)), temporalContext: temporal))
+        var contexts: [EvidenceContextV1] = []
+        for file in evidence.prefix(2) {
+            XCTAssertEqual(try Data(contentsOf: harness.session.generationRootURL.appendingPathComponent(file.relativePath)).sha256, file.sha256)
+            XCTAssertEqual(try Data(contentsOf: harness.session.generationRootURL.appendingPathComponent(file.thumbnailRelativePath)).sha256, file.thumbnailSHA256)
+            let value = try EvidenceContextV1(contextID: UUID(), workspaceID: workspace,
+                evidenceID: file.id.uuidString.lowercased(), evidenceSHA256: file.sha256,
+                evidenceRevision: revision(.evidenceFile, file.id), assetID: asset.id,
+                assetRevision: revision(.asset, asset.id), temporalContext: temporal,
+                userObserved: .init(condition: .unknown, observationNoteCode: "C30_EXPLICIT_UNKNOWN"),
+                derivedSolar: solar, controlExpectation: nil, predecessor: nil, revision: 1,
+                mutationID: .init(rawValue: UUID()), recordedBy: actor, recordedAt: time)
+            let operation = EvidenceContextWriteOperationV1.appendContext(value: value, predecessor: nil)
+            let receipt = try writer.commitEvidenceContext(operation)
+            XCTAssertEqual(try writer.commitEvidenceContext(operation), receipt)
+            contexts.append(value)
+        }
+        let successor = try c30Successor(contexts[0])
+        _ = try writer.commitEvidenceContext(.appendContext(value: successor, predecessor: contexts[0]))
+        contexts.append(successor)
+        func reference(_ value: EvidenceContextV1) -> PairedObservationReferenceV1 {
+            .init(workspaceID: workspace, evidenceID: value.evidenceID,
+                evidenceSHA256: value.evidenceSHA256, evidenceRevision: value.evidenceRevision,
+                assetID: value.assetID, assetRevision: value.assetRevision, controlGroupID: "C30_GROUP",
+                purpose: .conditionComparison, purposeRevision: 1, planReferenceSHA256: nil,
+                viewpointReferenceSHA256: String(repeating: "b", count: 64), temporalBucketID: "C30_BUCKET",
+                surfaceWeatherBasisSHA256: String(repeating: "c", count: 64), measurementMethodID: "MANUAL")
+        }
+        var pairs: [PairedObservationLinkV1] = []
+        for index in 0..<2 {
+            let pair = try PairedObservationLinkV1(linkID: UUID(), workspaceID: workspace,
+                first: reference(contexts[0]), second: reference(contexts[1]), predecessor: pairs.last,
+                revision: UInt64(index + 1), mutationID: .init(rawValue: UUID()), recordedBy: actor,
+                recordedAt: time.addingTimeInterval(Double(index + 2)))
+            _ = try writer.commitEvidenceContext(.appendPair(value: pair, predecessor: pairs.last))
+            pairs.append(pair)
+        }
+        let history = try writer.sourceMutationHistorySnapshot()
+        XCTAssertEqual(try c30Receipts(history).count, 5)
+        try owner.invalidateAndReleaseWriter()
+        // Reopen through the actual writer, not an in-memory receipt harness.
+        let coldOwner = try StoreSessionCoordinator(validatingSession: harness.session)
+        let last = try XCTUnwrap(pairs.last)
+        _ = try coldOwner.workspaceWriter.commitEvidenceContext(.appendPair(value: last, predecessor: pairs[0]))
+        XCTAssertEqual(try coldOwner.workspaceWriter.sourceMutationHistorySnapshot(), history)
+        try coldOwner.invalidateAndReleaseWriter()
+        let archive = try await exportLivePackage(harness, directoryName: "c30-source-export")
+        let source = try BackupCanonicalDecoderV1().decodeRecords(canonicalBasis(harness).recordsData)
+        XCTAssertEqual(source.evidenceContexts.count, 3)
+        XCTAssertEqual(source.pairedObservationLinks.count, 2)
+        return C30TransportFixture(harness: harness, archive: archive, contexts: contexts, pairs: pairs, history: history)
+    }
+
+    func c30Receipts(_ history: MutationHistorySnapshotV1) throws -> [MutationHistoryReceiptRecordV1] {
+        try history.receipts.filter {
+            if case .applyEvidenceContext = try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData).command { return true }
+            return false
+        }.sorted { $0.receiptData.lexicographicallyPrecedes($1.receiptData) }
+    }
+
+    func c30Rows(_ fixture: C30TransportFixture, workspace: WorkspaceID) throws -> [V30BackupEvidenceContextRecordV1] {
+        // Independent expected values use domain contracts, never restore planning/readback.
+        if workspace == fixture.harness.session.workspaceID {
+            return try C30EvidenceContextBackupEncoderV1.encode(.init(contexts: fixture.contexts, pairedObservationLinks: fixture.pairs))
+        }
+        let first = try fixture.contexts[0].rebound(to: workspace, predecessor: nil,
+            recordedBy: c30Actor(fixture.contexts[0].recordedBy, workspace: workspace))
+        let second = try fixture.contexts[1].rebound(to: workspace, predecessor: nil,
+            recordedBy: c30Actor(fixture.contexts[1].recordedBy, workspace: workspace))
+        let successor = try fixture.contexts[2].rebound(to: workspace, predecessor: first,
+            recordedBy: c30Actor(fixture.contexts[2].recordedBy, workspace: workspace))
+        let pair = try fixture.pairs[0].rebound(to: workspace, predecessor: nil,
+            recordedBy: c30Actor(fixture.pairs[0].recordedBy, workspace: workspace))
+        let pairSuccessor = try fixture.pairs[1].rebound(to: workspace, predecessor: pair,
+            recordedBy: c30Actor(fixture.pairs[1].recordedBy, workspace: workspace))
+        return try C30EvidenceContextBackupEncoderV1.encode(.init(contexts: [first, second, successor],
+            pairedObservationLinks: [pair, pairSuccessor]))
+    }
+
+    func c30Assert(_ fixture: C30TransportFixture, harness: Harness) throws {
+        let journal = try MutationJournalStoreV1(modelContext: harness.context,
+            identity: harness.session.workspaceIdentity, generationID: harness.session.generationID,
+            allowStateBootstrap: false)
+        try journal.validateAll()
+        let history = try journal.exportSnapshot()
+        XCTAssertEqual(try c30Receipts(history), try c30Receipts(fixture.history))
+        for original in fixture.history.receipts { XCTAssertTrue(history.receipts.contains(original)) }
+        XCTAssertEqual(history.quarantines, fixture.history.quarantines)
+        let expected = try c30Rows(fixture, workspace: harness.session.workspaceID)
+        let physical = try C30EvidenceContextBackupEncoderV1.encode(.init(
+            contexts: harness.context.fetch(FetchDescriptor<EvidenceContextRow>()).map { try $0.value() },
+            pairedObservationLinks: harness.context.fetch(FetchDescriptor<PairedObservationLinkRow>()).map { try $0.value() }))
+        XCTAssertEqual(physical, expected)
+        let records = try BackupCanonicalDecoderV1().decodeRecords(canonicalBasis(harness).recordsData)
+        XCTAssertEqual(records.evidenceContexts + records.pairedObservationLinks, expected)
+        let sourceRevisions = fixture.history.entityRevisions.filter { $0.identity.kind == .evidenceContext || $0.identity.kind == .pairedObservationLink }
+        let targetRevisions = history.entityRevisions.filter { $0.identity.kind == .evidenceContext || $0.identity.kind == .pairedObservationLink }
+        XCTAssertEqual(targetRevisions.map(\.identity), sourceRevisions.map(\.identity))
+        XCTAssertEqual(targetRevisions.map(\.revision), sourceRevisions.map(\.revision))
+        for value in fixture.contexts {
+            let fileID = try XCTUnwrap(UUID(uuidString: value.evidenceID))
+            let file = try XCTUnwrap(records.evidenceFiles.first { $0.id == fileID })
+            XCTAssertEqual(try Data(contentsOf: harness.session.generationRootURL.appendingPathComponent(file.relativePath)),
+                try Data(contentsOf: fixture.harness.session.generationRootURL.appendingPathComponent(file.relativePath)))
+            XCTAssertEqual(try Data(contentsOf: harness.session.generationRootURL.appendingPathComponent(file.thumbnailRelativePath)).sha256, file.thumbnailSHA256)
+        }
+    }
+
+    func c30Target(_ label: String) throws -> Harness {
+        let support = try makeStartupFixtureSupport(label)
+        let session = try StoreGenerationFactory(applicationSupportURL: support).openOrBootstrapCurrent()
+        return Harness(applicationSupportURL: support, session: session, context: session.modelContext, countedRoots: [])
+    }
+
+    func c30Restore(_ fixture: C30TransportFixture, target: Harness, mode: BackupRestoreMode,
+        failure: BackupRestoreFailurePoint? = nil) async throws -> Harness {
+        let importer = try BackupImportService(generationRootURL: target.session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }), scopedAccess: .alreadyAuthorized)
+        let package = try importer.stageAndValidate(selectedPackageURL: fixture.archive)
+        defer { if failure == nil { try? importer.discard(package) } }
+        XCTAssertEqual(package.records.evidenceContexts + package.records.pairedObservationLinks,
+            try c30Rows(fixture, workspace: fixture.harness.session.workspaceID))
+        let service = try BackupRestoreService(applicationSupportURL: target.applicationSupportURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+            failureInjection: failure.map { BackupRestoreFailureInjection(failOnceAt: $0) })
+        service.restorePhaseDiagnosticForTesting = { print("C30 transport \(mode) phase=\($0)") }
+        var plannedDigest: String?
+        service.configurationCloneDestinationRecordsSHA256ForTesting = { plannedDigest = $0 }
+        let restored = try await service.restore(validatedPackage: package, currentModelContext: target.context,
+            currentGenerationID: target.session.generationID, currentGenerationRootURL: target.session.generationRootURL,
+            mode: mode)
+        let result = Harness(applicationSupportURL: target.applicationSupportURL, session: restored,
+            context: restored.modelContext, countedRoots: fixture.harness.countedRoots)
+        if mode == .clone {
+            let actual = try service.c55CurrentRecordsForTesting(in: result.context)
+            XCTAssertEqual(try XCTUnwrap(plannedDigest), try BackupCanonicalEncoderV1().encodeRecords(actual).sha256)
+        }
+        try c30Assert(fixture, harness: result)
+        return result
+    }
+
+    func c30ColdExport(_ fixture: C30TransportFixture, harness: Harness) async throws {
+        let session = try StoreGenerationFactory(applicationSupportURL: harness.applicationSupportURL).openOrBootstrapCurrent()
+        let cold = Harness(applicationSupportURL: harness.applicationSupportURL, session: session,
+            context: session.modelContext, countedRoots: harness.countedRoots)
+        try c30Assert(fixture, harness: cold)
+        let archive = try await exportLivePackage(cold, directoryName: "c30-cold-\(UUID())")
+        let importer = try BackupImportService(generationRootURL: cold.session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }), scopedAccess: .alreadyAuthorized)
+        let package = try importer.stageAndValidate(selectedPackageURL: archive)
+        defer { try? importer.discard(package) }
+        XCTAssertEqual(package.records.evidenceContexts + package.records.pairedObservationLinks,
+            try c30Rows(fixture, workspace: cold.session.workspaceID))
+    }
+}
+
+extension S6_2BackupExportTests {
+    @MainActor
+    func testC30CanonicalContextsAndPairsExportAndRestoreSameWorkspace() async throws {
+        let fixture = try await makeC30TransportFixture("same-workspace")
+        let first = try await c30Restore(fixture, target: c30Target("c30-empty"), mode: .emptyInstall)
+        let replaced = try await c30Restore(fixture, target: first, mode: .replaceExisting)
+        XCTAssertEqual(replaced.session.workspaceID, fixture.harness.session.workspaceID)
+        try await c30ColdExport(fixture, harness: replaced)
+        try c30Assert(fixture, harness: fixture.harness)
+    }
+
+    @MainActor
+    func testC30CanonicalContextsAndPairsCloneForkBindDestinationAndColdReadback() async throws {
+        let fixture = try await makeC30TransportFixture("clone-fork")
+        for mode in [BackupRestoreMode.clone, .fork] {
+            let result = try await c30Restore(fixture, target: c30Target("c30-\(mode)"), mode: mode)
+            XCTAssertNotEqual(result.session.workspaceID, fixture.harness.session.workspaceID)
+            try await c30ColdExport(fixture, harness: result)
+            let owner = try StoreSessionCoordinator(validatingSession: result.session)
+            let current = try XCTUnwrap(result.context.fetch(FetchDescriptor<EvidenceContextRow>())
+                .map { try $0.value() }.first { $0.contextID == fixture.contexts[2].contextID })
+            let next = try c30Successor(current)
+            let receipt = try owner.workspaceWriter.commitEvidenceContext(.appendContext(value: next, predecessor: current))
+            XCTAssertEqual(receipt.mutationID, next.mutationID)
+            let history = try owner.workspaceWriter.sourceMutationHistorySnapshot()
+            XCTAssertEqual(try c30Receipts(history).count, 6)
+            for original in try c30Receipts(fixture.history) { XCTAssertTrue(history.receipts.contains(original)) }
+            try owner.invalidateAndReleaseWriter()
+        }
+        try c30Assert(fixture, harness: fixture.harness)
+    }
+
+    @MainActor
+    func testC30ContextPairTransportRejectsBrokenClosureBeforeEffects() async throws {
+        let fixture = try await makeC30TransportFixture("hostiles")
+        let records = try BackupCanonicalDecoderV1().decodeRecords(canonicalBasis(fixture.harness).recordsData)
+        func replacing(_ key: String, rows: [V30BackupEvidenceContextRecordV1]) throws -> V4BackupRecordsV1 {
+            var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(records)) as? [String: Any])
+            object[key] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(rows))
+            return try JSONDecoder().decode(V4BackupRecordsV1.self, from: JSONSerialization.data(withJSONObject: object))
+        }
+        let first = try XCTUnwrap(records.evidenceContexts.first { $0.id == fixture.contexts[0].contextID })
+        let wrongWorkspace = V30BackupEvidenceContextRecordV1(kind: first.kind, id: first.id,
+            workspaceID: UUID(), revision: first.revision, canonicalData: first.canonicalData)
+        let wrongRevision = V30BackupEvidenceContextRecordV1(kind: first.kind, id: first.id,
+            workspaceID: first.workspaceID, revision: first.revision + 1, canonicalData: first.canonicalData)
+        let wrongID = V30BackupEvidenceContextRecordV1(kind: first.kind, id: UUID(),
+            workspaceID: first.workspaceID, revision: first.revision, canonicalData: first.canonicalData)
+        let hostileRows = [records.evidenceContexts.filter { $0.id != first.id }, [],
+            records.evidenceContexts + [first],
+            records.evidenceContexts.map { $0.id == first.id ? wrongWorkspace : $0 },
+            records.evidenceContexts.map { $0.id == first.id ? wrongRevision : $0 },
+            records.evidenceContexts.map { $0.id == first.id ? wrongID : $0 }]
+        let beforeRows = try configurationCloneRawJournal(fixture.harness.context)
+        for rows in hostileRows {
+            let changed = try replacing("evidenceContexts", rows: rows)
+            XCTAssertThrowsError(try changed.validateC30EvidenceContextClosure())
+            XCTAssertThrowsError(try BackupCanonicalEncoderV1().encodeRecords(changed))
+            XCTAssertThrowsError(try MutationJournalStoreV1.planningCoreRestoreHistory(in: changed,
+                workspaceID: fixture.harness.session.workspaceID))
+        }
+        var omittedObject = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(records)) as? [String: Any])
+        omittedObject["evidenceContexts"] = [] as [String]
+        omittedObject["pairedObservationLinks"] = [] as [String]
+        let omitted = try JSONDecoder().decode(V4BackupRecordsV1.self,
+            from: JSONSerialization.data(withJSONObject: omittedObject))
+        // Empty arrays satisfy scalar/endpoint closure, but cannot erase the
+        // five accepted retained facts proved by the unchanged source history.
+        XCTAssertNoThrow(try omitted.validateC30EvidenceContextClosure())
+        XCTAssertThrowsError(try MutationJournalStoreV1.planningCoreRestoreHistory(in: omitted,
+            workspaceID: fixture.harness.session.workspaceID)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
+        let competing = try c30Successor(fixture.contexts[0])
+        let competingRecord = try C30EvidenceContextBackupEncoderV1.encode(competing)
+        let branch = try replacing("evidenceContexts", rows: (records.evidenceContexts + [competingRecord])
+            .sorted { $0.id.uuidString.lowercased() < $1.id.uuidString.lowercased() })
+        XCTAssertThrowsError(try branch.validateC30EvidenceContextClosure())
+        func reference(_ source: PairedObservationReferenceV1, digest: String? = nil,
+                       purpose: PairedObservationPurposeV1? = nil) -> PairedObservationReferenceV1 {
+            .init(workspaceID: source.workspaceID, evidenceID: source.evidenceID,
+                evidenceSHA256: digest ?? source.evidenceSHA256, evidenceRevision: source.evidenceRevision,
+                assetID: source.assetID, assetRevision: source.assetRevision, controlGroupID: source.controlGroupID,
+                purpose: purpose ?? source.purpose, purposeRevision: source.purposeRevision,
+                planReferenceSHA256: source.planReferenceSHA256,
+                viewpointReferenceSHA256: source.viewpointReferenceSHA256, temporalBucketID: source.temporalBucketID,
+                surfaceWeatherBasisSHA256: source.surfaceWeatherBasisSHA256, measurementMethodID: source.measurementMethodID)
+        }
+        let pair = fixture.pairs[0]
+        let missingEndpoint = try PairedObservationLinkV1(linkID: UUID(), workspaceID: pair.workspaceID,
+            first: reference(pair.first, digest: String(repeating: "0", count: 64)), second: pair.second,
+            predecessor: nil, revision: 1, mutationID: .init(rawValue: UUID()),
+            recordedBy: pair.recordedBy, recordedAt: pair.recordedAt)
+        let endpointRecords = try replacing("pairedObservationLinks",
+            rows: [C30EvidenceContextBackupEncoderV1.encode(missingEndpoint)])
+        XCTAssertThrowsError(try endpointRecords.validateC30EvidenceContextClosure())
+        XCTAssertThrowsError(try BackupCanonicalEncoderV1().encodeRecords(endpointRecords))
+        let foreignActor = try c30Actor(fixture.contexts[0].recordedBy, workspace: WorkspaceID(rawValue: UUID()))
+        XCTAssertThrowsError(try fixture.contexts[0].rebound(to: fixture.contexts[0].workspaceID,
+            predecessor: nil, recordedBy: foreignActor))
+        // Both references agree with each other, but reuse accepted photos for
+        // another purpose. The real journal must reject that historical reuse.
+        let changedPurpose = try PairedObservationLinkV1(linkID: UUID(), workspaceID: pair.workspaceID,
+            first: reference(pair.first, purpose: .controlStateComparison),
+            second: reference(pair.second, purpose: .controlStateComparison),
+            predecessor: nil, revision: 1, mutationID: .init(rawValue: UUID()),
+            recordedBy: pair.recordedBy, recordedAt: pair.recordedAt)
+        let owner = try StoreSessionCoordinator(validatingSession: fixture.harness.session)
+        XCTAssertThrowsError(try owner.workspaceWriter.commitEvidenceContext(.appendPair(value: changedPurpose, predecessor: nil)))
+        try owner.invalidateAndReleaseWriter()
+        XCTAssertEqual(try configurationCloneRawJournal(fixture.harness.context), beforeRows)
+        // A fully authentic package independently exercises the public denial boundary.
+        let target = try c30Target("c30-denied")
+        let importer = try BackupImportService(generationRootURL: target.session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }), scopedAccess: .alreadyAuthorized)
+        let package = try importer.stageAndValidate(selectedPackageURL: fixture.archive)
+        defer { try? importer.discard(package) }
+        let service = try BackupRestoreService(applicationSupportURL: target.applicationSupportURL)
+        let beforeTree = try treeFacts(target.applicationSupportURL)
+        let beforeJournal = try configurationCloneRawJournal(target.context)
+        await XCTAssertThrowsErrorAsync {
+            _ = try await service.restore(validatedPackage: package, currentModelContext: target.context,
+                currentGenerationID: target.session.generationID, currentGenerationRootURL: target.session.generationRootURL,
+                mode: .clone, validateAccess: { throw AppAccessContractFailureV1.accessDenied })
+        } verify: { XCTAssertEqual($0 as? AppAccessContractFailureV1, .accessDenied) }
+        XCTAssertEqual(try treeFacts(target.applicationSupportURL), beforeTree)
+        XCTAssertEqual(try configurationCloneRawJournal(target.context), beforeJournal)
+        try c30Assert(fixture, harness: fixture.harness)
+    }
+
+    @MainActor
+    func testC30ContextPairRestoreInterruptionColdRecoveryIsAtomic() async throws {
+        let fixture = try await makeC30TransportFixture("interruption")
+        for point in [BackupRestoreFailurePoint.afterPreparedWrite, .afterPointerSwitch] {
+            let target = try c30Target("c30-interrupted-\(point)")
+            let oldID = target.session.generationID
+            await XCTAssertThrowsErrorAsync {
+                _ = try await self.c30Restore(fixture, target: target, mode: .emptyInstall, failure: point)
+            } verify: { XCTAssertEqual($0 as? BackupRestoreServiceError, .injectedFailure) }
+            let recovery = try BackupRestoreService(applicationSupportURL: target.applicationSupportURL,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+            _ = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+            let current = try StoreGenerationFactory(applicationSupportURL: target.applicationSupportURL).openOrBootstrapCurrent()
+            if point == .afterPreparedWrite {
+                XCTAssertEqual(current.generationID, oldID)
+                XCTAssertEqual(try current.modelContext.fetchCount(FetchDescriptor<EvidenceContextRow>()), 0)
+                XCTAssertEqual(try current.modelContext.fetchCount(FetchDescriptor<PairedObservationLinkRow>()), 0)
+            } else {
+                XCTAssertNotEqual(current.generationID, oldID)
+                let restored = Harness(applicationSupportURL: target.applicationSupportURL, session: current,
+                    context: current.modelContext, countedRoots: fixture.harness.countedRoots)
+                try await c30ColdExport(fixture, harness: restored)
+            }
+            let before = try configurationCloneRawJournal(current.modelContext)
+            let secondRecovery = try await recovery.reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+            XCTAssertNil(secondRecovery)
+            XCTAssertEqual(try configurationCloneRawJournal(current.modelContext), before)
+            XCTAssertNil(try RestoreIntentStore(applicationSupportURL: target.applicationSupportURL).load())
+        }
+    }
+}

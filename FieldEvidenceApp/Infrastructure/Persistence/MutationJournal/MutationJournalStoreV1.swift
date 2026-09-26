@@ -7925,8 +7925,28 @@ final class MutationJournalStoreV1 {
         case .surveyPublicationSnapshot:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<SurveyPublicationSnapshotRow>(predicate:#Predicate{$0.snapshotID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .surveyPublicationSnapshot(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesSnapshotID),revision:revision,semanticSHA256:v.snapshotSHA256)
         case .assetLocator:let id=identity.id,r=try modelContext.fetch(FetchDescriptor<AssetLocatorRow>(predicate:#Predicate{$0.locatorID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .assetLocator(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.locatorSHA256)
         case .locatorBindingReceipt:let id=identity.id,r=try modelContext.fetch(FetchDescriptor<LocatorBindingReceiptRow>(predicate:#Predicate{$0.receiptID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .locatorBindingReceipt(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.predecessorReceiptID),revision:revision,semanticSHA256:v.receiptSHA256)
-        case .evidenceContext:let id=identity.id,r=try modelContext.fetch(FetchDescriptor<EvidenceContextRow>(predicate:#Predicate{$0.contextID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};var predecessor:UUID?=nil;if let digest=v.predecessorContextSHA256{let matches=try modelContext.fetch(FetchDescriptor<EvidenceContextRow>()).map{try $0.value()}.filter{$0.contextSHA256==digest};guard matches.count==1 else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};predecessor=matches[0].contextID};return .evidenceContext(id:id,concurrencyIdentity:try authorityConcurrency(identity,predecessor),revision:revision,semanticSHA256:v.contextSHA256)
-        case .pairedObservationLink:let id=identity.id,r=try modelContext.fetch(FetchDescriptor<PairedObservationLinkRow>(predicate:#Predicate{$0.linkID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};var predecessor:UUID?=nil;if let digest=v.predecessorLinkSHA256{let matches=try modelContext.fetch(FetchDescriptor<PairedObservationLinkRow>()).map{try $0.value()}.filter{$0.linkSHA256==digest};guard matches.count==1 else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};predecessor=matches[0].linkID};return .pairedObservationLink(id:id,concurrencyIdentity:try authorityConcurrency(identity,predecessor),revision:revision,semanticSHA256:v.linkSHA256)
+        case .evidenceContext:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<EvidenceContextRow>(predicate: #Predicate { $0.contextID == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            let value = try row.value()
+            let predecessors = try value.predecessorContextSHA256.map { digest in
+                try modelContext.fetch(FetchDescriptor<EvidenceContextRow>()).map { try $0.value() }
+                    .filter { $0.contextSHA256 == digest }
+            } ?? []
+            return try EvidenceContextPostImageBasis.context(value, predecessors).postImage(
+                identity: identity, revision: revision)
+        case .pairedObservationLink:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<PairedObservationLinkRow>(predicate: #Predicate { $0.linkID == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            let value = try row.value()
+            let predecessors = try value.predecessorLinkSHA256.map { digest in
+                try modelContext.fetch(FetchDescriptor<PairedObservationLinkRow>()).map { try $0.value() }
+                    .filter { $0.linkSHA256 == digest }
+            } ?? []
+            return try EvidenceContextPostImageBasis.pair(value, predecessors).postImage(
+                identity: identity, revision: revision)
         case .lightingSystem:let id=identity.id,r=try modelContext.fetch(FetchDescriptor<LightingSystemRow>(predicate:#Predicate{$0.recordID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .lightingSystem(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesRecordID),revision:revision,semanticSHA256:v.systemSHA256)
         case .lightingObservation:let id=identity.id,r=try modelContext.fetch(FetchDescriptor<LightingObservationRow>(predicate:#Predicate{$0.recordID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .lightingObservation(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesRecordID),revision:revision,semanticSHA256:v.observationSHA256)
         case .lightingIssue:let id=identity.id,r=try modelContext.fetch(FetchDescriptor<LightingIssueRow>(predicate:#Predicate{$0.recordID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .lightingIssue(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesRecordID),revision:revision,semanticSHA256:v.issueSHA256)
@@ -8640,6 +8660,48 @@ final class MutationJournalStoreV1 {
         }
     }
 
+    /// Identical typed basis for authenticated archive planning and persisted
+    /// readback. Predecessors are acquired independently in their own namespace.
+    enum EvidenceContextPostImageBasis {
+        case context(EvidenceContextV1, [EvidenceContextV1])
+        case pair(PairedObservationLinkV1, [PairedObservationLinkV1])
+
+        func postImage(identity: WorkspaceEntityIdentityV1, revision: UInt64,
+                       workspaceID: WorkspaceID? = nil) throws -> MutationPostImageV1 {
+            let image: MutationPostImageV1
+            let actualWorkspace: WorkspaceID
+            switch self {
+            case let .context(value, predecessors):
+                try value.validateIntrinsic()
+                guard predecessors.count == (value.predecessorContextSHA256 == nil ? 0 : 1) else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                if let predecessor = predecessors.first { try value.validateSuccessor(of: predecessor) }
+                actualWorkspace = value.workspaceID
+                image = .evidenceContext(id: value.contextID,
+                    concurrencyIdentity: try .init(kind: .evidenceContext,
+                        id: predecessors.first?.contextID ?? value.contextID),
+                    revision: value.revision, semanticSHA256: value.contextSHA256)
+            case let .pair(value, predecessors):
+                try value.validateIntrinsic()
+                guard predecessors.count == (value.predecessorLinkSHA256 == nil ? 0 : 1) else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                if let predecessor = predecessors.first { try value.validateSuccessor(of: predecessor) }
+                actualWorkspace = value.workspaceID
+                image = .pairedObservationLink(id: value.linkID,
+                    concurrencyIdentity: try .init(kind: .pairedObservationLink,
+                        id: predecessors.first?.linkID ?? value.linkID),
+                    revision: value.revision, semanticSHA256: value.linkSHA256)
+            }
+            guard try image.identity == identity, image.revision == revision,
+                  workspaceID.map({ $0 == actualWorkspace }) ?? true else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            return image
+        }
+    }
+
     private static func coreRestorePostImage(
         _ identity: WorkspaceEntityIdentityV1,
         revision: UInt64,
@@ -8663,6 +8725,32 @@ final class MutationJournalStoreV1 {
         }
         let id = identity.id
         switch identity.kind {
+        case .evidenceContext, .pairedObservationLink:
+            try records.validateC30EvidenceContextClosure()
+            let values = try EvidenceContextBackupRecordSetV1.decode(
+                records.evidenceContexts + records.pairedObservationLinks)
+            if identity.kind == .evidenceContext {
+                guard let value = try one(values.contexts.filter({ $0.contextID == id })) else {
+                    // C30 ordinary deletion retains both immutable row families.
+                    // A retained history identity cannot authorize omission.
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                let predecessors = value.predecessorContextSHA256.map { digest in
+                    values.contexts.filter { $0.contextSHA256 == digest }
+                } ?? []
+                return try EvidenceContextPostImageBasis.context(value, predecessors).postImage(
+                    identity: identity, revision: revision, workspaceID: workspaceID)
+            }
+            guard let value = try one(values.pairedObservationLinks.filter({ $0.linkID == id })) else {
+                    // C30 ordinary deletion retains both immutable row families.
+                    // A retained history identity cannot authorize omission.
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+            let predecessors = value.predecessorLinkSHA256.map { digest in
+                values.pairedObservationLinks.filter { $0.linkSHA256 == digest }
+            } ?? []
+            return try EvidenceContextPostImageBasis.pair(value, predecessors).postImage(
+                identity: identity, revision: revision, workspaceID: workspaceID)
         case .site:
             return try image(one(records.sites.filter { $0.id == id }))
         case .asset:

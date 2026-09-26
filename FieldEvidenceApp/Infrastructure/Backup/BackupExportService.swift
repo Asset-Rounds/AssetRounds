@@ -315,6 +315,8 @@ final class BackupExportService {
         let rebaseReceipts: [RebaseReceiptRow]
         let poseEvents: [AssetPoseEventRow]
         let spatialAnchorObservations: [SpatialAnchorObservationRow]
+        let evidenceContexts: [EvidenceContextRow]
+        let pairedObservationLinks: [PairedObservationLinkRow]
         let lightingSystems: [LightingSystemRow]
         let lightingObservations: [LightingObservationRow]
         let lightingIssues: [LightingIssueRow]
@@ -2546,6 +2548,8 @@ private extension BackupExportService {
                  rebaseReceipts: try modelContext.fetch(FetchDescriptor<RebaseReceiptRow>()),
                  poseEvents: try modelContext.fetch(FetchDescriptor<AssetPoseEventRow>()),
                  spatialAnchorObservations: try modelContext.fetch(FetchDescriptor<SpatialAnchorObservationRow>()),
+                 evidenceContexts: try modelContext.fetch(FetchDescriptor<EvidenceContextRow>()),
+                 pairedObservationLinks: try modelContext.fetch(FetchDescriptor<PairedObservationLinkRow>()),
                  lightingSystems: try modelContext.fetch(FetchDescriptor<LightingSystemRow>()),
                  lightingObservations: try modelContext.fetch(FetchDescriptor<LightingObservationRow>()),
                  lightingIssues: try modelContext.fetch(FetchDescriptor<LightingIssueRow>()),
@@ -3451,7 +3455,16 @@ private extension BackupExportService {
             guard mutationHistory != nil else { throw BackupExportServiceError.invalidAuthority }
             return try PracticeWorkspaceBackupSnapshotV1(provenance: row.value())
         }()
-        return V4BackupRecordsV1(
+        let contextValues = try EvidenceContextBackupRecordSetV1(
+            contexts: rows.evidenceContexts.map { try $0.value() },
+            pairedObservationLinks: rows.pairedObservationLinks.map { try $0.value() })
+        let contextRecords = try C30EvidenceContextBackupEncoderV1.encode(contextValues)
+        _ = try EvidenceContextBackupRecordSetV1.decode(contextRecords)
+        guard contextRecords.allSatisfy({ $0.workspaceID == sourceIdentity.workspaceID.rawValue }),
+              contextRecords.isEmpty || mutationHistory != nil else {
+            throw BackupExportServiceError.invalidAuthority
+        }
+        let result = V4BackupRecordsV1(
             guidedSurveys:guidedSurveys,
             assetLocators: assetLocators,
             schedules: schedules,
@@ -3551,6 +3564,8 @@ private extension BackupExportService {
                 }
                 return workflowDTO(record, observationAndTime: companion)
             }.sorted(by: dtoOrder),
+            evidenceContexts: contextRecords.filter { $0.kind == .evidenceContext },
+            pairedObservationLinks: contextRecords.filter { $0.kind == .pairedObservationLink },
             lighting: lighting,
             lightingDayInventoryWorkflows: try lightingDayInventoryRecords(rows),
             lightingNightWorkflows: try lightingNightWorkflowRecords(rows),
@@ -3588,6 +3603,8 @@ private extension BackupExportService {
              entityIdentityResolution: entityIdentityResolution,
              practiceWorkspaceProvenance: practiceWorkspaceProvenance
          )
+        try result.validateC30EvidenceContextClosure()
+        return result
     }
 
     private func inspectionReviewRecords(
