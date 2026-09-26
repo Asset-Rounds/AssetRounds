@@ -8,18 +8,16 @@ Only C:\AssetRounds-v23-s10-integration, codex/v23-s10-integration-20260910, tas
 
 ## Current critical path
 
-Owner decisions 8 to 11 (2026-09-25): development moves to the cloud Mac running Claude Code (MAC_HANDOFF), development-run rules are relaxed and gates stay strict, and work is trunk-based on main after Phase 1. Bitrise Build Hub may add development capacity.
+Handoff to Codex on 2026-09-26: read CODEX_HANDOFF_20260926.md, which covers current state, unpushed local batch T, and next work in order.
 
-Phase 1 is platform and shell at V53 behind `V23PhaseGateV1` (MERGE_READINESS). Batch J (b16e965) is pushed. The early development sweep, original 36133511753 at 5eb2f5f, finished with 41 of 44 partitions failing, triaged into families in CURRENT_INTEGRATION "Batch K". Batch K fixes unselectable private test classes (about 460 methods never ran), the finalization Date binding defect, test-harness defects and measured-time partitioning. It is reviewed and compiled on the Mac. Collecting 36133511753 waits for its dispatch folder from Windows.
-
-Mac notes: Xcode 26.6 is selected. The iOS 26.2 runtime can't be downloaded from this Xcode, so local runs use iOS 26.5 (development only). Use Homebrew `python3` 3.14 (`/usr/bin/python3` is 3.9). zsh does not word-split `$var`, so pass selector arrays through bash.
+The pushed head is 1d3c80fa (batches K–S, each reviewed). Latest collected development sweep 36218186328 at 27388c99: 3,006 passed, 437 failed, all 3,462 tests executed. The S10→V23 upgrade blocker, the backup export deadlock and the restore failures are fixed. Checkpoint v2 detects out-of-writer rows for all 148 kinds. A corrupt store opens to maintenance with diagnostics and a salvage export.
 
 Next steps:
-1. Push K, then run a development sweep at K's head.
-2. Fix the families listed in VERIFICATION_DUE "Sweep 36133511753 follow-ups", using parallel helpers; get the owner's three product decisions.
-3. Add the RUI1 UI route, then run the Phase 1 UI evidence and the owner's human review.
-4. Run the final same-head sweep and the independent integration review.
-5. Fast-forward main.
+1. Review, integrate and push batch T (section 3 of the handoff).
+2. The journal receipt-digest family (reinspection; package forward-fix).
+3. The S6_4 remainder and the top Phase-1 classes.
+4. Infrastructure and anchors; performance profiling.
+5. RUI1 UI evidence, owner review, final gate sweep, integration review, fast-forward main.
 
 Phase 2 C36 Round capture: Continue works, the full finish journey passed once natively, and the mount journeys pass. Due: lost-acknowledgement finalization, the defer and two-photo journeys, B3, the startup live-path test rewrite, a production Round creator, and journey performance.
 

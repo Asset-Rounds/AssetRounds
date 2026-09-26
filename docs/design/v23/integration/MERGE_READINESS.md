@@ -24,6 +24,12 @@ Inventory basis (read-only census at 31126e9, 2026-09-25; retained in the sessio
 
   - Mutable-semantic checkpoint v2 (batch Q; implicit version, all 148 kinds). R2 restore/upgrade evidence is required.
 
+- Decision 17 numbers (sweep 36218186328 at 27388c99; 437 failures; reviewer triage):
+  - Phase 1 core, never eligible: ~346.
+  - Switched-off feature workflows (B): ~49, about 11%, each needing per-method confirmation.
+  - Infrastructure/anchor/localization (C): ~41, which bind Phase 1 apart from possibly part of S9_1.
+  - Root recommendation: no known-failures list; fix to green.
+
 ### Phase ledger (later phases; nothing silently dropped)
 
 | Card | Status at 31126e9 | Remaining work | Blocking dependencies |

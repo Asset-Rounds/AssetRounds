@@ -283,4 +283,17 @@ The production photo journey takes priority over another isolated foundation. So
   - No writer-activation failures and no crashes.
   - Still open: MyDay restore (no test exists), V9_04/V9_03, and the golden restore L1894 (fails earlier).
 - Owner gate-4 screenshot checklist additions: the maintenance screen with "View diagnostics" and "Save photos and reports" (idle, busy, empty status, failure status) and the corrupt-store maintenance route.
+- Pending integration and review (2026-09-26), local worktree commits not yet pushed:
+  - wt/c13 4c4fce74 (product, C13): post-images keyed by the writer concurrency identity and carrying linkSHA256/receiptSHA256; queryExisting uses the same identity. V9_77 passes 6/6. No C13 generic receipt could exist before, so no shipped data is affected. S6_4 testPopulatedIdentityInventory :3324 invalidIdentity is a separate pre-existing cause.
+  - wt/anchors d4a60543 (test-only): the C27 locator anchors (8), C45 (1) and C47 activity anchors (6) now assert the exact current sets. `.search` came from scan-to-work (d40d75d6); NoPlanFallbackV1 is per the C47 frozen contract. 39/39 anchor tests pass. Same drift remains in V9_54 C47 I01 :2714, to fix in the same way.
+  - wt/perf2 7d893736 (product, perf): currentGenerationEpoch builds one restore-generation authority; loadManifest drops a duplicate protectFile. Protected checks 422k → 250k (−41%); no policy weakened; no identity cache, per the fallback contract. Local wall time barely moves (fallback ≈18 s of ≈750 s). The next step is a real time profile of FiveSaga. Hosted 26.2 gain unmeasured.
+  - wt/clone 367e4854 (product, restricted restore): the clone expected history projects dropped draft-family revisions to restoreTombstoneSHA256, matching the import and relaunch currentPostImage. History is preserved verbatim (C52) and no format changes. The 26 readback failures are gone; S6_4 23 → 19; relaunch validation passes on the clone. Next: 8 CloneRetirement/FrozenEvidence tests fail at invalidRestoreAuthority :16104 (directory-pin identity mismatch in retirement).
+  - wt/family 649cb7ba + b50a0c0a (test-only):
+    - V9_104 12 → 4: the readiness fixture seeds through the writer, and the promotePackage helper handles already-active packages.
+    - V9_55 8 → 1: test roots are created before PortableExchangeSessionStoreV2.
+- Journal product defects found (restricted persistence; decide before fixing):
+  - Reinspection (and probably fast-survey inbox) commit and typed-receipt checks (MutationJournalStoreV1 ~1483, 4521–4738) compare postimage semanticSHA256 with domain SHAs, but postimages are hashed through PersistedPostImageDigestBasis. Every reinspection commit fails with invalidCommand (V9_76 ×9, likely V9_75). Inconsistent since fc2c9393.
+  - Package forward-fix promotion: the journal pointer postimage uses concurrencyIdentity: identity (~7662/8757), while PackagePromotionMutationV1.mutationPostImages uses the mutation's concurrency identity, so the check at ~1450 fails (V9_104 ×2, likely V9_32 I01).
+  - These are the same family as the fixed C13 post-image binding (4c4fce74): typed receipts vs the generic post-image digest.
+- Still open: V9_104 H01 (:1757) and I01 (reviewed-draft baseline); V9_55 R01 :2410; V9_18 ×12 (4 recheck CancellationError at :129 plus 8 one-offs).
 
