@@ -1096,8 +1096,9 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         // Every hostile post-preparation change must fail before deletion while
         // preserving both the orphan candidate and canonical photo authority.
         try await withAsyncFrozenBeginFixture("startup-media-substitution", entry: .check,
-            storedTimeZoneID: "America/Chicago") { h in
+            storedTimeZoneID: "America/Chicago", appDirectoryLayout: true) { h in
             let scenario = "substitution"
+            try self.requireStartupMediaSandbox(h.root)
             print("S3_4Media[\(scenario)] stage=seed")
             let seeded = try await self.seedOwnedPhotoAndGenericOrphan(h)
             print("S3_4Media[\(scenario)] stage=seed-complete-close-writer")
@@ -1138,8 +1139,9 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         }
 
         try await withAsyncFrozenBeginFixture("startup-media-ownership-change", entry: .check,
-            storedTimeZoneID: "America/Chicago") { h in
+            storedTimeZoneID: "America/Chicago", appDirectoryLayout: true) { h in
             let scenario = "ownership-change"
+            try self.requireStartupMediaSandbox(h.root)
             print("S3_4Media[\(scenario)] stage=seed")
             let seeded = try await self.seedOwnedPhotoAndGenericOrphan(h)
             print("S3_4Media[\(scenario)] stage=seed-complete-close-writer")
@@ -1179,8 +1181,9 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         }
 
         try await withAsyncFrozenBeginFixture("startup-media-access-revocation", entry: .check,
-            storedTimeZoneID: "America/Chicago") { h in
+            storedTimeZoneID: "America/Chicago", appDirectoryLayout: true) { h in
             let scenario = "access-revocation"
+            try self.requireStartupMediaSandbox(h.root)
             print("S3_4Media[\(scenario)] stage=seed")
             let seeded = try await self.seedOwnedPhotoAndGenericOrphan(h)
             print("S3_4Media[\(scenario)] stage=seed-complete-close-writer")
@@ -1223,8 +1226,9 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         }
 
         try await withAsyncFrozenBeginFixture("startup-media-configuration-revocation", entry: .check,
-            storedTimeZoneID: "America/Chicago") { h in
+            storedTimeZoneID: "America/Chicago", appDirectoryLayout: true) { h in
             let scenario = "configuration-revocation"
+            try self.requireStartupMediaSandbox(h.root)
             print("S3_4Media[\(scenario)] stage=seed")
             let seeded = try await self.seedOwnedPhotoAndGenericOrphan(h)
             print("S3_4Media[\(scenario)] stage=seed-complete-close-writer")
@@ -1395,7 +1399,8 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         // Awaiting raw has no normalized pair for startup to invent or delete.
         relaunchDiagnosticPhase = "cold-photo.awaiting-raw"
         try await withAsyncFrozenBeginFixture("startup-awaiting-raw", entry: .check,
-            storedTimeZoneID: "America/Chicago") { h in
+            storedTimeZoneID: "America/Chicago", appDirectoryLayout: true) { h in
+            try self.requireStartupMediaSandbox(h.root)
             let photo = try await FrozenProductionPhotoV1.make(h, publishRaw: false)
             let before = try photo.checkpoint()
             guard case .awaitingRawStage = try CheckRunnerPhotoDraftCodecV1
@@ -1412,7 +1417,8 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         // RawReady without a pair remains absent until the cold service prepares it.
         relaunchDiagnosticPhase = "cold-photo.raw-ready-without-pair"
         try await withAsyncFrozenBeginFixture("startup-raw-ready-without-pair", entry: .check,
-            storedTimeZoneID: "America/Chicago") { h in
+            storedTimeZoneID: "America/Chicago", appDirectoryLayout: true) { h in
+            try self.requireStartupMediaSandbox(h.root)
             let photo = try await FrozenProductionPhotoV1.make(h)
             let rawBefore = try photo.checkpoint()
             guard case .rawReady = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(rawBefore).phase else {
@@ -1441,7 +1447,8 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         // adopted by the cold service from the unchanged rawReady checkpoint.
         relaunchDiagnosticPhase = "cold-photo.raw-ready-lost-ack"
         try await withAsyncFrozenBeginFixture("startup-raw-ready-lost-ack", entry: .check,
-            storedTimeZoneID: "America/Chicago") { h in
+            storedTimeZoneID: "America/Chicago", appDirectoryLayout: true) { h in
+            try self.requireStartupMediaSandbox(h.root)
             let injection = EvidenceBundleStoreFailureInjection(failOnceAt: .checkRunnerPhotoPublished)
             do {
                 let photo = try await FrozenProductionPhotoV1.make(h, failure: injection)
@@ -1475,7 +1482,8 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         for point in points {
             relaunchDiagnosticPhase = "cold-photo.interrupted-promotion"
             try await withAsyncFrozenBeginFixture("startup-photo-\(String(describing: point))", entry: .check,
-                storedTimeZoneID: "America/Chicago") { h in
+                storedTimeZoneID: "America/Chicago", appDirectoryLayout: true) { h in
+                try self.requireStartupMediaSandbox(h.root)
                 let injection = point.map { EvidenceBundleStoreFailureInjection(failOnceAt: $0) }
                 let photo = try await FrozenProductionPhotoV1.make(h, failure: injection)
                 let pair = try await photo.service.preparePhotoPair(parentDraftID: photo.parentID,
@@ -1518,7 +1526,8 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         // The target receipt may be durable before the saga observes its acknowledgement.
         relaunchDiagnosticPhase = "cold-photo.target-before-terminal"
         try await withAsyncFrozenBeginFixture("startup-target-before-terminal", entry: .check,
-            storedTimeZoneID: "America/Chicago") { h in
+            storedTimeZoneID: "America/Chicago", appDirectoryLayout: true) { h in
+            try self.requireStartupMediaSandbox(h.root)
             let photo = try await FrozenProductionPhotoV1.make(h)
             let pair = try await photo.service.preparePhotoPair(parentDraftID: photo.parentID,
                 childDraftID: photo.childID)
@@ -1556,7 +1565,8 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         // child terminal is durable. Cold resume must adopt that same terminal.
         relaunchDiagnosticPhase = "cold-photo.child-terminal-before-parent"
         try await withAsyncFrozenBeginFixture("startup-child-terminal-before-parent", entry: .check,
-            storedTimeZoneID: "America/Chicago") { h in
+            storedTimeZoneID: "America/Chicago", appDirectoryLayout: true) { h in
+            try self.requireStartupMediaSandbox(h.root)
             let photo = try await FrozenProductionPhotoV1.make(h)
             let pair = try await photo.service.preparePhotoPair(parentDraftID: photo.parentID,
                 childDraftID: photo.childID)
@@ -1697,6 +1707,19 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         case .ready: return "ready"
         case .eraseCleanupPending: return "erase-cleanup-pending"
         case .maintenance(let reason): return "maintenance-\(reason.rawValue)"
+        }
+    }
+
+    private func requireStartupMediaSandbox(_ support: URL) throws {
+        // Real startup opens both roots during erase recovery before reaching
+        // media preparation, even when no erase intent exists.
+        let caches = support.deletingLastPathComponent().appendingPathComponent("Caches", isDirectory: true)
+        let supportValues = try support.resourceValues(forKeys: [.isDirectoryKey])
+        let cachesValues = try caches.resourceValues(forKeys: [.isDirectoryKey])
+        guard support.lastPathComponent == "Application Support",
+              supportValues.isDirectory == true, cachesValues.isDirectory == true else {
+            XCTFail("Startup media fixture requires its own Application Support and Caches directories")
+            throw CocoaError(.fileReadNoSuchFile)
         }
     }
 

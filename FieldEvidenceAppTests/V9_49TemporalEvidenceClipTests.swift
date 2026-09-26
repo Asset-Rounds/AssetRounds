@@ -916,7 +916,7 @@ enum C33TemporalEvidenceTestSupport {
                 )),
                 sourceBytes
             )
-            if mode == .emptyInstall || mode == .replaceExisting {
+            if restored.workspaceID == source.clip.workspaceID {
                 XCTAssertEqual(row.canonicalData, sourceCanonical)
                 XCTAssertEqual(restoredClip.limitProfile, source.clip.limitProfile)
             } else {
@@ -931,10 +931,85 @@ enum C33TemporalEvidenceTestSupport {
                     restoredClip.limitProfile.definitionRelease,
                     restoredClip.target.definitionRelease
                 )
-                XCTAssertNotEqual(
-                    restoredClip.limitProfile.packageRelease,
-                    source.clip.limitProfile.packageRelease
-                )
+                let sessions = try restored.modelContext.fetch(FetchDescriptor<SurveySessionRow>())
+                    .map { try $0.value() }.filter {
+                        $0.workspaceID == restored.workspaceID
+                            && $0.sessionID == source.clip.target.sessionID
+                            && $0.revision == source.clip.target.sessionRevision
+                    }
+                XCTAssertEqual(sessions.count, 1)
+                let session = try XCTUnwrap(sessions.first)
+                let releases = try restored.modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>())
+                    .map { try $0.value() }.filter {
+                        $0.workspaceID == restored.workspaceID
+                            && $0.packageRelease.packageReleaseID == session.authority.packageRelease.packageReleaseID
+                    }
+                XCTAssertEqual(releases.count, 1)
+                let release = try XCTUnwrap(releases.first).packageRelease
+                try session.authority.packageRelease.validate(against: release)
+                // Package releases are content-addressed, not workspace identities.
+                // This fixture carries the same genuine release across namespaces.
+                try source.clip.limitProfile.packageRelease.validate(against: release)
+                XCTAssertEqual(restoredClip.limitProfile.packageRelease, try SurveyPackageReleaseReferenceV1(release))
+                XCTAssertEqual(restoredClip.limitProfile.packageRelease, source.clip.limitProfile.packageRelease)
+                var changedPackage = try XCTUnwrap(JSONSerialization.jsonObject(
+                    with: SurveySessionCanonicalCodecV1.encode(session.authority.packageRelease)) as? [String: Any])
+                changedPackage["packageSHA256"] = String(repeating: "0", count: 64)
+                let invalidReference = try JSONDecoder().decode(SurveyPackageReleaseReferenceV1.self,
+                    from: JSONSerialization.data(withJSONObject: changedPackage))
+                XCTAssertThrowsError(try invalidReference.validate(against: release))
+
+                // Build the complete expected successor from source values and
+                // authenticated destination authority, without using rebound().
+                let originalProfile = source.clip.limitProfile
+                let profile = try TemporalEvidenceLimitProfileV1(
+                    profileID: originalProfile.profileID, revision: originalProfile.revision + 1,
+                    packageRelease: SurveyPackageReleaseReferenceV1(release),
+                    definitionRelease: session.authority.definitionRelease,
+                    audio: originalProfile.audio, video: originalProfile.video,
+                    maximumClipsPerRequirement: originalProfile.maximumClipsPerRequirement,
+                    maximumClipsPerSession: originalProfile.maximumClipsPerSession,
+                    minimumFreeByteCount: originalProfile.minimumFreeByteCount,
+                    reportProjection: originalProfile.reportProjection,
+                    requiresAccessibleDescription: originalProfile.requiresAccessibleDescription,
+                    requiresManualTranscript: originalProfile.requiresManualTranscript)
+                let target = try TemporalEvidenceTargetV1(workspaceID: restored.workspaceID,
+                    sessionID: session.sessionID, sessionRevision: session.revision,
+                    sessionSHA256: session.sessionSHA256, definitionRelease: session.authority.definitionRelease,
+                    factID: source.clip.target.factID, repeatCoordinates: source.clip.target.repeatCoordinates)
+                let namespace = restored.workspaceID.rawValue.uuidString.lowercased()
+                let original = source.clip.original
+                let provenance = source.clip.originalProvenance
+                let locator = source.clip.locator
+                let actor = source.clip.recordedBy
+                let expected = try TemporalEvidenceClipV1(
+                    clipID: source.clip.clipID, workspaceID: restored.workspaceID, target: target,
+                    original: ContentReferenceV1(workspaceID: namespace, contentID: original.contentID,
+                        byteLength: original.byteLength, mediaType: original.mediaType, digests: original.digests,
+                        byteRole: original.byteRole, createdAt: original.createdAt),
+                    originalProvenance: ContentOriginalProvenanceV1(provenanceID: provenance.provenanceID,
+                        workspaceID: namespace, contentID: provenance.contentID, contentDigest: provenance.contentDigest,
+                        origin: provenance.origin, recordedAt: provenance.recordedAt),
+                    locator: ContentLocatorV1(locatorID: locator.locatorID, workspaceID: namespace,
+                        contentID: locator.contentID, locatorRevision: locator.locatorRevision,
+                        contentDigest: locator.contentDigest, expectedByteLength: locator.expectedByteLength),
+                    facts: source.clip.facts, profile: profile,
+                    accessibleDescription: source.clip.accessibleDescription,
+                    manualTranscript: source.clip.manualTranscript,
+                    derivativeReferences: source.clip.derivativeReferences,
+                    retentionReference: source.clip.retentionReference,
+                    recordedBy: ActorSnapshotV1(snapshotID: actor.snapshotID, workspaceID: restored.workspaceID,
+                        actor: LocalActorReferenceV1(actorReferenceID: actor.actor.actorReferenceID,
+                            workspaceID: restored.workspaceID, partyID: actor.actor.partyID,
+                            displayName: actor.actor.displayName),
+                        responsibility: actor.responsibility, displayNameAtTime: actor.displayNameAtTime,
+                        capturedAt: actor.capturedAt),
+                    capturedAt: source.clip.capturedAt, acceptedAt: source.clip.acceptedAt,
+                    supersedesClipID: source.clip.supersedesClipID,
+                    revision: source.clip.revision, mutationID: source.clip.mutationID)
+                XCTAssertEqual(restoredClip, expected)
+                XCTAssertEqual(row.canonicalData, try TemporalEvidenceCanonicalCodecV1.encode(expected))
+                XCTAssertEqual(restoredClip.limitProfile, profile)
                 XCTAssertNotEqual(restoredClip.clipSHA256, source.clip.clipSHA256)
             }
             let journal = try MutationJournalStoreV1(
@@ -1048,7 +1123,9 @@ enum C33TemporalEvidenceTestSupport {
         let coordinator = StoreSessionCoordinator(session: eraseSession)
         let diagnostics = DiagnosticsStore(applicationSupportURL: eraseSupport)
         await diagnostics.prepare()
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: "C33-R01-\(UUID())"))
+        let defaultsName = "C33-R01-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsName))
+        defer { defaults.removePersistentDomain(forName: defaultsName) }
         let eraseIDs = [id(9_700 + slot), id(9_701 + slot)]
         var remainingEraseIDs = eraseIDs
         let erase = EraseAllService(
@@ -1056,9 +1133,15 @@ enum C33TemporalEvidenceTestSupport {
             cachesDirectoryURL: eraseCaches,
             temporaryDirectoryURL: eraseTemporary,
             userDefaults: defaults,
-            bundleIdentifier: "com.palatis3.fieldrecord.c33.tests",
+            bundleIdentifier: "com.palatis3.fieldrecord",
+            defaultsDomainName: defaultsName,
             makeUUID: { remainingEraseIDs.removeFirst() }
         )
+        #if DEBUG
+        erase.erasePhaseDiagnosticForTesting = { phase in
+            print("C33R01[\(slot)] erase phase=\(phase)")
+        }
+        #endif
         let outcome = try await erase.erase(
             confirmation: "ERASE",
             coordinator: coordinator,

@@ -1707,7 +1707,7 @@ final class MutationJournalStoreV1 {
 
     /// Call only within an already validated, synchronous clean journal read.
     private func readCheckRunnerPhotoCommitEvidence(
-        workspaceID: WorkspaceID, draftID: UUID
+        workspaceID: WorkspaceID, draftID: UUID, validatedPass: ValidatedJournalPass? = nil
     ) throws -> CheckRunnerPhotoCommitEvidenceV1? {
         let workspaceUUID = workspaceID.rawValue
         var receiptDescriptor = FetchDescriptor<MutationReceiptRow>(
@@ -1725,7 +1725,7 @@ final class MutationJournalStoreV1 {
             var history: [FieldDraftCommittedEvidenceV1] = []
             var originalEnvelopes: [MutationIDV1: (MutationReceiptRow, MutationEnvelopeV1)] = [:]
             for row in rows {
-                let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+                let envelope = try photoReadEnvelope(row, validatedPass: validatedPass)
                 guard envelope.workspaceID == workspaceID,
                       originalEnvelopes.updateValue((row, envelope), forKey: envelope.mutationID) == nil else {
                     throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
@@ -1733,7 +1733,7 @@ final class MutationJournalStoreV1 {
                 guard case let .applyFieldDraft(mutation) = envelope.command,
                       mutation.workspaceID == workspaceID, fieldDraftMutationDraftID(mutation) == draftID else { continue }
                 history.append(try FieldDraftCommittedEvidenceV1(envelope: envelope,
-                    receipt: validate(row: row, expectedEnvelope: nil)))
+                    receipt: photoReadReceipt(row, validatedPass: validatedPass)))
             }
             var checkpoints = FetchDescriptor<FieldDraftCheckpointRow>(
                 predicate: #Predicate { $0.workspaceID == workspaceUUID && $0.draftID == draftID })
@@ -1794,7 +1794,7 @@ final class MutationJournalStoreV1 {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
             let target = try CheckRunnerPhotoCommittedEvidenceV1(envelope: targetEnvelope,
-                receipt: validate(row: targetRow, expectedEnvelope: nil))
+                receipt: photoReadReceipt(targetRow, validatedPass: validatedPass))
             return try CheckRunnerPhotoCommitEvidenceV1(history: history, checkpoint: checkpoint,
                 sagas: sagaRows.map { try $0.value() }, reservations: reservationRows.map { try $0.value() },
                 stages: stageRows.map { try $0.value() }, receipts: terminalRows.map { try $0.value() }, target: target)
@@ -1818,14 +1818,14 @@ final class MutationJournalStoreV1 {
 
     /// Call only within an already validated, synchronous clean journal read.
     private func readCheckRunnerPhotoParentEvidence(
-        workspaceID: WorkspaceID, parentDraftID: UUID, childDraftID: UUID
+        workspaceID: WorkspaceID, parentDraftID: UUID, childDraftID: UUID, validatedPass: ValidatedJournalPass? = nil
     ) throws -> CheckRunnerPhotoParentEvidenceV1? {
         try validateCheckRunnerBeginHistoryValue {
             guard let original = try readCheckRunnerPhotoParentOriginals(
-                workspaceID: workspaceID, parentDraftID: parentDraftID) else { return nil }
+                workspaceID: workspaceID, parentDraftID: parentDraftID, validatedPass: validatedPass) else { return nil }
             guard original.validated.selectedChildDraftIDs.contains(childDraftID) else { return nil }
             guard let child = try readCheckRunnerPhotoCommitEvidence(
-                workspaceID: workspaceID, draftID: childDraftID) else {
+                workspaceID: workspaceID, draftID: childDraftID, validatedPass: validatedPass) else {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
             return try .init(history: original.history, checkpoint: original.checkpoint, child: child,
@@ -1852,7 +1852,7 @@ final class MutationJournalStoreV1 {
     }
 
     private func readCheckRunnerPhotoParentOriginals(
-        workspaceID: WorkspaceID, parentDraftID: UUID
+        workspaceID: WorkspaceID, parentDraftID: UUID, validatedPass: ValidatedJournalPass? = nil
     ) throws -> CheckRunnerItemParentEvidenceV1? {
         return try validateCheckRunnerBeginHistoryValue {
             let workspaceUUID = workspaceID.rawValue
@@ -1867,14 +1867,14 @@ final class MutationJournalStoreV1 {
             var originals: [MutationIDV1: (MutationReceiptRow, MutationEnvelopeV1)] = [:]
             var history: [FieldDraftCommittedEvidenceV1] = []
             for row in rows {
-                let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+                let envelope = try photoReadEnvelope(row, validatedPass: validatedPass)
                 guard envelope.workspaceID == workspaceID,
                       originals.updateValue((row, envelope), forKey: envelope.mutationID) == nil else {
                     throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
                 }
                 if case let .applyFieldDraft(mutation) = envelope.command,
                    mutation.workspaceID == workspaceID, fieldDraftMutationDraftID(mutation) == parentDraftID {
-                    history.append(try .init(envelope: envelope, receipt: validate(row: row, expectedEnvelope: nil)))
+                    history.append(try .init(envelope: envelope, receipt: photoReadReceipt(row, validatedPass: validatedPass)))
                 }
             }
             var checkpoints = FetchDescriptor<FieldDraftCheckpointRow>(
@@ -1894,12 +1894,12 @@ final class MutationJournalStoreV1 {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
             let workflow = try CheckRunnerBeginCommittedEvidenceV1(envelope: originalWorkflow.1,
-                receipt: validate(row: originalWorkflow.0, expectedEnvelope: nil))
+                receipt: photoReadReceipt(originalWorkflow.0, validatedPass: validatedPass))
             let timeZone = try attempt.timeZone.map { zone -> CheckRunnerBeginCommittedEvidenceV1 in
                 guard let original = originals[zone.mutationID] else {
                     throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
                 }
-                return try .init(envelope: original.1, receipt: validate(row: original.0, expectedEnvelope: nil))
+                return try .init(envelope: original.1, receipt: photoReadReceipt(original.0, validatedPass: validatedPass))
             }
             let selected = Set(history.map { $0.mutation.mutationID.rawValue }
                 + [attempt.recordMutationID.rawValue] + (attempt.timeZone.map { [$0.mutationID.rawValue] } ?? [])
@@ -1930,7 +1930,7 @@ final class MutationJournalStoreV1 {
                 try originals[.init(rawValue: finalizationAttempt.identifiers.mutationID)]
                     .map { original in
                         try FinalizationCommittedEvidenceV1(envelope: original.1,
-                            receipt: validate(row: original.0, expectedEnvelope: nil))
+                            receipt: photoReadReceipt(original.0, validatedPass: validatedPass))
                     }
             }
             return try CheckRunnerItemParentEvidenceV1(
@@ -2065,9 +2065,20 @@ final class MutationJournalStoreV1 {
         guard workspaceID == identity.workspaceID else { throw WorkspaceMutationFailureV1.wrongWorkspace }
         let before = try currentRevision(writerInstanceID: writerInstanceID)
         try validateCheckRunnerBeginHistoryValue { try validateAll() }
-        let result: CheckRunnerPhotoContinuationEvidenceV1? = try validateCheckRunnerBeginHistoryValue {
+        let result = try readCheckRunnerPhotoContinuationEvidence(workspaceID: workspaceID,
+            parentDraftID: parentDraftID, childDraftID: childDraftID, before: before, validatedPass: nil)
+        guard !modelContext.hasChanges, try currentRevision(writerInstanceID: writerInstanceID) == before else {
+            throw WorkspaceMutationFailureV1.persistenceFailed
+        }
+        return result
+    }
+    private func readCheckRunnerPhotoContinuationEvidence(
+        workspaceID: WorkspaceID, parentDraftID: UUID, childDraftID: UUID,
+        before: WorkspaceRevisionV1, validatedPass: ValidatedJournalPass?
+    ) throws -> CheckRunnerPhotoContinuationEvidenceV1? {
+        return try validateCheckRunnerBeginHistoryValue {
             guard let parent = try readCheckRunnerPhotoParentOriginals(
-                workspaceID: workspaceID, parentDraftID: parentDraftID) else { return nil }
+                workspaceID: workspaceID, parentDraftID: parentDraftID, validatedPass: validatedPass) else { return nil }
             guard parent.validated.selectedChildDraftIDs.contains(childDraftID) else { return nil }
             let workspaceUUID = workspaceID.rawValue
             var checkpoints = FetchDescriptor<FieldDraftCheckpointRow>(predicate: #Predicate {
@@ -2087,14 +2098,14 @@ final class MutationJournalStoreV1 {
             var history: [FieldDraftCommittedEvidenceV1] = []
             var target: CheckRunnerPhotoCommittedEvidenceV1?
             for row in try boundedCurrentWorkspaceReceiptRows() {
-                let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+                let envelope = try photoReadEnvelope(row, validatedPass: validatedPass)
                 if case let .applyFieldDraft(mutation) = envelope.command,
                    mutation.workspaceID == workspaceID, fieldDraftMutationDraftID(mutation) == childDraftID {
-                    history.append(try .init(envelope: envelope, receipt: validate(row: row, expectedEnvelope: nil)))
+                    history.append(try .init(envelope: envelope, receipt: photoReadReceipt(row, validatedPass: validatedPass)))
                 }
                 if envelope.mutationID == targetID {
                     guard target == nil else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
-                    target = try .init(envelope: envelope, receipt: validate(row: row, expectedEnvelope: nil))
+                    target = try .init(envelope: envelope, receipt: photoReadReceipt(row, validatedPass: validatedPass))
                 }
             }
             var selected = Set(history.map { $0.mutation.mutationID.rawValue })
@@ -2137,7 +2148,7 @@ final class MutationJournalStoreV1 {
             let precedingWide: CheckRunnerPhotoParentEvidenceV1?
             if photo.captureStep == .close, let wide = parent.validated.parent.field.wideContext {
                 precedingWide = try readCheckRunnerPhotoParentEvidence(workspaceID: workspaceID,
-                    parentDraftID: parentDraftID, childDraftID: wide.childDraftID)
+                    parentDraftID: parentDraftID, childDraftID: wide.childDraftID, validatedPass: validatedPass)
             } else { precedingWide = nil }
             return try .init(parentHistory: parent.history, parentCheckpoint: parent.checkpoint,
                 workflow: parent.workflow, timeZone: parent.timeZone, history: history, checkpoint: checkpoint,
@@ -2149,11 +2160,107 @@ final class MutationJournalStoreV1 {
                 currentWorkflowPostImage: currentPostImage(identity: workflowIdentity, revision: workflowRevision),
                 currentEvidencePostImage: evidenceImage)
         }
-        guard !modelContext.hasChanges, try currentRevision(writerInstanceID: writerInstanceID) == before else {
+    }
+
+    // Only private fixed readers pass a decoded full validation result. Keeping
+    // the original bounded/sorted fetches retains physical namespace admission;
+    // the immutable values are reused only under that reader's synchronous G lock.
+    private func photoReadEnvelope(_ row: MutationReceiptRow,
+        validatedPass: ValidatedJournalPass?) throws -> MutationEnvelopeV1 {
+        guard let validatedPass else { return try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData) }
+        guard let value = validatedPass.decodedRows[row.workspaceMutationKey] else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return value.envelope
+    }
+
+    private func photoReadReceipt(_ row: MutationReceiptRow,
+        validatedPass: ValidatedJournalPass?) throws -> MutationReceiptV1 {
+        guard let validatedPass else { return try validate(row: row, expectedEnvelope: nil) }
+        guard let value = validatedPass.decodedRows[row.workspaceMutationKey] else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return value.receipt
+    }
+
+    /// Values only: unsupported is distinct from an authenticated absence.
+    /// Neither the result nor its parent payload grants effect authority.
+    enum PhotoContinuationRead {
+        case unsupported
+        case absent
+        case observed(CheckRunnerPhotoContinuationEvidenceV1, CheckRunnerItemDraftPayloadV1)
+    }
+
+    /// One fixed canonical observation; no caller callback or decoded pass escapes.
+    func currentPhotoContinuationInReadScope(workspaceID: WorkspaceID, parentDraftID: UUID,
+        childDraftID: UUID, context: ModelContext, writerInstanceID: UUID) throws -> PhotoContinuationRead {
+        guard case let .canonicalWriter(fence) = accessMode else { return .unsupported }
+        do {
+            return try fence.withAuthorizedRead {
+                guard context === modelContext, !modelContext.hasChanges else {
+                    throw WorkspaceMutationFailureV1.persistenceFailed
+                }
+                let before = try storedRevision(writerInstanceID: writerInstanceID)
+                guard workspaceID == before.workspaceID else { throw WorkspaceMutationFailureV1.wrongWorkspace }
+                let id = parentDraftID
+                let rows = try modelContext.fetch(FetchDescriptor<FieldDraftCheckpointRow>(
+                    predicate: #Predicate { $0.draftID == id }))
+                let result: PhotoContinuationRead
+                if rows.count == 1, let row = rows.first,
+                   (try? CheckRunnerItemDraftCodecV1.validateCheckpoint(row.value()).phase) == .preparedFinalization {
+                    // The existing full finalization-chain authentication remains
+                    // the sole admission for this special parent phase.
+                    result = .unsupported
+                } else {
+                    let pass = try validateCheckRunnerBeginHistoryValue {
+                        try validateJournalPass(release: PersistentSchemaReleaseRegistryV1.activeRelease,
+                            historicalAuthority: nil, retainDecodedRows: true)
+                    }
+                    if let evidence = try readCheckRunnerPhotoContinuationEvidence(workspaceID: workspaceID,
+                        parentDraftID: parentDraftID, childDraftID: childDraftID, before: before, validatedPass: pass) {
+                        let checkpoint = evidence.parentCheckpoint
+                        guard rows.count == 1, try rows[0].value() == checkpoint else {
+                            throw FieldDraftFailureV1.staleDraftRevision
+                        }
+                        let parent = try CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint)
+                        let key = MutationWorkspaceKeyV1.value(workspaceID: identity.workspaceID,
+                            mutationID: checkpoint.mutationID)
+                        guard try modelContext.fetch(FetchDescriptor<MutationQuarantineRow>(
+                            predicate: #Predicate { $0.workspaceMutationKey == key })).isEmpty else {
+                            throw WorkspaceMutationFailureV1.mutationIDQuarantined
+                        }
+                        guard let saved = pass.decodedRows[key] else { throw FieldDraftFailureV1.staleDraftRevision }
+                        let original = try FieldDraftCommittedEvidenceV1(envelope: saved.envelope, receipt: saved.receipt)
+                        guard original.mutation.workspaceID == checkpoint.workspaceID,
+                              original.mutation.expectedRevision == checkpoint.draftRevision - 1,
+                              original.mutation.expectedBaseCanonicalRevision == checkpoint.baseCanonicalRevision else {
+                            throw FieldDraftFailureV1.staleDraftRevision
+                        }
+                        switch original.mutation.postImage {
+                        case let .createCheckpoint(value):
+                            guard checkpoint.draftRevision == 1, value == checkpoint else { throw FieldDraftFailureV1.digestMismatch }
+                        case let .reviseCheckpoint(value):
+                            guard checkpoint.draftRevision > 1, value == checkpoint else { throw FieldDraftFailureV1.digestMismatch }
+                        default: throw FieldDraftFailureV1.missingReceipt
+                        }
+                        result = .observed(evidence, parent)
+                    } else { result = .absent }
+                }
+                guard !modelContext.hasChanges,
+                      try storedRevision(writerInstanceID: writerInstanceID) == before else {
+                    throw WorkspaceMutationFailureV1.persistenceFailed
+                }
+                return result
+            }
+        } catch let failure as StaleWriterFenceV1.ReadFenceFailure {
+            provenWriterLeaseInvalidated = true
+            if let registryFailure = failure.underlying as? GenerationLeaseRegistryFailureV1 {
+                throw mappedFenceFailure(registryFailure)
+            }
             throw WorkspaceMutationFailureV1.persistenceFailed
         }
-        return result
     }
+
 
     /// Joins the original parent/child to this namespace's current projection.
     /// Foreign immutable history requires a future explicit destination mapping.

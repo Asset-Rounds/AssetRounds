@@ -26,137 +26,213 @@ private struct PrivacyTransformCanonicalReviewEnvelopeV1: Decodable {
 enum SurveyDefinitionBackupGraphClosureV1 {
     enum Failure: Error { case invalid }
 
+    /// Derived values only. This is neither an original mutation/receipt nor
+    /// authority to query a live journal or submit a destination write.
+    struct Projection {
+        let identities: [SurveyDefinitionIdentityV1]
+        let releases: [SurveyDefinitionReleaseV1]
+        let latestEvents: [UUID: SurveyDefinitionLifecycleEventV1]
+    }
+
+    private struct State {
+        let identity: SurveyDefinitionIdentityV1
+        let release: SurveyDefinitionReleaseV1
+        let event: SurveyDefinitionLifecycleEventV1
+    }
+
     static func validate(
         identities: [SurveyDefinitionIdentityV1],
         releases: [SurveyDefinitionReleaseV1],
         history: MutationHistorySnapshotV1,
         expectedWorkspaceID: WorkspaceID?
     ) throws {
+        _ = try projection(identities: identities, releases: releases,
+            history: history, expectedWorkspaceID: expectedWorkspaceID)
+    }
+
+    /// Authenticate the original complete graph, compare the exact current
+    /// projection, then optionally derive another workspace's values. Original
+    /// envelopes and receipts are never rewritten, discarded or synthesized.
+    static func projection(
+        identities: [SurveyDefinitionIdentityV1],
+        releases: [SurveyDefinitionReleaseV1],
+        history: MutationHistorySnapshotV1,
+        expectedWorkspaceID: WorkspaceID?,
+        destinationWorkspaceID: WorkspaceID? = nil
+    ) throws -> Projection {
+        try MutationJournalStoreV1.validateImportedSnapshot(history)
         guard Set(identities.map(\.definitionID)).count == identities.count,
-              Set(releases.map(\.releaseID)).count == releases.count else {
-            throw Failure.invalid
-        }
-        let identityByID = Dictionary(uniqueKeysWithValues: identities.map { ($0.definitionID, $0) })
-        let releaseByID = Dictionary(uniqueKeysWithValues: releases.map { ($0.releaseID, $0) })
+              Set(releases.map(\.releaseID)).count == releases.count else { throw Failure.invalid }
         let workspaceIDs = Set(identities.map(\.workspaceID) + releases.map(\.workspaceID))
         guard workspaceIDs.count <= 1,
               expectedWorkspaceID.map({ workspaceIDs.isEmpty || workspaceIDs == Set([$0]) }) ?? true else {
             throw Failure.invalid
         }
-
-        var mutations: [SurveyDefinitionMutationV1] = []
+        var originals: [UUID: SurveyDefinitionMutationV1] = [:]
+        var introductions: [UUID: SurveyDefinitionReleaseV1] = [:]
+        var mutationIDs = Set<MutationIDV1>()
         for record in history.receipts {
             let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
             guard case let .applySurveyDefinition(mutation) = envelope.command else { continue }
-            try mutation.validate()
+            let receipt = try MutationReceiptV1.decodeCanonical(from: record.receiptData)
+            _ = try SurveyDefinitionMutationReceiptV1(mutation: mutation, mutationReceipt: receipt)
             guard envelope.workspaceID == mutation.workspaceID,
                   envelope.mutationID == mutation.mutationID,
-                  expectedWorkspaceID.map({ envelope.workspaceID == $0 }) ?? true,
-                  let storedIdentity = identityByID[mutation.identity.definitionID],
-                  let storedRelease = releaseByID[mutation.release.releaseID],
-                  storedRelease == mutation.release,
-                  mutation.identity.workspaceID == storedIdentity.workspaceID,
-                  mutation.identity.activityKind == storedIdentity.activityKind,
-                  mutation.identity.createdBy == storedIdentity.createdBy,
-                  mutation.identity.createdAt == storedIdentity.createdAt,
-                  mutation.event.workspaceID == mutation.workspaceID,
-                  mutation.event.definitionID == mutation.identity.definitionID,
-                  mutation.event.mutationID == mutation.mutationID,
-                  mutation.event.release == (try SurveyDefinitionReleaseReferenceV1(storedRelease)) else {
+                  mutationIDs.insert(mutation.mutationID).inserted,
+                  originals.updateValue(mutation, forKey: mutation.event.eventID) == nil else {
                 throw Failure.invalid
             }
-            mutations.append(mutation)
+            if mutation.appendsRelease {
+                guard introductions.updateValue(mutation.release, forKey: mutation.release.releaseID) == nil else {
+                    throw Failure.invalid
+                }
+            }
         }
-        let events = mutations.map(\.event)
-        guard Set(events.map(\.eventID)).count == events.count,
-              Set(events.map { $0.mutationID.rawValue }).count == events.count else {
-            throw Failure.invalid
-        }
-        let eventByID = Dictionary(uniqueKeysWithValues: events.map { ($0.eventID, $0) })
-        let mutationByEventID = Dictionary(uniqueKeysWithValues: mutations.map { ($0.event.eventID, $0) })
 
-        var releaseChildCount: [UUID: Int] = [:]
-        for release in releases {
-            guard let identity = identityByID[release.definitionID],
-                  identity.workspaceID == release.workspaceID else { throw Failure.invalid }
+        var eventChildren: [UUID: Int] = [:]
+        for mutation in originals.values {
+            guard let introduced = introductions[mutation.release.releaseID],
+                  try projectRelease(introduced, to: mutation.workspaceID) == mutation.release else {
+                throw Failure.invalid
+            }
+            if let predecessorID = mutation.event.predecessorEventID {
+                guard let predecessor = originals[predecessorID] else { throw Failure.invalid }
+                // An event links to the predecessor value seen in its own
+                // origin. Its immutable predecessor hash is not recursively
+                // replaced with the final destination's projected hash.
+                let prior = try project(predecessor, to: mutation.workspaceID)
+                try mutation.event.validateSuccessor(of: prior.event, release: mutation.release)
+                try mutation.identity.validateSuccessor(of: prior.identity,
+                    event: mutation.event, release: mutation.release)
+                if mutation.appendsRelease {
+                    try mutation.release.validateSuccessor(of: prior.release)
+                } else {
+                    guard mutation.release == prior.release else { throw Failure.invalid }
+                }
+                eventChildren[predecessorID, default: 0] += 1
+                guard eventChildren[predecessorID] == 1 else { throw Failure.invalid }
+            } else {
+                guard mutation.expectedRevision == 0, mutation.appendsRelease,
+                      mutation.release.revision == 1,
+                      mutation.release.supersedesReleaseID == nil else { throw Failure.invalid }
+            }
+        }
+        var releaseChildren: [UUID: Int] = [:]
+        for release in introductions.values {
             if let predecessorID = release.supersedesReleaseID {
-                guard let predecessor = releaseByID[predecessorID] else { throw Failure.invalid }
-                try release.validateSuccessor(of: predecessor)
-                releaseChildCount[predecessorID, default: 0] += 1
-                guard releaseChildCount[predecessorID] == 1 else { throw Failure.invalid }
+                guard let predecessor = introductions[predecessorID] else { throw Failure.invalid }
+                try release.validateSuccessor(of: projectRelease(predecessor, to: release.workspaceID))
+                releaseChildren[predecessorID, default: 0] += 1
+                guard releaseChildren[predecessorID] == 1 else { throw Failure.invalid }
+            } else {
+                guard release.revision == 1 else { throw Failure.invalid }
             }
         }
-
-        var eventChildCount: [UUID: Int] = [:]
-        for event in events {
-            guard let identity = identityByID[event.definitionID],
-                  identity.workspaceID == event.workspaceID,
-                  let release = releaseByID[event.release.releaseID] else { throw Failure.invalid }
-            try event.validate(release: release)
-            if let predecessorID = event.predecessorEventID {
-                guard let predecessor = eventByID[predecessorID] else { throw Failure.invalid }
-                try event.validateSuccessor(of: predecessor, release: release)
-                eventChildCount[predecessorID, default: 0] += 1
-                guard eventChildCount[predecessorID] == 1 else { throw Failure.invalid }
+        let definitions = Dictionary(grouping: originals.values, by: { $0.identity.definitionID })
+        let definitionReleases = Dictionary(grouping: introductions.values, by: \.definitionID)
+        guard Set(definitions.keys) == Set(identities.map(\.definitionID)),
+              Set(definitions.keys) == Set(definitionReleases.keys),
+              Set(introductions.keys) == Set(releases.map(\.releaseID)) else { throw Failure.invalid }
+        var heads: [SurveyDefinitionMutationV1] = []
+        for (definitionID, values) in definitions {
+            let roots = values.filter { $0.event.predecessorEventID == nil }
+            let terminals = values.filter { eventChildren[$0.event.eventID, default: 0] == 0 }
+            guard roots.count == 1, terminals.count == 1,
+                  let terminal = terminals.first,
+                  let retainedReleases = definitionReleases[definitionID] else { throw Failure.invalid }
+            var visited = Set<UUID>()
+            var cursor: SurveyDefinitionMutationV1? = terminal
+            while let current = cursor {
+                guard current.identity.definitionID == definitionID,
+                      visited.insert(current.event.eventID).inserted else { throw Failure.invalid }
+                cursor = current.event.predecessorEventID.flatMap { originals[$0] }
             }
-        }
-
-        for identity in identities {
-            guard let release = releaseByID[identity.currentRelease.releaseID],
-                  let event = eventByID[identity.latestLifecycleEventID],
-                  let latestMutation = mutationByEventID[event.eventID],
-                  latestMutation.identity == identity,
-                  identity.latestLifecycleEventSHA256 == event.eventSHA256 else {
-                throw Failure.invalid
-            }
-            try identity.validate(currentRelease: release, event: event)
-            let definitionEvents = events.filter { $0.definitionID == identity.definitionID }
-            let roots = definitionEvents.filter { $0.predecessorEventID == nil }
-            let heads = definitionEvents.filter { eventChildCount[$0.eventID, default: 0] == 0 }
-            guard roots.count == 1, heads.count == 1,
-                  heads[0].eventID == identity.latestLifecycleEventID else { throw Failure.invalid }
-            var visitedEvents = Set<UUID>()
-            var eventCursor: SurveyDefinitionLifecycleEventV1? = event
-            while let current = eventCursor {
-                guard visitedEvents.insert(current.eventID).inserted else { throw Failure.invalid }
-                eventCursor = current.predecessorEventID.flatMap { eventByID[$0] }
-            }
-            guard visitedEvents.count == definitionEvents.count else { throw Failure.invalid }
-
-            let definitionReleases = releases.filter { $0.definitionID == identity.definitionID }
-            let releaseRoots = definitionReleases.filter { $0.supersedesReleaseID == nil }
-            let releaseHeads = definitionReleases.filter { releaseChildCount[$0.releaseID, default: 0] == 0 }
+            guard visited.count == values.count else { throw Failure.invalid }
+            let releaseRoots = retainedReleases.filter { $0.supersedesReleaseID == nil }
+            let releaseHeads = retainedReleases.filter { releaseChildren[$0.releaseID, default: 0] == 0 }
             guard releaseRoots.count == 1, releaseHeads.count == 1,
-                  releaseHeads[0].releaseID == identity.currentRelease.releaseID else { throw Failure.invalid }
+                  releaseHeads.first?.releaseID == terminal.release.releaseID else { throw Failure.invalid }
             var visitedReleases = Set<UUID>()
-            var releaseCursor: SurveyDefinitionReleaseV1? = release
+            var releaseCursor: SurveyDefinitionReleaseV1? = introductions[terminal.release.releaseID]
             while let current = releaseCursor {
-                guard visitedReleases.insert(current.releaseID).inserted else { throw Failure.invalid }
-                releaseCursor = current.supersedesReleaseID.flatMap { releaseByID[$0] }
+                guard current.definitionID == definitionID,
+                      visitedReleases.insert(current.releaseID).inserted else { throw Failure.invalid }
+                releaseCursor = current.supersedesReleaseID.flatMap { introductions[$0] }
             }
-            guard visitedReleases.count == definitionReleases.count else { throw Failure.invalid }
+            guard visitedReleases.count == retainedReleases.count else { throw Failure.invalid }
+            heads.append(terminal)
         }
-
-        guard events.allSatisfy({ identityByID[$0.definitionID] != nil }),
-              releases.allSatisfy({ identityByID[$0.definitionID] != nil }),
-              Set(events.map(\.release.releaseID)) == Set(releases.map(\.releaseID)),
-              identities.isEmpty == releases.isEmpty,
-              identities.isEmpty == events.isEmpty else { throw Failure.invalid }
-
-        var expectedRevisions: [String: UInt64] = [:]
+        var expectedRevisions: [WorkspaceEntityIdentityV1: UInt64] = [:]
         for identity in identities {
-            let key = try WorkspaceEntityIdentityV1(kind: .surveyDefinitionIdentity, id: identity.definitionID).stableKey
-            guard expectedRevisions.updateValue(identity.revision, forKey: key) == nil else { throw Failure.invalid }
+            expectedRevisions[try .init(kind: .surveyDefinitionIdentity, id: identity.definitionID)] = identity.revision
         }
         for release in releases {
-            let key = try WorkspaceEntityIdentityV1(kind: .surveyDefinitionRelease, id: release.releaseID).stableKey
-            guard expectedRevisions.updateValue(release.revision, forKey: key) == nil else { throw Failure.invalid }
+            expectedRevisions[try .init(kind: .surveyDefinitionRelease, id: release.releaseID)] = release.revision
         }
-        var actualRevisions: [String: UInt64] = [:]
-        for value in history.entityRevisions where value.identity.kind == .surveyDefinitionIdentity || value.identity.kind == .surveyDefinitionRelease {
-            guard actualRevisions.updateValue(value.revision, forKey: value.identity.stableKey) == nil else { throw Failure.invalid }
+        var actualRevisions: [WorkspaceEntityIdentityV1: UInt64] = [:]
+        for row in history.entityRevisions where row.identity.kind == .surveyDefinitionIdentity
+            || row.identity.kind == .surveyDefinitionRelease {
+            guard actualRevisions.updateValue(row.revision, forKey: row.identity) == nil else { throw Failure.invalid }
         }
         guard actualRevisions == expectedRevisions else { throw Failure.invalid }
+        guard let currentWorkspace = workspaceIDs.first else {
+            guard originals.isEmpty, introductions.isEmpty, identities.isEmpty, releases.isEmpty else {
+                throw Failure.invalid
+            }
+            return Projection(identities: [], releases: [], latestEvents: [:])
+        }
+        func makeProjection(_ workspaceID: WorkspaceID) throws -> Projection {
+            let states = try heads.map { try project($0, to: workspaceID) }
+            return Projection(
+                identities: states.map(\.identity).sorted { $0.definitionID.uuidString < $1.definitionID.uuidString },
+                releases: try introductions.values.map { try projectRelease($0, to: workspaceID) }
+                    .sorted { $0.releaseID.uuidString < $1.releaseID.uuidString },
+                latestEvents: Dictionary(uniqueKeysWithValues: states.map { ($0.identity.definitionID, $0.event) }))
+        }
+        let current = try makeProjection(currentWorkspace)
+        guard current.identities == identities.sorted(by: { $0.definitionID.uuidString < $1.definitionID.uuidString }),
+              current.releases == releases.sorted(by: { $0.releaseID.uuidString < $1.releaseID.uuidString }) else {
+            throw Failure.invalid
+        }
+        if let destinationWorkspaceID, destinationWorkspaceID != currentWorkspace {
+            return try makeProjection(destinationWorkspaceID)
+        }
+        return current
+    }
+
+    private static func projectActor(_ source: ActorSnapshotV1, to workspaceID: WorkspaceID) throws -> ActorSnapshotV1 {
+        let local = try LocalActorReferenceV1(actorReferenceID: source.actor.actorReferenceID,
+            workspaceID: workspaceID, partyID: source.actor.partyID, displayName: source.actor.displayName)
+        return try ActorSnapshotV1(snapshotID: source.snapshotID, workspaceID: workspaceID,
+            actor: local, responsibility: source.responsibility,
+            displayNameAtTime: source.displayNameAtTime, capturedAt: source.capturedAt)
+    }
+
+    private static func projectRelease(_ source: SurveyDefinitionReleaseV1,
+        to workspaceID: WorkspaceID) throws -> SurveyDefinitionReleaseV1 {
+        try source.rebound(to: workspaceID, actor: projectActor(source.authoredBy, to: workspaceID))
+    }
+
+    private static func project(_ source: SurveyDefinitionMutationV1, to workspaceID: WorkspaceID) throws -> State {
+        let release = try projectRelease(source.release, to: workspaceID)
+        let original = source.event
+        let event = try SurveyDefinitionLifecycleEventV1(eventID: original.eventID, workspaceID: workspaceID,
+            definitionID: original.definitionID, action: original.action, priorState: original.priorState,
+            resultingState: original.resultingState, release: SurveyDefinitionReleaseReferenceV1(release),
+            predecessorEventID: original.predecessorEventID,
+            predecessorEventSHA256: original.predecessorEventSHA256,
+            sourceDefinitionID: original.sourceDefinitionID, sourceReleaseID: original.sourceReleaseID,
+            sourceReleaseSHA256: original.sourceReleaseSHA256, sourceArchiveSHA256: original.sourceArchiveSHA256,
+            semanticDiffSHA256: original.semanticDiffSHA256, actor: projectActor(original.actor, to: workspaceID),
+            recordedAt: original.recordedAt, revision: original.revision, mutationID: original.mutationID)
+        let identity = try SurveyDefinitionIdentityV1(definitionID: source.identity.definitionID,
+            workspaceID: workspaceID, activityKind: source.identity.activityKind,
+            lifecycleState: source.identity.lifecycleState, currentRelease: SurveyDefinitionReleaseReferenceV1(release),
+            latestLifecycleEventID: event.eventID, latestLifecycleEventSHA256: event.eventSHA256,
+            createdBy: projectActor(source.identity.createdBy, to: workspaceID), createdAt: source.identity.createdAt,
+            revision: source.identity.revision, mutationID: source.identity.mutationID)
+        try identity.validate(currentRelease: release, event: event)
+        return State(identity: identity, release: release, event: event)
     }
 }
 

@@ -6751,3 +6751,348 @@ extension S6_2BackupExportTests {
         }
     }
 }
+
+@MainActor
+private extension S6_2BackupExportTests {
+    struct C25State {
+        let identity: SurveyDefinitionIdentityV1
+        let release: SurveyDefinitionReleaseV1
+        let event: SurveyDefinitionLifecycleEventV1
+    }
+
+    struct C25Fixture {
+        let harness: Harness
+        let originals: [SurveyDefinitionMutationV1]
+        let history: MutationHistorySnapshotV1
+    }
+
+    func c25State(_ mutation: SurveyDefinitionMutationV1) -> C25State {
+        .init(identity: mutation.identity, release: mutation.release, event: mutation.event)
+    }
+
+    // Independent expectation from original domain values, never the shared
+    // backup projection or destination rows. Preserve the observed hash edge.
+    func c25Expected(_ source: C25State, workspace: WorkspaceID,
+        predecessorHash: String? = nil) throws -> C25State {
+        let release = try source.release.rebound(to: workspace,
+            actor: c30Actor(source.release.authoredBy, workspace: workspace))
+        let old = source.event
+        let event = try SurveyDefinitionLifecycleEventV1(eventID: old.eventID, workspaceID: workspace,
+            definitionID: old.definitionID, action: old.action, priorState: old.priorState,
+            resultingState: old.resultingState, release: SurveyDefinitionReleaseReferenceV1(release),
+            predecessorEventID: old.predecessorEventID,
+            predecessorEventSHA256: predecessorHash ?? old.predecessorEventSHA256,
+            sourceDefinitionID: old.sourceDefinitionID, sourceReleaseID: old.sourceReleaseID,
+            sourceReleaseSHA256: old.sourceReleaseSHA256, sourceArchiveSHA256: old.sourceArchiveSHA256,
+            semanticDiffSHA256: old.semanticDiffSHA256, actor: c30Actor(old.actor, workspace: workspace),
+            recordedAt: old.recordedAt, revision: old.revision, mutationID: old.mutationID)
+        let identity = try SurveyDefinitionIdentityV1(definitionID: source.identity.definitionID,
+            workspaceID: workspace, activityKind: source.identity.activityKind,
+            lifecycleState: source.identity.lifecycleState, currentRelease: SurveyDefinitionReleaseReferenceV1(release),
+            latestLifecycleEventID: event.eventID, latestLifecycleEventSHA256: event.eventSHA256,
+            createdBy: c30Actor(source.identity.createdBy, workspace: workspace),
+            createdAt: source.identity.createdAt, revision: source.identity.revision,
+            mutationID: source.identity.mutationID)
+        return .init(identity: identity, release: release, event: event)
+    }
+
+    func c25Successor(_ prior: C25State, release: SurveyDefinitionReleaseV1,
+        action: SurveyDefinitionLifecycleActionV1, actor: ActorSnapshotV1) throws -> SurveyDefinitionMutationV1 {
+        let appendsRelease = action != .publish && action != .retire
+        let mutationID = try appendsRelease ? release.mutationID : MutationIDV1(rawValue: UUID())
+        let state: SurveyDefinitionLifecycleStateV1 = action == .publish ? .published : action == .retire ? .retired : .draft
+        let event = try SurveyDefinitionLifecycleEventV1(eventID: UUID(), workspaceID: prior.identity.workspaceID,
+            definitionID: prior.identity.definitionID, action: action, priorState: prior.identity.lifecycleState,
+            resultingState: state, release: SurveyDefinitionReleaseReferenceV1(release),
+            predecessorEventID: prior.event.eventID, predecessorEventSHA256: prior.event.eventSHA256,
+            actor: actor, recordedAt: prior.event.recordedAt.addingTimeInterval(1),
+            revision: prior.identity.revision + 1, mutationID: mutationID)
+        let identity = try SurveyDefinitionIdentityV1(definitionID: prior.identity.definitionID,
+            workspaceID: prior.identity.workspaceID, activityKind: prior.identity.activityKind,
+            lifecycleState: state, currentRelease: SurveyDefinitionReleaseReferenceV1(release),
+            latestLifecycleEventID: event.eventID, latestLifecycleEventSHA256: event.eventSHA256,
+            createdBy: prior.identity.createdBy, createdAt: prior.identity.createdAt,
+            revision: event.revision, mutationID: mutationID)
+        try event.validateSuccessor(of: prior.event, release: release)
+        try identity.validateSuccessor(of: prior.identity, event: event, release: release)
+        return try .init(identity: identity, release: release, event: event)
+    }
+
+    func makeC25Fixture(_ label: String, multiEvent: Bool) throws -> C25Fixture {
+        let harness = try makeConfigurationCloneTarget("c25-\(label)")
+        let owner = try StoreSessionCoordinator(validatingSession: harness.session)
+        defer { XCTAssertNoThrow(try owner.invalidateAndReleaseWriter()) }
+        let writer = owner.workspaceWriter
+        let journal = try MutationJournalStoreV1(modelContext: harness.context,
+            identity: harness.session.workspaceIdentity, generationID: harness.session.generationID,
+            allowStateBootstrap: false)
+        let first = try C25SurveyDefinitionTestSupport.release(releaseSlot: 6_010,
+            definitionID: UUID(), workspaceID: harness.session.workspaceID)
+        try CanonicalWriterSeedingV1.appendActors([first.authoredBy], writer: writer)
+        try CanonicalWriterSeedingV1.commitSurveyDefinitionDraft(first, writer: writer)
+        var originals = [try XCTUnwrap(journal.surveyDefinitionMutation(mutationID: first.mutationID))]
+        if multiEvent {
+            let next = try C25SurveyDefinitionTestSupport.release(releaseSlot: 6_020,
+                definitionID: first.definitionID, workspaceID: first.workspaceID,
+                revision: 2, supersedesReleaseID: first.releaseID)
+            try CanonicalWriterSeedingV1.appendActors([next.authoredBy], writer: writer)
+            let revised = try c25Successor(c25State(originals[0]), release: next,
+                action: .reviseDraft, actor: next.authoredBy)
+            _ = try writer.commitSurveyDefinition(revised)
+            originals.append(revised)
+            // A distinct event actor is legitimate; creator continuity is separate.
+            let publisher = try C25SurveyDefinitionTestSupport.actor(workspaceID: first.workspaceID, slot: 6_100)
+            try CanonicalWriterSeedingV1.appendActors([publisher], writer: writer)
+            let published = try c25Successor(c25State(revised), release: next, action: .publish, actor: publisher)
+            _ = try writer.commitSurveyDefinition(published)
+            originals.append(published)
+        }
+        XCTAssertFalse(harness.context.hasChanges)
+        let history = try writer.sourceMutationHistorySnapshot()
+        XCTAssertEqual(try c25Receipts(history).count, multiEvent ? 3 : 1)
+        return .init(harness: harness, originals: originals, history: history)
+    }
+
+    func c25Receipts(_ history: MutationHistorySnapshotV1) throws -> [MutationHistoryReceiptRecordV1] {
+        try history.receipts.filter {
+            if case .applySurveyDefinition = try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData).command { return true }
+            return false
+        }
+    }
+
+    func c25Values(_ context: ModelContext) throws -> ([SurveyDefinitionIdentityV1], [SurveyDefinitionReleaseV1]) {
+        (try context.fetch(FetchDescriptor<SurveyDefinitionIdentityRow>()).map { try $0.value() }
+            .sorted { $0.definitionID.uuidString < $1.definitionID.uuidString },
+         try context.fetch(FetchDescriptor<SurveyDefinitionReleaseRow>()).map { try $0.value() }
+            .sorted { $0.releaseID.uuidString < $1.releaseID.uuidString })
+    }
+
+    func c25Restore(_ archive: URL, target: Harness, mode: BackupRestoreMode) async throws -> Harness {
+        let importer = try BackupImportService(generationRootURL: target.session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }), scopedAccess: .alreadyAuthorized)
+        let package = try importer.stageAndValidate(selectedPackageURL: archive)
+        defer { try? importer.discard(package) }
+        let service = try BackupRestoreService(applicationSupportURL: target.applicationSupportURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+        service.restorePhaseDiagnosticForTesting = { print("C25 transport \(mode) phase=\($0)") }
+        var destinationDigest: String?
+        service.configurationCloneDestinationRecordsSHA256ForTesting = { destinationDigest = $0 }
+        let session = try await service.restore(validatedPackage: package, currentModelContext: target.context,
+            currentGenerationID: target.session.generationID,
+            currentGenerationRootURL: target.session.generationRootURL, mode: mode)
+        if mode == .clone {
+            XCTAssertEqual(try XCTUnwrap(destinationDigest), try BackupCanonicalEncoderV1().encodeRecords(
+                service.c55CurrentRecordsForTesting(in: session.modelContext)).sha256)
+        }
+        return .init(applicationSupportURL: target.applicationSupportURL, session: session,
+            context: session.modelContext, countedRoots: [])
+    }
+
+    func c25ColdExport(_ harness: Harness, head: C25State,
+        originals: [MutationHistoryReceiptRecordV1], directoryName: String) async throws -> URL {
+        let session = try StoreGenerationFactory(applicationSupportURL: harness.applicationSupportURL).openOrBootstrapCurrent()
+        let cold = Harness(applicationSupportURL: harness.applicationSupportURL, session: session,
+            context: session.modelContext, countedRoots: [])
+        let records = try BackupCanonicalDecoderV1().decodeRecords(canonicalBasis(cold).recordsData)
+        let values = try c25Values(cold.context)
+        XCTAssertEqual(values.0, [head.identity])
+        XCTAssertTrue(values.1.contains(head.release))
+        let history = try XCTUnwrap(records.mutationHistory)
+        for original in originals { XCTAssertTrue(history.receipts.contains(original)) }
+        let archive = try await exportLivePackage(cold, directoryName: directoryName)
+        let host = try makeConfigurationCloneTarget("c25-cold-validation")
+        let importer = try BackupImportService(generationRootURL: host.session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }), scopedAccess: .alreadyAuthorized)
+        let package = try importer.stageAndValidate(selectedPackageURL: archive)
+        defer { try? importer.discard(package) }
+        XCTAssertEqual(package.records.surveyDefinitions, records.surveyDefinitions)
+        for original in originals { XCTAssertTrue(try XCTUnwrap(package.records.mutationHistory).receipts.contains(original)) }
+        return archive
+    }
+}
+
+extension S6_2BackupExportTests {
+    @MainActor
+    func testC25SurveyDefinitionProjectionAuthenticatesOriginalAndMultiEventGraphs() throws {
+        // The single-event prerequisite runs first, without any photo pipeline.
+        for multiEvent in [false, true] {
+            let fixture = try makeC25Fixture("projection-\(multiEvent)", multiEvent: multiEvent)
+            let values = try c25Values(fixture.harness.context)
+            let currentWorkspace = fixture.harness.session.workspaceID
+            let current = try SurveyDefinitionBackupGraphClosureV1.projection(identities: values.0,
+                releases: values.1, history: fixture.history, expectedWorkspaceID: currentWorkspace)
+            XCTAssertEqual(current.identities, values.0)
+            XCTAssertEqual(Set(current.releases.map(\.releaseSHA256)), Set(values.1.map(\.releaseSHA256)))
+            let head = c25State(try XCTUnwrap(fixture.originals.last))
+            XCTAssertEqual(current.latestEvents[head.identity.definitionID], head.event)
+            let destination = WorkspaceID(rawValue: UUID())
+            let expected = try c25Expected(head, workspace: destination)
+            let rebound = try SurveyDefinitionBackupGraphClosureV1.projection(identities: values.0,
+                releases: values.1, history: fixture.history, expectedWorkspaceID: currentWorkspace,
+                destinationWorkspaceID: destination)
+            XCTAssertEqual(rebound.identities, [expected.identity])
+            XCTAssertEqual(rebound.latestEvents[head.identity.definitionID], expected.event)
+            XCTAssertTrue(rebound.releases.contains(expected.release))
+            XCTAssertNotEqual(expected.release.releaseSHA256, head.release.releaseSHA256)
+            let repeated = try SurveyDefinitionBackupGraphClosureV1.projection(identities: rebound.identities,
+                releases: rebound.releases, history: fixture.history, expectedWorkspaceID: destination,
+                destinationWorkspaceID: currentWorkspace)
+            XCTAssertEqual(repeated.identities, current.identities)
+            XCTAssertEqual(repeated.releases, current.releases)
+            XCTAssertEqual(repeated.latestEvents, current.latestEvents)
+            let records = try BackupCanonicalDecoderV1().decodeRecords(canonicalBasis(fixture.harness).recordsData)
+            XCTAssertEqual(try XCTUnwrap(records.mutationHistory), fixture.history)
+            if multiEvent {
+                let prior = try c25Expected(c25State(fixture.originals[1]), workspace: destination)
+                XCTAssertNotEqual(expected.event.predecessorEventSHA256, prior.event.eventSHA256)
+                // Recursive rewriting is a valid typed value, but not the
+                // destination projection of these authenticated originals.
+                let recursivelyChanged = try c25Expected(head, workspace: destination,
+                    predecessorHash: prior.event.eventSHA256)
+                XCTAssertThrowsError(try SurveyDefinitionBackupGraphClosureV1.validate(
+                    identities: [recursivelyChanged.identity], releases: rebound.releases,
+                    history: fixture.history, expectedWorkspaceID: destination))
+            }
+        }
+    }
+
+    @MainActor
+    func testC25SurveyDefinitionCloneSuccessorForkAndColdExportPreserveHistory() async throws {
+        let fixture = try makeC25Fixture("physical", multiEvent: true)
+        let sourceHead = c25State(try XCTUnwrap(fixture.originals.last))
+        let sourceTree = try treeFacts(fixture.harness.session.generationRootURL)
+        let sourceRows = try configurationCloneRawJournal(fixture.harness.context)
+        let archive = try await exportLivePackage(fixture.harness, directoryName: "c25-source")
+        let cloned = try await c25Restore(archive, target: makeConfigurationCloneTarget("c25-clone"), mode: .clone)
+        let cloneHead = try c25Expected(sourceHead, workspace: cloned.session.workspaceID)
+        let originalReceipts = try c25Receipts(fixture.history)
+        _ = try await c25ColdExport(cloned, head: cloneHead, originals: originalReceipts,
+            directoryName: "c25-clone-before-retire")
+
+        // This tests the real canonical writer, not library reader authority.
+        // The separate exactLibraryRow inherited-source gap remains due.
+        let owner = try StoreSessionCoordinator(validatingSession: cloned.session)
+        defer { XCTAssertNoThrow(try owner.invalidateAndReleaseWriter()) }
+        let actor = try C25SurveyDefinitionTestSupport.actor(workspaceID: cloned.session.workspaceID, slot: 6_200)
+        try CanonicalWriterSeedingV1.appendActors([actor], writer: owner.workspaceWriter)
+        let retired = try c25Successor(cloneHead, release: cloneHead.release, action: .retire, actor: actor)
+        let journal = try MutationJournalStoreV1(modelContext: cloned.context,
+            identity: cloned.session.workspaceIdentity, generationID: cloned.session.generationID,
+            allowStateBootstrap: false)
+        let lifecycle = SurveyDefinitionLifecycleAdapterV1(writer: owner.workspaceWriter, journalStore: journal)
+        let receipt = try await lifecycle.applySurveyDefinition(retired)
+        XCTAssertEqual(receipt.mutationReceipt.mutationID, retired.mutationID)
+        let replay = try await lifecycle.applySurveyDefinition(retired)
+        XCTAssertEqual(replay, receipt)
+        let mixedHistory = try owner.workspaceWriter.sourceMutationHistorySnapshot()
+        let mixedReceipts = try c25Receipts(mixedHistory)
+        XCTAssertEqual(mixedReceipts.count, 4)
+        for original in originalReceipts { XCTAssertTrue(mixedReceipts.contains(original)) }
+        try owner.invalidateAndReleaseWriter()
+        let secondArchive = try await c25ColdExport(cloned, head: c25State(retired), originals: mixedReceipts,
+            directoryName: "c25-clone-after-retire")
+        let forked = try await c25Restore(secondArchive, target: makeConfigurationCloneTarget("c25-fork"), mode: .fork)
+        let forkHead = try c25Expected(c25State(retired), workspace: forked.session.workspaceID)
+        XCTAssertNotEqual(forked.session.workspaceID, cloned.session.workspaceID)
+        XCTAssertEqual(forkHead.event.predecessorEventSHA256, cloneHead.event.eventSHA256)
+        _ = try await c25ColdExport(forked, head: forkHead, originals: mixedReceipts,
+            directoryName: "c25-fork-after-retire")
+
+        // Two independently accepted destination successors must not become
+        // one accepted graph when their original histories are combined.
+        let branch = try await c25Restore(archive,
+            target: makeConfigurationCloneTarget("c25-competing-branch"), mode: .clone)
+        let branchHead = try c25Expected(sourceHead, workspace: branch.session.workspaceID)
+        let branchOwner = try StoreSessionCoordinator(validatingSession: branch.session)
+        defer { XCTAssertNoThrow(try branchOwner.invalidateAndReleaseWriter()) }
+        let branchActor = try C25SurveyDefinitionTestSupport.actor(workspaceID: branch.session.workspaceID, slot: 6_202)
+        try CanonicalWriterSeedingV1.appendActors([branchActor], writer: branchOwner.workspaceWriter)
+        let branchRetired = try c25Successor(branchHead, release: branchHead.release,
+            action: .retire, actor: branchActor)
+        _ = try branchOwner.workspaceWriter.commitSurveyDefinition(branchRetired)
+        let branchHistory = try branchOwner.workspaceWriter.sourceMutationHistorySnapshot()
+        XCTAssertNotEqual(branchRetired.event.eventID, retired.event.eventID)
+        XCTAssertEqual(branchRetired.event.predecessorEventID, retired.event.predecessorEventID)
+        var mergedReceipts = mixedHistory.receipts
+        for record in branchHistory.receipts where !mergedReceipts.contains(record) { mergedReceipts.append(record) }
+        var revisions = Dictionary(uniqueKeysWithValues: mixedHistory.entityRevisions.map { ($0.identity, $0) })
+        for row in branchHistory.entityRevisions {
+            if revisions[row.identity].map({ $0.revision < row.revision }) ?? true { revisions[row.identity] = row }
+        }
+        XCTAssertTrue(mixedHistory.quarantines.isEmpty)
+        XCTAssertTrue(branchHistory.quarantines.isEmpty)
+        let competingHistory = MutationHistorySnapshotV1(workspaceRevision: mixedHistory.workspaceRevision,
+            lastLocalSequence: mixedHistory.lastLocalSequence, receipts: mergedReceipts, quarantines: [],
+            entityRevisions: revisions.values.sorted { $0.identity.stableKey < $1.identity.stableKey })
+        // Prove that receipt authentication succeeds: the denial must be the
+        // complete C25 graph's competing edge, not fabricated receipt bytes.
+        try MutationJournalStoreV1.validateImportedSnapshot(competingHistory)
+        let cloneValues = try c25Values(cloned.context)
+        let beforeConflict = try configurationCloneRawJournal(cloned.context)
+        XCTAssertThrowsError(try SurveyDefinitionBackupGraphClosureV1.validate(
+            identities: cloneValues.0, releases: cloneValues.1, history: competingHistory,
+            expectedWorkspaceID: cloned.session.workspaceID)) {
+            XCTAssertTrue($0 is SurveyDefinitionBackupGraphClosureV1.Failure)
+        }
+        XCTAssertEqual(try configurationCloneRawJournal(cloned.context), beforeConflict)
+        XCTAssertEqual(try configurationCloneRawJournal(fixture.harness.context), sourceRows)
+        XCTAssertEqual(try treeFacts(fixture.harness.session.generationRootURL), sourceTree)
+    }
+
+    @MainActor
+    func testC25SurveyDefinitionHostileProjectionFailsBeforeEffects() throws {
+        let fixture = try makeC25Fixture("hostiles", multiEvent: true)
+        let values = try c25Values(fixture.harness.context)
+        let beforeRows = try configurationCloneRawJournal(fixture.harness.context)
+        let beforeTree = try treeFacts(fixture.harness.session.generationRootURL)
+        let workspace = fixture.harness.session.workspaceID
+        func rejects(_ identities: [SurveyDefinitionIdentityV1], _ releases: [SurveyDefinitionReleaseV1],
+            _ history: MutationHistorySnapshotV1, expected: WorkspaceID? = nil) {
+            XCTAssertThrowsError(try SurveyDefinitionBackupGraphClosureV1.validate(identities: identities,
+                releases: releases, history: history, expectedWorkspaceID: expected ?? workspace))
+        }
+        rejects([], values.1, fixture.history)
+        rejects(values.0, [], fixture.history)
+        rejects([], [], fixture.history)
+        rejects(values.0 + values.0, values.1, fixture.history)
+        rejects(values.0, values.1 + values.1, fixture.history)
+        rejects(values.0, Array(values.1.dropFirst()), fixture.history)
+        rejects(values.0, values.1, fixture.history, expected: WorkspaceID(rawValue: UUID()))
+        let original = try XCTUnwrap(c25Receipts(fixture.history).first)
+        func history(_ receipts: [MutationHistoryReceiptRecordV1], revisions: [MutationHistoryEntityRevisionV1]? = nil) -> MutationHistorySnapshotV1 {
+            .init(workspaceRevision: fixture.history.workspaceRevision, lastLocalSequence: fixture.history.lastLocalSequence,
+                receipts: receipts, quarantines: fixture.history.quarantines,
+                entityRevisions: revisions ?? fixture.history.entityRevisions)
+        }
+        rejects(values.0, values.1, history(fixture.history.receipts.filter { $0 != original }))
+        rejects(values.0, values.1, history(fixture.history.receipts + [original]))
+        rejects(values.0, values.1, history(fixture.history.receipts,
+            revisions: fixture.history.entityRevisions.filter { $0.identity.kind != .surveyDefinitionRelease }))
+        let mismatched = MutationHistoryReceiptRecordV1(envelopeData: original.envelopeData,
+            receiptData: try XCTUnwrap(fixture.history.receipts.first { $0 != original }).receiptData,
+            reversalBasisData: original.reversalBasisData, semanticReversalData: original.semanticReversalData)
+        rejects(values.0, values.1, history(fixture.history.receipts.map { $0 == original ? mismatched : $0 }))
+        let head = c25State(try XCTUnwrap(fixture.originals.last))
+        let falseHead = try c25Expected(head, workspace: workspace, predecessorHash: String(repeating: "f", count: 64))
+        rejects([falseHead.identity], values.1, fixture.history)
+        let changedRelease = try SurveyDefinitionReleaseV1(releaseID: head.release.releaseID,
+            workspaceID: workspace, definitionID: head.release.definitionID, activityKind: head.release.activityKind,
+            ownerPackageID: "other.package", sections: head.release.sections, completionRules: head.release.completionRules,
+            claimsProfile: head.release.claimsProfile, reportProjection: head.release.reportProjection,
+            localizationReleaseSHA256: head.release.localizationReleaseSHA256,
+            supersedesReleaseID: head.release.supersedesReleaseID, revision: head.release.revision,
+            mutationID: head.release.mutationID, authoredBy: head.release.authoredBy, authoredAt: head.release.authoredAt)
+        rejects(values.0, values.1.map { $0.releaseID == changedRelease.releaseID ? changedRelease : $0 }, fixture.history)
+        // A competing real writer command is not permitted to reuse the old
+        // predecessor once this source has published its accepted successor.
+        let owner = try StoreSessionCoordinator(validatingSession: fixture.harness.session)
+        defer { XCTAssertNoThrow(try owner.invalidateAndReleaseWriter()) }
+        let competitor = try c25Successor(c25State(fixture.originals[1]), release: head.release,
+            action: .publish, actor: head.event.actor)
+        XCTAssertThrowsError(try owner.workspaceWriter.commitSurveyDefinition(competitor))
+        XCTAssertEqual(try configurationCloneRawJournal(fixture.harness.context), beforeRows)
+        XCTAssertEqual(try treeFacts(fixture.harness.session.generationRootURL), beforeTree)
+        XCTAssertEqual(try c25Values(fixture.harness.context).0, values.0)
+        XCTAssertEqual(try c25Values(fixture.harness.context).1, values.1)
+    }
+}

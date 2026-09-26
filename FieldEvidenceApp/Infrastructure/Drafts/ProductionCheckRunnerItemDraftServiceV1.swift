@@ -1115,14 +1115,13 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
     private func currentPhotoContinuation(parentDraftID: UUID, childDraftID: UUID) throws
         -> CheckRunnerPhotoContinuationEvidenceV1 {
         let current = try currentSession()
-        guard let evidence = try current.workspaceWriter.checkRunnerPhotoContinuationEvidence(
-            workspaceID: workspaceID, parentDraftID: parentDraftID, childDraftID: childDraftID) else {
-            throw FieldDraftFailureV1.missingReceipt
-        }
-        guard try read(draftID: parentDraftID) == evidence.parentCheckpoint else {
-            throw FieldDraftFailureV1.staleDraftRevision
-        }
-        try coordinator.validatePhotoContinuation(evidence, progress: progress, publishedRelease: publishedRelease)
+        let expectedSource: CheckRunnerRoundItemSourceV1?
+        if case let .live(expected) = serviceContext { expectedSource = expected }
+        else { expectedSource = nil }
+        let evidence = try coordinator.readValidatedPhotoContinuation(workspaceID: workspaceID,
+            parentDraftID: parentDraftID, childDraftID: childDraftID, expectedWriter: current.workspaceWriter,
+            expectedSource: expectedSource, progress: progress, publishedRelease: publishedRelease)
+        guard try currentSession() === current else { throw ScanToWorkFailureV1.authorityMismatch }
         return evidence
     }
 

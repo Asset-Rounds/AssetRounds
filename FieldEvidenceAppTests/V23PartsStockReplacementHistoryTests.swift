@@ -1,3 +1,4 @@
+import CoreFoundation
 import Foundation
 import SwiftData
 import XCTest
@@ -392,7 +393,7 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         let restoredHistory: MutationHistorySnapshotV1
         do {
             let restored = try await publicReplacementAsyncStep("restore") {
-                try await V906Integration.restore(
+                try await restoreWithPhaseDiagnostics(
                     archive,
                     into: target,
                     mode: .replaceExisting,
@@ -1718,6 +1719,74 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         print("C55 public phase=\(phase) status=\(status) elapsedMillis=\(elapsed)")
     }
 
+    private func restoreWithPhaseDiagnostics(
+        _ archive: URL, into target: V906Integration.Harness,
+        mode: BackupRestoreMode, ids: [UUID]
+    ) async throws -> StoreGenerationSession {
+        let validated = try publicReplacementStep("restore.stage-and-validate") {
+            try BackupImportService(generationRootURL: target.session.generationRootURL,
+                storagePreflight: V906Integration.storage, makeUUID: { V906Integration.id(70) },
+                scopedAccess: .alreadyAuthorized).stageAndValidate(selectedPackageURL: archive)
+        }
+        let restorer = try BackupRestoreService(applicationSupportURL: target.support,
+            storagePreflight: V906Integration.storage, makeUUID: V906Integration.sequence(ids))
+        #if DEBUG
+        restorer.restorePhaseDiagnosticForTesting = { phase in
+            print("C55 public restore mode=\(mode) phase=\(phase)")
+        }
+        #endif
+        return try await restorer.restore(validatedPackage: validated,
+            currentModelContext: target.session.modelContext,
+            currentGenerationID: target.session.generationID,
+            currentGenerationRootURL: target.session.generationRootURL, mode: mode)
+    }
+
+    // Diagnostic only: never substitute these bytes for a strict decoder input.
+    // Compare Foundation transport against the existing canonical renderer and
+    // report keys/digests/offsets without dumping retained business values.
+    private func reportCanonicalKeyDifference(_ data: Data, phase: String) {
+        func value(_ object: Any) throws -> CanonicalJSONValueV1 {
+            if object is NSNull { return .null }
+            if let text = object as? String { return .string(text) }
+            if let fields = object as? [String: Any] {
+                return .object(try fields.mapValues(value))
+            }
+            if let elements = object as? [Any] { return .array(try elements.map(value)) }
+            if let number = object as? NSNumber {
+                if CFGetTypeID(number) == CFBooleanGetTypeID() { return .bool(number.boolValue) }
+                guard let integer = Int(number.stringValue) else {
+                    throw FinalizationContractEncodingErrorV1.unsupportedValue
+                }
+                return .integer(integer)
+            }
+            throw FinalizationContractEncodingErrorV1.unsupportedValue
+        }
+        do {
+            guard let fields = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw FinalizationContractEncodingErrorV1.unsupportedValue
+            }
+            let canonical = try CanonicalJSONV1.encode(value(fields))
+            let firstOffset = zip(data, canonical).enumerated().first {
+                $0.element.0 != $0.element.1
+            }?.offset ?? min(data.count, canonical.count)
+            var firstKey = data == canonical ? "none" : "root-order-or-transport-only"
+            if data != canonical {
+                for key in fields.keys.sorted() {
+                    guard let field = fields[key] else {
+                        throw FinalizationContractEncodingErrorV1.unsupportedValue
+                    }
+                    let observed = try JSONSerialization.data(withJSONObject: [key: field],
+                        options: [.sortedKeys, .withoutEscapingSlashes])
+                    let expected = try CanonicalJSONV1.encode(.object([key: value(field)]))
+                    if observed != expected { firstKey = key; break }
+                }
+            }
+            print("C55 canonical phase=\(phase) matches=\(data == canonical) firstDifferentTopLevelKey=\(firstKey) firstDifferentByte=\(firstOffset) observedBytes=\(data.count) canonicalBytes=\(canonical.count) observedSHA=\(CanonicalJSONV1.sha256(data)) canonicalSHA=\(CanonicalJSONV1.sha256(canonical))")
+        } catch {
+            print("C55 canonical phase=\(phase) diagnosticUnavailable=\(String(reflecting: type(of: error)))")
+        }
+    }
+
     private func assertExportedPacketOwnerAndRejectOwnerlessPackage(
         _ archive: URL,
         source: V906Integration.Harness,
@@ -1727,8 +1796,14 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         let directory = source.root.appendingPathComponent(
             "packet-owner.fieldrecordbackup", isDirectory: true
         )
-        _ = try StreamingArchiveService().extract(archive, to: directory)
-        let validated = try BackupPackageValidatorV1().validate(stagedPackageURL: directory)
+        _ = try publicReplacementStep("packet-owner.extract") {
+            try StreamingArchiveService().extract(archive, to: directory)
+        }
+        let originalRecords = try Data(contentsOf: directory.appendingPathComponent("records.json"))
+        reportCanonicalKeyDifference(originalRecords, phase: "packet-owner.original-records")
+        let validated = try publicReplacementStep("packet-owner.validate-original-package") {
+            try BackupPackageValidatorV1().validate(stagedPackageURL: directory)
+        }
         XCTAssertEqual(validated.records.packets.map(\.id), [packetID])
         let owner = try XCTUnwrap(validated.records.packets.first)
         XCTAssertEqual(owner.stableRootID, stableRootID)
@@ -1752,7 +1827,10 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         let transport = try JSONSerialization.data(
             withJSONObject: object, options: [.sortedKeys, .withoutEscapingSlashes]
         )
-        let ownerless = try BackupCanonicalDecoderV1().decodeRecords(transport)
+        reportCanonicalKeyDifference(transport, phase: "packet-owner.ownerless-transport")
+        let ownerless = try publicReplacementStep("packet-owner.decode-ownerless-transport") {
+            try BackupCanonicalDecoderV1().decodeRecords(transport)
+        }
         XCTAssertTrue(ownerless.packets.isEmpty)
         XCTAssertEqual(ownerless.workPackets, validated.records.workPackets)
         let recordsData = try BackupCanonicalEncoderV1().encodeRecords(ownerless).data
@@ -1993,7 +2071,7 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         let restoredGenerationID: UUID
         do {
             let restoredSession = try await publicReplacementAsyncStep("restore") {
-                try await V906Integration.restore(
+                try await restoreWithPhaseDiagnostics(
                     archive,
                     into: target,
                     mode: .replaceExisting,

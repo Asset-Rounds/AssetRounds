@@ -5639,97 +5639,41 @@ private extension BackupRestoreService {
         history: MutationHistorySnapshotV1?,
         workspaceID: WorkspaceID
     ) throws -> [V24BackupSurveyDefinitionRecordV1] {
-        guard !records.isEmpty else { return [] }
-        guard let history else { throw BackupRestoreServiceError.invalidPackage }
-        var sourceEvents: [UUID: SurveyDefinitionLifecycleEventV1] = [:]
-        for receipt in history.receipts {
-            let envelope = try MutationEnvelopeV1.decodeCanonical(from: receipt.envelopeData)
-            guard case let .applySurveyDefinition(mutation) = envelope.command else { continue }
-            guard sourceEvents.updateValue(mutation.event, forKey: mutation.event.eventID) == nil else {
-                throw BackupRestoreServiceError.invalidPackage
+        guard let history else {
+            guard records.isEmpty else { throw BackupRestoreServiceError.invalidPackage }
+            return []
+        }
+        let identities = try records.filter { $0.kind == .identity }.map {
+            try SurveyDefinitionCanonicalCodecV1.decode(SurveyDefinitionIdentityV1.self, from: $0.canonicalData)
+        }
+        let releases = try records.filter { $0.kind == .release }.map {
+            try SurveyDefinitionCanonicalCodecV1.decode(SurveyDefinitionReleaseV1.self, from: $0.canonicalData)
+        }
+        for record in records {
+            switch record.kind {
+            case .identity:
+                let value = try SurveyDefinitionCanonicalCodecV1.decode(SurveyDefinitionIdentityV1.self, from: record.canonicalData)
+                guard record.id == value.definitionID, record.workspaceID == value.workspaceID.rawValue,
+                      record.revision == value.revision else { throw BackupRestoreServiceError.invalidPackage }
+            case .release:
+                let value = try SurveyDefinitionCanonicalCodecV1.decode(SurveyDefinitionReleaseV1.self, from: record.canonicalData)
+                guard record.id == value.releaseID, record.workspaceID == value.workspaceID.rawValue,
+                      record.revision == value.revision else { throw BackupRestoreServiceError.invalidPackage }
             }
         }
-        func actor(_ source: ActorSnapshotV1) throws -> ActorSnapshotV1 {
-            let local = try LocalActorReferenceV1(
-                actorReferenceID: source.actor.actorReferenceID,
-                workspaceID: workspaceID,
-                partyID: source.actor.partyID,
-                displayName: source.actor.displayName
-            )
-            return try ActorSnapshotV1(
-                snapshotID: source.snapshotID,
-                workspaceID: workspaceID,
-                actor: local,
-                responsibility: source.responsibility,
-                displayNameAtTime: source.displayNameAtTime,
-                capturedAt: source.capturedAt
-            )
+        let projection = try SurveyDefinitionBackupGraphClosureV1.projection(
+            identities: identities, releases: releases, history: history,
+            expectedWorkspaceID: nil, destinationWorkspaceID: workspaceID)
+        let output = try projection.identities.map {
+            V24BackupSurveyDefinitionRecordV1(kind: .identity, id: $0.definitionID,
+                workspaceID: $0.workspaceID.rawValue, revision: $0.revision,
+                canonicalData: try SurveyDefinitionCanonicalCodecV1.encode($0))
+        } + projection.releases.map {
+            V24BackupSurveyDefinitionRecordV1(kind: .release, id: $0.releaseID,
+                workspaceID: $0.workspaceID.rawValue, revision: $0.revision,
+                canonicalData: try SurveyDefinitionCanonicalCodecV1.encode($0))
         }
-        var releases: [UUID: SurveyDefinitionReleaseV1] = [:]
-        for record in records where record.kind == .release {
-            let source = try SurveyDefinitionCanonicalCodecV1.decode(
-                SurveyDefinitionReleaseV1.self, from: record.canonicalData
-            )
-            let value = source.workspaceID == workspaceID
-                ? source
-                : try source.rebound(to: workspaceID, actor: actor(source.authoredBy))
-            guard releases.updateValue(value, forKey: value.releaseID) == nil else {
-                throw BackupRestoreServiceError.invalidPackage
-            }
-        }
-        var output = try releases.values.map {
-            V24BackupSurveyDefinitionRecordV1(
-                kind: .release, id: $0.releaseID,
-                workspaceID: workspaceID.rawValue, revision: $0.revision,
-                canonicalData: try SurveyDefinitionCanonicalCodecV1.encode($0)
-            )
-        }
-        for record in records where record.kind == .identity {
-            let source = try SurveyDefinitionCanonicalCodecV1.decode(
-                SurveyDefinitionIdentityV1.self, from: record.canonicalData
-            )
-            guard let release = releases[source.currentRelease.releaseID],
-                  let sourceEvent = sourceEvents[source.latestLifecycleEventID] else {
-                throw BackupRestoreServiceError.invalidPackage
-            }
-            let event = try SurveyDefinitionLifecycleEventV1(
-                eventID: sourceEvent.eventID, workspaceID: workspaceID,
-                definitionID: sourceEvent.definitionID, action: sourceEvent.action,
-                priorState: sourceEvent.priorState, resultingState: sourceEvent.resultingState,
-                release: SurveyDefinitionReleaseReferenceV1(release),
-                predecessorEventID: sourceEvent.predecessorEventID,
-                predecessorEventSHA256: sourceEvent.predecessorEventSHA256,
-                sourceDefinitionID: sourceEvent.sourceDefinitionID,
-                sourceReleaseID: sourceEvent.sourceReleaseID,
-                sourceReleaseSHA256: sourceEvent.sourceReleaseSHA256,
-                sourceArchiveSHA256: sourceEvent.sourceArchiveSHA256,
-                semanticDiffSHA256: sourceEvent.semanticDiffSHA256,
-                actor: actor(sourceEvent.actor), recordedAt: sourceEvent.recordedAt,
-                revision: sourceEvent.revision, mutationID: sourceEvent.mutationID
-            )
-            let value = try SurveyDefinitionIdentityV1(
-                definitionID: source.definitionID, workspaceID: workspaceID,
-                activityKind: source.activityKind, lifecycleState: source.lifecycleState,
-                currentRelease: SurveyDefinitionReleaseReferenceV1(release),
-                latestLifecycleEventID: event.eventID,
-                latestLifecycleEventSHA256: event.eventSHA256,
-                createdBy: actor(source.createdBy), createdAt: source.createdAt,
-                revision: source.revision, mutationID: source.mutationID
-            )
-            try value.validate(currentRelease: release, event: event)
-            output.append(.init(
-                kind: .identity, id: value.definitionID,
-                workspaceID: workspaceID.rawValue, revision: value.revision,
-                canonicalData: try SurveyDefinitionCanonicalCodecV1.encode(value)
-            ))
-        }
-        guard output.count == records.count else {
-            throw BackupRestoreServiceError.invalidPackage
-        }
-        return output.sorted {
-            "\($0.kind.rawValue)\u{0}\($0.id.uuidString)"
-                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)"
-        }
+        return output.sorted { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" < "\($1.kind.rawValue)\u{0}\($1.id.uuidString)" }
     }
 
     func rebindingGuidedSurveys(_ records:[V25BackupGuidedSurveyRecordV1],surveyDefinitions:[V24BackupSurveyDefinitionRecordV1],packageEvolution:[V17BackupPackageEvolutionRecordV1],history:MutationHistorySnapshotV1?,workspaceID:WorkspaceID)throws->[V25BackupGuidedSurveyRecordV1]{

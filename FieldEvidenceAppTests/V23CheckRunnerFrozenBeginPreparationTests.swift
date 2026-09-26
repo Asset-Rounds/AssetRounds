@@ -102,6 +102,61 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             // neither success nor rejection grants authority to a later call.
             let writer = h.coordinator.workspaceWriter
             let parent = current.value.parentCheckpoint
+            let childID = current.value.parent.slot.childDraftID
+            @MainActor func continuationRead() throws -> MutationJournalStoreV1.PhotoContinuationRead {
+                try writer.currentPhotoContinuationInReadScope(workspaceID: h.workspaceID,
+                    parentDraftID: parent.draftID, childDraftID: childID, modelContext: h.context)
+            }
+            // Raw immutable originals remain comparable even when deliberately
+            // corrupt bytes cannot be decoded by the authenticated snapshot API.
+            @MainActor func rawOriginals() throws -> [[String?]] {
+                let receipts: [[String?]] = try h.context.fetch(FetchDescriptor<MutationReceiptRow>(
+                    sortBy: [SortDescriptor(\.receiptIdentity)])).map { row in
+                    [row.mutationID.uuidString, row.workspaceMutationKey, row.receiptIdentity,
+                     row.workspaceID.uuidString, row.replicaID.uuidString, String(row.localSequence),
+                     row.commandKind, row.envelopeData.base64EncodedString(), row.envelopeSHA256,
+                     row.receiptData.base64EncodedString(), row.receiptSHA256,
+                     row.reversalBasisData?.base64EncodedString(), row.reversalBasisSHA256,
+                     row.semanticReversalData?.base64EncodedString()]
+                }
+                let quarantines: [[String?]] = try h.context.fetch(FetchDescriptor<MutationQuarantineRow>(
+                    sortBy: [SortDescriptor(\.workspaceMutationKey)])).map { row in
+                    [row.workspaceID.uuidString, row.mutationID.uuidString, row.workspaceMutationKey,
+                     row.identityDomain, row.acceptedIdentitySHA256, row.conflictingIdentitySHA256,
+                     String(row.detectedAt.timeIntervalSinceReferenceDate.bitPattern)]
+                }
+                return receipts + quarantines
+            }
+            let oldContinuation = try XCTUnwrap(writer.checkRunnerPhotoContinuationEvidence(
+                workspaceID: h.workspaceID, parentDraftID: parent.draftID, childDraftID: childID))
+            let continuationBefore = try h.snapshot()
+            for _ in 0..<2 {
+#if DEBUG
+                let beforePass = try XCTUnwrap(writer.fullJournalValidationPassCountForTesting)
+#endif
+                guard case let .observed(observed, payload) = try continuationRead() else {
+                    return XCTFail("Canonical continuation must use its fixed complete read")
+                }
+#if DEBUG
+                XCTAssertEqual(writer.fullJournalValidationPassCountForTesting, beforePass + 1)
+#endif
+                XCTAssertEqual(observed, oldContinuation)
+                XCTAssertEqual(payload, try CheckRunnerItemDraftCodecV1.validateCheckpoint(parent))
+            }
+            XCTAssertEqual(try h.snapshot(), continuationBefore)
+            XCTAssertThrowsError(try writer.currentPhotoContinuationInReadScope(workspaceID: h.workspaceID,
+                parentDraftID: parent.draftID, childDraftID: childID, modelContext: ModelContext(h.context.container)))
+            let missingChild = beginPreparationUUID(39_998)
+            guard case .absent = try writer.currentPhotoContinuationInReadScope(workspaceID: h.workspaceID,
+                parentDraftID: parent.draftID, childDraftID: missingChild, modelContext: h.context) else {
+                return XCTFail("An unselected child is authenticated absence, never unsupported")
+            }
+            XCTAssertThrowsError(try h.runner.readValidatedPhotoContinuation(workspaceID: h.workspaceID,
+                parentDraftID: parent.draftID, childDraftID: childID, expectedWriter: writer,
+                expectedSource: changedItem, progress: h.progress, publishedRelease: h.publishedRelease)) {
+                XCTAssertEqual($0 as? ScanToWorkFailureV1, .authorityMismatch)
+            }
+            XCTAssertEqual(try h.snapshot(), continuationBefore)
             let authenticatedBefore = try h.snapshot()
 #if DEBUG
             let passesBefore = try XCTUnwrap(writer.fullJournalValidationPassCountForTesting)
@@ -138,6 +193,11 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
                 parentReceipt.receiptData = Data("corrupt durable parent receipt".utf8)
                 try h.context.save()
                 XCTAssertFalse(h.context.hasChanges)
+                let hostileRows = try h.rowSnapshot()
+                let hostileOriginals = try rawOriginals()
+                XCTAssertThrowsError(try continuationRead())
+                XCTAssertEqual(try rawOriginals(), hostileOriginals)
+                XCTAssertEqual(try h.rowSnapshot(), hostileRows)
                 XCTAssertThrowsError(try ProductionCheckRunnerItemDraftServiceV1.authenticateCurrent(
                     parent, writer: writer, context: h.context))
                 XCTAssertEqual(parentReceipt.receiptData, Data("corrupt durable parent receipt".utf8))
@@ -151,6 +211,11 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
                 defer { h.context.delete(quarantine); try? h.context.save() }
                 h.context.insert(quarantine)
                 try h.context.save()
+                let hostileRows = try h.rowSnapshot()
+                let hostileOriginals = try rawOriginals()
+                XCTAssertThrowsError(try continuationRead())
+                XCTAssertEqual(try rawOriginals(), hostileOriginals)
+                XCTAssertEqual(try h.rowSnapshot(), hostileRows)
                 XCTAssertThrowsError(try ProductionCheckRunnerItemDraftServiceV1.authenticateCurrent(
                     parent, writer: writer, context: h.context))
                 XCTAssertEqual(try h.context.fetch(FetchDescriptor<MutationQuarantineRow>()).count, 1)
@@ -166,12 +231,66 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
                 h.context.delete(parentReceipt)
                 try h.context.save()
                 XCTAssertFalse(h.context.hasChanges)
+                let hostileRows = try h.rowSnapshot()
+                let hostileOriginals = try rawOriginals()
+                XCTAssertThrowsError(try continuationRead())
+                XCTAssertEqual(try rawOriginals(), hostileOriginals)
+                XCTAssertEqual(try h.rowSnapshot(), hostileRows)
                 XCTAssertThrowsError(try ProductionCheckRunnerItemDraftServiceV1.authenticateCurrent(
                     parent, writer: writer, context: h.context))
             }
             XCTAssertEqual(try writer.authenticatedCurrentCheckRunnerParentInReadScope(
                 parent, modelContext: h.context),
                 try CheckRunnerItemDraftCodecV1.validateCheckpoint(parent))
+            XCTAssertEqual(try h.snapshot(), authenticatedBefore)
+
+            let parentID = parent.draftID
+            let physicalParent = try XCTUnwrap(h.context.fetch(FetchDescriptor<FieldDraftCheckpointRow>(
+                predicate: #Predicate { $0.draftID == parentID })).first)
+            let restoredPhysicalParent = try FieldDraftCheckpointRow(parent)
+            do {
+                defer { h.context.insert(restoredPhysicalParent); try? h.context.save() }
+                h.context.delete(physicalParent)
+                try h.context.save()
+                let hostileRows = try h.rowSnapshot()
+                let hostileOriginals = try rawOriginals()
+                XCTAssertThrowsError(try continuationRead())
+                XCTAssertEqual(try rawOriginals(), hostileOriginals)
+                XCTAssertEqual(try h.rowSnapshot(), hostileRows)
+            }
+            let childReceipt = try XCTUnwrap(h.context.fetch(FetchDescriptor<MutationReceiptRow>()).first {
+                $0.workspaceID == h.workspaceID.rawValue && $0.mutationID == oldContinuation.checkpoint.mutationID.rawValue
+            })
+            let childBytes = childReceipt.envelopeData
+            do {
+                defer { childReceipt.envelopeData = childBytes; try? h.context.save() }
+                childReceipt.envelopeData = Data("corrupt durable child original".utf8)
+                try h.context.save()
+                let hostileRows = try h.rowSnapshot()
+                let hostileOriginals = try rawOriginals()
+                XCTAssertThrowsError(try continuationRead())
+                XCTAssertEqual(try rawOriginals(), hostileOriginals)
+                XCTAssertEqual(try h.rowSnapshot(), hostileRows)
+            }
+            let childQuarantine = MutationQuarantineRow(workspaceID: h.workspaceID,
+                mutationID: oldContinuation.checkpoint.mutationID, identityDomain: .mutationEnvelope,
+                acceptedIdentitySHA256: childReceipt.envelopeSHA256,
+                conflictingIdentitySHA256: String(repeating: "e", count: 64), detectedAt: parent.updatedAt)
+            do {
+                defer { h.context.delete(childQuarantine); try? h.context.save() }
+                h.context.insert(childQuarantine)
+                try h.context.save()
+                let hostileRows = try h.rowSnapshot()
+                let hostileOriginals = try rawOriginals()
+                XCTAssertThrowsError(try continuationRead())
+                XCTAssertEqual(try rawOriginals(), hostileOriginals)
+                XCTAssertEqual(try h.rowSnapshot(), hostileRows)
+                XCTAssertEqual(try h.context.fetch(FetchDescriptor<MutationQuarantineRow>()).count, 1)
+            }
+            guard case let .observed(restoredContinuation, _) = try continuationRead() else {
+                return XCTFail("Restored originals must be reread after hostile denials")
+            }
+            XCTAssertEqual(restoredContinuation, oldContinuation)
             XCTAssertEqual(try h.snapshot(), authenticatedBefore)
 
             XCTAssertEqual(current.value.historicalSource, source)
@@ -205,6 +324,11 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
                     try? FileManager.default.moveItem(at: retainedPointer, to: pointer)
                 }
                 try FileManager.default.createSymbolicLink(at: pointer, withDestinationURL: retainedPointer)
+                let hostileRows = try h.rowSnapshot()
+                let hostileOriginals = try rawOriginals()
+                XCTAssertThrowsError(try continuationRead())
+                XCTAssertEqual(try rawOriginals(), hostileOriginals)
+                XCTAssertEqual(try h.rowSnapshot(), hostileRows)
                 XCTAssertThrowsError(try ProductionCheckRunnerItemDraftServiceV1.authenticateCurrent(
                     parent, writer: writer, context: h.context))
             }
@@ -696,6 +820,9 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             site.label = "Unsaved hostile label"
             XCTAssertTrue(h.context.hasChanges)
             let before = try h.rowSnapshot()
+            XCTAssertThrowsError(try h.coordinator.workspaceWriter.currentPhotoContinuationInReadScope(
+                workspaceID: h.workspaceID, parentDraftID: current.value.parentCheckpoint.draftID,
+                childDraftID: current.value.parent.slot.childDraftID, modelContext: h.context))
             XCTAssertThrowsError(try h.coordinator.workspaceWriter.authenticatedCurrentCheckRunnerParentInReadScope(
                 current.value.parentCheckpoint, modelContext: h.context))
             let idCalls = h.ids.callCount
@@ -736,6 +863,9 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             XCTAssertEqual(h.ids.callCount, idCalls)
             XCTAssertEqual(try h.rowSnapshot(), before)
             try h.closeCoordinator()
+            XCTAssertThrowsError(try h.coordinator.workspaceWriter.currentPhotoContinuationInReadScope(
+                workspaceID: h.workspaceID, parentDraftID: current.value.parentCheckpoint.draftID,
+                childDraftID: current.value.parent.slot.childDraftID, modelContext: h.context))
             XCTAssertThrowsError(try h.coordinator.workspaceWriter.authenticatedCurrentCheckRunnerParentInReadScope(
                 current.value.parentCheckpoint, modelContext: h.context)) { error in
                 XCTAssertEqual(error as? WorkspaceMutationFailureV1, .writerInvalidated)

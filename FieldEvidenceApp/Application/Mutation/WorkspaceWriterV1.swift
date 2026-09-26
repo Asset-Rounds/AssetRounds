@@ -2611,6 +2611,18 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         return value
     }
 
+    /// Fixed synchronous values; each call proves the current lease again.
+    func currentPhotoContinuationInReadScope(workspaceID: WorkspaceID, parentDraftID: UUID,
+        childDraftID: UUID, modelContext: ModelContext) throws -> MutationJournalStoreV1.PhotoContinuationRead {
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        let value = try journalStore.currentPhotoContinuationInReadScope(workspaceID: workspaceID,
+            parentDraftID: parentDraftID, childDraftID: childDraftID, context: modelContext,
+            writerInstanceID: writerInstanceID)
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        return value
+    }
+
     func checkRunnerPhotoPreparationEvidence(workspaceID: WorkspaceID, parentDraftID: UUID,
         captureStep: WorkflowDraftStep) throws -> CheckRunnerPhotoPreparationEvidenceV1? {
         guard isActive, let journalStore else { throw WorkspaceMutationFailureV1.writerInvalidated }

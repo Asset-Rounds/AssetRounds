@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "2653188cda771660614a6fc92a3b095d22d30428",
+  "generatedAtHead": "e26b91b122062da8cd8a51f0c57a36772546e2fa",
   "sweepOrder": [
     "S01",
     "S02",
@@ -1062,7 +1062,7 @@
     {
       "id": "S12",
       "tier": "D50C",
-      "estimatedSeconds": 1765.1,
+      "estimatedSeconds": 1945.1,
       "selectors": [
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorV903MigrationRecovery/testC33V903MigrationRecoveryCompatibilityBindsTypedTemporalEvidenceToItsOwner",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorV945EvidenceContext/testC33V945EvidenceContextCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -1073,6 +1073,9 @@
         "FieldEvidenceAppTests/S6_2BackupExportTests/testC21ClientCapabilityLifecycleAnchor",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testC22RecoverabilityVerificationAnchor",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testC24AccessibleDocumentTypedAnchor",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testC25SurveyDefinitionCloneSuccessorForkAndColdExportPreserveHistory",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testC25SurveyDefinitionHostileProjectionFailsBeforeEffects",
+        "FieldEvidenceAppTests/S6_2BackupExportTests/testC25SurveyDefinitionProjectionAuthenticatesOriginalAndMultiEventGraphs",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testC25SurveyDefinitionTypedAnchor",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testC26SurveySessionTypedAnchor",
         "FieldEvidenceAppTests/S6_2BackupExportTests/testC30CanonicalContextsAndPairsCloneForkBindDestinationAndColdReadback",

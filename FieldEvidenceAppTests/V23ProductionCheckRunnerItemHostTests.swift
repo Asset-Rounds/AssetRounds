@@ -617,6 +617,15 @@ final class V23ProductionCheckRunnerItemHostTests: XCTestCase {
                 sourceApp: SourceAppSnapshotV1(build: "live-finalization", version: "1.0"),
                 authorizing: operation) { }
             let payload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(prepared)
+            let beforeFallback = try store.workspaceWriter.sourceMutationHistorySnapshot()
+            guard case .unsupported = try store.workspaceWriter.currentPhotoContinuationInReadScope(
+                workspaceID: store.workspaceID, parentDraftID: prepared.draftID,
+                childDraftID: UUID(), modelContext: store.modelContext) else {
+                return XCTFail("Prepared finalization must retain its complete standalone reader")
+            }
+            XCTAssertEqual(try ProductionCheckRunnerItemDraftServiceV1.authenticateCurrent(prepared,
+                writer: store.workspaceWriter, context: store.modelContext), payload)
+            XCTAssertEqual(try store.workspaceWriter.sourceMutationHistorySnapshot(), beforeFallback)
             let attempt = try XCTUnwrap(payload.finalizationAttempt)
             let mutationID = try MutationIDV1(rawValue: attempt.identifiers.mutationID)
             let reportName = "\(attempt.identifiers.reportID.uuidString.lowercased()).json"
@@ -764,6 +773,27 @@ final class V23ProductionCheckRunnerItemHostTests: XCTestCase {
             XCTAssertEqual(proposal.purposeKey, "wide_context")
             XCTAssertEqual(proposal.phase.intent.expectedSourceByteCount, Int64(bytes.count))
             let photo = (parentID: bound.draftID, childID: proposal.childDraftID)
+            @MainActor func assertFreshContinuation(_ phase: String) throws {
+                let historyBefore = try store.workspaceWriter.sourceMutationHistorySnapshot()
+                let legacy = try XCTUnwrap(store.workspaceWriter.checkRunnerPhotoContinuationEvidence(
+                    workspaceID: store.workspaceID, parentDraftID: photo.parentID, childDraftID: photo.childID), phase)
+                for _ in 0..<2 {
+#if DEBUG
+                    let beforePass = try XCTUnwrap(store.workspaceWriter.fullJournalValidationPassCountForTesting)
+#endif
+                    guard case let .observed(value, parent) = try store.workspaceWriter.currentPhotoContinuationInReadScope(
+                        workspaceID: store.workspaceID, parentDraftID: photo.parentID,
+                        childDraftID: photo.childID, modelContext: store.modelContext) else {
+                        return XCTFail("Expected fresh canonical continuation at \(phase)")
+                    }
+#if DEBUG
+                    XCTAssertEqual(store.workspaceWriter.fullJournalValidationPassCountForTesting, beforePass + 1, phase)
+#endif
+                    XCTAssertEqual(value, legacy, phase)
+                    XCTAssertEqual(parent, try CheckRunnerItemDraftCodecV1.validateCheckpoint(value.parentCheckpoint), phase)
+                }
+                XCTAssertEqual(try store.workspaceWriter.sourceMutationHistorySnapshot(), historyBefore, phase)
+            }
             let awaiting = try operation.withAuthorization {
                 try service.prepareRawPhoto(parentDraftID: bound.draftID,
                     expectedCheckpointSHA256: bound.checkpointSHA256, proposal: proposal)
@@ -781,8 +811,10 @@ final class V23ProductionCheckRunnerItemHostTests: XCTestCase {
             try service.prepareLivePhotoStaging(authorizing: operation)
             _ = try await service.publishRawPhoto(parentDraftID: photo.parentID, childDraftID: photo.childID,
                 sourceURL: picker, authorizing: operation)
+            try assertFreshContinuation("rawReady")
             let pairCheckpoint = try await service.preparePhotoPair(parentDraftID: photo.parentID,
                 childDraftID: photo.childID, authorizing: operation)
+            try assertFreshContinuation("pairReady")
             let payload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(pairCheckpoint)
             guard case let .pairReady(pair) = payload.phase else { return XCTFail("Expected actual normalized pair") }
             XCTAssertEqual(pair.raw.originalProvenance.origin, .localImport)
@@ -797,6 +829,7 @@ final class V23ProductionCheckRunnerItemHostTests: XCTestCase {
             XCTAssertEqual(try store.workspaceWriter.sourceMutationHistorySnapshot(), beforePreparation)
             let committing = try service.preparePhotoCommit(parentDraftID: photo.parentID, childDraftID: photo.childID,
                 expectedCheckpointSHA256: pairCheckpoint.checkpointSHA256, authorizing: operation)
+            try assertFreshContinuation("preparedCommit")
             let attempt = try XCTUnwrap(CheckRunnerPhotoDraftCodecV1.validateCheckpoint(committing).phase.attempt)
             XCTAssertEqual(attempt.expectedWorkflowRecordRevision, continuation.currentWorkflowPostImage.revision)
             XCTAssertEqual(attempt.targetMutationID.rawValue, pair.raw.intent.evidenceID)
@@ -895,11 +928,13 @@ final class V23ProductionCheckRunnerItemHostTests: XCTestCase {
                     childDraftID: photo.childID, authorizing: freshOperation)
                 XCTFail("The real target acknowledgement hook must be reached")
             } catch { XCTAssertEqual(error as? ItemHostInjectedFailure, .lostAcknowledgement) }
+            try assertFreshContinuation("target-effect-before-acknowledgement")
             let originalReceipt = try XCTUnwrap(store.workspaceWriter.durableReceipt(mutationID: attempt.targetMutationID))
             XCTAssertEqual(try Data(contentsOf: content), bytes)
             freshService.beforePhotoTargetAcknowledgementForTesting = nil
             let terminal = try await freshService.resumePhotoCommit(parentDraftID: photo.parentID,
                 childDraftID: photo.childID, authorizing: freshOperation)
+            try assertFreshContinuation("terminal")
             XCTAssertEqual(terminal.state, .committed)
             XCTAssertEqual(try store.workspaceWriter.durableReceipt(mutationID: attempt.targetMutationID), originalReceipt)
             let observed = try XCTUnwrap(freshService.readCurrentPhotoTarget(parentDraftID: photo.parentID,

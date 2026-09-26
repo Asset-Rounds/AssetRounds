@@ -1655,6 +1655,13 @@ final class CheckRunnerCoordinator {
         let dependencies = try frozenBeginDependencies(progress: progress)
         let parent = try ProductionCheckRunnerItemDraftServiceV1.authenticateCurrent(
             value.parentCheckpoint, writer: dependencies.writer, context: modelContext)
+        try validateHistoricalPhotoContinuationValues(value, parent: parent, progress: progress,
+            publishedRelease: publishedRelease)
+    }
+
+    private func validateHistoricalPhotoContinuationValues(_ value: CheckRunnerPhotoContinuationEvidenceV1,
+        parent: CheckRunnerItemDraftPayloadV1, progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1) throws {
         guard case let .bound(attempt, workflow, zone) = parent.field.begin else {
             throw FieldDraftFailureV1.missingReceipt
         }
@@ -1676,6 +1683,16 @@ final class CheckRunnerCoordinator {
         let dependencies = try frozenBeginDependencies(progress: progress)
         let parent = try ProductionCheckRunnerItemDraftServiceV1.authenticateCurrent(
             parentCheckpoint, writer: dependencies.writer, context: modelContext)
+        try validatePhotoPreparationValues(parentCheckpoint: parentCheckpoint, parent: parent, photo: photo,
+            workflowEvidence: workflowEvidence, timeZoneEvidence: timeZoneEvidence,
+            progress: progress, publishedRelease: publishedRelease, dependencies: dependencies)
+    }
+
+    private func validatePhotoPreparationValues(parentCheckpoint: FieldDraftCheckpointV1,
+        parent: CheckRunnerItemDraftPayloadV1, photo: CheckRunnerPhotoDraftPayloadV1,
+        workflowEvidence: CheckRunnerBeginCommittedEvidenceV1, timeZoneEvidence: CheckRunnerBeginCommittedEvidenceV1?,
+        progress: ProductionRepetitiveCaptureProgressServiceV2, publishedRelease: InspectionPackageReleaseV1,
+        dependencies: WorkspacePackageLifecycleDependenciesV1) throws {
         guard case let .bound(attempt, workflow, zone) = parent.field.begin else {
             throw FieldDraftFailureV1.missingReceipt
         }
@@ -1698,6 +1715,56 @@ final class CheckRunnerCoordinator {
               preparation.purpose?.key == photo.purposeKey else {
             throw CheckRunnerCoordinatorError.invalidCaptureState
         }
+    }
+
+    /// Fixed synchronous consumer: obtains its own current journal observation.
+    /// No caller-supplied authenticated payload or effect authority is accepted.
+    func readValidatedPhotoContinuation(workspaceID: WorkspaceID, parentDraftID: UUID, childDraftID: UUID,
+        expectedWriter: WorkspaceWriterV1, expectedSource: CheckRunnerRoundItemSourceV1?,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1) throws -> CheckRunnerPhotoContinuationEvidenceV1 {
+        let dependencies = try frozenBeginDependencies(progress: progress)
+        guard dependencies.writer === expectedWriter else { throw ScanToWorkFailureV1.authorityMismatch }
+        try dependencies.writer.validateFieldDraftReadContext(modelContext)
+        let before = try dependencies.writer.currentRevision()
+        let evidence: CheckRunnerPhotoContinuationEvidenceV1
+        switch try dependencies.writer.currentPhotoContinuationInReadScope(workspaceID: workspaceID,
+            parentDraftID: parentDraftID, childDraftID: childDraftID, modelContext: modelContext) {
+        case .absent:
+            throw FieldDraftFailureV1.missingReceipt
+        case .unsupported:
+            // Preserve complete standalone authentication for noncanonical and
+            // prepared-finalization reads. A failed supported read never lands here.
+            guard let saved = try dependencies.writer.checkRunnerPhotoContinuationEvidence(
+                workspaceID: workspaceID, parentDraftID: parentDraftID, childDraftID: childDraftID) else {
+                throw FieldDraftFailureV1.missingReceipt
+            }
+            let id = parentDraftID
+            let rows = try modelContext.fetch(FetchDescriptor<FieldDraftCheckpointRow>(
+                predicate: #Predicate { $0.draftID == id }))
+            guard rows.count == 1, let row = rows.first else { throw FieldDraftFailureV1.missingReceipt }
+            let checkpoint = try row.value()
+            let parent = try ProductionCheckRunnerItemDraftServiceV1.authenticateCurrent(
+                checkpoint, writer: dependencies.writer, context: modelContext)
+            if let expectedSource, parent.source != expectedSource { throw ScanToWorkFailureV1.authorityMismatch }
+            guard checkpoint == saved.parentCheckpoint else { throw FieldDraftFailureV1.staleDraftRevision }
+            try validatePhotoContinuation(saved, progress: progress, publishedRelease: publishedRelease)
+            evidence = saved
+        case let .observed(saved, parent):
+            if let expectedSource, parent.source != expectedSource { throw ScanToWorkFailureV1.authorityMismatch }
+            if saved.target == nil {
+                try validatePhotoPreparationValues(parentCheckpoint: saved.parentCheckpoint, parent: parent,
+                    photo: saved.payload, workflowEvidence: saved.workflow, timeZoneEvidence: saved.timeZone,
+                    progress: progress, publishedRelease: publishedRelease, dependencies: dependencies)
+            } else {
+                try validateHistoricalPhotoContinuationValues(saved, parent: parent, progress: progress,
+                    publishedRelease: publishedRelease)
+            }
+            evidence = saved
+        }
+        try dependencies.writer.validateFieldDraftReadContext(modelContext)
+        guard try dependencies.writer.currentRevision() == before else { throw FieldDraftFailureV1.staleDraftRevision }
+        return evidence
     }
 
     /// Acknowledges a saved initial BOUND checkpoint. Later child/finalizer
