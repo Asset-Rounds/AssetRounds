@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import XCTest
 
@@ -608,6 +609,69 @@ final class V9_10LifecycleBoundaryTests: XCTestCase {
             canonicalURL: canonicalRoot.appendingPathComponent("eraseAll.bin"),
             eraseAll: true
         )
+    }
+
+    func testOwnedStorageDirectoryNameReadsOnlyCompactRecordBytes() throws {
+        // Exact malloc extent makes a full d_name tuple copy an ASan overflow.
+        let offset = try XCTUnwrap(MemoryLayout<dirent>.offset(of: \.d_name))
+        let recordLengthOffset = try XCTUnwrap(MemoryLayout<dirent>.offset(of: \.d_reclen))
+        let nameLengthOffset = try XCTUnwrap(MemoryLayout<dirent>.offset(of: \.d_namlen))
+        for name in [".", "..", "a", "évidence.bin", String(repeating: "x", count: 255)] {
+            let bytes = Array(name.utf8)
+            let count = offset + bytes.count + 1
+            let raw = try XCTUnwrap(Darwin.malloc(count))
+            defer { Darwin.free(raw) }
+            raw.initializeMemory(as: UInt8.self, repeating: 0, count: count)
+            raw.storeBytes(of: UInt16(count), toByteOffset: recordLengthOffset, as: UInt16.self)
+            raw.storeBytes(of: UInt16(bytes.count), toByteOffset: nameLengthOffset, as: UInt16.self)
+            for (index, byte) in bytes.enumerated() {
+                raw.storeBytes(of: byte, toByteOffset: offset + index, as: UInt8.self)
+            }
+            let entry = raw.assumingMemoryBound(to: dirent.self)
+            XCTAssertEqual(OwnedStorageDirectoryEntryNameV1.decode(entry), name)
+            // Claimed name extends beyond its record; reject before reading it.
+            raw.storeBytes(of: UInt16(count), toByteOffset: nameLengthOffset, as: UInt16.self)
+            XCTAssertNil(OwnedStorageDirectoryEntryNameV1.decode(entry))
+            raw.storeBytes(of: UInt16(bytes.count), toByteOffset: nameLengthOffset, as: UInt16.self)
+            raw.storeBytes(of: UInt8(1), toByteOffset: count - 1, as: UInt8.self)
+            XCTAssertNil(OwnedStorageDirectoryEntryNameV1.decode(entry))
+            raw.storeBytes(of: UInt8(0), toByteOffset: count - 1, as: UInt8.self)
+            raw.storeBytes(of: UInt8(0), toByteOffset: offset, as: UInt8.self)
+            XCTAssertNil(OwnedStorageDirectoryEntryNameV1.decode(entry))
+            raw.storeBytes(of: UInt8(ascii: "/"), toByteOffset: offset, as: UInt8.self)
+            XCTAssertNil(OwnedStorageDirectoryEntryNameV1.decode(entry))
+            raw.storeBytes(of: UInt8(0xff), toByteOffset: offset, as: UInt8.self)
+            XCTAssertNil(OwnedStorageDirectoryEntryNameV1.decode(entry))
+        }
+    }
+
+    func testOwnedStorageReconciliationScansManyCompactDirectoryRecords() throws {
+        let root = try makeRoot("compact-dirents")
+        addTeardownBlock { try FileManager.default.removeItem(at: root) }
+        let roots = try makeOwnedRoots(applicationSupportURL: root)
+        let nested = roots[0].url.appendingPathComponent("nested", isDirectory: true)
+        try fileManager.createDirectory(at: nested, withIntermediateDirectories: false)
+        var expectedBytes: Int64 = 0
+        for index in 0..<160 {
+            let count = index % 17 + 1
+            let name = index == 159 ? String(repeating: "x", count: 255) : "é-\(index)"
+            try Data(repeating: UInt8(index), count: count)
+                .write(to: nested.appendingPathComponent(name))
+            expectedBytes += Int64(count)
+        }
+        let ledger = try OwnedStorageLedgerV1(rootURLs: roots, capacityProvider: { _ in 1_000_000 })
+        XCTAssertEqual(ledger.snapshot().ownedByteCount, expectedBytes)
+        XCTAssertEqual(try ledger.reconcile(activeReservations: []).ownedByteCount, expectedBytes)
+        // The name-read correction must not admit symlinks or mutate their target.
+        let target = root.appendingPathComponent("outside.bin")
+        let payload = Data([1, 2, 3])
+        try payload.write(to: target)
+        let link = nested.appendingPathComponent("hostile-link")
+        try fileManager.createSymbolicLink(at: link, withDestinationURL: target)
+        XCTAssertThrowsError(try ledger.reconcile(activeReservations: [])) {
+            XCTAssertEqual($0 as? OwnedStorageLedgerFailureV1, .unsupportedEntry)
+        }
+        XCTAssertEqual(try Data(contentsOf: target), payload)
     }
 
     func testV9_10R01StorageReconciliationAndClockTimezoneDSTRecovery() async throws {

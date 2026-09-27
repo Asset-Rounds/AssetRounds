@@ -155,6 +155,10 @@ final class FinalizationRecoveryService {
         #endif
         try apply(authority.payload)
         #if DEBUG
+        diagnosticPhase = "writer-correction-assurance"
+        #endif
+        try stageCorrectionAssurance(authority)
+        #if DEBUG
         diagnosticPhase = "writer-target-binding"
         #endif
         try validateWriterSourceBinding(authority, stagedTarget: true)
@@ -183,12 +187,51 @@ final class FinalizationRecoveryService {
         let companion = try ObservationAndTimeRowStoreV1.requireRow(recordID: companionID, in: modelContext)
         let assuranceRows = try modelContext.fetch(FetchDescriptor<RequirementAssuranceRow>())
             .filter { $0.workflowRecordID == targetRecordID }
-        guard assuranceRows.count <= 1,
-              companion.observationBasisV1Data == binding.observationBasisV1Data,
-              companion.temporalContextV1Data == binding.temporalContextV1Data,
-              try assuranceRows.first?.snapshot() == binding.requirementAssurance else {
+        guard companion.observationBasisV1Data == binding.observationBasisV1Data,
+              companion.temporalContextV1Data == binding.temporalContextV1Data else {
             throw FinalizationRecoveryServiceError.inconsistent
         }
+        if authority.payload.packetBefore != nil {
+            guard let bound = binding.requirementAssurance else {
+                // Old uncommitted nil bindings require explicit disposition;
+                // never rewrite their envelope or mint a replacement receipt.
+                throw FinalizationRecoveryServiceError.inconsistent
+            }
+            if stagedTarget {
+                guard assuranceRows.count == 1,
+                      try assuranceRows[0].snapshot() == bound else {
+                    throw FinalizationRecoveryServiceError.inconsistent
+                }
+            } else {
+                let sourceRows = try modelContext.fetch(FetchDescriptor<RequirementAssuranceRow>())
+                    .filter { $0.workflowRecordID == binding.sourceRecordID }
+                guard assuranceRows.isEmpty, sourceRows.count == 1,
+                      try FinalizationCorrectionAssuranceV1.project(
+                        sourceRows[0].snapshot(), sourceRecordID: binding.sourceRecordID,
+                        targetRecordID: targetRecordID, workspaceID: authority.workspaceID) == bound else {
+                    throw FinalizationRecoveryServiceError.inconsistent
+                }
+            }
+        } else {
+            guard assuranceRows.count <= 1,
+                  try assuranceRows.first?.snapshot() == binding.requirementAssurance else {
+                throw FinalizationRecoveryServiceError.inconsistent
+            }
+        }
+    }
+
+    /// Current writer staging only: raw original-seven-model recovery does not
+    /// enter this path and must never query an entity absent from its schema.
+    private func stageCorrectionAssurance(_ authority: FinalizationWriterAuthorityV1) throws {
+        guard authority.payload.packetBefore != nil else { return }
+        guard let snapshot = authority.sourceBinding.requirementAssurance,
+              let mutationID = authority.payload.workflowRecordAfter.finalizationMutationID,
+              let report = authority.payload.reportInsert else {
+            throw FinalizationRecoveryServiceError.inconsistent
+        }
+        modelContext.insert(try RequirementAssuranceRow(
+            snapshot: snapshot, mutationID: mutationID,
+            createdAt: report.createdAt, updatedAt: report.createdAt))
     }
 
     func restoreStagedWriterValues() {
@@ -234,27 +277,57 @@ final class FinalizationRecoveryService {
     }
 
     func reconcile() async throws -> FinalizationRecoverySummary {
+#if DEBUG
+        var diagnosticPhase = "entry"
+        var diagnosticSucceeded = false
+        defer {
+            if !diagnosticSucceeded {
+                print("FinalizationRecovery.reconcile failure phase=\(diagnosticPhase) originalSource=\(sourceRecoveryAuthority != nil)")
+            }
+        }
+#endif
         guard !isReconciling else { throw FinalizationRecoveryServiceError.inconsistent }
         isReconciling = true
         defer { isReconciling = false }
+#if DEBUG
+        diagnosticPhase = "entry-clean-context"
+#endif
         try requireCleanContext()
         let recoveries: [RecoverableFinalization]
         do {
             try requireCleanContext()
+#if DEBUG
+        diagnosticPhase = "discover"
+#endif
             recoveries = try await store.discoverRecoverableFinalizations()
         } catch {
+#if DEBUG
+            print("FinalizationRecovery.discover failure type=\(String(reflecting: type(of: error))) code=\((error as NSError).code)")
+#endif
             throw FinalizationRecoveryServiceError.inconsistent
         }
         try requireCleanContext()
+#if DEBUG
+        diagnosticPhase = "source-release"
+#endif
         if !recoveries.isEmpty, let release = sourceRecoveryAuthority?.sourceRelease,
            [.v2, .v3, .v4].contains(release) {
             // These released layouts are not the seven-model source route.
             // Keep their original operation pending until its recovery is qualified.
             throw FinalizationRecoveryServiceError.inconsistent
         }
+#if DEBUG
+        diagnosticPhase = "recovery-set"
+#endif
         try validateRecoverySet(recoveries)
         for recovery in recoveries {
+#if DEBUG
+        diagnosticPhase = "per-record-contract"
+#endif
             try validateContract(recovery.intent)
+#if DEBUG
+        diagnosticPhase = "per-record-route"
+#endif
             if sourceRecoveryAuthority != nil {
                 guard recovery.intent.schemaVersion == 1 else {
                     throw FinalizationRecoveryServiceError.inconsistent
@@ -274,6 +347,9 @@ final class FinalizationRecoveryService {
         var completedIDs: [UUID] = []
         for recovery in recoveries {
             do {
+#if DEBUG
+        diagnosticPhase = "per-record-reconcile"
+#endif
                 let result = try await reconcile(recovery)
                 switch result {
                 case .draft(let id): draftIDs.append(id)
@@ -281,9 +357,15 @@ final class FinalizationRecoveryService {
                 case .abandoned: break
                 }
             } catch {
+#if DEBUG
+                print("FinalizationRecovery.per-record failure type=\(String(reflecting: type(of: error))) code=\((error as NSError).code)")
+#endif
                 throw FinalizationRecoveryServiceError.inconsistent
             }
         }
+#if DEBUG
+        diagnosticSucceeded = true
+#endif
         return FinalizationRecoverySummary(
             recoveredDraftRecordIDs: draftIDs,
             completedRecordIDs: completedIDs
@@ -324,6 +406,13 @@ final class FinalizationRecoveryService {
     }
 
     private func validateRecoverySet(_ recoveries: [RecoverableFinalization]) throws {
+#if DEBUG
+        var diagnosticPhase = "entry"
+        var diagnosticSucceeded = false
+        defer {
+            if !diagnosticSucceeded { print("FinalizationRecovery.validateRecoverySet failure phase=\(diagnosticPhase)") }
+        }
+#endif
         var mutationIDs: Set<UUID> = []
         var recordIDs: Set<UUID> = []
         var packetIDs: Set<UUID> = []
@@ -332,13 +421,25 @@ final class FinalizationRecoveryService {
         var issueIDs: Set<UUID> = []
         for recovery in recoveries {
             let intent = recovery.intent
+#if DEBUG
+            diagnosticPhase = "contract"
+#endif
             try validateContract(intent)
+#if DEBUG
+            diagnosticPhase = "live-authority"
+#endif
             try validateLiveAuthority(intent.finalizationPayload)
+#if DEBUG
+            diagnosticPhase = "snapshot-authority"
+#endif
             if let snapshot = recovery.snapshot {
                 try validateSnapshotAuthority(snapshot, payload: intent.finalizationPayload)
             } else if recovery.hasStagingSnapshot || recovery.hasFinalSnapshot {
                 throw FinalizationRecoveryServiceError.inconsistent
             }
+#if DEBUG
+            diagnosticPhase = "cross-record-identities"
+#endif
             guard mutationIDs.insert(intent.finalizationMutationID).inserted,
                   recordIDs.insert(intent.recordID).inserted,
                   packetIDs.insert(intent.packetID).inserted,
@@ -346,6 +447,9 @@ final class FinalizationRecoveryService {
                   stableRootIDs.insert(intent.stableRootID).inserted else {
                 throw FinalizationRecoveryServiceError.inconsistent
             }
+#if DEBUG
+            diagnosticPhase = "cross-record-issues"
+#endif
             for issueID in [
                 intent.finalizationPayload.issueTransition?.before.id,
                 intent.finalizationPayload.issueInsert?.id,
@@ -354,10 +458,19 @@ final class FinalizationRecoveryService {
                     throw FinalizationRecoveryServiceError.inconsistent
                 }
             }
+#if DEBUG
+            diagnosticPhase = "database-state"
+#endif
             let state = databaseState(for: intent)
+#if DEBUG
+            print("FinalizationRecovery.validateRecoverySet facts phase=\(intent.phase.rawValue) staging=\(recovery.hasStagingSnapshot) final=\(recovery.hasFinalSnapshot) database=\(state)")
+#endif
             guard state != .inconsistent else {
                 throw FinalizationRecoveryServiceError.inconsistent
             }
+#if DEBUG
+            diagnosticPhase = "phase-presence"
+#endif
             switch intent.phase {
             case .prepared where !recovery.hasStagingSnapshot && !recovery.hasFinalSnapshot:
                 guard state == .absent || state == .preconditionFailed else {
@@ -375,6 +488,9 @@ final class FinalizationRecoveryService {
                 break
             }
         }
+#if DEBUG
+        diagnosticSucceeded = true
+#endif
     }
 
     private func reconcile(_ initial: RecoverableFinalization) async throws -> Result {
@@ -568,17 +684,32 @@ final class FinalizationRecoveryService {
 
     private func validateContract(_ intent: FinalizationIntentV1) throws {
         let record = intent.finalizationPayload.workflowRecordAfter
+#if DEBUG
+        print("FinalizationRecovery.validateContract begin phase=release-identity")
+#endif
         let release = try PackageReleaseIdentityV1(packageID: record.packID,
             schemaVersion: record.packSchemaVersion, contentVersion: record.packContentVersion)
+#if DEBUG
+        print("FinalizationRecovery.validateContract begin phase=profile-registry")
+#endif
         let registry = try lifecycleProfileRegistry
             ?? WorkspacePackageLifecycleCompatibilityV1.shippingRegistry()
+#if DEBUG
+        print("FinalizationRecovery.validateContract begin phase=profile-resolve")
+#endif
         let profile = try registry.resolve(release)
         guard profile.release.matches(profile.package),
               profile.pdfTemplate.id == record.pdfTemplateID,
               profile.pdfTemplate.version == record.pdfTemplateVersion else {
+#if DEBUG
+            print("FinalizationRecovery.validateContract failure guard=1")
+#endif
             throw FinalizationRecoveryServiceError.inconsistent
         }
         activeProfile = profile
+#if DEBUG
+        print("FinalizationRecovery.validateContract begin phase=intent-codec")
+#endif
         _ = try FinalizationContractEncoderV1().encodeIntent(intent)
         let payload = intent.finalizationPayload
         guard [1, 2].contains(intent.schemaVersion),
@@ -661,6 +792,9 @@ final class FinalizationRecoveryService {
                     && payload.issueInsert?.id
                         == payload.workflowRecordAfter.issueID))
                 : payload.issueInsert == nil && payload.issueTransition == nil) else {
+#if DEBUG
+            print("FinalizationRecovery.validateContract failure guard=2")
+#endif
             throw FinalizationRecoveryServiceError.inconsistent
         }
     }
@@ -940,6 +1074,9 @@ final class FinalizationRecoveryService {
             $0.id == assetID
         }
         guard assets.count == 1, let asset = assets.first else {
+#if DEBUG
+            print("FinalizationRecovery.validateSnapshotAuthority failure guard=1")
+#endif
             throw FinalizationRecoveryServiceError.inconsistent
         }
         let sites = try modelContext.fetch(FetchDescriptor<Site>()).filter {
@@ -954,6 +1091,9 @@ final class FinalizationRecoveryService {
               snapshot.asset.label == asset.label,
               snapshot.site.label == site.label,
               snapshot.site.address == site.address else {
+#if DEBUG
+            print("FinalizationRecovery.validateSnapshotAuthority failure guard=2")
+#endif
             throw FinalizationRecoveryServiceError.inconsistent
         }
         let sourceRecordID = payload.workflowRecordAfter.evidenceSourceRecordID
@@ -969,6 +1109,9 @@ final class FinalizationRecoveryService {
                     && rowKeys.allSatisfy { $0 == "wide_context" || $0 == "close_detail" }
                 : rowKeys == ["wide_context", "close_detail"]),
               snapshot.evidence.map(\.purposeKey) == rowKeys else {
+#if DEBUG
+            print("FinalizationRecovery.validateSnapshotAuthority failure guard=3")
+#endif
             throw FinalizationRecoveryServiceError.inconsistent
         }
         let groupedRows = Dictionary(grouping: rows, by: \.id)
@@ -1001,6 +1144,9 @@ final class FinalizationRecoveryService {
                       && isLowercaseSHA256(row.thumbnailSHA256)
                       && row.thumbnailSHA256 == evidence.thumbnailSHA256
               }) else {
+#if DEBUG
+            print("FinalizationRecovery.validateSnapshotAuthority failure guard=4")
+#endif
             throw FinalizationRecoveryServiceError.inconsistent
         }
         if let issue = payload.issueInsert {
@@ -1014,13 +1160,22 @@ final class FinalizationRecoveryService {
                   value.resolvedByRecordID == issue.resolvedByRecordID,
                   canonicalDateEqual(value.createdAt, issue.createdAt),
                   canonicalDateEqual(value.updatedAt, issue.updatedAt) else {
+#if DEBUG
+                print("FinalizationRecovery.validateSnapshotAuthority failure guard=5")
+#endif
                 throw FinalizationRecoveryServiceError.inconsistent
             }
         } else if !snapshot.issues.isEmpty {
+#if DEBUG
+            print("FinalizationRecovery.validateSnapshotAuthority failure guard=6")
+#endif
             throw FinalizationRecoveryServiceError.inconsistent
         }
         let record = payload.workflowRecordAfter
         guard let outcomeKey = record.outcomeKey else {
+#if DEBUG
+            print("FinalizationRecovery.validateSnapshotAuthority failure guard=7")
+#endif
             throw FinalizationRecoveryServiceError.inconsistent
         }
         let expectedCNV = record.couldNotVerifyKey.map { key in
@@ -1060,6 +1215,9 @@ final class FinalizationRecoveryService {
                 == payload.workflowRecordAfter.safePositionAcknowledgementVersion,
               snapshot.acknowledgements[1].accepted
                 == payload.workflowRecordAfter.safePositionAcknowledgementAccepted else {
+#if DEBUG
+            print("FinalizationRecovery.validateSnapshotAuthority failure guard=8")
+#endif
             throw FinalizationRecoveryServiceError.inconsistent
         }
     }
@@ -1684,17 +1842,25 @@ final class FinalizationRecoveryService {
         } catch {
             throw FinalizationRecoveryServiceError.inconsistent
         }
-        let fullyValidatedPrior: ValidatedReadyReportValue
+        let fullyValidatedPriorSnapshot: ReportSnapshotV1
         do {
-            fullyValidatedPrior = try ReportDeliveryCoordinator(
-                modelContext: modelContext,
-                generationRootURL: generationRootURL,
-                expectedRootIdentity: rootIdentity
-            ).validatedReadyReport(id: priorReportID)
+            if let sourceRecoveryAuthority {
+                fullyValidatedPriorSnapshot = try ReportRecoveryService.validatedOriginalReadyReport(
+                    authority: sourceRecoveryAuthority,
+                    reportID: priorReportID,
+                    expectedRootIdentity: rootIdentity
+                ).snapshot
+            } else {
+                fullyValidatedPriorSnapshot = try ReportDeliveryCoordinator(
+                    modelContext: modelContext,
+                    generationRootURL: generationRootURL,
+                    expectedRootIdentity: rootIdentity
+                ).validatedReadyReport(id: priorReportID).snapshot
+            }
         } catch {
             throw FinalizationRecoveryServiceError.inconsistent
         }
-        guard fullyValidatedPrior.snapshot == priorSnapshot else {
+        guard fullyValidatedPriorSnapshot == priorSnapshot else {
             throw FinalizationRecoveryServiceError.inconsistent
         }
         do {
@@ -1721,6 +1887,9 @@ final class FinalizationRecoveryService {
             $0.id == assetID
         }
         guard assets.count == 1, let asset = assets.first else {
+#if DEBUG
+            print("FinalizationRecovery.validateLiveAuthority failure guard=1")
+#endif
             throw FinalizationRecoveryServiceError.inconsistent
         }
         let sites = try modelContext.fetch(FetchDescriptor<Site>()).filter {
@@ -1739,6 +1908,9 @@ final class FinalizationRecoveryService {
               asset.packContentVersion == payload.workflowRecordAfter.packContentVersion,
               validEvidenceCardinality(evidence, cnv: payload.workflowRecordAfter.outcomeKey == "could_not_verify"),
               evidence.allSatisfy(validEvidenceAuthority) else {
+#if DEBUG
+            print("FinalizationRecovery.validateLiveAuthority failure guard=2")
+#endif
             throw FinalizationRecoveryServiceError.inconsistent
         }
     }

@@ -17,19 +17,66 @@ final class S4_5CorrectionTests: XCTestCase {
 
     @MainActor
     func testFirstAndSecondCorrectionCopyOnlyFiveSnapshotFieldsAndKeepEveryPriorPDF() async throws {
-        let harness = try await makeHarness("two-generations")
+        let harness = try await makeHarness("two-generations", populatedAssurance: true)
         defer { try? harness.close() }
         let originalSnapshot = try snapshot(report: harness.originalReport, in: harness)
-        let initialDiagnostics = await harness.diagnostics.snapshot()
-        let initialCounts = try counts(in: harness)
-        harness.site.label = "Renamed live site"
-        harness.asset.label = "Renamed live sign"
+        let originalSiteLabel = harness.site.label
+        let originalAssetLabel = harness.asset.label
         let liveIssue = try XCTUnwrap(
             try harness.context.fetch(FetchDescriptor<Issue>()).first
         )
+        let originalIssueStatus = liveIssue.status
+        let originalIssueUpdatedAt = liveIssue.updatedAt
+        let corruptSource = try harness.coordinator.correctionSource(reportID: harness.originalReport.id)
+        // These raw edits are corruption, not canonical rename commands. They
+        // must not be accepted as authority by a genuine correction producer.
+        harness.site.label = "Renamed live site"
+        harness.asset.label = "Renamed live sign"
         liveIssue.status = IssueStatus.recheckDue.rawValue
         liveIssue.updatedAt = Fixture.baseDate.addingTimeInterval(50)
         try harness.context.save()
+        let corruptState = try domainSnapshot(in: harness)
+        XCTAssertThrowsError(try MutationJournalStoreV1(modelContext: harness.context,
+            identity: harness.session.workspaceIdentity, generationID: harness.session.generationID,
+            allowStateBootstrap: false).validateAll())
+        await assertThrowsErrorAsync(try await harness.coordinator.submitCorrection(
+            from: corruptSource, note: "Reject unjournaled live changes",
+            snapshotCreatedAt: Fixture.correctionDate, sourceApp: Fixture.sourceApp,
+            identifiers: .init(mutationID: UUID(), recordID: UUID(), reportID: UUID())))
+        XCTAssertEqual(try domainSnapshot(in: harness), corruptState)
+        harness.site.label = originalSiteLabel
+        harness.asset.label = originalAssetLabel
+        liveIssue.status = originalIssueStatus
+        liveIssue.updatedAt = originalIssueUpdatedAt
+        try harness.context.save()
+        try MutationJournalStoreV1(modelContext: harness.context,
+            identity: harness.session.workspaceIdentity, generationID: harness.session.generationID,
+            allowStateBootstrap: false).validateAll()
+
+        // Exercise a supported live Issue transition through the one writer,
+        // while the original report and its issue snapshot remain immutable.
+        let runner = try CheckRunnerCoordinator(modelContext: harness.context,
+            packageLifecycleDependencies: harness.lifecycleDependencies,
+            packageLifecycleProfile: harness.lifecycleProfile,
+            diagnosticsStore: harness.diagnostics)
+        runner.configureCapture(generationRootURL: harness.session.generationRootURL)
+        _ = try runner.beginOrResumeDraft(.init(assetID: harness.asset.id, requestedStage: .work,
+            issueID: liveIssue.id, observedAtUTC: originalSnapshot.snapshotCreatedAt.addingTimeInterval(1),
+            confirmedTimeZoneID: nil, afterDarkAccepted: false, safePositionAccepted: false))
+        let work = try WorkCoordinator(modelContext: harness.context, signPack: .illuminatedSignV1,
+            generationRootURL: harness.session.generationRootURL, checkRunnerCoordinator: runner,
+            lifecycleDependencies: harness.lifecycleDependencies,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+        let draft = try work.beginWork(issueID: liveIssue.id)
+        _ = try await work.saveWork(draftID: draft.recordID,
+            submission: .init(performedLocalDate: try XCTUnwrap(harness.originalRecord.localDate),
+                description: "Documented repair before clerical correction", note: nil, photos: [],
+                completedAt: draft.startedAt.addingTimeInterval(1)),
+            identifiers: .init(mutationID: UUID(), evidenceID: nil))
+        XCTAssertEqual(liveIssue.status, IssueStatus.recheckDue.rawValue)
+        XCTAssertEqual(try snapshot(report: harness.originalReport, in: harness), originalSnapshot)
+        let initialDiagnostics = await harness.diagnostics.snapshot()
+        let initialCounts = try counts(in: harness)
         let originalAuthority = try preservedAuthority(
             recordIDs: [harness.originalRecord.id],
             reportIDs: [harness.originalReport.id],
@@ -63,6 +110,7 @@ final class S4_5CorrectionTests: XCTestCase {
         XCTAssertEqual(firstChain.ancestors.map(\.reportID), [harness.originalReport.id])
         let firstRecord = try record(id: firstIDs.recordID, in: harness)
         let firstReport = try report(id: firstIDs.reportID, in: harness)
+        try assertInheritedAssurance(firstIDs, priorRecordID: harness.originalRecord.id, in: harness)
         let firstSnapshot = try snapshot(report: firstReport, in: harness)
         XCTAssertEqual(firstSnapshot.site.label, "North Campus")
         XCTAssertEqual(firstSnapshot.asset.label, "Monument Sign")
@@ -129,6 +177,14 @@ final class S4_5CorrectionTests: XCTestCase {
         )
         let secondRecord = try record(id: secondIDs.recordID, in: harness)
         let secondReport = try report(id: secondIDs.reportID, in: harness)
+        try assertInheritedAssurance(secondIDs, priorRecordID: firstIDs.recordID, in: harness)
+        let assurance = try XCTUnwrap(try assuranceFacts(in: harness.context)
+            .first { $0.snapshot.workflowRecordID == secondIDs.recordID }).snapshot
+        XCTAssertEqual(assurance.decision.warningRequirementIDs, ["correction_warning"])
+        XCTAssertEqual(assurance.evaluations.first?.evidenceReferenceIDs,
+            try harness.context.fetch(FetchDescriptor<EvidenceFile>())
+                .filter { $0.recordID == harness.originalRecord.id }
+                .map { $0.id.uuidString.lowercased() }.sorted())
         let secondSnapshot = try snapshot(report: secondReport, in: harness)
         XCTAssertEqual(
             secondSnapshot,
@@ -157,6 +213,7 @@ final class S4_5CorrectionTests: XCTestCase {
         let finalCounts = try counts(in: harness)
         XCTAssertEqual(finalCounts.records, initialCounts.records + 2)
         XCTAssertEqual(finalCounts.reports, initialCounts.reports + 2)
+        XCTAssertEqual(finalCounts.assurance, initialCounts.assurance + 2)
         XCTAssertEqual(finalCounts.sites, initialCounts.sites)
         XCTAssertEqual(finalCounts.assets, initialCounts.assets)
         XCTAssertEqual(finalCounts.evidence, initialCounts.evidence)
@@ -326,6 +383,198 @@ final class S4_5CorrectionTests: XCTestCase {
             XCTAssertEqual(try restored.correctionSource(reportID: secondIDs.reportID).chain, expectedChain, label)
             try assertPreserved(frozen, in: harness)
         }
+    }
+
+    @MainActor
+    func testCorrectionAssuranceSourceAndTargetCollisionsFailClosed() async throws {
+        for corruption in ["missing-source", "wrong-workspace", "existing-target"] {
+            let harness = try await makeHarness("assurance-\(corruption)")
+            defer { try? harness.close() }
+            let identifiers = ReportCorrectionIdentifiers(mutationID: UUID(), recordID: UUID(), reportID: UUID())
+            let source = try harness.coordinator.correctionSource(reportID: harness.originalReport.id)
+            let row = try XCTUnwrap(try harness.context.fetch(FetchDescriptor<RequirementAssuranceRow>())
+                .first { $0.workflowRecordID == harness.originalRecord.id })
+            let original = try row.snapshot()
+            // Deliberate corruption only; the valid baseline came through the writer.
+            if corruption != "existing-target" {
+                harness.context.delete(row)
+                try harness.context.save()
+            }
+            if corruption != "missing-source" {
+                let invalid = try RequirementAssuranceSnapshotV1(
+                    workflowRecordID: corruption == "existing-target" ? identifiers.recordID : original.workflowRecordID,
+                    workspaceID: corruption == "wrong-workspace" ? UUID() : original.workspaceID,
+                    evaluatedRevision: original.evaluatedRevision, policySetSHA256: original.policySetSHA256,
+                    evaluations: original.evaluations, findings: original.findings, decision: original.decision)
+                harness.context.insert(try RequirementAssuranceRow(snapshot: invalid, mutationID: UUID(),
+                    createdAt: Fixture.baseDate, updatedAt: Fixture.baseDate))
+            }
+            try harness.context.save()
+            let before = try domainSnapshot(in: harness)
+            await assertThrowsErrorAsync(try await harness.coordinator.submitCorrection(
+                from: source, note: "Refuse corrupt assurance", snapshotCreatedAt: Fixture.correctionDate,
+                sourceApp: Fixture.sourceApp, identifiers: identifiers))
+            XCTAssertEqual(try domainSnapshot(in: harness), before)
+            XCTAssertFalse(harness.context.hasChanges)
+        }
+    }
+
+    @MainActor
+    func testCommittedCorrectionMissingOrChangedAssuranceCannotReplayOrRepairItself() async throws {
+        for missing in [true, false] {
+            let harness = try await makeHarness("assurance-replay-\(missing)")
+            defer { try? harness.close() }
+            let identifiers = ReportCorrectionIdentifiers(mutationID: UUID(), recordID: UUID(), reportID: UUID())
+            let source = try harness.coordinator.correctionSource(reportID: harness.originalReport.id)
+            _ = try readyChain(await harness.coordinator.submitCorrection(
+                from: source, note: "Immutable correction", snapshotCreatedAt: Fixture.correctionDate,
+                sourceApp: Fixture.sourceApp, identifiers: identifiers))
+            try assertInheritedAssurance(identifiers, priorRecordID: harness.originalRecord.id, in: harness)
+            let row = try XCTUnwrap(try harness.context.fetch(FetchDescriptor<RequirementAssuranceRow>())
+                .first { $0.workflowRecordID == identifiers.recordID })
+            let old = try row.snapshot()
+            harness.context.delete(row)
+            try harness.context.save()
+            if !missing {
+                let changed = try RequirementAssuranceSnapshotV1(
+                    workflowRecordID: old.workflowRecordID, workspaceID: UUID(),
+                    evaluatedRevision: old.evaluatedRevision, policySetSHA256: old.policySetSHA256,
+                    evaluations: old.evaluations, findings: old.findings, decision: old.decision)
+                harness.context.insert(try RequirementAssuranceRow(snapshot: changed, mutationID: UUID(),
+                    createdAt: Fixture.baseDate, updatedAt: Fixture.baseDate))
+                try harness.context.save()
+            }
+            let before = try domainSnapshot(in: harness)
+            XCTAssertThrowsError(try MutationJournalStoreV1(modelContext: harness.context,
+                identity: harness.session.workspaceIdentity, generationID: harness.session.generationID,
+                allowStateBootstrap: false).validateAll())
+            await assertThrowsErrorAsync(try await harness.coordinator.submitCorrection(
+                from: source, note: "Immutable correction", snapshotCreatedAt: Fixture.correctionDate,
+                sourceApp: Fixture.sourceApp, identifiers: identifiers))
+            XCTAssertEqual(try domainSnapshot(in: harness), before)
+            XCTAssertFalse(harness.context.hasChanges)
+        }
+    }
+
+    @MainActor
+    func testCurrentCorrectionStagingRejectsNilOrChangedSourceBindingWithoutEffects() async throws {
+        for scenario in ["nil", "changed", "valid"] {
+            let nilBinding = scenario == "nil"
+            let harness = try await makeHarness("assurance-staging-\(scenario)")
+            defer { try? harness.close() }
+            let input = try correctionStoreInput(in: harness, note: "Frozen staging authority",
+                snapshotCreatedAt: Fixture.correctionDate)
+            let sourceRow = try XCTUnwrap(try harness.context.fetch(FetchDescriptor<RequirementAssuranceRow>())
+                .first { $0.workflowRecordID == harness.originalRecord.id })
+            let original = try sourceRow.snapshot()
+            let target = try RequirementAssuranceSnapshotV1(
+                workflowRecordID: input.identifiers.recordID, workspaceID: original.workspaceID,
+                evaluatedRevision: original.evaluatedRevision, policySetSHA256: original.policySetSHA256,
+                evaluations: original.evaluations, findings: original.findings, decision: original.decision)
+            let companion = try ObservationAndTimeRowStoreV1.requireRow(
+                recordID: harness.originalRecord.id, in: harness.context)
+            let digests = Array(Set(try harness.context.fetch(FetchDescriptor<EvidenceFile>())
+                .filter { $0.recordID == harness.originalRecord.id }.map(\.sha256))).sorted()
+            let authority = FinalizationWriterAuthorityV1(
+                workspaceID: try harness.storeCoordinator.workspaceWriter.currentRevision().workspaceID,
+                generationID: harness.session.generationID,
+                payload: input.intent.finalizationPayload,
+                payloadSHA256: input.intent.finalizationPayloadSHA256,
+                snapshotRelativePath: input.intent.snapshotFinalRelativePath,
+                snapshotSHA256: input.intent.snapshotSHA256, contentDigests: digests,
+                sourceBinding: .init(sourceRecordID: harness.originalRecord.id,
+                    observationBasisV1Data: companion.observationBasisV1Data,
+                    temporalContextV1Data: companion.temporalContextV1Data,
+                    requirementAssurance: nilBinding ? nil : target))
+            let command = WorkspaceCommandV1.finalizeCorrection(.init(
+                finalizationMutationID: input.identifiers.mutationID, assetID: harness.asset.id,
+                correctionRecordID: input.identifiers.recordID, revisesRecordID: harness.originalRecord.id,
+                packetID: harness.packet.id, reportID: input.identifiers.reportID,
+                replacesReportID: harness.originalReport.id,
+                semanticDigest: input.intent.finalizationPayloadSHA256, writerAuthority: authority))
+            // Nil is still a valid historical encoded authority. Its rejection
+            // belongs to new current staging, not global receipt decoding.
+            try authority.validate(command: command)
+            let store = FinalizationIntentStore(generationRootURL: harness.session.generationRootURL)
+            let prepared = try await store.prepare(intent: input.intent, snapshot: input.snapshot)
+            _ = try await store.promoteSnapshot(prepared)
+            if scenario == "changed" {
+                // Change the source after binding; never reconstruct the envelope.
+                harness.context.delete(sourceRow)
+                try harness.context.save()
+                let changed = try RequirementAssuranceSnapshotV1(
+                    workflowRecordID: original.workflowRecordID, workspaceID: UUID(),
+                    evaluatedRevision: original.evaluatedRevision, policySetSHA256: original.policySetSHA256,
+                    evaluations: original.evaluations, findings: original.findings, decision: original.decision)
+                harness.context.insert(try RequirementAssuranceRow(snapshot: changed, mutationID: UUID(),
+                    createdAt: Fixture.baseDate, updatedAt: Fixture.baseDate))
+                try harness.context.save()
+            }
+            let before = try domainSnapshot(in: harness)
+            let recovery = FinalizationRecoveryService(modelContext: harness.context,
+                generationRootURL: harness.session.generationRootURL,
+                workspaceWriter: harness.storeCoordinator.workspaceWriter,
+                lifecycleProfileRegistry: harness.lifecycleDependencies.profileRegistry)
+            let rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: harness.session.generationRootURL)
+            if scenario == "valid" {
+                // Positive control proves the synthetic binding reaches the same
+                // staging boundary; all inserts remain unsaved and roll back.
+                try recovery.stageWriterMutation(command: command, expectedRootIdentity: rootIdentity)
+                XCTAssertTrue(harness.context.hasChanges)
+                let rows = try harness.context.fetch(FetchDescriptor<RequirementAssuranceRow>())
+                    .filter { $0.workflowRecordID == input.identifiers.recordID }
+                XCTAssertEqual(rows.count, 1)
+                XCTAssertEqual(try XCTUnwrap(rows.first).snapshot(), target)
+                recovery.restoreStagedWriterValues()
+                harness.context.rollback()
+            } else {
+                XCTAssertThrowsError(try recovery.stageWriterMutation(command: command,
+                    expectedRootIdentity: rootIdentity))
+            }
+            XCTAssertFalse(harness.context.hasChanges)
+            XCTAssertEqual(try domainSnapshot(in: harness), before)
+        }
+    }
+
+    @MainActor
+    func testCorrectionAssuranceProjectionRejectsMalformedSourceDigest() async throws {
+        let harness = try await makeHarness("assurance-malformed")
+        defer { try? harness.close() }
+        let source = try XCTUnwrap(try assuranceFacts(in: harness.context).first).snapshot
+        let workspaceID = try harness.storeCoordinator.workspaceWriter.currentRevision().workspaceID
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(source)) as? [String: Any])
+        object["snapshotSHA256"] = String(repeating: "0", count: 64)
+        let bytes = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+        XCTAssertThrowsError(try FinalizationCorrectionAssuranceV1.project(
+            JSONDecoder().decode(RequirementAssuranceSnapshotV1.self, from: bytes),
+            sourceRecordID: source.workflowRecordID, targetRecordID: UUID(), workspaceID: workspaceID))
+    }
+
+    @MainActor
+    func testTwoCorrectionsPrepareCurrentStreamingExportWithExactReceiptCompanions() async throws {
+        let harness = try await makeHarness("assurance-current-export", populatedAssurance: true)
+        defer { try? harness.close() }
+        var priorRecordID = harness.originalRecord.id
+        var priorReportID = harness.originalReport.id
+        for index in 1...2 {
+            let identifiers = ReportCorrectionIdentifiers(mutationID: UUID(), recordID: UUID(), reportID: UUID())
+            let source = try harness.coordinator.correctionSource(reportID: priorReportID)
+            _ = try readyChain(await harness.coordinator.submitCorrection(
+                from: source, note: "Export correction \(index)",
+                snapshotCreatedAt: Fixture.correctionDate.addingTimeInterval(Double(index)),
+                sourceApp: Fixture.sourceApp, identifiers: identifiers))
+            try assertInheritedAssurance(identifiers, priorRecordID: priorRecordID, in: harness)
+            priorRecordID = identifiers.recordID
+            priorReportID = identifiers.reportID
+        }
+        let before = try domainSnapshot(in: harness)
+        let exporter = BackupExportService(modelContext: harness.context,
+            generationRootURL: harness.session.generationRootURL,
+            lifecycleDependencies: harness.lifecycleDependencies,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+        _ = try exporter.prepareStreaming()
+        XCTAssertEqual(try domainSnapshot(in: harness), before)
+        // This checks current graph/receipt preparation, not transport or restore.
     }
 
     @MainActor
@@ -552,6 +801,7 @@ final class S4_5CorrectionTests: XCTestCase {
         let correctedReport = try report(id: identifiers.reportID, in: harness)
         let correctedSnapshot = try snapshot(report: correctedReport, in: harness)
         XCTAssertNotEqual(requested, expected)
+        try assertInheritedAssurance(identifiers, priorRecordID: harness.originalRecord.id, in: harness)
         XCTAssertEqual(correctedReport.createdAt, expected)
         XCTAssertEqual(correctedSnapshot.snapshotCreatedAt, expected)
         let correctedRecord = try record(id: identifiers.recordID, in: harness)
@@ -638,9 +888,11 @@ final class S4_5CorrectionTests: XCTestCase {
                     identifiers: identifiers
                 )
             )
+            try assertInheritedAssurance(identifiers, priorRecordID: harness.originalRecord.id, in: harness)
             XCTAssertEqual(ready.current.reportID, identifiers.reportID)
             XCTAssertEqual(try counts(in: harness).records, before.records.count + 1)
             XCTAssertEqual(try counts(in: harness).reports, before.reports.count + 1)
+            XCTAssertEqual(try counts(in: harness).assurance, before.assurance.count + 1)
             XCTAssertFalse(fileManager.fileExists(atPath: intentURL(identifiers, in: harness).path))
         }
     }
@@ -833,6 +1085,8 @@ final class S4_5CorrectionTests: XCTestCase {
         XCTAssertTrue(fileManager.fileExists(atPath: finalSnapshotURL(identifiers, in: harness).path))
         try assertPreserved(prior, in: harness)
 
+        try assertInheritedAssurance(identifiers, priorRecordID: harness.originalRecord.id, in: harness)
+        let committedAssurance = try assuranceFacts(in: harness.context)
         let recovery = FinalizationRecoveryService(
             modelContext: harness.context,
             generationRootURL: harness.session.generationRootURL,
@@ -849,6 +1103,7 @@ final class S4_5CorrectionTests: XCTestCase {
         var tamperedIntent = canonicalIntent
         tamperedIntent.append(0x0A)
         try tamperedIntent.write(to: operationURL, options: .atomic)
+        try ProtectedFilePolicyV1.applyAndVerify(.journal, at: operationURL)
         let beforeTamperedRecovery = try domainSnapshot(in: harness)
         do {
             _ = try await recovery.reconcile()
@@ -860,6 +1115,7 @@ final class S4_5CorrectionTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: operationURL), tamperedIntent)
 
         try canonicalIntent.write(to: operationURL, options: .atomic)
+        try ProtectedFilePolicyV1.applyAndVerify(.journal, at: operationURL)
         harness.site.label = "Unsaved recovery collision"
         do {
             _ = try await recovery.reconcile()
@@ -926,6 +1182,7 @@ final class S4_5CorrectionTests: XCTestCase {
         guard case .ready = try fresh.prepareFinalizedReport(id: identifiers.reportID) else {
             return XCTFail("recovered pending correction must render exactly once")
         }
+        XCTAssertEqual(try assuranceFacts(in: reopened.modelContext), committedAssurance)
         let afterRecoveryRecordCount = try reopened.modelContext.fetchCount(
             FetchDescriptor<WorkflowRecord>()
         )
@@ -941,6 +1198,10 @@ final class S4_5CorrectionTests: XCTestCase {
             )
         )
         XCTAssertEqual(replay.current.reportID, identifiers.reportID)
+        XCTAssertEqual(try assuranceFacts(in: reopened.modelContext), committedAssurance)
+        try MutationJournalStoreV1(modelContext: reopened.modelContext,
+            identity: reopened.workspaceIdentity, generationID: reopened.generationID,
+            allowStateBootstrap: false).validateAll()
         XCTAssertEqual(
             try reopened.modelContext.fetchCount(FetchDescriptor<WorkflowRecord>()),
             afterRecoveryRecordCount
@@ -1231,6 +1492,106 @@ final class S4_5CorrectionTests: XCTestCase {
             pdfBytes
         )
         XCTAssertTrue((try fileManager.contentsOfDirectory(atPath: root.path)).isEmpty)
+    }
+
+    @MainActor
+    func testPrepareRollbackPreservesSameBytesForeignInodeAfterGenerationSwap() async throws {
+        let harness = try await makeHarness("prepare-foreign-inode")
+        defer { try? harness.close() }
+        let root = harness.session.generationRootURL
+        let input = try correctionStoreInput(in: harness, note: "Foreign inode is not owned",
+            snapshotCreatedAt: Fixture.correctionDate)
+        let heldGeneration = harness.applicationSupportURL.appendingPathComponent("held-generation-\(UUID())")
+        let replacementGeneration = harness.applicationSupportURL.appendingPathComponent("replacement-generation-\(UUID())")
+        let heldOwnedLeaf = harness.applicationSupportURL.appendingPathComponent("held-owned-snapshot-\(UUID()).json")
+        let foreignLeaf = heldGeneration.appendingPathComponent(input.intent.snapshotStagingRelativePath)
+        let sentinel = Data("unowned replacement generation".utf8)
+        let barrierFileManager = fileManager
+        let action = StoreBarrierAction(boundary: .afterLeafMutation, hit: 1) {
+            try barrierFileManager.moveItem(at: root, to: heldGeneration)
+            try barrierFileManager.createDirectory(at: root, withIntermediateDirectories: false)
+            try sentinel.write(to: root.appendingPathComponent("unowned.txt"), options: .withoutOverwriting)
+            try barrierFileManager.moveItem(at: foreignLeaf, to: heldOwnedLeaf)
+            // Same bytes deliberately cannot stand in for the captured inode.
+            try input.snapshot.data.write(to: foreignLeaf, options: .withoutOverwriting)
+            try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: foreignLeaf)
+        }
+        let store = FinalizationIntentStore(generationRootURL: root,
+            expectedGenerationRootIdentity: try ReportPDFAnchoredFile.rootIdentity(at: root),
+            authorityBarrier: FinalizationIntentStoreAuthorityBarrier { action.reach($0) })
+        do {
+            _ = try await store.prepare(intent: input.intent, snapshot: input.snapshot)
+            XCTFail("cleanup must refuse the replacement inode even when its bytes match")
+        } catch {
+            XCTAssertEqual(error as? FinalizationIntentStoreError, .fileOperationFailed)
+        }
+        XCTAssertNil(action.errorDescription)
+        XCTAssertEqual(try Data(contentsOf: foreignLeaf), input.snapshot.data)
+        XCTAssertEqual(try Data(contentsOf: heldOwnedLeaf), input.snapshot.data)
+        let foreignInode = try XCTUnwrap(try fileManager.attributesOfItem(atPath: foreignLeaf.path)[.systemFileNumber] as? NSNumber)
+        let originalInode = try XCTUnwrap(try fileManager.attributesOfItem(atPath: heldOwnedLeaf.path)[.systemFileNumber] as? NSNumber)
+        XCTAssertNotEqual(foreignInode, originalInode)
+        XCTAssertEqual(try regularFiles(at: root), ["unowned.txt": sentinel])
+        XCTAssertFalse(fileManager.fileExists(atPath: intentURL(input.identifiers, in: harness).path))
+        // Restore the directory name for session teardown, preserving both leaves.
+        // There is no retry or deletion of the foreign leaf to manufacture success.
+        try fileManager.moveItem(at: root, to: replacementGeneration)
+        try fileManager.moveItem(at: heldGeneration, to: root)
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent(input.intent.snapshotStagingRelativePath)), input.snapshot.data)
+        XCTAssertEqual(try Data(contentsOf: heldOwnedLeaf), input.snapshot.data)
+    }
+
+    @MainActor
+    func testPromotionRollbackPreservesSameBytesForeignIntentInode() async throws {
+        let harness = try await makeHarness("promotion-foreign-intent")
+        defer { try? harness.close() }
+        let root = harness.session.generationRootURL
+        let identity = try ReportPDFAnchoredFile.rootIdentity(at: root)
+        let input = try correctionStoreInput(in: harness, note: "Foreign intent inode",
+            snapshotCreatedAt: Fixture.correctionDate)
+        let baseline = FinalizationIntentStore(generationRootURL: root,
+            expectedGenerationRootIdentity: identity,
+            authorityBarrier: FinalizationIntentStoreAuthorityBarrier { _ in })
+        let prepared = try await baseline.prepare(intent: input.intent, snapshot: input.snapshot)
+        let journal = intentURL(input.identifiers, in: harness)
+        let journalBytes = try Data(contentsOf: journal)
+        let heldJournal = harness.applicationSupportURL.appendingPathComponent("held-intent-\(UUID()).json")
+        let snapshots = root.appendingPathComponent("snapshots", isDirectory: true)
+        let heldSnapshots = harness.applicationSupportURL.appendingPathComponent("held-snapshots-\(UUID())")
+        let replacementSnapshots = harness.applicationSupportURL.appendingPathComponent("replacement-snapshots-\(UUID())")
+        let sentinel = Data("foreign snapshots".utf8)
+        let fm = fileManager
+        let action = StoreBarrierAction(boundary: .afterLeafMutation, hit: 1) {
+            try fm.moveItem(at: snapshots, to: heldSnapshots)
+            try fm.createDirectory(at: snapshots, withIntermediateDirectories: false)
+            try sentinel.write(to: snapshots.appendingPathComponent("unowned.txt"), options: .withoutOverwriting)
+            try fm.moveItem(at: journal, to: heldJournal)
+            try journalBytes.write(to: journal, options: .withoutOverwriting)
+            try ProtectedFilePolicyV1.applyAndVerify(.journal, at: journal)
+        }
+        let store = FinalizationIntentStore(generationRootURL: root,
+            expectedGenerationRootIdentity: identity,
+            authorityBarrier: FinalizationIntentStoreAuthorityBarrier { action.reach($0) })
+        do {
+            _ = try await store.promoteSnapshot(prepared)
+            XCTFail("rollback must preserve a same-bytes foreign intent inode")
+        } catch {
+            XCTAssertEqual(error as? FinalizationIntentStoreError, .fileOperationFailed)
+        }
+        XCTAssertNil(action.errorDescription)
+        XCTAssertEqual(try Data(contentsOf: journal), journalBytes)
+        XCTAssertEqual(try Data(contentsOf: heldJournal), journalBytes)
+        let replacementInode = try XCTUnwrap(try fm.attributesOfItem(atPath: journal.path)[.systemFileNumber] as? NSNumber)
+        let originalInode = try XCTUnwrap(try fm.attributesOfItem(atPath: heldJournal.path)[.systemFileNumber] as? NSNumber)
+        XCTAssertNotEqual(replacementInode, originalInode)
+        XCTAssertEqual(try regularFiles(at: snapshots), ["unowned.txt": sentinel])
+        XCTAssertFalse(fm.fileExists(atPath: stagingSnapshotURL(input.identifiers, in: harness).path))
+        let finalName = input.intent.snapshotFinalRelativePath.replacingOccurrences(of: "snapshots/", with: "")
+        XCTAssertFalse(fm.fileExists(atPath: heldSnapshots.appendingPathComponent(finalName).path))
+        try fm.moveItem(at: snapshots, to: replacementSnapshots)
+        try fm.moveItem(at: heldSnapshots, to: snapshots)
+        XCTAssertEqual(try Data(contentsOf: journal), journalBytes)
+        XCTAssertEqual(try Data(contentsOf: heldJournal), journalBytes)
     }
 
     @MainActor
@@ -1570,6 +1931,7 @@ private struct RowCounts: Equatable {
     let issues: Int
     let packets: Int
     let reports: Int
+    let assurance: Int
 }
 
 private struct EvidenceFact: Equatable {
@@ -1607,6 +1969,13 @@ private struct AssetFact: Equatable {
     let createdAt: Date
 }
 
+private struct AssuranceFact: Equatable {
+    let snapshot: RequirementAssuranceSnapshotV1
+    let mutationID: UUID
+    let createdAt: Date
+    let updatedAt: Date
+}
+
 private struct DomainSnapshot: Equatable {
     let sites: [SiteFact]
     let assets: [AssetFact]
@@ -1615,6 +1984,7 @@ private struct DomainSnapshot: Equatable {
     let issues: [IssuePayloadV1]
     let packets: [PacketPayloadV1]
     let reports: [ReportPayloadV1]
+    let assurance: [AssuranceFact]
     let generationFiles: [String: Data]
 }
 
@@ -1628,6 +1998,7 @@ private struct PreservedAuthority {
     let packetEvaluationCounted: Bool
     let packetCreatedAt: Date
     let files: [String: Data]
+    let assurance: [AssuranceFact]
 }
 
 private struct UnsafeSentinel {
@@ -1832,7 +2203,8 @@ private extension S4_5CorrectionTests {
     func makeHarness(
         _ label: String,
         substantiveDate: Date = Fixture.baseDate,
-        reportDiagnosticBoundary: ((String) -> Void)? = nil
+        reportDiagnosticBoundary: ((String) -> Void)? = nil,
+        populatedAssurance: Bool = false
     ) async throws -> CorrectionHarness {
         let applicationSupport = fileManager.temporaryDirectory.resolvingSymlinksInPath()
             .appendingPathComponent(
@@ -1853,8 +2225,11 @@ private extension S4_5CorrectionTests {
             withIntermediateDirectories: false
         )
         mark("harness-bootstrap")
-        let session = try StoreGenerationFactory(applicationSupportURL: applicationSupport)
-            .openOrBootstrapCurrent()
+        var bootstrapFactory = StoreGenerationFactory(applicationSupportURL: applicationSupport)
+#if DEBUG
+        bootstrapFactory.coldOpenDiagnosticForTesting = true
+#endif
+        let session = try bootstrapFactory.openOrBootstrapCurrent()
         constructionSession = session
         registerCorrectionSessionCleanup(root: applicationSupport, session: session)
         let context = session.modelContext
@@ -1946,6 +2321,38 @@ private extension S4_5CorrectionTests {
             reportID: UUID(),
             issueID: UUID()
         )
+        if populatedAssurance {
+            mark("harness-assurance-evaluate")
+            let rows = try context.fetch(FetchDescriptor<RequirementAssuranceRow>())
+                .filter { $0.workflowRecordID == record.id }
+            let prior = try XCTUnwrap(rows.first).snapshot()
+            let definition = try RequirementDefinitionV1(
+                requirementID: "correction_warning", requirementVersion: 1,
+                requirementTypeID: "correction_warning", policySHA256: String(repeating: "a", count: 64),
+                gateEffect: .warning, allowsNotApplicable: false)
+            let evidenceReferences = try context.fetch(FetchDescriptor<EvidenceFile>())
+                .filter { $0.recordID == record.id }.map {
+                    try RequirementEvidenceReferenceV1(referenceID: $0.id.uuidString.lowercased(),
+                        evidenceKindID: "photo", evidenceRevision: 1, state: .valid)
+                }.sorted()
+            let input = try RequirementEvaluationInputV1(
+                definition: definition, evaluatedRevision: prior.evaluatedRevision + 1,
+                scopeID: "correction_scope", responseState: .notSatisfied,
+                evidenceReferences: evidenceReferences)
+            let registry = try RequirementEvaluatorRegistryV1(rules: [
+                .init(requirementTypeID: "correction_warning", acceptedResponseStates: [.notSatisfied])])
+            let evaluations = try RequirementEvaluationEngineV1.evaluateAll([input], registry: registry)
+            let assurance = try RequirementAssuranceSnapshotV1(
+                workflowRecordID: record.id, workspaceID: prior.workspaceID,
+                evaluatedRevision: prior.evaluatedRevision + 1,
+                policySetSHA256: RequirementEvaluationEngineV1.policySetSHA256(evaluations),
+                evaluations: evaluations, findings: [],
+                decision: RequirementEvaluationEngineV1.completionDecision(evaluations: evaluations))
+            let mutationID = try MutationIDV1(rawValue: UUID())
+            _ = try storeCoordinator.workspaceWriter.execute(.applyRequirementAssurance(.init(
+                snapshot: assurance, expectedEvaluatedRevision: prior.evaluatedRevision,
+                mutationID: mutationID.rawValue)), mutationID: mutationID)
+        }
         mark("harness-runner-finalize")
         let result = try await runner.finalize(
             assetID: asset.id,
@@ -2233,6 +2640,40 @@ private extension S4_5CorrectionTests {
     }
 
     @MainActor
+    func assuranceFacts(in context: ModelContext) throws -> [AssuranceFact] {
+        try context.fetch(FetchDescriptor<RequirementAssuranceRow>()).map {
+            AssuranceFact(snapshot: try $0.snapshot(), mutationID: $0.mutationID,
+                          createdAt: $0.createdAt, updatedAt: $0.updatedAt)
+        }.sorted { $0.snapshot.workflowRecordID.uuidString < $1.snapshot.workflowRecordID.uuidString }
+    }
+
+    @MainActor
+    func assertInheritedAssurance(_ identifiers: ReportCorrectionIdentifiers,
+                                 priorRecordID: UUID, in harness: CorrectionHarness) throws {
+        let facts = try assuranceFacts(in: harness.context)
+        let sources = facts.filter { $0.snapshot.workflowRecordID == priorRecordID }
+        let targets = facts.filter { $0.snapshot.workflowRecordID == identifiers.recordID }
+        XCTAssertEqual(sources.count, 1)
+        XCTAssertEqual(targets.count, 1)
+        let source = try XCTUnwrap(sources.first).snapshot
+        let target = try XCTUnwrap(targets.first)
+        // Independent expected value: no call to the production projection helper.
+        let expected = try RequirementAssuranceSnapshotV1(
+            workflowRecordID: identifiers.recordID, workspaceID: source.workspaceID,
+            evaluatedRevision: source.evaluatedRevision, policySetSHA256: source.policySetSHA256,
+            evaluations: source.evaluations, findings: source.findings, decision: source.decision)
+        XCTAssertEqual(target.snapshot, expected)
+        XCTAssertNotEqual(target.snapshot.snapshotSHA256, source.snapshotSHA256)
+        XCTAssertEqual(target.mutationID, identifiers.mutationID)
+        let targetReport = try report(id: identifiers.reportID, in: harness)
+        XCTAssertEqual(target.createdAt, targetReport.createdAt)
+        XCTAssertEqual(target.updatedAt, targetReport.createdAt)
+        try MutationJournalStoreV1(modelContext: harness.context,
+            identity: harness.session.workspaceIdentity, generationID: harness.session.generationID,
+            allowStateBootstrap: false).validateAll()
+    }
+
+    @MainActor
     func counts(in harness: CorrectionHarness) throws -> RowCounts {
         RowCounts(
             sites: try harness.context.fetchCount(FetchDescriptor<Site>()),
@@ -2241,7 +2682,8 @@ private extension S4_5CorrectionTests {
             evidence: try harness.context.fetchCount(FetchDescriptor<EvidenceFile>()),
             issues: try harness.context.fetchCount(FetchDescriptor<Issue>()),
             packets: try harness.context.fetchCount(FetchDescriptor<Packet>()),
-            reports: try harness.context.fetchCount(FetchDescriptor<Report>())
+            reports: try harness.context.fetchCount(FetchDescriptor<Report>()),
+            assurance: try harness.context.fetchCount(FetchDescriptor<RequirementAssuranceRow>())
         )
     }
 
@@ -2276,6 +2718,7 @@ private extension S4_5CorrectionTests {
                 try harness.context.fetch(FetchDescriptor<Report>()).map(reportPayload),
                 id: \.id
             ),
+            assurance: try assuranceFacts(in: harness.context),
             generationFiles: try generationFiles(in: harness)
         )
     }
@@ -2327,7 +2770,9 @@ private extension S4_5CorrectionTests {
             packetStableRootID: harness.packet.stableRootID,
             packetEvaluationCounted: harness.packet.evaluationCounted,
             packetCreatedAt: harness.packet.createdAt,
-            files: files
+            files: files,
+            assurance: try assuranceFacts(in: harness.context)
+                .filter { recordIDs.contains($0.snapshot.workflowRecordID) }
         )
     }
 
@@ -2340,6 +2785,9 @@ private extension S4_5CorrectionTests {
     ) throws {
         let records = try harness.context.fetch(FetchDescriptor<WorkflowRecord>())
         let reports = try harness.context.fetch(FetchDescriptor<Report>())
+        XCTAssertEqual(try assuranceFacts(in: harness.context)
+            .filter { expected.records.keys.contains($0.snapshot.workflowRecordID) },
+            expected.assurance, file: file, line: line)
         for (id, payload) in expected.records {
             XCTAssertEqual(
                 records.filter { $0.id == id }.map(recordPayload),

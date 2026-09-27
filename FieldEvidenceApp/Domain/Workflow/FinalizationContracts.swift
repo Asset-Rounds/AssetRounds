@@ -180,6 +180,26 @@ struct FinalizationInspectionReleaseBindingV1: Codable, Equatable, Sendable {
     }
 }
 
+/// A clerical correction inherits the evaluation; only its companion identity
+/// changes. Historical optional receipt fields retain their original meaning.
+enum FinalizationCorrectionAssuranceV1 {
+    static func project(_ source: RequirementAssuranceSnapshotV1,
+                        sourceRecordID: UUID, targetRecordID: UUID,
+                        workspaceID: WorkspaceID) throws -> RequirementAssuranceSnapshotV1 {
+        try source.validate()
+        guard source.workflowRecordID == sourceRecordID,
+              source.workspaceID == workspaceID.rawValue,
+              sourceRecordID != targetRecordID else {
+            throw WorkspaceMutationFailureV1.invalidCommand
+        }
+        return try RequirementAssuranceSnapshotV1(
+            workflowRecordID: targetRecordID, workspaceID: source.workspaceID,
+            evaluatedRevision: source.evaluatedRevision,
+            policySetSHA256: source.policySetSHA256, evaluations: source.evaluations,
+            findings: source.findings, decision: source.decision)
+    }
+}
+
 struct FinalizationWriterSourceBindingV1: Codable, Equatable, Sendable {
     let sourceRecordID: UUID
     let observationBasisV1Data: Data

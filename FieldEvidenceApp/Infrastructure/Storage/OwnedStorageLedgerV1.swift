@@ -2,6 +2,30 @@ import Darwin
 import CryptoKit
 import Foundation
 
+/// Darwin readdir returns variable-length records, not a full Swift dirent value.
+/// Read only the advertised name bytes while the directory entry is still valid.
+enum OwnedStorageDirectoryEntryNameV1 {
+    static func decode(_ entry: UnsafePointer<dirent>) -> String? {
+        guard let nameOffset = MemoryLayout<dirent>.offset(of: \.d_name) else {
+            return nil
+        }
+        let recordLength = Int(entry.pointee.d_reclen)
+        let nameLength = Int(entry.pointee.d_namlen)
+        let nameCapacity = MemoryLayout.size(ofValue: dirent().d_name)
+        guard nameLength > 0, nameLength < nameCapacity,
+              recordLength > nameOffset,
+              nameLength < recordLength - nameOffset else { return nil }
+        let bytes = UnsafeRawPointer(entry).advanced(by: nameOffset)
+            .assumingMemoryBound(to: UInt8.self)
+        guard bytes[nameLength] == 0 else { return nil }
+        let nameBytes = UnsafeBufferPointer(start: bytes, count: nameLength)
+        guard !nameBytes.contains(0), !nameBytes.contains(UInt8(ascii: "/")) else {
+            return nil
+        }
+        return String(bytes: nameBytes, encoding: .utf8)
+    }
+}
+
 enum OwnedStorageRootKindV1: String, CaseIterable, Hashable, Sendable {
     case data = "FieldEvidenceData"
     case restore = "FieldEvidenceRestore"
@@ -821,12 +845,8 @@ private extension OwnedStorageLedgerV1 {
         defer { _ = Darwin.closedir(directory) }
         errno = 0
         while let entry = Darwin.readdir(directory) {
-            var tuple = entry.pointee.d_name
-            let capacity = MemoryLayout.size(ofValue: tuple)
-            let name = withUnsafePointer(to: &tuple) {
-                $0.withMemoryRebound(to: CChar.self, capacity: capacity) {
-                    String(cString: $0)
-                }
+            guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+                throw OwnedStorageLedgerFailureV1.invalidRoot
             }
             if name == "." || name == ".." { continue }
             entryCount += 1
@@ -4336,12 +4356,8 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         var names: [String] = []
         errno = 0
         while let entry = Darwin.readdir(directory) {
-            var tuple = entry.pointee.d_name
-            let capacity = MemoryLayout.size(ofValue: tuple)
-            let name = withUnsafePointer(to: &tuple) {
-                $0.withMemoryRebound(to: CChar.self, capacity: capacity) {
-                    String(cString: $0)
-                }
+            guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
             }
             if name == "." || name == ".." { continue }
             guard OperationalDiagnosticsBoundsV1.validRelativeName(name) else {

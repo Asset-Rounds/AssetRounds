@@ -13682,9 +13682,16 @@ struct StoreGenerationFactory {
         try verifyOwnedDirectory(at: root, descriptor: descriptor)
         // Installed generations defer reserved private preparation to startup
         // retirement; restore staging keeps its exact closed membership.
-        let inventory = try StoreRestoreGenerationAuthority.GenerationInventory(
-            parent: descriptor, requireModel: requireModel, defersLivePrivatePreparation: !staging
-        )
+        let inventory: StoreRestoreGenerationAuthority.GenerationInventory
+        do {
+            inventory = try StoreRestoreGenerationAuthority.GenerationInventory(
+                parent: descriptor, requireModel: requireModel, defersLivePrivatePreparation: !staging
+            )
+        } catch StoreMigrationFailure.invalidPath {
+            // Closed-membership rejection has the same public generation failure
+            // as the protection boundary below. Other errors retain their type.
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
         let generationIdentity = inventory.root.identity
         try protect(staging ? .restoreStaging : .durableDirectory, at: root, authorityCheck: {
             try inventory.revalidate()

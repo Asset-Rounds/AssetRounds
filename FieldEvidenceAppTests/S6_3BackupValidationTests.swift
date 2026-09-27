@@ -1,3 +1,4 @@
+import Combine
 import CoreGraphics
 import CryptoKit
 import Darwin
@@ -250,10 +251,13 @@ final class S6_3BackupValidationTests: XCTestCase {
             "active-work-draft",
             stopAfterWorkDraft: true
         )
-        let draftPackage = try exportPackage(
+        let draftPackage = try await exportCurrentArchive(
             draftHarness,
             name: "active-work-draft-source"
         )
+        let draftBefore = try archiveFact(draftPackage)
+        let draftExtracted = try independentlyExtractArchive(draftPackage)
+        let draftMembersBefore = try treeFacts(draftExtracted)
         let draftImporter = try makeImporter(
             draftHarness,
             capacity: .max,
@@ -268,13 +272,21 @@ final class S6_3BackupValidationTests: XCTestCase {
         })
         XCTAssertEqual(workDraft.stage, WorkflowStage.work.rawValue)
         XCTAssertNil(workDraft.draftStepKey)
+        for entry in validatedDraft.manifest.entries {
+            XCTAssertEqual(try XCTUnwrap(validatedDraft.members[entry.path]),
+                try Data(contentsOf: draftExtracted.appendingPathComponent(entry.path)), entry.path)
+        }
         try draftImporter.discard(validatedDraft)
+        XCTAssertEqual(try archiveFact(draftPackage), draftBefore)
+        XCTAssertEqual(try treeFacts(draftExtracted), draftMembersBefore)
 
-        let harness = try await makeHarness("golden")
+        let harness = try await makeHarness("golden", deferPendingFinalizationUntilExport: true)
         let fixture = try loadFixture()
-        let package = try exportPackage(harness, name: "golden-source")
-        let sourceFacts = try payloadFacts(package)
-        let sourceBefore = try treeFacts(package)
+        let package = try await exportCurrentArchive(harness, name: "golden-source")
+        let extracted = try independentlyExtractArchive(package)
+        let sourceFacts = try payloadFacts(extracted)
+        let sourceBefore = try archiveFact(package)
+        let extractedBefore = try treeFacts(extracted)
         let liveBefore = try treeFacts(harness.session.generationRootURL)
         var starts: [URL] = []
         var stops: [URL] = []
@@ -323,7 +335,7 @@ final class S6_3BackupValidationTests: XCTestCase {
         for entry in validated.manifest.entries {
             XCTAssertEqual(
                 try XCTUnwrap(validated.members[entry.path]),
-                try Data(contentsOf: package.appendingPathComponent(entry.path)),
+                try Data(contentsOf: extracted.appendingPathComponent(entry.path)),
                 entry.path
             )
         }
@@ -349,16 +361,64 @@ final class S6_3BackupValidationTests: XCTestCase {
         XCTAssertTrue(fileManager.fileExists(atPath: validated.stagedPackageURL.path))
         try importer.discard(validated)
         XCTAssertFalse(fileManager.fileExists(atPath: validated.stagedPackageURL.path))
-        XCTAssertEqual(try treeFacts(package), sourceBefore)
+        XCTAssertEqual(try archiveFact(package), sourceBefore)
+        XCTAssertEqual(try treeFacts(extracted), extractedBefore)
         XCTAssertEqual(try treeFacts(harness.session.generationRootURL), liveBefore)
     }
 
     @MainActor
     func testInvalidFamiliesAndCapacityFailClosedAndCleanStage() async throws {
         let harness = try await makeHarness("invalid")
-        let canonical = try exportPackage(harness, name: "canonical-source")
+        let canonical = try copyFrozenLegacyDirectory(to: harness.supportURL.appendingPathComponent(
+            "canonical-source.fieldrecordbackup", isDirectory: true))
         let liveBefore = try treeFacts(harness.session.generationRootURL)
         let modelsBefore = try modelFacts(harness.context)
+        XCTAssertTrue(modelsBefore.contains { $0.hasPrefix("packet|") })
+        XCTAssertTrue(modelsBefore.contains { $0.hasPrefix("report|") })
+        XCTAssertTrue(modelsBefore.contains { $0.hasPrefix("evidence|") })
+        let canonicalBefore = try directorySourceFacts(canonical)
+        let fixture = try loadFixture()
+        var baselineStarts: [URL] = [], baselineStops: [URL] = []
+        let baselineImporter = try makeImporter(harness, capacity: .max, operationID: uuid(797),
+            scopedAccess: .init(start: { baselineStarts.append($0); return true },
+                stop: { baselineStops.append($0) }))
+        let baseline = try baselineImporter.stageAndValidate(selectedPackageURL: canonical)
+        XCTAssertEqual(baselineStarts, [canonical.standardizedFileURL])
+        XCTAssertEqual(baselineStops, [canonical.standardizedFileURL])
+        XCTAssertEqual(baseline.manifest.source.persistentSchemaVersion, 1)
+        XCTAssertEqual(baseline.manifest.source.recordsSchemaVersion, 1)
+        XCTAssertEqual(baseline.records.recordsSchemaVersion, 1)
+        XCTAssertEqual(baseline.summary.incomingSignCount, fixture.expected.incomingSignCount)
+        XCTAssertEqual(baseline.summary.incomingReportCount, fixture.expected.incomingReportCount)
+        XCTAssertEqual(baseline.summary.incomingPhotoCount, fixture.expected.incomingPhotoCount)
+        XCTAssertEqual(baseline.summary.consumedRootCount, fixture.expected.consumedRootCount)
+        XCTAssertEqual(baseline.summary.liveSlotCount, fixture.expected.liveSlotCount)
+        XCTAssertEqual(baseline.summary.tombstonedSlotCount, fixture.expected.tombstonedSlotCount)
+        XCTAssertEqual(baseline.summary.exportedAt, fixture.exportedAt)
+        XCTAssertEqual(baseline.summary.packs, [fixture.pack])
+        XCTAssertEqual(baseline.records.issues.count, fixture.expected.incomingIssueCount)
+        XCTAssertEqual(baseline.records.workflowRecords.count, fixture.expected.incomingWorkflowRecordCount)
+        try assertMixedGraph(baseline.records, expected: fixture.expected)
+        let legacyFacts = try payloadFacts(canonical)
+        XCTAssertEqual(baseline.manifest.entries.map(\.path), legacyFacts.map(\.path))
+        XCTAssertEqual(baseline.manifest.entries.map(\.byteCount), legacyFacts.map(\.byteCount))
+        XCTAssertEqual(baseline.manifest.entries.map(\.sha256), legacyFacts.map(\.sha256))
+        XCTAssertEqual(baseline.manifest.entries.map(\.mimeType), legacyFacts.map(\.mimeType))
+        XCTAssertEqual(baseline.summary.declaredPayloadByteCount, legacyFacts.reduce(0) { $0 + $1.byteCount })
+        let legacyPaths = Set(baseline.manifest.entries.map(\.path))
+        XCTAssertEqual(legacyPaths.filter { $0.hasPrefix("snapshots/") }.count, fixture.expected.snapshotCount)
+        XCTAssertEqual(legacyPaths.filter { $0.hasPrefix("pdfs/") }.count, fixture.expected.readyPDFCount)
+        XCTAssertEqual(Set(baseline.members.keys), legacyPaths.union(["manifest.json"]))
+        for path in baseline.members.keys {
+            XCTAssertEqual(try XCTUnwrap(baseline.members[path]),
+                try Data(contentsOf: canonical.appendingPathComponent(path)), path)
+        }
+        try baselineImporter.discard(baseline)
+        XCTAssertFalse(fileManager.fileExists(atPath: baseline.stagedPackageURL.path))
+        XCTAssertEqual(try stagedPackages(harness).count, 0)
+        XCTAssertEqual(try directorySourceFacts(canonical), canonicalBefore)
+        XCTAssertEqual(try treeFacts(harness.session.generationRootURL), liveBefore)
+        XCTAssertEqual(try modelFacts(harness.context), modelsBefore)
         let cases: [(String, (URL) throws -> Void)] = [
             ("path/member", { try Data([0]).write(to: $0.appendingPathComponent("unexpected.bin")) }),
             ("missing-member", { root in try self.fileManager.removeItem(at: try self.firstMember(in: root, prefix: "media/")) }),
@@ -486,7 +546,11 @@ final class S6_3BackupValidationTests: XCTestCase {
         for (index, item) in cases.enumerated() {
             let source = harness.supportURL.appendingPathComponent("invalid-\(index).fieldrecordbackup", isDirectory: true)
             try fileManager.copyItem(at: canonical, to: source)
+            let beforeMutation = try directorySourceFacts(source)
+            XCTAssertEqual(beforeMutation, canonicalBefore, item.0)
             try item.1(source)
+            let mutatedSource = try directorySourceFacts(source)
+            XCTAssertNotEqual(mutatedSource, beforeMutation, "Mutation must change the intended legacy source: \(item.0)")
             var starts = 0, stops = 0
             let importer = try makeImporter(
                 harness,
@@ -497,6 +561,8 @@ final class S6_3BackupValidationTests: XCTestCase {
             XCTAssertThrowsError(try importer.stageAndValidate(selectedPackageURL: source), item.0)
             XCTAssertEqual(starts, 1, item.0)
             XCTAssertEqual(stops, 1, item.0)
+            XCTAssertEqual(try directorySourceFacts(source), mutatedSource, item.0)
+            XCTAssertEqual(try directorySourceFacts(canonical), canonicalBefore, item.0)
             XCTAssertEqual(try stagedPackages(harness).count, 0, item.0)
             XCTAssertEqual(try treeFacts(harness.session.generationRootURL), liveBefore, item.0)
             XCTAssertEqual(try modelFacts(harness.context), modelsBefore, item.0)
@@ -517,6 +583,7 @@ final class S6_3BackupValidationTests: XCTestCase {
         }
         XCTAssertEqual(starts, 1)
         XCTAssertEqual(stops, 1)
+        XCTAssertEqual(try directorySourceFacts(canonical), canonicalBefore)
         XCTAssertEqual(try stagedPackages(harness).count, 0)
         XCTAssertEqual(try treeFacts(harness.session.generationRootURL), liveBefore)
         XCTAssertEqual(try modelFacts(harness.context), modelsBefore)
@@ -656,6 +723,7 @@ private extension S6_3BackupValidationTests {
     // observed acquisition/closure retains the owned root for diagnosis.
     @MainActor
     final class MixedFixtureLifetime {
+        let ownedRoot: URL
         let support: URL
         weak var session: StoreGenerationSession?
         weak var context: ModelContext?
@@ -663,10 +731,14 @@ private extension S6_3BackupValidationTests {
         weak var owner: StoreSessionCoordinator?
         var acquisitionCompleted = false
         var fixtureCompleted = false
+        var exporterDrained = true
         private(set) var writerCloseAttempted = false
         private var writerClosed = false
 
-        init(support: URL) { self.support = support }
+        init(ownedRoot: URL, support: URL) {
+            self.ownedRoot = ownedRoot
+            self.support = support
+        }
 
         func observe(_ session: StoreGenerationSession) {
             self.session = session
@@ -681,23 +753,38 @@ private extension S6_3BackupValidationTests {
         }
 
         func removeRootIfDrained() throws {
-            guard acquisitionCompleted, fixtureCompleted, writerClosed,
+            guard acquisitionCompleted, fixtureCompleted, writerClosed, exporterDrained,
                   session == nil, context == nil, container == nil, owner == nil else {
-                XCTFail("S6_3 cleanup proof unavailable; fixture retained at \(support.path) "
+                XCTFail("S6_3 cleanup proof unavailable; fixture retained at \(ownedRoot.path) "
                     + "acquired=\(acquisitionCompleted) completed=\(fixtureCompleted) writerClosed=\(writerClosed) "
-                    + "session=\(session != nil) context=\(context != nil) container=\(container != nil) owner=\(owner != nil)")
+                    + "session=\(session != nil) context=\(context != nil) container=\(container != nil) owner=\(owner != nil) "
+                    + "exporterDrained=\(exporterDrained)")
                 return
             }
-            if FileManager.default.fileExists(atPath: support.path) {
-                try FileManager.default.removeItem(at: support)
+            if FileManager.default.fileExists(atPath: ownedRoot.path) {
+                try FileManager.default.removeItem(at: ownedRoot)
             }
+            XCTAssertFalse(FileManager.default.fileExists(atPath: ownedRoot.path),
+                "S6_3_FIXTURE_LAYOUT_V1 phase=cleanup owned container remains")
         }
+    }
+
+    // Immutable fixture input only: no context, owner, access token or cached
+    // validation crosses startup. The current writer revalidates the draft.
+    struct PendingFinalization: Sendable {
+        let assetID: UUID
+        let draftID: UUID
+        let completedAt: Date
+        let snapshotCreatedAt: Date
+        let identifiers: FinalizationIdentifiers
     }
 
     struct Harness {
         let supportURL: URL
         let session: StoreGenerationSession
         let context: ModelContext
+        let lifetime: MixedFixtureLifetime
+        let pendingFinalization: PendingFinalization?
     }
     struct Fixture: Decodable {
         struct Expected: Decodable {
@@ -732,14 +819,21 @@ private extension S6_3BackupValidationTests {
     func makeHarness(
         _ name: String,
         stopAfterWorkDraft: Bool = false,
+        deferPendingFinalizationUntilExport: Bool = false,
         siteAddress: String? = nil
     ) async throws -> Harness {
-        let support = fileManager.temporaryDirectory.appendingPathComponent("S6_3BackupValidationTests-\(name)-\(UUID().uuidString)", isDirectory: true)
-        try fileManager.createDirectory(at: support, withIntermediateDirectories: false)
-        let lifetime = MixedFixtureLifetime(support: support)
+        let ownedRoot = fileManager.temporaryDirectory.resolvingSymlinksInPath()
+            .appendingPathComponent("S6_3BackupValidationTests-\(name)-\(UUID().uuidString)", isDirectory: true)
+        let support = ownedRoot.appendingPathComponent("Application Support", isDirectory: true)
+        let caches = ownedRoot.appendingPathComponent("Caches", isDirectory: true)
+        try fileManager.createDirectory(at: ownedRoot, withIntermediateDirectories: false)
+        let lifetime = MixedFixtureLifetime(ownedRoot: ownedRoot, support: support)
         addTeardownBlock {
             try await MainActor.run { try lifetime.removeRootIfDrained() }
         }
+        try fileManager.createDirectory(at: support, withIntermediateDirectories: false)
+        try fileManager.createDirectory(at: caches, withIntermediateDirectories: false)
+        try assertFixtureLayout(ownedRoot: ownedRoot, support: support, phase: "created")
         var phase = "open-session"
         defer {
             if phase != "done" {
@@ -831,7 +925,7 @@ private extension S6_3BackupValidationTests {
         if stopAfterWorkDraft {
             lifetime.fixtureCompleted = true
             phase = "done"
-            return Harness(supportURL: support, session: session, context: context)
+            return Harness(supportURL: support, session: session, context: context, lifetime: lifetime, pendingFinalization: nil)
         }
         let workCompleted = workDraft.startedAt.addingTimeInterval(30)
         phase = "work-save"
@@ -897,18 +991,32 @@ private extension S6_3BackupValidationTests {
         laterCoordinator.configureCapture(
             generationRootURL: session.generationRootURL
         )
-        _ = try laterCoordinator.beginCheck(assetID: assetID, timeZoneID: "America/New_York", isTimeZoneConfirmed: true, afterDarkAccepted: true, safePositionAccepted: true, observedAt: laterObserved)
+        let laterDraft = try laterCoordinator.beginCheck(assetID: assetID, timeZoneID: "America/New_York", isTimeZoneConfirmed: true, afterDarkAccepted: true, safePositionAccepted: true, observedAt: laterObserved)
         phase = "later-photos"
         try await acceptPair(laterCoordinator, assetID: assetID, observedAt: laterObserved, seeds: (51, 101))
-        phase = "later-finalize"
-        _ = try await laterCoordinator.finalize(
-            assetID: assetID,
-            selection: .noVisibleIssue,
-            completedAt: laterObserved.addingTimeInterval(30),
-            snapshotCreatedAt: laterObserved.addingTimeInterval(31),
-            sourceApp: .init(build: "42", version: "4.0"),
-            identifiers: .init(mutationID: uuid(31), packetID: uuid(32), stableRootID: uuid(33), reportID: uuid(34), issueID: nil)
-        )
+        let pendingFinalization: PendingFinalization?
+        if deferPendingFinalizationUntilExport {
+            phase = "later-finalization-deferred"
+            pendingFinalization = PendingFinalization(
+                assetID: assetID, draftID: laterDraft.id,
+                completedAt: laterObserved.addingTimeInterval(30),
+                snapshotCreatedAt: laterObserved.addingTimeInterval(31),
+                identifiers: .init(mutationID: uuid(31), packetID: uuid(32),
+                    stableRootID: uuid(33), reportID: uuid(34), issueID: nil))
+            XCTAssertEqual(laterDraft.state, WorkflowState.draft.rawValue)
+            XCTAssertFalse(try context.fetch(FetchDescriptor<Report>()).contains { $0.id == self.uuid(34) })
+        } else {
+            pendingFinalization = nil
+            phase = "later-finalize"
+            _ = try await laterCoordinator.finalize(
+                assetID: assetID,
+                selection: .noVisibleIssue,
+                completedAt: laterObserved.addingTimeInterval(30),
+                snapshotCreatedAt: laterObserved.addingTimeInterval(31),
+                sourceApp: .init(build: "42", version: "4.0"),
+                identifiers: .init(mutationID: uuid(31), packetID: uuid(32), stableRootID: uuid(33), reportID: uuid(34), issueID: nil)
+            )
+        }
         // Create the counted tombstone with the real finalizer and incumbent
         // fenced deletion path; preserve the golden packet/root identities.
         phase = "tombstone-create-asset"
@@ -959,7 +1067,7 @@ private extension S6_3BackupValidationTests {
             sourcePersistentSchemaVersion: session.storeSchemaRelease.versionIdentifier.major)
         lifetime.fixtureCompleted = true
         phase = "done"
-        return Harness(supportURL: support, session: session, context: context)
+        return Harness(supportURL: support, session: session, context: context, lifetime: lifetime, pendingFinalization: pendingFinalization)
     }
 
     @MainActor
@@ -975,24 +1083,274 @@ private extension S6_3BackupValidationTests {
         _ = try await coordinator.accept(candidate: close, assetID: assetID)
     }
 
+    // Mirror the real app-directory relationship used by StartupRouter's
+    // EraseAllService. These checks diagnose the fixture; they grant no authority.
+    func assertFixtureLayout(ownedRoot: URL, support: URL, phase: String) throws {
+        let temporary = fileManager.temporaryDirectory.standardizedFileURL
+        let root = ownedRoot.standardizedFileURL
+        let expectedSupport = root.appendingPathComponent("Application Support", isDirectory: true)
+        let caches = support.deletingLastPathComponent().appendingPathComponent("Caches", isDirectory: true)
+        guard root.deletingLastPathComponent() == temporary.resolvingSymlinksInPath(),
+              root != temporary.resolvingSymlinksInPath(),
+              support.standardizedFileURL == expectedSupport,
+              caches.deletingLastPathComponent() == root else {
+            XCTFail("S6_3_FIXTURE_LAYOUT_V1 phase=\(phase) invalid owned container relationship")
+            throw FixtureError.invalid
+        }
+        for (role, url) in [("owned-root", root), ("application-support", support),
+                            ("caches", caches), ("temporary", temporary)] {
+            let descriptor = Darwin.open(url.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            guard descriptor >= 0 else {
+                let failure = errno
+                XCTFail("S6_3_FIXTURE_LAYOUT_V1 phase=\(phase) role=\(role) open errno=\(failure) path=\(url.path)")
+                throw FixtureError.invalid
+            }
+            defer { Darwin.close(descriptor) }
+            var info = stat()
+            guard Darwin.fstat(descriptor, &info) == 0 else {
+                let failure = errno
+                XCTFail("S6_3_FIXTURE_LAYOUT_V1 phase=\(phase) role=\(role) fstat errno=\(failure)")
+                throw FixtureError.invalid
+            }
+            guard (info.st_mode & S_IFMT) == S_IFDIR else {
+                XCTFail("S6_3_FIXTURE_LAYOUT_V1 phase=\(phase) role=\(role) not a directory")
+                throw FixtureError.invalid
+            }
+        }
+        print("S6_3_FIXTURE_LAYOUT_V1 phase=\(phase) owned-root/application-support/caches/temporary verified")
+    }
+
     @MainActor
-    func exportPackage(_ harness: Harness, name: String) throws -> URL {
-        let destination = harness.supportURL.appendingPathComponent(name, isDirectory: true)
+    func finalizePendingReportAfterStartup(
+        _ pending: PendingFinalization,
+        coordinator: StoreSessionCoordinator
+    ) async throws {
+        let context = coordinator.modelContext
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(
+            package: SignPack.illuminatedSignV1)
+        let dependencies = try coordinator.packageLifecycleDependencies()
+        let finalizer = try CheckRunnerCoordinator(modelContext: context,
+            packageLifecycleDependencies: dependencies, packageLifecycleProfile: profile)
+        finalizer.configureCapture(generationRootURL: coordinator.generationRootURL)
+        let draft = try XCTUnwrap(try finalizer.existingDraft(assetID: pending.assetID),
+            "S6_3_PENDING_TIMING_V1 accepted-photo draft missing after startup")
+        guard draft.id == pending.draftID, draft.state == WorkflowState.draft.rawValue,
+              draft.stage == WorkflowStage.check.rawValue,
+              !(try context.fetch(FetchDescriptor<Report>()).contains { $0.id == pending.identifiers.reportID }) else {
+            XCTFail("S6_3_PENDING_TIMING_V1 expected original unfinalized draft after startup")
+            throw FixtureError.invalid
+        }
+        print("S6_3_PENDING_TIMING_V1 phase=after-startup-finalize report=\(pending.identifiers.reportID)")
+        let result = try await finalizer.finalize(
+            assetID: pending.assetID, selection: .noVisibleIssue,
+            completedAt: pending.completedAt, snapshotCreatedAt: pending.snapshotCreatedAt,
+            sourceApp: .init(build: "42", version: "4.0"), identifiers: pending.identifiers)
+        XCTAssertEqual(result.recordID, pending.draftID)
+        XCTAssertEqual(result.packetID, pending.identifiers.packetID)
+        XCTAssertEqual(result.stableRootID, pending.identifiers.stableRootID)
+        XCTAssertEqual(result.reportID, pending.identifiers.reportID)
+        let reports = try context.fetch(FetchDescriptor<Report>()).filter { $0.id == result.reportID }
+        let report = try XCTUnwrap(reports.count == 1 ? reports.first : nil,
+            "S6_3_PENDING_TIMING_V1 expected one genuinely finalized report")
+        XCTAssertEqual(report.pdfState, ReportPDFState.pending.rawValue,
+            "S6_3_PENDING_TIMING_V1 pending report must exist before export")
+        XCTAssertNil(report.pdfRelativePath)
+        XCTAssertNil(report.pdfSHA256)
+        guard report.pdfState == ReportPDFState.pending.rawValue,
+              report.pdfRelativePath == nil, report.pdfSHA256 == nil else { throw FixtureError.invalid }
+        // Validate the extended real journal through the current writer. Do not
+        // ask delivery preparation or another startup pass to render this state.
+        _ = try coordinator.workspaceWriter.sourceMutationHistorySnapshot()
+        print("S6_3_PENDING_TIMING_V1 phase=before-export pending/nilPDF verified")
+    }
+
+    @MainActor
+    func exportCurrentArchive(_ harness: Harness, name: String) async throws -> URL {
+        try assertFixtureLayout(ownedRoot: harness.lifetime.ownedRoot,
+            support: harness.supportURL, phase: "before-startup-\(name)")
+        let suite = "S6_3BackupValidationTests.access.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let router = StartupRouter(applicationSupportURL: harness.supportURL) { step in
+            print("S6_3_BACKUP_ACCESS_STEP_V1 context=\(name) step=\(step)")
+        }
+        router.startupFailureDiagnosticForTesting = { detail in
+            print("S6_3_BACKUP_ACCESS_FAILURE_V1 context=\(name) \(detail)")
+        }
+        let session = try await ProductionCompositionRoot.makeAppAccessSession(
+            applicationSupportURL: harness.supportURL, startupRouter: router,
+            defaults: defaults, authenticationClient: S63BackupAuthentication(),
+            notificationSystem: S63BackupNotifications())
+        let presentation = AppAccessPresentationV1(startupRouter: router, sessionFactory: { session })
+        harness.lifetime.exporterDrained = false
+        do {
+            let published = expectation(description: "S6_3 production backup access published")
+            let publication = presentation.$permitsContentPresentation
+                .filter { $0 }.prefix(1).sink { _ in published.fulfill() }
+            defer { publication.cancel() }
+            await presentation.bootstrapIfNeeded()
+            await fulfillment(of: [published], timeout: 30)
+            guard case .ready(let coordinator, _, _) = router.route,
+                  coordinator.generationID == harness.session.generationID,
+                  coordinator.generationRootURL == harness.session.generationRootURL else {
+                throw FixtureError.invalid
+            }
+            let access = try XCTUnwrap(presentation.backupPreviewAccess)
+            if let pending = harness.pendingFinalization {
+                try access.withRead {}
+                try await finalizePendingReportAfterStartup(pending, coordinator: coordinator)
+                try access.withRead {}
+            }
+            let destination = harness.supportURL.appendingPathComponent(name, isDirectory: true)
+            try fileManager.createDirectory(at: destination, withIntermediateDirectories: false)
+            let service = BackupExportService(
+                modelContext: coordinator.modelContext,
+                generationRootURL: coordinator.generationRootURL,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+                now: { Date(timeIntervalSince1970: 1_786_708_800) },
+                makeUUID: { self.uuid(99) }, appVersion: { "4.0" }, appBuild: { "42" })
+            let preview = try access.withRead { try service.prepare() }
+            let archive = try await service.export(previewID: preview.id, to: destination,
+                contentAccess: access)
+            harness.lifetime.exporterDrained = await presentation.terminateAndDrainForTesting()
+            guard harness.lifetime.exporterDrained else {
+                XCTFail("S6_3 backup owner did not drain; fixture retained")
+                throw FixtureError.invalid
+            }
+            XCTAssertTrue(try StreamingArchiveService.hasFormatMagic(at: archive))
+            return archive
+        } catch {
+            harness.lifetime.exporterDrained = await presentation.terminateAndDrainForTesting()
+            if !harness.lifetime.exporterDrained {
+                XCTFail("S6_3 backup owner did not drain; fixture retained")
+            }
+            throw error
+        }
+    }
+
+    func independentlyExtractArchive(_ archive: URL) throws -> URL {
+        let before = try archiveFact(archive)
+        let directory = archive.deletingLastPathComponent().appendingPathComponent(
+            "independent-members-\(UUID().uuidString)", isDirectory: true)
+        let extraction = try StreamingArchiveService().extract(archive, to: directory)
+        XCTAssertEqual(extraction.archiveSHA256, before.sha256)
+        XCTAssertEqual(try archiveFact(archive), before)
+        return directory
+    }
+
+    struct ArchiveFact: Equatable {
+        let byteCount: Int
+        let sha256: String
+    }
+
+    // Independently stream the complete source, avoiding whole-archive loading.
+    func archiveFact(_ archive: URL) throws -> ArchiveFact {
+        let handle = try FileHandle(forReadingFrom: archive)
+        defer { try? handle.close() }
+        var digest = SHA256(), count = 0
+        while let bytes = try handle.read(upToCount: 64 * 1_024), !bytes.isEmpty {
+            digest.update(data: bytes)
+            count += bytes.count
+        }
+        return ArchiveFact(byteCount: count,
+            sha256: digest.finalize().map { String(format: "%02x", $0) }.joined())
+    }
+
+    struct LegacyProvenance: Decodable {
+        struct Member: Decodable {
+            let path: String
+            let resourceName: String
+            let byteCount: Int
+            let sha256: String
+        }
+        let producerCommit: String
+        let memberCount: Int
+        let totalMemberByteCount: Int
+        let members: [Member]
+    }
+
+    // Xcode's synchronized resources flatten subdirectories. Opaque unique names
+    // avoid media/thumbnail basename collisions and preserve producer bytes.
+    func copyFrozenLegacyDirectory(to destination: URL) throws -> URL {
+        let bundle = Bundle(for: Self.self)
+        func resource(_ name: String) throws -> URL {
+            let url = URL(fileURLWithPath: name)
+            return try XCTUnwrap(bundle.url(forResource: url.deletingPathExtension().lastPathComponent,
+                withExtension: url.pathExtension, subdirectory: "Fixtures/S6_3LegacyV1")
+                ?? bundle.url(forResource: url.deletingPathExtension().lastPathComponent,
+                    withExtension: url.pathExtension))
+        }
+        let provenanceBytes = try Data(contentsOf: resource("S6_3LegacyV1-provenance.json"))
+        guard provenanceBytes.sha256 == "bf97743b71a9d9e012fa584ec7831332c3546a9b49ecc393ba197074a8d2e535" else { throw FixtureError.invalid }
+        let provenance = try JSONDecoder().decode(LegacyProvenance.self, from: provenanceBytes)
+        guard provenance.producerCommit == "b1d04ae5e684aa9c6807af655089efa1df8a7ed6",
+              provenance.memberCount == 22, provenance.totalMemberByteCount == 189_923,
+              provenance.members.count == provenance.memberCount else { throw FixtureError.invalid }
+        var validated: [(String, Data)] = [], paths = Set<String>(), names = Set<String>()
+        for member in provenance.members {
+            let parts = member.path.split(separator: "/", omittingEmptySubsequences: false)
+            guard !parts.isEmpty, parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }),
+                  !member.path.contains("\\"), !member.path.contains("\0"),
+                  paths.insert(member.path.lowercased()).inserted,
+                  member.resourceName.hasPrefix("S6_3LegacyV1-member-"),
+                  member.resourceName.hasSuffix(".bin"),
+                  !member.resourceName.contains("/"), !member.resourceName.contains("\\"),
+                  names.insert(member.resourceName).inserted else { throw FixtureError.invalid }
+            if parts.count == 1 {
+                guard member.path == "manifest.json" || member.path == "records.json" else { throw FixtureError.invalid }
+            } else {
+                guard parts.count == 2,
+                      ["media", "thumbnails", "snapshots", "pdfs"].contains(String(parts[0])) else {
+                    throw FixtureError.invalid
+                }
+                let suffix = parts[0] == "snapshots" ? ".json" : (parts[0] == "pdfs" ? ".pdf" : ".jpg")
+                let name = String(parts[1])
+                guard name.hasSuffix(suffix), let id = UUID(uuidString: String(name.dropLast(suffix.count))),
+                      name == id.uuidString.lowercased() + suffix else { throw FixtureError.invalid }
+            }
+            let bytes = try Data(contentsOf: resource(member.resourceName))
+            guard bytes.count == member.byteCount, bytes.sha256 == member.sha256 else {
+                throw FixtureError.invalid
+            }
+            validated.append((member.path, bytes))
+        }
+        guard validated.reduce(0, { $0 + $1.1.count }) == provenance.totalMemberByteCount else {
+            throw FixtureError.invalid
+        }
+        // Nothing is extracted until every path, digest and length has passed.
         try fileManager.createDirectory(at: destination, withIntermediateDirectories: false)
-        let service = BackupExportService(
-            modelContext: harness.context,
-            generationRootURL: harness.session.generationRootURL,
-            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
-            now: { Date(timeIntervalSince1970: 1_786_708_800) },
-            makeUUID: { self.uuid(99) },
-            appVersion: { "4.0" },
-            appBuild: { "42" }
-        )
-        let preview = try service.prepareCompatibilityFixtureLegacyDirectoryPackage()
-        return try service.exportCompatibilityFixtureLegacyDirectoryPackage(
-            previewID: preview.id,
-            to: destination
-        )
+        for (path, bytes) in validated {
+            let member = destination.appendingPathComponent(path)
+            try fileManager.createDirectory(at: member.deletingLastPathComponent(),
+                withIntermediateDirectories: true)
+            try bytes.write(to: member, options: .withoutOverwriting)
+        }
+        XCTAssertEqual(try treeFacts(destination), validated.map { "\($0.0)|\($0.1.sha256)" }.sorted())
+        return destination
+    }
+
+    // Capture links as links, including their targets/counts; never traverse them.
+    func directorySourceFacts(_ root: URL) throws -> [String] {
+        var facts: [String] = []
+        func walk(_ directory: URL, prefix: String) throws {
+            for name in try fileManager.contentsOfDirectory(atPath: directory.path).sorted() {
+                let url = directory.appendingPathComponent(name), path = prefix + name
+                var value = stat()
+                guard lstat(url.path, &value) == 0 else { throw FixtureError.invalid }
+                switch value.st_mode & S_IFMT {
+                case S_IFDIR:
+                    facts.append("\(path)|directory")
+                    try walk(url, prefix: path + "/")
+                case S_IFLNK:
+                    facts.append("\(path)|symlink|\(try fileManager.destinationOfSymbolicLink(atPath: url.path))")
+                case S_IFREG:
+                    facts.append("\(path)|file|\(value.st_nlink)|\(value.st_size)|\((try Data(contentsOf: url)).sha256)")
+                default: throw FixtureError.invalid
+                }
+            }
+        }
+        try walk(root, prefix: "")
+        return facts.sorted()
     }
 
     @MainActor
@@ -1032,7 +1390,21 @@ private extension S6_3BackupValidationTests {
         return try urls.filter { try $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true && $0.lastPathComponent != "manifest.json" }.map { url in
             let data = try Data(contentsOf: url)
             let path = String(url.path.dropFirst(root.path.count + 1)).replacingOccurrences(of: "\\", with: "/")
-            let mime = url.pathExtension == "jpg" ? "image/jpeg" : (url.pathExtension == "pdf" ? "application/pdf" : "application/json")
+            let mime: String
+            switch url.pathExtension {
+            case "jpg": mime = "image/jpeg"
+            case "pdf": mime = "application/pdf"
+            case "json": mime = "application/json"
+            case "bin":
+                // Independent closed raw-photo role, not the production MIME accessor.
+                let parts = path.split(separator: "/").map(String.init)
+                guard parts.count == 3, parts[0] == "draft-staging",
+                      let child = UUID(uuidString: parts[1]), child.uuidString.lowercased() == parts[1],
+                      let stage = UUID(uuidString: String(parts[2].dropLast(4))),
+                      parts[2] == stage.uuidString.lowercased() + ".bin" else { throw FixtureError.invalid }
+                mime = "application/octet-stream"
+            default: throw FixtureError.invalid
+            }
             return PayloadFact(path: path, byteCount: data.count, mimeType: mime, sha256: data.sha256)
         }.sorted { $0.path < $1.path }
     }
@@ -2578,9 +2950,13 @@ extension S6_3BackupValidationTests {
             let payload = c42Bytes.base64EncodedString()
             let harness = try await makeHarness(
                 "c42-validation-\(offset)",
+                deferPendingFinalizationUntilExport: true,
                 siteAddress: payload
             )
-            let package = try exportPackage(harness, name: "c42-source-\(offset)")
+            let package = try await exportCurrentArchive(harness, name: "c42-source-\(offset)")
+            let archiveBefore = try archiveFact(package)
+            let extracted = try independentlyExtractArchive(package)
+            let extractedBefore = try treeFacts(extracted)
             let importer = try makeImporter(
                 harness,
                 capacity: .max,
@@ -2588,6 +2964,12 @@ extension S6_3BackupValidationTests {
             )
             let validated = try importer.stageAndValidate(selectedPackageURL: package)
             defer { try? importer.discard(validated) }
+            XCTAssertEqual(try archiveFact(package), archiveBefore)
+            for entry in validated.manifest.entries {
+                XCTAssertEqual(try XCTUnwrap(validated.members[entry.path]),
+                    try Data(contentsOf: extracted.appendingPathComponent(entry.path)), entry.path)
+            }
+            XCTAssertEqual(try treeFacts(extracted), extractedBefore)
             let restoredPayload = try XCTUnwrap(validated.records.sites.first?.address)
             XCTAssertEqual(restoredPayload, payload)
             XCTAssertEqual(
@@ -2733,5 +3115,28 @@ extension C45BackupValidationCompatibilityTests {
                 && !ScheduleBackupRestoreRegistryV1
                     .cloneForkSourceScheduleAutomaticallyActive
         )
+    }
+}
+
+private actor S63BackupAuthentication: LocalAuthenticationClient {
+    func availability() -> LocalAuthenticationAvailabilityV1 {
+        .systemValue(status: .available, biometry: .faceID)
+    }
+    func authenticate(_ attempt: LocalAuthenticationAttemptV1) -> LocalAuthenticationOutcomeV1 {
+        .authenticated
+    }
+    func cancel(attemptID: UUID) {}
+}
+
+@MainActor
+private final class S63BackupNotifications: NotificationSystemPortV1 {
+    private var requests: [NotificationSystemRequestV1] = []
+    func authorization() async throws -> LocalReminderAuthorizationV1 { .authorized }
+    func observations() async throws -> [NotificationSystemObservationV1] {
+        requests.map { .init(requestID: $0.notification.requestID, request: $0, delivered: false) }
+    }
+    func add(_ request: NotificationSystemRequestV1) async throws { requests.append(request) }
+    func remove(_ requestIDs: [String]) async throws {
+        requests.removeAll { requestIDs.contains($0.notification.requestID) }
     }
 }

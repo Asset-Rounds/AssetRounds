@@ -388,10 +388,8 @@ final class V9_02FileAuthorityTests: XCTestCase {
             }
             let before = try fileIdentity(at: item)
             let applied = try ProtectedFilePolicyV1.applyAndVerify(kind, at: item)
-            XCTAssertEqual(applied, .simulatorFileProtectionUnsupported)
             try assertVerificationResourceValues(kind, at: item, result: applied)
             let verified = try ProtectedFilePolicyV1.verify(kind, at: URL(fileURLWithPath: item.path))
-            XCTAssertEqual(verified, .simulatorFileProtectionUnsupported)
             try assertVerificationResourceValues(kind, at: item, result: verified)
             try ProtectedFilePolicyV1.verifyIfPresent(kind, at: item)
             try ProtectedFilePolicyV1.verifyIfPresent(kind, relativePath: kind.rawValue, within: root)
@@ -674,18 +672,38 @@ final class V9_02FileAuthorityTests: XCTestCase {
         tracePhase = "wrongProtectionAssert"
         var independentlyChanged = URL(fileURLWithPath: file.path)
         independentlyChanged.removeAllCachedResourceValues()
-        let changedProtection = try independentlyChanged.resourceValues(forKeys: [.fileProtectionKey]).fileProtection
+        let changedValues = try independentlyChanged.resourceValues(forKeys: [
+            .fileProtectionKey, .isExcludedFromBackupKey, .isDirectoryKey,
+            .volumeSupportsFileProtectionKey,
+        ])
+        let changedProtection = changedValues.fileProtection
+        let changedCapability = changedValues.allValues[.volumeSupportsFileProtectionKey] as? Bool
+        XCTAssertEqual(changedValues.isExcludedFromBackup, false)
+        XCTAssertEqual(changedValues.isDirectory, false)
         tracePhase = "wrongProtectionVerify"
         #if DEBUG && os(iOS) && targetEnvironment(simulator)
         if initialResult == .simulatorFileProtectionUnsupported
-            && changedProtection == .completeUntilFirstUserAuthentication {
-            // This volume did not apply the hostile protection request. Record the
-            // unsupported fact; the independently changed backup below must still fail.
+            && changedProtection == .completeUntilFirstUserAuthentication
+            && changedCapability == false
+            && changedValues.isExcludedFromBackup == false
+            && changedValues.isDirectory == false {
+            // Accept only the exact current unsupported readback. The independent
+            // backup mutation below must still fail; prior success is not authority.
             let result = try ProtectedFilePolicyV1.verify(.database, at: file)
             XCTAssertEqual(result, .simulatorFileProtectionUnsupported)
             try assertVerificationResourceValues(.database, at: file, result: result)
         } else {
-            XCTAssertEqual(changedProtection, URLFileProtection.none)
+            if initialResult == .verifiedComplete
+                && changedProtection == .completeUntilFirstUserAuthentication
+                && changedCapability == true
+                && changedValues.isExcludedFromBackup == false
+                && changedValues.isDirectory == false {
+                // AS5 on iOS 26.5 read back this exact hostile shape after requesting
+                // none. Capability=true excludes the Simulator fallback: reject it.
+                XCTAssertEqual(changedProtection, .completeUntilFirstUserAuthentication)
+            } else {
+                XCTAssertEqual(changedProtection, URLFileProtection.none)
+            }
             XCTAssertThrowsError(try ProtectedFilePolicyV1.verify(.database, at: file)) { error in
                 XCTAssertEqual(error as? ProtectedFilePolicyError, .resourceValueMismatch)
             }
@@ -1000,7 +1018,11 @@ final class V9_02FileAuthorityTests: XCTestCase {
         let session = try StoreGenerationFactory(
             applicationSupportURL: root
         ).openOrBootstrapCurrent()
+        try session.reproofAfterSave()
         let unexpected = session.generationRootURL.appendingPathComponent("unexpected")
+        XCTAssertThrowsError(try GenerationOwnedPathV1.classify("unexpected", nodeType: .regularFile)) {
+            XCTAssertEqual($0 as? StoreMigrationFailure, .invalidPath)
+        }
         XCTAssertTrue(
             fileManager.createFile(
                 atPath: unexpected.path,
@@ -1018,13 +1040,21 @@ final class V9_02FileAuthorityTests: XCTestCase {
         )
         try session.modelContext.save()
 
+        // Remove the hostile fixture before explicit reproof. The synchronously
+        // retained didSave failure must survive without rediscovering that leaf.
+        try fileManager.removeItem(at: unexpected)
+        XCTAssertFalse(fileManager.fileExists(atPath: unexpected.path))
         XCTAssertFalse(session.modelContext.autosaveEnabled)
-        XCTAssertThrowsError(try session.reproofAfterSave()) { error in
-            XCTAssertEqual(
-                error as? StoreGenerationFailure,
-                .dataPointerInvalid
-            )
+        for _ in 0..<2 {
+            XCTAssertThrowsError(try session.reproofAfterSave()) { error in
+                XCTAssertEqual(
+                    error as? StoreGenerationFailure,
+                    .dataPointerInvalid,
+                    "Retained post-save failure type=\(String(reflecting: type(of: error))) value=\(error)"
+                )
+            }
         }
+        XCTAssertFalse(session.modelContext.autosaveEnabled)
     }
 }
 
@@ -1534,27 +1564,29 @@ private extension V9_02FileAuthorityTests {
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws {
-        if result == .verifiedComplete {
-            try assertResourceValues(kind, at: url, file: file, line: line)
-            return
-        }
-        #if DEBUG && os(iOS) && targetEnvironment(simulator)
-        XCTAssertEqual(result, .simulatorFileProtectionUnsupported, file: file, line: line)
+        // Derive the expected disposition from independent physical readback, not
+        // from the returned disposition or an assumption about this Simulator volume.
         var fresh = URL(fileURLWithPath: url.path)
         fresh.removeAllCachedResourceValues()
         let values = try fresh.resourceValues(forKeys: [
             .fileProtectionKey, .isExcludedFromBackupKey, .isDirectoryKey,
             .volumeSupportsFileProtectionKey,
         ])
-        XCTAssertEqual(values.allValues[.volumeSupportsFileProtectionKey] as? Bool, false, file: file, line: line)
-        XCTAssertEqual(values.fileProtection, .completeUntilFirstUserAuthentication, file: file, line: line)
         XCTAssertEqual(values.isExcludedFromBackup,
             ProtectedFilePolicyV1.disposition(for: kind).isExcludedFromBackup, file: file, line: line)
         XCTAssertEqual(values.isDirectory,
             ProtectedFilePolicyV1.disposition(for: kind).expectsDirectory, file: file, line: line)
-        #else
-        XCTFail("Unsupported Simulator disposition outside the diagnostic target", file: file, line: line)
-        #endif
+        if values.fileProtection == .complete {
+            XCTAssertEqual(result, .verifiedComplete, file: file, line: line)
+        } else {
+            #if DEBUG && os(iOS) && targetEnvironment(simulator)
+            XCTAssertEqual(values.allValues[.volumeSupportsFileProtectionKey] as? Bool, false, file: file, line: line)
+            XCTAssertEqual(values.fileProtection, .completeUntilFirstUserAuthentication, file: file, line: line)
+            XCTAssertEqual(result, .simulatorFileProtectionUnsupported, file: file, line: line)
+            #else
+            XCTFail("Complete protection required outside the diagnostic target", file: file, line: line)
+            #endif
+        }
     }
 
     func assertResourceValues(

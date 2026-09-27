@@ -18,8 +18,9 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
     /// final process-ID change is a unit analogue, not a real cold launch.
     @MainActor
     func testOriginalRecoveryThroughActiveUpgradePreservesReportsPDFAndMedia() async throws {
-        let root = try makeTemporaryDirectory("Original-full-recovery-upgrade")
-        defer { try? fileManager.removeItem(at: root) }
+        let sandbox = try makeTemporaryDirectory("Original-full-recovery-upgrade")
+        defer { try? fileManager.removeItem(at: sandbox) }
+        let root = try makeSandboxApplicationSupportURL(in: sandbox)
         let fixture = try await seedOriginalV1(root: root, phase: .databaseCommitted)
         let correction = try await seedOriginalCorrection(root: root, fixture: fixture)
         let sourceRoot = fixture.snapshotURL.deletingLastPathComponent().deletingLastPathComponent()
@@ -48,6 +49,18 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         weak var releasedRouter = router
         await router?.startIfNeeded()
         guard case .awaitingIndependentValidation(let pending)? = router?.route else {
+#if DEBUG
+            let routeName: String
+            switch router?.route {
+            case .checking?: routeName = "checking"
+            case .awaitingIndependentValidation?: routeName = "awaiting-independent-validation"
+            case .ready?: routeName = "ready"
+            case .eraseCleanupPending?: routeName = "erase-cleanup-pending"
+            case .maintenance(let reason)?: routeName = "maintenance-\(reason.rawValue)"
+            case nil: routeName = "nil"
+            }
+            print("S3_4.original-upgrade expected-route failure actual=\(routeName)")
+#endif
             return XCTFail("Real startup recovery must migrate and await independent validation")
         }
         let control = try XCTUnwrap(StoreAggregateMigrationControlV1(applicationSupportURL: root))
@@ -190,6 +203,7 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         let attempt = sourceRoot.appendingPathComponent(".staging/pdfs/\(pendingReportID.uuidString.lowercased()).pdf")
         try fileManager.createDirectory(at: attempt.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data("%PDF-1.4\ninterrupted pending render".utf8).write(to: attempt)
+        try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: attempt)
         return [deletedPDF, deletionURL, attempt,
                 sourceRoot.appendingPathComponent(staged.stagingDirectoryRelativePath),
                 sourceRoot.appendingPathComponent(promoted.originalRelativePath),
@@ -206,10 +220,14 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         let generationRoot = fixture.snapshotURL.deletingLastPathComponent().deletingLastPathComponent()
         let pdfURL = generationRoot.appendingPathComponent("pdfs/\(fixture.intent.reportID.uuidString.lowercased()).pdf")
         let pdfBytes = try Data(contentsOf: pdfURL)
+        let rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: generationRoot)
+        var retainedAuthority: StoreMigrationSourceRecoveryAuthorityV1?
         var visited = false
         do {
             _ = try await StoreGenerationFactory(applicationSupportURL: root).openForStartup { authority in
                 visited = true
+                retainedAuthority = authority
+                try assertOriginalReadyPDFHostileControls(authority: authority, fixture: fixture, root: root)
                 let service = try FinalizationRecoveryService(sourceRecoveryAuthority: authority)
                 let recovered = try await service.reconcile()
                 XCTAssertEqual(recovered.completedRecordIDs, [correctionID.recordID])
@@ -224,7 +242,9 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
                 try fileManager.createDirectory(at: attemptURL.deletingLastPathComponent(), withIntermediateDirectories: true)
                 let interruptedBytes = Data("%PDF-1.4 interrupted original attempt".utf8)
                 try interruptedBytes.write(to: attemptURL)
+                try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: attemptURL)
                 try interruptedBytes.write(to: ambiguousURL)
+                try ProtectedFilePolicyV1.applyAndVerify(.reportPDF, at: ambiguousURL)
                 XCTAssertThrowsError(try ReportRecoveryService.settleOriginalSourcePDFs(authority: authority))
                 XCTAssertEqual(try Data(contentsOf: attemptURL), interruptedBytes)
                 XCTAssertEqual(try Data(contentsOf: ambiguousURL), interruptedBytes)
@@ -265,6 +285,143 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
             XCTFail("fixture must stop before migration")
         } catch OriginalFixtureStop.inspected {} catch { throw error }
         XCTAssertTrue(visited)
+        let revokedAuthority = try XCTUnwrap(retainedAuthority)
+        XCTAssertThrowsError(try ReportRecoveryService.validatedOriginalReadyReport(
+            authority: revokedAuthority, reportID: fixture.intent.reportID, expectedRootIdentity: rootIdentity))
+    }
+
+    @MainActor
+    private func assertOriginalReadyPDFHostileControls(
+        authority: StoreMigrationSourceRecoveryAuthorityV1, fixture: OriginalV1Fixture, root: URL
+    ) throws {
+        let context = try authority.recoveryContext()
+        let generationRoot = authority.generationRootURL
+        let identity = try ReportPDFAnchoredFile.rootIdentity(at: generationRoot)
+        let reportID = fixture.intent.reportID
+        var descriptor = FetchDescriptor<Report>(predicate: #Predicate { $0.id == reportID })
+        descriptor.fetchLimit = 2
+        let prior = try XCTUnwrap(context.fetch(descriptor).first)
+        let digest = try XCTUnwrap(prior.pdfSHA256)
+        let pdfURL = generationRoot.appendingPathComponent("pdfs/\(reportID.uuidString.lowercased()).pdf")
+        let pdfBytes = try Data(contentsOf: pdfURL)
+        let pointerURL = root.appendingPathComponent("FieldEvidenceData/current.json")
+        let pointerBytes = try Data(contentsOf: pointerURL)
+        let mutationGuard = try authority.recoveryMutationGuard()
+        func validate() throws -> ValidatedReportSnapshotV1 {
+            try ReportRecoveryService.validatedOriginalReadyReport(
+                authority: authority, reportID: reportID, expectedRootIdentity: identity)
+        }
+        func assertNoEffects() throws {
+            XCTAssertFalse(context.hasChanges)
+            XCTAssertEqual(prior.pdfState, ReportPDFState.ready.rawValue)
+            XCTAssertEqual(prior.pdfRelativePath, "pdfs/\(reportID.uuidString.lowercased()).pdf")
+            XCTAssertEqual(try Data(contentsOf: pointerURL), pointerBytes)
+            XCTAssertEqual(try Data(contentsOf: fixture.snapshotURL), fixture.snapshotBytes)
+            XCTAssertEqual(try context.fetchCount(FetchDescriptor<Report>()), 1)
+            XCTAssertEqual(try context.fetchCount(FetchDescriptor<WorkflowRecord>()), 1)
+        }
+        XCTAssertEqual(try validate().snapshot.reportID, reportID)
+#if DEBUG
+        var regularPinInspections = 0
+        let ordinaryPolicyResult = try ProtectedFilePolicyV1.verify(.reportPDF, at: pdfURL)
+        let witnessedPolicyResult = try ProtectedFilePolicyV1.verify(.reportPDF, at: pdfURL,
+            afterPinInspectionForTesting: { regularPinInspections += 1 })
+        XCTAssertEqual(witnessedPolicyResult, ordinaryPolicyResult)
+        XCTAssertEqual(regularPinInspections, 1)
+        XCTAssertEqual(try Data(contentsOf: pdfURL), pdfBytes)
+#endif
+        // Ordinary delivery still cannot treat the original seven-model source
+        // as a current schema with a modern observation/time companion.
+        XCTAssertThrowsError(try ReportDeliveryCoordinator(modelContext: context,
+            generationRootURL: generationRoot, expectedRootIdentity: identity).validatedReadyReport(id: reportID))
+        try assertNoEffects()
+
+        let wrongRoot = root.appendingPathComponent(
+            "FieldEvidenceData/generations/\(UUID().uuidString.lowercased())", isDirectory: true)
+        try fileManager.createDirectory(at: wrongRoot, withIntermediateDirectories: false)
+        let wrongIdentity = try ReportPDFAnchoredFile.rootIdentity(at: wrongRoot)
+        XCTAssertThrowsError(try ReportRecoveryService.validatedOriginalReadyReport(
+            authority: authority, reportID: reportID, expectedRootIdentity: wrongIdentity))
+        try assertNoEffects()
+
+        // A digest-matching header is not a readable, nonempty PDF document.
+        let malformed = Data("%PDF-1.4\nnot a PDF document\n%%EOF".utf8)
+        try malformed.write(to: pdfURL)
+        try ProtectedFilePolicyV1.applyAndVerify(.reportPDF, at: pdfURL)
+        try mutationGuard.withAuthorizedMutation {
+            prior.pdfSHA256 = CanonicalJSONV1.sha256(malformed)
+            try context.save()
+        }
+        XCTAssertThrowsError(try validate())
+        XCTAssertEqual(try Data(contentsOf: pdfURL), malformed)
+        XCTAssertEqual(prior.pdfSHA256, CanonicalJSONV1.sha256(malformed))
+        try assertNoEffects()
+        try mutationGuard.withAuthorizedMutation { prior.pdfSHA256 = digest; try context.save() }
+        // The same bytes now also have a mismatched stored digest.
+        XCTAssertThrowsError(try validate())
+        try assertNoEffects()
+        try pdfBytes.write(to: pdfURL)
+        try ProtectedFilePolicyV1.applyAndVerify(.reportPDF, at: pdfURL)
+        XCTAssertEqual(try validate().snapshot.reportID, reportID)
+
+        let readyStage = generationRoot.appendingPathComponent(".staging/pdfs/\(reportID.uuidString.lowercased()).pdf")
+        try fileManager.createDirectory(at: readyStage.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try pdfBytes.write(to: readyStage)
+        try ProtectedFilePolicyV1.applyAndVerify(.stagingFile, at: readyStage)
+        XCTAssertThrowsError(try validate())
+        XCTAssertEqual(try Data(contentsOf: readyStage), pdfBytes)
+        XCTAssertEqual(try Data(contentsOf: pdfURL), pdfBytes)
+        try assertNoEffects()
+        try fileManager.removeItem(at: readyStage)
+
+        let heldPDF = root.appendingPathComponent("held-original-ready.pdf")
+        try fileManager.moveItem(at: pdfURL, to: heldPDF)
+        defer {
+            try? fileManager.removeItem(at: pdfURL)
+            try? fileManager.moveItem(at: heldPDF, to: pdfURL)
+        }
+        XCTAssertThrowsError(try validate())
+        XCTAssertFalse(fileManager.fileExists(atPath: pdfURL.path))
+        try assertNoEffects()
+        try fileManager.createSymbolicLink(at: pdfURL, withDestinationURL: heldPDF)
+        XCTAssertThrowsError(try validate())
+        try assertNoEffects()
+        try fileManager.removeItem(at: pdfURL)
+        try fileManager.linkItem(at: heldPDF, to: pdfURL)
+        XCTAssertThrowsError(try validate())
+        try assertNoEffects()
+        try fileManager.removeItem(at: pdfURL)
+        guard Darwin.mkfifo(pdfURL.path, mode_t(0o600)) == 0 else {
+            return XCTFail("Could not create the owned hostile FIFO")
+        }
+        XCTAssertThrowsError(try validate())
+        var fifoInfo = stat()
+        XCTAssertEqual(Darwin.lstat(pdfURL.path, &fifoInfo), 0)
+        XCTAssertEqual(fifoInfo.st_mode & S_IFMT, S_IFIFO)
+        try assertNoEffects()
+#if DEBUG
+        try fileManager.removeItem(at: pdfURL)
+        try pdfBytes.write(to: pdfURL)
+        try ProtectedFilePolicyV1.applyAndVerify(.reportPDF, at: pdfURL)
+        let racedRegular = root.appendingPathComponent("held-policy-race-regular.pdf")
+        var raceSwapCompleted = false
+        XCTAssertThrowsError(try ProtectedFilePolicyV1.verify(.reportPDF, at: pdfURL,
+            afterPinInspectionForTesting: {
+                try self.fileManager.moveItem(at: pdfURL, to: racedRegular)
+                guard Darwin.mkfifo(pdfURL.path, mode_t(0o600)) == 0 else {
+                    throw ResumeFixtureError.unsafeSnapshotParent
+                }
+                raceSwapCompleted = true
+            })) { error in
+                XCTAssertEqual(error as? ProtectedFilePolicyError, .identityChanged)
+            }
+        XCTAssertTrue(raceSwapCompleted)
+        XCTAssertEqual(Darwin.lstat(pdfURL.path, &fifoInfo), 0)
+        XCTAssertEqual(fifoInfo.st_mode & S_IFMT, S_IFIFO)
+        XCTAssertEqual(try Data(contentsOf: racedRegular), pdfBytes)
+        try assertNoEffects()
+#endif
+        XCTAssertEqual(try Data(contentsOf: heldPDF), pdfBytes)
     }
 
     @MainActor
@@ -285,6 +442,8 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         }
         try fileManager.createDirectory(at: generationRoot.appendingPathComponent("pdfs"), withIntermediateDirectories: true)
         try pdf.write(to: generationRoot.appendingPathComponent(pdfPath))
+        // A released ready PDF has the same file policy as real report publication.
+        try ProtectedFilePolicyV1.applyAndVerify(.reportPDF, at: generationRoot.appendingPathComponent(pdfPath))
         prior.pdfState = ReportPDFState.ready.rawValue
         prior.pdfRelativePath = pdfPath
         prior.pdfSHA256 = CanonicalJSONV1.sha256(pdf)
@@ -529,7 +688,7 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         let site = Site(label: "North Campus", timeZoneID: "America/New_York")
         let asset = Asset(siteID: site.id, packID: SignPack.illuminatedSignV1.packID,
                           packSchemaVersion: 1, packContentVersion: 1, label: "Monument Sign")
-        let draft = makeDraft(assetID: asset.id)
+        let draft = try makeDraft(assetID: asset.id)
         context.insert(site); context.insert(asset); context.insert(draft)
         let evidence = try await makeEvidenceAuthority(recordID: draft.id, context: context, generationRootURL: generationRoot)
         try context.save()
@@ -742,7 +901,9 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
             let effectsCommittedBeforeRecovery: Bool
             let expectedIssueCount: Int
         }
-        let cases = [
+        var cases: [InterruptionCase] = []
+#if DEBUG
+        cases.append(
             InterruptionCase(
                 label: "v2-prepared-promoted-file",
                 selection: .noVisibleIssue,
@@ -750,11 +911,14 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
                     mutationID: UUID(), packetID: UUID(), stableRootID: UUID(),
                     reportID: UUID(), issueID: nil
                 ),
-                failure: .intentPhaseWrite(.snapshotPromoted),
+                failure: .interruptedAfterVerifiedSnapshotPromotion,
                 expectedPhase: .prepared,
                 effectsCommittedBeforeRecovery: false,
                 expectedIssueCount: 0
-            ),
+            )
+        )
+#endif
+        cases.append(
             InterruptionCase(
                 label: "v2-committed-before-phase-marker-visible",
                 selection: .visibleIssue(labelKey: "dark_section"),
@@ -766,19 +930,24 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
                 expectedPhase: .snapshotPromoted,
                 effectsCommittedBeforeRecovery: true,
                 expectedIssueCount: 1
-            ),
-        ]
+            )
+        )
 
+        try await assertOrdinaryFinalizationWriteFailureRollsBackAndRetries()
         for testCase in cases {
             let harness = try await makeCurrentV2Producer(
                 testCase.label,
                 failure: testCase.failure
             )
-            defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
             var firstWriterClosed = false
             defer {
                 if !firstWriterClosed {
-                    try? harness.storeCoordinator.invalidateAndReleaseWriter()
+                    do { try harness.storeCoordinator.invalidateAndReleaseWriter() }
+                    catch {
+                        harness.cleanup.markUnproven()
+                        reportRecoveryFailure(testCase.label, phase: "writer.first-deferred-close",
+                            root: harness.applicationSupportURL, error: error)
+                    }
                 }
             }
 
@@ -799,8 +968,12 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
             let intentURL = harness.applicationSupportURL.appendingPathComponent(
                 "FieldEvidenceOperations/finalization/\(testCase.identifiers.mutationID.uuidString.lowercased()).json"
             )
-            let intentData = try Data(contentsOf: intentURL)
-            let intent = try FinalizationContractDecoderV1().decodeIntent(intentData)
+            let intentData = try recoveryStep(testCase.label, phase: "intent.read", root: harness.applicationSupportURL) {
+                try Data(contentsOf: intentURL)
+            }
+            let intent = try recoveryStep(testCase.label, phase: "intent.decode", root: harness.applicationSupportURL) {
+                try FinalizationContractDecoderV1().decodeIntent(intentData)
+            }
             XCTAssertEqual(intent.schemaVersion, 2, testCase.label)
             XCTAssertEqual(intent.phase, testCase.expectedPhase, testCase.label)
             let binding = try XCTUnwrap(intent.writerCommitBinding, testCase.label)
@@ -811,6 +984,13 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
                     intent.snapshotFinalRelativePath
                 ).path
             ))
+            let retainedSnapshotURL = harness.session.generationRootURL.appendingPathComponent(intent.snapshotFinalRelativePath)
+            let retainedSnapshotBytes = try Data(contentsOf: retainedSnapshotURL)
+            XCTAssertEqual(CanonicalJSONV1.sha256(retainedSnapshotBytes), intent.snapshotSHA256, testCase.label)
+            let retainedSnapshot = try ReportSnapshotEncoderV1().decode(retainedSnapshotBytes)
+            XCTAssertEqual(retainedSnapshot.reportID, intent.reportID, testCase.label)
+            XCTAssertEqual(retainedSnapshot.sourceRecordID, intent.recordID, testCase.label)
+
             XCTAssertEqual(
                 try harness.context.fetchCount(FetchDescriptor<Packet>()),
                 testCase.effectsCommittedBeforeRecovery ? 1 : 0,
@@ -827,22 +1007,40 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
                 testCase.label
             )
             XCTAssertEqual(
-                try harness.storeCoordinator.workspaceWriter.durableReceipt(
-                    mutationID: MutationIDV1(rawValue: testCase.identifiers.mutationID)
-                ) != nil,
+                try recoveryStep(testCase.label, phase: "receipt.before", root: harness.applicationSupportURL) {
+                    try harness.storeCoordinator.workspaceWriter.durableReceipt(
+                        mutationID: MutationIDV1(rawValue: testCase.identifiers.mutationID))
+                } != nil,
                 testCase.effectsCommittedBeforeRecovery,
                 testCase.label
             )
 
-            let firstWriterID = try harness.storeCoordinator.workspaceWriter
-                .currentRevision().writerInstanceID
-            try harness.storeCoordinator.invalidateAndReleaseWriter()
+            let firstWriterID = try recoveryStep(testCase.label, phase: "writer.first-revision", root: harness.applicationSupportURL) {
+                try harness.storeCoordinator.workspaceWriter.currentRevision().writerInstanceID
+            }
+            try recoveryStep(testCase.label, phase: "writer.first-close", root: harness.applicationSupportURL) {
+                try harness.storeCoordinator.invalidateAndReleaseWriter()
+            }
             firstWriterClosed = true
-            let reopened = try StoreGenerationFactory(
-                applicationSupportURL: harness.applicationSupportURL
-            ).openOrBootstrapCurrent()
-            let restarted = try StoreSessionCoordinator(validatingSession: reopened)
-            defer { try? restarted.invalidateAndReleaseWriter() }
+            harness.cleanup.markUnproven()
+            let reopened = try recoveryStep(testCase.label, phase: "factory.reopen", root: harness.applicationSupportURL) {
+                try StoreGenerationFactory(applicationSupportURL: harness.applicationSupportURL).openOrBootstrapCurrent()
+            }
+            harness.cleanup.observe(reopened)
+            harness.cleanup.markUnproven()
+            let restarted = try recoveryStep(testCase.label, phase: "writer.reinstall", root: harness.applicationSupportURL) {
+                try StoreSessionCoordinator(validatingSession: reopened)
+            }
+            harness.cleanup.observeOwner(restarted)
+            harness.cleanup.completeAcquisition()
+            defer {
+                do { try restarted.invalidateAndReleaseWriter() }
+                catch {
+                    harness.cleanup.markUnproven()
+                    reportRecoveryFailure(testCase.label, phase: "writer.final-close",
+                        root: harness.applicationSupportURL, error: error)
+                }
+            }
             XCTAssertNotEqual(
                 try restarted.workspaceWriter.currentRevision().writerInstanceID,
                 firstWriterID,
@@ -858,7 +1056,9 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
                 workspaceWriter: restarted.workspaceWriter,
                 lifecycleProfileRegistry: registry
             )
-            let summary = try await recovery.reconcile()
+            let summary = try await recoveryStepAsync(testCase.label, phase: "recovery.reconcile", root: harness.applicationSupportURL) {
+                try await recovery.reconcile()
+            }
             XCTAssertEqual(summary.completedRecordIDs, [harness.draftID], testCase.label)
             XCTAssertFalse(fileManager.fileExists(atPath: intentURL.path), testCase.label)
             XCTAssertEqual(try reopened.modelContext.fetchCount(FetchDescriptor<Packet>()), 1)
@@ -875,7 +1075,10 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
                 testCase.label
             )
             XCTAssertEqual(try recoveredEnvelope.canonicalData(), binding.envelopeData)
-            let repeated = try await recovery.reconcile()
+            XCTAssertEqual(try Data(contentsOf: retainedSnapshotURL), retainedSnapshotBytes, testCase.label)
+            let repeated = try await recoveryStepAsync(testCase.label, phase: "recovery.repeated", root: harness.applicationSupportURL) {
+                try await recovery.reconcile()
+            }
             XCTAssertTrue(repeated.completedRecordIDs.isEmpty, testCase.label)
             XCTAssertEqual(
                 try reopened.modelContext.fetch(FetchDescriptor<Issue>())
@@ -883,6 +1086,7 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
                 testCase.expectedIssueCount,
                 testCase.label
             )
+            XCTAssertEqual(try Data(contentsOf: retainedSnapshotURL), retainedSnapshotBytes, testCase.label)
             withExtendedLifetime(reopened) {}
         }
     }
@@ -891,11 +1095,11 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
     func testCurrentV1PresenceMatrixNeverReplaysRawEffectsOrStampsReceipts() async throws {
         for matrixCase in RecoveryMatrixCase.allCases {
             let applicationSupportURL = try makeTemporaryDirectory(matrixCase.rawValue)
-            defer { try? fileManager.removeItem(at: applicationSupportURL) }
-            let seeded = try await seedRecoveryCase(
-                matrixCase,
-                applicationSupportURL: applicationSupportURL
-            )
+            let cleanup = registerRecoveryFixtureCleanup(root: applicationSupportURL)
+            let seeded = try await recoveryStepAsync(matrixCase.rawValue, phase: "fixture.seed", root: applicationSupportURL) {
+                try await seedRecoveryCase(matrixCase, applicationSupportURL: applicationSupportURL)
+            }
+            cleanup.observe(seeded.session)
             let service = FinalizationRecoveryService(
                 modelContext: seeded.session.modelContext,
                 generationRootURL: seeded.session.generationRootURL
@@ -1904,7 +2108,7 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
             packContentVersion: SignPack.illuminatedSignV1.contentVersion,
             label: "Monument Sign"
         )
-        let draft = makeDraft(assetID: asset.id)
+        let draft = try makeDraft(assetID: asset.id)
         context.insert(site)
         context.insert(asset)
         context.insert(draft)
@@ -1988,10 +2192,9 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         )
         if matrixCase.phase == .prepared {
             if matrixCase.hasFinal {
-                try fileManager.createDirectory(
-                    at: finalURL.deletingLastPathComponent(),
-                    withIntermediateDirectories: false
-                )
+                // FinalizationIntentStore already owns and pins this directory.
+                try requireExistingSnapshotDirectory(finalURL.deletingLastPathComponent(),
+                    generationRootURL: session.generationRootURL)
                 try encodedSnapshot.data.write(to: finalURL)
             }
             if !matrixCase.hasStaging {
@@ -2090,16 +2293,138 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
     }
 
     @MainActor
+    private func assertOrdinaryFinalizationWriteFailureRollsBackAndRetries() async throws {
+        let label = "v2-ordinary-phase-write-rollback"
+        let harness = try await makeCurrentV2Producer(label, failure: .intentPhaseWrite(.snapshotPromoted))
+        defer {
+            do { try harness.storeCoordinator.invalidateAndReleaseWriter() }
+            catch {
+                harness.cleanup.markUnproven()
+                reportRecoveryFailure(label, phase: "writer.rollback-control-close", root: harness.applicationSupportURL, error: error)
+            }
+        }
+        let journal = try MutationJournalStoreV1(modelContext: harness.context,
+            identity: harness.session.workspaceIdentity, generationID: harness.session.generationID,
+            allowStateBootstrap: false)
+        let beforeHistory = try journal.exportSnapshot()
+        let beforeDraft = try currentV2DraftValues(harness.context)
+        let beforeMedia = try currentV2MediaValues(harness.context)
+        let mediaPaths = beforeMedia.flatMap { [$0.relativePath, $0.thumbnailRelativePath] }.sorted()
+        let mediaBytes = try mediaPaths.map { try Data(contentsOf: harness.session.generationRootURL.appendingPathComponent($0)) }
+        let ids = FinalizationIdentifiers(mutationID: UUID(), packetID: UUID(), stableRootID: UUID(), reportID: UUID(), issueID: nil)
+        do {
+            _ = try await harness.runner.finalize(assetID: harness.asset.id, selection: .noVisibleIssue,
+                completedAt: harness.observedAt.addingTimeInterval(3), snapshotCreatedAt: harness.observedAt.addingTimeInterval(4),
+                sourceApp: SourceAppSnapshotV1(build: "34", version: "1.0"), identifiers: ids)
+            XCTFail("Ordinary injected phase-write failure must fail and roll back")
+        } catch {
+            XCTAssertEqual(error as? CheckRunnerCoordinatorError, .finalizationFailed)
+        }
+        XCTAssertEqual(try journal.exportSnapshot(), beforeHistory)
+        XCTAssertEqual(try currentV2DraftValues(harness.context), beforeDraft)
+        XCTAssertEqual(try currentV2MediaValues(harness.context), beforeMedia)
+        XCTAssertEqual(try mediaPaths.map { try Data(contentsOf: harness.session.generationRootURL.appendingPathComponent($0)) }, mediaBytes)
+        XCTAssertFalse(harness.context.hasChanges)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Packet>()), 0)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Report>()), 0)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Issue>()), 0)
+        XCTAssertNil(try harness.storeCoordinator.workspaceWriter.durableReceipt(mutationID: MutationIDV1(rawValue: ids.mutationID)))
+        let intentURL = harness.applicationSupportURL.appendingPathComponent("FieldEvidenceOperations/finalization/\(ids.mutationID.uuidString.lowercased()).json")
+        XCTAssertFalse(fileManager.fileExists(atPath: intentURL.path))
+        for path in [".staging/snapshots/\(ids.reportID.uuidString.lowercased()).json", "snapshots/\(ids.reportID.uuidString.lowercased()).json"] {
+            XCTAssertFalse(fileManager.fileExists(atPath: harness.session.generationRootURL.appendingPathComponent(path).path))
+        }
+        // The one-shot ordinary error is consumed. A distinct real attempt must succeed.
+        let retry = FinalizationIdentifiers(mutationID: UUID(), packetID: UUID(), stableRootID: UUID(), reportID: UUID(), issueID: nil)
+        let result = try await recoveryStepAsync(label, phase: "fresh-finalization", root: harness.applicationSupportURL) {
+            try await harness.runner.finalize(assetID: harness.asset.id, selection: .noVisibleIssue,
+                completedAt: harness.observedAt.addingTimeInterval(5), snapshotCreatedAt: harness.observedAt.addingTimeInterval(6),
+                sourceApp: SourceAppSnapshotV1(build: "34", version: "1.0"), identifiers: retry)
+        }
+        XCTAssertEqual(result.reportID, retry.reportID)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Packet>()), 1)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Report>()), 1)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Issue>()), 0)
+        XCTAssertNotNil(try harness.storeCoordinator.workspaceWriter.durableReceipt(mutationID: MutationIDV1(rawValue: retry.mutationID)))
+        XCTAssertNil(try harness.storeCoordinator.workspaceWriter.durableReceipt(mutationID: MutationIDV1(rawValue: ids.mutationID)))
+        let afterHistory = try journal.exportSnapshot()
+        XCTAssertEqual(afterHistory.receipts.count, beforeHistory.receipts.count + 1)
+        XCTAssertEqual(Array(afterHistory.receipts.dropLast()), beforeHistory.receipts)
+        XCTAssertEqual(afterHistory.quarantines, beforeHistory.quarantines)
+        XCTAssertEqual(try currentV2MediaValues(harness.context), beforeMedia)
+        XCTAssertEqual(try mediaPaths.map { try Data(contentsOf: harness.session.generationRootURL.appendingPathComponent($0)) }, mediaBytes)
+        let report = try XCTUnwrap(harness.context.fetch(FetchDescriptor<Report>()).first)
+        let snapshot = try Data(contentsOf: harness.session.generationRootURL.appendingPathComponent(report.snapshotRelativePath))
+        XCTAssertEqual(CanonicalJSONV1.sha256(snapshot), report.snapshotSHA256)
+        XCTAssertFalse(fileManager.fileExists(atPath: harness.applicationSupportURL.appendingPathComponent("FieldEvidenceOperations/finalization/\(retry.mutationID.uuidString.lowercased()).json").path))
+    }
+
+    @MainActor
+    private func currentV2MediaValues(_ context: ModelContext) throws -> [V4BackupEvidenceFileDTO] {
+        try context.fetch(FetchDescriptor<EvidenceFile>()).map { value in
+            V4BackupEvidenceFileDTO(id: value.id, schemaVersion: value.schemaVersion, recordID: value.recordID,
+                purposeKey: value.purposeKey, relativePath: value.relativePath, mimeType: value.mimeType,
+                byteCount: value.byteCount, sha256: value.sha256, createdAt: value.createdAt,
+                thumbnailRelativePath: value.thumbnailRelativePath, thumbnailByteCount: value.thumbnailByteCount,
+                thumbnailSHA256: value.thumbnailSHA256)
+        }.sorted { $0.id.uuidString < $1.id.uuidString }
+    }
+
+    @MainActor
+    private func currentV2DraftValues(_ context: ModelContext) throws -> [WorkflowRecordPayloadV1] {
+        try context.fetch(FetchDescriptor<WorkflowRecord>()).map { value in
+            WorkflowRecordPayloadV1(
+                id: value.id, schemaVersion: value.schemaVersion,
+                assetID: value.assetID, packetID: value.packetID,
+                issueID: value.issueID, parentRecordID: value.parentRecordID,
+                recordRevisionRootID: value.recordRevisionRootID,
+                revisesRecordID: value.revisesRecordID,
+                evidenceSourceRecordID: value.evidenceSourceRecordID,
+                revisionKind: value.revisionKind, stage: value.stage,
+                state: value.state, draftStepKey: value.draftStepKey,
+                startedAt: value.startedAt, completedAt: value.completedAt,
+                observedAtUTC: value.observedAtUTC, timeZoneID: value.timeZoneID,
+                utcOffsetMinutes: value.utcOffsetMinutes,
+                localDate: value.localDate, localTime: value.localTime,
+                afterDarkAcknowledgementKey: value.afterDarkAcknowledgementKey,
+                afterDarkAcknowledgementCopy: value.afterDarkAcknowledgementCopy,
+                afterDarkAcknowledgementVersion: value.afterDarkAcknowledgementVersion,
+                afterDarkAcknowledgementAccepted: value.afterDarkAcknowledgementAccepted,
+                safePositionAcknowledgementKey: value.safePositionAcknowledgementKey,
+                safePositionAcknowledgementCopy: value.safePositionAcknowledgementCopy,
+                safePositionAcknowledgementVersion: value.safePositionAcknowledgementVersion,
+                safePositionAcknowledgementAccepted: value.safePositionAcknowledgementAccepted,
+                packID: value.packID, packSchemaVersion: value.packSchemaVersion,
+                packContentVersion: value.packContentVersion,
+                pdfTemplateID: value.pdfTemplateID,
+                pdfTemplateVersion: value.pdfTemplateVersion,
+                outcomeKey: value.outcomeKey,
+                couldNotVerifyKey: value.couldNotVerifyKey,
+                couldNotVerifyDisplaySnapshot: value.couldNotVerifyDisplaySnapshot,
+                couldNotVerifyRegistryVersion: value.couldNotVerifyRegistryVersion,
+                workPerformedLocalDate: value.workPerformedLocalDate,
+                workDescription: value.workDescription, note: value.note,
+                finalizationMutationID: value.finalizationMutationID
+            )
+        }.sorted { $0.id.uuidString < $1.id.uuidString }
+    }
+
+    @MainActor
     private func makeCurrentV2Producer(
         _ label: String,
         failure: FinalizationIntentStoreFailurePoint
     ) async throws -> CurrentV2ProducerHarness {
         let applicationSupportURL = try makeTemporaryDirectory(label)
+        let cleanup = registerRecoveryFixtureCleanup(root: applicationSupportURL)
         let session = try StoreGenerationFactory(
             applicationSupportURL: applicationSupportURL
         ).openOrBootstrapCurrent()
+        cleanup.observe(session)
         let context = session.modelContext
+        cleanup.markUnproven()
         let storeCoordinator = try StoreSessionCoordinator(validatingSession: session)
+        cleanup.observeOwner(storeCoordinator)
+        cleanup.completeAcquisition()
         let pack = SignPack.illuminatedSignV1
         let siteID = UUID()
         let assetID = UUID()
@@ -2140,12 +2465,15 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
             let failureInjection = FinalizationIntentStoreFailureInjection(
                 failOnceAt: failure
             )
+            cleanup.markUnproven()
             let runner = try CheckRunnerCoordinator(
                 modelContext: context,
                 packageLifecycleDependencies: dependencies,
                 packageLifecycleProfile: profile,
                 finalizationStoreFailureInjection: failureInjection
             )
+            cleanup.observeOwner(runner)
+            cleanup.completeAcquisition()
             runner.configureCapture(generationRootURL: session.generationRootURL)
             let observedAt = Date(timeIntervalSince1970: 1_768_450_010)
             let draft = try runner.beginCheck(
@@ -2170,6 +2498,7 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
             _ = try await runner.accept(candidate: close, assetID: asset.id)
             return CurrentV2ProducerHarness(
                 applicationSupportURL: applicationSupportURL,
+                cleanup: cleanup,
                 session: session,
                 storeCoordinator: storeCoordinator,
                 context: context,
@@ -2179,9 +2508,12 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
                 observedAt: observedAt
             )
         } catch {
-            try? storeCoordinator.invalidateAndReleaseWriter()
-            try? fileManager.removeItem(at: applicationSupportURL)
-            throw error
+            let original = error
+            cleanup.markUnproven()
+            do { try storeCoordinator.invalidateAndReleaseWriter() }
+            catch { reportRecoveryFailure(label, phase: "fixture.failure-close", root: applicationSupportURL, error: error) }
+            reportRecoveryFailure(label, phase: "fixture.produce", root: applicationSupportURL, error: original)
+            throw original
         }
     }
 
@@ -2234,7 +2566,10 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         return snapshots
     }
 
-    private func makeDraft(assetID: UUID = UUID()) -> WorkflowRecord {
+    private func makeDraft(assetID: UUID = UUID()) throws -> WorkflowRecord {
+        let pack = SignPack.illuminatedSignV1
+        let afterDark = try XCTUnwrap(pack.acknowledgements.first { $0.key == "after_dark" })
+        let safePosition = try XCTUnwrap(pack.acknowledgements.first { $0.key == "safe_authorized_position" })
         let id = UUID()
         return WorkflowRecord(
             id: id, assetID: assetID, packetID: nil, issueID: nil,
@@ -2247,12 +2582,12 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
             observedAtUTC: Date(timeIntervalSince1970: 1_768_438_923),
             timeZoneID: "America/New_York", utcOffsetMinutes: -300,
             localDate: "2026-01-14", localTime: "15:02:03",
-            afterDarkAcknowledgementKey: "after_dark",
-            afterDarkAcknowledgementCopy: "After dark", afterDarkAcknowledgementVersion: "v1",
+            afterDarkAcknowledgementKey: afterDark.key,
+            afterDarkAcknowledgementCopy: afterDark.copy, afterDarkAcknowledgementVersion: afterDark.version,
             afterDarkAcknowledgementAccepted: true,
-            safePositionAcknowledgementKey: "safe_authorized_position",
-            safePositionAcknowledgementCopy: "Safe position",
-            safePositionAcknowledgementVersion: "v1",
+            safePositionAcknowledgementKey: safePosition.key,
+            safePositionAcknowledgementCopy: safePosition.copy,
+            safePositionAcknowledgementVersion: safePosition.version,
             safePositionAcknowledgementAccepted: true,
             packID: "field.evidence.illuminated_sign.v1",
             packSchemaVersion: 1, packContentVersion: 1,
@@ -2438,13 +2773,13 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
         issues: [IssueSnapshotV1],
         isVisibleIssue: Bool
     ) -> ReportSnapshotV1 {
-        ReportSnapshotV1(
-            acknowledgements: [
-                AcknowledgementSnapshotV1(accepted: true, copy: "After dark", key: "after_dark", version: "v1"),
-                AcknowledgementSnapshotV1(accepted: true, copy: "Safe position", key: "safe_authorized_position", version: "v1"),
-            ],
+        let pack = SignPack.illuminatedSignV1
+        return ReportSnapshotV1(
+            acknowledgements: pack.acknowledgements.map {
+                AcknowledgementSnapshotV1(accepted: true, copy: $0.copy, key: $0.key, version: $0.version)
+            },
             asset: AssetSnapshotV1(label: "Monument Sign"), couldNotVerify: nil,
-            disclaimer: "Visible evidence only.",
+            disclaimer: pack.disclaimer,
             display: DisplaySnapshotV1(assetSingular: "sign", checkSingular: "check", issueSingular: "visible issue", outcome: isVisibleIssue ? "Visible issue" : "No visible issue", stage: "Check"),
             evidence: evidence, evidenceSourceRecordID: recordID, history: [], issues: issues,
             note: nil, outcome: isVisibleIssue ? "visible_issue" : "no_visible_issue",
@@ -2458,6 +2793,63 @@ final class S3_4ResumeRecoveryTests: XCTestCase {
             sourceRecordID: recordID, stableRootID: stableRootID, stage: "check",
             timeContext: TimeContextSnapshotV1(localDate: "2026-01-14", localTime: "15:02:03", observedAtUTC: Date(timeIntervalSince1970: 1_768_438_923), timeZoneID: "America/New_York", utcOffsetMinutes: -300)
         )
+    }
+
+    @MainActor
+    private func registerRecoveryFixtureCleanup(root: URL) -> S34RecoveryFixtureCleanup {
+        let cleanup = S34RecoveryFixtureCleanup(root: root)
+        addTeardownBlock { [cleanup] in
+            try await MainActor.run { try cleanup.removeIfDrained() }
+        }
+        return cleanup
+    }
+
+    @MainActor
+    private func reportRecoveryFailure(_ label: String, phase: String, root: URL, error: Error) {
+        var info = stat()
+        let present = lstat(root.path, &info) == 0
+        print("S3_4.recovery case=\(label) phase=\(phase) type=\(String(reflecting: type(of: error))) error=\(error) rootPresent=\(present) device=\(info.st_dev) inode=\(info.st_ino)")
+    }
+
+    @MainActor
+    private func recoveryStep<Value>(_ label: String, phase: String, root: URL,
+        _ body: () throws -> Value) throws -> Value {
+        do { return try body() }
+        catch { reportRecoveryFailure(label, phase: phase, root: root, error: error); throw error }
+    }
+
+    @MainActor
+    private func recoveryStepAsync<Value>(_ label: String, phase: String, root: URL,
+        _ body: @MainActor () async throws -> Value) async throws -> Value {
+        do { return try await body() }
+        catch { reportRecoveryFailure(label, phase: phase, root: root, error: error); throw error }
+    }
+
+    private func requireExistingSnapshotDirectory(_ directory: URL, generationRootURL: URL) throws {
+        guard directory.standardizedFileURL == generationRootURL.appendingPathComponent("snapshots").standardizedFileURL else {
+            throw ResumeFixtureError.unsafeSnapshotParent
+        }
+        let root = Darwin.open(generationRootURL.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard root >= 0 else { throw ResumeFixtureError.unsafeSnapshotParent }
+        defer { _ = Darwin.close(root) }
+        var rootInfo = stat(), namedRoot = stat(), named = stat()
+        guard fstat(root, &rootInfo) == 0, lstat(generationRootURL.path, &namedRoot) == 0,
+              namedRoot.st_mode & S_IFMT == S_IFDIR,
+              rootInfo.st_dev == namedRoot.st_dev, rootInfo.st_ino == namedRoot.st_ino,
+              fstatat(root, "snapshots", &named, AT_SYMLINK_NOFOLLOW) == 0,
+              named.st_mode & S_IFMT == S_IFDIR, named.st_dev == rootInfo.st_dev else {
+            throw ResumeFixtureError.unsafeSnapshotParent
+        }
+        let child = openat(root, "snapshots", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard child >= 0 else { throw ResumeFixtureError.unsafeSnapshotParent }
+        defer { _ = Darwin.close(child) }
+        var held = stat(), reread = stat()
+        guard fstat(child, &held) == 0,
+              held.st_dev == named.st_dev, held.st_ino == named.st_ino,
+              fstatat(root, "snapshots", &reread, AT_SYMLINK_NOFOLLOW) == 0,
+              reread.st_dev == held.st_dev, reread.st_ino == held.st_ino else {
+            throw ResumeFixtureError.unsafeSnapshotParent
+        }
     }
 
     private func makeTemporaryDirectory(_ name: String) throws -> URL {
@@ -2594,6 +2986,7 @@ private enum VisibleIssueRecoveryCase: String, CaseIterable {
 @MainActor
 private struct CurrentV2ProducerHarness {
     let applicationSupportURL: URL
+    let cleanup: S34RecoveryFixtureCleanup
     let session: StoreGenerationSession
     let storeCoordinator: StoreSessionCoordinator
     let context: ModelContext
@@ -2611,7 +3004,7 @@ private struct SeededRecovery {
     let finalSnapshotURL: URL
 }
 
-private enum ResumeFixtureError: Error { case image }
+private enum ResumeFixtureError: Error { case image, unsafeSnapshotParent }
 
 extension S3_4ResumeRecoveryTests {
     func testC36RestorePublicationReceiptRequiresCanonicalDisjointStageOrder() throws {
@@ -2694,5 +3087,42 @@ extension S3_4ResumeRecoveryTests {
         XCTAssertEqual(receipt.result.target.destination, .mutationRecovery)
         XCTAssertEqual(receipt.canonicalMutationCount, 0)
         XCTAssertFalse(receipt.startsAutomaticWork)
+    }
+}
+
+/// Tracks only owners returned to these two fixtures. This is not a universal
+/// SQLite/framework FD proof. Failed or undrained acquisitions retain the root.
+@MainActor
+private final class S34RecoveryFixtureCleanup {
+    @MainActor
+    private final class Probe {
+        weak var value: AnyObject?
+        init(_ value: AnyObject) { self.value = value }
+    }
+    private let root: URL
+    private var probes: [Probe] = []
+    private var unproven = true
+    private var poisoned = false
+    enum Failure: Error { case retainedOwner }
+    init(root: URL) { self.root = root }
+    func markUnproven() { unproven = true }
+    func observe(_ session: StoreGenerationSession) {
+        guard session.generationRootURL.standardizedFileURL.path.hasPrefix(root.standardizedFileURL.path + "/") else {
+            unproven = true
+            poisoned = true
+            XCTFail("Recovery fixture root does not own its observed session")
+            return
+        }
+        probes.append(contentsOf: [Probe(session), Probe(session.modelContext), Probe(session.modelContext.container)])
+        unproven = false
+    }
+    func observeOwner(_ owner: AnyObject) { probes.append(Probe(owner)) }
+    func completeAcquisition() { unproven = false }
+    func removeIfDrained() throws {
+        guard !poisoned, !unproven, !probes.isEmpty, probes.allSatisfy({ $0.value == nil }) else {
+            print("S3_4.fixture retain-root poisoned=\(poisoned) unproven=\(unproven) liveOwners=\(probes.filter { $0.value != nil }.count)")
+            throw Failure.retainedOwner
+        }
+        try FileManager.default.removeItem(at: root)
     }
 }

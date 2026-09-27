@@ -73,16 +73,36 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
     /// incumbent package entry above remains the only capability-bearing API.
     static func reviewCanonicalSource(source: V4BackupSourceV1, records: V4BackupRecordsV1) throws
         -> ReviewedRepetitiveCaptureCanonicalSourceV2 {
+#if DEBUG
+        var diagnosticPhase = "entry"
+        defer {
+            if diagnosticPhase != "done" {
+                FileHandle.standardError.write(Data("PHOTO_BACKUP_GRAPH_FAILURE_V1 scope=c36-source-graph phase=\(diagnosticPhase)\n".utf8))
+            }
+        }
+#endif
+#if DEBUG
+        diagnosticPhase = "source-identity"
+#endif
         guard let rawWorkspaceID = source.workspaceID,
               source.recordsSchemaVersion == records.recordsSchemaVersion,
               let snapshot = records.mutationHistory else { throw invalid() }
         let workspace = WorkspaceID(rawValue: rawWorkspaceID)
+#if DEBUG
+        diagnosticPhase = "complete-imported-history"
+#endif
         try MutationJournalStoreV1.validateImportedSnapshot(
             snapshot, sourcePersistentSchemaVersion: source.persistentSchemaVersion)
+#if DEBUG
+        diagnosticPhase = "history-index"
+#endif
         let history = try History(snapshot: snapshot)
         let release = try RepetitiveCaptureProgressDraftCodecV2.release()
         var currentByID: [UUID: FieldDraftCheckpointV1] = [:]
         var discardReceiptsByDraft: [UUID: [DraftDiscardReceiptV1]] = [:]
+#if DEBUG
+        diagnosticPhase = "discard-rows"
+#endif
         for row in records.fieldDrafts where row.kind == .discardReceipt {
             let receipt = try FieldDraftCanonicalCodecV1.decode(DraftDiscardReceiptV1.self,
                                                                from: row.canonicalData)
@@ -90,6 +110,9 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
                   row.id == receipt.receiptID, row.revision == receipt.revision else { throw invalid() }
             discardReceiptsByDraft[receipt.draftID, default: []].append(receipt)
         }
+#if DEBUG
+        diagnosticPhase = "checkpoint-rows"
+#endif
         for row in records.fieldDrafts where row.kind == .checkpoint {
             let value = try FieldDraftCanonicalCodecV1.decode(FieldDraftCheckpointV1.self,
                                                              from: row.canonicalData)
@@ -103,6 +126,9 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
         // and history. A same-workspace acknowledged create cannot disappear
         // from a full source package merely because records.json was rehashed.
         // Foreign imported history belongs to its own source workspace.
+#if DEBUG
+        diagnosticPhase = "exact-created-membership"
+#endif
         var createdIDs = Set<UUID>()
         for record in history.records.values where record.envelope.workspaceID == workspace {
             guard case let .applyFieldDraft(mutation) = record.envelope.command,
@@ -118,6 +144,9 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
         var sources: [UUID: FieldDraftCheckpointV1] = [:]
         var membersBySource: [UUID: [UUID]] = [:]
         var requiredKeys = Set<String>()
+#if DEBUG
+        diagnosticPhase = "checkpoint-lifecycle"
+#endif
         for current in currentByID.values {
             let reviewed = try checkpointHistory(current: current, history: history,
                 discardReceipts: discardReceiptsByDraft[current.draftID, default: []])
@@ -133,6 +162,9 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
                 membersBySource[step.source.draftID, default: []].append(current.draftID)
             }
         }
+#if DEBUG
+        diagnosticPhase = "source-membership"
+#endif
         guard Set(membersBySource.keys) == Set(sources.keys) else { throw invalid() }
 
         var roundHistories: [UUID: [RoundSessionV1]] = [:]
@@ -140,6 +172,9 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
         var graphs: [ReviewedRepetitiveCaptureSourceGraphV2] = []
         var activeScopes = Set<DraftScopeKeyV1>()
         var covered = Set<UUID>()
+#if DEBUG
+        diagnosticPhase = "source-launch"
+#endif
         for sourceID in sources.keys.sorted(by: uuidLess) {
             guard let source = sources[sourceID], let memberIDs = membersBySource[sourceID] else {
                 throw invalid()
@@ -150,11 +185,17 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
             if let existing = roundHistories[sessionID] {
                 fullRounds = existing
             } else {
+#if DEBUG
+        diagnosticPhase = "complete-round-rows"
+#endif
                 fullRounds = records.roundSessions.filter {
                     $0.workspaceID == workspace && $0.sessionID == sessionID
                 }
                 guard try RoundSessionHistoryValidatorV1.validate(fullRounds,
                     workspaceID: workspace, sessionID: sessionID) != nil else { throw invalid() }
+#if DEBUG
+        diagnosticPhase = "round-original-closure"
+#endif
                 let journalRounds = history.roundsBySession[
                     .init(workspaceID: workspace, id: sessionID), default: []]
                 var journalByRevision: [UInt64: RoundSessionV1] = [:]
@@ -169,6 +210,9 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
                 var previousRevision: UInt64?
                 // Every revision is authenticated, including pre-launch and
                 // later history outside a disposed graph's captured frontier.
+#if DEBUG
+        diagnosticPhase = "round-receipt-order"
+#endif
                 for round in fullRounds {
                     let record = try roundRecord(round, history: history)
                     let revision = record.receipt.resultingRevision.workspaceRevision
@@ -180,6 +224,9 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
                 }
                 roundHistories[sessionID] = fullRounds
             }
+#if DEBUG
+        diagnosticPhase = "round-current"
+#endif
             guard let packageCurrent = fullRounds.last else { throw invalid() }
             let members = try memberIDs.map { id -> ReviewedRepetitiveCaptureSourceCheckpointV2 in
                 guard let value = checkpoints[id], covered.insert(id).inserted else { throw invalid() }
@@ -190,15 +237,24 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
                 guard activeScopes.insert(source.scope).inserted else { throw invalid() }
             }
             let originals = members.map(\.original)
+#if DEBUG
+        diagnosticPhase = "effective-frontier"
+#endif
             let effectiveFrontier = try frontier(source: source, originals: originals, history: history)
             guard fullRounds.contains(effectiveFrontier) else { throw invalid() }
             let selectedRounds: [RoundSessionV1]
+#if DEBUG
+        diagnosticPhase = "active-frontier"
+#endif
             if unchangedActive {
                 guard packageCurrent == effectiveFrontier else { throw invalid() }
                 selectedRounds = fullRounds
             } else {
                 selectedRounds = fullRounds.filter { $0.revision <= effectiveFrontier.revision }
             }
+#if DEBUG
+        diagnosticPhase = "progress-chain"
+#endif
             let chain = try RepetitiveCaptureProgressChainReviewV2.review(
                 workspaceID: workspace, sourceDraftID: sourceID,
                 authenticatedProgressCheckpoint: { requestedWorkspace, id in
@@ -229,6 +285,9 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
                     guard let record = roundRecords[recordKey] else { throw invalid() }
                     return record.receipt
                 })
+#if DEBUG
+        diagnosticPhase = "chain-coverage"
+#endif
             let orderedIDs = [sourceID] + chain.nodes.map { $0.checkpoint.draftID }
             guard orderedIDs.count == memberIDs.count,
                   Set(orderedIDs) == Set(memberIDs) else { throw invalid() }
@@ -240,9 +299,18 @@ enum RepetitiveCaptureSourceGraphReviewV2 {
                                 packageCurrentRound: packageCurrent,
                                 isUnchangedActiveSource: unchangedActive))
         }
+#if DEBUG
+        diagnosticPhase = "complete-coverage-and-quarantine"
+#endif
         guard covered == Set(currentByID.keys),
               requiredKeys.isDisjoint(with: history.quarantinedKeys) else { throw invalid() }
+#if DEBUG
+        diagnosticPhase = "required-originals"
+#endif
         let required = try requiredKeys.map { try history.authenticated($0) }.sorted(by: recordLess)
+#if DEBUG
+        diagnosticPhase = "done"
+#endif
         return .init(sourceWorkspaceID: workspace, graphs: graphs,
                      requiredHistory: required, history: history)
     }

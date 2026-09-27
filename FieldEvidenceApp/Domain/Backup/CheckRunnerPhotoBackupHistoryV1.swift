@@ -192,24 +192,50 @@ struct CheckRunnerPhotoBackupHistoryV1: Equatable, Sendable {
     }
 
     static func project(source: V4BackupSourceV1, records: V4BackupRecordsV1) throws -> Self {
+#if DEBUG
+        var diagnosticPhase = "entry"
+        defer {
+            if diagnosticPhase != "done" {
+                FileHandle.standardError.write(Data("PHOTO_BACKUP_GRAPH_FAILURE_V1 scope=photo-project phase=\(diagnosticPhase)\n".utf8))
+            }
+        }
+#endif
         let failure = WorkspaceMutationFailureV1.receiptHistoryCorrupt
+#if DEBUG
+        diagnosticPhase = "source-graph"
+#endif
         let c36 = try RepetitiveCaptureSourceGraphReviewV2.reviewCanonicalSource(
             source: source, records: records)
+#if DEBUG
+        diagnosticPhase = "source-identity"
+#endif
         guard let rawWorkspaceID = source.workspaceID,
               c36.sourceWorkspaceID.rawValue == rawWorkspaceID,
               source.recordsSchemaVersion == records.recordsSchemaVersion else { throw failure }
         let workspaceID = c36.sourceWorkspaceID
+#if DEBUG
+        diagnosticPhase = "field-draft-rows"
+#endif
         let rows = try Rows(records.fieldDrafts, workspaceID: workspaceID)
         let history = c36.history
+#if DEBUG
+        diagnosticPhase = "membership"
+#endif
         let membership = try photoMembership(rows: rows, history: history,
             workspaceID: workspaceID, graphs: c36.graphs)
         let currentPhotos = membership.photos
 
+#if DEBUG
+        diagnosticPhase = "parent-begin-originals"
+#endif
         var required = try parentHistoryKeys(membership.parentCache, history: history)
         c36.requiredHistory.forEach { required.insert(key($0)) }
         var results: [CheckRunnerPhotoBackupHistoryChildV1] = []
         var parentLinks: [UUID: CheckRunnerPhotoParentEvidenceV1] = [:]
         var currentTargets: [UUID: CheckRunnerPhotoCurrentTargetEvidenceV1] = [:]
+#if DEBUG
+        diagnosticPhase = "child-order"
+#endif
         let orderedPhotos = try currentPhotos.values.sorted { lhs, rhs in
             let left = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(lhs)
             let right = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(rhs)
@@ -217,16 +243,31 @@ struct CheckRunnerPhotoBackupHistoryV1: Equatable, Sendable {
             let rk = "\(right.parentDraftID.uuidString)|\(captureRank(right.captureStep))|\(right.childDraftID.uuidString)"
             return lk < rk
         }
+#if DEBUG
+        diagnosticPhase = "child-projection"
+#endif
         for checkpoint in orderedPhotos {
             results.append(try projectChild(checkpoint, rows: rows, records: records,
                 history: history, workspaceID: workspaceID,
                 parentCache: membership.parentCache, parentGraphs: membership.parentGraphs,
                 required: &required, parentLinks: &parentLinks, currentTargets: &currentTargets))
         }
+#if DEBUG
+        diagnosticPhase = "child-count"
+#endif
         guard results.count == currentPhotos.count else { throw failure }
+#if DEBUG
+        diagnosticPhase = "required-originals"
+#endif
         let requiredHistory = try required.map { try history.authenticated($0) }
             .sorted(by: RepetitiveCaptureSourceGraphReviewV2.recordLess)
+#if DEBUG
+        diagnosticPhase = "quarantine"
+#endif
         guard requiredHistory.allSatisfy({ !history.isQuarantined($0) }) else { throw failure }
+#if DEBUG
+        diagnosticPhase = "done"
+#endif
         return .init(source: source, sourceWorkspaceID: workspaceID,
                      sourceGenerationID: source.sourceGenerationID,
                      children: results,
@@ -371,14 +412,28 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
         history: RepetitiveCaptureSourceGraphReviewV2.History,
         workspaceID: WorkspaceID,
         graphs: [ReviewedRepetitiveCaptureSourceGraphV2]) throws -> PhotoMembership {
+#if DEBUG
+        var diagnosticPhase = "entry"
+        defer {
+            if diagnosticPhase != "done" {
+                FileHandle.standardError.write(Data("PHOTO_BACKUP_GRAPH_FAILURE_V1 scope=photo-membership phase=\(diagnosticPhase)\n".utf8))
+            }
+        }
+#endif
         let failure = WorkspaceMutationFailureV1.receiptHistoryCorrupt
         let photoRelease = try CheckRunnerPhotoDraftCodecV1.release()
         let parentRelease = try CheckRunnerItemDraftCodecV1.release()
 
+#if DEBUG
+        diagnosticPhase = "current-families"
+#endif
         let currentPhotos = rows.checkpoints.filter { $0.value.codec == photoRelease }
         let currentParents = rows.checkpoints.filter { $0.value.codec == parentRelease }
         var historicPhotoIDs = Set<UUID>()
         var historicParentIDs = Set<UUID>()
+#if DEBUG
+        diagnosticPhase = "original-membership"
+#endif
         for record in history.records.values where record.envelope.workspaceID == workspaceID {
             guard case let .applyFieldDraft(mutation) = record.envelope.command,
                   case let .createCheckpoint(checkpoint) = mutation.postImage else { continue }
@@ -392,8 +447,14 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
                       historicParentIDs.insert(checkpoint.draftID).inserted else { throw failure }
             }
         }
+#if DEBUG
+        diagnosticPhase = "exact-membership"
+#endif
         guard historicPhotoIDs == Set(currentPhotos.keys),
               historicParentIDs == Set(currentParents.keys) else { throw failure }
+#if DEBUG
+        diagnosticPhase = "foreign-collision"
+#endif
         for record in history.records.values where record.envelope.workspaceID != workspaceID {
             guard case let .applyFieldDraft(mutation) = record.envelope.command else { continue }
             if currentPhotos[RepetitiveCaptureSourceGraphReviewV2.draftID(mutation.postImage)] != nil {
@@ -405,23 +466,44 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
         var parentGraphs: [UUID: ReviewedRepetitiveCaptureSourceGraphV2] = [:]
         var referencedPhotoIDs = Set<UUID>()
         for parent in currentParents.values {
+#if DEBUG
+        diagnosticPhase = "parent-history"
+#endif
             let reviewed = try parentHistory(
                 current: parent, rows: rows, history: history, workspaceID: workspaceID)
+#if DEBUG
+        diagnosticPhase = "parent-source-graph"
+#endif
             let graph = try sourceGraph(for: reviewed.currentPayload.source, in: graphs)
+#if DEBUG
+        diagnosticPhase = "parent-entry"
+#endif
             try validateHistoricalEntry(reviewed.currentPayload.source, graph: graph)
             parentCache[parent.draftID] = reviewed
             parentGraphs[parent.draftID] = graph
+#if DEBUG
+        diagnosticPhase = "parent-slot-membership"
+#endif
             for checkpoint in reviewed.checkpoints {
                 let payload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint)
                 if let id = payload.field.wideContext?.childDraftID { referencedPhotoIDs.insert(id) }
                 if let id = payload.field.closeDetail?.childDraftID { referencedPhotoIDs.insert(id) }
             }
         }
+#if DEBUG
+        diagnosticPhase = "exact-child-references"
+#endif
         guard referencedPhotoIDs == Set(currentPhotos.keys) else { throw failure }
+#if DEBUG
+        diagnosticPhase = "child-parent"
+#endif
         for child in currentPhotos.values {
             let payload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(child)
             guard parentCache[payload.parentDraftID] != nil else { throw failure }
         }
+#if DEBUG
+        diagnosticPhase = "done"
+#endif
         return .init(photos: currentPhotos, parentCache: parentCache, parentGraphs: parentGraphs)
     }
 
@@ -437,12 +519,29 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
         parentLinks: inout [UUID: CheckRunnerPhotoParentEvidenceV1],
         currentTargets: inout [UUID: CheckRunnerPhotoCurrentTargetEvidenceV1]) throws
         -> CheckRunnerPhotoBackupHistoryChildV1 {
+#if DEBUG
+        var diagnosticPhase = "entry"
+        defer {
+            if diagnosticPhase != "done" {
+                FileHandle.standardError.write(Data("PHOTO_BACKUP_GRAPH_FAILURE_V1 scope=photo-child phase=\(diagnosticPhase)\n".utf8))
+            }
+        }
+#endif
         let failure = WorkspaceMutationFailureV1.receiptHistoryCorrupt
+#if DEBUG
+        diagnosticPhase = "checkpoint"
+#endif
         let payload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(checkpoint)
         guard payload.childDraftID == checkpoint.draftID,
               let parent = parentCache[payload.parentDraftID],
               let graph = parentGraphs[payload.parentDraftID] else { throw failure }
+#if DEBUG
+        diagnosticPhase = "begin-evidence"
+#endif
         let begin = try beginEvidence(parent: parent, history: history)
+#if DEBUG
+        diagnosticPhase = "child-history"
+#endif
         let childRecords = history.fieldDraftHistory(
             workspaceID: workspaceID, draftID: checkpoint.draftID)
         guard !childRecords.isEmpty else { throw failure }
@@ -455,6 +554,9 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
         required.insert(key(begin.workflowRecord))
         _ = begin.timeZoneRecord.map { required.insert(key($0)) }
 
+#if DEBUG
+        diagnosticPhase = "physical-row-inventory"
+#endif
         let stages = rows.stages.values.filter { $0.draftID == checkpoint.draftID }
             .sorted { $0.stageID.uuidString < $1.stageID.uuidString }
         let sagas = rows.sagas.values.filter { $0.draftID == checkpoint.draftID }
@@ -465,6 +567,9 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
             .sorted { $0.receiptID.uuidString < $1.receiptID.uuidString }
         let discardReceipts = rows.discardReceipts.values.filter { $0.draftID == checkpoint.draftID }
             .sorted { $0.receiptID.uuidString < $1.receiptID.uuidString }
+#if DEBUG
+        diagnosticPhase = "discard-history"
+#endif
         let discardHistory: CheckRunnerPhotoDiscardHistoryV1?
         if checkpoint.state == .discardPending || checkpoint.state == .discarded {
             guard sagas.isEmpty, reservations.isEmpty, receipts.isEmpty else { throw failure }
@@ -476,17 +581,35 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
         let activeHistory = discardHistory?.activeHistory ?? childHistory
         let activeCheckpoint = discardHistory?.pending.activeCheckpoint ?? checkpoint
 
+#if DEBUG
+        diagnosticPhase = "phase-facts"
+#endif
         let phase = try phaseFacts(payload, checkpoint: checkpoint, history: history,
                                    required: &required)
         let isCommitted = checkpoint.state == .committed
+#if DEBUG
+        diagnosticPhase = "parent-frontier"
+#endif
         let parentCheckpoint = try parent.frontier(for: checkpoint, committed: isCommitted)
+#if DEBUG
+        diagnosticPhase = "parent-prefix"
+#endif
         let parentEvidence = try parent.evidencePrefix(for: checkpoint, committed: isCommitted)
+#if DEBUG
+        diagnosticPhase = "workflow-row"
+#endif
         let workflow = try exactlyOne(records.workflowRecords.filter { $0.id == payload.recordID })
         let workflowIdentity = try WorkspaceEntityIdentityV1(
             kind: .workflowRecord, id: payload.recordID)
+#if DEBUG
+        diagnosticPhase = "prior-workflow-image"
+#endif
         let priorImage = try workflowImageBeforePhoto(
             payload: payload, begin: begin.workflow,
             precedingWide: parentLinks[payload.parentDraftID])
+#if DEBUG
+        diagnosticPhase = "target-postimages"
+#endif
         let targetImage = try phase.target.map {
             try exactlyOne($0.receipt.postImages.filter { try $0.identity == workflowIdentity })
         }
@@ -499,10 +622,16 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
 
         let phaseEvidence: CheckRunnerPhotoBackupHistoryChildV1.PhaseEvidence
         let terminal: CheckRunnerPhotoCommitEvidenceV1?
+#if DEBUG
+        diagnosticPhase = "phase-evidence"
+#endif
         switch payload.phase {
         case .awaitingRawStage:
             guard stages.isEmpty, sagas.isEmpty, reservations.isEmpty, receipts.isEmpty,
                   phase.target == nil else { throw failure }
+#if DEBUG
+        diagnosticPhase = "awaiting-raw-evidence"
+#endif
             let evidence = try CheckRunnerPhotoRawStageEvidenceV1(
                 parentHistory: parentEvidence, parentCheckpoint: parentCheckpoint,
                 workflow: begin.workflow, timeZone: begin.timeZone,
@@ -523,8 +652,16 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
             phaseEvidence = .rawReady(evidence); terminal = nil
         case .pairReady(_), .preparedCommit(_, _):
             let stage = try exactlyOne(stages)
+#if DEBUG
+        diagnosticPhase = "continuation-evidence"
+#endif
+            // A terminal wide child is observed at its genuine adoption
+            // prefix. The latest parent may already contain the close child;
+            // that current frontier remains mandatory for the links below.
+            let continuationParent = try parent.continuationFrontier(for: checkpoint)
+            let continuationParentEvidence = parent.evidencePrefix(through: continuationParent)
             let evidence = try CheckRunnerPhotoContinuationEvidenceV1(
-                parentHistory: parentEvidence, parentCheckpoint: parentCheckpoint,
+                parentHistory: continuationParentEvidence, parentCheckpoint: continuationParent,
                 workflow: begin.workflow, timeZone: begin.timeZone,
                 history: activeHistory, checkpoint: activeCheckpoint, stages: [stage], sagas: sagas,
                 reservations: reservations, receipts: receipts,
@@ -537,6 +674,9 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
         var targetRecords: CheckRunnerPhotoBackupTargetRecordsV1?
         var parentLink: CheckRunnerPhotoParentEvidenceV1?
         var currentTarget: CheckRunnerPhotoCurrentTargetEvidenceV1?
+#if DEBUG
+        diagnosticPhase = "target-records"
+#endif
         if let target = phase.target {
             guard let originalWorkflowPostImage = targetImage,
                   let originalEvidencePostImage = evidenceImage else { throw failure }
@@ -545,15 +685,27 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
             })
             let evidenceIdentity = try WorkspaceEntityIdentityV1(
                 kind: .evidenceFile, id: evidence.id)
+#if DEBUG
+        diagnosticPhase = "latest-evidence-image"
+#endif
             let currentEvidencePostImage = try latestPostImage(
                 identity: evidenceIdentity, workspaceID: workspaceID,
                 history: history, records: records)
+#if DEBUG
+        diagnosticPhase = "later-workflow-originals"
+#endif
             let later = try laterWorkflowReceipts(
                 after: target.receipt, identity: workflowIdentity, history: history)
             later.forEach { required.insert(key($0)) }
+#if DEBUG
+        diagnosticPhase = "latest-workflow-image"
+#endif
             let currentWorkflowPostImage = try latestPostImage(
                 identity: workflowIdentity, workspaceID: workspaceID,
                 history: history, records: records)
+#if DEBUG
+        diagnosticPhase = "target-row-binding"
+#endif
             try validateTargetRecords(target: target, begin: begin.workflow,
                 workflow: workflow, originalWorkflowPostImage: originalWorkflowPostImage,
                 currentWorkflowPostImage: currentWorkflowPostImage,
@@ -567,12 +719,18 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
                 currentEvidencePostImage: currentEvidencePostImage,
                 permittedSuccessors: later)
         }
+#if DEBUG
+        diagnosticPhase = "parent-terminal-link"
+#endif
         if let terminal {
             let link = try CheckRunnerPhotoParentEvidenceV1(
                 history: parentEvidence,
                 checkpoint: parentCheckpoint, child: terminal,
                 workflow: begin.workflow, timeZone: begin.timeZone)
             guard let targetRecords else { throw failure }
+#if DEBUG
+        diagnosticPhase = "current-target-evidence"
+#endif
             let current = try CheckRunnerPhotoCurrentTargetEvidenceV1(
                 parent: link, workflow: targetRecords.workflow,
                 workflowPostImage: targetRecords.currentWorkflowPostImage,
@@ -588,6 +746,9 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
 
         let committingCheckpoint = phase.reconstruction?.draftCommit.checkpoint
             ?? terminal?.reconstruction.draftCommit.checkpoint
+#if DEBUG
+        diagnosticPhase = "done"
+#endif
         return .init(parentCheckpoint: parentCheckpoint,
             currentCheckpoint: checkpoint, payload: payload,
             raw: phase.raw, pair: phase.pair,
@@ -630,10 +791,35 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
             return selected.1
         }
 
+        /// Continuation proves the original wide commit before any close
+        /// slot existed. Use a retained adoption, never a rewritten current
+        /// parent. Its complete prefix is authenticated by the continuation
+        /// contract; the latest parent is independently joined afterwards.
+        func continuationFrontier(for child: FieldDraftCheckpointV1) throws
+            -> FieldDraftCheckpointV1 {
+            let payload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(child)
+            guard child.state == .committed, payload.captureStep == .wide else {
+                return try frontier(for: child, committed: child.state == .committed)
+            }
+            let adoption = checkpoints.first { checkpoint in
+                guard checkpoint.state == .active,
+                      let parent = try? CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint),
+                      parent.phase == .editing,
+                      case let .committed(childDraftID, _, _, _, _, _, _, _, _, _) = parent.field.wideContext
+                else { return false }
+                return childDraftID == payload.childDraftID
+            }
+            guard let adoption else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+            return adoption
+        }
+
         func evidencePrefix(for child: FieldDraftCheckpointV1, committed: Bool)
             throws -> [FieldDraftCommittedEvidenceV1] {
-            let selected = try frontier(for: child, committed: committed)
-            return zip(checkpointEvidence, checkpoints).filter { $0.1.draftRevision <= selected.draftRevision }
+            evidencePrefix(through: try frontier(for: child, committed: committed))
+        }
+
+        func evidencePrefix(through selected: FieldDraftCheckpointV1) -> [FieldDraftCommittedEvidenceV1] {
+            zip(checkpointEvidence, checkpoints).filter { $0.1.draftRevision <= selected.draftRevision }
                 .map(\.0)
         }
     }
@@ -655,11 +841,25 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
     static func parentHistory(current: FieldDraftCheckpointV1, rows: Rows,
         history: RepetitiveCaptureSourceGraphReviewV2.History, workspaceID: WorkspaceID) throws
         -> ParentHistory {
+#if DEBUG
+        var diagnosticPhase = "entry"
+        defer {
+            if diagnosticPhase != "done" {
+                FileHandle.standardError.write(Data("PHOTO_BACKUP_GRAPH_FAILURE_V1 scope=photo-parent-history phase=\(diagnosticPhase)\n".utf8))
+            }
+        }
+#endif
         let failure = WorkspaceMutationFailureV1.receiptHistoryCorrupt
+#if DEBUG
+        diagnosticPhase = "originals"
+#endif
         let originals = history.fieldDraftHistory(workspaceID: workspaceID, draftID: current.draftID)
         let evidence = try originals.map {
             try FieldDraftCommittedEvidenceV1(envelope: $0.envelope, receipt: $0.receipt)
         }
+#if DEBUG
+        diagnosticPhase = "checkpoint-chain"
+#endif
         let checkpointEntries = evidence.compactMap { value -> (FieldDraftCommittedEvidenceV1, FieldDraftCheckpointV1)? in
             RepetitiveCaptureSourceGraphReviewV2.checkpointPostImage(value.mutation.postImage)
                 .map { (value, $0) }
@@ -669,6 +869,9 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
               first.1.draftRevision == 1, last.1 == current,
               checkpointEntries.map(\.1.draftRevision) == Array(1...checkpointEntries.count).map(UInt64.init)
         else { throw failure }
+#if DEBUG
+        diagnosticPhase = "checkpoint-successors"
+#endif
         for (index, entry) in checkpointEntries.enumerated() {
             _ = try CheckRunnerItemDraftCodecV1.validateCheckpoint(entry.1)
             guard entry.0.mutation.mutationID == entry.1.mutationID,
@@ -682,12 +885,18 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
                     expectedBaseRevision: checkpointEntries[index - 1].1.baseCanonicalRevision)
             }
         }
+#if DEBUG
+        diagnosticPhase = "current-payload"
+#endif
         let payload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(current)
         let sagas = rows.sagas.values.filter { $0.draftID == current.draftID }
         let reservations = rows.reservations.values.filter { $0.draftID == current.draftID }
         let stages = rows.stages.values.filter { $0.draftID == current.draftID }
         let receipts = rows.commitReceipts.values.filter { $0.draftID == current.draftID }
         let finalization: CheckRunnerItemFinalizationEvidenceV1?
+#if DEBUG
+        diagnosticPhase = "finalization-or-editing"
+#endif
         if let attempt = payload.finalizationAttempt {
             guard case let .bound(_, workflowReference, zoneReference) = payload.field.begin else { throw failure }
             let workflowRecord = try history.authenticated(
@@ -707,14 +916,23 @@ private extension CheckRunnerPhotoBackupHistoryV1 {
             let target = try history.records[targetKey].map { record in
                 try FinalizationCommittedEvidenceV1(envelope: record.envelope, receipt: record.receipt)
             }
+#if DEBUG
+        diagnosticPhase = "finalization-evidence"
+#endif
             finalization = try .init(history: evidence, checkpoint: current, sagas: sagas,
                 reservations: reservations, stages: stages, receipts: receipts,
                 workflow: workflow, timeZone: timeZone, target: target)
         } else {
+#if DEBUG
+        diagnosticPhase = "editing-row-closure"
+#endif
             guard checkpointEntries.count == originals.count,
                   sagas.isEmpty, reservations.isEmpty, stages.isEmpty, receipts.isEmpty else { throw failure }
             finalization = nil
         }
+#if DEBUG
+        diagnosticPhase = "done"
+#endif
         return .init(current: current,
             currentPayload: payload,
             originals: originals, checkpointEvidence: checkpointEntries.map(\.0),

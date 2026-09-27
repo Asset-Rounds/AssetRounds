@@ -1167,9 +1167,21 @@ final class FinalizationService {
             .filter { $0.recordID == evidenceRecord }.map(\.sha256))).sorted()
         let sourceRecordID = intent.finalizationPayload.packetBefore?.currentRecordID ?? intent.recordID
         let companion = try ObservationAndTimeRowStoreV1.requireRow(recordID: sourceRecordID, in: modelContext)
-        let assuranceRows = try modelContext.fetch(FetchDescriptor<RequirementAssuranceRow>())
-            .filter { $0.workflowRecordID == intent.recordID }
-        guard assuranceRows.count <= 1 else { throw FinalizationServiceError.preconditionFailed }
+        let allAssuranceRows = try modelContext.fetch(FetchDescriptor<RequirementAssuranceRow>())
+        let assuranceRows = allAssuranceRows.filter { $0.workflowRecordID == intent.recordID }
+        let assurance: RequirementAssuranceSnapshotV1?
+        if intent.finalizationPayload.packetBefore != nil {
+            let sourceRows = allAssuranceRows.filter { $0.workflowRecordID == sourceRecordID }
+            guard assuranceRows.isEmpty, sourceRows.count == 1 else {
+                throw FinalizationServiceError.preconditionFailed
+            }
+            assurance = try FinalizationCorrectionAssuranceV1.project(
+                sourceRows[0].snapshot(), sourceRecordID: sourceRecordID,
+                targetRecordID: intent.recordID, workspaceID: current.workspaceID)
+        } else {
+            guard assuranceRows.count <= 1 else { throw FinalizationServiceError.preconditionFailed }
+            assurance = try assuranceRows.first?.snapshot()
+        }
         let authority = FinalizationWriterAuthorityV1(
             workspaceID: current.workspaceID, generationID: generationID,
             payload: intent.finalizationPayload, payloadSHA256: intent.finalizationPayloadSHA256,
@@ -1178,7 +1190,7 @@ final class FinalizationService {
             sourceBinding: .init(sourceRecordID: sourceRecordID,
                 observationBasisV1Data: companion.observationBasisV1Data,
                 temporalContextV1Data: companion.temporalContextV1Data,
-                requirementAssurance: try assuranceRows.first?.snapshot(),
+                requirementAssurance: assurance,
                 inspectionRelease: inspectionRelease)
         )
         let record = intent.finalizationPayload.workflowRecordAfter

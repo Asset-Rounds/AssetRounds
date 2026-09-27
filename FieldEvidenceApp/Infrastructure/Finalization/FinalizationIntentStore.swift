@@ -53,6 +53,10 @@ enum FinalizationIntentStoreFailurePoint: Equatable, Sendable {
     case snapshotStagingWrite
     case snapshotPromotionMove
     case intentPhaseWrite(FinalizationPhaseV1)
+#if DEBUG
+    /// In-process crash-state simulation; distinct from an ordinary write error and its rollback.
+    case interruptedAfterVerifiedSnapshotPromotion
+#endif
 }
 
 final class FinalizationIntentStoreFailureInjection: @unchecked Sendable {
@@ -924,11 +928,12 @@ actor FinalizationIntentStore {
 #if DEBUG
         var preparationPhase = "snapshot-staging-write"
 #endif
+        var createdSnapshotIdentity: PinnedAuthority.Identity?
         do {
             guard failureInjection?.consume(.snapshotStagingWrite) != true else {
                 throw FinalizationIntentStoreError.fileOperationFailed
             }
-            try createRegularFile(
+            createdSnapshotIdentity = try createRegularFile(
                 snapshot.data,
                 components: paths.stagingComponents,
                 authority: authority
@@ -958,14 +963,20 @@ actor FinalizationIntentStore {
 #endif
             var cleanupFailed = false
             do {
-                try removeOwnedFileIfMatching(
-                    components: paths.stagingComponents,
-                    expectedByteCount: snapshot.data.count,
-                    expectedSHA256: snapshot.sha256,
-                    authority: authority,
-                    requireCurrentAuthority: false
-                )
+                if let createdSnapshotIdentity {
+                    try removePreparedSnapshotIfMatching(
+                        components: paths.stagingComponents,
+                        createdIdentity: createdSnapshotIdentity,
+                        expectedData: snapshot.data,
+                        authority: authority
+                    )
+                }
             } catch {
+#if DEBUG
+                finalizationJournalDiagnosticFailureV1(
+                    component: "intent-store", phase: "prepare-owned-snapshot-cleanup", error: error
+                )
+#endif
                 cleanupFailed = true
             }
             do {
@@ -1013,6 +1024,15 @@ actor FinalizationIntentStore {
             throw FinalizationIntentStoreError.itemAlreadyExists
         }
         try authority.ensureGenerationDirectory(components: ["snapshots"])
+
+        // Capture the validated journal before any promotion barrier can replace it.
+        // Rollback authority is this exact inode and canonical bytes under the pinned parent.
+        let promotionIntent = try authority.readRegularFile(
+            parent: authority.finalizationDescriptor, name: paths.intentName
+        )
+        guard promotionIntent.data == (try encodedIntent(prepared.intent).data) else {
+            throw FinalizationIntentStoreError.notOwned
+        }
 
         if failureInjection?.consume(.snapshotPromotionMove) == true {
             try removeOwnedFileIfMatching(
@@ -1069,12 +1089,16 @@ actor FinalizationIntentStore {
                 cleanupFailed = true
             }
             do {
-                try removeIntentIfMatching(
-                    prepared.intent,
-                    name: paths.intentName,
-                    authority: authority,
-                    requireCurrentAuthority: false
-                )
+                if try authority.itemInfo(parent: authority.finalizationDescriptor,
+                                          name: paths.intentName) != nil {
+                    try authority.quarantineAndRemove(
+                        parent: authority.finalizationDescriptor,
+                        name: paths.intentName,
+                        expectedIdentity: promotionIntent.identity,
+                        expectedData: promotionIntent.data,
+                        verifyCurrentAuthority: false
+                    )
+                }
             } catch {
                 cleanupFailed = true
             }
@@ -1120,6 +1144,15 @@ actor FinalizationIntentStore {
         guard phase == expectedPhase else {
             throw FinalizationIntentStoreError.phaseInvalid
         }
+#if DEBUG
+        if phase == .snapshotPromoted,
+           failureInjection?.consume(.interruptedAfterVerifiedSnapshotPromotion) == true {
+            // Handle/root/phase validation above has completed. Retain the real
+            // prepared intent and promoted file at this explicit durable boundary.
+            print("FinalizationIntentStore.DEBUG interruption=after-verified-snapshot-promotion")
+            throw FinalizationIntentStoreError.fileOperationFailed
+        }
+#endif
         let advanced = promoted.intent.withPhase(phase)
         if phase == .snapshotPromoted,
            failureInjection?.consume(.intentPhaseWrite(phase)) == true {
@@ -1579,14 +1612,34 @@ actor FinalizationIntentStore {
         }
     }
 
+    /// Roll back only this prepare call's newly created inode. The descriptor
+    /// remains pinned if the generation path is replaced; pathname policy
+    /// checks belong to forward publication, not proof of this leaf's ownership.
+    private func removePreparedSnapshotIfMatching(
+        components: [String],
+        createdIdentity: PinnedAuthority.Identity,
+        expectedData: Data,
+        authority: PinnedAuthority
+    ) throws {
+        try authority.withGenerationParent(components: components) { parent, name in
+            guard try authority.itemInfo(parent: parent, name: name) != nil else { return }
+            try authority.quarantineAndRemove(
+                parent: parent, name: name,
+                expectedIdentity: createdIdentity, expectedData: expectedData,
+                verifyCurrentAuthority: false
+            )
+        }
+    }
+
+    @discardableResult
     private func createRegularFile(
         _ data: Data,
         components: [String],
         authority: PinnedAuthority
-    ) throws {
+    ) throws -> PinnedAuthority.Identity {
         try authority.withGenerationParent(components: components) { parent, name in
             try beforeLeafMutation(authority)
-            try authority.createRegularFile(
+            let createdIdentity = try authority.createRegularFile(
                 data,
                 parent: parent,
                 name: name,
@@ -1594,6 +1647,7 @@ actor FinalizationIntentStore {
                 policyURL: try authority.generationFileURL(components: components)
             )
             authorityBarrier?.reach(.afterLeafMutation)
+            return createdIdentity
         }
     }
 

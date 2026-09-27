@@ -786,7 +786,7 @@ SIMULATOR_DIAGNOSTIC_OWNER_POLICY_SHA256 = "FDCAF78EEAEDDFC9A2661CB283A16810B88F
 SIMULATOR_DIAGNOSTIC_POLICY_SHA256 = "4CE71CA43D961CF8A1318DA882BBA8989179700AB5202E5CE191185CFC0E44E0"
 SIMULATOR_DIAGNOSTIC_POLICY_ID = "V23-SIMULATOR-FILE-PROTECTION-DIAGNOSTIC-20260915"
 SIMULATOR_DIAGNOSTIC_SOURCE_PATH = "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift"
-SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "831C0FB85219183E7CA694F4F260BBB4765FFD929EBCCAE814CE7CC3D231C5B7"
+SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "4B102F6297E2AF1D02B926E79FEBDDB0362154EBD594FBD56BD929408B135D71"
 # The original owner-approved allowance source remains admissible for historical replays;
 # the current source adds only development timing aggregates (2026-09-24).
 # 2026-09-25: the Simulator strict pre-check no longer throws, catches and logs the expected
@@ -794,9 +794,12 @@ SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "831C0FB85219183E7CA694F4F260BBB4765FFD929E
 # 2026-09-25 (owner decision 15): repeats of a kind are journaled as per-kind summaries after
 # its exact first event; the fallback predicate and every verification are unchanged. The pin
 # is SHA-256 over the committed ProtectedFilePolicy.swift bytes; D18D48D5... joins the history.
+# 2026-09-27: reviewed FIFO-race defense adds O_NONBLOCK and a DEBUG boundary witness.
+# The exact fallback predicate is unchanged; retain the prior committed source for replays.
 SIMULATOR_DIAGNOSTIC_HISTORICAL_SOURCE_SHA256S = ("FCFF658FCE118760EAC50B13A3941470EA86ED6FB40E78D17E6A573A10DFA5DB",
                                                  "A8B18FFF49DE387183EA9B8B2377669BF1EE9E73A6DB11992178503070EDE139",
-                                                 "D18D48D5DB47DD61AD7D979414BD62A1A6798639EDA00B537DB5D6F1D517700E")
+                                                 "D18D48D5DB47DD61AD7D979414BD62A1A6798639EDA00B537DB5D6F1D517700E",
+                                                 "831C0FB85219183E7CA694F4F260BBB4765FFD929EBCCAE814CE7CC3D231C5B7")
 SIMULATOR_DIAGNOSTIC_PREFIX = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V2"
 # Owner decision 15 (2026-09-25): after the first exact event of a kind in a process, later
 # identical events of that kind are journaled as bounded per-kind summaries carrying a count.

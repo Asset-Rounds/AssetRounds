@@ -5699,6 +5699,121 @@ extension S6_2BackupExportTests {
     }
 
     @MainActor
+    func testPhotoHistorySeparatesWideAdoptionFromCurrentCloseFrontier() async throws {
+        let harness = try await makeMixedHarness("photo-history-adoption", sharedRaw: true)
+        // Use the same genuine producer sequence as the restore journey: raw
+        // staging, normalized pair, target commit and parent adoption for both.
+        try await appendCompositionPhotoParents(harness, seeds: [(31, 71)])
+        let basis = try canonicalBasis(harness)
+        let records = try BackupCanonicalDecoderV1().decodeRecords(basis.recordsData)
+        let source = V4BackupSourceV1(appBuild: "test", appVersion: "test",
+            persistentSchemaVersion: basis.persistentSchemaVersion,
+            replicaID: harness.session.replicaID.rawValue, recordsSchemaVersion: records.recordsSchemaVersion,
+            sourceGenerationID: harness.session.generationID, workspaceID: harness.session.workspaceID.rawValue)
+        let history = try CheckRunnerPhotoBackupHistoryV1.project(source: source, records: records)
+        XCTAssertEqual(history.children.count, 2)
+        let wide = try XCTUnwrap(history.children.first { $0.payload.captureStep == .wide })
+        let close = try XCTUnwrap(history.children.first { $0.payload.captureStep == .close })
+        guard case let .continuation(wideContinuation) = wide.phaseEvidence,
+              case let .continuation(closeContinuation) = close.phaseEvidence else {
+            return XCTFail("Both actual terminal children need authenticated continuation evidence")
+        }
+        let adoption = wideContinuation.parentCheckpoint
+        let adoptionPayload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(adoption)
+        let currentPayload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(wide.parentCheckpoint)
+        let wideLink = try XCTUnwrap(wide.parentLink)
+        let closeLink = try XCTUnwrap(close.parentLink)
+        XCTAssertEqual(wide.currentCheckpoint.state, .committed)
+        XCTAssertEqual(close.currentCheckpoint.state, .committed)
+        XCTAssertNotNil(wideContinuation.terminal)
+        XCTAssertNotNil(closeContinuation.terminal)
+        XCTAssertNil(adoptionPayload.field.closeDetail)
+        XCTAssertEqual(adoptionPayload.field.wideContext, wideLink.slot)
+        XCTAssertLessThan(adoption.draftRevision, wide.parentCheckpoint.draftRevision)
+        XCTAssertEqual(currentPayload.field.wideContext, wideLink.slot)
+        XCTAssertEqual(currentPayload.field.closeDetail, closeLink.slot)
+        XCTAssertEqual(wideLink.checkpoint, wide.parentCheckpoint)
+        XCTAssertEqual(closeLink.checkpoint, wide.parentCheckpoint)
+        XCTAssertEqual(closeContinuation.parentCheckpoint, wide.parentCheckpoint)
+        XCTAssertEqual(close.parentCheckpoint, wide.parentCheckpoint)
+        let wideTarget = try XCTUnwrap(wide.currentTarget)
+        let closeTarget = try XCTUnwrap(close.target)
+        XCTAssertEqual(wideTarget.laterPhotos, [closeTarget])
+        XCTAssertEqual(wideTarget.parent, wideLink)
+        XCTAssertEqual(wideTarget.workflowPostImage,
+            try XCTUnwrap(close.currentTarget).workflowPostImage)
+
+        let parentOriginals = try history.requiredHistory.compactMap { original -> FieldDraftCommittedEvidenceV1? in
+            guard case let .applyFieldDraft(mutation) = original.envelope.command else { return nil }
+            let checkpoint: FieldDraftCheckpointV1
+            switch mutation.postImage {
+            case let .createCheckpoint(value), let .reviseCheckpoint(value): checkpoint = value
+            default: return nil
+            }
+            guard checkpoint.draftID == wide.parentCheckpoint.draftID else { return nil }
+            return try FieldDraftCommittedEvidenceV1(envelope: original.envelope, receipt: original.receipt)
+        }
+        let adoptionOriginal = try XCTUnwrap(parentOriginals.first {
+            $0.mutation.mutationID == adoption.mutationID
+        })
+        guard case let .reviseCheckpoint(originalAdoption) = adoptionOriginal.mutation.postImage else {
+            return XCTFail("The historical adoption must be an actual retained parent revision")
+        }
+        XCTAssertEqual(originalAdoption, adoption)
+        XCTAssertTrue(parentOriginals.contains { $0.mutation.mutationID == wide.parentCheckpoint.mutationID })
+        // Keep the strict continuation boundary: a later parent cannot be used
+        // as the historical wide parent merely because its wide slot matches.
+        let targetRecords = try XCTUnwrap(wide.targetRecords)
+        let childOriginals = try wide.originals.map {
+            try FieldDraftCommittedEvidenceV1(envelope: $0.envelope, receipt: $0.receipt)
+        }
+        XCTAssertThrowsError(try CheckRunnerPhotoContinuationEvidenceV1(
+            parentHistory: parentOriginals, parentCheckpoint: wide.parentCheckpoint,
+            workflow: wideContinuation.workflow, timeZone: wideContinuation.timeZone,
+            history: childOriginals, checkpoint: wide.currentCheckpoint,
+            stages: [try XCTUnwrap(wide.currentStage)], sagas: wide.sagas,
+            reservations: wide.reservations, receipts: wide.commitReceipts,
+            precedingWide: nil, target: wide.target,
+            currentWorkflowPostImage: targetRecords.originalWorkflowPostImage,
+            currentEvidencePostImage: targetRecords.originalEvidencePostImage)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
+
+        let originalHistory = try XCTUnwrap(records.mutationHistory)
+        XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(originalHistory))
+        // The historical adoption and the current parent are both mandatory.
+        // Selecting a prefix must never hide a gap or discard the current join.
+        for requiredID in [adoption.mutationID, wide.parentCheckpoint.mutationID] {
+            let missing = MutationHistorySnapshotV1(workspaceRevision: originalHistory.workspaceRevision,
+                lastLocalSequence: originalHistory.lastLocalSequence,
+                receipts: try originalHistory.receipts.filter {
+                    try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData).mutationID != requiredID
+                }, quarantines: originalHistory.quarantines, entityRevisions: originalHistory.entityRevisions)
+            XCTAssertEqual(missing.receipts.count, originalHistory.receipts.count - 1)
+            let missingRecords = try beginClosureRecords(records, replacing: missing)
+            XCTAssertThrowsError(try CheckRunnerPhotoBackupHistoryV1.project(source: source, records: missingRecords)) {
+                XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+            }
+        }
+        let acceptedDigest = try adoptionOriginal.envelope.canonicalSHA256()
+        let zeroDigest = String(repeating: "0", count: 64)
+        let quarantine = MutationHistoryQuarantineRecordV1(workspaceID: adoption.workspaceID,
+            mutationID: adoption.mutationID.rawValue, identityDomain: .mutationEnvelope,
+            acceptedIdentitySHA256: acceptedDigest,
+            conflictingIdentitySHA256: acceptedDigest == zeroDigest ? String(repeating: "1", count: 64) : zeroDigest,
+            detectedAt: Date(timeIntervalSince1970: 1_800_000_100))
+        let quarantined = MutationHistorySnapshotV1(workspaceRevision: originalHistory.workspaceRevision,
+            lastLocalSequence: originalHistory.lastLocalSequence, receipts: originalHistory.receipts,
+            quarantines: originalHistory.quarantines + [quarantine], entityRevisions: originalHistory.entityRevisions)
+        XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(quarantined))
+        let quarantinedRecords = try beginClosureRecords(records, replacing: quarantined)
+        XCTAssertThrowsError(try CheckRunnerPhotoBackupHistoryV1.project(source: source, records: quarantinedRecords)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
+        XCTAssertEqual(try canonicalBasis(harness), basis)
+    }
+
+    @MainActor
     func testPhotoHistoryAcceptsRealBeginOnlyExportWithZeroPhotoChildren() async throws {
         var diagnosticStage = "fixture"
         do {

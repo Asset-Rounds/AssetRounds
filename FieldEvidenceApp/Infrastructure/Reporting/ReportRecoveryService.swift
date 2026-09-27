@@ -1,6 +1,7 @@
 import CryptoKit
 import Darwin
 import Foundation
+import PDFKit
 import SwiftData
 import SwiftUI
 
@@ -934,6 +935,133 @@ final class ReportRecoveryService: ObservableObject {
 
 @MainActor
 extension ReportRecoveryService {
+    /// A read-only predecessor proof owned by original-source recovery. It
+    /// grants no current-store delivery capability and never settles attempts.
+    static func validatedOriginalReadyReport(
+        authority: StoreMigrationSourceRecoveryAuthorityV1,
+        reportID: UUID,
+        expectedRootIdentity: ReportPDFAnchoredFile.RootIdentity
+    ) throws -> ValidatedReportSnapshotV1 {
+        switch authority.sourceRelease {
+        case .v2, .v3, .v4: throw ReportRecoveryServiceError.invalidAuthority
+        default: break
+        }
+        let context = try authority.recoveryContext()
+        let mutationGuard = try authority.recoveryMutationGuard()
+        let root = authority.generationRootURL
+        func reprove() throws {
+            try mutationGuard.validateCurrent()
+            guard !context.hasChanges,
+                  try ReportPDFAnchoredFile.rootIdentity(at: root) == expectedRootIdentity else {
+                throw ReportRecoveryServiceError.invalidAuthority
+            }
+        }
+        try reprove()
+        var descriptor = FetchDescriptor<Report>(predicate: #Predicate { $0.id == reportID })
+        descriptor.fetchLimit = 2
+        let reports = try context.fetch(descriptor)
+        let name = reportID.uuidString.lowercased() + ".pdf"
+        guard reports.count == 1, let report = reports.first,
+              report.pdfState == ReportPDFState.ready.rawValue,
+              report.pdfRelativePath == "pdfs/" + name,
+              let digest = report.pdfSHA256, isLowercaseSHA256(digest) else {
+            throw ReportRecoveryServiceError.invalidAuthority
+        }
+        let validated = try SnapshotValidatorV1(sourceRecoveryAuthority: authority)
+            .validateOriginalSource(report: report)
+        func provePDFNamespace() throws {
+            guard try !originalPDFNames(root: root, relativeDirectory: ".staging/pdfs",
+                                        rootIdentity: expectedRootIdentity).contains(name),
+                  try originalPDFNames(root: root, relativeDirectory: "pdfs",
+                                       rootIdentity: expectedRootIdentity).contains(name) else {
+                throw ReportRecoveryServiceError.invalidAuthority
+            }
+        }
+        try reprove()
+        try provePDFNamespace()
+        try withOriginalReadyPDF(name: name, root: root, rootIdentity: expectedRootIdentity) { bytes in
+            guard !bytes.isEmpty, sha256(bytes) == digest,
+                  let document = PDFDocument(data: bytes), document.pageCount > 0 else {
+                throw ReportRecoveryServiceError.invalidAuthority
+            }
+            try provePDFNamespace()
+            try reprove()
+        }
+        return validated
+    }
+
+    /// The ready PDF may be replaced after namespace preflight. Open it
+    /// nonblocking, then prove regular-file identity before any byte read.
+    /// Hold every directory descriptor and reprove the complete ancestry.
+    private static func withOriginalReadyPDF(
+        name: String, root: URL, rootIdentity: ReportPDFAnchoredFile.RootIdentity,
+        validate: (Data) throws -> Void
+    ) throws {
+        guard name.count == 40, name.hasSuffix(".pdf"),
+              let id = UUID(uuidString: String(name.dropLast(4))),
+              name == id.uuidString.lowercased() + ".pdf" else {
+            throw ReportRecoveryServiceError.invalidAuthority
+        }
+        let rootFD = Darwin.open(root.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard rootFD >= 0 else { throw ReportRecoveryServiceError.invalidAuthority }
+        defer { Darwin.close(rootFD) }
+        let parentFD = Darwin.openat(rootFD, "pdfs", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard parentFD >= 0 else { throw ReportRecoveryServiceError.invalidAuthority }
+        defer { Darwin.close(parentFD) }
+        let pdfFD = Darwin.openat(parentFD, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        guard pdfFD >= 0 else { throw ReportRecoveryServiceError.invalidAuthority }
+        defer { Darwin.close(pdfFD) }
+        var original = stat()
+        guard Darwin.fstat(pdfFD, &original) == 0,
+              (original.st_mode & S_IFMT) == S_IFREG, original.st_nlink == 1,
+              original.st_size > 0, original.st_size <= 128 * 1_024 * 1_024 else {
+            throw ReportRecoveryServiceError.invalidAuthority
+        }
+        func reprove() throws {
+            var heldRoot = stat(), namedRoot = stat(), heldParent = stat(), namedParent = stat()
+            var heldFile = stat(), namedFile = stat()
+            guard Darwin.fstat(rootFD, &heldRoot) == 0, Darwin.lstat(root.path, &namedRoot) == 0,
+                  (heldRoot.st_mode & S_IFMT) == S_IFDIR, (namedRoot.st_mode & S_IFMT) == S_IFDIR,
+                  heldRoot.st_dev == rootIdentity.device, heldRoot.st_ino == rootIdentity.inode,
+                  namedRoot.st_dev == heldRoot.st_dev, namedRoot.st_ino == heldRoot.st_ino,
+                  Darwin.fstat(parentFD, &heldParent) == 0,
+                  Darwin.fstatat(rootFD, "pdfs", &namedParent, AT_SYMLINK_NOFOLLOW) == 0,
+                  (heldParent.st_mode & S_IFMT) == S_IFDIR, (namedParent.st_mode & S_IFMT) == S_IFDIR,
+                  heldParent.st_dev == heldRoot.st_dev,
+                  heldParent.st_dev == namedParent.st_dev, heldParent.st_ino == namedParent.st_ino,
+                  Darwin.fstat(pdfFD, &heldFile) == 0,
+                  Darwin.fstatat(parentFD, name, &namedFile, AT_SYMLINK_NOFOLLOW) == 0,
+                  (heldFile.st_mode & S_IFMT) == S_IFREG, (namedFile.st_mode & S_IFMT) == S_IFREG,
+                  heldFile.st_nlink == 1, namedFile.st_nlink == 1,
+                  heldFile.st_dev == heldParent.st_dev,
+                  heldFile.st_dev == original.st_dev, heldFile.st_ino == original.st_ino,
+                  namedFile.st_dev == original.st_dev, namedFile.st_ino == original.st_ino,
+                  heldFile.st_size == original.st_size, namedFile.st_size == original.st_size,
+                  heldFile.st_mtimespec.tv_sec == original.st_mtimespec.tv_sec,
+                  heldFile.st_mtimespec.tv_nsec == original.st_mtimespec.tv_nsec,
+                  heldFile.st_ctimespec.tv_sec == original.st_ctimespec.tv_sec,
+                  heldFile.st_ctimespec.tv_nsec == original.st_ctimespec.tv_nsec,
+                  try ReportPDFAnchoredFile.rootIdentity(at: root) == rootIdentity else {
+                throw ReportRecoveryServiceError.invalidAuthority
+            }
+        }
+        try reprove()
+        try ProtectedFilePolicyV1.verify(.reportPDF, at: root.appendingPathComponent("pdfs/" + name))
+        try reprove()
+        // Bound every read by the originally proved size; a growing file
+        // cannot turn this recovery proof into an unbounded allocation.
+        var bytes = Data()
+        let handle = FileHandle(fileDescriptor: pdfFD, closeOnDealloc: false)
+        while bytes.count < Int(original.st_size) {
+            let chunk = try handle.read(upToCount: min(64 * 1_024, Int(original.st_size) - bytes.count)) ?? Data()
+            guard !chunk.isEmpty else { throw ReportRecoveryServiceError.invalidAuthority }
+            bytes.append(chunk)
+        }
+        try reprove()
+        try validate(bytes)
+        try reprove()
+    }
+
     /// Reuses the ordinary recovery edge/coverage validator without constructing
     /// a renderer or changing the live packet pointer for archived reports.
     static func validateOriginalReplacementChains(

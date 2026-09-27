@@ -792,17 +792,33 @@ enum ProtectedFilePolicyV1 {
         return result
     }
 
+    #if DEBUG
+    /// Parameter-scoped hostile witness at the actual lstat/open boundary.
+    /// Normal callers and Release builds cannot supply this test callback.
+    @discardableResult
+    static func verify(
+        _ kind: OwnedFileKindV1,
+        at url: URL,
+        afterPinInspectionForTesting: () throws -> Void
+    ) throws -> ProtectedFileVerificationDispositionV1 {
+        let result = try verifyResult(kind, at: url, afterPinInspection: afterPinInspectionForTesting)
+        try emitVerificationDisposition(result, kind: kind)
+        return result
+    }
+    #endif
+
     private static func verifyResult(
         _ kind: OwnedFileKindV1,
-        at url: URL
+        at url: URL,
+        afterPinInspection: () throws -> Void = {}
     ) throws -> ProtectedFileVerificationDispositionV1 {
         let disposition = disposition(for: kind)
         #if DEBUG && os(iOS) && targetEnvironment(simulator)
-        let before = try pin(kind, at: url, disposition: disposition)
+        let before = try pin(kind, at: url, disposition: disposition, afterInspection: afterPinInspection)
         return try verifySimulatorResourceValues(kind, at: url, disposition: disposition,
             identity: before, successfulRequestReadback: nil)
         #else
-        _ = try pin(kind, at: url, disposition: disposition)
+        _ = try pin(kind, at: url, disposition: disposition, afterInspection: afterPinInspection)
         try verifyResourceValues(at: url, disposition: disposition)
         return .verifiedComplete
         #endif
@@ -869,7 +885,8 @@ enum ProtectedFilePolicyV1 {
     private static func pin(
         _ kind: OwnedFileKindV1,
         at url: URL,
-        disposition: OwnedFileProtectionDispositionV1
+        disposition: OwnedFileProtectionDispositionV1,
+        afterInspection: () throws -> Void = {}
     ) throws -> LeafIdentity {
         guard url.isFileURL else {
             throw ProtectedFilePolicyError.invalidURL
@@ -893,9 +910,14 @@ enum ProtectedFilePolicyV1 {
             throw ProtectedFilePolicyError.hardLink
         }
 
+        try afterInspection()
+        // A regular file can be replaced by a FIFO after lstat. Opening
+        // nonblocking lets the unchanged fstat/type/identity checks reject it.
+        // O_NONBLOCK does not change regular-file reads; directories retain
+        // their existing open flags and every resource-policy check remains.
         let flags = disposition.expectsDirectory
             ? O_RDONLY | O_DIRECTORY | O_NOFOLLOW
-            : O_RDONLY | O_NOFOLLOW
+            : O_RDONLY | O_NOFOLLOW | O_NONBLOCK
         let descriptor = Darwin.open(url.path, flags)
         guard descriptor >= 0 else {
             if errno == ENOENT { throw ProtectedFilePolicyError.missing }
