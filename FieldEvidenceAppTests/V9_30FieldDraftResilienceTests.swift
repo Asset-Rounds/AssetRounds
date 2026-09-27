@@ -2260,10 +2260,14 @@ extension V9_30FieldDraftResilienceTests {
 extension V9_30FieldDraftResilienceTests {
     func testV23ReviewedConflictTargetBasisRetainsOnlyExactTargetOrAbsenceLock() throws {
         let workspace = WorkspaceID(rawValue: UUID())
+        // This target-lock fixture requires an admitted exact identifier, not
+        // a timezone alias whose setup failure hides the lock assertions.
+        XCTAssertEqual(TimeZone(identifier: V23ReviewedConflictDomainFixture.timeZoneIdentifier)?.identifier,
+            V23ReviewedConflictDomainFixture.timeZoneIdentifier, "FP1_MYDAY_FIXTURE_V1 exact zone roundtrip")
         let key = try MyDayKeyV1(
             workspaceID: workspace,
             civilDate: .init(year: 2026, month: 9, day: 12),
-            ianaTimeZoneIdentifier: "UTC"
+            ianaTimeZoneIdentifier: V23ReviewedConflictDomainFixture.timeZoneIdentifier
         )
         let identity = try WorkspaceEntityIdentityV1(kind: .myDayPlan, id: UUID())
         let digest = String(repeating: "a", count: 64)
@@ -2343,7 +2347,7 @@ extension V9_30FieldDraftResilienceTests {
             successorCheckpoint: fixture.absentSuccessor
         ))
         let foreignKey = try MyDayKeyV1(workspaceID: fixture.key.workspaceID,
-            civilDate: .init(year: 2026, month: 9, day: 13), ianaTimeZoneIdentifier: "UTC")
+            civilDate: .init(year: 2026, month: 9, day: 13), ianaTimeZoneIdentifier: V23ReviewedConflictDomainFixture.timeZoneIdentifier)
         XCTAssertThrowsError(try ReviewedDraftConflictResolutionV1(
             plan: .reviewAndRebase, expectedCheckpoint: fixture.expected,
             reviewedTargetBasis: .absent(key: foreignKey, expectedWorkspaceRevision: 0),
@@ -2400,14 +2404,17 @@ private struct V23LegacyReviewedConflictResolutionBytes: Codable {
 }
 
 private struct V23ReviewedConflictDomainFixture {
+    static let timeZoneIdentifier = "America/New_York"
     let workspace: WorkspaceID; let key: MyDayKeyV1; let now: Date; let target: MyDayPlanV1
     let targetIdentity: WorkspaceEntityIdentityV1; let expected: FieldDraftCheckpointV1
     let existingPayload: MyDayPlanningDraftPayloadV1; let existingSuccessor: FieldDraftCheckpointV1
     let absentSuccessor: FieldDraftCheckpointV1
 
     static func make() throws -> Self {
+        XCTAssertEqual(TimeZone(identifier: timeZoneIdentifier)?.identifier, timeZoneIdentifier,
+            "FP1_MYDAY_FIXTURE_V1 exact zone roundtrip before canonical fixture")
         let workspace = WorkspaceID(rawValue: UUID()), now = Date(timeIntervalSince1970: 1_789_084_800)
-        let key = try MyDayKeyV1(workspaceID: workspace, civilDate: .init(year: 2026, month: 9, day: 12), ianaTimeZoneIdentifier: "UTC")
+        let key = try MyDayKeyV1(workspaceID: workspace, civilDate: .init(year: 2026, month: 9, day: 12), ianaTimeZoneIdentifier: V23ReviewedConflictDomainFixture.timeZoneIdentifier)
         let actor = try LocalActorReferenceV1(actorReferenceID: UUID(), workspaceID: workspace, displayName: "Reviewer")
         let snapshot = try ActorSnapshotV1(snapshotID: UUID(), workspaceID: workspace, actor: actor, responsibility: .recordedBy, displayNameAtTime: "Reviewer", capturedAt: now)
         let target = try MyDayPlanV1(planID: UUID(), key: key, items: [], revision: 1, mutationID: .init(rawValue: UUID()), authoredBy: snapshot, authoredAt: now)
@@ -2420,7 +2427,7 @@ private struct V23ReviewedConflictDomainFixture {
 
     func successor(payload: MyDayPlanningDraftPayloadV1) throws -> FieldDraftCheckpointV1 { try checkpoint(payload: payload, base: target.revision, revision: 2, state: .active, mutation: UUID(), at: now.addingTimeInterval(1)) }
     func planPayload(predecessor: MyDayPlanV1?) throws -> MyDayPlanningDraftPayloadV1 { let context = try XCTUnwrap(existingPayload.confirmedContext); return try .init(editing: context, intent: .plan(draft: .init(key: key, items: [], eligibleReferences: []), predecessor: predecessor)) }
-    func carryoverPayload(targetPredecessor: MyDayPlanReferenceV1?) throws -> MyDayPlanningDraftPayloadV1 { let context = try XCTUnwrap(existingPayload.confirmedContext); let sourceKey = try MyDayKeyV1(workspaceID: workspace, civilDate: .init(year: 2026, month: 9, day: 11), ianaTimeZoneIdentifier: "UTC"); let source = try MyDayPlanV1(planID: UUID(), key: sourceKey, items: [], revision: 1, mutationID: .init(rawValue: UUID()), authoredBy: target.authoredBy, authoredAt: now); return try .init(editing: context, intent: .carryover(sourcePlan: .init(source), selectedMembershipIDs: [UUID()], targetKey: key, targetPredecessor: targetPredecessor)) }
+    func carryoverPayload(targetPredecessor: MyDayPlanReferenceV1?) throws -> MyDayPlanningDraftPayloadV1 { let context = try XCTUnwrap(existingPayload.confirmedContext); let sourceKey = try MyDayKeyV1(workspaceID: workspace, civilDate: .init(year: 2026, month: 9, day: 11), ianaTimeZoneIdentifier: V23ReviewedConflictDomainFixture.timeZoneIdentifier); let source = try MyDayPlanV1(planID: UUID(), key: sourceKey, items: [], revision: 1, mutationID: .init(rawValue: UUID()), authoredBy: target.authoredBy, authoredAt: now); return try .init(editing: context, intent: .carryover(sourcePlan: .init(source), selectedMembershipIDs: [UUID()], targetKey: key, targetPredecessor: targetPredecessor)) }
     func sameKeyRevisionSubstitutions() throws -> [MyDayPlanV1] { [try .init(planID: UUID(), key: key, items: [], revision: 1, mutationID: .init(rawValue: UUID()), authoredBy: target.authoredBy, authoredAt: now), try .init(planID: target.planID, key: key, items: [], revision: 1, mutationID: .init(rawValue: UUID()), authoredBy: target.authoredBy, authoredAt: now)] }
     func preparedConflict() throws -> (expected: FieldDraftCheckpointV1, successor: FieldDraftCheckpointV1) {
         let commandSuccessor = try MyDayPlanV1(planID: target.planID, key: key, items: [], predecessor: target, revision: 2, mutationID: .init(rawValue: UUID()), authoredBy: target.authoredBy, authoredAt: now.addingTimeInterval(1))

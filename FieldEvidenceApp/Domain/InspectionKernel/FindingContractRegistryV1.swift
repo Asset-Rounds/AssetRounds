@@ -166,7 +166,14 @@ struct FindingLifecycleCanonicalEvidenceV1: Codable, Equatable, Sendable {
         try requireUnique(verifiedRechecks.map(\.mutationID))
         try requireUnique(releasesToService.map(\.releaseID))
         try requireUnique(releasesToService.map(\.mutationID))
-        try lifecycle.validateVerifiedResolutionLineage(verifiedRechecks)
+        do {
+            try lifecycle.validateVerifiedResolutionLineage(verifiedRechecks)
+        } catch FindingContractFailureV1.recheckRequired {
+            // At the aggregate boundary, a verified-resolution transition
+            // without its eligible canonical recheck is incomplete evidence.
+            // Direct lifecycle/transition callers retain recheckRequired.
+            throw FindingContractFailureV1.canonicalEvidenceIncomplete
+        }
 
         let correctiveGroups = Dictionary(grouping: correctiveWorkLinks) {
             "\($0.findingID)|\($0.workID)"

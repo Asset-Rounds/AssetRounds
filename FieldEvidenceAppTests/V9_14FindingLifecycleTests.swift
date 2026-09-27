@@ -135,6 +135,20 @@ final class V9_14FindingLifecycleTests: XCTestCase {
             )
         }
         let canonical = try canonicalEvidenceFixture()
+        XCTAssertNoThrow(try canonical.validate())
+        assertFailure(.recheckRequired) {
+            try canonical.lifecycle.validateVerifiedResolutionLineage([])
+        }
+        assertFailure(.canonicalEvidenceIncomplete) {
+            _ = try FindingLifecycleCanonicalEvidenceV1(
+                finding: canonical.finding, lifecycle: canonical.lifecycle,
+                correctiveWorkLinks: canonical.correctiveWorkLinks, verifiedRechecks: [],
+                releasesToService: canonical.releasesToService,
+                operationalDispositionEvents: canonical.operationalDispositionEvents,
+                relatedWorkSuggestions: canonical.relatedWorkSuggestions,
+                workRelationships: canonical.workRelationships,
+                workRelationshipDecisions: canonical.workRelationshipDecisions)
+        }
         assertFailure(.canonicalEvidenceIncomplete) {
             _ = try FindingLifecycleCanonicalEvidenceCodecV1.decode(try mutatedCanonicalBytes(canonical) { root in
                 var lifecycle = root["lifecycle"] as! [String: Any]

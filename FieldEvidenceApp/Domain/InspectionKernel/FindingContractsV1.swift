@@ -65,6 +65,8 @@ enum FindingContractLimitsV1 {
 }
 
 enum FindingContractValidationV1 {
+    private static let instantParsers = FindingInstantParsersV1()
+
     static func validID(_ value: String) -> Bool {
         WorkflowGrammarValidationV1.validID(value)
     }
@@ -76,11 +78,7 @@ enum FindingContractValidationV1 {
 
     static func validInstant(_ value: String) -> Bool {
         guard value.utf8.count <= 32 else { return false }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if formatter.date(from: value) != nil { return true }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: value) != nil
+        return instantParsers.accepts(value)
     }
 
     static func validateIDs(_ values: [String], maximum: Int) throws {
@@ -90,6 +88,33 @@ enum FindingContractValidationV1 {
               values.allSatisfy(validID) else {
             throw FindingContractFailureV1.invalidValue
         }
+    }
+}
+
+// Only parser machinery is retained, never input strings or validation results.
+// Both formatters preserve ISO8601DateFormatter's default GMT zone and RFC3339
+// behavior. No locale/time-zone override or normalization is introduced.
+// The formatters never escape; every parse (including Foundation's internal
+// lazy state) is synchronized. No caller callback runs under this lock.
+private final class FindingInstantParsersV1: @unchecked Sendable {
+    private let lock = NSLock()
+    private let fractional: ISO8601DateFormatter
+    private let wholeSeconds: ISO8601DateFormatter
+
+    init() {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        self.fractional = fractional
+        let wholeSeconds = ISO8601DateFormatter()
+        wholeSeconds.formatOptions = [.withInternetDateTime]
+        self.wholeSeconds = wholeSeconds
+    }
+
+    func accepts(_ value: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        if fractional.date(from: value) != nil { return true }
+        return wholeSeconds.date(from: value) != nil
     }
 }
 

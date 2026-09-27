@@ -3757,7 +3757,7 @@
     {
       "id": "S29",
       "tier": "D50C",
-      "estimatedSeconds": 1140.0,
+      "estimatedSeconds": 1320.0,
       "selectors": [
         "FieldEvidenceAppTests/V23BackupSchemaAdmissionTests/testEveryEnrolledV4TupleRoundTripsAndValidatesActualPackage",
         "FieldEvidenceAppTests/V23BackupSchemaAdmissionTests/testHistoricalEmptyC52ShapePreservesPhysicalBytesAndRejectsOtherShapes",
@@ -3774,6 +3774,9 @@
         "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests/testRecoveryRetiredSourcesPreserveHistoryAcrossPreparedPointerLagAndPartialCleanup",
         "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests/testRetiredAdmissionRejectsCorruptOriginalStateAndUnknownMemberWithoutEffects",
         "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests/testRetiredSummaryReprovesExactPointerAfterFullInventoryAndPreservesDenial",
+        "FieldEvidenceAppTests/V23FindingInstantParserTests/testConcurrentMixedParsingPreservesSerialOriginalOutcomes",
+        "FieldEvidenceAppTests/V23FindingInstantParserTests/testContentReferenceAndDraftCanonicalBytesDigestsAndErrorsStayExact",
+        "FieldEvidenceAppTests/V23FindingInstantParserTests/testDifferentialSyntaxAndUTF8LimitPreserveOriginalParser",
         "FieldEvidenceAppTests/V23StartupMediaOwnershipReadTests/testGenuinePhotoPhasesUseFreshCompleteOwnershipAndRejectChangedHistory",
         "FieldEvidenceAppTests/V23StartupMediaOwnershipReadTests/testZeroPhotoReadRequiresExactContextFreshFenceAndPoisonsFailedProof",
         "FieldEvidenceAppTests/V23WorkPacketRestoreProjectionTests/testFiveKindPublicReplacementAndColdReadbackPreserveImmutableOriginals",
