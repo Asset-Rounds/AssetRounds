@@ -176,9 +176,8 @@ struct MaintenanceSalvageExportV1 {
         defer { closedir(stream) }
         var names: [String] = []
         while let entry = readdir(stream) {
-            var name = entry.pointee.d_name
-            let value = withUnsafeBytes(of: &name) { raw in
-                String(decoding: raw.prefix(Int(entry.pointee.d_namlen)), as: UTF8.self)
+            guard let value = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+                continue
             }
             if value != "." && value != ".." { names.append(value) }
         }

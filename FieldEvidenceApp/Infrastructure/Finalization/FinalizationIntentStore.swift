@@ -1766,10 +1766,8 @@ actor FinalizationIntentStore {
             var names: [String] = []
             errno = 0
             while let entry = Darwin.readdir(directory) {
-                var tuple = entry.pointee.d_name
-                let capacity = MemoryLayout.size(ofValue: tuple)
-                let name = withUnsafePointer(to: &tuple) { pointer in
-                    pointer.withMemoryRebound(to: CChar.self, capacity: capacity) { String(cString: $0) }
+                guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+                    throw FinalizationIntentStoreError.fileOperationFailed
                 }
                 if name != "." && name != ".." { names.append(name) }
                 errno = 0
@@ -2538,13 +2536,8 @@ actor FinalizationIntentStore {
             var result: [String] = []
             errno = 0
             while let entry = Darwin.readdir(directory) {
-                var tuple = entry.pointee.d_name
-                let capacity = MemoryLayout.size(ofValue: tuple)
-                let name = withUnsafePointer(to: &tuple) { pointer in
-                    pointer.withMemoryRebound(
-                        to: CChar.self,
-                        capacity: capacity
-                    ) { String(cString: $0) }
+                guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+                    throw FinalizationIntentStoreError.fileOperationFailed
                 }
                 if name != "." && name != ".." {
                     result.append(name)

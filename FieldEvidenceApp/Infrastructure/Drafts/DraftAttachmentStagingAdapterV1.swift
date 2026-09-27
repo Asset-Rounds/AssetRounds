@@ -95,11 +95,8 @@ fileprivate final class DraftStagingRootOwnerV1: @unchecked Sendable {
             var result = Set<String>()
             errno = 0
             while let entry = readdir(stream) {
-                let capacity = MemoryLayout.size(ofValue: entry.pointee.d_name)
-                let name = withUnsafePointer(to: &entry.pointee.d_name) {
-                    $0.withMemoryRebound(to: CChar.self, capacity: capacity) {
-                        String(cString: $0)
-                    }
+                guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+                    throw DraftAttachmentStagingFailureV1.unsafePath
                 }
                 if name != "." && name != ".." {
                     try DraftStagingRootOwnerV1.component(name)

@@ -2182,13 +2182,8 @@ final class StoreMigrationJournalStoreV1 {
         var values: [String] = []
         errno = 0
         while let entry = Darwin.readdir(directory) {
-            var tuple = entry.pointee.d_name
-            let capacity = MemoryLayout.size(ofValue: tuple)
-            let name = withUnsafePointer(to: &tuple) { pointer in
-                pointer.withMemoryRebound(
-                    to: CChar.self,
-                    capacity: capacity
-                ) { String(cString: $0) }
+            guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+                throw StoreMigrationFailure.invalidIdentity
             }
             if name != "." && name != ".." { values.append(name) }
             errno = 0
@@ -2599,7 +2594,7 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
     }
 
     fileprivate func requireNoMigrationReservationLocked() throws {
-        guard try migrationReservationLocked() == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        guard try migrationReservationLocked() == nil else { throw Self.uncertainOwnerFailure() }
     }
 
     func requireNoMigrationReservation() throws {
@@ -2619,9 +2614,9 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
                                       _ operation: () throws -> T) throws -> T {
         try withExclusiveGenerationMutationLock {
             guard expected.ownerID == ownerID, expected.reservationIsActive,
-                  try migrationReservationLocked() == expected else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+                  try migrationReservationLocked() == expected else { throw Self.uncertainOwnerFailure() }
             guard let control = try StoreAggregateMigrationControlV1(applicationSupportURL: applicationSupportURL) else {
-                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                throw Self.uncertainOwnerFailure()
             }
             try control.requireNoConflictingIntentAuthority()
             return try operation()
@@ -2635,27 +2630,27 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         try withExclusiveGenerationMutationLock {
             guard previousOwner != ownerID,
                   let expected = try migrationReservationLocked(), expected.ownerID == previousOwner else {
-                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                throw Self.uncertainOwnerFailure()
             }
             let name = Self.ownerLockName(previousOwner)
             let fd = Darwin.openat(ownersDescriptor, name, O_RDWR | O_NONBLOCK | O_NOFOLLOW)
-            guard fd >= 0 else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            guard fd >= 0 else { throw Self.uncertainOwnerFailure() }
             defer { _ = Darwin.close(fd) }
             let identity = try Self.regularFileIdentity(fd)
             try requireNamedIdentity(parent: ownersDescriptor, name: name, expected: identity)
-            guard flock(fd, LOCK_EX | LOCK_NB) == 0 else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            guard flock(fd, LOCK_EX | LOCK_NB) == 0 else { throw Self.uncertainOwnerFailure() }
             defer { _ = flock(fd, LOCK_UN) }
             try requireNamedIdentity(parent: ownersDescriptor, name: name, expected: identity)
             let result = try replaceReservation()
             guard let replacement = try migrationReservationLocked(), replacement.ownerID == ownerID else {
-                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                throw Self.uncertainOwnerFailure()
             }
             try replacement.validateReplacement(of: expected)
             try requireNamedIdentity(parent: ownersDescriptor, name: name, expected: identity)
             let state = try loadStateLocked()
             if !state.leases.contains(where: { $0.ownerID == previousOwner }) {
                 guard Darwin.unlinkat(ownersDescriptor, name, 0) == 0, Darwin.fsync(ownersDescriptor) == 0 else {
-                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                    throw Self.uncertainOwnerFailure()
                 }
             }
             return result
@@ -2689,14 +2684,14 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
                     O_RDWR | O_NOFOLLOW
                 )
                 guard descriptor >= 0 else {
-                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                    throw Self.uncertainOwnerFailure()
                 }
                 let identity: Identity
                 do {
                     identity = try Self.regularFileIdentity(descriptor)
                 } catch {
                     _ = Darwin.close(descriptor)
-                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                    throw Self.uncertainOwnerFailure()
                 }
                 if flock(descriptor, LOCK_EX | LOCK_NB) == 0 {
                     abandoned.insert(candidate)
@@ -2705,7 +2700,7 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
                     let failure = errno
                     _ = Darwin.close(descriptor)
                     guard failure == EWOULDBLOCK || failure == EAGAIN else {
-                        throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                        throw Self.uncertainOwnerFailure()
                     }
                 }
             }
@@ -2734,12 +2729,12 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
                     Self.ownerLockName(candidate),
                     0
                 ) == 0 else {
-                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                    throw Self.uncertainOwnerFailure()
                 }
                 _ = descriptor
             }
             guard Darwin.fsync(ownersDescriptor) == 0 else {
-                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                throw Self.uncertainOwnerFailure()
             }
             return state.leases.count - replacement.leases.count
         }
@@ -3731,6 +3726,15 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
             return .protectedDataUnavailable
         }
         return .invalidIdentity
+    }
+
+    private static func uncertainOwnerFailure(
+        operation: StaticString = #function,
+        line: UInt = #line
+    ) -> GenerationLeaseRegistryFailureV1 {
+        // No errno is inferred from a failed logical ownership predicate.
+        reportFailure(operation: operation, line: line, errorNumber: nil)
+        return .uncertainOwner
     }
 
     private static func identityFailure(

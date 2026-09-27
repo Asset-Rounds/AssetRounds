@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import SwiftData
 import XCTest
@@ -137,70 +138,186 @@ final class V9_06DeletionArchiveIntegrationTests: XCTestCase {
             EraseAllFailurePoint.beforePreparedWrite,
             EraseAllFailurePoint.afterPointerSwitch,
         ].enumerated() {
-            let harness = try V906Integration.makeHarness("i-erase-\(offset)", withAsset: true)
-            addTeardownBlock { [root = harness.root] in
-                try? FileManager.default.removeItem(at: root)
-            }
-            let context = harness.session.modelContext
-            let tombstone = try DeletionLedgerEntryV2(
-                identity: DeletionIdentityV2(kind: .asset, id: V906Integration.id(800 + offset)),
-                deletedAt: V906Integration.deletedAt
-            )
-            try DeletionLedgerStore(context: context).stageUnion([tombstone])
-            try V906Integration.adoptSeededDeletionBaseline(harness.session)
-            let oldGenerationID = harness.session.generationID
-            var coordinator: StoreSessionCoordinator? = StoreSessionCoordinator(session: harness.session)
-            let diagnostics = DiagnosticsStore(applicationSupportURL: harness.support)
-            await diagnostics.prepare()
-            let defaults = try XCTUnwrap(UserDefaults(suiteName: "V9_06-I01-\(UUID())"))
-            defer { defaults.removePersistentDomain(forName: "com.palatis3.fieldrecord") }
-            let service = EraseAllService(
-                applicationSupportURL: harness.support,
-                cachesDirectoryURL: harness.caches,
-                temporaryDirectoryURL: harness.temporary,
-                userDefaults: defaults,
-                bundleIdentifier: "com.palatis3.fieldrecord",
-                makeUUID: V906Integration.sequence([
-                    V906Integration.id(820 + offset * 10),
-                    V906Integration.id(821 + offset * 10),
-                    V906Integration.id(822 + offset * 10),
-                    V906Integration.id(823 + offset * 10),
-                ]),
-                failureInjection: EraseAllFailureInjection(failOnceAt: point)
-            )
-            do {
-                _ = try await service.erase(
-                    confirmation: "ERASE",
-                    coordinator: try XCTUnwrap(coordinator),
-                    diagnosticsStore: diagnostics,
-                    activate: { _ in }
+            weak var priorSession: StoreGenerationSession?
+            weak var priorContext: ModelContext?
+            weak var priorCoordinator: StoreSessionCoordinator?
+            let recoveryState = try await { @MainActor () async throws -> (
+                root: URL, support: URL, caches: URL, temporary: URL,
+                oldGenerationID: UUID, tombstone: DeletionLedgerEntryV2,
+                defaultsSuiteName: String
+            ) in
+                let harness = try V906Integration.makeHarness("i-erase-\(offset)", withAsset: true)
+                priorSession = harness.session
+                let context = harness.session.modelContext
+                priorContext = context
+                let tombstone = try DeletionLedgerEntryV2(
+                    identity: DeletionIdentityV2(kind: .asset, id: V906Integration.id(800 + offset)),
+                    deletedAt: V906Integration.deletedAt
                 )
-                XCTFail("Expected erase interruption at \(point)")
-            } catch {
-                XCTAssertEqual(error as? EraseAllServiceError, .injectedFailure)
-            }
-            if point == .beforePreparedWrite {
-                XCTAssertEqual(try harness.factory.currentGenerationID(), oldGenerationID)
-                XCTAssertEqual(try DeletionLedgerStore(context: context).snapshot().entries, [tombstone])
-            }
-            coordinator = nil
-            await Task.yield()
-            let recovered = try await EraseAllService(
-                applicationSupportURL: harness.support,
-                cachesDirectoryURL: harness.caches,
-                temporaryDirectoryURL: harness.temporary,
+                try DeletionLedgerStore(context: context).stageUnion([tombstone])
+                try V906Integration.adoptSeededDeletionBaseline(harness.session)
+                let oldGenerationID = harness.session.generationID
+                var coordinator: StoreSessionCoordinator? = StoreSessionCoordinator(session: harness.session)
+                priorCoordinator = coordinator
+                let diagnostics = DiagnosticsStore(applicationSupportURL: harness.support)
+                await diagnostics.prepare()
+                let defaultsSuiteName = "V9_06-I01-\(UUID())"
+                let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsSuiteName))
+                let service = EraseAllService(
+                    applicationSupportURL: harness.support,
+                    cachesDirectoryURL: harness.caches,
+                    temporaryDirectoryURL: harness.temporary,
+                    userDefaults: defaults,
+                    bundleIdentifier: "com.palatis3.fieldrecord",
+                    makeUUID: V906Integration.sequence([
+                        V906Integration.id(820 + offset * 10),
+                        V906Integration.id(821 + offset * 10),
+                        V906Integration.id(822 + offset * 10),
+                        V906Integration.id(823 + offset * 10),
+                    ]),
+                    failureInjection: EraseAllFailureInjection(failOnceAt: point)
+                )
+                do {
+                    _ = try await service.erase(
+                        confirmation: "ERASE",
+                        coordinator: try XCTUnwrap(coordinator),
+                        diagnosticsStore: diagnostics,
+                        activate: { _ in }
+                    )
+                    XCTFail("Expected erase interruption at \(point)")
+                } catch {
+                    XCTAssertEqual(error as? EraseAllServiceError, .injectedFailure)
+                }
+                if point == .beforePreparedWrite {
+                    XCTAssertEqual(try harness.factory.currentGenerationID(), oldGenerationID)
+                    XCTAssertEqual(try DeletionLedgerStore(context: context).snapshot().entries, [tombstone])
+                }
+                // Recovery simulates a dead owner; ARC plus one yield does not
+                // prove that its retained writer lease has actually been released.
+                try XCTUnwrap(coordinator).invalidateAndReleaseWriter()
+                coordinator = nil
+                await Task.yield()
+                return (
+                    harness.root, harness.support, harness.caches, harness.temporary,
+                    oldGenerationID, tombstone, defaultsSuiteName
+                )
+            }()
+            // Process-death recovery must not retain the old SwiftData reader.
+            XCTAssertNil(priorSession, "old session must drain before startup recovery")
+            XCTAssertNil(priorContext, "old context must drain before startup recovery")
+            XCTAssertNil(priorCoordinator, "old writer owner must drain before recovery")
+            // A failed assertion must never permit recovery or unlink live storage.
+            _ = try XCTUnwrap(
+                priorSession == nil && priorContext == nil && priorCoordinator == nil ? true : nil,
+                "Retaining erase fixture: prior SwiftData owners have not drained"
+            )
+            let recoveryFactory = StoreGenerationFactory(applicationSupportURL: recoveryState.support)
+            let diagnostics = DiagnosticsStore(applicationSupportURL: recoveryState.support)
+            await diagnostics.prepare()
+            let defaults = try XCTUnwrap(UserDefaults(suiteName: recoveryState.defaultsSuiteName))
+            defer { defaults.removePersistentDomain(forName: recoveryState.defaultsSuiteName) }
+            let activeEpochs = try recoveryFactory.makeGenerationLeaseRegistry().activeEpochs()
+            XCTAssertFalse(activeEpochs.contains { $0.generationID == recoveryState.oldGenerationID },
+                           "old durable leases must drain before startup recovery")
+            _ = try XCTUnwrap(
+                !activeEpochs.contains { $0.generationID == recoveryState.oldGenerationID } ? true : nil,
+                "Retaining erase fixture: old durable leases have not drained"
+            )
+            let operationsPath = recoveryState.support
+                .appendingPathComponent("FieldEvidenceOperations", isDirectory: true).path
+            var originalOperations = stat()
+            _ = try XCTUnwrap(
+                lstat(operationsPath, &originalOperations) == 0
+                    && (originalOperations.st_mode & S_IFMT) == S_IFDIR ? true : nil,
+                "Retaining erase fixture: original registry namespace identity unavailable"
+            )
+            var recoveredGenerationID: UUID?
+            weak var recoverySession: StoreGenerationSession?
+            weak var recoveryContext: ModelContext?
+            var recovered = try await EraseAllService(
+                applicationSupportURL: recoveryState.support,
+                cachesDirectoryURL: recoveryState.caches,
+                temporaryDirectoryURL: recoveryState.temporary,
                 userDefaults: defaults,
                 bundleIdentifier: "com.palatis3.fieldrecord"
             ).reconcileAtStartup(diagnosticsStore: diagnostics)
             if point == .beforePreparedWrite {
                 XCTAssertNil(recovered)
-                XCTAssertEqual(try harness.factory.currentGenerationID(), oldGenerationID)
+                XCTAssertEqual(try recoveryFactory.currentGenerationID(), recoveryState.oldGenerationID)
+                let reopened = try recoveryFactory.openOrBootstrapCurrent()
+                recoverySession = reopened
+                recoveryContext = reopened.modelContext
+                XCTAssertEqual(try DeletionLedgerStore(context: reopened.modelContext).snapshot().entries,
+                               [recoveryState.tombstone])
+                _ = try XCTUnwrap(
+                    recovered == nil && (try recoveryFactory.currentGenerationID()) == recoveryState.oldGenerationID
+                        ? true : nil,
+                    "Retaining erase fixture: pre-commit recovery postconditions failed"
+                )
             } else {
                 let session = try XCTUnwrap(recovered)
-                XCTAssertNotEqual(session.generationID, oldGenerationID)
+                recoverySession = session
+                recoveryContext = session.modelContext
+                XCTAssertNotEqual(session.generationID, recoveryState.oldGenerationID)
                 XCTAssertEqual(try DeletionLedgerStore(context: session.modelContext).snapshot(), .empty)
                 XCTAssertEqual(try session.modelContext.fetchCount(FetchDescriptor<Asset>()), 0)
+                let emptyLedger = try DeletionLedgerStore(context: session.modelContext).snapshot() == .empty
+                let emptyAssets = try session.modelContext.fetchCount(FetchDescriptor<Asset>()) == 0
+                recoveredGenerationID = session.generationID
+                _ = try XCTUnwrap(
+                    session.generationID != recoveryState.oldGenerationID
+                        && emptyLedger && emptyAssets ? true : nil,
+                    "Retaining erase fixture: completed recovery postconditions failed"
+                )
             }
+            recovered = nil
+            XCTAssertNil(recoverySession, "recovery session must drain before fixture removal")
+            XCTAssertNil(recoveryContext, "recovery context must drain before fixture removal")
+            _ = try XCTUnwrap(
+                recoverySession == nil && recoveryContext == nil ? true : nil,
+                "Retaining erase fixture: recovery SwiftData owners have not drained"
+            )
+            let remainingEpochs: Set<GenerationEpochV1>
+            var currentOperations = stat()
+            let namespaceResult = lstat(operationsPath, &currentOperations)
+            let namespaceError = errno
+            if point == .beforePreparedWrite {
+                _ = try XCTUnwrap(
+                    namespaceResult == 0 && (currentOperations.st_mode & S_IFMT) == S_IFDIR
+                        && currentOperations.st_dev == originalOperations.st_dev
+                        && currentOperations.st_ino == originalOperations.st_ino ? true : nil,
+                    "Retaining erase fixture: pre-commit registry namespace changed"
+                )
+                remainingEpochs = try recoveryFactory.makeGenerationLeaseRegistry().activeEpochs()
+            } else {
+                // Completed Erase deliberately retires Operations. Prove absence
+                // before constructing any current registry; replacement is refused.
+                _ = try XCTUnwrap(
+                    namespaceResult == -1 && namespaceError == ENOENT ? true : nil,
+                    "Retaining erase fixture: completed Erase did not retire its registry namespace"
+                )
+                let cleanupFactory = StoreGenerationFactory(applicationSupportURL: recoveryState.support)
+                // Pointer validation opens schema-migration control directories.
+                // Run it only after the noncreating retirement witness above.
+                let expectedCurrentID = try XCTUnwrap(recoveredGenerationID)
+                let currentID = try cleanupFactory.currentGenerationID()
+                _ = try XCTUnwrap(
+                    currentID == expectedCurrentID ? true : nil,
+                    "Retaining erase fixture: completed recovery pointer changed"
+                )
+                // This census covers only the newly current namespace. Weak-owner
+                // drain and verified retirement above authorize private fixture cleanup;
+                // they do not prove successful close of a retired production reader.
+                remainingEpochs = try cleanupFactory.makeGenerationLeaseRegistry().activeEpochs()
+            }
+            XCTAssertTrue(remainingEpochs.isEmpty, "current durable leases must drain before fixture removal")
+            _ = try XCTUnwrap(
+                remainingEpochs.isEmpty ? true : nil,
+                "Retaining erase fixture: durable leases have not drained"
+            )
+            // Cleanup is reached only after both original and recovery owners drain.
+            // Any thrown error above deliberately retains this private fixture root.
+            try FileManager.default.removeItem(at: recoveryState.root)
         }
 
         // A preparation is durable before an Erase intent exists. These cases
@@ -384,8 +501,20 @@ final class V9_06DeletionArchiveIntegrationTests: XCTestCase {
                     diagnosticsStore: diagnostics
                 )
                 XCTAssertNil(recovered)
-                XCTAssertNil(try preparationStore.loadPreparation())
-                XCTAssertNil(try preparationStore.load())
+                // Successful recovery removes the entire journal namespace.
+                // The old descriptor-pinned store must reject reuse afterward.
+                let journalRootAbsent = try EraseIntentStore.completedCleanupRootIsAbsent(
+                    applicationSupportURL: harness.support
+                )
+                XCTAssertTrue(journalRootAbsent)
+                _ = try XCTUnwrap(journalRootAbsent ? true : nil,
+                                  "Recovery must remove both preparation and intent journals")
+                XCTAssertThrowsError(try preparationStore.loadPreparation()) {
+                    XCTAssertEqual($0 as? EraseIntentStoreError, .invalidAuthority)
+                }
+                XCTAssertThrowsError(try preparationStore.load()) {
+                    XCTAssertEqual($0 as? EraseIntentStoreError, .invalidAuthority)
+                }
                 let targetPresence = try harness.factory.generationPresence(
                     id: targetGenerationID,
                     authority: authority

@@ -3490,12 +3490,8 @@ private final class EraseAuxiliaryAuthority {
         var result = [String]()
         errno = 0
         while let entry = Darwin.readdir(directory) {
-            var tuple = entry.pointee.d_name
-            let capacity = MemoryLayout.size(ofValue: tuple)
-            let name = withUnsafePointer(to: &tuple) { pointer in
-                pointer.withMemoryRebound(to: CChar.self, capacity: capacity) {
-                    String(cString: $0)
-                }
+            guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+                throw EraseAllServiceError.invalidAuthority
             }
             if name != "." && name != ".." { result.append(name) }
             errno = 0

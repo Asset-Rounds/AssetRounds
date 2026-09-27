@@ -1274,12 +1274,8 @@ private extension ResumableLocalJobRunnerV1 {
         var names = [String]()
         errno = 0
         while let entry = Darwin.readdir(directory) {
-            var tuple = entry.pointee.d_name
-            let capacity = MemoryLayout.size(ofValue: tuple)
-            let name = withUnsafePointer(to: &tuple) { pointer in
-                pointer.withMemoryRebound(to: CChar.self, capacity: capacity) {
-                    String(cString: $0)
-                }
+            guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+                throw cleanupFailure()
             }
             if name != "." && name != ".." {
                 guard names.count

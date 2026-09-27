@@ -1276,8 +1276,8 @@ extension ReportRecoveryService {
                 guard errno == 0 else { throw ReportRecoveryServiceError.invalidAuthority }
                 break
             }
-            let name = withUnsafePointer(to: &entry.pointee.d_name) {
-                $0.withMemoryRebound(to: CChar.self, capacity: Int(entry.pointee.d_namlen) + 1) { String(cString: $0) }
+            guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+                throw ReportRecoveryServiceError.invalidAuthority
             }
             if name == "." || name == ".." { continue }
             var fileInfo = stat()

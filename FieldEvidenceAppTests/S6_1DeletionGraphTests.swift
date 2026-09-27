@@ -1,4 +1,5 @@
 import CryptoKit
+import Darwin
 import Foundation
 import SwiftData
 import XCTest
@@ -124,7 +125,7 @@ final class S6_1DeletionGraphTests: XCTestCase {
     @MainActor
     func testDeletesClosedGraphKeepsCountedTombstoneAndUnrelatedBytes() async throws {
         let harness = try makeHarness(counted: true, uncounted: true)
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+
         let retained = harness.generationRootURL.appendingPathComponent("unrelated.bin")
         let retainedBytes = Data("retained".utf8)
         try retainedBytes.write(to: retained)
@@ -161,7 +162,7 @@ final class S6_1DeletionGraphTests: XCTestCase {
     @MainActor
     func testDirtyContextAndInjectedSaveRollbackRestoreHeldPacket() async throws {
         let harness = try makeHarness(counted: true)
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+
         let dirty = Site(label: "Unsaved")
         harness.context.insert(dirty)
         await assertThrows(.contextHasChanges) {
@@ -191,7 +192,7 @@ final class S6_1DeletionGraphTests: XCTestCase {
     @MainActor
     func testPreparedCancelsAndPostCommitRecoversWhileMismatchFailsClosed() async throws {
         let prepared = try makeHarness(counted: true)
-        defer { try? fileManager.removeItem(at: prepared.applicationSupportURL) }
+
         let before = WholeSignDeletionService(
             modelContext: prepared.context,
             generationRootURL: prepared.generationRootURL,
@@ -218,7 +219,7 @@ final class S6_1DeletionGraphTests: XCTestCase {
         XCTAssertEqual(try prepared.context.fetchCount(FetchDescriptor<Site>()), 1)
 
         let legacy = try makeHarness(counted: true)
-        defer { try? fileManager.removeItem(at: legacy.applicationSupportURL) }
+
         let legacyDeletionID = UUID()
         let legacyInterrupted = WholeSignDeletionService(
             modelContext: legacy.context,
@@ -256,7 +257,7 @@ final class S6_1DeletionGraphTests: XCTestCase {
         XCTAssertEqual(try DeletionLedgerStore(context: legacy.context).snapshot(), .empty)
 
         let committed = try makeHarness(counted: true)
-        defer { try? fileManager.removeItem(at: committed.applicationSupportURL) }
+
         let after = WholeSignDeletionService(
             modelContext: committed.context,
             generationRootURL: committed.generationRootURL,
@@ -270,7 +271,7 @@ final class S6_1DeletionGraphTests: XCTestCase {
         XCTAssertEqual(try deletionJournalNames(committed), [])
 
         let phasePair = try makeHarness(counted: true)
-        defer { try? fileManager.removeItem(at: phasePair.applicationSupportURL) }
+
         let deletionID = UUID()
         let interruptedPair = WholeSignDeletionService(
             modelContext: phasePair.context,
@@ -299,7 +300,7 @@ final class S6_1DeletionGraphTests: XCTestCase {
         XCTAssertEqual(try deletionJournalNames(phasePair), [])
 
         let mismatch = try makeHarness(counted: true)
-        defer { try? fileManager.removeItem(at: mismatch.applicationSupportURL) }
+
         let interrupted = WholeSignDeletionService(
             modelContext: mismatch.context,
             generationRootURL: mismatch.generationRootURL,
@@ -325,17 +326,41 @@ final class S6_1DeletionGraphTests: XCTestCase {
 
         for kind in ["original", "thumbnail", "snapshot", "pdf"] {
             let harness = try makeHarness(counted: true)
-            defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+
+            let site = try XCTUnwrap(
+                harness.context.fetch(FetchDescriptor<Site>()).first
+            )
+            let fixturePlacement = try XCTUnwrap(
+                harness.context.fetch(FetchDescriptor<AssetPlacementEventRow>())
+                    .first { $0.assetID == harness.assetID }
+            ).value()
+            XCTAssertEqual(fixturePlacement.siteID, site.id)
             let liveAsset = Asset(
-                siteID: try XCTUnwrap(
-                    harness.context.fetch(FetchDescriptor<Site>()).first?.id
-                ),
+                siteID: site.id,
                 packID: SignPack.illuminatedSignV1.packID,
                 packSchemaVersion: 1,
                 packContentVersion: 1,
-                label: "Live foreign owner"
+                label: "Live foreign owner",
+                createdAt: Date(timeIntervalSince1970: 1_759_999_880)
             )
             harness.context.insert(liveAsset)
+            // The retained foreign owner needs the same genuine typed location
+            // closure as the deletion target, without inventing writer authority.
+            let livePlacement = try AssetPlacementEventV1(
+                id: UUID(), workspaceID: fixturePlacement.workspaceID,
+                assetID: liveAsset.id, siteID: site.id,
+                locationNodeID: nil, predecessorEventID: nil,
+                source: .migratedBaseline,
+                physicalEpisodeID: try PhysicalPlacementEpisodeIDV1(rawValue: UUID()),
+                continuity: .samePhysicalInstallation,
+                pathSnapshot: try LocationPathSnapshotV1(
+                    siteID: site.id, siteDisplay: site.label, nodes: []
+                ),
+                mutationID: try MutationIDV1(rawValue: UUID()),
+                occurredAt: liveAsset.createdAt
+            )
+            try AssetPlacementHistoryV1.validate([livePlacement])
+            harness.context.insert(try AssetPlacementEventRow(livePlacement))
             try insertRoot(
                 assetID: liveAsset.id,
                 counted: true,
@@ -344,7 +369,17 @@ final class S6_1DeletionGraphTests: XCTestCase {
                 evidenceBytes: foreignBytes,
                 report: .ready(snapshot: foreignSnapshot, pdf: foreignPDF)
             )
-            try harness.context.save()
+            try V906Integration.adoptSeededDeletionBaseline(harness.session)
+            let placements = try harness.context.fetch(FetchDescriptor<AssetPlacementEventRow>())
+                .map { try $0.value() }
+            XCTAssertEqual(placements.filter { $0.assetID == liveAsset.id }, [livePlacement])
+            XCTAssertEqual(Set(placements.map(\.assetID)),
+                           Set(try harness.context.fetch(FetchDescriptor<Asset>()).map(\.id)))
+            XCTAssertNoThrow(try WholeSignDeletionRule.validateLocationDeletionNoCascade(
+                deletingAssetID: harness.assetID, deletingSiteID: nil,
+                liveAssetSiteByID: [harness.assetID: site.id, liveAsset.id: site.id],
+                locationNodes: [], placementEvents: placements, compositionEdges: []
+            ))
 
             let interrupted = WholeSignDeletionService(
                 modelContext: harness.context,
@@ -418,7 +453,7 @@ final class S6_1DeletionGraphTests: XCTestCase {
     @MainActor
     func testOrphanCleanupIsCanonicalBoundedAndPreservesTombstones() async throws {
         let harness = try makeHarness(counted: true)
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+
         _ = try await harness.service.delete(assetID: harness.assetID)
         let tombstone = try XCTUnwrap(
             harness.context.fetch(FetchDescriptor<Packet>()).first
@@ -610,20 +645,53 @@ final class S6_1DeletionGraphTests: XCTestCase {
     @MainActor
     func testExplicitPreviewBoundSiteDeletionIsSeparateAndLedgered() async throws {
         let assetDeletion = try makeHarness(counted: false)
-        defer { try? fileManager.removeItem(at: assetDeletion.applicationSupportURL) }
+
         let siteID = try XCTUnwrap(
             assetDeletion.context.fetch(FetchDescriptor<Site>()).first?.id
         )
         _ = try await assetDeletion.service.delete(assetID: assetDeletion.assetID)
         XCTAssertEqual(try assetDeletion.context.fetchCount(FetchDescriptor<Site>()), 1)
 
-        let siteDeletion = try makeHarness(counted: false)
-        defer { try? fileManager.removeItem(at: siteDeletion.applicationSupportURL) }
+        // Explicitly seed the uncounted historical work graph whose ledger
+        // entries this test has always required; no site cascade may delete it.
+        let siteDeletion = try makeHarness(counted: false, uncounted: true)
+
         let explicitSiteID = try XCTUnwrap(
             siteDeletion.context.fetch(FetchDescriptor<Site>()).first?.id
         )
+        let placements = try siteDeletion.context.fetch(
+            FetchDescriptor<AssetPlacementEventRow>()
+        ).map { try $0.value() }
+        let retained = siteDeletion.generationRootURL.appendingPathComponent("unrelated.bin")
+        let retainedBytes = Data("site-deletion-retained".utf8)
+        try retainedBytes.write(to: retained)
+        let initialLedger = try DeletionLedgerStore(context: siteDeletion.context).snapshot()
+        XCTAssertEqual(try siteDeletion.context.fetchCount(FetchDescriptor<WorkflowRecord>()), 1)
+        XCTAssertEqual(try siteDeletion.context.fetchCount(FetchDescriptor<Packet>()), 1)
+        XCTAssertThrowsError(try siteDeletion.service.previewSiteDeletion(siteID: explicitSiteID)) {
+            XCTAssertEqual($0 as? WholeSignDeletionServiceError, .graphInvalid)
+        }
+        XCTAssertEqual(try siteDeletion.context.fetchCount(FetchDescriptor<Site>()), 1)
+        XCTAssertEqual(try siteDeletion.context.fetchCount(FetchDescriptor<Asset>()), 1)
+        XCTAssertEqual(try siteDeletion.context.fetchCount(FetchDescriptor<WorkflowRecord>()), 1)
+        XCTAssertEqual(try siteDeletion.context.fetchCount(FetchDescriptor<Packet>()), 1)
+        XCTAssertEqual(try DeletionLedgerStore(context: siteDeletion.context).snapshot(), initialLedger)
+        XCTAssertEqual(try Data(contentsOf: retained), retainedBytes)
+
+        _ = try await siteDeletion.service.delete(assetID: siteDeletion.assetID)
+        XCTAssertEqual(try siteDeletion.context.fetchCount(FetchDescriptor<Site>()), 1)
+        XCTAssertEqual(try siteDeletion.context.fetchCount(FetchDescriptor<Asset>()), 0)
+        XCTAssertEqual(try siteDeletion.context.fetchCount(FetchDescriptor<WorkflowRecord>()), 0)
+        XCTAssertEqual(try siteDeletion.context.fetchCount(FetchDescriptor<Packet>()), 0)
+        let assetLedger = try DeletionLedgerStore(context: siteDeletion.context).snapshot()
+        XCTAssertEqual(Set(assetLedger.entries.map(\.identity.kind)),
+                       Set([.asset, .workflowRecord, .packet]))
+        XCTAssertEqual(try siteDeletion.context.fetch(FetchDescriptor<AssetPlacementEventRow>())
+            .map { try $0.value() }, placements)
         let preview = try siteDeletion.service.previewSiteDeletion(siteID: explicitSiteID)
-        XCTAssertEqual(preview.assetPlans.map(\.assetID), [siteDeletion.assetID])
+        // Frozen C35: site removal is independent and cannot cascade work.
+        XCTAssertEqual(preview.assetPlans.map(\.assetID), [])
+        XCTAssertEqual(Set(preview.ledgerEntries.map(\.identity.kind)), Set([.site]))
         XCTAssertTrue(preview.ledgerEntries.contains {
             $0.identity.kind == .site && $0.identity.id == explicitSiteID
         })
@@ -631,12 +699,16 @@ final class S6_1DeletionGraphTests: XCTestCase {
             siteDeletion.context.fetch(FetchDescriptor<Site>()).first
         )
         site.label = "Changed after preview"
-        try siteDeletion.context.save()
+        try V906Integration.adoptSeededDeletionBaseline(siteDeletion.session)
         await assertThrows(.graphInvalid) {
             _ = try await siteDeletion.service.deleteSite(preview: preview)
         }
+        XCTAssertEqual(try DeletionLedgerStore(context: siteDeletion.context).snapshot(), assetLedger)
+        XCTAssertEqual(try siteDeletion.context.fetchCount(FetchDescriptor<Site>()), 1)
+        XCTAssertEqual(try siteDeletion.context.fetchCount(FetchDescriptor<Asset>()), 0)
+        XCTAssertEqual(try Data(contentsOf: retained), retainedBytes)
         site.label = "Site"
-        try siteDeletion.context.save()
+        try V906Integration.adoptSeededDeletionBaseline(siteDeletion.session)
         let result = try await siteDeletion.service.deleteSite(preview: preview)
         XCTAssertEqual(result.siteID, explicitSiteID)
         XCTAssertEqual(try siteDeletion.context.fetchCount(FetchDescriptor<Site>()), 0)
@@ -649,9 +721,20 @@ final class S6_1DeletionGraphTests: XCTestCase {
             Set(ledger.entries.map(\.identity.kind)),
             Set([.site, .asset, .workflowRecord, .packet])
         )
+        XCTAssertEqual(Set(ledger.entries).subtracting(Set(assetLedger.entries)),
+                       Set(preview.ledgerEntries))
+        XCTAssertEqual(try siteDeletion.context.fetch(FetchDescriptor<AssetPlacementEventRow>())
+            .map { try $0.value() }, placements)
+        XCTAssertEqual(try Data(contentsOf: retained), retainedBytes)
+        XCTAssertEqual(try assetDeletion.context.fetch(FetchDescriptor<Site>()).map(\.id), [siteID])
     }
 
     func testOrphanReplacementRaceFailsBeforeDeletingReplacement() throws {
+        let snapshotRegistration = try KernelDeletionEraseRegistryV4.registration(
+            for: .completedActivitySnapshot
+        )
+        XCTAssertEqual(snapshotRegistration.orphanCleanup, .preserveCanonicalRecord)
+        XCTAssertFalse(snapshotRegistration.clearsTombstonesOnDelete)
         let root = fileManager.temporaryDirectory.appendingPathComponent(
             "orphan-race-\(UUID().uuidString)", isDirectory: true
         )
@@ -683,7 +766,22 @@ final class S6_1DeletionGraphTests: XCTestCase {
     @MainActor
     func testExplicitSitePostcommitCleanupInterruptionLeavesOnlyOrphans() async throws {
         let harness = try makeHarness(counted: false)
-        defer { try? fileManager.removeItem(at: harness.applicationSupportURL) }
+
+        let siteID = try XCTUnwrap(harness.context.fetch(FetchDescriptor<Site>()).first?.id)
+        let placements = try harness.context.fetch(FetchDescriptor<AssetPlacementEventRow>())
+            .map { try $0.value() }
+        XCTAssertThrowsError(try harness.service.previewSiteDeletion(siteID: siteID)) {
+            XCTAssertEqual($0 as? WholeSignDeletionServiceError, .graphInvalid)
+        }
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Site>()), 1)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Asset>()), 1)
+        XCTAssertTrue(try DeletionLedgerStore(context: harness.context).snapshot().entries.isEmpty)
+        _ = try await harness.service.delete(assetID: harness.assetID)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Site>()), 1)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Asset>()), 0)
+        let assetLedger = try DeletionLedgerStore(context: harness.context).snapshot()
+        XCTAssertEqual(Set(assetLedger.entries.map(\.identity.kind)), Set([.asset]))
+        // Create the orphan only after ordinary asset deletion has settled.
         let snapshots = harness.generationRootURL.appendingPathComponent(
             "snapshots", isDirectory: true
         )
@@ -697,10 +795,12 @@ final class S6_1DeletionGraphTests: XCTestCase {
             generationRootURL: harness.generationRootURL,
             failureInjection: WholeSignDeletionFailureInjection(failOnceAt: .fileCleanup)
         )
-        let siteID = try XCTUnwrap(
+        XCTAssertEqual(try XCTUnwrap(
             harness.context.fetch(FetchDescriptor<Site>()).first?.id
-        )
+        ), siteID)
         let preview = try service.previewSiteDeletion(siteID: siteID)
+        XCTAssertTrue(preview.assetPlans.isEmpty)
+        XCTAssertEqual(Set(preview.ledgerEntries.map(\.identity.kind)), Set([.site]))
         await assertThrows(.injectedFailure) {
             _ = try await service.deleteSite(preview: preview)
         }
@@ -710,7 +810,25 @@ final class S6_1DeletionGraphTests: XCTestCase {
         XCTAssertTrue(try DeletionLedgerStore(context: harness.context).snapshot().entries.contains {
             $0.identity.kind == .site && $0.identity.id == siteID
         })
+        // The committed site marker retains projection-purge recovery until
+        // reconciliation; the injected cleanup failure must not discard it.
+        XCTAssertEqual(try deletionJournalNames(harness),
+                       ["site-\(preview.deletionID.uuidString.lowercased()).json"])
+        XCTAssertTrue(fileManager.fileExists(atPath: orphan.path))
+        let committedLedger = try DeletionLedgerStore(context: harness.context).snapshot()
+        XCTAssertEqual(Set(committedLedger.entries).subtracting(Set(assetLedger.entries)),
+                       Set(preview.ledgerEntries))
+        XCTAssertEqual(try harness.context.fetch(FetchDescriptor<AssetPlacementEventRow>())
+            .map { try $0.value() }, placements)
+
+        let recovery = try await harness.service.reconcile()
+        XCTAssertEqual(recovery.cancelledPreparedCount, 0)
+        XCTAssertEqual(recovery.completedCommittedCount, 1)
         XCTAssertEqual(try deletionJournalNames(harness), [])
+        let repeatedRecovery = try await harness.service.reconcile()
+        XCTAssertEqual(repeatedRecovery.cancelledPreparedCount, 0)
+        XCTAssertEqual(repeatedRecovery.completedCommittedCount, 0)
+        XCTAssertEqual(try DeletionLedgerStore(context: harness.context).snapshot(), committedLedger)
         XCTAssertTrue(fileManager.fileExists(atPath: orphan.path))
 
         let summary = try OrphanFileCleanupService(
@@ -718,6 +836,9 @@ final class S6_1DeletionGraphTests: XCTestCase {
         ).reconcile(referencedRelativePaths: [])
         XCTAssertEqual(summary.removedFileCount, 1)
         XCTAssertFalse(fileManager.fileExists(atPath: orphan.path))
+        XCTAssertEqual(try DeletionLedgerStore(context: harness.context).snapshot(), committedLedger)
+        XCTAssertEqual(try harness.context.fetch(FetchDescriptor<AssetPlacementEventRow>())
+            .map { try $0.value() }, placements)
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Site>()), 0)
         XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<Asset>()), 0)
     }
@@ -725,7 +846,7 @@ final class S6_1DeletionGraphTests: XCTestCase {
     @MainActor
     func testDeepEvidenceSnapshotAndPDFAuthorityFailBeforeMutation() async throws {
         let evidence = try makeHarness(counted: true, evidenceBytes: Data("not-jpeg".utf8))
-        defer { try? fileManager.removeItem(at: evidence.applicationSupportURL) }
+
         await assertThrows(.fileInvalid) {
             _ = try await evidence.service.delete(assetID: evidence.assetID)
         }
@@ -735,7 +856,7 @@ final class S6_1DeletionGraphTests: XCTestCase {
             counted: true,
             report: .pending(snapshot: Data("not-canonical-json".utf8))
         )
-        defer { try? fileManager.removeItem(at: snapshot.applicationSupportURL) }
+
         await assertThrows(.fileInvalid) {
             _ = try await snapshot.service.delete(assetID: snapshot.assetID)
         }
@@ -748,7 +869,7 @@ final class S6_1DeletionGraphTests: XCTestCase {
                 pdf: Data("not-a-pdf".utf8)
             )
         )
-        defer { try? fileManager.removeItem(at: pdf.applicationSupportURL) }
+
         await assertThrows(.fileInvalid) {
             _ = try await pdf.service.delete(assetID: pdf.assetID)
         }
@@ -758,7 +879,7 @@ final class S6_1DeletionGraphTests: XCTestCase {
     @MainActor
     func testMalformedJournalAndPinnedAncestorReplacementEnterClosedFailure() async throws {
         let malformed = try makeHarness(counted: false)
-        defer { try? fileManager.removeItem(at: malformed.applicationSupportURL) }
+
         let journal = deletionJournalURL(malformed)
         try Data("{}".utf8).write(
             to: journal.appendingPathComponent("00000000-0000-0000-0000-000000000001.json")
@@ -769,17 +890,63 @@ final class S6_1DeletionGraphTests: XCTestCase {
         XCTAssertEqual(try malformed.context.fetchCount(FetchDescriptor<Asset>()), 1)
 
         let replaced = try makeHarness(counted: false)
-        defer { try? fileManager.removeItem(at: replaced.applicationSupportURL) }
+
         let operations = replaced.applicationSupportURL
             .appendingPathComponent("FieldEvidenceOperations", isDirectory: true)
         let original = replaced.applicationSupportURL
             .appendingPathComponent("FieldEvidenceOperations.pinned", isDirectory: true)
+        replaced.cleanupEligibility.namespaceRestored = false
+        var originalIdentity = stat()
+        _ = try XCTUnwrap(
+            lstat(operations.path, &originalIdentity) == 0
+                && (originalIdentity.st_mode & S_IFMT) == S_IFDIR ? true : nil,
+            "Retaining hostile fixture: original Operations identity unavailable"
+        )
         try fileManager.moveItem(at: operations, to: original)
         try fileManager.createSymbolicLink(at: operations, withDestinationURL: original)
+        var linkIdentity = stat()
+        _ = try XCTUnwrap(
+            lstat(operations.path, &linkIdentity) == 0
+                && (linkIdentity.st_mode & S_IFMT) == S_IFLNK ? true : nil,
+            "Retaining hostile fixture: replacement symlink identity unavailable"
+        )
         await assertThrows(.invalidGeneration) {
             _ = try await replaced.service.reconcile()
         }
         XCTAssertEqual(try replaced.context.fetchCount(FetchDescriptor<Asset>()), 1)
+        // The hostile operation has completed. Restore only this test's exact
+        // namespace so genuine reader/writer handles can close during teardown.
+        // Any unexpected identity retains the private root instead of bypassing drain.
+        var retainedOriginal = stat()
+        var retainedLink = stat()
+        _ = try XCTUnwrap(
+            lstat(original.path, &retainedOriginal) == 0
+                && (retainedOriginal.st_mode & S_IFMT) == S_IFDIR
+                && retainedOriginal.st_dev == originalIdentity.st_dev
+                && retainedOriginal.st_ino == originalIdentity.st_ino
+                && lstat(operations.path, &retainedLink) == 0
+                && (retainedLink.st_mode & S_IFMT) == S_IFLNK
+                && retainedLink.st_dev == linkIdentity.st_dev
+                && retainedLink.st_ino == linkIdentity.st_ino ? true : nil,
+            "Retaining hostile fixture: namespace changed before restoration"
+        )
+        _ = try XCTUnwrap(
+            unlink(operations.path) == 0 ? true : nil,
+            "Retaining hostile fixture: exact symlink removal failed"
+        )
+        _ = try XCTUnwrap(
+            rename(original.path, operations.path) == 0 ? true : nil,
+            "Retaining hostile fixture: original namespace restoration failed"
+        )
+        var restoredIdentity = stat()
+        _ = try XCTUnwrap(
+            lstat(operations.path, &restoredIdentity) == 0
+                && (restoredIdentity.st_mode & S_IFMT) == S_IFDIR
+                && restoredIdentity.st_dev == originalIdentity.st_dev
+                && restoredIdentity.st_ino == originalIdentity.st_ino ? true : nil,
+            "Retaining hostile fixture: restored namespace identity differs"
+        )
+        replaced.cleanupEligibility.namespaceRestored = true
     }
 }
 
@@ -828,9 +995,15 @@ private extension S6_1DeletionGraphTests {
         case ready(snapshot: Data, pdf: Data)
     }
 
+    final class CleanupEligibility {
+        var namespaceRestored = true
+    }
+
     struct Harness {
+        let cleanupEligibility: CleanupEligibility
         let applicationSupportURL: URL
         let generationRootURL: URL
+        let session: StoreGenerationSession
         let container: ModelContainer
         let context: ModelContext
         let assetID: UUID
@@ -844,36 +1017,59 @@ private extension S6_1DeletionGraphTests {
         evidenceBytes: Data? = nil,
         report: ReportFixture? = nil
     ) throws -> Harness {
-        let applicationSupportURL = fileManager.temporaryDirectory.appendingPathComponent(
-            "s6-1-\(UUID().uuidString)", isDirectory: true
-        )
-        let generationID = UUID()
-        let generationRootURL = applicationSupportURL
-            .appendingPathComponent("FieldEvidenceData/generations", isDirectory: true)
-            .appendingPathComponent(generationID.uuidString.lowercased(), isDirectory: true)
-        try fileManager.createDirectory(at: generationRootURL, withIntermediateDirectories: true)
-        let schema = Schema([
-            Site.self, Asset.self, WorkflowRecord.self, EvidenceFile.self,
-            Issue.self, Packet.self, Report.self, DeletionLedgerRow.self,
-        ], version: Schema.Version(3, 0, 0))
-        let container = try ModelContainer(
-            for: schema,
-            migrationPlan: nil,
-            configurations: [ModelConfiguration(
-                "S6_1", schema: schema,
-                url: generationRootURL.appendingPathComponent("model.sqlite"),
-                allowsSave: true, cloudKitDatabase: .none
-            )]
-        )
-        let context = container.mainContext
-        context.autosaveEnabled = false
+        let owned = try V906Integration.makeHarness("s6-1", withAsset: false)
+        let applicationSupportURL = owned.support
+        let session = owned.session
+        let generationRootURL = session.generationRootURL
+        let context = session.modelContext
+        let container = context.container
+        let cleanupEligibility = CleanupEligibility()
+        addTeardownBlock { @MainActor [weak session, weak context, weak container, cleanupEligibility,
+                                      root = owned.root, support = owned.support] in
+            _ = try XCTUnwrap(
+                cleanupEligibility.namespaceRestored ? true : nil,
+                "Retaining S6_1 fixture: hostile namespace restoration incomplete"
+            )
+            _ = try XCTUnwrap(
+                session == nil && context == nil && container == nil ? true : nil,
+                "Retaining S6_1 fixture: store owners have not drained"
+            )
+            let registry = try StoreGenerationFactory(applicationSupportURL: support)
+                .makeGenerationLeaseRegistry()
+            _ = try XCTUnwrap(
+                try registry.activeEpochs().isEmpty ? true : nil,
+                "Retaining S6_1 fixture: durable leases have not drained"
+            )
+            try FileManager.default.removeItem(at: root)
+        }
         let site = Site(label: "Site")
         let asset = Asset(
             siteID: site.id, packID: SignPack.illuminatedSignV1.packID,
-            packSchemaVersion: 1, packContentVersion: 1, label: "Sign"
+            packSchemaVersion: 1, packContentVersion: 1, label: "Sign",
+            // Integral seconds survive the canonical placement millisecond codec
+            // exactly and precede this fixture's historical work start.
+            createdAt: Date(timeIntervalSince1970: 1_759_999_880)
         )
         context.insert(site)
         context.insert(asset)
+        // Seed historical rows into the actual bootstrapped session, using its
+        // real workspace identity and the production semantic baseline helper.
+        let fixtureWorkspaceID = session.workspaceIdentity.workspaceID
+        let placement = try AssetPlacementEventV1(
+            id: UUID(), workspaceID: fixtureWorkspaceID,
+            assetID: asset.id, siteID: site.id,
+            locationNodeID: nil, predecessorEventID: nil,
+            source: .migratedBaseline,
+            physicalEpisodeID: try PhysicalPlacementEpisodeIDV1(rawValue: UUID()),
+            continuity: .samePhysicalInstallation,
+            pathSnapshot: try LocationPathSnapshotV1(
+                siteID: site.id, siteDisplay: site.label, nodes: []
+            ),
+            mutationID: try MutationIDV1(rawValue: UUID()),
+            occurredAt: asset.createdAt
+        )
+        try AssetPlacementHistoryV1.validate([placement])
+        context.insert(try AssetPlacementEventRow(placement))
 
         if counted || uncounted {
             if counted {
@@ -891,10 +1087,25 @@ private extension S6_1DeletionGraphTests {
                 )
             }
         }
-        try context.save()
+        try V906Integration.adoptSeededDeletionBaseline(session)
+        XCTAssertEqual(
+            try context.fetch(FetchDescriptor<AssetPlacementEventRow>()).map { try $0.value() },
+            [placement]
+        )
+        XCTAssertNoThrow(try WholeSignDeletionRule.validateLocationDeletionNoCascade(
+            deletingAssetID: asset.id, deletingSiteID: nil,
+            liveAssetSiteByID: [asset.id: site.id], locationNodes: [],
+            placementEvents: [placement], compositionEdges: []
+        ))
+        XCTAssertEqual(
+            Set(try ObservationAndTimeRowStoreV1.validatedIndex(in: context).keys),
+            Set(try context.fetch(FetchDescriptor<WorkflowRecord>()).map(\.id))
+        )
         return Harness(
+            cleanupEligibility: cleanupEligibility,
             applicationSupportURL: applicationSupportURL,
             generationRootURL: generationRootURL,
+            session: session,
             container: container,
             context: context,
             assetID: asset.id,
@@ -924,6 +1135,28 @@ private extension S6_1DeletionGraphTests {
         )
         context.insert(record)
         context.insert(packet)
+        // Preserve the historical record bytes and use the real migration
+        // conversion; an absent old observation basis stays unknown.
+        let basis = try XCTUnwrap(ObservationAndTimeLegacyMigrationV1.observationBasis(
+            couldNotVerifyKey: record.couldNotVerifyKey,
+            displaySnapshot: record.couldNotVerifyDisplaySnapshot,
+            registryVersion: record.couldNotVerifyRegistryVersion
+        ))
+        let temporal = try XCTUnwrap(ObservationAndTimeLegacyMigrationV1.temporalContext(
+            observedAtUTC: record.observedAtUTC,
+            recordedAtUTC: record.completedAt ?? record.startedAt,
+            timeZoneID: record.timeZoneID,
+            utcOffsetMinutes: record.utcOffsetMinutes,
+            localDate: record.localDate,
+            localTime: record.localTime
+        ))
+        let companion = try ObservationAndTimeRow(
+            recordID: record.id, observationBasis: basis, temporalContext: temporal
+        )
+        try companion.validate()
+        context.insert(companion)
+        XCTAssertEqual(try companion.observationBasisV1(), basis)
+        XCTAssertEqual(try companion.temporalContextV1(), temporal)
 
         if let bytes = evidenceBytes {
             let evidenceID = UUID()
@@ -986,7 +1219,7 @@ private extension S6_1DeletionGraphTests {
             draftStepKey: nil, startedAt: completed.addingTimeInterval(-60),
             completedAt: completed, observedAtUTC: completed,
             timeZoneID: "America/New_York", utcOffsetMinutes: -240,
-            localDate: "2025-10-09", localTime: "16:53",
+            localDate: "2025-10-09", localTime: "04:53:20",
             afterDarkAcknowledgementKey: "after_dark", afterDarkAcknowledgementCopy: "After dark",
             afterDarkAcknowledgementVersion: "1", afterDarkAcknowledgementAccepted: true,
             safePositionAcknowledgementKey: "safe_position",

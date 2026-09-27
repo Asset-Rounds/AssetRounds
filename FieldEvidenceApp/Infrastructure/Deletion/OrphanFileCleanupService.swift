@@ -541,7 +541,7 @@ private extension OrphanFileCleanupService {
             guard ownedContent.orphanCleanup == .removeOwnedBytesWhenUnreferenced,
                   evidence.orphanCleanup == .removeOwnedBytesWhenUnreferenced,
                   report.orphanCleanup == .preserveCanonicalRecord,
-                  completedSnapshot.orphanCleanup == .removeDerivedProjection,
+                  completedSnapshot.orphanCleanup == .preserveCanonicalRecord,
                   !ownedContent.clearsTombstonesOnDelete,
                   !evidence.clearsTombstonesOnDelete,
                   !report.clearsTombstonesOnDelete,
@@ -964,12 +964,8 @@ private extension OrphanFileCleanupService {
         var result = [String]()
         errno = 0
         while let entry = Darwin.readdir(directory) {
-            var tuple = entry.pointee.d_name
-            let capacity = MemoryLayout.size(ofValue: tuple)
-            let name = withUnsafePointer(to: &tuple) { pointer in
-                pointer.withMemoryRebound(to: CChar.self, capacity: capacity) {
-                    String(cString: $0)
-                }
+            guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+                throw OrphanFileCleanupServiceError.invalidOwnedLayout
             }
             if name != "." && name != ".." {
                 guard result.count < Self.maximumEntriesPerRoot else {
