@@ -29,9 +29,6 @@ final class S1ShellUITests: XCTestCase {
         let settingsButton = lightApp.buttons
             .matching(identifier: "s1.settings.button")
             .firstMatch
-        let sampleScroll = lightApp.scrollViews
-            .matching(identifier: "s1.sample.scroll")
-            .firstMatch
 
         XCTAssertTrue(lightApp.windows.firstMatch.waitForExistence(timeout: 10))
         XCTAssertTrue(tabBar.waitForExistence(timeout: 10))
@@ -56,6 +53,7 @@ final class S1ShellUITests: XCTestCase {
                 .firstMatch.exists
         )
 
+        let sampleScroll = openBundledSample(in: lightApp)
         XCTAssertTrue(sampleScroll.waitForExistence(timeout: 10))
         let exactRenderedGroups = [
             ["Pack ID", "field.evidence.illuminated_sign.v1"],
@@ -139,6 +137,7 @@ final class S1ShellUITests: XCTestCase {
         )
         XCTAssertTrue(disclaimer.isHittable)
 
+        returnFromBundledSample(in: lightApp)
         reportsTab.tap()
         let reportsPlaceholder = element(
             in: lightApp,
@@ -164,6 +163,7 @@ final class S1ShellUITests: XCTestCase {
         XCTAssertTrue(backupEntry.waitForExistence(timeout: 10))
         XCTAssertEqual(backupEntry.label, "Back up current data")
         lightApp.terminate()
+        XCTAssertEqual(lightApp.state, .notRunning)
 
         XCUIDevice.shared.appearance = .dark
         let invalidApp = launch(
@@ -184,6 +184,7 @@ final class S1ShellUITests: XCTestCase {
         XCTAssertFalse(invalidApp.tabBars.firstMatch.exists)
         XCTAssertFalse(element(in: invalidApp, identifier: "s1.sample.scroll").exists)
         invalidApp.terminate()
+        XCTAssertEqual(invalidApp.state, .notRunning)
 
         let darkApp = launch(
             arguments: contentSizeArguments
@@ -201,10 +202,6 @@ final class S1ShellUITests: XCTestCase {
         darkAssetsTab.tap()
         XCTAssertTrue(darkShell.waitForExistence(timeout: 10))
         XCTAssertEqual(darkShell.value as? String, "Dark")
-        XCTAssertTrue(
-            darkApp.staticTexts["Illuminated sign pack"]
-                .waitForExistence(timeout: 10)
-        )
         let darkSettingsButton = darkApp.buttons
             .matching(identifier: "s1.settings.button")
             .firstMatch
@@ -213,21 +210,55 @@ final class S1ShellUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(darkSettingsButton.frame.width, 44)
         XCTAssertGreaterThanOrEqual(darkSettingsButton.frame.height, 44)
 
+        _ = openBundledSample(in: darkApp)
+        XCTAssertTrue(
+            darkApp.staticTexts["Illuminated sign pack"]
+                .waitForExistence(timeout: 10)
+        )
+        returnFromBundledSample(in: darkApp)
+
         darkReportsTab.tap()
         XCTAssertTrue(
             element(in: darkApp, identifier: "s1.reports.placeholder")
                 .waitForExistence(timeout: 10)
         )
         darkAssetsTab.tap()
+        _ = openBundledSample(in: darkApp)
         XCTAssertTrue(
             darkApp.staticTexts["Illuminated sign pack"]
                 .waitForExistence(timeout: 10)
         )
 
+        returnFromBundledSample(in: darkApp)
+        XCTAssertEqual(darkTabBar.buttons.count, 4)
         let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         screenshot.name = "S1 Worklight shell — Dark accessibility XXXL"
         screenshot.lifetime = .keepAlways
         add(screenshot)
+        darkApp.terminate()
+        XCTAssertEqual(darkApp.state, .notRunning)
+    }
+
+    @MainActor
+    private func openBundledSample(in app: XCUIApplication) -> XCUIElement {
+        let welcome = app.scrollViews.matching(identifier: "s2.welcome.screen").firstMatch
+        XCTAssertTrue(welcome.waitForExistence(timeout: 10))
+        let viewSample = app.buttons.matching(identifier: "s2.welcome.view-sample").firstMatch
+        scroll(welcome, untilVisible: viewSample, description: "View sample action")
+        XCTAssertEqual(viewSample.label, "View sample")
+        viewSample.tap()
+        let sampleScroll = app.scrollViews.matching(identifier: "s2.sample.screen").firstMatch
+        XCTAssertTrue(sampleScroll.waitForExistence(timeout: 10))
+        return sampleScroll
+    }
+
+    @MainActor
+    private func returnFromBundledSample(in app: XCUIApplication) {
+        let back = app.buttons.matching(identifier: "s2.sample.back").firstMatch
+        XCTAssertTrue(back.waitForExistence(timeout: 10))
+        XCTAssertTrue(back.isHittable)
+        back.tap()
+        XCTAssertTrue(element(in: app, identifier: "s2.welcome.screen").waitForExistence(timeout: 10))
     }
 
     @MainActor
