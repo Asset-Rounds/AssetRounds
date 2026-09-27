@@ -1,4 +1,10 @@
-## Current successor obligations — AN1 / AM1 (2026-09-26)
+## Current integration and isolated verification due — 2026-09-26/27 UTC
+
+- Pushed integration checkpoint is inactive C8 `4a21cccb` after AR1 `f13d47d6` and AN1 `c6438761`; accepted main stays `b1d04ae5`. AR1 affected local development verification passed 97/97 on 23 sealed inputs; C8 local tooling passed 379/379 native-CI, 27/27 gate-contract, 42/42 generator, and 134 dispatcher passes with 3 conditional baseline-comparison skips on 17 sealed inputs. None is a same-head gate or authorizes activation.
+- Isolated AP9 restore/backup/quality original ran 58 actual methods: 52 pass, 6 fail; AS2 original recovery ran 3 actual methods: 0 pass, 3 fail. Their source/product scopes and named failures are in CURRENT_INTEGRATION; they do not transfer to `4a21cccb`. Preserve the authentic-photo clone, mixed-history/backup validation, recovery/Erase, genuine report production and other open family obligations until each is verified on its own reviewed inputs.
+- Phase 1 still requires complete same-head unit partitions, qualified pinned RUI1 critical-state evidence, independent integration review, genuine owner screenshot/checklist review, non-force main fast-forward and exact-main verification. Full V23 later-phase scope, privacy and release owner actions, physical protection and deferred minimum-runtime/device obligations remain open; `releaseReady=false`.
+
+## Historical AN1 / AM1 successor obligations (2026-09-26)
 
 - AN1 four-path successor is independently source-approved and compiled;19 input and245 product hashes sealed. Priority14 finalized9PASS/5FAIL/0skip/0crashes; remaining84 selection executed70 (64PASS/6FAIL), while14 misqualified selectors were unexecuted. Corrected14 then execute14/14PASS on the same products. Final98 distinct actual=87PASS/11FAIL,0skip/crash; original selection gap retained, no failed-test retry. Authentic-photo clone passes1094.734s; full same-head gates remain due. Operational-journal full recovery/Erase and genuine report production remain open.
 - AM1 isolated build and core15/15 actual methods pass. Caller8 finalized7PASS/1FAIL; combined23 ends22PASS/1FAIL/0skip. AM2 independently approved test-only semantic comparison is applied after terminal/product audits, compiled and passed its corrected method1/1 with final independent checkpoint approval. No combined same-input23/23, measured speedup or primary integration yet.
@@ -8,7 +14,7 @@
 
 - AP2 isolated successor compiled and completed33actual methods:29PASS/4FAIL/0skip/crash,26sources/245products unchanged. TwoC33lifetime positives nowpass; hostilefixture setup, idempotent prune expectation, missing expected WorkPacket postimage and foreign-source lifetime remain due. This evidence is not part of pushedAN1 or acceptance.
 
-## Current obligations — AL3 development (2026-09-26)
+## Historical AL3 development obligations (2026-09-26)
 
 This block supersedes status statements below only within the exact tested scope. Historical failures and every unclosed requirement remain retained; development results are not gates.
 
@@ -17,7 +23,7 @@ This block supersedes status statements below only within the exact tested scope
 - C25 A/H now pass on AL3. C26 complete graph/hostile controls pass, but positive clone fails staged entity-revision equality: missing destination projections for factCapture, subjectPromotionReceipt and surveyPublicationSnapshot. The journal+S6_2 correction is isolated in `restore-frontier`; unchanged source receipts and complete clone/fork/cold behavior remain required.
 - C33 has six priority failures: operational namespace invalidPath, two recoveryRequired cases, orphan-setup crash, empty-destination replacement denial, and C33R deterministic-ID exhaustion crash. Next fixture correction preserves actual Erase denial/replacement/cold-recovery witnesses; genuine operational-journal ownership and cleanup need separate product work. No removal of real directories, mode substitution or relaxed authority is permitted. Real report-bearing S6_4 transport separately still fails exporter graph admission.
 - C55 mixed replacement still fails strict canonical decoding of the synthetic ownerless transport. Three exact buffers are retained as XCResult attachments. Generic JSON object equality/key-order analysis does not establish typed canonical admission; fix the fixture through a reviewed canonical construction and retain the intended missing-owner package rejection.
-- Corrected physical-TMPDIR full tooling passed 336/336 native-CI and 42/42 generator checks. Original environment-related failures and focused confirmations are retained. Inactive C4 review-registration full suites are running separately; no qualification or activation follows from tooling checks. C5 source-census design is reviewed but not implemented; continuous emitted-stream/lifecycle proof and real cold qualification remain due.
+- Corrected physical-TMPDIR full tooling passed 336/336 native-CI and 42/42 generator checks. Original environment-related failures and focused confirmations are retained. The later C4/C5b/C8 checkpoints have separate exact source and tooling evidence; no qualification or activation follows from tooling checks. Continuous emitted-stream/lifecycle proof and real cold qualification remain due.
 - Full finite report source/packet/pose/current-assurance work and the historical-read performance candidate remain isolated. Genuine finalizer/writer/recovery/renderer/correction/archive/delete adoption, owner Clone/Fork presentation, full V23 scope and all five same-head gates remain due. Owner visual/privacy/release decisions and physical-device verification are unchanged; releaseReady=false.
 
 ## Historical AI1/AH2 development obligations (2026-09-26)
@@ -413,3 +419,8 @@ The production photo journey takes priority over another isolated foundation. So
 - AO3 actual27/27PASS does not close full report lifecycle adoption. Investigate12 SQLite vnode-unlinked diagnostics observed in the four unchanged S4_2 controls; passing tests do not establish harmlessness.
 - AP3 build fails escaping diagnostic callback annotation; retain failed original and verify reviewed successor before any native execution. Six-method successor selection is census-checked, not runtime evidence.
 - C6 local unit-host external sink1/1PASS proves only that observed execution and retained bytes. Real UI-app launch/relaunch, earliest policy initialization, every relevant process/lifecycle, authoritative bounded sink/collector and pinned provider qualification remain due. Physical protection remains unverified and release-blocking; gate guards stay closed.
+
+
+### PD1/PD2 directory-record memory safety — 2026-09-27 UTC
+
+PD1 ASan found a heap-buffer-overflow while copying a Darwin variable-length directory entry's declared1024-byte name tuple in OwnedStorageLedgerV1.scanDirectory. PD2 independently reviewed two-path fix is compiling; no runtime closure yet. Author inventory `.codex-temp/storage-scan-asan-successor/same-pattern-inventory.json` retains13 other explicit tuple-copy occurrences across other production files and2 address-of readers requiring assessment. Complete family audit/corrections and independent review remain due, respecting active candidate ownership. Preserve record extent, name encoding, nofollow/inode/lifetime and failclosed semantics. The bounded ledger fix must not stand in for repository-wide closure or proof that AS4's SIGBUS cause is resolved. Original full photo/restore/hostile journey remains due.

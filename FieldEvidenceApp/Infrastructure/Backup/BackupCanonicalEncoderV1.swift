@@ -92,6 +92,36 @@ struct BackupCanonicalEncoderV1: Sendable {
         }
     }
 
+    /// Decoder-only compatibility for the historical C52 all-three-absent
+    /// shape. Normal exports always emit the complete canonical families.
+    func encodeLegacyEmptyServiceRequestRecords(
+        _ records: V4BackupRecordsV1
+    ) throws -> Data {
+        switch records.recordsSchemaVersion {
+        case 48, 49, 50, 51, 52:
+            break
+        default:
+            throw BackupCanonicalEncodingErrorV1.invalidRecords
+        }
+        guard records.serviceRequests.isEmpty,
+              records.serviceRequestDispositionEvents.isEmpty,
+              records.serviceRequestWorkLinkEvents.isEmpty else {
+            throw BackupCanonicalEncodingErrorV1.invalidRecords
+        }
+        try C34SceneNavigationBackupEncoderBoundaryV1.validate()
+        let validation = try Self.ordinaryValidationFacts(records)
+        guard Self.valid(validation) else {
+            throw BackupCanonicalEncodingErrorV1.invalidRecords
+        }
+        var fields = try Self.recordFields(validation)
+        for key in ["serviceRequests", "serviceRequestDispositionEvents", "serviceRequestWorkLinkEvents"] {
+            guard fields.removeValue(forKey: key) == .array([]) else {
+                throw BackupCanonicalEncodingErrorV1.invalidRecords
+            }
+        }
+        return try CanonicalJSONV1.encode(.object(fields))
+    }
+
     /// Canonical business-state projection used by replication checkpoints and
     /// other read/export representations. Shipping backup transport continues
     /// to require its mutation history.
@@ -382,8 +412,7 @@ struct BackupCanonicalEncoderV1: Sendable {
                 try records.workResources.map(Self.workResourceRecord)
             )
         }
-        if records.recordsSchemaVersion >= C52ServiceRequestBackupEncodingBoundaryV1.recordsSchemaVersion
-                && records.recordsSchemaVersion < C53ServiceReliabilityBackupEncodingBoundaryV1.recordsSchemaVersion {
+        if records.recordsSchemaVersion >= C52ServiceRequestBackupEncodingBoundaryV1.recordsSchemaVersion {
             try C52ServiceRequestBackupDecodingBoundaryV1.validate(records)
             fields["serviceRequests"] = .array(try records.serviceRequests.map(Self.serviceRequestRecord))
             fields["serviceRequestDispositionEvents"] = .array(try records.serviceRequestDispositionEvents.map(Self.serviceRequestDispositionRecord))
@@ -453,7 +482,7 @@ struct BackupCanonicalEncoderV1: Sendable {
                 }
             )
         }
-        if records.recordsSchemaVersion >= C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion {
+        if records.recordsSchemaVersion >= C08ImportBulkBackupEnrollmentV1.legacyRecordsSchemaVersion {
             try C08ImportBulkBackupEnrollmentV1.validate(records)
             fields["importMappingProfiles"] = .array(try records.importMappingProfiles.map(Self.importBulkCanonicalValue))
             fields["bulkSessions"] = .array(try records.bulkSessions.map(Self.importBulkCanonicalValue))
@@ -798,7 +827,7 @@ private extension BackupCanonicalEncoderV1 {
              (13, let ledger?, let history?), (14, let ledger?, let history?),
              (15, let ledger?, let history?), (16, let ledger?, let history?),
              (17, let ledger?, let history?), (18, let ledger?, let history?), (19, let ledger?, let history?),
-             (20, let ledger?, let history?), (21, let ledger?, let history?), (22, let ledger?, let history?), (23, let ledger?, let history?), (24, let ledger?, let history?), (25, let ledger?, let history?), (26, let ledger?, let history?), (27, let ledger?, let history?), (28, let ledger?, let history?), (29, let ledger?, let history?), (30, let ledger?, let history?), (31, let ledger?, let history?), (32, let ledger?, let history?), (33, let ledger?, let history?), (34, let ledger?, let history?), (35, let ledger?, let history?), (36, let ledger?, let history?), (37, let ledger?, let history?), (38, let ledger?, let history?), (39, let ledger?, let history?), (C55PartsStockBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (C57MyDayBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (PracticeWorkspaceBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?):
+             (20, let ledger?, let history?), (21, let ledger?, let history?), (22, let ledger?, let history?), (23, let ledger?, let history?), (24, let ledger?, let history?), (25, let ledger?, let history?), (26, let ledger?, let history?), (27, let ledger?, let history?), (28, let ledger?, let history?), (29, let ledger?, let history?), (30, let ledger?, let history?), (31, let ledger?, let history?), (32, let ledger?, let history?), (33, let ledger?, let history?), (34, let ledger?, let history?), (35, let ledger?, let history?), (36, let ledger?, let history?), (37, let ledger?, let history?), (38, let ledger?, let history?), (39, let ledger?, let history?), (C55PartsStockBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (C57MyDayBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (C08ImportBulkBackupEnrollmentV1.legacyRecordsSchemaVersion, let ledger?, let history?), (C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (FastSurveyInboxBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (PracticeWorkspaceBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?), (LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?):
             let historyWasValidated = receiptStableKeys != nil
                 || (try? MutationJournalStoreV1.validateImportedSnapshot(history)) != nil
             ledgerIsValid = recordPredicate("deletion-ledger", (try? ledger.validate()) != nil)
@@ -1527,7 +1556,7 @@ private extension BackupCanonicalEncoderV1 {
     }
 
     static func validC53ServiceReliability(_ records: V4BackupRecordsV1) -> Bool {
-        if records.recordsSchemaVersion < C53ServiceReliabilityBackupEncodingBoundaryV1.recordsSchemaVersion {
+        if records.recordsSchemaVersion < C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion {
             return records.serviceReliabilityIncidents.isEmpty
                 && records.serviceImpactSegments.isEmpty
                 && records.serviceCauseAssertions.isEmpty
@@ -1537,10 +1566,8 @@ private extension BackupCanonicalEncoderV1 {
                 && records.qualifiedServiceExposures.isEmpty
                 && records.serviceReliabilityReceipts.isEmpty
         }
-        guard (C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion ...
-                ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion)
-            .contains(records.recordsSchemaVersion)
-                || records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion else {
+        guard (records.recordsSchemaVersion >= C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion
+                && BackupSchemaAdmissionV1.supportsV4Records(records.recordsSchemaVersion)) else {
             return false
         }
         return (try? C53ServiceReliabilityBackupEnrollmentV1.validate(records: records)) != nil
@@ -2125,21 +2152,11 @@ private extension BackupCanonicalEncoderV1 {
         } else {
             sourceGenerationIsValid = manifest.source.sourceGenerationID == nil
         }
-        let schemaPairIsValid: Bool
-        switch (
-            manifest.backupSchemaVersion,
-            manifest.source.persistentSchemaVersion,
-            manifest.source.recordsSchemaVersion
-        ) {
-        case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3),
-             (4, 5, 4), (4, 6, 5), (4, 7, 6), (4, 8, 7), (4, 9, 8),
-             (4, 10, 9), (4, 11, 10), (4, 12, 11), (4, 13, 12), (4, 14, 13), (4, 15, 14), (4, 16, 15), (4, 17, 16), (4, 18, 17), (4, 19, 18), (4, 20, 19), (4, 21, 20), (4, 22, 21), (4, 23, 22), (4, 24, 23), (4, 25, 24), (4, 26, 25), (4, 27, 26), (4, 28, 27), (4, 29, 28), (4, 30, 29), (4, 31, 30), (4, 32, 31), (4, 33, 32), (4, 34, 33), (4, 35, 34), (4, 36, 35),
-             (4, C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion, C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion),
-             (4, LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion, LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion):
-            schemaPairIsValid = true
-        default:
-            schemaPairIsValid = false
-        }
+        let schemaPairIsValid = BackupSchemaAdmissionV1.supports(
+            backup: manifest.backupSchemaVersion,
+            persistent: manifest.source.persistentSchemaVersion,
+            records: manifest.source.recordsSchemaVersion
+        )
         guard sourceIdentityIsValid, sourceGenerationIsValid,
               schemaPairIsValid,
               manifest.declaredPayloadByteCount >= 0,

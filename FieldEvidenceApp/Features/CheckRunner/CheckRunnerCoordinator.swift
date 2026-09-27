@@ -1239,6 +1239,25 @@ final class CheckRunnerCoordinator {
         _ = try frozenBeginDependencies(progress: progress)
     }
 
+    /// One freshly authenticated historical ENTRY observation. No supplied read
+    /// is trusted, and this acknowledgement grants no later effect permission.
+    func validateFreshHistoricalCheckRunnerSource(
+        _ source: CheckRunnerRoundItemSourceV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1
+    ) throws {
+        try progress.validateFreshHistoricalCheckRunnerSource(source, coordinator: self,
+            publishedRelease: publishedRelease, signPack: signPack)
+    }
+
+    /// The fixed fresh observation calls this before/after its value checks.
+    /// Keep this dependency-only and nonrecursive: it returns no authority.
+    func validateHistoricalCheckRunnerDependencies(
+        progress: ProductionRepetitiveCaptureProgressServiceV2
+    ) throws {
+        _ = try frozenBeginDependencies(progress: progress)
+    }
+
     /// Returns the already configured sole media owner, bound to this exact
     /// live writer/generation. The application still owns every effect permit.
     func checkRunnerPhotoMediaOwner(progress: ProductionRepetitiveCaptureProgressServiceV2) throws

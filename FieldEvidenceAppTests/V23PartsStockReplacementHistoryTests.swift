@@ -382,12 +382,15 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         let archive = try publicReplacementStep("export") {
             try V906Integration.exportStreaming(source)
         }
-        try publicReplacementStep("exported-packet-owner") {
+        let sourceRecords = try publicReplacementStep("exported-packet-owner") {
             try assertExportedPacketOwnerAndRejectOwnerlessPackage(
                 archive, source: source,
                 packetID: V906Integration.id(1_324),
                 stableRootID: V906Integration.id(1_325)
             )
+        }
+        try publicReplacementStep("mixed-c49-record-closure") {
+            try assertMixedC49RecordClosure(sourceRecords: sourceRecords, target: target)
         }
         let restoredGenerationID: UUID
         let restoredHistory: MutationHistorySnapshotV1
@@ -1817,7 +1820,7 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         source: V906Integration.Harness,
         packetID: UUID,
         stableRootID: UUID
-    ) throws {
+    ) throws -> V4BackupRecordsV1 {
         let directory = source.root.appendingPathComponent(
             "packet-owner.fieldrecordbackup", isDirectory: true
         )
@@ -1894,6 +1897,301 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         XCTAssertThrowsError(try BackupPackageValidatorV1().validate(stagedPackageURL: directory)) {
             XCTAssertEqual($0 as? BackupPackageValidationErrorV1, .invalidPackage)
         }
+        return validated.records
+    }
+
+    @MainActor
+    private func assertMixedC49RecordClosure(
+        sourceRecords: V4BackupRecordsV1,
+        target: V906Integration.Harness
+    ) throws {
+        let sourceHistory = try XCTUnwrap(sourceRecords.mutationHistory)
+        let sourceSnapshot = try XCTUnwrap(sourceRecords.partsStockSnapshot)
+        let sourceEntries = try sourceRecords.validateC49WorkResources()
+        let targetWorkspace = target.session.workspaceIdentity.workspaceID
+        let currentSnapshot = try PartsStockLifecycleAdapterV1(
+            modelContext: target.session.modelContext
+        ).snapshotForBackup(workspaceID: targetWorkspace)
+        let journal = try MutationJournalStoreV1(
+            modelContext: target.session.modelContext,
+            identity: target.session.workspaceIdentity,
+            generationID: target.session.generationID,
+            allowStateBootstrap: false
+        )
+        let currentHistory = try journal.exportSnapshot()
+        let sourceManifestRow = try XCTUnwrap(sourceRecords.workPackets.first { $0.kind == .manifest })
+        let sourceManifest = try WorkPacketCanonicalCodecV1.decode(
+            WorkPacketManifestV1.self, from: sourceManifestRow.canonicalData
+        )
+        let targetManifest = try sourceManifest.rebound(to: targetWorkspace)
+        let requirements = try Projector.requirements(
+            incomingSnapshot: sourceSnapshot, incomingHistory: sourceHistory,
+            incomingWorkResources: sourceEntries
+        )
+        // This fixture has disjoint current/source physical rows. Combine only
+        // their authentic originals; the production projector emits target facts.
+        XCTAssertTrue(Set(currentHistory.entityRevisions.map(\.identity)).isDisjoint(
+            with: Set(sourceHistory.entityRevisions.map(\.identity))
+        ))
+        let merged = MutationHistorySnapshotV1(
+            workspaceRevision: max(currentHistory.workspaceRevision, sourceHistory.workspaceRevision),
+            lastLocalSequence: max(currentHistory.lastLocalSequence, sourceHistory.lastLocalSequence),
+            receipts: currentHistory.receipts + sourceHistory.receipts,
+            quarantines: currentHistory.quarantines + sourceHistory.quarantines,
+            entityRevisions: currentHistory.entityRevisions + sourceHistory.entityRevisions
+        )
+        try MutationJournalStoreV1.validateImportedSnapshot(merged)
+        let projected = try Projector.project(.init(
+            currentSnapshot: currentSnapshot, incomingSnapshot: sourceSnapshot,
+            currentHistory: currentHistory, incomingHistory: sourceHistory,
+            plannedHistory: merged, currentWorkResources: [],
+            incomingWorkResources: sourceEntries, plannedWorkResources: sourceEntries,
+            targetWorkspaceID: targetWorkspace, targetGenerationID: Fixture.id(6_000),
+            writerInstanceID: Fixture.id(6_001),
+            mutationBindings: try requirements.mutationIDs.enumerated().map {
+                .init(source: $0.element, target: try Fixture.mutation(6_100 + $0.offset))
+            },
+            subjectBindings: try requirements.subjects.map {
+                XCTAssertEqual($0.kind, .workPacket)
+                XCTAssertEqual($0.subjectID, sourceManifest.manifestID.uuidString.lowercased())
+                XCTAssertEqual($0.subjectSHA256, sourceManifest.manifestSHA256)
+                return .init(source: $0, target: try WorkResourceSubjectV1(
+                    workspaceID: targetWorkspace, kind: $0.kind, subjectID: $0.subjectID,
+                    subjectRevision: $0.subjectRevision,
+                    subjectSHA256: targetManifest.manifestSHA256
+                ))
+            },
+            replicaBindings: requirements.replicas.enumerated().map {
+                .init(source: $0.element, target: ReplicaID(rawValue: Fixture.id(6_200 + $0.offset)))
+            }
+        ))
+        XCTAssertEqual(try XCTUnwrap(sourceEntries.first).actor, sourceManifest.creator)
+        let targetActor = targetManifest.creator
+        let actorRow = V9BackupPartyAccountabilityRecordV1(
+            kind: .actorSnapshot, id: targetActor.snapshotID,
+            workspaceID: targetWorkspace.rawValue, revision: nil,
+            canonicalData: try PartyAccountabilitySnapshotCodecV1.encode(targetActor)
+        )
+        let manifestRow = V15BackupWorkPacketRecordV1(
+            kind: .manifest, id: targetManifest.manifestID,
+            workspaceID: targetWorkspace.rawValue, revision: targetManifest.revision,
+            canonicalData: try WorkPacketCanonicalCodecV1.encode(targetManifest)
+        )
+        func records(
+            entries: [WorkResourceEntryV1], history: MutationHistorySnapshotV1
+        ) throws -> V4BackupRecordsV1 {
+            V4BackupRecordsV1(
+                workPackets: [manifestRow], assets: [], deletionLedger: .empty,
+                evidenceFiles: [], issues: [], mutationHistory: history, packets: [],
+                partyAccountability: [actorRow], recordsSchemaVersion: 40,
+                reports: [], sites: [], workflowRecords: [],
+                workResources: try entries.sorted { $0.entryID.uuidString < $1.entryID.uuidString }
+                    .map(V37BackupWorkResourceRecordV1.init),
+                partsStockSnapshot: projected.targetSnapshot
+            )
+        }
+        func history(_ receipts: [MutationHistoryReceiptRecordV1]) -> MutationHistorySnapshotV1 {
+            .init(workspaceRevision: projected.history.workspaceRevision,
+                  lastLocalSequence: projected.history.lastLocalSequence,
+                  receipts: receipts, quarantines: projected.history.quarantines,
+                  entityRevisions: projected.history.entityRevisions)
+        }
+        let valid = try records(entries: projected.workResources, history: projected.history)
+        // The positive is the production projector's output from accepted writer
+        // commands, before any hostile reconstruction. It contains both origins.
+        XCTAssertEqual(try valid.validateC49WorkResources(), projected.workResources)
+        XCTAssertNoThrow(try C55PartsStockBackupEnrollmentV1.validate(valid))
+        // AP2 reached materialized row equality with this target manifest's hash
+        // absent from the independently planned terminal history. Prove the
+        // expected metadata before the unchanged full public restore journey.
+        let terminalPlan = try MutationJournalStoreV1.planningCoreRestoreHistory(
+            in: valid, workspaceID: targetWorkspace)
+        let manifestIdentity = try WorkspaceEntityIdentityV1(
+            kind: .workPacketManifest, id: targetManifest.manifestID)
+        let manifestRevision = try XCTUnwrap(terminalPlan.entityRevisions.first {
+            $0.identity == manifestIdentity
+        })
+        XCTAssertEqual(manifestRevision.revision, targetManifest.revision)
+        XCTAssertEqual(manifestRevision.externalProjectionSHA256, targetManifest.manifestSHA256)
+        XCTAssertNotEqual(targetManifest.manifestSHA256, sourceManifest.manifestSHA256)
+        XCTAssertEqual(terminalPlan.receipts, projected.history.receipts)
+        XCTAssertEqual(terminalPlan.quarantines, projected.history.quarantines)
+        XCTAssertEqual(terminalPlan.entityRevisions.map(\.identity), projected.history.entityRevisions.map(\.identity))
+        XCTAssertEqual(terminalPlan.entityRevisions.map(\.revision), projected.history.entityRevisions.map(\.revision))
+        XCTAssertTrue(sourceHistory.receipts.allSatisfy { projected.history.receipts.contains($0) })
+        XCTAssertEqual(Set(sourceEntries.map(\.entryID)), Set(projected.workResources.map(\.entryID)))
+        for source in sourceEntries {
+            let destination = try XCTUnwrap(projected.workResources.first { $0.entryID == source.entryID })
+            XCTAssertNotEqual(source.workspaceID, destination.workspaceID)
+            XCTAssertNotEqual(try WorkspaceMutationCanonicalV1.data(source),
+                              try WorkspaceMutationCanonicalV1.data(destination))
+        }
+        let shuffled = try records(entries: projected.workResources,
+                                   history: history(Array(projected.history.receipts.reversed())))
+        XCTAssertEqual(try shuffled.validateC49WorkResources(), projected.workResources)
+        XCTAssertNoThrow(try C55PartsStockBackupEnrollmentV1.validate(shuffled))
+
+        @MainActor
+        func appendingForgedWork(_ values: [WorkResourceEntryV1], slot: Int) throws
+            -> MutationHistorySnapshotV1 {
+            var receipts = projected.history.receipts
+            var revisions = Dictionary(uniqueKeysWithValues:
+                projected.history.entityRevisions.map { ($0.identity, $0) })
+            var workspaceRevision = projected.history.workspaceRevision
+            for (offset, value) in values.enumerated() {
+                let mutation = try WorkResourceMutationV1(
+                    workspaceID: value.workspaceID, mutationID: value.mutationID, postImage: value
+                )
+                let originReceipts = try receipts.map {
+                    try MutationReceiptV1.decodeCanonical(from: $0.receiptData)
+                }.filter { $0.identity.workspaceID == value.workspaceID }
+                let terminal = try XCTUnwrap(originReceipts.max {
+                    $0.resultingRevision.workspaceRevision < $1.resultingRevision.workspaceRevision
+                })
+                let identity = try WorkspaceReplicaIdentityV1(
+                    workspaceID: value.workspaceID,
+                    replicaID: ReplicaID(rawValue: Fixture.id(slot + offset))
+                )
+                let expected = try WorkspaceExpectedRevisionV1(
+                    workspaceID: value.workspaceID, generationID: Fixture.id(slot + 20),
+                    writerInstanceID: Fixture.id(slot + 21),
+                    workspaceRevision: terminal.resultingRevision.workspaceRevision,
+                    entityRevisions: [.init(identity: try mutation.concurrencyIdentity,
+                                            revision: value.expectedRevision)]
+                )
+                let envelope = try MutationEnvelopeV1(
+                    request: .init(mutationID: mutation.mutationID, expectedRevision: expected,
+                                   command: .applyWorkResource(mutation)), identity: identity
+                )
+                var resultingRevisions = Dictionary(uniqueKeysWithValues:
+                    terminal.resultingRevision.entityRevisions.map { ($0.identity, $0.revision) })
+                resultingRevisions[try mutation.affectedIdentity] = value.revision
+                let resulting = try WorkspaceExpectedRevisionV1(
+                    workspaceID: value.workspaceID, generationID: expected.generationID,
+                    writerInstanceID: expected.writerInstanceID,
+                    workspaceRevision: expected.workspaceRevision + 1,
+                    entityRevisions: resultingRevisions.map { .init(identity: $0.key, revision: $0.value) }
+                )
+                let receipt = try MutationReceiptV1(
+                    identity: .init(workspaceID: value.workspaceID, replicaID: identity.replicaID,
+                                    localSequence: 1),
+                    envelope: envelope, resultingRevision: .init(resulting),
+                    postImages: mutation.mutationPostImages, committedAt: Fixture.fixedDate
+                )
+                _ = try WorkResourceMutationReceiptV1(mutation: mutation, mutationReceipt: receipt)
+                receipts.append(.init(
+                    envelopeData: try envelope.canonicalData(), receiptData: try receipt.canonicalData(),
+                    reversalBasisData: nil, semanticReversalData: nil
+                ))
+                revisions[try mutation.affectedIdentity] = .init(
+                    identity: try mutation.affectedIdentity, revision: value.revision
+                )
+                workspaceRevision = max(workspaceRevision, resulting.workspaceRevision)
+            }
+            let value = MutationHistorySnapshotV1(
+                workspaceRevision: workspaceRevision,
+                lastLocalSequence: projected.history.lastLocalSequence, receipts: receipts,
+                quarantines: projected.history.quarantines,
+                entityRevisions: revisions.values.sorted { $0.identity.stableKey < $1.identity.stableKey }
+            )
+            // Guard-specific attacks have canonical typed receipts and an intact
+            // generic history. The C49 immutable graph must supply the denial.
+            try MutationJournalStoreV1.validateImportedSnapshot(value)
+            return value
+        }
+
+        // Same-origin aliases remain invalid even in immutable foreign history.
+        // These are deliberate forged receipt graphs, never positive fixtures.
+        for (offset, entry) in [sourceEntries, projected.workResources].enumerated() {
+            let original = try XCTUnwrap(entry.first { $0.supersedesEntryID == nil })
+            let alias = try original.rebound(
+                to: original.workspaceID, mappedSubject: original.subject,
+                mappedActor: original.actor, mappedSupersedesEntrySHA256: nil,
+                mutationID: Fixture.mutation(6_300 + offset)
+            )
+            let hostileHistory = try appendingForgedWork([alias], slot: 6_400 + offset * 30)
+            XCTAssertThrowsError(try records(entries: projected.workResources,
+                                             history: hostileHistory).validateC49WorkResources()) {
+                XCTAssertEqual($0 as? WorkResourceContractFailureV1, .invalidTransition)
+            }
+        }
+        let foreignHead = try XCTUnwrap(sourceEntries.first { $0.supersedesEntryID != nil })
+        @MainActor
+        func foreignSuccessor(
+            slot: Int, predecessorSHA256: String? = nil,
+            recordedAt: Date? = nil, disposition: WorkResourceDispositionV1 = .superseded
+        ) throws -> WorkResourceEntryV1 {
+            try .init(
+                entryID: Fixture.id(slot), workspaceID: foreignHead.workspaceID,
+                subject: foreignHead.subject, actor: foreignHead.actor,
+                duration: foreignHead.duration, materials: foreignHead.materials,
+                directCost: foreignHead.directCost, visibility: foreignHead.visibility,
+                disposition: disposition, recordedAt: recordedAt ?? foreignHead.recordedAt,
+                expectedRevision: foreignHead.revision, revision: foreignHead.revision + 1,
+                supersedesEntryID: foreignHead.entryID,
+                supersedesEntrySHA256: predecessorSHA256 ?? foreignHead.entrySHA256,
+                mutationID: Fixture.mutation(slot + 1)
+            )
+        }
+        let validForeignSuccessor = try foreignSuccessor(slot: 6_500)
+        XCTAssertNoThrow(try validForeignSuccessor.validateSuccessor(of: foreignHead))
+        // A graph-construction control for the attack helper, not a claim that
+        // this synthetic extension was committed by the real writer above.
+        let extendedControl = try records(entries: projected.workResources,
+            history: appendingForgedWork([validForeignSuccessor], slot: 6_550))
+        XCTAssertEqual(try extendedControl.validateC49WorkResources(), projected.workResources)
+        XCTAssertNoThrow(try C55PartsStockBackupEnrollmentV1.validate(extendedControl))
+        let foreignGraphAttacks: [[WorkResourceEntryV1]] = [
+            [try foreignSuccessor(slot: 6_510, predecessorSHA256: Fixture.digest("f"))],
+            [try foreignSuccessor(slot: 6_520,
+                                  recordedAt: foreignHead.recordedAt.addingTimeInterval(-1))],
+            [try foreignSuccessor(slot: 6_530, disposition: .active)],
+            [validForeignSuccessor, try foreignSuccessor(slot: 6_540)],
+        ]
+        for (offset, attack) in foreignGraphAttacks.enumerated() {
+            let hostileHistory = try appendingForgedWork(attack, slot: 6_600 + offset * 30)
+            XCTAssertThrowsError(try records(entries: projected.workResources,
+                                             history: hostileHistory).validateC49WorkResources()) {
+                XCTAssertEqual($0 as? WorkResourceContractFailureV1, .invalidTransition)
+            }
+        }
+        let duplicated = history(projected.history.receipts + [try XCTUnwrap(projected.history.receipts.first)])
+        XCTAssertThrowsError(try records(entries: projected.workResources,
+                                         history: duplicated).validateC49WorkResources())
+        let missingTarget = try projected.history.receipts.filter { record in
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+            return !(envelope.workspaceID == targetWorkspace && envelope.commandKind == .applyWorkResource)
+        }
+        XCTAssertThrowsError(try records(entries: projected.workResources,
+                                         history: history(missingTarget)).validateC49WorkResources())
+        XCTAssertThrowsError(try records(entries: [], history: projected.history).validateC49WorkResources())
+        XCTAssertThrowsError(try records(entries: sourceEntries,
+                                         history: projected.history).validateC49WorkResources())
+        var changed = projected.workResources
+        let successorIndex = try XCTUnwrap(changed.firstIndex { $0.supersedesEntryID != nil })
+        let successor = changed[successorIndex]
+        changed[successorIndex] = try successor.rebound(
+            to: successor.workspaceID, mappedSubject: successor.subject,
+            mappedActor: successor.actor, mappedSupersedesEntrySHA256: Fixture.digest("f"),
+            mutationID: successor.mutationID
+        )
+        XCTAssertThrowsError(try records(entries: changed,
+                                         history: projected.history).validateC49WorkResources())
+        let sourceRecordIndex = try XCTUnwrap(projected.history.receipts.firstIndex { record in
+            try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData).workspaceID
+                == sourceSnapshot.workspaceID
+        })
+        var corruptForeign = projected.history.receipts
+        let original = corruptForeign[sourceRecordIndex]
+        corruptForeign[sourceRecordIndex] = .init(
+            envelopeData: original.envelopeData + Data([0]), receiptData: original.receiptData,
+            reversalBasisData: original.reversalBasisData, semanticReversalData: original.semanticReversalData
+        )
+        XCTAssertThrowsError(try records(entries: projected.workResources,
+                                         history: history(corruptForeign)).validateC49WorkResources())
+        XCTAssertEqual(try valid.validateC49WorkResources(), projected.workResources)
+        XCTAssertEqual(try journal.exportSnapshot(), currentHistory)
+        XCTAssertFalse(target.session.modelContext.hasChanges)
     }
 
     private func assertEmptyMyDayReplacementBoundary(
@@ -2415,6 +2713,14 @@ final class V23PartsStockReplacementHistoryTests: XCTestCase {
         try journal.validateAll()
         let history = try journal.exportSnapshot()
         XCTAssertNoThrow(try MutationJournalStoreV1.validateImportedSnapshot(history))
+        let manifests = try session.modelContext.fetch(FetchDescriptor<WorkPacketManifestRow>())
+        XCTAssertEqual(manifests.count, 1)
+        let manifest = try XCTUnwrap(manifests.first).value()
+        XCTAssertEqual(manifest.workspaceID, session.workspaceID)
+        let manifestIdentity = try WorkspaceEntityIdentityV1(kind: .workPacketManifest, id: manifest.manifestID)
+        let terminal = try XCTUnwrap(history.entityRevisions.first { $0.identity == manifestIdentity })
+        XCTAssertEqual(terminal.revision, manifest.revision)
+        XCTAssertEqual(terminal.externalProjectionSHA256, manifest.manifestSHA256)
         XCTAssertTrue(sourceHistory.receipts.allSatisfy { history.receipts.contains($0) })
         let envelopes = try history.receipts.map {
             try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData)

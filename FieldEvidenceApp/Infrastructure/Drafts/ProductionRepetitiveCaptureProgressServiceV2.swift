@@ -407,6 +407,34 @@ final class ProductionRepetitiveCaptureProgressServiceV2 {
         try source.validateHistoricalEntry(read: value, publishedRelease: publishedRelease, signPack: signPack)
     }
 
+    /// Fixed fresh observation, not validation of an escaped read. The concrete
+    /// coordinator calls only its dependency checks; no callback or authority
+    /// value leaves this synchronous operation.
+    func validateFreshHistoricalCheckRunnerSource(_ source: CheckRunnerRoundItemSourceV1,
+        coordinator: CheckRunnerCoordinator,
+        publishedRelease: InspectionPackageReleaseV1, signPack: SignPack) throws {
+        let entry = try currentSession()
+        let revision = try entry.workspaceWriter.currentRevision()
+        let value = try read(sourceDraftID: source.sourceCheckpoint.draftID)
+        // Preserve the original caller's graph-before-dependency failure order.
+        try coordinator.validateHistoricalCheckRunnerDependencies(progress: self)
+        try requireOwner(value.ownerID)
+        let current = try currentSession()
+        guard current === entry, current.modelContext === entry.modelContext,
+              value.revision == revision,
+              try current.workspaceWriter.currentRevision() == revision else {
+            throw ScanToWorkFailureV1.stale
+        }
+        try source.validateHistoricalEntry(read: value,
+            publishedRelease: publishedRelease, signPack: signPack)
+        let exit = try currentSession()
+        guard exit === entry, exit.modelContext === entry.modelContext,
+              try exit.workspaceWriter.currentRevision() == revision else {
+            throw ScanToWorkFailureV1.stale
+        }
+        try coordinator.validateHistoricalCheckRunnerDependencies(progress: self)
+    }
+
     /// Source preparation must use the same live session and canonical row
     /// context as this progress owner. It grants no scene publication permission.
     func validateCheckRunnerOwner(writer: WorkspaceWriterV1, modelContext: ModelContext) throws {

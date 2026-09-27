@@ -976,11 +976,18 @@ struct BackupCanonicalDecoderV1: Sendable {
 #if DEBUG
             recordsDecodePhase = "canonical-byte-equality"
 #endif
-            guard canonical == data else {
-                throw BackupCanonicalDecodingErrorV1.invalidRecords
+            if canonical != data {
+                // The old encoder omitted all three C52 fields at48...52.
+                // Reconstruct only that exact empty shape after full validation;
+                // no unknown, duplicate, partial, or noncanonical bytes pass.
+                let legacy = try BackupCanonicalEncoderV1()
+                    .encodeLegacyEmptyServiceRequestRecords(value)
+                guard legacy == data else {
+                    throw BackupCanonicalDecodingErrorV1.invalidRecords
+                }
             }
             return (value, BackupCanonicalRecordsValidationFactsV1(
-                records: value, canonicalData: canonical))
+                records: value, canonicalData: data))
         } catch {
 #if DEBUG
             let diagnosticError = error as NSError
@@ -2009,7 +2016,8 @@ private extension BackupCanonicalDecoderV1 {
             // These embedded canonical codecs write numeric milliseconds. The
             // enclosing backup still requires exact canonical reencoding.
             if let root = decoder.codingPath.first?.stringValue,
-               root == "partsStockSnapshot" || root == "roundSessions" {
+               root == "partsStockSnapshot" || root == "roundSessions"
+                || root == "evidenceQuality" || root == "fastSurveyInbox" {
                 let milliseconds = try container.decode(Double.self)
                 guard milliseconds.isFinite else {
                     throw DecodingError.dataCorruptedError(
@@ -2091,17 +2099,7 @@ enum C52ServiceRequestBackupDecodingBoundaryV1 {
             }
             return
         }
-        guard (records.recordsSchemaVersion == recordsSchemaVersion
-                || records.recordsSchemaVersion == C53ServiceReliabilityBackupDecodingBoundaryV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == C55PartsStockBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == C57MyDayBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == PracticeWorkspaceBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion),
+        guard BackupSchemaAdmissionV1.supportsV4Records(records.recordsSchemaVersion),
               records.mutationHistory != nil else {
             throw ServiceRequestBackupContractFailureV1.invalidSchemaVersion
         }

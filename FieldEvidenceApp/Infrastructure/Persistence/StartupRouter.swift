@@ -2270,58 +2270,44 @@ final class StartupRouter: ObservableObject {
     }
 
     private func currentMediaOwnership(session: StoreGenerationSession,
-                                       owner: OwnedWriter) throws -> StartupMediaOwnershipSnapshotV1 {
-        guard !session.modelContext.hasChanges else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
-        let revision = try owner.writer.currentRevision()
-        let authorities = try session.modelContext.fetch(FetchDescriptor<EvidenceFile>()).map {
-            EvidenceBundleAuthority(schemaVersion: $0.schemaVersion, id: $0.id, recordID: $0.recordID,
-                purposeKey: $0.purposeKey, relativePath: $0.relativePath, mimeType: $0.mimeType,
-                byteCount: $0.byteCount, sha256: $0.sha256, thumbnailRelativePath: $0.thumbnailRelativePath,
-                thumbnailByteCount: $0.thumbnailByteCount, thumbnailSHA256: $0.thumbnailSHA256)
-        }.sorted { $0.id.uuidString < $1.id.uuidString }
-        let checkpoints = try session.modelContext.fetch(FetchDescriptor<FieldDraftCheckpointRow>())
-            .map { try $0.value() }.filter { $0.codec.codecID == CheckRunnerPhotoDraftCodecV1.codecID }
-            .sorted { $0.draftID.uuidString < $1.draftID.uuidString }
-        var photos: [StartupMediaPhotoOwnershipV1] = []
-        for checkpoint in checkpoints {
-            let payload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(checkpoint)
-            guard checkpoint.workspaceID == session.workspaceID else {
-                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
-            }
-            let targetCommitted: Bool
-            if checkpoint.state == .committed {
-                guard let current = try owner.writer.checkRunnerPhotoCurrentTargetEvidence(
-                    workspaceID: session.workspaceID, parentDraftID: payload.parentDraftID,
-                    childDraftID: checkpoint.draftID),
-                      case let .applyCommitTerminal(bundle, _) = current.parent.child.terminal.mutation.postImage,
-                      bundle.committedCheckpoint == checkpoint else {
-                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
-                }
-                targetCommitted = true
-            } else {
-                switch payload.phase {
-                case .awaitingRawStage, .rawReady:
-                    guard let current = try owner.writer.checkRunnerPhotoRawStageEvidence(
-                        workspaceID: session.workspaceID, parentDraftID: payload.parentDraftID,
-                        childDraftID: checkpoint.draftID), current.currentCheckpoint == checkpoint else {
-                        throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
-                    }
-                    targetCommitted = false
-                case .pairReady, .preparedCommit:
-                    guard let current = try owner.writer.checkRunnerPhotoContinuationEvidence(
-                        workspaceID: session.workspaceID, parentDraftID: payload.parentDraftID,
-                        childDraftID: checkpoint.draftID), current.checkpoint == checkpoint else {
-                        throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
-                    }
-                    targetCommitted = current.target != nil
-                }
-            }
-            photos.append(.init(checkpoint: checkpoint, payload: payload, targetCommitted: targetCommitted))
+                                       operation: UUID, owner: OwnedWriter) throws -> StartupMediaOwnershipSnapshotV1 {
+#if DEBUG
+        let timingStarted = DispatchTime.now().uptimeNanoseconds
+        let journalPassesBefore = owner.writer.fullJournalValidationPassCountForTesting
+        var observedPhotoRows: Int? = nil
+        print("STARTUP_MEDIA_TIMING_V1 step=ownership.enter uptimeNs=\(timingStarted)")
+        defer {
+            let ended = DispatchTime.now().uptimeNanoseconds
+            let passes: String
+            if let before = journalPassesBefore,
+               let after = owner.writer.fullJournalValidationPassCountForTesting {
+                passes = String(after &- before)
+            } else { passes = "unavailable" }
+            print("STARTUP_MEDIA_TIMING_V1 step=ownership.exit uptimeNs=\(ended) elapsedNs=\(ended &- timingStarted) photoRows=\(observedPhotoRows.map { String($0) } ?? "unobserved") writerJournalPassDelta=\(passes)")
         }
-        guard !session.modelContext.hasChanges, try owner.writer.currentRevision() == revision else {
-            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+#endif
+        try requireCurrentMediaOwnerIdentity(session: session, operation: operation, owner: owner)
+        let snapshot = try owner.writer.startupMediaOwnershipInReadScope(
+            workspaceID: session.workspaceID, modelContext: session.modelContext)
+        try requireCurrentMediaOwnerIdentity(session: session, operation: operation, owner: owner)
+#if DEBUG
+        observedPhotoRows = snapshot.photos.count
+#endif
+        return snapshot
+    }
+
+    /// Media-only identity checks surround a fresh full journal observation.
+    /// Other startup callers retain requireCurrentOwner's history export.
+    private func requireCurrentMediaOwnerIdentity(session: StoreGenerationSession,
+        operation: UUID, owner: OwnedWriter) throws {
+        try requireCurrentOperation(operation)
+        guard owner.coordinator.workspaceWriter === owner.writer,
+              owner.coordinator.generationID == owner.generationID,
+              session.generationID == owner.generationID,
+              owner.coordinator.modelContext === session.modelContext,
+              try generationFactory.currentGenerationID() == owner.generationID else {
+            throw OperationFailure.superseded
         }
-        return .init(revision: revision, authorities: authorities, photos: photos)
     }
 
     private func retireCurrentPrivatePreparations(session: StoreGenerationSession, operation: UUID,
@@ -2360,19 +2346,26 @@ final class StartupRouter: ObservableObject {
 
     private func recoverCurrentMedia(session: StoreGenerationSession, operation: UUID,
                                      owner: OwnedWriter) async throws {
-        try await requireCurrentOperationAndAccess(operation, owner: owner)
+        try await requireCurrentOperationAndAccess(operation)
         let originalAuthorization = operationAuthorization
-        let snapshot = try currentMediaOwnership(session: session, owner: owner)
+        let snapshot = try currentMediaOwnership(session: session, operation: operation, owner: owner)
         let rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: session.generationRootURL)
         let authority = StartupMediaRecoveryAuthorityV1(snapshot: snapshot) {
-            try self.requireCurrentOperation(operation, owner: owner)
-            guard try self.currentMediaOwnership(session: session, owner: owner) == snapshot else {
+            guard try self.currentMediaOwnership(session: session, operation: operation, owner: owner) == snapshot else {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
         }
         let store = EvidenceBundleStore(generationRootURL: session.generationRootURL, fileManager: fileManager)
+#if DEBUG
+        let preparationStarted = DispatchTime.now().uptimeNanoseconds
+        print("STARTUP_MEDIA_TIMING_V1 step=preparation.request uptimeNs=\(preparationStarted)")
+#endif
         let prepared = try await store.prepareStartupRecovery(authority: authority,
             expectedGenerationRootIdentity: rootIdentity)
+#if DEBUG
+        let preparationEnded = DispatchTime.now().uptimeNanoseconds
+        print("STARTUP_MEDIA_TIMING_V1 step=preparation.return uptimeNs=\(preparationEnded) elapsedNs=\(preparationEnded &- preparationStarted)")
+#endif
 #if DEBUG
         try await beforeCurrentMediaCleanupForTesting?(session.modelContext)
 #endif

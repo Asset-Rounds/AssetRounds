@@ -12,6 +12,45 @@ final class V9_74EvidenceQualityCoachTests: XCTestCase {
         let fixture = try C10ProductionFixture()
         let populated = try fixture.physicalBackupSnapshot()
         XCTAssertEqual(populated.ruleSets.count, 1)
+        // Exercise the accessible full archive codecs with genuine current
+        // rule-set/history values, including the required empty stock family.
+        let history = try BackupCanonicalEncoderV1.archiveOrderedMutationHistory(
+            fixture.writer.sourceMutationHistorySnapshot())
+        let stock = try PartsStockLifecycleAdapterV1(modelContext: fixture.context)
+            .snapshotForBackup(workspaceID: fixture.workspaceID)
+        let dateRecords = V4BackupRecordsV1(assets: [], deletionLedger: .empty,
+            evidenceFiles: [], issues: [], mutationHistory: history, packets: [],
+            partyAccountability: [], recordsSchemaVersion: EvidenceQualityBackupEnrollmentV1.recordsSchemaVersion,
+            reports: [], sites: [], workflowRecords: [], partsStockSnapshot: stock,
+            evidenceQuality: populated)
+        let dateBytes = try BackupCanonicalEncoderV1().encodeRecords(dateRecords).data
+        let decodedDates = try BackupCanonicalDecoderV1().decodeRecords(dateBytes)
+        XCTAssertEqual(decodedDates, dateRecords)
+        XCTAssertEqual(decodedDates.evidenceQuality, populated)
+        var incompatible = try XCTUnwrap(JSONSerialization.jsonObject(with: dateBytes) as? [String: Any])
+        var quality = try XCTUnwrap(incompatible["evidenceQuality"] as? [String: Any])
+        var rules = try XCTUnwrap(quality["ruleSets"] as? [[String: Any]])
+        XCTAssertNotNil(rules[0]["recordedAt"] as? NSNumber)
+        rules[0]["recordedAt"] = "2026-09-26T00:00:00.000Z"
+        quality["ruleSets"] = rules; incompatible["evidenceQuality"] = quality
+        XCTAssertThrowsError(try BackupCanonicalDecoderV1().decodeRecords(
+            JSONSerialization.data(withJSONObject: incompatible, options: [.sortedKeys])))
+        // Ordinary schema1 site dates retain exact RFC3339 admission. Prove the
+        // whole unchanged envelope first, then change only one date to numeric.
+        let ordinary = V4BackupRecordsV1(assets: [], evidenceFiles: [], issues: [],
+            packets: [], partyAccountability: [], recordsSchemaVersion: 1, reports: [],
+            sites: [.init(id: UUID(), schemaVersion: 1, label: "Date boundary",
+                address: nil, timeZoneID: "America/New_York", createdAt: fixture.date,
+                updatedAt: fixture.date)], workflowRecords: [])
+        let ordinaryBytes = try BackupCanonicalEncoderV1().encodeRecords(ordinary).data
+        XCTAssertEqual(try BackupCanonicalDecoderV1().decodeRecords(ordinaryBytes), ordinary)
+        var ordinaryFields = try XCTUnwrap(JSONSerialization.jsonObject(with: ordinaryBytes) as? [String: Any])
+        var sites = try XCTUnwrap(ordinaryFields["sites"] as? [[String: Any]])
+        XCTAssertNotNil(sites[0]["createdAt"] as? String)
+        sites[0]["createdAt"] = fixture.date.timeIntervalSince1970 * 1_000
+        ordinaryFields["sites"] = sites
+        XCTAssertThrowsError(try BackupCanonicalDecoderV1().decodeRecords(
+            JSONSerialization.data(withJSONObject: ordinaryFields, options: [.sortedKeys])))
         let empty = try EvidenceQualityBackupSnapshotV1(ruleSets: [], assessments: [], waivers: [],
             receipts: [], effectProvenance: [])
         func records(_ version: Int, _ snapshot: EvidenceQualityBackupSnapshotV1?) -> V4BackupRecordsV1 {
@@ -134,8 +173,15 @@ final class V9_74EvidenceQualityCoachTests: XCTestCase {
         let f = try C10ProductionFixture()
         let request = try f.request(revision: 1, primary: f.capture(), comparison: f.capture(id: "comparison", bytes: [80, 81, 82, 83]), collection: [f.capture(), f.capture(id: "collection", bytes: [90, 91, 92, 93])])
         XCTAssertFalse(request.expectedRevision.entityRevisions.isEmpty)
-        XCTAssertEqual(request.expectedRevision.entityRevisions.last?.identity, try WorkspaceEntityIdentityV1(kind: .evidenceQualityAssessment, id: request.assessmentID))
-        XCTAssertEqual(request.expectedRevision.entityRevisions.last?.revision, 0)
+        let assessmentIdentity = try WorkspaceEntityIdentityV1(kind: .evidenceQualityAssessment, id: request.assessmentID)
+        let selected = request.expectedRevision.entityRevisions.filter { $0.identity == assessmentIdentity }
+        XCTAssertEqual(selected.count, 1)
+        XCTAssertEqual(selected.first?.identity, assessmentIdentity)
+        XCTAssertEqual(selected.first?.revision, 0)
+        let prior = try f.writer.currentRevision()
+        XCTAssertEqual(request.expectedRevision.entityRevisions,
+            (prior.entityRevisions + [.init(identity: assessmentIdentity, revision: 0)])
+                .sorted { $0.identity.stableKey < $1.identity.stableKey })
         guard case let .assessed(assessment, receipt) = try f.coordinator.assess(request) else { return XCTFail("production assessment expected") }
         XCTAssertEqual(assessment.orderedFindings.map(\.ruleID), ["evidence.quality.blur", "evidence.quality.darkness", "evidence.quality.duplicate", "evidence.quality.framing_reference_sequence", "evidence.quality.required_count", "evidence.quality.resolution"])
         XCTAssertEqual(assessment.orderedFindings.map(\.disposition), Array(repeating: .withinConfiguredBoundary, count: 6))
@@ -166,7 +212,72 @@ final class V9_74EvidenceQualityCoachTests: XCTestCase {
         XCTAssertNotEqual(first.evidence, second.evidence)
         let waiverID = UUID(), waiverEventID = UUID(), mutationID = try f.mutation()
         let request = EvidenceQualityCoordinatorV1.WaiverRequest(waiverEventID: waiverEventID, waiverID: waiverID, assessment: second, selectedRuleIDs: [EvidenceQualityRuleIDV1.blur.rawValue], reason: .retakeNotPossible, limitation: "Access conditions changed before an additional retake.", actor: try f.actor(), recordedAt: f.date.addingTimeInterval(3), predecessor: nil, revision: 1, mutationID: mutationID, expectedRevision: try f.expected(kind: .evidenceQualityWaiverEvent, id: waiverEventID))
+        let before = try f.writer.currentRevision()
+        let historyBefore = try f.journal.exportSnapshot()
+        let snapshotBefore = try f.physicalBackupSnapshot()
+        XCTAssertNotEqual(waiverID, waiverEventID)
+        let eventIdentity = try WorkspaceEntityIdentityV1(kind: .evidenceQualityWaiverEvent, id: waiverEventID)
+        let logicalIdentity = try WorkspaceEntityIdentityV1(kind: .evidenceQualityWaiverEvent, id: waiverID)
+        XCTAssertNil(before.entityRevisions.first { $0.identity == eventIdentity })
+        // Reproduce the old fixture's precise mismatch with the same valid
+        // payload and real current workspace revision, not a stale clock guess.
+        let wrongExpected = try f.expected(kind: .evidenceQualityWaiverEvent, id: waiverID)
+        XCTAssertEqual(wrongExpected.workspaceRevision, before.revision)
+        XCTAssertNil(wrongExpected.entityRevisions.first { $0.identity == eventIdentity })
+        let wrongRequest = EvidenceQualityCoordinatorV1.WaiverRequest(
+            waiverEventID: request.waiverEventID, waiverID: request.waiverID,
+            assessment: request.assessment, selectedRuleIDs: request.selectedRuleIDs,
+            reason: request.reason, limitation: request.limitation, actor: request.actor,
+            recordedAt: request.recordedAt, predecessor: request.predecessor,
+            revision: request.revision, mutationID: request.mutationID, expectedRevision: wrongExpected)
+        XCTAssertThrowsError(try f.coordinator.acceptWithReason(wrongRequest)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .staleWorkspaceRevision)
+        }
+        XCTAssertEqual(try f.writer.currentRevision(), before)
+        XCTAssertEqual(try f.journal.exportSnapshot(), historyBefore)
+        XCTAssertEqual(try f.physicalBackupSnapshot(), snapshotBefore)
+        XCTAssertEqual(try f.context.fetchCount(FetchDescriptor<EvidenceQualityWaiverRowV1>()), 0)
+        XCTAssertNil(try f.journal.receipt(mutationID: mutationID))
+        XCTAssertFalse(f.context.hasChanges)
+
         guard case let .acceptedWithReason(waiver, receipt) = try f.coordinator.acceptWithReason(request) else { return XCTFail("reasoned waiver expected") }
+        let after = try f.writer.currentRevision()
+        XCTAssertEqual(receipt.priorWorkspaceRevision, before.revision)
+        XCTAssertEqual(receipt.resultingWorkspaceRevision, before.revision + 1)
+        XCTAssertEqual(after.revision, receipt.resultingWorkspaceRevision)
+        XCTAssertEqual(waiver.waiverEventID, waiverEventID)
+        XCTAssertEqual(waiver.waiverID, waiverID)
+        XCTAssertEqual(after.entityRevisions.first { $0.identity == eventIdentity }?.revision, 1)
+        XCTAssertNil(after.entityRevisions.first { $0.identity == logicalIdentity })
+        let generic = try XCTUnwrap(f.journal.receipt(mutationID: mutationID))
+        XCTAssertEqual(generic.expectedRevision, try MutationPortableExpectedRevisionV1(request.expectedRevision))
+        XCTAssertEqual(generic.resultingRevision,
+            try MutationPortableExpectedRevisionV1(WorkspaceExpectedRevisionV1(snapshot: after)))
+        XCTAssertEqual(generic.postImages.count, 1)
+        let image = try XCTUnwrap(generic.postImages.first)
+        XCTAssertEqual(try image.identity, eventIdentity)
+        XCTAssertEqual(try image.concurrencyIdentity, eventIdentity)
+        XCTAssertEqual(image.revision, 1)
+        let postImageBasis = C10WaiverPostImageBasis(identity: eventIdentity, revision: 1, value: waiver)
+        XCTAssertEqual(image.semanticSHA256, try WorkspaceMutationCanonicalV1.sha256(postImageBasis))
+        XCTAssertNotEqual(image.semanticSHA256, try WorkspaceMutationCanonicalV1.sha256(
+            C10WaiverPostImageBasis(identity: logicalIdentity, revision: 1, value: waiver)))
+        XCTAssertNotEqual(image.semanticSHA256, try WorkspaceMutationCanonicalV1.sha256(
+            C10WaiverPostImageBasis(identity: eventIdentity, revision: 2, value: waiver)))
+        let historyAfter = try f.journal.exportSnapshot()
+        XCTAssertEqual(historyAfter.receipts.count, historyBefore.receipts.count + 1)
+        XCTAssertTrue(historyBefore.receipts.allSatisfy { historyAfter.receipts.contains($0) })
+        XCTAssertEqual(historyAfter.quarantines, historyBefore.quarantines)
+        try MutationJournalStoreV1.validateImportedSnapshot(historyAfter)
+        let originalRecord = try XCTUnwrap(historyAfter.receipts.first {
+            try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData).mutationID == mutationID
+        })
+        let envelope = try MutationEnvelopeV1.decodeCanonical(from: originalRecord.envelopeData)
+        guard case let .applyEvidenceQuality(command) = envelope.command else {
+            return XCTFail("Actual waiver command must be retained in the generic journal")
+        }
+        XCTAssertNoThrow(try receipt.validate(command: command))
+        XCTAssertEqual(try MutationReceiptV1.decodeCanonical(from: originalRecord.receiptData), generic)
         XCTAssertEqual(waiver.assessmentRevision, second.revision); XCTAssertEqual(waiver.assessmentSHA256, second.assessmentSHA256)
         XCTAssertEqual(waiver.evidence, retake.evidence); XCTAssertEqual(waiver.selectedRuleIDs, [EvidenceQualityRuleIDV1.blur.rawValue])
         XCTAssertFalse(waiver.erasesWarnings); XCTAssertFalse(waiver.automaticallyPassesEvidence)
@@ -433,7 +544,7 @@ final class C10ProductionFixture {
     }
 
     func waiver(for assessment: EvidenceQualityAssessmentV1) throws -> EvidenceQualityWaiverV1 {
-        let waiverID = UUID(), request = EvidenceQualityCoordinatorV1.WaiverRequest(waiverEventID: UUID(), waiverID: waiverID, assessment: assessment, selectedRuleIDs: [EvidenceQualityRuleIDV1.blur.rawValue], reason: .retakeNotPossible, limitation: "Retake unavailable due to changed access.", actor: try actor(), recordedAt: date.addingTimeInterval(10), predecessor: nil, revision: 1, mutationID: try mutation(), expectedRevision: try expected(kind: .evidenceQualityWaiverEvent, id: waiverID))
+        let waiverID = UUID(), waiverEventID = UUID(), request = EvidenceQualityCoordinatorV1.WaiverRequest(waiverEventID: waiverEventID, waiverID: waiverID, assessment: assessment, selectedRuleIDs: [EvidenceQualityRuleIDV1.blur.rawValue], reason: .retakeNotPossible, limitation: "Retake unavailable due to changed access.", actor: try actor(), recordedAt: date.addingTimeInterval(10), predecessor: nil, revision: 1, mutationID: try mutation(), expectedRevision: try expected(kind: .evidenceQualityWaiverEvent, id: waiverEventID))
         guard case let .acceptedWithReason(value, _) = try coordinator.acceptWithReason(request) else { throw EvidenceQualityFailureV1.invalidValue }
         return value
     }
@@ -510,4 +621,12 @@ final class C10ProductionFixture {
         let rules = try definitions.map { kind, comparator, threshold, unit, severity, applicability in try EvidenceQualityRuleV1(ruleID: EvidenceQualityRuleIDV1(kind: kind).rawValue, kind: kind, ruleVersion: "1.0.0", comparator: comparator, threshold: threshold, unit: unit, severity: severity, explanationKey: "evidence.quality.explanation.\(kind.rawValue.lowercased())", remedyKey: "evidence.quality.remedy.\(kind.rawValue.lowercased())", applicability: applicability) }
         return try .init(ruleSetID: UUID(), workspaceID: workspaceID, policyVersion: "1.0.0", orderedRules: rules, revision: 1, mutationID: MutationIDV1(rawValue: UUID()), recordedAt: date)
     }
+}
+
+/// Independent canonical postimage oracle. The generic journal hashes this
+/// complete identity/revision/value basis; the typed waiver keeps its own digest.
+private struct C10WaiverPostImageBasis: Codable {
+    let identity: WorkspaceEntityIdentityV1
+    let revision: UInt64
+    let value: EvidenceQualityWaiverV1
 }

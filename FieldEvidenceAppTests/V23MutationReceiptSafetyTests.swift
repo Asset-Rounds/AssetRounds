@@ -3364,3 +3364,62 @@ enum ReceiptSafetyPrivacySeed {
             mutationID: fixture.policy.mutationID)
     }
 }
+
+extension V23MutationReceiptSafetyTests {
+    func testPopulatedReliabilityBackupUsesIntroduction39AndPreservesWriterHistoryThrough52() throws {
+        let workspace = WorkspaceID(rawValue: UUID())
+        let assetID = UUID()
+        let siteID = UUID()
+        let harness = try ReceiptSafetyHarness(workspaceID: workspace) { context in
+            context.insert(Site(id: siteID, label: "Schema admission reliability", timeZoneID: "UTC"))
+            context.insert(Asset(id: assetID, siteID: siteID, packID: "receipt-safety",
+                packSchemaVersion: 1, packContentVersion: 1, label: "Reliability asset"))
+        }
+        defer { harness.removeFiles() }
+        let fixture = try ReceiptSafetyServiceReliability.makeBundle(workspaceID: workspace,
+            assetID: assetID, current: harness.writer.currentRevision())
+        let committed = try harness.writer.commitServiceReliability(fixture.bundle)
+        let history = try BackupCanonicalEncoderV1.archiveOrderedMutationHistory(
+            harness.writer.sourceMutationHistorySnapshot())
+        XCTAssertEqual(history.receipts.count, 1)
+        let exposure = try XCTUnwrap(fixture.bundle.payloads.compactMap { payload -> QualifiedServiceExposureV1? in
+            if case let .exposure(value) = payload { return value }
+            return nil
+        }.first)
+        let row = try V39BackupServiceReliabilityRecordV1(exposure)
+        let receipts = try C53ServiceReliabilityBackupEnrollmentV1.receiptRecords(from: history)
+        XCTAssertEqual(receipts.count, 1)
+        XCTAssertEqual(try receipts[0].value(), committed)
+        let date = ReceiptSafetyClock().now()
+        let asset = V4BackupAssetDTO(id: assetID, schemaVersion: 1, siteID: siteID,
+            packID: "receipt-safety", packSchemaVersion: 1, packContentVersion: 1,
+            label: "Reliability asset", createdAt: date, updatedAt: date)
+        func records(_ version: Int, includeHistory: Bool = true) throws -> V4BackupRecordsV1 {
+            let stock: PartsStockBackupSnapshotV1? = version >= 40
+                ? try .init(workspaceID: workspace, parts: [], locations: [], movements: [],
+                    uses: [], reversals: [], returns: [], abandonments: []) : nil
+            let queue: ReinspectionExceptionQueueBackupSnapshotV1? = version >= 48
+                ? try .init(plans: [], attestations: [], acknowledgements: [], receipts: [], effectProvenance: []) : nil
+            let identity: EntityIdentityResolutionBackupSnapshotV1? = version >= 49
+                ? try .init(workspaceID: workspace, generationID: harness.generationID,
+                    aliasLinks: [], consolidationReceipts: [], mutationReceipts: []) : nil
+            return V4BackupRecordsV1(assets: [asset], deletionLedger: .empty, evidenceFiles: [], issues: [],
+                mutationHistory: includeHistory ? history : .init(workspaceRevision: 0, lastLocalSequence: 0,
+                    receipts: [], quarantines: [], entityRevisions: []),
+                packets: [], recordsSchemaVersion: version, reports: [], sites: [], workflowRecords: [],
+                qualifiedServiceExposures: [row], serviceReliabilityReceipts: receipts,
+                partsStockSnapshot: stock, reinspectionExceptionQueue: queue, entityIdentityResolution: identity)
+        }
+        for version in [39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52] {
+            let original = try records(version)
+            let encoded = try BackupCanonicalEncoderV1().encodeRecords(original).data
+            let decoded = try BackupCanonicalDecoderV1().decodeRecords(encoded)
+            XCTAssertEqual(decoded, original, "records\(version)")
+            XCTAssertEqual(try decoded.qualifiedServiceExposures.first?.value(), .exposure(exposure))
+            XCTAssertEqual(decoded.mutationHistory, history)
+            XCTAssertEqual(decoded.serviceReliabilityReceipts, receipts)
+            XCTAssertThrowsError(try BackupCanonicalEncoderV1().encodeRecords(records(version, includeHistory: false)))
+        }
+        XCTAssertThrowsError(try BackupCanonicalEncoderV1().encodeRecords(records(38)))
+    }
+}

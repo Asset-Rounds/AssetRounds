@@ -1990,9 +1990,22 @@ final class MutationJournalStoreV1 {
         guard workspaceID == identity.workspaceID else { throw WorkspaceMutationFailureV1.wrongWorkspace }
         let before = try currentRevision(writerInstanceID: writerInstanceID)
         try validateCheckRunnerBeginHistoryValue { try validateAll() }
-        let value: CheckRunnerPhotoRawStageEvidenceV1? = try validateCheckRunnerBeginHistoryValue {
+        let value = try readCheckRunnerPhotoRawStageEvidence(workspaceID: workspaceID,
+            parentDraftID: parentDraftID, childDraftID: childDraftID,
+            writerInstanceID: writerInstanceID, before: before, validatedPass: nil)
+        guard !modelContext.hasChanges, try currentRevision(writerInstanceID: writerInstanceID) == before else {
+            throw WorkspaceMutationFailureV1.persistenceFailed
+        }
+        return value
+    }
+
+    private func readCheckRunnerPhotoRawStageEvidence(workspaceID: WorkspaceID,
+        parentDraftID: UUID, childDraftID: UUID, writerInstanceID: UUID,
+        before: WorkspaceRevisionV1, validatedPass: ValidatedJournalPass?
+    ) throws -> CheckRunnerPhotoRawStageEvidenceV1? {
+        return try validateCheckRunnerBeginHistoryValue {
             guard let parent = try readCheckRunnerPhotoParentOriginals(
-                workspaceID: workspaceID, parentDraftID: parentDraftID) else { return nil }
+                workspaceID: workspaceID, parentDraftID: parentDraftID, validatedPass: validatedPass) else { return nil }
             guard parent.validated.selectedChildDraftIDs.contains(childDraftID) else { return nil }
             let workspaceUUID = workspaceID.rawValue
             var childRows = FetchDescriptor<FieldDraftCheckpointRow>(predicate: #Predicate {
@@ -2010,10 +2023,10 @@ final class MutationJournalStoreV1 {
             }
             var history: [FieldDraftCommittedEvidenceV1] = []
             for row in try boundedCurrentWorkspaceReceiptRows() {
-                let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+                let envelope = try photoReadEnvelope(row, validatedPass: validatedPass)
                 if case let .applyFieldDraft(mutation) = envelope.command,
                    mutation.workspaceID == workspaceID, fieldDraftMutationDraftID(mutation) == childDraftID {
-                    history.append(try .init(envelope: envelope, receipt: validate(row: row, expectedEnvelope: nil)))
+                    history.append(try .init(envelope: envelope, receipt: photoReadReceipt(row, validatedPass: validatedPass)))
                 }
             }
             let selected = Set(history.map { $0.mutation.mutationID.rawValue })
@@ -2040,7 +2053,7 @@ final class MutationJournalStoreV1 {
             if photo.captureStep == .close, let wide = parent.validated.parent.field.wideContext {
                 precedingWide = try readCheckRunnerPhotoCurrentTargetEvidence(workspaceID: workspaceID,
                     parentDraftID: parentDraftID, childDraftID: wide.childDraftID,
-                    writerInstanceID: writerInstanceID, validatedRevision: before)
+                    writerInstanceID: writerInstanceID, validatedRevision: before, validatedPass: validatedPass)
             } else { precedingWide = nil }
             return try .init(parentHistory: parent.history, parentCheckpoint: parent.checkpoint,
                 workflow: parent.workflow, timeZone: parent.timeZone, childHistory: history,
@@ -2048,10 +2061,6 @@ final class MutationJournalStoreV1 {
                 currentWorkflowPostImage: currentPostImage(identity: workflowIdentity, revision: revision),
                 precedingWide: precedingWide)
         }
-        guard !modelContext.hasChanges, try currentRevision(writerInstanceID: writerInstanceID) == before else {
-            throw WorkspaceMutationFailureV1.persistenceFailed
-        }
-        return value
     }
 
     /// Read the exact original raw prefix and all retained commit progress in
@@ -2183,6 +2192,89 @@ final class MutationJournalStoreV1 {
         return value.receipt
     }
 
+    /// Complete startup ownership is observed in one closed synchronous G read.
+    /// Only immutable comparison values escape; they grant no effect authority.
+    func startupMediaOwnershipInReadScope(workspaceID: WorkspaceID, context: ModelContext,
+        writerInstanceID: UUID) throws -> StartupMediaOwnershipSnapshotV1 {
+        guard case let .canonicalWriter(fence) = accessMode else {
+            throw WorkspaceMutationFailureV1.persistenceFailed
+        }
+        do {
+            return try fence.withAuthorizedRead {
+                guard context === modelContext else { throw WorkspaceMutationFailureV1.persistenceFailed }
+                guard workspaceID == identity.workspaceID else { throw WorkspaceMutationFailureV1.wrongWorkspace }
+                guard !modelContext.hasChanges else { throw WorkspaceMutationFailureV1.receiptHistoryCorrupt }
+                let before = try currentRevision(writerInstanceID: writerInstanceID)
+                // Preserve global history errors; only the individual typed photo
+                // joins use their incumbent photo-domain error mapping.
+                let pass = try validateJournalPass(release: PersistentSchemaReleaseRegistryV1.activeRelease,
+                    historicalAuthority: nil, retainDecodedRows: true)
+                let authorities = try modelContext.fetch(FetchDescriptor<EvidenceFile>()).map {
+                    EvidenceBundleAuthority(schemaVersion: $0.schemaVersion, id: $0.id, recordID: $0.recordID,
+                        purposeKey: $0.purposeKey, relativePath: $0.relativePath, mimeType: $0.mimeType,
+                        byteCount: $0.byteCount, sha256: $0.sha256, thumbnailRelativePath: $0.thumbnailRelativePath,
+                        thumbnailByteCount: $0.thumbnailByteCount, thumbnailSHA256: $0.thumbnailSHA256)
+                }.sorted { $0.id.uuidString < $1.id.uuidString }
+                let checkpoints = try modelContext.fetch(FetchDescriptor<FieldDraftCheckpointRow>())
+                    .map { try $0.value() }.filter { $0.codec.codecID == CheckRunnerPhotoDraftCodecV1.codecID }
+                    .sorted { $0.draftID.uuidString < $1.draftID.uuidString }
+                var photos: [StartupMediaPhotoOwnershipV1] = []
+                for checkpoint in checkpoints {
+                    let payload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(checkpoint)
+                    guard checkpoint.workspaceID == workspaceID else {
+                        throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                    }
+                    let targetCommitted: Bool
+                    if checkpoint.state == .committed {
+                        guard let current = try readCheckRunnerPhotoCurrentTargetEvidence(
+                            workspaceID: workspaceID, parentDraftID: payload.parentDraftID,
+                            childDraftID: checkpoint.draftID,
+                            writerInstanceID: writerInstanceID, validatedRevision: before, validatedPass: pass),
+                              case let .applyCommitTerminal(bundle, _) = current.parent.child.terminal.mutation.postImage,
+                              bundle.committedCheckpoint == checkpoint else {
+                            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                        }
+                        targetCommitted = true
+                    } else {
+                        switch payload.phase {
+                        case .awaitingRawStage, .rawReady:
+                            guard let current = try readCheckRunnerPhotoRawStageEvidence(
+                                workspaceID: workspaceID, parentDraftID: payload.parentDraftID,
+                                childDraftID: checkpoint.draftID, writerInstanceID: writerInstanceID,
+                                before: before, validatedPass: pass), current.currentCheckpoint == checkpoint else {
+                                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                            }
+                            targetCommitted = false
+                        case .pairReady, .preparedCommit:
+                            guard let current = try readCheckRunnerPhotoContinuationEvidence(
+                                workspaceID: workspaceID, parentDraftID: payload.parentDraftID,
+                                childDraftID: checkpoint.draftID, before: before,
+                                validatedPass: pass), current.checkpoint == checkpoint else {
+                                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                            }
+                            targetCommitted = current.target != nil
+                        }
+                    }
+                    photos.append(.init(checkpoint: checkpoint, payload: payload, targetCommitted: targetCommitted))
+                }
+                guard !modelContext.hasChanges,
+                      try currentRevision(writerInstanceID: writerInstanceID) == before else {
+                    throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+                }
+                return .init(revision: before, authorities: authorities, photos: photos)
+            }
+        } catch let failure as StaleWriterFenceV1.ReadFenceFailure {
+            provenWriterLeaseInvalidated = true
+            if let registryFailure = failure.underlying as? GenerationLeaseRegistryFailureV1 {
+                throw mappedFenceFailure(registryFailure)
+            }
+            throw WorkspaceMutationFailureV1.persistenceFailed
+        } catch {
+            provenWriterLeaseInvalidated = true
+            throw error
+        }
+    }
+
     /// Values only: unsupported is distinct from an authenticated absence.
     /// Neither the result nor its parent payload grants effect authority.
     enum PhotoContinuationRead {
@@ -2278,7 +2370,8 @@ final class MutationJournalStoreV1 {
     /// no validation may be reused across callbacks, mutation or suspension.
     private func readCheckRunnerPhotoCurrentTargetEvidence(
         workspaceID: WorkspaceID, parentDraftID: UUID, childDraftID: UUID,
-        writerInstanceID: UUID, validatedRevision: WorkspaceRevisionV1?
+        writerInstanceID: UUID, validatedRevision: WorkspaceRevisionV1?,
+        validatedPass: ValidatedJournalPass? = nil
     ) throws -> CheckRunnerPhotoCurrentTargetEvidenceV1? {
         try validateCurrentWriterLease()
         guard !modelContext.hasChanges else { throw WorkspaceMutationFailureV1.persistenceFailed }
@@ -2291,7 +2384,7 @@ final class MutationJournalStoreV1 {
         }
         let value: CheckRunnerPhotoCurrentTargetEvidenceV1? = try validateCheckRunnerBeginHistoryValue {
             guard let parent = try readCheckRunnerPhotoParentEvidence(workspaceID: workspaceID,
-                parentDraftID: parentDraftID, childDraftID: childDraftID) else { return nil }
+                parentDraftID: parentDraftID, childDraftID: childDraftID, validatedPass: validatedPass) else { return nil }
             let original = parent.child.target
             guard original.envelope.workspaceID == workspaceID else {
                 throw WorkspaceMutationFailureV1.wrongWorkspace
@@ -2301,14 +2394,14 @@ final class MutationJournalStoreV1 {
             let evidenceIdentity = try WorkspaceEntityIdentityV1(kind: .evidenceFile, id: evidenceID)
             var successors: [(MutationEnvelopeV1, MutationReceiptV1)] = []
             for row in try boundedCurrentWorkspaceReceiptRows() {
-                let receipt = try validate(row: row, expectedEnvelope: nil)
+                let receipt = try photoReadReceipt(row, validatedPass: validatedPass)
                 guard receipt.resultingRevision.workspaceRevision
                     > original.receipt.resultingRevision.workspaceRevision else { continue }
                 guard try receipt.postImages.contains(where: {
                     let affected = try $0.identity
                     return affected == workflowIdentity || affected == evidenceIdentity
                 }) else { continue }
-                successors.append((try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData), receipt))
+                successors.append((try photoReadEnvelope(row, validatedPass: validatedPass), receipt))
             }
             successors.sort {
                 let left = $0.1, right = $1.1
@@ -7983,11 +8076,31 @@ final class MutationJournalStoreV1 {
         case .changeRequest:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<ChangeRequestRow>(predicate:#Predicate{$0.requestRevisionID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .changeRequest(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesRequestRevisionID),revision:revision,semanticSHA256:v.requestSHA256)
         case .correctiveActionPolicy:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<CorrectiveActionPolicyRow>(predicate:#Predicate{$0.releaseID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .correctiveActionPolicy(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesReleaseID),revision:revision,semanticSHA256:v.policySHA256)
         case .correctiveActionEvent:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<CorrectiveActionEventRow>(predicate:#Predicate{$0.eventID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .correctiveActionEvent(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.predecessorEventID),revision:revision,semanticSHA256:v.eventSHA256)
-        case .workPacketManifest:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<WorkPacketManifestRow>(predicate:#Predicate{$0.manifestID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .workPacketManifest(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.manifestSHA256)
-        case .workItemClaim:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<WorkItemClaimRow>(predicate:#Predicate{$0.claimID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .workItemClaim(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesClaimID),revision:revision,semanticSHA256:v.claimSHA256)
-        case .workLease:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<WorkLeaseRow>(predicate:#Predicate{$0.leaseID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .workLease(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.supersedesLeaseID),revision:revision,semanticSHA256:v.leaseSHA256)
-        case .workRelease:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<WorkReleaseRow>(predicate:#Predicate{$0.releaseID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .workRelease(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.releaseSHA256)
-        case .workHandoff:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<WorkHandoffRow>(predicate:#Predicate{$0.handoffID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .workHandoff(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.handoffSHA256)
+        case .workPacketManifest:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<WorkPacketManifestRow>(predicate: #Predicate { $0.manifestID == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            return try WorkPacketPostImageBasis.manifest(row.value()).postImage(identity: identity, revision: revision)
+        case .workItemClaim:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<WorkItemClaimRow>(predicate: #Predicate { $0.claimID == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            return try WorkPacketPostImageBasis.claim(row.value()).postImage(identity: identity, revision: revision)
+        case .workLease:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<WorkLeaseRow>(predicate: #Predicate { $0.leaseID == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            return try WorkPacketPostImageBasis.lease(row.value()).postImage(identity: identity, revision: revision)
+        case .workRelease:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<WorkReleaseRow>(predicate: #Predicate { $0.releaseID == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            return try WorkPacketPostImageBasis.release(row.value()).postImage(identity: identity, revision: revision)
+        case .workHandoff:
+            let id = identity.id
+            let rows = try modelContext.fetch(FetchDescriptor<WorkHandoffRow>(predicate: #Predicate { $0.handoffID == id }))
+            guard let row = try exactlyOneOrAbsent(rows) else { return try tombstone(identity, revision) }
+            return try WorkPacketPostImageBasis.handoff(row.value()).postImage(identity: identity, revision: revision)
         case .fieldDraftCheckpoint:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<FieldDraftCheckpointRow>(predicate:#Predicate{$0.draftID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.draftRevision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .fieldDraftCheckpoint(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.checkpointSHA256)
         case .attachmentStagingItem:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<AttachmentStagingItemRow>(predicate:#Predicate{$0.stageID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .attachmentStagingItem(id:id,concurrencyIdentity:identity,revision:revision,semanticSHA256:v.stageSHA256)
         case .draftCommitSaga:let id=identity.id;let r=try modelContext.fetch(FetchDescriptor<DraftCommitSagaRow>(predicate:#Predicate{$0.sagaID==id}));guard let row=try exactlyOneOrAbsent(r)else{return try tombstone(identity,revision)};let v=try row.value();guard v.revision==revision else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return .draftCommitSaga(id:id,concurrencyIdentity:try authorityConcurrency(identity,v.predecessorSagaID),revision:revision,semanticSHA256:v.sagaSHA256)
@@ -8849,6 +8962,59 @@ final class MutationJournalStoreV1 {
         }
     }
 
+    /// Shared value mapping for immutable C15 rows and authenticated restore DTOs.
+    /// Receipt membership and projection authority remain with the caller.
+    enum WorkPacketPostImageBasis {
+        case manifest(WorkPacketManifestV1)
+        case claim(WorkItemClaimV1)
+        case lease(WorkLeaseV1)
+        case release(WorkReleaseV1)
+        case handoff(WorkHandoffV1)
+
+        func postImage(identity: WorkspaceEntityIdentityV1, revision: UInt64,
+                       workspaceID: WorkspaceID? = nil) throws -> MutationPostImageV1 {
+            let image: MutationPostImageV1
+            let actualWorkspace: WorkspaceID
+            switch self {
+            case let .manifest(value):
+                try value.validate()
+                actualWorkspace = value.workspaceID
+                image = .workPacketManifest(id: value.manifestID,
+                    concurrencyIdentity: try .init(kind: .workPacketManifest, id: value.manifestID),
+                    revision: value.revision, semanticSHA256: value.manifestSHA256)
+            case let .claim(value):
+                try value.validate()
+                actualWorkspace = value.workspaceID
+                image = .workItemClaim(id: value.claimID,
+                    concurrencyIdentity: try .init(kind: .workItemClaim, id: value.supersedesClaimID ?? value.claimID),
+                    revision: value.revision, semanticSHA256: value.claimSHA256)
+            case let .lease(value):
+                try value.validate()
+                actualWorkspace = value.workspaceID
+                image = .workLease(id: value.leaseID,
+                    concurrencyIdentity: try .init(kind: .workLease, id: value.supersedesLeaseID ?? value.leaseID),
+                    revision: value.revision, semanticSHA256: value.leaseSHA256)
+            case let .release(value):
+                try value.validate()
+                actualWorkspace = value.workspaceID
+                image = .workRelease(id: value.releaseID,
+                    concurrencyIdentity: try .init(kind: .workRelease, id: value.releaseID),
+                    revision: value.revision, semanticSHA256: value.releaseSHA256)
+            case let .handoff(value):
+                try value.validate()
+                actualWorkspace = value.workspaceID
+                image = .workHandoff(id: value.handoffID,
+                    concurrencyIdentity: try .init(kind: .workHandoff, id: value.handoffID),
+                    revision: value.revision, semanticSHA256: value.handoffSHA256)
+            }
+            guard try image.identity == identity, image.revision == revision,
+                  workspaceID.map({ $0 == actualWorkspace }) ?? true else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            return image
+        }
+    }
+
     private static func coreRestorePostImage(
         _ identity: WorkspaceEntityIdentityV1,
         revision: UInt64,
@@ -8872,6 +9038,30 @@ final class MutationJournalStoreV1 {
         }
         let id = identity.id
         switch identity.kind {
+        case .workPacketManifest, .workItemClaim, .workLease, .workRelease, .workHandoff:
+            let kind: V15BackupWorkPacketRecordV1.Kind
+            switch identity.kind {
+            case .workPacketManifest: kind = .manifest
+            case .workItemClaim: kind = .claim
+            case .workLease: kind = .lease
+            case .workRelease: kind = .release
+            default: kind = .handoff
+            }
+            // Ordinary deletion retains the complete immutable C15 family.
+            // Missing retained DTOs cannot authorize tombstones or nil hashes.
+            guard let row = try one(records.workPackets.filter({ $0.kind == kind && $0.id == id })),
+                  row.workspaceID == workspaceID.rawValue, row.revision == revision else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            let basis: WorkPacketPostImageBasis
+            switch kind {
+            case .manifest: basis = .manifest(try WorkPacketCanonicalCodecV1.decode(WorkPacketManifestV1.self, from: row.canonicalData))
+            case .claim: basis = .claim(try WorkPacketCanonicalCodecV1.decode(WorkItemClaimV1.self, from: row.canonicalData))
+            case .lease: basis = .lease(try WorkPacketCanonicalCodecV1.decode(WorkLeaseV1.self, from: row.canonicalData))
+            case .release: basis = .release(try WorkPacketCanonicalCodecV1.decode(WorkReleaseV1.self, from: row.canonicalData))
+            case .handoff: basis = .handoff(try WorkPacketCanonicalCodecV1.decode(WorkHandoffV1.self, from: row.canonicalData))
+            }
+            return try basis.postImage(identity: identity, revision: revision, workspaceID: workspaceID)
         case .evidenceContext, .pairedObservationLink:
             try records.validateC30EvidenceContextClosure()
             let values = try EvidenceContextBackupRecordSetV1.decode(

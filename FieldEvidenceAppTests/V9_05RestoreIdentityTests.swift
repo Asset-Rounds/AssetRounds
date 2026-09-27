@@ -713,7 +713,8 @@ enum C40BackupLifecycleTestValues {
         workspace: UUID = id(90_000),
         releaseID: UUID = id(90_001),
         supersedes: UUID? = nil,
-        revision: UInt64 = 1
+        revision: UInt64 = 1,
+        mutationID: MutationIDV1? = nil
     ) throws -> AuthoritySourceReleaseV1 {
         try AuthoritySourceReleaseV1(
             releaseID: releaseID,
@@ -727,7 +728,7 @@ enum C40BackupLifecycleTestValues {
             supersedesReleaseID: supersedes,
             recordedAt: Date(timeIntervalSince1970: 1_788_000_001),
             revision: revision,
-            mutationID: MutationIDV1(rawValue: id(90_003))
+            mutationID: mutationID ?? MutationIDV1(rawValue: id(90_003))
         )
     }
 
@@ -740,12 +741,85 @@ enum C40BackupLifecycleTestValues {
         )
     }
 
+    /// Deliberately incomplete schema10 input, retained for missing-companion rejection tests.
     static func records(_ values: [AuthoritySourceReleaseV1]) throws -> V4BackupRecordsV1 {
         V4BackupRecordsV1(
             authorityCriterion: try values.map(record).sorted { $0.id.uuidString < $1.id.uuidString },
             assets: [], evidenceFiles: [], issues: [], packets: [], recordsSchemaVersion: 10,
             reports: [], sites: [], workflowRecords: []
         )
+    }
+
+    /// Synthetic rows are committed through the production writer; only copied values escape.
+    @MainActor
+    static func writerRecords(_ values: [AuthoritySourceReleaseV1]) throws -> V4BackupRecordsV1 {
+        try autoreleasepool {
+            var step = "schema"
+            do {
+                let workspaceID = try XCTUnwrap(values.first).workspaceID
+                let schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
+                let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [
+                    ModelConfiguration("C40CanonicalBackup", schema: schema, isStoredInMemoryOnly: true,
+                        allowsSave: true, cloudKitDatabase: .none)
+                ])
+                defer { withExtendedLifetime(container) {} }
+                let context = container.mainContext
+                context.autosaveEnabled = false
+                let identity = try WorkspaceReplicaIdentityV1(workspaceID: workspaceID,
+                    replicaID: ReplicaID(rawValue: id(90_100)))
+                let generationID = id(90_101), writerID = id(90_102)
+                step = "journal"
+                let journal = try MutationJournalStoreV1(modelContext: context,
+                    identity: identity, generationID: generationID)
+                let writer = try WorkspaceWriterV1(identity: identity, generationID: generationID,
+                    initialRevision: journal.currentRevision(writerInstanceID: writerID),
+                    clock: BackupClock(), idSource: BackupIDs(value: writerID),
+                    fileAuthority: BackupFiles(), adapter: WorkspaceWriterAdapterV1(modelContext: context),
+                    journalStore: journal)
+                defer { writer.invalidate() }
+                let lifecycle = AuthorityCriterionLifecycleAdapterV1(workspaceID: workspaceID, writer: writer)
+                for (index, value) in values.enumerated() {
+                    step = "source-\(index)-writer"
+                    if value.supersedesReleaseID == nil {
+                        _ = try lifecycle.admit(value, expectedRevision: 0)
+                    } else {
+                        _ = try lifecycle.supersede(value, expectedRevision: value.revision - 1)
+                    }
+                }
+                step = "complete-history"
+                let history = try BackupCanonicalEncoderV1.archiveOrderedMutationHistory(journal.exportSnapshot())
+                let ledger = try DeletionLedgerStore(context: context).snapshot()
+                let persisted = try context.fetch(FetchDescriptor<AuthoritySourceReleaseRow>()).map { try $0.value() }
+                XCTAssertEqual(persisted.sorted { $0.releaseID.uuidString < $1.releaseID.uuidString },
+                    values.sorted { $0.releaseID.uuidString < $1.releaseID.uuidString })
+                XCTAssertEqual(history.receipts.count, values.count)
+                XCTAssertFalse(context.hasChanges)
+                return V4BackupRecordsV1(
+                    authorityCriterion: try persisted.map(record).sorted { $0.id.uuidString < $1.id.uuidString },
+                    assets: [], deletionLedger: ledger, evidenceFiles: [], issues: [],
+                    mutationHistory: history, packets: [], recordsSchemaVersion: 10,
+                    reports: [], sites: [], workflowRecords: []
+                )
+            } catch {
+#if DEBUG
+                print("C40BackupLifecycleTestValues.writerRecords failed step=\(step) type=\(String(reflecting: type(of: error))) error=\(error)")
+#endif
+                throw error
+            }
+        }
+    }
+
+    private struct BackupClock: ApplicationClock {
+        func now() -> Date { Date(timeIntervalSince1970: 1_788_000_002) }
+    }
+    private struct BackupIDs: ApplicationIDSource {
+        let value: UUID
+        func makeID() -> UUID { value }
+    }
+    private struct BackupFiles: ApplicationFileAuthorityV1 {
+        func temporaryRelativePath(mutationID: MutationIDV1, component: String) throws -> String {
+            "mutation-staging/\(mutationID.rawValue.uuidString.lowercased())/\(component)"
+        }
     }
 }
 

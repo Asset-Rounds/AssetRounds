@@ -2575,6 +2575,20 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         return value
     }
 
+    /// Fixed, fresh media observation; returned values are not cleanup authority.
+    func startupMediaOwnershipInReadScope(workspaceID: WorkspaceID, modelContext: ModelContext)
+        throws -> StartupMediaOwnershipSnapshotV1 {
+        guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
+        guard let journalStore else { throw WorkspaceMutationFailureV1.persistenceFailed }
+        let before = try currentRevision()
+        let value = try journalStore.startupMediaOwnershipInReadScope(workspaceID: workspaceID,
+            context: modelContext, writerInstanceID: writerInstanceID)
+        guard isActive, try currentRevision() == before, value.revision == before else {
+            throw WorkspaceMutationFailureV1.writerInvalidated
+        }
+        return value
+    }
+
     /// Reads the exact current target chain without granting media or adoption.
     func checkRunnerPhotoCurrentTargetEvidence(
         workspaceID: WorkspaceID, parentDraftID: UUID, childDraftID: UUID

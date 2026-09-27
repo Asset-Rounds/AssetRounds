@@ -1228,6 +1228,32 @@ final class EraseAllService {
         )
     }
 
+    /// Called only by the factory's fixed, leased, synchronous retired read.
+    /// The opaque capability rejects any other context or an expired scope.
+    func validatePreexistingRetiredGeneration(
+        session: StoreGenerationSession,
+        validation: ErasePreexistingRetiredSourceValidationV1,
+        authority: StoreRestoreGenerationAuthority
+    ) throws {
+        try validation.revalidate(modelContext: session.modelContext)
+        try validateFrozenGeneration(id: session.generationID,
+            modelContext: session.modelContext, generationRootURL: session.generationRootURL,
+            workspaceIdentity: validation.workspaceIdentity, authority: authority,
+            preexistingRetiredValidation: validation)
+    }
+
+    func validateRecoveryRetiredGeneration(
+        session: StoreGenerationSession,
+        validation: EraseRecoveryRetiredSourceValidationV1,
+        authority: StoreRestoreGenerationAuthority
+    ) throws {
+        try validation.revalidate(modelContext: session.modelContext)
+        try validateFrozenGeneration(id: session.generationID,
+            modelContext: session.modelContext, generationRootURL: session.generationRootURL,
+            workspaceIdentity: validation.workspaceIdentity, authority: authority,
+            recoveryRetiredValidation: validation)
+    }
+
     func validateMaintenanceEntry(_ session: StoreGenerationSession) throws {
         // Fails closed: an uninstallable writer (e.g. corrupt receipt history)
         // makes Erase ineligible instead of trapping on every maintenance launch.
@@ -1627,17 +1653,9 @@ private extension EraseAllService {
         )
         traceErasePhase("current.retired-generations")
         for id in retiredIDs {
-            let retiredSession = try generationFactory.openInstalledGeneration(
-                id: id,
-                authority: authority
-            )
-            try validateFrozenGeneration(
-                id: id,
-                modelContext: retiredSession.modelContext,
-                generationRootURL: retiredSession.generationRootURL,
-                workspaceIdentity: retiredSession.workspaceIdentity,
-                authority: authority
-            )
+            try generationFactory.validatePreexistingRetiredGenerationForErase(
+                id: id, expectedCurrentID: expectedID, expectedRetiredIDs: retiredIDs,
+                authority: authority, service: self)
         }
         guard !coordinator.modelContext.hasChanges else {
             throw EraseAllServiceError.contextHasChanges
@@ -1724,6 +1742,12 @@ private extension EraseAllService {
         }
         for id in intent.generationIDsToDelete
         where installed.contains(Self.canonical(id)) {
+            if intent.schemaVersion == 2, id != intent.oldGenerationID {
+                traceErasePhase("recovery.presence.preexisting-retired")
+                try generationFactory.validateRecoveryRetiredGenerationForErase(
+                    id: id, intent: intent, authority: authority, service: self)
+                continue
+            }
             if intent.schemaVersion == 2,
                id == intent.oldGenerationID,
                currentID == intent.newGenerationID {
@@ -2328,7 +2352,9 @@ private extension EraseAllService {
         generationRootURL: URL,
         workspaceIdentity: WorkspaceReplicaIdentityV1,
         authority: StoreRestoreGenerationAuthority,
-        retainedEraseValidation: EraseRetainedSourceValidationV1? = nil
+        retainedEraseValidation: EraseRetainedSourceValidationV1? = nil,
+        preexistingRetiredValidation: ErasePreexistingRetiredSourceValidationV1? = nil,
+        recoveryRetiredValidation: EraseRecoveryRetiredSourceValidationV1? = nil
     ) throws {
         traceErasePhase("frozen.context-and-root")
         guard !modelContext.hasChanges,
@@ -2338,6 +2364,22 @@ private extension EraseAllService {
         }
         let contentRootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL)
         traceErasePhase("frozen.summary")
+        if let validation = recoveryRetiredValidation {
+            guard retainedEraseValidation == nil, preexistingRetiredValidation == nil,
+                  generationRootURL.standardizedFileURL == validation.generationRootURL,
+                  workspaceIdentity == validation.workspaceIdentity else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try validation.revalidate(modelContext: modelContext)
+        }
+        if let validation = preexistingRetiredValidation {
+            guard retainedEraseValidation == nil,
+                  generationRootURL.standardizedFileURL == validation.generationRootURL,
+                  workspaceIdentity == validation.workspaceIdentity else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try validation.revalidate(modelContext: modelContext)
+        }
         if let validation = retainedEraseValidation {
             guard generationRootURL.standardizedFileURL == validation.generationRootURL,
                   workspaceIdentity == validation.workspaceIdentity else {
@@ -2353,9 +2395,15 @@ private extension EraseAllService {
         var temporalDerivatives: [TemporalEvidenceDerivativeV1] = []
         var authenticatedHistory: MutationHistorySnapshotV1?
         var authenticatedJournal: MutationJournalStoreV1?
-        if !temporalClips.isEmpty || !BackupRestoreService.isEmptyCurrent(modelContext) {
+        if recoveryRetiredValidation != nil || preexistingRetiredValidation != nil || !temporalClips.isEmpty || !BackupRestoreService.isEmptyCurrent(modelContext) {
             do {
-                if let validation = retainedEraseValidation {
+                if let validation = recoveryRetiredValidation {
+                    _ = try BackupRestoreService.recoveryRetiredEraseSummary(
+                        modelContext: modelContext, validation: validation)
+                } else if let validation = preexistingRetiredValidation {
+                    _ = try BackupRestoreService.preexistingRetiredEraseSummary(
+                        modelContext: modelContext, validation: validation)
+                } else if let validation = retainedEraseValidation {
                     _ = try BackupRestoreService.retainedEraseSummary(
                         modelContext: modelContext, validation: validation
                     )
@@ -2582,6 +2630,12 @@ private extension EraseAllService {
               !modelContext.hasChanges else { throw EraseAllServiceError.invalidAuthority }
         if let journal = authenticatedJournal, let history = authenticatedHistory {
             guard try journal.exportSnapshot() == history else { throw EraseAllServiceError.invalidAuthority }
+        }
+        if let validation = recoveryRetiredValidation {
+            try validation.revalidate(modelContext: modelContext)
+        }
+        if let validation = preexistingRetiredValidation {
+            try validation.revalidate(modelContext: modelContext)
         }
         if let validation = retainedEraseValidation {
             try validation.revalidate(modelContext: modelContext)

@@ -500,7 +500,9 @@ final class BackupExportService {
     private let generationLeaseValidation: @Sendable () throws -> Void
     private var prepared: PreparedV4BackupV1?
     private var streamingPrepared: StreamingPrepared?
+    private var recoveryRetiredEraseValidation: EraseRecoveryRetiredSourceValidationV1?
     private var retainedEraseValidation: EraseRetainedSourceValidationV1?
+    private var preexistingRetiredEraseValidation: ErasePreexistingRetiredSourceValidationV1?
     /// Set only for the synchronous body of `validateFrozenCanonical`.
     private var lockedPublicationStore: StoreSessionCoordinator?
 #if DEBUG
@@ -620,6 +622,34 @@ final class BackupExportService {
             fileManager: fileManager,
             generationLeaseValidation: generationLeaseValidation
         )
+    }
+
+    static func preparePreexistingRetiredEraseSummary(
+        modelContext: ModelContext,
+        validation: ErasePreexistingRetiredSourceValidationV1
+    ) throws -> BackupExportPreviewV1 {
+        try validation.revalidate(modelContext: modelContext)
+        let exporter = BackupExportService(modelContext: modelContext,
+            generationRootURL: validation.generationRootURL,
+            compatibilityPosture: .frozenLegacyCallersOnly)
+        exporter.preexistingRetiredEraseValidation = validation
+        let preview = try exporter.prepare()
+        try validation.revalidate(modelContext: modelContext)
+        return preview
+    }
+
+    static func prepareRecoveryRetiredEraseSummary(
+        modelContext: ModelContext,
+        validation: EraseRecoveryRetiredSourceValidationV1
+    ) throws -> BackupExportPreviewV1 {
+        try validation.revalidate(modelContext: modelContext)
+        let exporter = BackupExportService(modelContext: modelContext,
+            generationRootURL: validation.generationRootURL,
+            compatibilityPosture: .frozenLegacyCallersOnly)
+        exporter.recoveryRetiredEraseValidation = validation
+        let preview = try exporter.prepare()
+        try validation.revalidate(modelContext: modelContext)
+        return preview
     }
 
     static func prepareRetainedEraseSummary(
@@ -1913,6 +1943,20 @@ private extension BackupExportService {
     /// lock), the identity is resolved through that coordinator's retained
     /// registry. A fresh factory there self-deadlocks on the lock's flock.
     func currentStreamingWorkspaceIdentity() throws -> WorkspaceReplicaIdentityV1 {
+        if let validation = recoveryRetiredEraseValidation {
+            try validation.revalidate(modelContext: modelContext)
+            guard generationRootURL == validation.generationRootURL else {
+                throw BackupExportServiceError.invalidGeneration
+            }
+            return validation.workspaceIdentity
+        }
+        if let validation = preexistingRetiredEraseValidation {
+            try validation.revalidate(modelContext: modelContext)
+            guard generationRootURL == validation.generationRootURL else {
+                throw BackupExportServiceError.invalidGeneration
+            }
+            return validation.workspaceIdentity
+        }
         if let validation = retainedEraseValidation {
             try validation.revalidate(modelContext: modelContext)
             guard generationRootURL == validation.generationRootURL else {

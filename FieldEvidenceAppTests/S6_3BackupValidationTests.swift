@@ -204,17 +204,24 @@ final class S6_3BackupValidationTests: XCTestCase {
         XCTAssertEqual(maximum.millionths, PlanLimitsV1.normalizedScale)
         XCTAssertEqual(PlanDocumentV1.schemaVersion, 1)
     }
+    @MainActor
     func testV23P03C40Records10GraphRequiresExactPredecessorRevision() throws {
         let root = try C40BackupLifecycleTestValues.source()
         let successor = try C40BackupLifecycleTestValues.source(
             releaseID: C40BackupLifecycleTestValues.id(90_004),
             supersedes: root.releaseID,
-            revision: 2
+            revision: 2,
+            mutationID: MutationIDV1(rawValue: C40BackupLifecycleTestValues.id(90_006))
         )
-        let records = try C40BackupLifecycleTestValues.records([root, successor])
+        let records = try C40BackupLifecycleTestValues.writerRecords([root, successor])
         let decoded = try BackupCanonicalDecoderV1().decodeRecords(
             BackupCanonicalEncoderV1().encodeRecords(records).data
         )
+        XCTAssertEqual(decoded, records)
+        XCTAssertEqual(try XCTUnwrap(decoded.mutationHistory).receipts.count, 2)
+        XCTAssertEqual(try XCTUnwrap(decoded.mutationHistory).workspaceRevision, 2)
+        XCTAssertNotNil(decoded.deletionLedger)
+        XCTAssertNotEqual(root.mutationID, successor.mutationID)
         let values = try decoded.authorityCriterion.map {
             try AuthorityCriterionCanonicalCodecV1.decode(
                 AuthoritySourceReleaseV1.self, from: $0.canonicalData
@@ -243,7 +250,6 @@ final class S6_3BackupValidationTests: XCTestCase {
             "active-work-draft",
             stopAfterWorkDraft: true
         )
-        defer { try? fileManager.removeItem(at: draftHarness.supportURL) }
         let draftPackage = try exportPackage(
             draftHarness,
             name: "active-work-draft-source"
@@ -265,7 +271,6 @@ final class S6_3BackupValidationTests: XCTestCase {
         try draftImporter.discard(validatedDraft)
 
         let harness = try await makeHarness("golden")
-        defer { try? fileManager.removeItem(at: harness.supportURL) }
         let fixture = try loadFixture()
         let package = try exportPackage(harness, name: "golden-source")
         let sourceFacts = try payloadFacts(package)
@@ -351,7 +356,6 @@ final class S6_3BackupValidationTests: XCTestCase {
     @MainActor
     func testInvalidFamiliesAndCapacityFailClosedAndCleanStage() async throws {
         let harness = try await makeHarness("invalid")
-        defer { try? fileManager.removeItem(at: harness.supportURL) }
         let canonical = try exportPackage(harness, name: "canonical-source")
         let liveBefore = try treeFacts(harness.session.generationRootURL)
         let modelsBefore = try modelFacts(harness.context)
@@ -648,6 +652,48 @@ extension S6_3BackupValidationTests {
 }
 
 private extension S6_3BackupValidationTests {
+    // Weak observations never extend the store lifetime. Failed or partially
+    // observed acquisition/closure retains the owned root for diagnosis.
+    @MainActor
+    final class MixedFixtureLifetime {
+        let support: URL
+        weak var session: StoreGenerationSession?
+        weak var context: ModelContext?
+        weak var container: ModelContainer?
+        weak var owner: StoreSessionCoordinator?
+        var acquisitionCompleted = false
+        var fixtureCompleted = false
+        private(set) var writerCloseAttempted = false
+        private var writerClosed = false
+
+        init(support: URL) { self.support = support }
+
+        func observe(_ session: StoreGenerationSession) {
+            self.session = session
+            context = session.modelContext
+            container = session.modelContext.container
+        }
+
+        func closeWriter(_ owner: StoreSessionCoordinator) throws {
+            writerCloseAttempted = true
+            try owner.invalidateAndReleaseWriter()
+            writerClosed = true
+        }
+
+        func removeRootIfDrained() throws {
+            guard acquisitionCompleted, fixtureCompleted, writerClosed,
+                  session == nil, context == nil, container == nil, owner == nil else {
+                XCTFail("S6_3 cleanup proof unavailable; fixture retained at \(support.path) "
+                    + "acquired=\(acquisitionCompleted) completed=\(fixtureCompleted) writerClosed=\(writerClosed) "
+                    + "session=\(session != nil) context=\(context != nil) container=\(container != nil) owner=\(owner != nil)")
+                return
+            }
+            if FileManager.default.fileExists(atPath: support.path) {
+                try FileManager.default.removeItem(at: support)
+            }
+        }
+    }
+
     struct Harness {
         let supportURL: URL
         let session: StoreGenerationSession
@@ -690,19 +736,54 @@ private extension S6_3BackupValidationTests {
     ) async throws -> Harness {
         let support = fileManager.temporaryDirectory.appendingPathComponent("S6_3BackupValidationTests-\(name)-\(UUID().uuidString)", isDirectory: true)
         try fileManager.createDirectory(at: support, withIntermediateDirectories: false)
+        let lifetime = MixedFixtureLifetime(support: support)
+        addTeardownBlock {
+            try await MainActor.run { try lifetime.removeRootIfDrained() }
+        }
+        var phase = "open-session"
+        defer {
+            if phase != "done" {
+                FileHandle.standardError.write(Data("S6_3_MIXED_FIXTURE_FAILURE_V1 phase=\(phase)\n".utf8))
+            }
+        }
         let session = try StoreGenerationFactory(applicationSupportURL: support).openOrBootstrapCurrent()
+        lifetime.observe(session)
         let context = session.modelContext
         let pack = SignPack.illuminatedSignV1
         let siteID = uuid(1), assetID = uuid(2)
-        context.insert(Site(id: siteID, label: "Import Site", address: siteAddress, timeZoneID: "America/New_York", createdAt: Date(timeIntervalSince1970: 1_776_420_000)))
-        context.insert(Asset(id: assetID, siteID: siteID, packID: pack.packID, packSchemaVersion: pack.schemaVersion, packContentVersion: pack.contentVersion, label: "One Live Sign", createdAt: Date(timeIntervalSince1970: 1_776_420_001)))
-        try context.save()
-        let coordinator = CheckRunnerCoordinator(modelContext: context, signPack: pack)
+        let owner = try StoreSessionCoordinator(validatingSession: session)
+        lifetime.owner = owner
+        lifetime.acquisitionCompleted = true
+        defer {
+            if !lifetime.writerCloseAttempted {
+                do { try lifetime.closeWriter(owner) }
+                catch { XCTFail("S6_3 writer close failed; fixture retained: \(error)") }
+            }
+        }
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: pack)
+        let dependencies = try owner.packageLifecycleDependencies(
+            profileRegistry: WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile]))
+        phase = "create-first-sign"
+        let placementMutationID = try MutationIDV1(rawValue: UUID())
+        _ = try owner.workspaceWriter.execute(.createFirstSign(.init(
+            siteID: siteID, newSite: .init(id: siteID, label: "Import Site",
+                address: siteAddress, timeZoneID: "America/New_York"),
+            assetID: assetID, assetLabel: "One Live Sign", packID: pack.packID,
+            packSchemaVersion: pack.schemaVersion, packContentVersion: pack.contentVersion,
+            createdAt: Date(timeIntervalSince1970: 1_776_420_001),
+            initialPlacementMutationID: placementMutationID, initialPlacementEventID: UUID(),
+            initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: UUID()))),
+            mutationID: placementMutationID)
+        let coordinator = try CheckRunnerCoordinator(modelContext: context,
+            packageLifecycleDependencies: dependencies, packageLifecycleProfile: profile)
         coordinator.configureCapture(generationRootURL: session.generationRootURL)
         let openingObserved = Date(timeIntervalSince1970: 1_780_000_000)
+        phase = "opening-begin"
         _ = try coordinator.beginCheck(assetID: assetID, timeZoneID: "America/New_York", isTimeZoneConfirmed: true, afterDarkAccepted: true, safePositionAccepted: true, observedAt: openingObserved)
+        phase = "opening-photos"
         try await acceptPair(coordinator, assetID: assetID, observedAt: openingObserved, seeds: (31, 71))
         let issueID = uuid(15)
+        phase = "opening-finalize"
         let opening = try await coordinator.finalize(
             assetID: assetID,
             selection: .visibleIssue(labelKey: "dark_section"),
@@ -711,8 +792,23 @@ private extension S6_3BackupValidationTests {
             sourceApp: .init(build: "42", version: "4.0"),
             identifiers: .init(mutationID: uuid(11), packetID: uuid(12), stableRootID: uuid(13), reportID: uuid(14), issueID: issueID)
         )
-        guard case .ready = try coordinator.prepareReportDelivery(result: opening) else { throw FixtureError.invalid }
+        phase = "opening-pdf-state"
+        if stopAfterWorkDraft {
+            guard case .ready = try coordinator.prepareReportDelivery(result: opening) else { throw FixtureError.invalid }
+        } else {
+            // The golden archive requires one failed report. Produce that state
+            // through the real pending-to-failed writer path, never a row edit
+            // over a ready report's authenticated postimage.
+            let failedRenderer = try ReportRenderService(modelContext: context,
+                lifecycleDependencies: dependencies, lifecycleProfile: profile,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+                failureInjection: .init(failOnceAt: .render))
+            guard case .failed = try failedRenderer.attemptPendingReport(id: opening.reportID) else {
+                throw FixtureError.invalid
+            }
+        }
 
+        phase = "work-begin"
         let workObserved = openingObserved.addingTimeInterval(60)
         _ = try coordinator.beginOrResumeDraft(.init(
             assetID: assetID,
@@ -728,13 +824,17 @@ private extension S6_3BackupValidationTests {
             signPack: pack,
             generationRootURL: session.generationRootURL,
             checkRunnerCoordinator: coordinator,
+            lifecycleDependencies: dependencies,
             storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })
         )
         let workDraft = try workCoordinator.beginWork(issueID: issueID)
         if stopAfterWorkDraft {
+            lifetime.fixtureCompleted = true
+            phase = "done"
             return Harness(supportURL: support, session: session, context: context)
         }
         let workCompleted = workDraft.startedAt.addingTimeInterval(30)
+        phase = "work-save"
         _ = try await workCoordinator.saveWork(
             draftID: workDraft.recordID,
             submission: .init(
@@ -747,6 +847,7 @@ private extension S6_3BackupValidationTests {
             identifiers: .init(mutationID: uuid(16), evidenceID: uuid(17))
         )
 
+        phase = "recheck-begin"
         let recheckObserved = workCompleted.addingTimeInterval(60)
         _ = try coordinator.beginOrResumeDraft(.init(
             assetID: assetID,
@@ -757,7 +858,9 @@ private extension S6_3BackupValidationTests {
             afterDarkAccepted: true,
             safePositionAccepted: true
         ))
+        phase = "recheck-photos"
         try await acceptPair(coordinator, assetID: assetID, observedAt: recheckObserved, seeds: (41, 81))
+        phase = "recheck-finalize"
         let recheck = try await coordinator.finalize(
             assetID: assetID,
             selection: .resolved(note: "Illumination remained steady."),
@@ -768,10 +871,9 @@ private extension S6_3BackupValidationTests {
         )
         guard case .ready = try coordinator.prepareReportDelivery(result: recheck) else { throw FixtureError.invalid }
 
-        let delivery = try ReportDeliveryCoordinator(
-            modelContext: context,
-            generationRootURL: session.generationRootURL
-        )
+        phase = "correction"
+        let delivery = try ReportDeliveryCoordinator(modelContext: context,
+            lifecycleDependencies: dependencies, lifecycleProfile: profile)
         let correctionSource = try delivery.correctionSource(reportID: recheck.reportID)
         guard case .ready = try await delivery.submitCorrection(
             from: correctionSource,
@@ -784,25 +886,21 @@ private extension S6_3BackupValidationTests {
         let openingReport = try XCTUnwrap(
             try context.fetch(FetchDescriptor<Report>()).first { $0.id == opening.reportID }
         )
-        let openingPDF = try XCTUnwrap(openingReport.pdfRelativePath)
-        try fileManager.removeItem(
-            at: session.generationRootURL.appendingPathComponent(openingPDF)
-        )
-        openingReport.pdfState = ReportPDFState.failed.rawValue
-        openingReport.pdfRelativePath = nil
-        openingReport.pdfSHA256 = nil
-        try context.save()
+        XCTAssertEqual(openingReport.pdfState, ReportPDFState.failed.rawValue)
+        XCTAssertNil(openingReport.pdfRelativePath)
+        XCTAssertNil(openingReport.pdfSHA256)
 
+        phase = "later-begin"
         let laterObserved = recheckObserved.addingTimeInterval(120)
-        let laterCoordinator = CheckRunnerCoordinator(
-            modelContext: context,
-            signPack: pack
-        )
+        let laterCoordinator = try CheckRunnerCoordinator(modelContext: context,
+            packageLifecycleDependencies: dependencies, packageLifecycleProfile: profile)
         laterCoordinator.configureCapture(
             generationRootURL: session.generationRootURL
         )
         _ = try laterCoordinator.beginCheck(assetID: assetID, timeZoneID: "America/New_York", isTimeZoneConfirmed: true, afterDarkAccepted: true, safePositionAccepted: true, observedAt: laterObserved)
+        phase = "later-photos"
         try await acceptPair(laterCoordinator, assetID: assetID, observedAt: laterObserved, seeds: (51, 101))
+        phase = "later-finalize"
         _ = try await laterCoordinator.finalize(
             assetID: assetID,
             selection: .noVisibleIssue,
@@ -811,8 +909,56 @@ private extension S6_3BackupValidationTests {
             sourceApp: .init(build: "42", version: "4.0"),
             identifiers: .init(mutationID: uuid(31), packetID: uuid(32), stableRootID: uuid(33), reportID: uuid(34), issueID: nil)
         )
-        context.insert(Packet(id: uuid(89), stableRootID: uuid(90), currentRecordID: nil, evaluationCounted: true, contentDeletedAt: Date(timeIntervalSince1970: 1_776_421_000), createdAt: Date(timeIntervalSince1970: 1_776_420_000)))
-        try context.save()
+        // Create the counted tombstone with the real finalizer and incumbent
+        // fenced deletion path; preserve the golden packet/root identities.
+        phase = "tombstone-create-asset"
+        let deletedAssetID = uuid(88)
+        let deletedPlacement = try MutationIDV1(rawValue: UUID())
+        _ = try owner.workspaceWriter.execute(.createFirstSign(.init(
+            siteID: siteID, newSite: nil, assetID: deletedAssetID, assetLabel: "Deleted Sign",
+            packID: pack.packID, packSchemaVersion: pack.schemaVersion,
+            packContentVersion: pack.contentVersion, createdAt: laterObserved.addingTimeInterval(60),
+            initialPlacementMutationID: deletedPlacement, initialPlacementEventID: UUID(),
+            initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: UUID()))),
+            mutationID: deletedPlacement)
+        phase = "tombstone-begin"
+        let deletedObserved = laterObserved.addingTimeInterval(61)
+        _ = try laterCoordinator.beginCheck(assetID: deletedAssetID,
+            timeZoneID: "America/New_York", isTimeZoneConfirmed: true,
+            afterDarkAccepted: true, safePositionAccepted: true, observedAt: deletedObserved)
+        let reason = try XCTUnwrap(pack.couldNotVerifyReasons.entries.first)
+        phase = "tombstone-finalize"
+        _ = try await laterCoordinator.finalize(assetID: deletedAssetID,
+            selection: .couldNotVerify(reasonKey: reason.key, note: nil),
+            completedAt: deletedObserved.addingTimeInterval(5),
+            snapshotCreatedAt: deletedObserved.addingTimeInterval(6),
+            sourceApp: .init(build: "42", version: "4.0"),
+            identifiers: .init(mutationID: uuid(91), packetID: uuid(89),
+                stableRootID: uuid(90), reportID: uuid(92), issueID: nil))
+        phase = "tombstone-release-writer"
+        try lifetime.closeWriter(owner)
+        phase = "tombstone-delete"
+        var deletion: WholeSignDeletionService? = WholeSignDeletionService(
+            modelContext: context, generationRootURL: session.generationRootURL,
+            now: { deletedObserved.addingTimeInterval(10) })
+        _ = try await XCTUnwrap(deletion).delete(assetID: deletedAssetID)
+        deletion = nil
+        let tombstones = try context.fetch(FetchDescriptor<Packet>()).filter { $0.id == self.uuid(89) }
+        let tombstone = try XCTUnwrap(tombstones.first)
+        XCTAssertEqual(tombstones.count, 1)
+        XCTAssertEqual(tombstone.stableRootID, uuid(90))
+        XCTAssertNil(tombstone.currentRecordID)
+        XCTAssertTrue(tombstone.evaluationCounted)
+        XCTAssertNotNil(tombstone.contentDeletedAt)
+        phase = "journal-validation"
+        let journal = try MutationJournalStoreV1(modelContext: context,
+            identity: session.workspaceIdentity, generationID: session.generationID,
+            allowStateBootstrap: false)
+        try journal.validateAll()
+        try MutationJournalStoreV1.validateImportedSnapshot(journal.exportSnapshot(),
+            sourcePersistentSchemaVersion: session.storeSchemaRelease.versionIdentifier.major)
+        lifetime.fixtureCompleted = true
+        phase = "done"
         return Harness(supportURL: support, session: session, context: context)
     }
 
@@ -2434,7 +2580,6 @@ extension S6_3BackupValidationTests {
                 "c42-validation-\(offset)",
                 siteAddress: payload
             )
-            defer { try? fileManager.removeItem(at: harness.supportURL) }
             let package = try exportPackage(harness, name: "c42-source-\(offset)")
             let importer = try makeImporter(
                 harness,

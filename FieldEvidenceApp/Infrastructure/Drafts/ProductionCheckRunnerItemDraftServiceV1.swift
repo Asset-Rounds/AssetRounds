@@ -846,8 +846,7 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
         let parentCheckpoint = target.parent.checkpoint
         let payload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(parentCheckpoint)
         let source = payload.source
-        let progressRead = try progress.read(sourceDraftID: source.sourceCheckpoint.draftID)
-        try coordinator.validateHistoricalCheckRunnerSource(source, read: progressRead,
+        try coordinator.validateFreshHistoricalCheckRunnerSource(source,
             progress: progress, publishedRelease: publishedRelease)
 
         // Close the synchronous read interval with fresh owner, historical

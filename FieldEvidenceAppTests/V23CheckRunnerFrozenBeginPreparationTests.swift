@@ -5,6 +5,63 @@ import XCTest
 
 @testable import FieldEvidenceApp
 
+/// Error semantics for the two historical-read paths. NSError's display text
+/// does not define UserInfo ordering; compare every JSON error field by key.
+/// Unsupported metadata throws and fails the witness instead of being ignored.
+enum FrozenBeginHistoricalFailureSignature: Equatable {
+    enum SignatureFailure: Error { case unsupportedUnderlyingMetadata }
+    struct Key: CodingKey, Equatable {
+        let stringValue: String
+        let intValue: Int?
+        init(_ value: any CodingKey) { stringValue = value.stringValue; intValue = value.intValue }
+        init(stringValue: String) { self.stringValue = stringValue; intValue = nil }
+        init(intValue: Int) { stringValue = String(intValue); self.intValue = intValue }
+    }
+    struct FoundationFailure: Equatable {
+        let errorType: String
+        let domain: String
+        let code: Int
+        let userInfo: Data
+        init(_ error: Error) throws {
+            errorType = String(reflecting: type(of: error))
+            let value = error as NSError
+            domain = value.domain; code = value.code
+            guard JSONSerialization.isValidJSONObject(value.userInfo) else {
+                throw SignatureFailure.unsupportedUnderlyingMetadata
+            }
+            userInfo = try JSONSerialization.data(withJSONObject: value.userInfo, options: [.sortedKeys])
+        }
+    }
+    struct Context: Equatable {
+        let codingPath: [Key]
+        let debugDescription: String
+        let underlyingError: FoundationFailure?
+        init(_ value: DecodingError.Context) throws {
+            codingPath = value.codingPath.map(Key.init)
+            debugDescription = value.debugDescription
+            underlyingError = try value.underlyingError.map(FoundationFailure.init)
+        }
+    }
+    case dataCorrupted(Context)
+    case keyNotFound(Key, Context)
+    case typeMismatch(String, Context)
+    case valueNotFound(String, Context)
+    case other(errorType: String, detail: String)
+    case unexpectedSuccess
+
+    init(_ error: Error) throws {
+        switch error {
+        case let DecodingError.dataCorrupted(context): self = .dataCorrupted(try Context(context))
+        case let DecodingError.keyNotFound(key, context): self = .keyNotFound(Key(key), try Context(context))
+        case let DecodingError.typeMismatch(type, context):
+            self = .typeMismatch(String(reflecting: type), try Context(context))
+        case let DecodingError.valueNotFound(type, context):
+            self = .valueNotFound(String(reflecting: type), try Context(context))
+        default: self = .other(errorType: String(reflecting: type(of: error)), detail: String(describing: error))
+        }
+    }
+}
+
 @MainActor
 final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
     func testCaptureSourceUsesAuthenticatedEntryAndClosedCanonicalRoundTripWithoutEffects() async throws {
@@ -49,6 +106,18 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             try h.runner.validateHistoricalCheckRunnerSource(decoded, read: h.read,
                 progress: h.progress, publishedRelease: h.publishedRelease)
             XCTAssertEqual(try h.snapshot(), before)
+            for _ in 0..<2 {
+#if DEBUG
+                let passes = try XCTUnwrap(h.coordinator.workspaceWriter.fullJournalValidationPassCountForTesting)
+#endif
+                try h.runner.validateFreshHistoricalCheckRunnerSource(decoded,
+                    progress: h.progress, publishedRelease: h.publishedRelease)
+#if DEBUG
+                XCTAssertEqual(h.coordinator.workspaceWriter.fullJournalValidationPassCountForTesting, passes + 1)
+#endif
+            }
+            XCTAssertEqual(try h.snapshot(), before)
+            XCTAssertEqual(h.ids.callCount, idCalls)
 
             var unknown = try frozenBeginJSONObject(bytes)
             unknown["futureSourceAuthority"] = true
@@ -69,6 +138,7 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
                 ("entryProgressCheckpoint", "checkpointSHA256", String(repeating: "b", count: 64)),
                 ("entryProgressCheckpoint", "mutationID", beginPreparationUUID(9_802).uuidString.lowercased()),
                 ("sourceCheckpoint", "checkpointSHA256", String(repeating: "c", count: 64)),
+                ("sourceCheckpoint", "draftID", beginPreparationUUID(9_804).uuidString.lowercased()),
                 ("roundAtEntry", "sessionSHA256", String(repeating: "d", count: 64)),
             ]
             for (parentKey, field, value) in substitutions {
@@ -79,6 +149,9 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
                 XCTAssertNotEqual(candidate, source)
                 XCTAssertThrowsError(try h.progress.validateHistoricalCheckRunnerSource(candidate, read: h.read,
                     publishedRelease: h.publishedRelease, signPack: h.signPack), "\(parentKey).\(field)")
+                XCTAssertEqual(h.historicalReadFailure(source: candidate, runner: h.runner, fresh: true),
+                    h.historicalReadFailure(source: candidate, runner: h.runner, fresh: false),
+                    "Fresh historical failure must preserve \(parentKey).\(field)")
             }
             var alteredItems = object
             for key in ["originalItem", "itemAtEntry"] {
@@ -93,6 +166,12 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
                 publishedRelease: h.publishedRelease, signPack: h.signPack))
             XCTAssertThrowsError(try h.progress.validateHistoricalCheckRunnerSource(source, read: h.read,
                 publishedRelease: frozenBeginShippingRelease(stage: .recheck), signPack: h.signPack))
+            XCTAssertEqual(h.historicalReadFailure(source: changedItem, runner: h.runner, fresh: true),
+                h.historicalReadFailure(source: changedItem, runner: h.runner, fresh: false))
+            XCTAssertThrowsError(try h.runner.validateFreshHistoricalCheckRunnerSource(source,
+                progress: h.progress, publishedRelease: frozenBeginShippingRelease(stage: .recheck))) {
+                XCTAssertEqual($0 as? ScanToWorkFailureV1, .authorityMismatch)
+            }
             XCTAssertEqual(try h.snapshot(), before)
             XCTAssertEqual(h.ids.callCount, idCalls)
 
@@ -196,6 +275,8 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
                 let hostileRows = try h.rowSnapshot()
                 let hostileOriginals = try rawOriginals()
                 XCTAssertThrowsError(try continuationRead())
+                XCTAssertEqual(h.historicalReadFailure(source: source, runner: h.runner, fresh: true),
+                    h.historicalReadFailure(source: source, runner: h.runner, fresh: false))
                 XCTAssertEqual(try rawOriginals(), hostileOriginals)
                 XCTAssertEqual(try h.rowSnapshot(), hostileRows)
                 XCTAssertThrowsError(try ProductionCheckRunnerItemDraftServiceV1.authenticateCurrent(
@@ -220,6 +301,34 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
                     parent, writer: writer, context: h.context))
                 XCTAssertEqual(try h.context.fetch(FetchDescriptor<MutationQuarantineRow>()).count, 1)
             }
+            let progressReceipt = try XCTUnwrap(receiptRows.first {
+                $0.workspaceID == h.workspaceID.rawValue
+                    && $0.mutationID == source.sourceCheckpoint.mutationID.rawValue
+            })
+            let progressQuarantine = MutationQuarantineRow(workspaceID: h.workspaceID,
+                mutationID: source.sourceCheckpoint.mutationID, identityDomain: .mutationEnvelope,
+                acceptedIdentitySHA256: progressReceipt.envelopeSHA256,
+                conflictingIdentitySHA256: String(repeating: "e", count: 64), detectedAt: parent.updatedAt)
+            do {
+                defer {
+                    h.context.delete(progressQuarantine)
+                    do { try h.context.save() } catch { XCTFail("Historical source quarantine cleanup: \(error)") }
+                }
+                h.context.insert(progressQuarantine)
+                try h.context.save()
+                let hostileRows = try h.rowSnapshot(), hostileOriginals = try rawOriginals()
+                XCTAssertThrowsError(try h.runner.validateFreshHistoricalCheckRunnerSource(source,
+                    progress: h.progress, publishedRelease: h.publishedRelease)) {
+                    XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .mutationIDQuarantined)
+                }
+                XCTAssertEqual(h.historicalReadFailure(source: source, runner: h.runner, fresh: true),
+                    h.historicalReadFailure(source: source, runner: h.runner, fresh: false))
+                XCTAssertEqual(try h.rowSnapshot(), hostileRows)
+                XCTAssertEqual(try rawOriginals(), hostileOriginals)
+            }
+            try h.runner.validateFreshHistoricalCheckRunnerSource(source,
+                progress: h.progress, publishedRelease: h.publishedRelease)
+
             let replacementReceipt = try MutationReceiptRow(
                 envelope: MutationEnvelopeV1.decodeCanonical(from: parentReceipt.envelopeData),
                 receipt: MutationReceiptV1.decodeCanonical(from: parentReceipt.receiptData))
@@ -715,6 +824,42 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
     }
 
     func testChangedSourceForeignOwnerDirtyContextCompatibilityAndInvalidSessionFailWithoutPreparationEffects() async throws {
+        // Foundation can render equivalent UserInfo dictionaries in either
+        // order. Preserve all error semantics while ignoring that display order.
+        let debug = "Unexpected character 'h' around line 1, column 1."
+        let infoA: [String: Any] = [NSDebugDescriptionErrorKey: debug, "NSJSONSerializationErrorIndex": 0]
+        let infoB: [String: Any] = ["NSJSONSerializationErrorIndex": 0, NSDebugDescriptionErrorKey: debug]
+        @MainActor func signature(domain: String = NSCocoaErrorDomain, code: Int = 3840,
+            info: [String: Any], path: [any CodingKey] = [], detail: String = "The given data was not valid JSON.") throws
+            -> FrozenBeginHistoricalFailureSignature {
+            try .init(DecodingError.dataCorrupted(.init(codingPath: path, debugDescription: detail,
+                underlyingError: NSError(domain: domain, code: code, userInfo: info))))
+        }
+        let semanticError = try signature(info: infoA)
+        XCTAssertEqual(semanticError, try signature(info: infoB))
+        XCTAssertNotEqual(semanticError, try signature(domain: "DifferentDomain", info: infoA))
+        XCTAssertNotEqual(semanticError, try signature(code: 3841, info: infoA))
+        XCTAssertNotEqual(semanticError, try signature(info: [NSDebugDescriptionErrorKey: debug,
+            "NSJSONSerializationErrorIndex": 1]))
+        XCTAssertNotEqual(semanticError, try signature(info: [NSDebugDescriptionErrorKey: "Different failure",
+            "NSJSONSerializationErrorIndex": 0]))
+        XCTAssertNotEqual(semanticError, try signature(info: infoA,
+            path: [FrozenBeginHistoricalFailureSignature.Key(stringValue: "receipt")]))
+        XCTAssertNotEqual(try signature(info: infoA,
+            path: [FrozenBeginHistoricalFailureSignature.Key(stringValue: "0")]),
+            try signature(info: infoA, path: [FrozenBeginHistoricalFailureSignature.Key(intValue: 0)]))
+        XCTAssertNotEqual(semanticError, try signature(info: infoA, detail: "Different decoding context"))
+        let errorContext = DecodingError.Context(codingPath: [], debugDescription: "The given data was not valid JSON.",
+            underlyingError: NSError(domain: NSCocoaErrorDomain, code: 3840, userInfo: infoA))
+        XCTAssertNotEqual(semanticError, try FrozenBeginHistoricalFailureSignature(DecodingError.valueNotFound(Int.self, errorContext)))
+        XCTAssertNotEqual(try FrozenBeginHistoricalFailureSignature(DecodingError.typeMismatch(Int.self, errorContext)),
+            try FrozenBeginHistoricalFailureSignature(DecodingError.typeMismatch(String.self, errorContext)))
+        XCTAssertNotEqual(try FrozenBeginHistoricalFailureSignature(DecodingError.keyNotFound(
+            FrozenBeginHistoricalFailureSignature.Key(stringValue: "left"), errorContext)),
+            try FrozenBeginHistoricalFailureSignature(DecodingError.keyNotFound(
+                FrozenBeginHistoricalFailureSignature.Key(stringValue: "right"), errorContext)))
+        XCTAssertThrowsError(try signature(info: ["unsupported": NSObject()]),
+            "Unsupported metadata must not silently become an equivalent error")
         try await withAsyncFrozenBeginFixture("changed-source", entry: .check,
                                    storedTimeZoneID: "America/New_York") { h in
             let source = try h.captureSource()
@@ -819,6 +964,8 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             let site = try XCTUnwrap(h.context.fetch(FetchDescriptor<Site>()).first { $0.id == h.siteID })
             site.label = "Unsaved hostile label"
             XCTAssertTrue(h.context.hasChanges)
+            XCTAssertEqual(h.historicalReadFailure(source: source, runner: h.runner, fresh: true),
+                h.historicalReadFailure(source: source, runner: h.runner, fresh: false))
             let before = try h.rowSnapshot()
             XCTAssertThrowsError(try h.coordinator.workspaceWriter.currentPhotoContinuationInReadScope(
                 workspaceID: h.workspaceID, parentDraftID: current.value.parentCheckpoint.draftID,
@@ -862,7 +1009,59 @@ final class V23CheckRunnerFrozenBeginPreparationTests: XCTestCase {
             }
             XCTAssertEqual(h.ids.callCount, idCalls)
             XCTAssertEqual(try h.rowSnapshot(), before)
+            XCTAssertThrowsError(try compatibility.validateFreshHistoricalCheckRunnerSource(source,
+                progress: h.progress, publishedRelease: h.publishedRelease)) {
+                XCTAssertEqual($0 as? CheckRunnerCoordinatorError, .packageLifecycleMismatch)
+            }
+            let healthy = try h.snapshot()
+            let rows = try h.context.fetch(FetchDescriptor<MutationReceiptRow>())
+            let sourceReceipt = try XCTUnwrap(rows.first {
+                $0.workspaceID == h.workspaceID.rawValue
+                    && $0.mutationID == source.sourceCheckpoint.mutationID.rawValue
+            })
+            let sourceReceiptBytes = sourceReceipt.receiptData
+            do {
+                defer {
+                    sourceReceipt.receiptData = sourceReceiptBytes
+                    do { try h.context.save() } catch { XCTFail("Historical corrupt-receipt cleanup: \(error)") }
+                }
+                sourceReceipt.receiptData = Data("historical graph precedence corruption".utf8)
+                try h.context.save()
+                let hostileHistory = try h.rawMutationOriginals(), hostileRows = try h.rowSnapshot()
+                let graphFailure = h.historicalReadFailure(source: source, runner: h.runner, fresh: false)
+                let combinedOriginal = h.historicalReadFailure(source: source, runner: compatibility, fresh: false)
+                XCTAssertEqual(combinedOriginal, graphFailure,
+                    "Original sequence must authenticate graph before bad coordinator dependencies")
+                XCTAssertEqual(h.historicalReadFailure(source: source, runner: compatibility, fresh: true), graphFailure)
+                XCTAssertEqual(try h.rawMutationOriginals(), hostileHistory)
+                XCTAssertEqual(try h.rowSnapshot(), hostileRows)
+                XCTAssertEqual(h.ids.callCount, idCalls)
+            }
+            XCTAssertEqual(try h.snapshot(), healthy)
+            // Actual factory epoch acquisition reads this owned pointer. Corrupt
+            // it only after a successful read; no production injection seam.
+            let pointerURL = h.root.appendingPathComponent("FieldEvidenceData/current.json")
+            let pointerBytes = try Data(contentsOf: pointerURL)
+            do {
+                defer {
+                    do { try pointerBytes.write(to: pointerURL) }
+                    catch { XCTFail("Historical epoch-pointer cleanup: \(error)") }
+                }
+                try Data("invalid historical-read epoch pointer".utf8).write(to: pointerURL)
+                let hostileHistory = try h.rawMutationOriginals(), hostileRows = try h.rowSnapshot()
+                XCTAssertEqual(h.historicalReadFailure(source: source, runner: h.runner, fresh: true),
+                    h.historicalReadFailure(source: source, runner: h.runner, fresh: false))
+                XCTAssertEqual(try h.rawMutationOriginals(), hostileHistory)
+                XCTAssertEqual(try h.rowSnapshot(), hostileRows)
+                XCTAssertEqual(h.ids.callCount, idCalls)
+            }
+            XCTAssertEqual(try Data(contentsOf: pointerURL), pointerBytes)
+            try h.runner.validateFreshHistoricalCheckRunnerSource(source,
+                progress: h.progress, publishedRelease: h.publishedRelease)
+            XCTAssertEqual(try h.snapshot(), healthy)
             try h.closeCoordinator()
+            XCTAssertEqual(h.historicalReadFailure(source: source, runner: h.runner, fresh: true),
+                h.historicalReadFailure(source: source, runner: h.runner, fresh: false))
             XCTAssertThrowsError(try h.coordinator.workspaceWriter.currentPhotoContinuationInReadScope(
                 workspaceID: h.workspaceID, parentDraftID: current.value.parentCheckpoint.draftID,
                 childDraftID: current.value.parent.slot.childDraftID, modelContext: h.context))
@@ -2189,6 +2388,48 @@ final class FrozenBeginFixture {
             pdfTemplateID: profile.pdfTemplate.id,
             pdfTemplateVersion: profile.pdfTemplate.version
         )
+    }
+
+    func historicalReadFailure(source: CheckRunnerRoundItemSourceV1,
+        runner: CheckRunnerCoordinator, fresh: Bool,
+        file: StaticString = #filePath, line: UInt = #line) -> FrozenBeginHistoricalFailureSignature {
+        do {
+            if fresh {
+                try runner.validateFreshHistoricalCheckRunnerSource(source,
+                    progress: progress, publishedRelease: publishedRelease)
+            } else {
+                let observed = try progress.read(sourceDraftID: source.sourceCheckpoint.draftID)
+                try runner.validateHistoricalCheckRunnerSource(source, read: observed,
+                    progress: progress, publishedRelease: publishedRelease)
+            }
+            XCTFail("Historical \(fresh ? "fresh" : "original") operation unexpectedly succeeded", file: file, line: line)
+            return .unexpectedSuccess
+        } catch {
+            do { return try FrozenBeginHistoricalFailureSignature(error) }
+            catch let signatureError {
+                XCTFail("Historical error metadata cannot be compared: \(signatureError)", file: file, line: line)
+                return .other(errorType: String(reflecting: type(of: error)), detail: String(describing: error))
+            }
+        }
+    }
+
+    func rawMutationOriginals() throws -> [[String?]] {
+        let receipts: [[String?]] = try context.fetch(FetchDescriptor<MutationReceiptRow>(
+            sortBy: [SortDescriptor(\.receiptIdentity)])).map { row in
+            [row.mutationID.uuidString, row.workspaceMutationKey, row.receiptIdentity,
+             row.workspaceID.uuidString, row.replicaID.uuidString, String(row.localSequence),
+             row.commandKind, row.envelopeData.base64EncodedString(), row.envelopeSHA256,
+             row.receiptData.base64EncodedString(), row.receiptSHA256,
+             row.reversalBasisData?.base64EncodedString(), row.reversalBasisSHA256,
+             row.semanticReversalData?.base64EncodedString()]
+        }
+        let quarantines: [[String?]] = try context.fetch(FetchDescriptor<MutationQuarantineRow>(
+            sortBy: [SortDescriptor(\.workspaceMutationKey)])).map { row in
+            [row.workspaceID.uuidString, row.mutationID.uuidString, row.workspaceMutationKey,
+             row.identityDomain, row.acceptedIdentitySHA256, row.conflictingIdentitySHA256,
+             String(row.detectedAt.timeIntervalSinceReferenceDate.bitPattern)]
+        }
+        return receipts + quarantines
     }
 
     func snapshot() throws -> Snapshot {

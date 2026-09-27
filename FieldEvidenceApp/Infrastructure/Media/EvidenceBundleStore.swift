@@ -3190,7 +3190,19 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     func prepareStartupRecovery(authority applicationAuthority: StartupMediaRecoveryAuthorityV1,
         expectedGenerationRootIdentity: ReportPDFAnchoredFile.RootIdentity
     ) async throws -> StartupMediaPreparedRecoveryV1 {
+#if DEBUG
+        let timingStarted = DispatchTime.now().uptimeNanoseconds
+        print("STARTUP_MEDIA_TIMING_V1 step=preparation.actor-enter uptimeNs=\(timingStarted)")
+        defer {
+            let ended = DispatchTime.now().uptimeNanoseconds
+            print("STARTUP_MEDIA_TIMING_V1 step=preparation.actor-exit uptimeNs=\(ended) elapsedNs=\(ended &- timingStarted)")
+        }
+#endif
         let snapshot = try await applicationAuthority.validatePreparation()
+#if DEBUG
+        let validatedAt = DispatchTime.now().uptimeNanoseconds
+        print("STARTUP_MEDIA_TIMING_V1 step=preparation.authority-return uptimeNs=\(validatedAt) elapsedNs=\(validatedAt &- timingStarted)")
+#endif
         return try prepareStartupRecovery(snapshot: snapshot, authority: applicationAuthority,
             rootIdentity: expectedGenerationRootIdentity)
     }
@@ -3201,8 +3213,22 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         authority applicationAuthority: StartupMediaRecoveryAuthorityV1,
         rootIdentity: ReportPDFAnchoredFile.RootIdentity
     ) throws -> StartupMediaPreparedRecoveryV1 {
+#if DEBUG
+        print("STARTUP_MEDIA_TIMING_V1 step=preparation.lock-request uptimeNs=\(DispatchTime.now().uptimeNanoseconds)")
+        let lockRequested = DispatchTime.now().uptimeNanoseconds
+#endif
         Self.legacyBundleLock.lock()
+#if DEBUG
+        let lockAcquired = DispatchTime.now().uptimeNanoseconds
+        var observedBundleCandidates: Int? = nil
+        defer {
+            let releasedAt = DispatchTime.now().uptimeNanoseconds
+            Self.legacyBundleLock.unlock()
+            print("STARTUP_MEDIA_TIMING_V1 step=preparation.lock-release uptimeNs=\(releasedAt) waitNs=\(lockAcquired &- lockRequested) holdNs=\(releasedAt &- lockAcquired) bundleCandidates=\(observedBundleCandidates.map { String($0) } ?? "unobserved")")
+        }
+#else
         defer { Self.legacyBundleLock.unlock() }
+#endif
         try requireProducerAuthority()
         return try withGenerationRootAuthority { root in
             try requireCheckRunnerPhotoRoot(root, expected: rootIdentity)
@@ -3222,6 +3248,9 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
             }
             let ids = staging.union(promoted).union(authorities.keys).union(photos.keys)
                 .sorted { $0.uuidString < $1.uuidString }
+#if DEBUG
+            observedBundleCandidates = ids.count
+#endif
             var retained: [StartupMediaPreparedBundleV1] = []
             for id in ids {
                 try Task.checkCancellation()
@@ -3434,24 +3463,69 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
 
     nonisolated fileprivate func finishStartupRecovery(_ prepared: StartupMediaPreparedRecoveryV1,
         revalidate: () throws -> Void) throws {
+#if DEBUG
+        let timingStarted = DispatchTime.now().uptimeNanoseconds
+        print("STARTUP_MEDIA_TIMING_V1 step=publication.enter uptimeNs=\(timingStarted)")
+        defer {
+            let ended = DispatchTime.now().uptimeNanoseconds
+            print("STARTUP_MEDIA_TIMING_V1 step=publication.exit uptimeNs=\(ended) elapsedNs=\(ended &- timingStarted)")
+        }
+#endif
         guard prepared.store === self, prepared.consumption.try() else {
             throw EvidenceBundleStoreError.bundleFactsMismatch
         }
         defer { prepared.consumption.unlock() }
         guard !prepared.consumed else { throw EvidenceBundleStoreError.bundleFactsMismatch }
         prepared.consumed = true
+#if DEBUG
+        print("STARTUP_MEDIA_TIMING_V1 step=publication.lock-request uptimeNs=\(DispatchTime.now().uptimeNanoseconds)")
+        let lockRequested = DispatchTime.now().uptimeNanoseconds
+#endif
         Self.legacyBundleLock.lock()
+#if DEBUG
+        let lockAcquired = DispatchTime.now().uptimeNanoseconds
+        defer {
+            let releasedAt = DispatchTime.now().uptimeNanoseconds
+            Self.legacyBundleLock.unlock()
+            print("STARTUP_MEDIA_TIMING_V1 step=publication.lock-release uptimeNs=\(releasedAt) waitNs=\(lockAcquired &- lockRequested) holdNs=\(releasedAt &- lockAcquired)")
+        }
+#else
         defer { Self.legacyBundleLock.unlock() }
+#endif
         try requireProducerAuthority()
         try withGenerationRootAuthority { root in
             try requireCheckRunnerPhotoRoot(root, expected: prepared.rootIdentity)
+#if DEBUG
+            do {
+                let validationStarted = DispatchTime.now().uptimeNanoseconds
+                print("STARTUP_MEDIA_TIMING_V1 step=publication.revalidate-1.enter uptimeNs=\(validationStarted)")
+                defer {
+                    let ended = DispatchTime.now().uptimeNanoseconds
+                    print("STARTUP_MEDIA_TIMING_V1 step=publication.revalidate-1.exit uptimeNs=\(ended) elapsedNs=\(ended &- validationStarted)")
+                }
             try revalidate()
+            }
+#else
+            try revalidate()
+#endif
             guard try bundleIDs(parentComponents: [".staging"], bundleDirectoryName: "evidence") == prepared.stagingIDs,
                   try bundleIDs(parentComponents: [], bundleDirectoryName: "evidence") == prepared.promotedIDs else {
                 throw EvidenceBundleStoreError.bundleFactsMismatch
             }
             for bundle in prepared.bundles { try verifyStartupBundle(bundle) }
+#if DEBUG
+            do {
+                let validationStarted = DispatchTime.now().uptimeNanoseconds
+                print("STARTUP_MEDIA_TIMING_V1 step=publication.revalidate-2.enter uptimeNs=\(validationStarted)")
+                defer {
+                    let ended = DispatchTime.now().uptimeNanoseconds
+                    print("STARTUP_MEDIA_TIMING_V1 step=publication.revalidate-2.exit uptimeNs=\(ended) elapsedNs=\(ended &- validationStarted)")
+                }
             try revalidate()
+            }
+#else
+            try revalidate()
+#endif
             for bundle in prepared.bundles where bundle.cleanup {
                 try Task.checkCancellation()
                 try verifyStartupBundle(bundle)

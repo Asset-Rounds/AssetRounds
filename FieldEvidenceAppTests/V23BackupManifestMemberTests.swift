@@ -151,7 +151,11 @@ final class V23BackupManifestMemberTests: XCTestCase {
         XCTAssertNotEqual(unsorted.entries, valid.entries)
         assertInvalid(unsorted)
         assertInvalid(manifest(entries: [draft], declaredPayloadByteCount: 99))
-        assertInvalid(manifest(entries: [draft], persistent: 52, records: 51))
+        // PersistentSchemaV52 and LightingDayInventoryBackupEnrollmentV1 enroll 52/51.
+        // Retain the real supported witness and reject an independently mismatched pair.
+        XCTAssertNoThrow(try encode(manifest(entries: [draft], persistent: 52, records: 51)))
+        assertInvalid(manifest(entries: [draft], persistent: 52, records: 50))
+        assertInvalid(manifest(entries: [draft], persistent: 54, records: 53))
         assertInvalid(manifest(entries: [draft], workspaceID: zeroUUID))
         assertInvalid(manifest(entries: [draft], replicaID: workspaceID))
         assertInvalid(manifest(entries: [draft], sourceGenerationID: nil))

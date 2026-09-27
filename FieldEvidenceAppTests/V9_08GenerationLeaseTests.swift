@@ -1056,14 +1056,52 @@ final class V9_08GenerationLeaseTests: XCTestCase {
                 try registry.publishPruneReceipt(receipt, completing: persisted)
                 XCTAssertNil(try registry.loadPruneIntent())
                 XCTAssertEqual(try registry.loadLastPruneReceipt(), receipt)
+                let controlsURL = root.appendingPathComponent("FieldEvidenceOperations/generation-leases")
+                @MainActor
+                func terminalControlBytes() throws -> [String: Data] {
+                    let names = try fileManager.subpathsOfDirectory(atPath: controlsURL.path).sorted()
+                    var bytes: [String: Data] = [:]
+                    for name in names {
+                        let url = controlsURL.appendingPathComponent(name)
+                        let attributes = try fileManager.attributesOfItem(atPath: url.path)
+                        let kind = attributes[.type] as? FileAttributeType
+                        _ = try XCTUnwrap(kind == .typeDirectory || kind == .typeRegular ? true : nil)
+                        if kind == .typeRegular { bytes[name] = try Data(contentsOf: url) }
+                    }
+                    return bytes
+                }
+                let terminalNames = try fileManager.subpathsOfDirectory(atPath: controlsURL.path).sorted()
+                let terminalBytes = try terminalControlBytes()
+                XCTAssertEqual(terminalBytes["last-prune-receipt.json"], try receipt.canonicalData())
+                // Exact terminal retries recover idempotently; the durable complete
+                // receipt still has to equal the supplied intent-bound result.
+                try registry.publishPruneReceipt(receipt, completing: persisted)
+                XCTAssertNil(try registry.loadPruneIntent())
+                XCTAssertEqual(try registry.loadLastPruneReceipt(), receipt)
+                XCTAssertEqual(try terminalControlBytes(), terminalBytes)
+                XCTAssertEqual(try fileManager.subpathsOfDirectory(atPath: controlsURL.path).sorted(), terminalNames)
+                let divergent = try GenerationPruneReceiptV1(
+                    operationID: receipt.operationID, currentEpoch: receipt.currentEpoch,
+                    retainedEpochs: receipt.retainedEpochs, prunedEpochs: receipt.prunedEpochs,
+                    activeRetainedEpochs: receipt.activeRetainedEpochs,
+                    uncertainRetainedGenerationIDs: receipt.uncertainRetainedGenerationIDs,
+                    ownerLivenessUncertain: receipt.ownerLivenessUncertain,
+                    inventoryBeforeSHA256: receipt.inventoryBeforeSHA256,
+                    inventoryAfterSHA256: String(repeating: "c", count: 64),
+                    disposition: receipt.disposition)
+                XCTAssertNotEqual(divergent, receipt)
                 XCTAssertThrowsError(
-                    try registry.publishPruneReceipt(receipt, completing: persisted)
+                    try registry.publishPruneReceipt(divergent, completing: persisted)
                 ) { error in
                     XCTAssertEqual(
                         error as? GenerationLeaseRegistryFailureV1,
                         .corruptRegistry
                     )
                 }
+                XCTAssertNil(try registry.loadPruneIntent())
+                XCTAssertEqual(try registry.loadLastPruneReceipt(), receipt)
+                XCTAssertEqual(try terminalControlBytes(), terminalBytes)
+                XCTAssertEqual(try fileManager.subpathsOfDirectory(atPath: controlsURL.path).sorted(), terminalNames)
             } else {
                 XCTAssertEqual(try registry.loadPruneIntent(), persisted)
                 let reopened = try GenerationLeaseRegistryV1(

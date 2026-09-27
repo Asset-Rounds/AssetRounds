@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "c6438761173650987b1d89a3e0c63caba36b296d",
+  "generatedAtHead": "4a21cccb58f3534b9cdbb19ffda806bd71d7c192",
   "sweepOrder": [
     "S01",
     "S02",
@@ -30,7 +30,8 @@
     "S25",
     "S26",
     "S27",
-    "S28"
+    "S28",
+    "S29"
   ],
   "partitions": [
     {
@@ -1807,7 +1808,7 @@
     {
       "id": "S16",
       "tier": "D50C",
-      "estimatedSeconds": 1562.4,
+      "estimatedSeconds": 1622.4,
       "selectors": [
         "FieldEvidenceAppTests/C27ChangeJournalTypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/C32AssistanceAnchorV939SurveyDefinition/testC32V939SurveyDefinitionCompatibilityKeepsProposalAtExplicitReviewBoundary",
@@ -1942,6 +1943,7 @@
         "FieldEvidenceAppTests/V23MutationReceiptSafetyTests/testPendingReviewedResolutionGenericEntryAndOriginalReplayUseRealReceipts",
         "FieldEvidenceAppTests/V23MutationReceiptSafetyTests/testPendingReviewedResolutionGenericEntryRejectsExternalHistoryWithoutEffects",
         "FieldEvidenceAppTests/V23MutationReceiptSafetyTests/testPendingReviewedResolutionGenericEntryRequiresLiveAuthorityAndFullJournal",
+        "FieldEvidenceAppTests/V23MutationReceiptSafetyTests/testPopulatedReliabilityBackupUsesIntroduction39AndPreservesWriterHistoryThrough52",
         "FieldEvidenceAppTests/V23MutationReceiptSafetyTests/testPreparedReviewedProofBindsCommandContextAndConsumesEveryAttempt",
         "FieldEvidenceAppTests/V23MutationReceiptSafetyTests/testPreparedReviewedProofCannotBeMintedByMaintenanceJournal",
         "FieldEvidenceAppTests/V23MutationReceiptSafetyTests/testPreparedReviewedProofIsSingleUseAfterAdapterEffectRollbackAndWriterCanRetry",
@@ -3740,6 +3742,32 @@
         "FieldEvidenceAppTests/V9_93ExactCodeCandidateGateTests/testV23P05C01H01HostileCandidateGate",
         "FieldEvidenceAppTests/V9_93ExactCodeCandidateGateTests/testV23P05C01I01InterruptionCandidateGate",
         "FieldEvidenceAppTests/V9_93ExactCodeCandidateGateTests/testV23P05C01R01RecoveryCandidateGate"
+      ]
+    },
+    {
+      "id": "S29",
+      "tier": "D50C",
+      "estimatedSeconds": 1140.0,
+      "selectors": [
+        "FieldEvidenceAppTests/V23BackupSchemaAdmissionTests/testEveryEnrolledV4TupleRoundTripsAndValidatesActualPackage",
+        "FieldEvidenceAppTests/V23BackupSchemaAdmissionTests/testHistoricalEmptyC52ShapePreservesPhysicalBytesAndRejectsOtherShapes",
+        "FieldEvidenceAppTests/V23BackupSchemaAdmissionTests/testHistoricalManifestTuplesRemainExplicitAndForeignBackupVersionsFail",
+        "FieldEvidenceAppTests/V23BackupSchemaAdmissionTests/testLegacyC08RetainsPopulatedMappingProfileAndRejectsForeignWorkspace",
+        "FieldEvidenceAppTests/V23BackupSchemaAdmissionTests/testNewlyAdmittedEnvelopesRetainLedgerHistoryAndCompanionRejections",
+        "FieldEvidenceAppTests/V23BackupSchemaAdmissionTests/testPackageRejectsEveryMismatchedPairAndUnknownFutureEnvelope",
+        "FieldEvidenceAppTests/V23BackupSchemaAdmissionTests/testPopulatedServiceRequestFieldsSurviveEverySuccessorAndRejectBeforeIntroduction",
+        "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests/testForeignOnlyCloneHistoryNeedsNoInventedLocalReceiptToAdmitRetiredSummary",
+        "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests/testPopulatedRetiredSummaryPreservesOriginalsWhileOrdinaryExportRemainsCurrentOnly",
+        "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests/testReceiptFreeAndMultipleRetiredStoresUseCompleteAcceptedSemanticsWithoutBootstrap",
+        "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests/testRecoveryRetiredCorruptHistoryAndUnknownBytesRetainAllSources",
+        "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests/testRecoveryRetiredScopeRejectsWrongMembershipAndLateControlDriftWithoutEffects",
+        "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests/testRecoveryRetiredSourcesPreserveHistoryAcrossPreparedPointerLagAndPartialCleanup",
+        "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests/testRetiredAdmissionRejectsCorruptOriginalStateAndUnknownMemberWithoutEffects",
+        "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests/testRetiredSummaryReprovesExactPointerAfterFullInventoryAndPreservesDenial",
+        "FieldEvidenceAppTests/V23StartupMediaOwnershipReadTests/testGenuinePhotoPhasesUseFreshCompleteOwnershipAndRejectChangedHistory",
+        "FieldEvidenceAppTests/V23StartupMediaOwnershipReadTests/testZeroPhotoReadRequiresExactContextFreshFenceAndPoisonsFailedProof",
+        "FieldEvidenceAppTests/V23WorkPacketRestoreProjectionTests/testFiveKindPublicReplacementAndColdReadbackPreserveImmutableOriginals",
+        "FieldEvidenceAppTests/V23WorkPacketRestoreProjectionTests/testWriterProducedFiveKindHistoryPlansExactImagesAndRejectsHostileDTOs"
       ]
     }
   ]

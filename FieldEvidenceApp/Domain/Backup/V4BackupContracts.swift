@@ -1,5 +1,99 @@
 import Foundation
 
+/// Closed inventory of the existing enrolled backup envelopes. Adding a new
+/// persistent schema does not implicitly authorize a new archive format.
+/// Sources: PersistentSchemas V5...V53 and each family's backup enrollment.
+enum BackupSchemaAdmissionV1 {
+    private static let v4Pairs: [(persistent: Int, records: Int)] = [
+        (5, 4),
+        (6, 5),
+        (7, 6),
+        (8, 7),
+        (9, 8),
+        (10, 9),
+        (11, 10),
+        (12, 11),
+        (13, 12),
+        (14, 13),
+        (15, 14),
+        (16, 15),
+        (17, 16),
+        (18, 17),
+        (19, 18),
+        (20, 19),
+        (21, 20),
+        (22, 21),
+        (23, 22),
+        (24, 23),
+        (25, 24),
+        (26, 25),
+        (27, 26),
+        (28, 27),
+        (29, 28),
+        (30, 29),
+        (31, 30),
+        (32, 31),
+        (33, 32),
+        (34, 33),
+        (35, 34),
+        (36, 35),
+        (C49WorkResourcePersistenceBoundaryV1.persistentSchemaVersion, C49BackupEnrollmentV1.recordsSchemaVersion),
+        (38, 37), // C51ScheduleExceptionStoreGenerationBoundaryV1
+        (C52ServiceRequestBackupEnrollmentV1.persistentSchemaVersion,
+         C52ServiceRequestBackupEnrollmentV1.recordsSchemaVersion),
+        (C53ServiceReliabilityBackupEnrollmentV1.persistentSchemaVersion,
+         C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion),
+        (C55PartsStockBackupEnrollmentV1.persistentSchemaVersion,
+         C55PartsStockBackupEnrollmentV1.recordsSchemaVersion),
+        (C57MyDayBackupEnrollmentV1.persistentSchemaVersion,
+         C57MyDayBackupEnrollmentV1.recordsSchemaVersion),
+        (C05EvidenceMetadataBackupEnrollmentV1.persistentSchemaVersion,
+         C05EvidenceMetadataBackupEnrollmentV1.recordsSchemaVersion),
+        (C04ShopReportProfileBackupEnrollmentV1.persistentSchemaVersion,
+         C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion),
+        (C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion,
+         C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion),
+        (46, C08ImportBulkBackupEnrollmentV1.legacyRecordsSchemaVersion), // PersistentSchemaV46
+        (C08ImportBulkBackupEnrollmentV1.persistentSchemaVersion,
+         C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion),
+        (FastSurveyInboxBackupEnrollmentV1.persistentSchemaVersion,
+         FastSurveyInboxBackupEnrollmentV1.recordsSchemaVersion),
+        (ReinspectionExceptionQueueBackupEnrollmentV1.persistentSchemaVersion,
+         ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion),
+        (EntityIdentityResolutionBackupEnrollmentV1.persistentSchemaVersion,
+         EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion),
+        (PracticeWorkspaceBackupEnrollmentV1.persistentSchemaVersion,
+         PracticeWorkspaceBackupEnrollmentV1.recordsSchemaVersion),
+        (LightingDayInventoryBackupEnrollmentV1.persistentSchemaVersion,
+         LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion),
+        (LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion,
+         LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion),
+    ]
+
+    static func supports(backup: Int, persistent: Int, records: Int) -> Bool {
+        switch (backup, persistent, records) {
+        case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3):
+            return true
+        default:
+            return backup == 4 && v4Pairs.contains {
+                $0.persistent == persistent && $0.records == records
+            }
+        }
+    }
+
+    static func supportsV4Records(_ version: Int) -> Bool {
+        v4Pairs.contains { $0.records == version }
+    }
+
+    static func matches(_ manifest: V4BackupManifestV1, records: V4BackupRecordsV1) -> Bool {
+        manifest.source.recordsSchemaVersion == records.recordsSchemaVersion
+            && supports(backup: manifest.backupSchemaVersion,
+                        persistent: manifest.source.persistentSchemaVersion,
+                        records: records.recordsSchemaVersion)
+    }
+}
+
+
 enum C50IncumbentFileExchangeBackupBoundaryV1 {
     static let excludesSceneRouteState = C34SceneNavigationCompatibilityBoundaryV1.validate()
     static let recordsSchemaVersion = C49BackupEnrollmentV1.recordsSchemaVersion
@@ -2659,9 +2753,8 @@ enum C05EvidenceMetadataBackupEnrollmentV1 {
             }
             return
         }
-        guard (recordsSchemaVersion...ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion)
-                .contains(records.recordsSchemaVersion)
-                || records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion,
+        guard (records.recordsSchemaVersion >= recordsSchemaVersion
+                && BackupSchemaAdmissionV1.supportsV4Records(records.recordsSchemaVersion)),
               durableFamilyCount == canonicalRowKinds.count else {
             throw EvidenceMetadataFailureV1.invalidValue
         }
@@ -2704,9 +2797,8 @@ enum C04ShopReportProfileBackupEnrollmentV1 {
             }
             return
         }
-        guard (recordsSchemaVersion...ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion)
-                .contains(records.recordsSchemaVersion)
-                || records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion,
+        guard (records.recordsSchemaVersion >= recordsSchemaVersion
+                && BackupSchemaAdmissionV1.supportsV4Records(records.recordsSchemaVersion)),
               durableFamilyCount == canonicalRowKinds.count else {
             throw ShopReportProfileFailureV1.invalidValue
         }
@@ -2845,9 +2937,8 @@ enum C08ImportBulkBackupEnrollmentV1 {
             }
             return
         }
-        guard (legacyRecordsSchemaVersion...ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion)
-                .contains(records.recordsSchemaVersion)
-                || records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion,
+        guard (records.recordsSchemaVersion >= legacyRecordsSchemaVersion
+                && BackupSchemaAdmissionV1.supportsV4Records(records.recordsSchemaVersion)),
               durableFamilyCount == canonicalRowKinds.count else {
             throw ImportBulkFailureV1.invalidValue
         }
@@ -3023,9 +3114,8 @@ enum C52ServiceRequestBackupEnrollmentV1 {
         // V38 is the first envelope carrying C52 rows. Older archives remain
         // decodable with their established empty-array defaults.
         guard !containsServiceRequestRows
-                || (recordsSchemaVersion...ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion)
-                    .contains(records.recordsSchemaVersion)
-                || records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion else {
+                || (records.recordsSchemaVersion >= recordsSchemaVersion
+                && BackupSchemaAdmissionV1.supportsV4Records(records.recordsSchemaVersion)) else {
             throw ServiceRequestBackupContractFailureV1.invalidSchemaVersion
         }
         guard records.recordsSchemaVersion < recordsSchemaVersion
@@ -3290,9 +3380,8 @@ enum C53ServiceReliabilityBackupEnrollmentV1 {
             }
             return
         }
-        guard (recordsSchemaVersion...ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion)
-            .contains(records.recordsSchemaVersion)
-            || records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion else {
+        guard (records.recordsSchemaVersion >= recordsSchemaVersion
+                && BackupSchemaAdmissionV1.supportsV4Records(records.recordsSchemaVersion)) else {
             throw C53ServiceReliabilityBackupContractFailureV1.invalidSchemaVersion
         }
 
@@ -4459,6 +4548,21 @@ extension V4BackupRecordsV1 {
             throw WorkResourceContractFailureV1.invalidValue
         }
         let entries = try workResources.map { try $0.value() }
+        // C55 retains immutable original foreign receipts alongside the active
+        // destination projection. Authenticate the whole history before selecting
+        // that snapshot's namespace; a foreign receipt cannot prove a current row.
+        let currentWorkspaceID: WorkspaceID?
+        if recordsSchemaVersion >= C55PartsStockBackupEnrollmentV1.recordsSchemaVersion {
+            guard let snapshot = partsStockSnapshot, let history = mutationHistory,
+                  entries.allSatisfy({ $0.workspaceID == snapshot.workspaceID }) else {
+                throw WorkResourceContractFailureV1.invalidTransition
+            }
+            try snapshot.validate()
+            try MutationJournalStoreV1.validateImportedSnapshot(history)
+            currentWorkspaceID = snapshot.workspaceID
+        } else {
+            currentWorkspaceID = nil
+        }
 
         var actorByID: [UUID: ActorSnapshotV1] = [:]
         for record in partyAccountability where record.kind == .actorSnapshot {
@@ -4576,25 +4680,109 @@ extension V4BackupRecordsV1 {
             }
             return result
         }
-        let receiptEntries = try mutationHistory?.receipts.flatMap { record -> [WorkResourceEntryV1] in
+        struct HistoricEntryKey: Hashable {
+            let workspaceID: WorkspaceID
+            let entryID: UUID
+            init(workspaceID: WorkspaceID, entryID: UUID) {
+                self.workspaceID = workspaceID
+                self.entryID = entryID
+            }
+            init(_ entry: WorkResourceEntryV1) {
+                self.init(workspaceID: entry.workspaceID, entryID: entry.entryID)
+            }
+        }
+        var historicEntries: [HistoricEntryKey: WorkResourceEntryV1] = [:]
+        var historicProducers = Set<HistoricEntryKey>()
+        let allReceiptEntries = try mutationHistory?.receipts.flatMap { record -> [WorkResourceEntryV1] in
             let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
             let receipt = try MutationReceiptV1.decodeCanonical(from: record.receiptData)
+            let values: [WorkResourceEntryV1]
+            let introduced: WorkResourceEntryV1?
             switch envelope.command {
             case let .applyWorkResource(mutation):
                 _ = try WorkResourceMutationReceiptV1(
                     mutation: mutation,
                     mutationReceipt: receipt
                 )
-                return [mutation.postImage]
+                values = [mutation.postImage]
+                introduced = mutation.postImage
             case let .applyPartsStock(mutation):
                 guard receipt.mutationID == mutation.mutationID,
                       receipt.identity.workspaceID == mutation.workspaceID else {
                     throw WorkResourceContractFailureV1.invalidTransition
                 }
-                return try partsStockWorkEntries(mutation)
+                values = try partsStockWorkEntries(mutation)
+                switch mutation {
+                case let .use(value): introduced = value.workResourceSuccessor
+                case let .reverseUse(value): introduced = value.workResourceSuccessor
+                case let .returnAgainstUse(value): introduced = value.workResourceSuccessor
+                default: introduced = nil
+                }
             default:
-                return []
+                values = []
+                introduced = nil
             }
+            if currentWorkspaceID != nil {
+                for value in values {
+                    let key = HistoricEntryKey(value)
+                    let bytes = try WorkspaceMutationCanonicalV1.data(value)
+                    if let existing = historicEntries[key] {
+                        guard try WorkspaceMutationCanonicalV1.data(existing) == bytes else {
+                            throw WorkResourceContractFailureV1.invalidTransition
+                        }
+                    } else {
+                        historicEntries[key] = value
+                    }
+                }
+                // Embedded predecessor/source-use references may repeat exact
+                // facts. A second introducing command is never another authority.
+                if let introduced,
+                   !historicProducers.insert(HistoricEntryKey(introduced)).inserted {
+                    throw WorkResourceContractFailureV1.invalidTransition
+                }
+            }
+            return values
+        }
+        if currentWorkspaceID != nil {
+            // Original history has its own complete immutable work graph. Its
+            // embedded facts need no current DTO, but must have an introduction
+            // and exact same-origin predecessor just like destination rows.
+            guard historicProducers == Set(historicEntries.keys) else {
+                throw WorkResourceContractFailureV1.invalidTransition
+            }
+            var historicSuccessors = Set<HistoricEntryKey>()
+            for entry in historicEntries.values {
+                guard entry.actor.responsibility == .recordedBy
+                        || entry.actor.responsibility == .performedBy else {
+                    throw WorkResourceContractFailureV1.invalidTransition
+                }
+                if let predecessorID = entry.supersedesEntryID {
+                    let predecessorKey = HistoricEntryKey(
+                        workspaceID: entry.workspaceID, entryID: predecessorID
+                    )
+                    guard historicSuccessors.insert(predecessorKey).inserted,
+                          let predecessor = historicEntries[predecessorKey] else {
+                        throw WorkResourceContractFailureV1.invalidTransition
+                    }
+                    try entry.validateSuccessor(of: predecessor)
+                    guard entry.entryID != predecessor.entryID,
+                          entry.mutationID != predecessor.mutationID,
+                          entry.recordedAt >= predecessor.recordedAt,
+                          entry.disposition == .superseded
+                            || entry.disposition == .voidedWithReason
+                            || entry.disposition == .reversed else {
+                        throw WorkResourceContractFailureV1.invalidTransition
+                    }
+                } else if entry.revision != 1 || entry.expectedRevision != 0
+                            || entry.disposition != .active {
+                    throw WorkResourceContractFailureV1.invalidTransition
+                }
+            }
+        }
+        let receiptEntries = allReceiptEntries.map { values in
+            currentWorkspaceID.map { workspaceID in
+                values.filter { $0.workspaceID == workspaceID }
+            } ?? values
         }
         if let receiptEntries {
             let canonicalReceiptEntries = try canonicalByEntryID(receiptEntries)
@@ -4622,7 +4810,8 @@ extension V4BackupRecordsV1 {
                       receipt.identity.workspaceID == mutation.workspaceID else {
                     throw WorkResourceContractFailureV1.invalidTransition
                 }
-                return try partsStockWorkEntries(mutation)
+                let values = try partsStockWorkEntries(mutation)
+                return values.filter { $0.workspaceID == snapshot.workspaceID }
             } ?? []
             let canonicalSnapshotEntries = try canonicalByEntryID(snapshotEntries)
             let canonicalReceiptEntries = try canonicalByEntryID(partsStockReceiptEntries)
@@ -4640,9 +4829,8 @@ extension V4BackupRecordsV1 {
             guard operationalContacts.isEmpty else { throw OperationalContactFailureV1.incompatibleVersion }
             return ([], [])
         }
-        guard (OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion ...
-            ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion).contains(recordsSchemaVersion)
-                || recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion,
+        guard (recordsSchemaVersion >= OperationalContactPersistenceEnrollmentV1.recordsSchemaVersion
+                && BackupSchemaAdmissionV1.supportsV4Records(recordsSchemaVersion)),
               Set(operationalContacts.map { "\($0.kind.rawValue):\($0.workspaceID):\($0.id)" }).count == operationalContacts.count else {
             throw OperationalContactFailureV1.invalidValue
         }
@@ -4866,9 +5054,8 @@ extension V4BackupRecordsV1 {
             }
             return []
         }
-        guard (AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion ...
-            ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion).contains(recordsSchemaVersion)
-                || recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion,
+        guard (recordsSchemaVersion >= AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion
+                && BackupSchemaAdmissionV1.supportsV4Records(recordsSchemaVersion)),
               Set(acceptedLabelGenerationSnapshots.map { "\($0.workspaceID.uuidString.lowercased()):\($0.snapshotID.uuidString.lowercased())" }).count
                 == acceptedLabelGenerationSnapshots.count else {
             throw AssetLabelContractFailureV1.duplicateIdentity
@@ -4962,9 +5149,8 @@ extension V4BackupRecordsV1{
             guard temporalEvidence.isEmpty else { throw TemporalEvidenceContractFailureV1.invalidValue }
             return ([], [])
         }
-        guard (TemporalEvidencePersistenceEnrollmentV1.recordsSchemaVersion ...
-            ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion).contains(recordsSchemaVersion)
-                || recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion,
+        guard (recordsSchemaVersion >= TemporalEvidencePersistenceEnrollmentV1.recordsSchemaVersion
+                && BackupSchemaAdmissionV1.supportsV4Records(recordsSchemaVersion)),
               Set(temporalEvidence.map(\.id)).count == temporalEvidence.count else {
             throw TemporalEvidenceContractFailureV1.invalidValue
         }
@@ -5121,8 +5307,8 @@ extension V4BackupRecordsV1{
             }
             return
         }
-        guard (31...ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion).contains(recordsSchemaVersion)
-                || recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion,
+        guard (recordsSchemaVersion >= 31
+                && BackupSchemaAdmissionV1.supportsV4Records(recordsSchemaVersion)),
               Set(assistanceAcceptanceReceipts.map(\.receiptID)).count == assistanceAcceptanceReceipts.count,
               Set(assistanceAcceptanceReceipts.map(\.mutationID)).count == assistanceAcceptanceReceipts.count,
               Set(assistanceAcceptanceReceipts.map(\.proposalID)).count == assistanceAcceptanceReceipts.count else {
@@ -5183,11 +5369,7 @@ extension V4BackupRecordsV1{
             guard lighting.isEmpty else { throw LightingContractFailureV1.invalidValue }
             return
         }
-        guard recordsSchemaVersion == 30 || recordsSchemaVersion == 31
-                || recordsSchemaVersion == 32 || recordsSchemaVersion == 33 || recordsSchemaVersion == 34
-                || recordsSchemaVersion == C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion
-                || recordsSchemaVersion == C49BackupEnrollmentV1.recordsSchemaVersion
-                || recordsSchemaVersion == C55PartsStockBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == C57MyDayBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion else {
+        guard BackupSchemaAdmissionV1.supportsV4Records(recordsSchemaVersion) else {
             throw LightingContractFailureV1.invalidValue
         }
         let decodedLighting = try LightingBackupRecordSetV1.decode(lighting)
@@ -5332,13 +5514,7 @@ extension V4BackupRecordsV1{
             }
             return
         }
-        guard recordsSchemaVersion == 29 || recordsSchemaVersion == 30
-                || recordsSchemaVersion == 31 || recordsSchemaVersion == 32
-                || recordsSchemaVersion == 33 || recordsSchemaVersion == 34
-                || recordsSchemaVersion == C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion
-                || recordsSchemaVersion == C49WorkResourcePersistenceBoundaryV1.recordsSchemaVersion
-                || recordsSchemaVersion == C55PartsStockBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == C57MyDayBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion || recordsSchemaVersion == EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion
-                || recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion else {
+        guard BackupSchemaAdmissionV1.supportsV4Records(recordsSchemaVersion) else {
             throw EvidenceContextFailureV1.incompatibleVersion
         }
         guard evidenceContexts.allSatisfy({ $0.kind == .evidenceContext }),

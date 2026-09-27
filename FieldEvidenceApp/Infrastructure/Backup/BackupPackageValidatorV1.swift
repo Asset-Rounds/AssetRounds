@@ -90,19 +90,7 @@ enum C31LightingPackageValidationV1 {
             return
         }
         guard canonicalBytesRequired, derivedProjectionsExcluded,
-              (records.recordsSchemaVersion == recordsSchemaVersion || records.recordsSchemaVersion == 31
-                || records.recordsSchemaVersion == 32 || records.recordsSchemaVersion == 33 || records.recordsSchemaVersion == 34
-                || records.recordsSchemaVersion == C47ActivityContractPersistenceBoundaryV2.recordsSchemaVersion
-                || records.recordsSchemaVersion == C49BackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == 37
-                || records.recordsSchemaVersion == C55PartsStockBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == C57MyDayBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion
-                || records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion) else {
+              BackupSchemaAdmissionV1.supportsV4Records(records.recordsSchemaVersion) else {
             throw BackupPackageValidationErrorV1.invalidPackage
         }
         do {
@@ -1126,24 +1114,11 @@ private extension BackupPackageValidatorV1 {
         } else {
             sourceGenerationIsValid = manifest.source.sourceGenerationID == nil
         }
-        let schemaPairIsValid: Bool
-        switch (
-            manifest.backupSchemaVersion,
-            manifest.source.persistentSchemaVersion,
-            manifest.source.recordsSchemaVersion
-        ) {
-        case (1, 1, 1), (2, 1, 1), (2, 3, 2), (3, 4, 3),
-             (4, 5, 4), (4, 6, 5), (4, 7, 6), (4, 8, 7), (4, 9, 8),
-             (4, 10, 9), (4, 11, 10), (4, 12, 11), (4, 13, 12),
-             (4, 14, 13), (4, 15, 14), (4, 16, 15), (4, 17, 16), (4, 18, 17), (4, 19, 18), (4, 20, 19), (4, 21, 20), (4, 22, 21), (4, 23, 22), (4, 24, 23), (4, 25, 24), (4, 26, 25), (4, 27, 26), (4, 28, 27), (4, 29, 28), (4, 30, 29), (4, 31, 30), (4, 32, 31), (4, 33, 32), (4, 34, 33), (4, 35, 34), (4, 36, 35), (4, 37, 36), (4, 38, 37), (4, 39, 38), (4, 40, 39), (4, 41, 40),
-             (4, C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion,
-              C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion),
-             (4, LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion,
-              LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion):
-            schemaPairIsValid = true
-        default:
-            schemaPairIsValid = false
-        }
+        let schemaPairIsValid = BackupSchemaAdmissionV1.supports(
+            backup: manifest.backupSchemaVersion,
+            persistent: manifest.source.persistentSchemaVersion,
+            records: manifest.source.recordsSchemaVersion
+        )
         guard sourceIdentityIsValid, sourceGenerationIsValid,
               schemaPairIsValid,
               manifest.entries.count <= limits.maximumEntryCount,
@@ -1581,22 +1556,7 @@ private extension BackupPackageValidatorV1 {
         }
         guard records.recordsSchemaVersion < 6
                 ? savedSmartViews.isEmpty
-                : ((records.recordsSchemaVersion == 6
-                        || records.recordsSchemaVersion == 7
-                        || records.recordsSchemaVersion == 8
-                        || records.recordsSchemaVersion == 9
-                        || records.recordsSchemaVersion == 10
-                        || records.recordsSchemaVersion == 11
-                        || records.recordsSchemaVersion == 12
-                        || records.recordsSchemaVersion == 13
-                        || records.recordsSchemaVersion == 14
-                        || records.recordsSchemaVersion == 15
-                        || records.recordsSchemaVersion == 16
-                        || records.recordsSchemaVersion == 17
-                        || records.recordsSchemaVersion == 18
-                        || records.recordsSchemaVersion == 19
-                        || records.recordsSchemaVersion == 20 || records.recordsSchemaVersion == 21 || records.recordsSchemaVersion == 22 || records.recordsSchemaVersion == 23 || records.recordsSchemaVersion == 24 || records.recordsSchemaVersion == 25 || records.recordsSchemaVersion == 26 || records.recordsSchemaVersion == 27 || records.recordsSchemaVersion == 28 || records.recordsSchemaVersion == 29 || records.recordsSchemaVersion == 30 || records.recordsSchemaVersion == 31 || records.recordsSchemaVersion == 32 || records.recordsSchemaVersion == 33 || records.recordsSchemaVersion == 34 || records.recordsSchemaVersion == 35 || records.recordsSchemaVersion == 36 || records.recordsSchemaVersion == 37 || records.recordsSchemaVersion == 38 || records.recordsSchemaVersion == 39 || records.recordsSchemaVersion == 40 || records.recordsSchemaVersion == 41 || records.recordsSchemaVersion == 42
-                        || (records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.persistentSchemaVersion == C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion) || records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
+                : (BackupSchemaAdmissionV1.matches(manifest, records: records)
                     && savedSmartViews.allSatisfy({
                         $0.workspaceID == manifest.source.workspaceID
                     })) else {
@@ -1658,20 +1618,7 @@ private extension BackupPackageValidatorV1 {
               records.reports.allSatisfy({ $0.schemaVersion == 1 }),
               records.recordsSchemaVersion < 7
                 ? assuranceSnapshots.isEmpty
-                : ((records.recordsSchemaVersion == 7 || records.recordsSchemaVersion == 8
-                        || records.recordsSchemaVersion == 9
-                        || records.recordsSchemaVersion == 10
-                        || records.recordsSchemaVersion == 11
-                        || records.recordsSchemaVersion == 12
-                        || records.recordsSchemaVersion == 13
-                        || records.recordsSchemaVersion == 14
-                        || records.recordsSchemaVersion == 15
-                        || records.recordsSchemaVersion == 16
-                        || records.recordsSchemaVersion == 17
-                        || records.recordsSchemaVersion == 18
-                        || records.recordsSchemaVersion == 19
-                        || records.recordsSchemaVersion == 20 || records.recordsSchemaVersion == 21 || records.recordsSchemaVersion == 22 || records.recordsSchemaVersion == 23 || records.recordsSchemaVersion == 24 || records.recordsSchemaVersion == 25 || records.recordsSchemaVersion == 26 || records.recordsSchemaVersion == 27 || records.recordsSchemaVersion == 28 || records.recordsSchemaVersion == 29 || records.recordsSchemaVersion == 30 || records.recordsSchemaVersion == 31 || records.recordsSchemaVersion == 32 || records.recordsSchemaVersion == 33 || records.recordsSchemaVersion == 34 || records.recordsSchemaVersion == 35 || records.recordsSchemaVersion == 36 || records.recordsSchemaVersion == 37 || records.recordsSchemaVersion == 38 || records.recordsSchemaVersion == 39 || records.recordsSchemaVersion == 40 || records.recordsSchemaVersion == 41 || records.recordsSchemaVersion == 42
-                        || (records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.persistentSchemaVersion == C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion) || records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
+                : (BackupSchemaAdmissionV1.matches(manifest, records: records)
                     && assuranceSnapshots.allSatisfy({ snapshot in
                         snapshot.workspaceID == manifest.source.workspaceID
                             && workflow[snapshot.workflowRecordID] != nil
@@ -2069,22 +2016,7 @@ private extension BackupPackageValidatorV1 {
             return
         }
         guard (8...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
-              (manifest.source.persistentSchemaVersion == 9
-                || manifest.source.persistentSchemaVersion == 10
-                || manifest.source.persistentSchemaVersion == 11
-                || manifest.source.persistentSchemaVersion == 12
-                || manifest.source.persistentSchemaVersion == 13
-                || manifest.source.persistentSchemaVersion == 14
-                || manifest.source.persistentSchemaVersion == 15
-                || manifest.source.persistentSchemaVersion == 16
-                || manifest.source.persistentSchemaVersion == 17
-                || manifest.source.persistentSchemaVersion == 18
-                || manifest.source.persistentSchemaVersion == 19
-                || manifest.source.persistentSchemaVersion == 20
-                || manifest.source.persistentSchemaVersion == 21 || manifest.source.persistentSchemaVersion == 22 || manifest.source.persistentSchemaVersion == 23 || manifest.source.persistentSchemaVersion == 24 || manifest.source.persistentSchemaVersion == 25 || manifest.source.persistentSchemaVersion == 26 || manifest.source.persistentSchemaVersion == 27 || manifest.source.persistentSchemaVersion == 28 || manifest.source.persistentSchemaVersion == 29 || manifest.source.persistentSchemaVersion == 30 || manifest.source.persistentSchemaVersion == 31 || manifest.source.persistentSchemaVersion == 32 || manifest.source.persistentSchemaVersion == 33 || manifest.source.persistentSchemaVersion == 34 || manifest.source.persistentSchemaVersion == 35 || manifest.source.persistentSchemaVersion == 36 || manifest.source.persistentSchemaVersion == 37 || manifest.source.persistentSchemaVersion == 38 || manifest.source.persistentSchemaVersion == 39 || manifest.source.persistentSchemaVersion == 40 || manifest.source.persistentSchemaVersion == 41 || (manifest.source.persistentSchemaVersion == 42 && records.recordsSchemaVersion == 41) || (manifest.source.persistentSchemaVersion == 43 && records.recordsSchemaVersion == 42) || (manifest.source.persistentSchemaVersion == 44 && records.recordsSchemaVersion == 43)
-                || (records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.persistentSchemaVersion == C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion) || (records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.persistentSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion)),
+              BackupSchemaAdmissionV1.matches(manifest, records: records),
               let workspaceID = manifest.source.workspaceID else { throw invalid() }
         let keys = records.partyAccountability.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
@@ -2165,21 +2097,7 @@ private extension BackupPackageValidatorV1 {
             return
         }
         guard (9...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
-              (manifest.source.persistentSchemaVersion == 10
-                || manifest.source.persistentSchemaVersion == 11
-                || manifest.source.persistentSchemaVersion == 12
-                || manifest.source.persistentSchemaVersion == 13
-                || manifest.source.persistentSchemaVersion == 14
-                || manifest.source.persistentSchemaVersion == 15
-                || manifest.source.persistentSchemaVersion == 16
-                || manifest.source.persistentSchemaVersion == 17
-                || manifest.source.persistentSchemaVersion == 18
-                || manifest.source.persistentSchemaVersion == 19
-                || manifest.source.persistentSchemaVersion == 20
-                || manifest.source.persistentSchemaVersion == 21 || manifest.source.persistentSchemaVersion == 22 || manifest.source.persistentSchemaVersion == 23 || manifest.source.persistentSchemaVersion == 24 || manifest.source.persistentSchemaVersion == 25 || manifest.source.persistentSchemaVersion == 26 || manifest.source.persistentSchemaVersion == 27 || manifest.source.persistentSchemaVersion == 28 || manifest.source.persistentSchemaVersion == 29 || manifest.source.persistentSchemaVersion == 30 || manifest.source.persistentSchemaVersion == 31 || manifest.source.persistentSchemaVersion == 32 || manifest.source.persistentSchemaVersion == 33 || manifest.source.persistentSchemaVersion == 34 || manifest.source.persistentSchemaVersion == 35 || manifest.source.persistentSchemaVersion == 36 || manifest.source.persistentSchemaVersion == 37 || manifest.source.persistentSchemaVersion == 38 || manifest.source.persistentSchemaVersion == 39 || manifest.source.persistentSchemaVersion == 40 || manifest.source.persistentSchemaVersion == 41 || (manifest.source.persistentSchemaVersion == 42 && records.recordsSchemaVersion == 41) || (manifest.source.persistentSchemaVersion == 43 && records.recordsSchemaVersion == 42) || (manifest.source.persistentSchemaVersion == 44 && records.recordsSchemaVersion == 43)
-                || (records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.persistentSchemaVersion == C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion) || (records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.persistentSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion)),
+              BackupSchemaAdmissionV1.matches(manifest, records: records),
               let sourceWorkspaceID = manifest.source.workspaceID else { throw invalid() }
         let keys = records.assetSemantics.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         guard keys == keys.sorted(), Set(keys).count == keys.count,
@@ -2382,20 +2300,7 @@ private extension BackupPackageValidatorV1 {
             return
         }
         guard (10...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
-              (manifest.source.persistentSchemaVersion == 11
-                || manifest.source.persistentSchemaVersion == 12
-                || manifest.source.persistentSchemaVersion == 13
-                || manifest.source.persistentSchemaVersion == 14
-                || manifest.source.persistentSchemaVersion == 15
-                || manifest.source.persistentSchemaVersion == 16
-                || manifest.source.persistentSchemaVersion == 17
-                || manifest.source.persistentSchemaVersion == 18
-                || manifest.source.persistentSchemaVersion == 19
-                || manifest.source.persistentSchemaVersion == 20
-                || manifest.source.persistentSchemaVersion == 21 || manifest.source.persistentSchemaVersion == 22 || manifest.source.persistentSchemaVersion == 23 || manifest.source.persistentSchemaVersion == 24 || manifest.source.persistentSchemaVersion == 25 || manifest.source.persistentSchemaVersion == 26 || manifest.source.persistentSchemaVersion == 27 || manifest.source.persistentSchemaVersion == 28 || manifest.source.persistentSchemaVersion == 29 || manifest.source.persistentSchemaVersion == 30 || manifest.source.persistentSchemaVersion == 31 || manifest.source.persistentSchemaVersion == 32 || manifest.source.persistentSchemaVersion == 33 || manifest.source.persistentSchemaVersion == 34 || manifest.source.persistentSchemaVersion == 35 || manifest.source.persistentSchemaVersion == 36 || manifest.source.persistentSchemaVersion == 37 || manifest.source.persistentSchemaVersion == 38 || manifest.source.persistentSchemaVersion == 39 || manifest.source.persistentSchemaVersion == 40 || manifest.source.persistentSchemaVersion == 41 || (manifest.source.persistentSchemaVersion == 42 && records.recordsSchemaVersion == 41) || (manifest.source.persistentSchemaVersion == 43 && records.recordsSchemaVersion == 42) || (manifest.source.persistentSchemaVersion == 44 && records.recordsSchemaVersion == 43)
-                || (records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.persistentSchemaVersion == C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion) || (records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.persistentSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion)),
+              BackupSchemaAdmissionV1.matches(manifest, records: records),
               let workspaceID = manifest.source.workspaceID else { throw invalid() }
         let keys = records.authorityCriterion.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         guard keys == keys.sorted(), Set(keys).count == keys.count,
@@ -2537,19 +2442,7 @@ private extension BackupPackageValidatorV1 {
             return
         }
         guard (11...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
-              (manifest.source.persistentSchemaVersion == 12
-                || manifest.source.persistentSchemaVersion == 13
-                || manifest.source.persistentSchemaVersion == 14
-                || manifest.source.persistentSchemaVersion == 15
-                || manifest.source.persistentSchemaVersion == 16
-                || manifest.source.persistentSchemaVersion == 17
-                || manifest.source.persistentSchemaVersion == 18
-                || manifest.source.persistentSchemaVersion == 19
-                || manifest.source.persistentSchemaVersion == 20
-                || manifest.source.persistentSchemaVersion == 21 || manifest.source.persistentSchemaVersion == 22 || manifest.source.persistentSchemaVersion == 23 || manifest.source.persistentSchemaVersion == 24 || manifest.source.persistentSchemaVersion == 25 || manifest.source.persistentSchemaVersion == 26 || manifest.source.persistentSchemaVersion == 27 || manifest.source.persistentSchemaVersion == 28 || manifest.source.persistentSchemaVersion == 29 || manifest.source.persistentSchemaVersion == 30 || manifest.source.persistentSchemaVersion == 31 || manifest.source.persistentSchemaVersion == 32 || manifest.source.persistentSchemaVersion == 33 || manifest.source.persistentSchemaVersion == 34 || manifest.source.persistentSchemaVersion == 35 || manifest.source.persistentSchemaVersion == 36 || manifest.source.persistentSchemaVersion == 37 || manifest.source.persistentSchemaVersion == 38 || manifest.source.persistentSchemaVersion == 39 || manifest.source.persistentSchemaVersion == 40 || manifest.source.persistentSchemaVersion == 41 || (manifest.source.persistentSchemaVersion == 42 && records.recordsSchemaVersion == 41) || (manifest.source.persistentSchemaVersion == 43 && records.recordsSchemaVersion == 42) || (manifest.source.persistentSchemaVersion == 44 && records.recordsSchemaVersion == 43)
-                || (records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.persistentSchemaVersion == C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion) || (records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.persistentSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion)),
+              BackupSchemaAdmissionV1.matches(manifest, records: records),
               let sourceWorkspaceID = manifest.source.workspaceID else { throw invalid() }
         do {
             let workspaceID = WorkspaceID(rawValue: sourceWorkspaceID)
@@ -2613,17 +2506,7 @@ private extension BackupPackageValidatorV1 {
             return
         }
         guard (12...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
-              (manifest.source.persistentSchemaVersion == 13 || manifest.source.persistentSchemaVersion == 14
-                || manifest.source.persistentSchemaVersion == 15
-                || manifest.source.persistentSchemaVersion == 16
-                || manifest.source.persistentSchemaVersion == 17
-                || manifest.source.persistentSchemaVersion == 18
-                || manifest.source.persistentSchemaVersion == 19
-                || manifest.source.persistentSchemaVersion == 20
-                || manifest.source.persistentSchemaVersion == 21 || manifest.source.persistentSchemaVersion == 22 || manifest.source.persistentSchemaVersion == 23 || manifest.source.persistentSchemaVersion == 24 || manifest.source.persistentSchemaVersion == 25 || manifest.source.persistentSchemaVersion == 26 || manifest.source.persistentSchemaVersion == 27 || manifest.source.persistentSchemaVersion == 28 || manifest.source.persistentSchemaVersion == 29 || manifest.source.persistentSchemaVersion == 30 || manifest.source.persistentSchemaVersion == 31 || manifest.source.persistentSchemaVersion == 32 || manifest.source.persistentSchemaVersion == 33 || manifest.source.persistentSchemaVersion == 34 || manifest.source.persistentSchemaVersion == 35 || manifest.source.persistentSchemaVersion == 36 || manifest.source.persistentSchemaVersion == 37 || manifest.source.persistentSchemaVersion == 38 || manifest.source.persistentSchemaVersion == 39 || manifest.source.persistentSchemaVersion == 40 || manifest.source.persistentSchemaVersion == 41 || (manifest.source.persistentSchemaVersion == 42 && records.recordsSchemaVersion == 41) || (manifest.source.persistentSchemaVersion == 43 && records.recordsSchemaVersion == 42) || (manifest.source.persistentSchemaVersion == 44 && records.recordsSchemaVersion == 43)
-                || (records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.persistentSchemaVersion == C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion) || (records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.persistentSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion)),
+              BackupSchemaAdmissionV1.matches(manifest, records: records),
               let rawWorkspaceID = manifest.source.workspaceID else { throw invalid() }
         do {
             let workspaceID = WorkspaceID(rawValue: rawWorkspaceID)
@@ -2912,11 +2795,7 @@ private extension BackupPackageValidatorV1 {
             return
         }
         guard (16...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
-              (17...C52ServiceRequestBackupValidationBoundaryV1.persistentSchemaVersion)
-                .contains(manifest.source.persistentSchemaVersion)
-                || (records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.persistentSchemaVersion == C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion) || (records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.persistentSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion),
+              BackupSchemaAdmissionV1.matches(manifest, records: records),
               let rawWorkspaceID = manifest.source.workspaceID else { throw invalid() }
         let workspaceID = WorkspaceID(rawValue: rawWorkspaceID)
         var releases: [UUID: PromotedPackageReleaseV1] = [:]
@@ -2984,11 +2863,7 @@ private extension BackupPackageValidatorV1 {
             return
         }
         guard (17...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
-              (18...C52ServiceRequestBackupValidationBoundaryV1.persistentSchemaVersion)
-                .contains(manifest.source.persistentSchemaVersion)
-                || (records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.persistentSchemaVersion == C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion) || (records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.persistentSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion),
+              BackupSchemaAdmissionV1.matches(manifest, records: records),
               let rawWorkspaceID = manifest.source.workspaceID else { throw invalid() }
         let workspaceID = WorkspaceID(rawValue: rawWorkspaceID)
         var instruments:[UUID:InstrumentReferenceV1]=[:], calibrations:[UUID:CalibrationStatusSnapshotV1]=[:]
@@ -3055,35 +2930,7 @@ private extension BackupPackageValidatorV1 {
             guard records.privacyTransforms.isEmpty else { throw invalid() }
             return
         }
-        guard (records.recordsSchemaVersion == 18
-                && manifest.source.persistentSchemaVersion == 19)
-                || (records.recordsSchemaVersion == 19
-                    && manifest.source.persistentSchemaVersion == 20)
-                || (records.recordsSchemaVersion == 20
-                    && manifest.source.persistentSchemaVersion == 21)
-                || (records.recordsSchemaVersion == 21
-                    && manifest.source.persistentSchemaVersion == 22)
-                || (records.recordsSchemaVersion == 22
-                    && manifest.source.persistentSchemaVersion == 23)
-                || (records.recordsSchemaVersion == 23
-                    && manifest.source.persistentSchemaVersion == 24)
-                || (records.recordsSchemaVersion == 24
-                    && manifest.source.persistentSchemaVersion == 25)
-                || (records.recordsSchemaVersion == 25
-                    && manifest.source.persistentSchemaVersion == 26)
-                || (records.recordsSchemaVersion == 26
-                    && manifest.source.persistentSchemaVersion == 27)
-                || (records.recordsSchemaVersion == 27
-                    && manifest.source.persistentSchemaVersion == 28)
-                || (records.recordsSchemaVersion == 28
-                    && manifest.source.persistentSchemaVersion == 29)
-                || (records.recordsSchemaVersion == 29
-                    && manifest.source.persistentSchemaVersion == 30)
-                || (records.recordsSchemaVersion == 30
-                    && manifest.source.persistentSchemaVersion == 31)
-                || (records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.persistentSchemaVersion == C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion) || (records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.persistentSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion),
+        guard BackupSchemaAdmissionV1.matches(manifest, records: records),
               let rawWorkspaceID = manifest.source.workspaceID else { throw invalid() }
         let workspaceID = WorkspaceID(rawValue: rawWorkspaceID)
         var policies: [UUID: PrivacyTransformPolicyV1] = [:]
@@ -3197,7 +3044,7 @@ private extension BackupPackageValidatorV1 {
 
     func validateClientCapabilities(_ records:V4BackupRecordsV1,manifest:V4BackupManifestV1)throws{
         guard records.recordsSchemaVersion>=19 else{guard records.clientCapabilities.isEmpty else{throw invalid()};return}
-        guard ((records.recordsSchemaVersion==19 && manifest.source.persistentSchemaVersion==20)||(records.recordsSchemaVersion==20 && manifest.source.persistentSchemaVersion==21)||(records.recordsSchemaVersion==21 && manifest.source.persistentSchemaVersion==22)||(records.recordsSchemaVersion==22 && manifest.source.persistentSchemaVersion==23)||(records.recordsSchemaVersion==23 && manifest.source.persistentSchemaVersion==24)||(records.recordsSchemaVersion==24 && manifest.source.persistentSchemaVersion==25)||(records.recordsSchemaVersion==25 && manifest.source.persistentSchemaVersion==26)||(records.recordsSchemaVersion==26 && manifest.source.persistentSchemaVersion==27)||(records.recordsSchemaVersion==27 && manifest.source.persistentSchemaVersion==28)||(records.recordsSchemaVersion==28 && manifest.source.persistentSchemaVersion==29)||(records.recordsSchemaVersion==29 && manifest.source.persistentSchemaVersion==30)||(records.recordsSchemaVersion==30 && manifest.source.persistentSchemaVersion==31)||(records.recordsSchemaVersion==31 && manifest.source.persistentSchemaVersion==32)||(records.recordsSchemaVersion==32 && manifest.source.persistentSchemaVersion==33)||(records.recordsSchemaVersion==33 && manifest.source.persistentSchemaVersion==34)||(records.recordsSchemaVersion==34 && manifest.source.persistentSchemaVersion==35)||(records.recordsSchemaVersion==35 && manifest.source.persistentSchemaVersion==36) || (records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.persistentSchemaVersion == C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion) || (records.recordsSchemaVersion==LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion && manifest.source.persistentSchemaVersion==LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion)),manifest.source.recordsSchemaVersion==records.recordsSchemaVersion,let rawWorkspaceID=manifest.source.workspaceID else{throw invalid()};let workspaceID=WorkspaceID(rawValue:rawWorkspaceID)
+        guard BackupSchemaAdmissionV1.matches(manifest, records: records),manifest.source.recordsSchemaVersion==records.recordsSchemaVersion,let rawWorkspaceID=manifest.source.workspaceID else{throw invalid()};let workspaceID=WorkspaceID(rawValue:rawWorkspaceID)
         do{
             let releases=try records.packageEvolution.filter{$0.kind == .promotedRelease}.map{try PackageEvolutionCanonicalCodecV1.decode(PromotedPackageReleaseV1.self,from:$0.canonicalData).packageRelease};let releaseIndex=Dictionary(uniqueKeysWithValues:releases.map{($0.packageReleaseID,$0)})
             var profiles:[UUID:ClientCapabilityProfileV1]=[:],policies:[UUID:PackageLifecyclePolicyV1]=[:],dispositions:[UUID:PackageLifecycleDispositionV1]=[:],decisions:[UUID:ClientCapabilityAdmissionDecisionV1]=[:]
@@ -3212,7 +3059,7 @@ private extension BackupPackageValidatorV1 {
 
     func validateRecoverabilityReceipts(_ records:V4BackupRecordsV1,manifest:V4BackupManifestV1)throws{
         guard records.recordsSchemaVersion>=20 else{guard records.recoverabilityReceipts.isEmpty else{throw invalid()};return}
-        guard ((records.recordsSchemaVersion==20 && manifest.source.persistentSchemaVersion==21)||(records.recordsSchemaVersion==21 && manifest.source.persistentSchemaVersion==22)||(records.recordsSchemaVersion==22 && manifest.source.persistentSchemaVersion==23)||(records.recordsSchemaVersion==23 && manifest.source.persistentSchemaVersion==24)||(records.recordsSchemaVersion==24 && manifest.source.persistentSchemaVersion==25)||(records.recordsSchemaVersion==25 && manifest.source.persistentSchemaVersion==26)||(records.recordsSchemaVersion==26 && manifest.source.persistentSchemaVersion==27)||(records.recordsSchemaVersion==27 && manifest.source.persistentSchemaVersion==28)||(records.recordsSchemaVersion==28 && manifest.source.persistentSchemaVersion==29)||(records.recordsSchemaVersion==29 && manifest.source.persistentSchemaVersion==30)||(records.recordsSchemaVersion==30 && manifest.source.persistentSchemaVersion==31)||(records.recordsSchemaVersion==31 && manifest.source.persistentSchemaVersion==32)||(records.recordsSchemaVersion==32 && manifest.source.persistentSchemaVersion==33)||(records.recordsSchemaVersion==33 && manifest.source.persistentSchemaVersion==34)||(records.recordsSchemaVersion==34 && manifest.source.persistentSchemaVersion==35)||(records.recordsSchemaVersion==35 && manifest.source.persistentSchemaVersion==36) || (records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.persistentSchemaVersion == C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion) || (records.recordsSchemaVersion==LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion && manifest.source.persistentSchemaVersion==LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion)),manifest.source.recordsSchemaVersion==records.recordsSchemaVersion,let rawWorkspaceID=manifest.source.workspaceID else{throw invalid()}
+        guard BackupSchemaAdmissionV1.matches(manifest, records: records),manifest.source.recordsSchemaVersion==records.recordsSchemaVersion,let rawWorkspaceID=manifest.source.workspaceID else{throw invalid()}
         let workspaceID=WorkspaceID(rawValue:rawWorkspaceID)
         do{
             let decisions=try records.clientCapabilities.filter{$0.kind == .admissionDecision}.map{try ClientCapabilityCanonicalCodecV1.decode(ClientCapabilityAdmissionDecisionV1.self,from:$0.canonicalData)}
@@ -3315,21 +3162,7 @@ private extension BackupPackageValidatorV1 {
             guard records.assetLocators.isEmpty else { throw invalid() }
             return
         }
-        guard (records.recordsSchemaVersion == 25 && manifest.source.persistentSchemaVersion == 26)
-                || (records.recordsSchemaVersion == 26 && manifest.source.persistentSchemaVersion == 27)
-                || (records.recordsSchemaVersion == 27 && manifest.source.persistentSchemaVersion == 28)
-                || (records.recordsSchemaVersion == 28 && manifest.source.persistentSchemaVersion == 29)
-                || (records.recordsSchemaVersion == 29 && manifest.source.persistentSchemaVersion == 30)
-                || (records.recordsSchemaVersion == 30 && manifest.source.persistentSchemaVersion == 31)
-                || (records.recordsSchemaVersion == 31 && manifest.source.persistentSchemaVersion == 32)
-                || (records.recordsSchemaVersion == 32 && manifest.source.persistentSchemaVersion == 33)
-                || (records.recordsSchemaVersion == 33 && manifest.source.persistentSchemaVersion == 34)
-                || (records.recordsSchemaVersion == 34 && manifest.source.persistentSchemaVersion == 35)
-                || (records.recordsSchemaVersion == 35 && manifest.source.persistentSchemaVersion == 36)
-                || (records.recordsSchemaVersion == 36 && manifest.source.persistentSchemaVersion == 37) || (records.recordsSchemaVersion == 37 && manifest.source.persistentSchemaVersion == 38) || (records.recordsSchemaVersion == 38 && manifest.source.persistentSchemaVersion == 39) || (records.recordsSchemaVersion == 39 && manifest.source.persistentSchemaVersion == 40) || (records.recordsSchemaVersion == 40 && manifest.source.persistentSchemaVersion == 41) || (records.recordsSchemaVersion == 41 && manifest.source.persistentSchemaVersion == 42) || (records.recordsSchemaVersion == 42 && manifest.source.persistentSchemaVersion == 43) || (records.recordsSchemaVersion == 43 && manifest.source.persistentSchemaVersion == 44)
-                || (records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.persistentSchemaVersion == C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion) || (records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.persistentSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion),
+        guard BackupSchemaAdmissionV1.matches(manifest, records: records),
               let rawWorkspaceID = manifest.source.workspaceID,
               records.mutationHistory != nil else { throw invalid() }
         let workspaceID = WorkspaceID(rawValue: rawWorkspaceID)
@@ -3412,19 +3245,7 @@ private extension BackupPackageValidatorV1 {
             guard records.plans.isEmpty else { throw invalid() }
             return
         }
-        guard (records.recordsSchemaVersion == 27 && manifest.source.persistentSchemaVersion == 28)
-                || (records.recordsSchemaVersion == 28 && manifest.source.persistentSchemaVersion == 29)
-                || (records.recordsSchemaVersion == 29 && manifest.source.persistentSchemaVersion == 30)
-                || (records.recordsSchemaVersion == 30 && manifest.source.persistentSchemaVersion == 31)
-                || (records.recordsSchemaVersion == 31 && manifest.source.persistentSchemaVersion == 32)
-                || (records.recordsSchemaVersion == 32 && manifest.source.persistentSchemaVersion == 33)
-                || (records.recordsSchemaVersion == 33 && manifest.source.persistentSchemaVersion == 34)
-                || (records.recordsSchemaVersion == 34 && manifest.source.persistentSchemaVersion == 35)
-                || (records.recordsSchemaVersion == 35 && manifest.source.persistentSchemaVersion == 36)
-                || (records.recordsSchemaVersion == 36 && manifest.source.persistentSchemaVersion == 37) || (records.recordsSchemaVersion == 37 && manifest.source.persistentSchemaVersion == 38) || (records.recordsSchemaVersion == 38 && manifest.source.persistentSchemaVersion == 39) || (records.recordsSchemaVersion == 39 && manifest.source.persistentSchemaVersion == 40) || (records.recordsSchemaVersion == 40 && manifest.source.persistentSchemaVersion == 41) || (records.recordsSchemaVersion == 41 && manifest.source.persistentSchemaVersion == 42) || (records.recordsSchemaVersion == 42 && manifest.source.persistentSchemaVersion == 43) || (records.recordsSchemaVersion == 43 && manifest.source.persistentSchemaVersion == 44)
-                || (records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.persistentSchemaVersion == C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion) || (records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.persistentSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion),
+        guard BackupSchemaAdmissionV1.matches(manifest, records: records),
               let workspaceID = manifest.source.workspaceID,
               records.mutationHistory != nil,
               records.plans.allSatisfy({ $0.workspaceID == workspaceID }) else {
@@ -3456,18 +3277,7 @@ private extension BackupPackageValidatorV1 {
             guard records.placementPoses.isEmpty else { throw invalid() }
             return
         }
-        guard (records.recordsSchemaVersion == 28 && manifest.source.persistentSchemaVersion == 29)
-                || (records.recordsSchemaVersion == 29 && manifest.source.persistentSchemaVersion == 30)
-                || (records.recordsSchemaVersion == 30 && manifest.source.persistentSchemaVersion == 31)
-                || (records.recordsSchemaVersion == 31 && manifest.source.persistentSchemaVersion == 32)
-                || (records.recordsSchemaVersion == 32 && manifest.source.persistentSchemaVersion == 33)
-                || (records.recordsSchemaVersion == 33 && manifest.source.persistentSchemaVersion == 34)
-                || (records.recordsSchemaVersion == 34 && manifest.source.persistentSchemaVersion == 35)
-                || (records.recordsSchemaVersion == 35 && manifest.source.persistentSchemaVersion == 36)
-                || (records.recordsSchemaVersion == 36 && manifest.source.persistentSchemaVersion == 37) || (records.recordsSchemaVersion == 37 && manifest.source.persistentSchemaVersion == 38) || (records.recordsSchemaVersion == 38 && manifest.source.persistentSchemaVersion == 39) || (records.recordsSchemaVersion == 39 && manifest.source.persistentSchemaVersion == 40) || (records.recordsSchemaVersion == 40 && manifest.source.persistentSchemaVersion == 41) || (records.recordsSchemaVersion == 41 && manifest.source.persistentSchemaVersion == 42) || (records.recordsSchemaVersion == 42 && manifest.source.persistentSchemaVersion == 43) || (records.recordsSchemaVersion == 43 && manifest.source.persistentSchemaVersion == 44)
-                || (records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.persistentSchemaVersion == C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion) || (records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.persistentSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion),
+        guard BackupSchemaAdmissionV1.matches(manifest, records: records),
               let workspaceID = manifest.source.workspaceID,
               records.mutationHistory != nil,
               records.placementPoses.allSatisfy({ $0.workspaceID == workspaceID }) else {
@@ -3499,14 +3309,7 @@ private extension BackupPackageValidatorV1 {
             guard records.lighting.isEmpty else { throw invalid() }
             return
         }
-        guard ((records.recordsSchemaVersion == 30 && manifest.source.persistentSchemaVersion == 31)
-                || (records.recordsSchemaVersion == 31 && manifest.source.persistentSchemaVersion == 32)
-                || (records.recordsSchemaVersion == 32 && manifest.source.persistentSchemaVersion == 33)
-                || (records.recordsSchemaVersion == 33 && manifest.source.persistentSchemaVersion == 34)
-                || (records.recordsSchemaVersion == 34 && manifest.source.persistentSchemaVersion == 35)
-                || (records.recordsSchemaVersion == 35 && manifest.source.persistentSchemaVersion == 36)
-                || (records.recordsSchemaVersion <= LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.persistentSchemaVersion == records.recordsSchemaVersion + 1)),
+        guard BackupSchemaAdmissionV1.matches(manifest, records: records),
               let workspaceID = manifest.source.workspaceID,
               records.mutationHistory != nil,
               records.lighting.allSatisfy({ $0.workspaceID == workspaceID }),
@@ -3553,16 +3356,7 @@ private extension BackupPackageValidatorV1 {
             return
         }
         guard (13...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
-              (manifest.source.persistentSchemaVersion == 14 || manifest.source.persistentSchemaVersion == 15
-                || manifest.source.persistentSchemaVersion == 16
-                || manifest.source.persistentSchemaVersion == 17
-                || manifest.source.persistentSchemaVersion == 18
-                || manifest.source.persistentSchemaVersion == 19
-                || manifest.source.persistentSchemaVersion == 20
-                || manifest.source.persistentSchemaVersion == 21 || manifest.source.persistentSchemaVersion == 22 || manifest.source.persistentSchemaVersion == 23 || manifest.source.persistentSchemaVersion == 24 || manifest.source.persistentSchemaVersion == 25 || manifest.source.persistentSchemaVersion == 26 || manifest.source.persistentSchemaVersion == 27 || manifest.source.persistentSchemaVersion == 28 || manifest.source.persistentSchemaVersion == 29
-                || (records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.persistentSchemaVersion == C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion) || (records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.persistentSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion)),
+              BackupSchemaAdmissionV1.matches(manifest, records: records),
               records.inspectionReview.count <= InspectionReviewLimitsV1.maximumHistory,
               let rawWorkspaceID = manifest.source.workspaceID else { throw invalid() }
         do {
@@ -3892,61 +3686,7 @@ private extension BackupPackageValidatorV1 {
             return
         }
         guard manifest.backupSchemaVersion == 4,
-              ((records.recordsSchemaVersion == 5
-                    && manifest.source.persistentSchemaVersion == 6)
-                || (records.recordsSchemaVersion == 6
-                    && manifest.source.persistentSchemaVersion == 7)
-                || (records.recordsSchemaVersion == 7
-                    && manifest.source.persistentSchemaVersion == 8)
-                || (records.recordsSchemaVersion == 8
-                    && manifest.source.persistentSchemaVersion == 9)
-                || (records.recordsSchemaVersion == 9
-                    && manifest.source.persistentSchemaVersion == 10)
-                || (records.recordsSchemaVersion == 10
-                    && manifest.source.persistentSchemaVersion == 11)
-                || (records.recordsSchemaVersion == 11
-                    && manifest.source.persistentSchemaVersion == 12)
-                || (records.recordsSchemaVersion == 12
-                    && manifest.source.persistentSchemaVersion == 13)
-                || (records.recordsSchemaVersion == 13
-                    && manifest.source.persistentSchemaVersion == 14)
-                || (records.recordsSchemaVersion == 14
-                    && manifest.source.persistentSchemaVersion == 15)
-                || (records.recordsSchemaVersion == 15
-                    && manifest.source.persistentSchemaVersion == 16)
-                || (records.recordsSchemaVersion == 16
-                    && manifest.source.persistentSchemaVersion == 17)
-                || (records.recordsSchemaVersion == 17
-                    && manifest.source.persistentSchemaVersion == 18)
-                || (records.recordsSchemaVersion == 18
-                    && manifest.source.persistentSchemaVersion == 19)
-                || (records.recordsSchemaVersion == 19
-                    && manifest.source.persistentSchemaVersion == 20)
-                || (records.recordsSchemaVersion == 20
-                    && manifest.source.persistentSchemaVersion == 21)
-                || (records.recordsSchemaVersion == 21
-                    && manifest.source.persistentSchemaVersion == 22)
-                || (records.recordsSchemaVersion == 22
-                    && manifest.source.persistentSchemaVersion == 23)
-                || (records.recordsSchemaVersion == 23
-                    && manifest.source.persistentSchemaVersion == 24)
-                || (records.recordsSchemaVersion == 24
-                    && manifest.source.persistentSchemaVersion == 25)
-                || (records.recordsSchemaVersion == 25
-                    && manifest.source.persistentSchemaVersion == 26)
-                || (records.recordsSchemaVersion == 26
-                    && manifest.source.persistentSchemaVersion == 27)
-                || (records.recordsSchemaVersion == 27
-                    && manifest.source.persistentSchemaVersion == 28)
-                || (records.recordsSchemaVersion == 28
-                    && manifest.source.persistentSchemaVersion == 29)
-                || (records.recordsSchemaVersion == 29
-                    && manifest.source.persistentSchemaVersion == 30)
-                || (records.recordsSchemaVersion == 30
-                    && manifest.source.persistentSchemaVersion == 31)
-                || (records.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.recordsSchemaVersion == C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion && manifest.source.persistentSchemaVersion == C05RoundSessionBackupEnrollmentV1.persistentSchemaVersion) || (records.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion
-                    && manifest.source.persistentSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.persistentSchemaVersion)),
+              BackupSchemaAdmissionV1.matches(manifest, records: records),
               let sourceWorkspaceID = manifest.source.workspaceID else {
             throw invalid()
         }
@@ -5531,7 +5271,7 @@ enum C05RoundSessionBackupPackageValidationV1 {
 
 enum C08ImportBulkBackupPackageValidationV1 {
     static func validate(_ records: V4BackupRecordsV1, manifest: V4BackupManifestV1) throws {
-        guard records.recordsSchemaVersion >= C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion else {
+        guard records.recordsSchemaVersion >= C08ImportBulkBackupEnrollmentV1.legacyRecordsSchemaVersion else {
             try C08ImportBulkBackupEnrollmentV1.validate(records)
             return
         }

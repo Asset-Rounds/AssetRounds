@@ -6280,6 +6280,422 @@ private final class StoreMigrationSourceDrainProofV1 {
 #endif
 }
 
+/// Initial Erase inventory only. Minted inside the factory's fixed read under G,
+/// bound to its exact context, and revoked before that context is drained.
+@MainActor
+final class ErasePreexistingRetiredSourceValidationV1 {
+    let generationRootURL: URL
+    let workspaceIdentity: WorkspaceReplicaIdentityV1
+    private let factory: StoreGenerationFactory
+    private let authority: StoreRestoreGenerationAuthority
+    private let registry: GenerationLeaseRegistryV1
+    private let manifestStore: StoreMigrationJournalStoreV1
+    private let manifest: StoreGenerationManifestV1
+    private let epoch: GenerationEpochV1
+    private let reader: GenerationLeaseTokenV1
+    private let pointer: CurrentGenerationPointerV3
+    private let retiredIDs: [UUID]
+    private let rootDescriptor: Int32
+    private let rootIdentity: StoreRestoreGenerationAuthority.Identity
+    private let currentRootIdentity: StreamingArchiveRootIdentityV1
+    private let modelIdentity: StoreRestoreGenerationAuthority.RegularFileIdentity
+    private weak var context: ModelContext?
+    private let history: MutationHistorySnapshotV1
+    private let workspaceRevision: Int64
+    private let localSequence: Int64
+    private let mutableSemanticSHA256: String?
+    private var active = true
+
+    private init(factory: StoreGenerationFactory, authority: StoreRestoreGenerationAuthority,
+        session: StoreGenerationSession, manifestStore: StoreMigrationJournalStoreV1,
+        manifest: StoreGenerationManifestV1, epoch: GenerationEpochV1,
+        reader: GenerationLeaseTokenV1, pointer: CurrentGenerationPointerV3,
+        retiredIDs: [UUID], rootDescriptor: Int32,
+        rootIdentity: StoreRestoreGenerationAuthority.Identity,
+        currentRootIdentity: StreamingArchiveRootIdentityV1,
+        identity: WorkspaceReplicaIdentityV1, history: MutationHistorySnapshotV1,
+        state: WorkspaceMutationStateRow
+    ) throws {
+        self.factory = factory; self.authority = authority
+        registry = try factory.makeGenerationLeaseRegistry()
+        self.manifestStore = manifestStore; self.manifest = manifest
+        self.epoch = epoch; self.reader = reader; self.pointer = pointer
+        self.retiredIDs = retiredIDs; self.rootDescriptor = rootDescriptor
+        self.rootIdentity = rootIdentity; self.currentRootIdentity = currentRootIdentity
+        modelIdentity = try StoreRestoreGenerationAuthority.regularFileIdentity(
+            parent: rootDescriptor, name: "model.sqlite")
+        context = session.modelContext; generationRootURL = session.generationRootURL
+        workspaceIdentity = identity; self.history = history
+        workspaceRevision = state.workspaceRevision; localSequence = state.lastLocalSequence
+        mutableSemanticSHA256 = state.mutableSemanticSHA256
+    }
+
+    deinit { _ = Darwin.close(rootDescriptor) }
+
+    fileprivate static func acquire(factory: StoreGenerationFactory,
+        authority: StoreRestoreGenerationAuthority, session: StoreGenerationSession,
+        expectedCurrentID: UUID, expectedRetiredIDs: [UUID]
+    ) throws -> ErasePreexistingRetiredSourceValidationV1 {
+        let id = session.generationID
+        guard id != expectedCurrentID, expectedRetiredIDs.contains(id),
+              try authority.retiredGenerationIDs() == expectedRetiredIDs,
+              session.storeSchemaRelease == .v53,
+              let epoch = session.generationEpoch, let reader = session.readerLeaseToken,
+              reader.epoch == epoch, epoch.generationID == id else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let pointer = try factory.currentGenerationPointerV3(
+            expectedGenerationID: expectedCurrentID, authority: authority)
+        let store = try StoreMigrationJournalStoreV1(applicationSupportURL: factory.restoreApplicationSupportURL)
+        let manifest = try store.loadManifest(targetGenerationID: id,
+            expectedDigest: epoch.generationManifestSHA256)
+        guard manifest.generationID == id, manifest.storeSchemaRelease == .v53 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let descriptor = Darwin.open(session.generationRootURL.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        guard descriptor >= 0 else { throw EraseAllServiceError.invalidAuthority }
+        var transferred = false
+        defer { if !transferred { _ = Darwin.close(descriptor) } }
+        let root = try StoreRestoreGenerationAuthority.directoryIdentity(descriptor: descriptor)
+        let currentRoot = try authority.restoreGenerationRootIdentity(id: expectedCurrentID, staging: false)
+        try factory.reprovePreexistingRetiredRoot(id: id, descriptor: descriptor, expectedIdentity: root)
+        let identity = try factory.acceptedV53SemanticIdentity(in: session.modelContext,
+            generationID: id, migrationID: manifest.migrationID)
+        let journal = try MutationJournalStoreV1(modelContext: session.modelContext,
+            identity: identity, generationID: id, allowStateBootstrap: false)
+        let history = try journal.exportSnapshot()
+        let states = try session.modelContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>())
+        guard states.count == 1, let state = states.first else { throw EraseAllServiceError.invalidAuthority }
+        let result = try ErasePreexistingRetiredSourceValidationV1(factory: factory,
+            authority: authority, session: session, manifestStore: store, manifest: manifest,
+            epoch: epoch, reader: reader, pointer: pointer, retiredIDs: expectedRetiredIDs,
+            rootDescriptor: descriptor, rootIdentity: root, currentRootIdentity: currentRoot,
+            identity: identity, history: history, state: state)
+        transferred = true
+        try result.revalidate(modelContext: session.modelContext)
+        return result
+    }
+
+    fileprivate func invalidate() { active = false }
+
+    func revalidate(modelContext: ModelContext) throws {
+        guard active, context === modelContext, !modelContext.hasChanges else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try revalidateControls()
+        let configurations = Array(modelContext.container.configurations)
+        guard configurations.count == 1, !configurations[0].isStoredInMemoryOnly,
+              configurations[0].url.standardizedFileURL
+                == generationRootURL.appendingPathComponent("model.sqlite").standardizedFileURL,
+              try factory.acceptedV53SemanticIdentity(in: modelContext,
+                  generationID: epoch.generationID, migrationID: manifest.migrationID) == workspaceIdentity else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let states = try modelContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>())
+        guard states.count == 1, let state = states.first,
+              state.workspaceRevision == workspaceRevision, state.lastLocalSequence == localSequence,
+              state.mutableSemanticSHA256 == mutableSemanticSHA256 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let journal = try MutationJournalStoreV1(modelContext: modelContext,
+            identity: workspaceIdentity, generationID: epoch.generationID, allowStateBootstrap: false)
+        guard try journal.exportSnapshot() == history, !modelContext.hasChanges else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try revalidateControls()
+    }
+
+    private func revalidateControls() throws {
+        try authority.verify()
+        try authority.requireNoRestoreJournal()
+        try authority.requireNoEraseAuthority()
+        try registry.validateActive(reader, requiredRole: .reader)
+        guard try authority.restoreGenerationNames().isEmpty,
+              try authority.importStagingNames().isEmpty,
+              try StoreRestoreGenerationAuthority.regularFileIdentity(
+                  parent: rootDescriptor, name: "model.sqlite") == modelIdentity,
+              let currentID = UUID(uuidString: pointer.generationID),
+              try factory.currentGenerationPointerV3(expectedGenerationID: currentID, authority: authority) == pointer,
+              try authority.retiredGenerationIDs() == retiredIDs,
+              try Set(authority.installedGenerationNames())
+                == Set(([currentID] + retiredIDs).map { $0.uuidString.lowercased() }),
+              try authority.restoreGenerationRootIdentity(id: currentID, staging: false) == currentRootIdentity,
+              try authority.restoreGenerationRootIdentity(id: epoch.generationID, staging: false)
+                == StreamingArchiveRootIdentityV1(device: UInt64(rootIdentity.device), inode: UInt64(rootIdentity.inode)),
+              try manifestStore.loadManifest(targetGenerationID: epoch.generationID,
+                  expectedDigest: epoch.generationManifestSHA256) == manifest else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try factory.reprovePreexistingRetiredRoot(id: epoch.generationID,
+            descriptor: rootDescriptor, expectedIdentity: rootIdentity)
+        try authority.verify()
+    }
+}
+
+/// Settled schema-2 Erase recovery only. Freshly minted under the same G,
+/// bound to its exact context, and revoked before that context is drained.
+@MainActor
+final class EraseRecoveryRetiredSourceValidationV1 {
+    let generationRootURL: URL
+    let workspaceIdentity: WorkspaceReplicaIdentityV1
+    private let factory: StoreGenerationFactory
+    private let authority: StoreRestoreGenerationAuthority
+    private let registry: GenerationLeaseRegistryV1
+    private let manifestStore: StoreMigrationJournalStoreV1
+    private let manifest: StoreGenerationManifestV1
+    private let epoch: GenerationEpochV1
+    private let reader: GenerationLeaseTokenV1
+    private let intent: EraseIntentV1
+    private let controls: Controls
+    private let rootDescriptor: Int32
+    private let rootIdentity: StoreRestoreGenerationAuthority.Identity
+    private let modelIdentity: StoreRestoreGenerationAuthority.RegularFileIdentity
+    private weak var context: ModelContext?
+    private let history: MutationHistorySnapshotV1
+    private let workspaceRevision: Int64
+    private let localSequence: Int64
+    private let mutableSemanticSHA256: String?
+    private var active = true
+
+    private init(factory: StoreGenerationFactory, authority: StoreRestoreGenerationAuthority,
+        session: StoreGenerationSession, manifestStore: StoreMigrationJournalStoreV1,
+        manifest: StoreGenerationManifestV1, epoch: GenerationEpochV1,
+        reader: GenerationLeaseTokenV1, intent: EraseIntentV1, controls: Controls,
+        rootDescriptor: Int32,
+        rootIdentity: StoreRestoreGenerationAuthority.Identity,
+        identity: WorkspaceReplicaIdentityV1, history: MutationHistorySnapshotV1,
+        state: WorkspaceMutationStateRow
+    ) throws {
+        self.factory = factory; self.authority = authority
+        registry = try factory.makeGenerationLeaseRegistry()
+        self.manifestStore = manifestStore; self.manifest = manifest
+        self.epoch = epoch; self.reader = reader; self.intent = intent; self.controls = controls
+        self.rootDescriptor = rootDescriptor; self.rootIdentity = rootIdentity
+        modelIdentity = try StoreRestoreGenerationAuthority.regularFileIdentity(
+            parent: rootDescriptor, name: "model.sqlite")
+        context = session.modelContext; generationRootURL = session.generationRootURL
+        workspaceIdentity = identity; self.history = history
+        workspaceRevision = state.workspaceRevision; localSequence = state.lastLocalSequence
+        mutableSemanticSHA256 = state.mutableSemanticSHA256
+    }
+
+    deinit { _ = Darwin.close(rootDescriptor) }
+
+    fileprivate static func acquire(factory: StoreGenerationFactory,
+        authority: StoreRestoreGenerationAuthority, session: StoreGenerationSession,
+        intent: EraseIntentV1, expectedControls: Controls
+    ) throws -> EraseRecoveryRetiredSourceValidationV1 {
+        let id = session.generationID
+        guard id != intent.oldGenerationID, id != intent.newGenerationID,
+              intent.generationIDsToDelete.contains(id), expectedControls.retiredIDs.contains(id),
+              session.storeSchemaRelease == .v53,
+              let epoch = session.generationEpoch, let reader = session.readerLeaseToken,
+              reader.epoch == epoch, epoch.generationID == id else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let controls = try captureControls(id: id, intent: intent, factory: factory, authority: authority)
+        guard controls == expectedControls else { throw EraseAllServiceError.invalidAuthority }
+        let store = try StoreMigrationJournalStoreV1(applicationSupportURL: factory.restoreApplicationSupportURL)
+        let manifest = try store.loadManifest(targetGenerationID: id,
+            expectedDigest: epoch.generationManifestSHA256)
+        guard manifest.generationID == id, manifest.storeSchemaRelease == .v53 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let descriptor = Darwin.open(session.generationRootURL.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        guard descriptor >= 0 else { throw EraseAllServiceError.invalidAuthority }
+        var transferred = false
+        defer { if !transferred { _ = Darwin.close(descriptor) } }
+        let root = try StoreRestoreGenerationAuthority.directoryIdentity(descriptor: descriptor)
+        try factory.reprovePreexistingRetiredRoot(id: id, descriptor: descriptor, expectedIdentity: root)
+        let identity = try factory.acceptedV53SemanticIdentity(in: session.modelContext,
+            generationID: id, migrationID: manifest.migrationID)
+        let journal = try MutationJournalStoreV1(modelContext: session.modelContext,
+            identity: identity, generationID: id, allowStateBootstrap: false)
+        let history = try journal.exportSnapshot()
+        let states = try session.modelContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>())
+        guard states.count == 1, let state = states.first else { throw EraseAllServiceError.invalidAuthority }
+        let result = try EraseRecoveryRetiredSourceValidationV1(factory: factory,
+            authority: authority, session: session, manifestStore: store, manifest: manifest,
+            epoch: epoch, reader: reader, intent: intent, controls: controls,
+            rootDescriptor: descriptor, rootIdentity: root,
+            identity: identity, history: history, state: state)
+        transferred = true
+        try result.revalidate(modelContext: session.modelContext)
+        return result
+    }
+
+    fileprivate func invalidate() { active = false }
+
+    func revalidate(modelContext: ModelContext) throws {
+        guard active, context === modelContext, !modelContext.hasChanges else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try revalidateControls()
+        let configurations = Array(modelContext.container.configurations)
+        guard configurations.count == 1, !configurations[0].isStoredInMemoryOnly,
+              configurations[0].url.standardizedFileURL
+                == generationRootURL.appendingPathComponent("model.sqlite").standardizedFileURL,
+              try factory.acceptedV53SemanticIdentity(in: modelContext,
+                  generationID: epoch.generationID, migrationID: manifest.migrationID) == workspaceIdentity else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let states = try modelContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>())
+        guard states.count == 1, let state = states.first,
+              state.workspaceRevision == workspaceRevision, state.lastLocalSequence == localSequence,
+              state.mutableSemanticSHA256 == mutableSemanticSHA256 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let journal = try MutationJournalStoreV1(modelContext: modelContext,
+            identity: workspaceIdentity, generationID: epoch.generationID, allowStateBootstrap: false)
+        guard try journal.exportSnapshot() == history, !modelContext.hasChanges else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try revalidateControls()
+    }
+
+    private func revalidateControls() throws {
+        try registry.validateActive(reader, requiredRole: .reader)
+        guard try Self.captureControls(id: epoch.generationID, intent: intent,
+                  factory: factory, authority: authority) == controls,
+              try StoreRestoreGenerationAuthority.regularFileIdentity(
+                  parent: rootDescriptor, name: "model.sqlite") == modelIdentity,
+              try authority.restoreGenerationRootIdentity(id: epoch.generationID, staging: false)
+                == StreamingArchiveRootIdentityV1(device: UInt64(rootIdentity.device), inode: UInt64(rootIdentity.inode)),
+              try manifestStore.loadManifest(targetGenerationID: epoch.generationID,
+                  expectedDigest: epoch.generationManifestSHA256) == manifest else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try factory.reprovePreexistingRetiredRoot(id: epoch.generationID,
+            descriptor: rootDescriptor, expectedIdentity: rootIdentity)
+        try authority.verify()
+    }
+
+    fileprivate struct Controls: Equatable {
+        let pointer: CurrentGenerationPointerV3
+        let retiredIDs: [UUID]
+        let installedNames: [String]
+        let preparation: ErasePreparationV2?
+        let currentRoot: StreamingArchiveRootIdentityV1
+        let targetRoot: StreamingArchiveRootIdentityV1
+        let targetManifest: StoreGenerationManifestV1
+    }
+
+    /// Read only already-settled controls. This never promotes pending intent or
+    /// preparation bytes and never treats oldPointer as another source's identity.
+    fileprivate static func captureControls(id: UUID, intent: EraseIntentV1,
+        factory: StoreGenerationFactory, authority: StoreRestoreGenerationAuthority
+    ) throws -> Controls {
+        guard intent.schemaVersion == 2, EraseIntentCodecV1.valid(intent),
+              id != intent.oldGenerationID, id != intent.newGenerationID,
+              intent.generationIDsToDelete.contains(id),
+              let oldPointer = intent.oldPointer, let targetPointer = intent.targetPointer else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try authority.verify()
+        try authority.requireNoRestoreJournal()
+        try requireSettledControls(applicationSupportURL: factory.restoreApplicationSupportURL)
+        let store = try EraseIntentStore(applicationSupportURL: factory.restoreApplicationSupportURL)
+        guard try store.load() == intent else { throw EraseAllServiceError.invalidAuthority }
+        let preparation = try store.loadPreparation()
+        guard preparation?.matches(intent) == true,
+              try authority.restoreGenerationNames().isEmpty,
+              try authority.importStagingNames().isEmpty else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let currentID = try authority.currentGenerationID()
+        let retired = try authority.retiredGenerationIDs()
+        let installed = try authority.installedGenerationNames().sorted()
+        let all = Set((intent.generationIDsToDelete + [intent.newGenerationID]).map { $0.uuidString.lowercased() })
+        let names = Set(installed)
+        let prior = intent.generationIDsToDelete.filter { $0 != intent.oldGenerationID }
+        guard retired.contains(id), names.contains(id.uuidString.lowercased()),
+              names.contains(intent.newGenerationID.uuidString.lowercased()), names.isSubset(of: all) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let expected: RestorePointerIdentityV1
+        switch intent.phase {
+        case .emptyGenerationPrepared:
+            guard names == all else { throw EraseAllServiceError.invalidAuthority }
+            if currentID == intent.oldGenerationID {
+                guard retired == prior else { throw EraseAllServiceError.invalidAuthority }
+                expected = oldPointer
+            } else if currentID == intent.newGenerationID {
+                guard retired == prior || retired == intent.generationIDsToDelete else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                expected = targetPointer
+            } else { throw EraseAllServiceError.invalidAuthority }
+        case .pointerSwitched:
+            guard currentID == intent.newGenerationID, names == all,
+                  retired == intent.generationIDsToDelete else { throw EraseAllServiceError.invalidAuthority }
+            expected = targetPointer
+        case .sessionActivated:
+            guard currentID == intent.newGenerationID, retired == intent.generationIDsToDelete else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            // Some earlier deletion targets may already be gone. In particular,
+            // this read must not require the immediate old-current root to exist.
+            expected = targetPointer
+        case .cleanupComplete:
+            // This phase is durable only after every deletion target is absent.
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let pointer = try factory.currentGenerationPointerV3(expectedGenerationID: currentID, authority: authority)
+        let expectedPointer = try CurrentGenerationPointerV3(generationID: expected.generationID,
+            generationManifestSHA256: expected.generationManifestSHA256,
+            workspaceID: WorkspaceID(rawValue: expected.workspaceID),
+            replicaID: ReplicaID(rawValue: expected.replicaID),
+            knownReplicaIDs: Set(expected.knownReplicaIDs.map { ReplicaID(rawValue: $0) }),
+            storeSchemaVersion: PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major)
+        guard pointer == expectedPointer else { throw EraseAllServiceError.invalidAuthority }
+        let manifestStore = try StoreMigrationJournalStoreV1(applicationSupportURL: factory.restoreApplicationSupportURL)
+        let targetManifest = try manifestStore.loadManifest(targetGenerationID: intent.newGenerationID,
+            expectedDigest: targetPointer.generationManifestSHA256)
+        guard targetManifest.generationID == intent.newGenerationID,
+              targetManifest.storeSchemaRelease == .v53 else { throw EraseAllServiceError.invalidAuthority }
+        let result = Controls(pointer: pointer, retiredIDs: retired, installedNames: installed,
+            preparation: preparation,
+            currentRoot: try authority.restoreGenerationRootIdentity(id: currentID, staging: false),
+            targetRoot: try authority.restoreGenerationRootIdentity(id: intent.newGenerationID, staging: false),
+            targetManifest: targetManifest)
+        try requireSettledControls(applicationSupportURL: factory.restoreApplicationSupportURL)
+        try authority.verify()
+        return result
+    }
+
+    private static func requireSettledControls(applicationSupportURL: URL) throws {
+        let app = Darwin.open(applicationSupportURL.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        guard app >= 0 else { throw EraseAllServiceError.invalidAuthority }
+        defer { _ = Darwin.close(app) }
+        let erase = Darwin.openat(app, "FieldEvidenceErase", O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        guard erase >= 0 else { throw EraseAllServiceError.invalidAuthority }
+        defer { _ = Darwin.close(erase) }
+        for name in ["erase.json", "preparation.json"] {
+            var value = stat()
+            guard Darwin.fstatat(erase, name, &value, AT_SYMLINK_NOFOLLOW) == 0,
+                  value.st_mode & S_IFMT == S_IFREG, value.st_nlink == 1 else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        }
+        for name in [".erase.json.next", ".preparation.json.next"] {
+            var value = stat()
+            guard Darwin.fstatat(erase, name, &value, AT_SYMLINK_NOFOLLOW) != 0,
+                  errno == ENOENT else { throw EraseAllServiceError.invalidAuthority }
+        }
+    }
+}
+
+@MainActor
+private final class ErasePreexistingRetiredDrainProofV1 {
+    private weak var session: StoreGenerationSession?
+    private weak var context: ModelContext?
+    private weak var container: ModelContainer?
+    init(session: StoreGenerationSession) {
+        self.session = session; context = session.modelContext; container = session.modelContext.container
+    }
+    var isDrained: Bool { session == nil && context == nil && container == nil }
+}
+
 @MainActor
 final class StoreGenerationSession {
     let generationID: UUID
@@ -12156,6 +12572,197 @@ struct StoreGenerationFactory {
         return receipt
     }
 
+    /// The same accepted mutable-store semantics used by safe prune. The state
+    /// namespace is canonical data within an independently pinned accepted root;
+    /// this does not claim an external cryptographic namespace assertion.
+    @MainActor
+    fileprivate func acceptedV53SemanticIdentity(
+        in context: ModelContext, generationID: UUID, migrationID: UUID
+    ) throws -> WorkspaceReplicaIdentityV1 {
+        _ = try requireV53Marker(in: context, expectedMigrationID: migrationID)
+        _ = try semanticExportV53(in: context, purpose: .validationOnly)
+        let states = try context.fetch(FetchDescriptor<WorkspaceMutationStateRow>())
+        guard states.count == 1, let state = states.first,
+              state.generationID == generationID else {
+            throw GenerationLeaseRegistryFailureV1.corruptRegistry
+        }
+        let identity = try WorkspaceReplicaIdentityV1(
+            workspaceID: WorkspaceID(rawValue: state.workspaceID),
+            replicaID: ReplicaID(rawValue: state.activeReplicaID))
+        let journal = try MutationJournalStoreV1(modelContext: context,
+            identity: identity, generationID: generationID, allowStateBootstrap: false)
+        try journal.validateAll()
+        return identity
+    }
+
+    @MainActor
+    fileprivate func reprovePreexistingRetiredRoot(
+        id: UUID, descriptor: Int32,
+        expectedIdentity: StoreRestoreGenerationAuthority.Identity
+    ) throws {
+        let root = installedGenerationURL(id: id)
+        try protectGeneration(at: root, staging: false, requireModel: true)
+        try verifyOwnedDirectory(at: root, descriptor: descriptor)
+        guard try StoreRestoreGenerationAuthority.directoryIdentity(descriptor: descriptor)
+                == expectedIdentity else { throw EraseAllServiceError.invalidAuthority }
+        _ = try StoreRestoreGenerationAuthority.exactGenerationEntries(
+            parent: descriptor, requireModel: true)
+    }
+
+    /// A closed, synchronous maintenance read. No reader/context or reusable
+    /// authorization escapes this call, and ordinary export stays current-only.
+    @MainActor
+    func validatePreexistingRetiredGenerationForErase(
+        id: UUID, expectedCurrentID: UUID, expectedRetiredIDs: [UUID],
+        authority: StoreRestoreGenerationAuthority, service: EraseAllService
+    ) throws {
+        let registry = try makeGenerationLeaseRegistry()
+        guard registry === authority.mutationRegistry else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try registry.withNoMigrationReservation {
+            try authority.verify()
+            try authority.requireNoRestoreJournal()
+            try authority.requireNoEraseAuthority()
+            guard id != expectedCurrentID, expectedRetiredIDs.contains(id),
+                  try authority.currentGenerationID() == expectedCurrentID,
+                  try authority.retiredGenerationIDs() == expectedRetiredIDs else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            var drain: ErasePreexistingRetiredDrainProofV1?
+#if DEBUG
+            var phase = "open"
+#endif
+            let result: Result<Void, Error> = autoreleasepool {
+                Result {
+                    let session = try openInstalledGeneration(id: id, authority: authority)
+                    drain = ErasePreexistingRetiredDrainProofV1(session: session)
+#if DEBUG
+                    phase = "accepted-semantics-and-authority"
+#endif
+                    let validation = try ErasePreexistingRetiredSourceValidationV1.acquire(
+                        factory: self, authority: authority, session: session,
+                        expectedCurrentID: expectedCurrentID, expectedRetiredIDs: expectedRetiredIDs)
+                    defer { validation.invalidate() }
+                    do {
+#if DEBUG
+                        phase = "complete-summary-and-inventory"
+#endif
+                        try service.validatePreexistingRetiredGeneration(
+                            session: session, validation: validation, authority: authority)
+#if DEBUG
+                        phase = "exit-proof"
+#endif
+                        try validation.revalidate(modelContext: session.modelContext)
+                    } catch {
+                        let original = error
+                        // Failure also runs the complete exit proof. The original
+                        // error remains primary; authority is revoked on either path.
+                        do { try validation.revalidate(modelContext: session.modelContext) }
+                        catch {
+#if DEBUG
+                            print("Erase.preexisting-retired failure-exit-proof type=\(String(reflecting: type(of: error)))")
+#endif
+                        }
+                        throw original
+                    }
+                }
+            }
+#if DEBUG
+            if case .failure(let error) = result {
+                print("Erase.preexisting-retired failure phase=\(phase) type=\(String(reflecting: type(of: error)))")
+            }
+#endif
+            guard drain?.isDrained ?? true else {
+#if DEBUG
+                print("Erase.preexisting-retired reader-not-drained")
+#endif
+                // This operation has no deletion effects. A retained reader must
+                // never become permission to dispose of the root.
+                if case .failure(let original) = result { throw original }
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try result.get()
+        }
+    }
+
+    @MainActor
+    func validateRecoveryRetiredGenerationForErase(
+        id: UUID, intent: EraseIntentV1,
+        authority: StoreRestoreGenerationAuthority, service: EraseAllService
+    ) throws {
+        let registry = try makeGenerationLeaseRegistry()
+        guard registry === authority.mutationRegistry else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try registry.withNoMigrationReservation {
+            let controls: EraseRecoveryRetiredSourceValidationV1.Controls
+            do {
+                controls = try EraseRecoveryRetiredSourceValidationV1.captureControls(
+                    id: id, intent: intent, factory: self, authority: authority)
+            } catch {
+#if DEBUG
+                print("Erase.recovery-retired failure phase=settled-controls type=\(String(reflecting: type(of: error)))")
+#endif
+                throw error
+            }
+            var drain: ErasePreexistingRetiredDrainProofV1?
+#if DEBUG
+            var phase = "open"
+#endif
+            let result: Result<Void, Error> = autoreleasepool {
+                Result {
+                    let session = try openInstalledGeneration(id: id, authority: authority)
+                    drain = ErasePreexistingRetiredDrainProofV1(session: session)
+#if DEBUG
+                    phase = "accepted-semantics-and-authority"
+#endif
+                    let validation = try EraseRecoveryRetiredSourceValidationV1.acquire(
+                        factory: self, authority: authority, session: session,
+                        intent: intent, expectedControls: controls)
+                    defer { validation.invalidate() }
+                    do {
+#if DEBUG
+                        phase = "complete-summary-and-inventory"
+#endif
+                        try service.validateRecoveryRetiredGeneration(
+                            session: session, validation: validation, authority: authority)
+#if DEBUG
+                        phase = "exit-proof"
+#endif
+                        try validation.revalidate(modelContext: session.modelContext)
+                    } catch {
+                        let original = error
+                        // Failure also runs the complete exit proof. The original
+                        // error remains primary; authority is revoked on either path.
+                        do { try validation.revalidate(modelContext: session.modelContext) }
+                        catch {
+#if DEBUG
+                            print("Erase.recovery-retired failure-exit-proof type=\(String(reflecting: type(of: error)))")
+#endif
+                        }
+                        throw original
+                    }
+                }
+            }
+#if DEBUG
+            if case .failure(let error) = result {
+                print("Erase.recovery-retired failure phase=\(phase) type=\(String(reflecting: type(of: error)))")
+            }
+#endif
+            guard drain?.isDrained ?? true else {
+#if DEBUG
+                print("Erase.recovery-retired reader-not-drained")
+#endif
+                // This operation has no deletion effects. A retained reader must
+                // never become permission to dispose of the root.
+                if case .failure(let original) = result { throw original }
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try result.get()
+        }
+    }
+
     @MainActor
     private func acceptedGenerationEpoch(
         id: UUID,
@@ -12486,8 +13093,9 @@ struct StoreGenerationFactory {
              case .v52:
                  container=try makeV52Container(at:modelURL,migrate:false);_ = try requireV52Marker(in:container.mainContext,expectedMigrationID:loaded.manifest.migrationID);_ = try semanticExportV52(in:container.mainContext, purpose: .validationOnly)
              case .v53:
-                 container=try makeV53Container(at:modelURL,migrate:false);_ = try requireV53Marker(in:container.mainContext,expectedMigrationID:loaded.manifest.migrationID);_ = try semanticExportV53(in:container.mainContext, purpose: .validationOnly)
-                 let states=try container.mainContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>());guard states.count==1,let state=states.first,state.generationID==id else{throw GenerationLeaseRegistryFailureV1.corruptRegistry};let identity=try WorkspaceReplicaIdentityV1(workspaceID:WorkspaceID(rawValue:state.workspaceID),replicaID:ReplicaID(rawValue:state.activeReplicaID));let journal=try MutationJournalStoreV1(modelContext:container.mainContext,identity:identity,generationID:id,allowStateBootstrap:false);try journal.validateAll()
+                 container = try makeV53Container(at: modelURL, migrate: false)
+                 _ = try acceptedV53SemanticIdentity(in: container.mainContext,
+                     generationID: id, migrationID: loaded.manifest.migrationID)
              }
         }
         try verifyOwnedDirectory(at: root, descriptor: descriptor)
