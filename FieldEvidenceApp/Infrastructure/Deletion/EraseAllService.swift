@@ -1217,6 +1217,12 @@ final class EraseAllService {
             self.generationAuthority = generationAuthority
         }
 
+        private func report(_ stage: String) {
+            FileHandle.standardError.write(Data((
+                "ERASE_COMPLETED_ABORT_PROOF_V1 stage=" + stage + "\n"
+            ).utf8))
+        }
+
         func bindSource(oldPointer: RestorePointerIdentityV1,
                         sourceLedger: DeletionLedgerProofV2,
                         priorRetired: [UUID],
@@ -1226,6 +1232,25 @@ final class EraseAllService {
             self.sourceLedger = sourceLedger
             self.priorRetired = priorRetired
             guard let before, let after, before == after else {
+                if before == nil {
+                    report("source.before-unavailable")
+                } else if after == nil {
+                    report("source.after-unavailable")
+                } else if let before, let after {
+                    if before.current != after.current {
+                        report("source.current-bytes-different")
+                    } else if before.currentIdentity != after.currentIdentity {
+                        report("source.current-identity-different")
+                    } else if before.retired != after.retired {
+                        report("source.retired-bytes-different")
+                    } else if before.retiredIdentity != after.retiredIdentity {
+                        report("source.retired-identity-different")
+                    } else if before.sourceTreeDigest != after.sourceTreeDigest {
+                        report("source.tree-different")
+                    } else {
+                        report("source.other-difference")
+                    }
+                }
                 uncertain = true
                 return
             }
@@ -1235,6 +1260,7 @@ final class EraseAllService {
         func observeSourceManifest(_ manifest: StoreGenerationManifestV1) {
             guard sourceManifestMigrationID == nil,
                   sourceManifestRelease == nil else {
+                report("source-manifest-observed-more-than-once")
                 uncertain = true
                 return
             }
@@ -1245,7 +1271,10 @@ final class EraseAllService {
         func bindTarget(_ targetID: UUID) {
             self.targetID = targetID
             do { try generationAuthority.requireCompletedAbortTargetAbsent(targetID) }
-            catch { uncertain = true }
+            catch {
+                report("target-absence-binding-failed")
+                uncertain = true
+            }
         }
 
         func recordAbort(_ receipt: AbortedEraseAdmissionReceiptV1) {
@@ -1266,19 +1295,31 @@ final class EraseAllService {
 
         func requireNoEffect(_ receipt: AbortedEraseAdmissionReceiptV1,
                              operation expected: EraseRouterOperationV1) throws {
-            try requireReceipt(receipt, operation: expected)
-            guard !uncertain, let oldPointer, let sourceBytes, let targetID else {
-                throw EraseAllServiceError.invalidAuthority
+            var stage = "receipt"
+            do {
+                try requireReceipt(receipt, operation: expected)
+                stage = "bound-source"
+                guard !uncertain, let oldPointer, let sourceBytes, let targetID else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                stage = "erase-root-before"
+                try auxiliary.requireEraseRootAbsentForCompletedAbort()
+                stage = "target-before"
+                try generationAuthority.requireCompletedAbortTargetAbsent(targetID)
+                stage = "source-bytes"
+                guard try generationAuthority.snapshotCompletedAbortSource(
+                    id: oldPointer.generationID, oldPointer: oldPointer,
+                    priorRetired: priorRetired) == sourceBytes else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                stage = "erase-root-after"
+                try auxiliary.requireEraseRootAbsentForCompletedAbort()
+                stage = "target-after"
+                try generationAuthority.requireCompletedAbortTargetAbsent(targetID)
+            } catch {
+                report("no-effect." + stage + "." + String(reflecting: type(of: error)))
+                throw error
             }
-            try auxiliary.requireEraseRootAbsentForCompletedAbort()
-            try generationAuthority.requireCompletedAbortTargetAbsent(targetID)
-            guard try generationAuthority.snapshotCompletedAbortSource(
-                id: oldPointer.generationID, oldPointer: oldPointer,
-                priorRetired: priorRetired) == sourceBytes else {
-                throw EraseAllServiceError.invalidAuthority
-            }
-            try auxiliary.requireEraseRootAbsentForCompletedAbort()
-            try generationAuthority.requireCompletedAbortTargetAbsent(targetID)
         }
     }
 
@@ -4746,12 +4787,28 @@ private final class EraseOriginalColdExitFrameV1: @unchecked Sendable {
     }
 
     func requireSourceUnchanged() throws {
-        guard try authority.originalEraseSourceTreeForColdExitForTesting(
-            id: oldGenerationID) == sourceTree else {
+        let observedTree: String
+        do {
+            observedTree = try authority.originalEraseSourceTreeForColdExitForTesting(
+                id: oldGenerationID)
+        } catch {
+            FileHandle.standardError.write(Data(
+                "V949_ORIGINAL_SOURCE_PHYSICAL_V1 stage=tree-observation-failed\n".utf8))
+            throw error
+        }
+        guard observedTree == sourceTree else {
+            FileHandle.standardError.write(Data(
+                "V949_ORIGINAL_SOURCE_PHYSICAL_V1 stage=tree-different\n".utf8))
             throw EraseAllServiceError.invalidAuthority
         }
         if controlsPublished != nil {
-            try requirePublishedControlsUnchanged()
+            do {
+                try requirePublishedControlsUnchanged()
+            } catch {
+                FileHandle.standardError.write(Data(
+                    "V949_ORIGINAL_SOURCE_PHYSICAL_V1 stage=published-controls-failed\n".utf8))
+                throw error
+            }
         }
     }
 
@@ -4766,37 +4823,53 @@ private final class EraseOriginalColdExitFrameV1: @unchecked Sendable {
         pointer: RestorePointerIdentityV1,
         ledger: DeletionLedgerProofV2
     ) throws {
-        // RestorePointerIdentityV1 intentionally omits the pointer's schema
-        // version. Reconstruct the exact canonical V3 control with the active
-        // release, then compare its bytes and the source manifest digest.
-        let currentPointer = try CurrentGenerationPointerV3(
-            generationID: pointer.generationID,
-            generationManifestSHA256: pointer.generationManifestSHA256,
-            workspaceID: WorkspaceID(rawValue: pointer.workspaceID),
-            replicaID: ReplicaID(rawValue: pointer.replicaID),
-            knownReplicaIDs: Set(pointer.knownReplicaIDs.map { ReplicaID(rawValue: $0) }),
-            storeSchemaVersion: PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major)
-        try lock.withLock {
-            guard manifestObservationCount == 1,
-                  let sourceManifest,
-                  sourceManifest.generationID == oldGenerationID,
-                  pointer.generationID == oldGenerationID,
-                  sourceManifest.storeSchemaRelease
-                    == PersistentSchemaReleaseRegistryV1.activeRelease,
-                  try sourceManifest.canonicalSHA256()
-                    == pointer.generationManifestSHA256,
-                  oldPointer == nil, sourceLedger == nil else {
-                throw EraseAllServiceError.invalidAuthority
+        var stage = "pointer-construction"
+        do {
+            // RestorePointerIdentityV1 intentionally omits the pointer's schema
+            // version. Reconstruct the exact canonical V3 control with the active
+            // release, then compare its bytes and the source manifest digest.
+            let currentPointer = try CurrentGenerationPointerV3(
+                generationID: pointer.generationID,
+                generationManifestSHA256: pointer.generationManifestSHA256,
+                workspaceID: WorkspaceID(rawValue: pointer.workspaceID),
+                replicaID: ReplicaID(rawValue: pointer.replicaID),
+                knownReplicaIDs: Set(pointer.knownReplicaIDs.map { ReplicaID(rawValue: $0) }),
+                storeSchemaVersion: PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major)
+            try lock.withLock {
+                stage = "manifest-binding"
+                guard manifestObservationCount == 1,
+                      let sourceManifest,
+                      sourceManifest.generationID == oldGenerationID,
+                      pointer.generationID == oldGenerationID,
+                      sourceManifest.storeSchemaRelease
+                        == PersistentSchemaReleaseRegistryV1.activeRelease,
+                      try sourceManifest.canonicalSHA256()
+                        == pointer.generationManifestSHA256,
+                      oldPointer == nil, sourceLedger == nil else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                stage = "ledger-validate"
+                try ledger.validate()
+                stage = "source-physical"
+                try requireSourceUnchanged()
+                stage = "canonical-pointer"
+                guard controlsOrigin.current == (try currentPointer.canonicalData()) else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                stage = "control-snapshot"
+                guard try authority.originalEraseControlsForColdExitForTesting()
+                        == controlsOrigin else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                oldPointer = pointer
+                sourceLedger = ledger
             }
-            try ledger.validate()
-            try requireSourceUnchanged()
-            guard controlsOrigin.current == (try currentPointer.canonicalData()),
-                  try authority.originalEraseControlsForColdExitForTesting()
-                    == controlsOrigin else {
-                throw EraseAllServiceError.invalidAuthority
-            }
-            oldPointer = pointer
-            sourceLedger = ledger
+        } catch {
+            FileHandle.standardError.write(Data((
+                "V949_ORIGINAL_SOURCE_BIND_V1 stage=" + stage
+                    + " errorType=" + String(reflecting: type(of: error)) + "\n"
+            ).utf8))
+            throw error
         }
     }
 
@@ -4852,19 +4925,32 @@ private final class EraseOriginalColdExitFrameV1: @unchecked Sendable {
     }
 
     func bindTargetAbsence(_ id: UUID) throws {
-        try lock.withLock {
-            guard oldPointer != nil, sourceLedger != nil,
-                  targetGenerationID == nil, id != oldGenerationID else {
-                throw EraseAllServiceError.invalidAuthority
+        var stage = "target-binding"
+        do {
+            try lock.withLock {
+                guard oldPointer != nil, sourceLedger != nil,
+                      targetGenerationID == nil, id != oldGenerationID else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                stage = "target-absence"
+                try authority.requireCompletedAbortTargetAbsent(id)
+                stage = "source-physical"
+                try requireSourceUnchanged()
+                stage = "schema-migration"
+                guard try auxiliary.originalEraseSchemaMigrationDigestForTesting()
+                        == schemaMigrationOrigin else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                stage = "target-manifest"
+                try auxiliary.requireOriginalEraseTargetManifestAbsentForTesting(id)
+                targetGenerationID = id
             }
-            try authority.requireCompletedAbortTargetAbsent(id)
-            try requireSourceUnchanged()
-            guard try auxiliary.originalEraseSchemaMigrationDigestForTesting()
-                    == schemaMigrationOrigin else {
-                throw EraseAllServiceError.invalidAuthority
-            }
-            try auxiliary.requireOriginalEraseTargetManifestAbsentForTesting(id)
-            targetGenerationID = id
+        } catch {
+            FileHandle.standardError.write(Data((
+                "V949_ORIGINAL_TARGET_BIND_V1 stage=" + stage
+                    + " errorType=" + String(reflecting: type(of: error)) + "\n"
+            ).utf8))
+            throw error
         }
     }
 

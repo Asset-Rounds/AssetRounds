@@ -6386,18 +6386,32 @@ final class MutationJournalStoreV1 {
 
     nonisolated static func validateImportedSnapshot(
         _ snapshot: MutationHistorySnapshotV1,
-        sourcePersistentSchemaVersion: Int? = nil
+        sourcePersistentSchemaVersion: Int? = nil,
+        diagnoseC46Replacement: Bool = false
     ) throws {
         _ = try validatedImportedSnapshotFacts(
             snapshot,
-            sourcePersistentSchemaVersion: sourcePersistentSchemaVersion
+            sourcePersistentSchemaVersion: sourcePersistentSchemaVersion,
+            diagnoseC46Replacement: diagnoseC46Replacement
         )
     }
 
     nonisolated static func validatedImportedSnapshotFacts(
         _ snapshot: MutationHistorySnapshotV1,
-        sourcePersistentSchemaVersion: Int? = nil
+        sourcePersistentSchemaVersion: Int? = nil,
+        diagnoseC46Replacement: Bool = false
     ) throws -> MutationHistoryImportedValidationFactsV1 {
+        // Literal-only DEBUG labels identify the first rejecting category.
+        // This never records identities, values, paths, digests or error text.
+        func trace(_ stage: StaticString) {
+#if DEBUG
+            guard diagnoseC46Replacement else { return }
+            FileHandle.standardError.write(Data(
+                "C46_REPLACEMENT_IMPORT_VALIDATOR_V1 stage=\(stage)\n".utf8
+            ))
+#endif
+        }
+        trace("header")
         guard sourcePersistentSchemaVersion.map({
                   $0 >= PersistentSchemaV4.versionIdentifier.major
                     && $0 <= PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major
@@ -6428,12 +6442,17 @@ final class MutationJournalStoreV1 {
         var receiptStableKeys: [String] = []
         receiptStableKeys.reserveCapacity(snapshot.receipts.count)
         for record in snapshot.receipts {
+            trace("receipt-envelope")
             let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+            trace("receipt-command")
             try validateFinalizationAndPDFEnvelope(envelope)
+            trace("receipt-body")
             let receipt = try MutationReceiptV1.decodeCanonical(from: record.receiptData)
+            trace("receipt-typed-validation")
             try validateFinalizationReceipt(receipt, envelope: envelope)
             try validateReportPDFReceipt(receipt, envelope: envelope)
             try validateWorkReceipt(receipt, envelope: envelope)
+            trace("receipt-identity")
             guard sourcePersistentSchemaVersion.map({
                       minimumPersistentSchemaVersion(for: envelope.command) <= $0
                   }) ?? true,
@@ -6448,6 +6467,7 @@ final class MutationJournalStoreV1 {
             }
             let replicaKey = "\(receipt.identity.workspaceID.rawValue):\(receipt.identity.replicaID.rawValue)"
             let sequenceKey = "\(replicaKey):\(receipt.identity.localSequence)"
+            trace("receipt-sequence")
             guard sequences.insert(sequenceKey).inserted else {
                 throw WorkspaceMutationFailureV1.sequenceCollision
             }
@@ -6456,6 +6476,7 @@ final class MutationJournalStoreV1 {
             receiptStableKeys.append(receipt.identity.stableKey)
             envelopesByMutation[mutationKey] = envelope
             envelopeDigestByMutation[mutationKey] = receipt.envelopeSHA256
+            trace("receipt-post-images")
             guard receipt.postImages.count <= Self.maximumReceiptValidationCount - totalPostImageCount else {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
@@ -6468,6 +6489,7 @@ final class MutationJournalStoreV1 {
                     )
                 }
             }
+            trace("receipt-reversal-basis")
             if let data = record.reversalBasisData {
                 let basis = try ReversalBasisV1.decodeCanonical(from: data)
                 guard basis.targetMutationID == receipt.mutationID,
@@ -6479,12 +6501,14 @@ final class MutationJournalStoreV1 {
             } else if envelope.reversalPlanDigest != nil {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
+            trace("receipt-semantic-reversal")
             if let data = record.semanticReversalData {
                 reversalsByMutation[mutationKey] = try SemanticReversalReceiptV1.decodeCanonical(from: data)
             } else if receipt.reversesMutationID != nil {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
         }
+        trace("revision-shape")
         guard snapshot.entityRevisions.allSatisfy({ value in
             guard value.externalProjectionSHA256.map({ MutationEnvelopeV1.isSHA256($0) }) ?? true else {
                 return false
@@ -6498,6 +6522,7 @@ final class MutationJournalStoreV1 {
         let projectionRevisionByEntity = Dictionary(
             uniqueKeysWithValues: snapshot.entityRevisions.map { ($0.identity, $0.revision) }
         )
+        trace("post-image-frontier")
         guard maximumPostImageRevisionByEntity.allSatisfy({ entity, maximumRevision in
             projectionRevisionByEntity[entity].map { $0 >= maximumRevision } ?? false
         }) else {
@@ -6511,6 +6536,7 @@ final class MutationJournalStoreV1 {
                 && (value.identity.kind == .localPartDefinition
                     || value.identity.kind == .stockStorageLocation)
         }
+        trace("workspace-chain")
         for group in Dictionary(grouping: receiptsByMutation.values, by: { $0.identity.workspaceID }).values {
             // Static validation has no active destination identity, but its
             // terminal rows still distinguish a normalized C55 catalog
@@ -6520,6 +6546,7 @@ final class MutationJournalStoreV1 {
                 allowsNonzeroNativeBaseline: hasProjectedBaseline && !hasC55CatalogBaseline
             )
         }
+        trace("reversal-linkage")
         for (mutationKey, reversal) in reversalsByMutation {
             let targetKey = MutationWorkspaceKeyV1.value(workspaceID: reversal.targetReceiptIdentity.workspaceID, mutationID: reversal.reversesMutationID)
             guard let reversalMutationReceipt = receiptsByMutation[mutationKey],
@@ -6543,6 +6570,7 @@ final class MutationJournalStoreV1 {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
         }
+        trace("quarantine-linkage")
         for quarantine in snapshot.quarantines {
             let mutationKey = MutationWorkspaceKeyV1.value(
                 workspaceID: quarantine.workspaceID,
@@ -6564,6 +6592,7 @@ final class MutationJournalStoreV1 {
                 throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
             }
         }
+        trace("complete")
         return MutationHistoryImportedValidationFactsV1(
             snapshot: snapshot,
             receiptStableKeys: receiptStableKeys

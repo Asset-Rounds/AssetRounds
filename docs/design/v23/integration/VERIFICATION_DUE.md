@@ -1,3 +1,7 @@
+## Latest development checkpoint — 2026-09-27
+
+Reviewed checkpoint `074d1b79` is pushed; main remains `b1d04ae5`. Next five-source checkpoint is under independent composition review, virtualtree4bd8c834/all1,944sourcebytes matched. Current fullapp/all304unitbuildPASS30.162s; C46 native2PASS1FAIL76.681s, unchangedsource/products, retained1,306artifacts/268products. Historicalsecondclone/aggregate controls pass; strict workspacechain now clears, later R01 replacement invalidRestoreAuthorityLine17955 remains. Earlier exact Erase diagnostic7FAIL93.213s retains its own C46source scope: Registry owner mismatch and source-tree physical change remain unresolved. C05 isolatedv6 modulePASS271.361s does not prove complete cold route/scanner/checkedclosure/native. Schema2 observer partial source needs identity-bound emptyroot removal before continuation; it is not installable. All five gates and full release obligations below remain required.
+
 ## Current integration and isolated verification due — 2026-09-26/27 UTC
 
 - PD24 checkpoint follows pushed FP3 `7293fb5f` after AT5 `7b3e6169`; accepted main stays `b1d04ae5`. AT5 recovery41/photo1/backup3 passes have distinct sealed scopes. FP3 compiled and passed12 affected local methods plus native-CI379/379 and generator42/42. Earlier AR1/C8 results retain their historical inputs. No development result is a same-head gate or authorizes activation.

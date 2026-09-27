@@ -259,6 +259,8 @@ final class StartupRouter: ObservableObject {
     // alive even if the test replaces every ordinary Router reference.
     private static var retainedOriginalEraseShutdownOwnersForTesting: [EraseRouterOperationV1] = []
     private static var retainedPostRetiredOriginalServicesForTesting: [EraseAllService] = []
+    private static var retainedPreactivationDurableShutdownsForTesting:
+        [(router: StartupRouter, service: EraseAllService)] = []
     private var notificationRefusalColdExitForTesting: (
         operation: EraseRouterOperationV1,
         service: EraseAllService,
@@ -5105,6 +5107,77 @@ final class EraseRouterOperationV1 {
         originalShutdownState = .poisoned
     }
 
+    fileprivate func requirePreactivationDurableShutdownAssociation(
+        coordinator: StoreSessionCoordinator,
+        sourceGenerationID: UUID, targetGenerationID: UUID,
+        poisoned: Bool
+    ) throws {
+        guard !detached, !detaching, prepared == nil,
+              preparationCoordinator === coordinator,
+              !preparationServiceFrame,
+              let registry = preparationRegistry,
+              let source = preparationSourceWriter,
+              source.token.ownerID == registry.ownerID,
+              preparationFactory != nil,
+              preparationFailureWitness == nil,
+              preparationWriterPhase == .absent,
+              preparationWriterAllocation == nil,
+              preparationTargetSession == nil,
+              preparationTargetWriter == nil else {
+            // Fixed DEBUG category only; the original guard remains the
+            // authority and still throws before any effect or suspension.
+            let firstFailure: String
+            if detached || detaching || prepared != nil {
+                firstFailure = "shape"
+            } else if !(preparationCoordinator === coordinator) {
+                firstFailure = "coordinator"
+            } else if preparationServiceFrame {
+                firstFailure = "service-frame"
+            } else if preparationRegistry == nil {
+                firstFailure = "registry"
+            } else if preparationSourceWriter == nil {
+                firstFailure = "source-writer"
+            } else if let registry = preparationRegistry,
+                      let source = preparationSourceWriter,
+                      source.token.ownerID != registry.ownerID {
+                firstFailure = "registry-owner"
+            } else if preparationFactory == nil {
+                firstFailure = "factory"
+            } else if preparationFailureWitness != nil {
+                firstFailure = "failure-witness"
+            } else if preparationWriterPhase != .absent {
+                firstFailure = "writer-phase"
+            } else if preparationWriterAllocation != nil {
+                firstFailure = "writer-allocation"
+            } else if preparationTargetSession != nil {
+                firstFailure = "target-session"
+            } else if preparationTargetWriter != nil {
+                firstFailure = "target-writer"
+            } else {
+                firstFailure = "changed-during-check"
+            }
+            FileHandle.standardError.write(Data((
+                "V23_ERASE_PREACTIVATION_ASSOCIATION_V1 first=" + firstFailure + "\n"
+            ).utf8))
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        if poisoned {
+            guard originalShutdownState == .poisoned,
+                  originalShutdownSourceGenerationID == sourceGenerationID,
+                  originalShutdownTargetGenerationID == targetGenerationID else {
+                FileHandle.standardError.write(Data(
+                    "V23_ERASE_PREACTIVATION_ASSOCIATION_V1 first=shutdown-state\n".utf8))
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        } else {
+            guard originalShutdownState == .active else {
+                FileHandle.standardError.write(Data(
+                    "V23_ERASE_PREACTIVATION_ASSOCIATION_V1 first=shutdown-state\n".utf8))
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        }
+    }
+
     func requireOriginalShutdownCoordinatorAssociation(
         coordinator: StoreSessionCoordinator, registry: GenerationLeaseRegistryV1,
         writerHandle: GenerationLeaseHandleV1, writer: WorkspaceWriterV1,
@@ -6094,6 +6167,84 @@ extension StartupRouter {
         }
     }
 
+    /// A durable pre-activation fault still has the original source writer.
+    /// Its Router has not published an Erase cleanup route or installed a
+    /// target writer. Check both sides of the one-way poison against that
+    /// exact operation, never against an arbitrary `.checking` route.
+    private func requirePreactivationDurableEraseRouteForTesting(
+        _ value: EraseRouterOperationV1,
+        state: OriginalOperationState,
+        coordinator: StoreSessionCoordinator,
+        subject: EraseAllOperationSubjectV1,
+        expectedFault: EraseAllFailurePoint,
+        originalService: EraseAllService,
+        canonicalIntent: EraseIntentV1,
+        poisoned: Bool
+    ) throws {
+        let expectedPhase: EraseIntentPhaseV1
+        switch expectedFault {
+        case .afterPreparedWrite, .afterPointerSwitch:
+            expectedPhase = .emptyGenerationPrepared
+        case .afterPointerPhaseWrite:
+            expectedPhase = .pointerSwitched
+        default:
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        let ticket = value.ticket
+        guard canonicalIntent.phase == expectedPhase,
+              canonicalIntent.eraseID == subject.eraseID,
+              canonicalIntent.newGenerationID == subject.newGenerationID,
+              canonicalIntent.oldGenerationID == state.sourceGenerationID,
+              state.kind == .erase,
+              state.owner === ticket.owner, state.mint === ticket.mint,
+              state.source.coordinator === coordinator,
+              state.source.modelContext === coordinator.modelContext,
+              state.sourceGenerationID == coordinator.generationID,
+              case .checking = route,
+              let owned = operationOwnedWriter,
+              owned.coordinator === coordinator,
+              owned.writer === coordinator.workspaceWriter,
+              owned.generationID == state.sourceGenerationID,
+              pendingErasedActivation == nil,
+              eraseCleanupRetirement == nil,
+              detachedEraseRetirement == nil,
+              publishedWriter == nil,
+              retainedEraseRetirementOperation === value,
+              !hasPendingWriterCleanup else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        if poisoned {
+            guard abandonedOriginalEraseForColdRestart,
+                  originalOperations[ticket.operationID] == nil,
+                  operationID == nil, operationKind == nil,
+                  !isRunning else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+            guard try originalService.interruptedRetiredAuthorityIntentForTesting(
+                expectedFault, operation: value) == canonicalIntent else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+        } else {
+            let originalKind: Bool
+            switch operationKind {
+            case .erase: originalKind = true
+            default: originalKind = false
+            }
+            guard !abandonedOriginalEraseForColdRestart,
+                  operationID == ticket.operationID, originalKind,
+                  isRunning,
+                  originalOperations[ticket.operationID]?.owner === state.owner,
+                  originalOperations[ticket.operationID]?.mint === state.mint else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+        }
+        try value.requirePreactivationDurableShutdownAssociation(
+            coordinator: coordinator,
+            sourceGenerationID: state.sourceGenerationID,
+            targetGenerationID: subject.newGenerationID,
+            poisoned: poisoned)
+    }
+
     private func beginOriginalPreparingEraseColdRestartForTesting(
         _ value: EraseRouterOperationV1,
         originalService: EraseAllService,
@@ -6101,21 +6252,38 @@ extension StartupRouter {
     ) async throws {
         try requireEraseRetirementOperation(value)
         let durableRetiredFault: Bool
+        let preactivationDurableFault: Bool
         switch expectedFault {
         case .afterPreparedWrite?, .afterPointerSwitch?,
-             .afterPointerPhaseWrite?, .afterSessionPhaseWrite?:
+             .afterPointerPhaseWrite?:
             durableRetiredFault = true
+            preactivationDurableFault = true
+        case .afterSessionPhaseWrite?:
+            durableRetiredFault = true
+            preactivationDurableFault = false
         default:
             durableRetiredFault = false
+            preactivationDurableFault = false
         }
+        let preactivationIntent: EraseIntentV1?
         if let expectedFault {
             if durableRetiredFault {
-                _ = try originalService.interruptedRetiredAuthorityIntentForTesting(
+                let intent = try originalService.interruptedRetiredAuthorityIntentForTesting(
                     expectedFault, operation: value)
+                preactivationIntent = preactivationDurableFault ? intent : nil
             } else {
                 try originalService.requireInterruptedOriginalPreparationFaultForTesting(
                     expectedFault, operation: value)
+                preactivationIntent = nil
             }
+        } else { preactivationIntent = nil }
+        // Fixed DEBUG labels only. A missing `.complete` locates the exact
+        // original-owner shutdown boundary without logging owner identities.
+        func tracePreactivationShutdown(_ stage: String) {
+            guard preactivationIntent != nil else { return }
+            FileHandle.standardError.write(Data((
+                "V23_ERASE_PREACTIVATION_SHUTDOWN_V1 stage=\(stage)\n"
+            ).utf8))
         }
         let ticket = value.ticket
         guard let state = originalOperations[ticket.operationID],
@@ -6129,11 +6297,25 @@ extension StartupRouter {
               !hasPendingWriterCleanup else {
             throw AppAccessContractFailureV1.staleAttempt
         }
-        try requireInterruptedDurableEraseRouteForTesting(
-            operationID: ticket.operationID, coordinator: coordinator,
-            targetGenerationID: subject.newGenerationID,
-            expectedFault: expectedFault,
-            durableRetiredFault: durableRetiredFault)
+        if let preactivationIntent, let expectedFault {
+            tracePreactivationShutdown("route-before-poison.enter")
+            try requirePreactivationDurableEraseRouteForTesting(
+                value, state: state, coordinator: coordinator,
+                subject: subject, expectedFault: expectedFault,
+                originalService: originalService,
+                canonicalIntent: preactivationIntent, poisoned: false)
+            tracePreactivationShutdown("route-before-poison.complete")
+            // Retain both the original Router and the exact configured
+            // Service before a poisoned path can throw or suspend.
+            Self.retainedPreactivationDurableShutdownsForTesting.append(
+                (self, originalService))
+        } else {
+            try requireInterruptedDurableEraseRouteForTesting(
+                operationID: ticket.operationID, coordinator: coordinator,
+                targetGenerationID: subject.newGenerationID,
+                expectedFault: expectedFault,
+                durableRetiredFault: durableRetiredFault)
+        }
         if expectedFault == nil {
             guard notificationRefusalColdExitForTesting == nil else {
                 throw AppAccessContractFailureV1.staleAttempt
@@ -6143,10 +6325,12 @@ extension StartupRouter {
                     operation: value, subject: subject)
         }
         if durableRetiredFault, let expectedFault {
+            tracePreactivationShutdown("poison.enter")
             try value.poisonInterruptedDurableOriginalPreparation(
                 sourceGenerationID: state.sourceGenerationID,
                 targetGenerationID: subject.newGenerationID,
                 expectedFault: expectedFault)
+            tracePreactivationShutdown("poison.complete")
         } else {
             try value.poisonInterruptedOriginalPreparation(
                 sourceGenerationID: state.sourceGenerationID,
@@ -6170,43 +6354,84 @@ extension StartupRouter {
         operationAuthorization = nil
         isRunning = false
         stopCommerce()
+        tracePreactivationShutdown("producer-close.enter")
         let drainID = try coordinator.closeProducerAdmissionForOriginalEraseShutdown()
+        tracePreactivationShutdown("producer-close.complete")
         coordinator.workspaceWriter.invalidate()
+        tracePreactivationShutdown("producer-drain.enter")
         try await coordinator.awaitProducersForOriginalEraseShutdown(drainID)
+        tracePreactivationShutdown("producer-drain.complete")
         guard abandonedOriginalEraseForColdRestart,
               retainedEraseRetirementOperation === value else {
             throw AppAccessContractFailureV1.staleAttempt
         }
-        try requireInterruptedDurableEraseRouteForTesting(
-            operationID: ticket.operationID, coordinator: coordinator,
-            targetGenerationID: subject.newGenerationID,
-            expectedFault: expectedFault,
-            durableRetiredFault: durableRetiredFault)
+        if let preactivationIntent, let expectedFault {
+            tracePreactivationShutdown("route-after-drain.enter")
+            try requirePreactivationDurableEraseRouteForTesting(
+                value, state: state, coordinator: coordinator,
+                subject: subject, expectedFault: expectedFault,
+                originalService: originalService,
+                canonicalIntent: preactivationIntent, poisoned: true)
+            tracePreactivationShutdown("route-after-drain.complete")
+        } else {
+            try requireInterruptedDurableEraseRouteForTesting(
+                operationID: ticket.operationID, coordinator: coordinator,
+                targetGenerationID: subject.newGenerationID,
+                expectedFault: expectedFault,
+                durableRetiredFault: durableRetiredFault)
+        }
         try coordinator.requireOriginalEraseShutdownProducerDrain(drainID)
+        tracePreactivationShutdown("control-capture.enter")
         let control = try coordinator.captureOriginalEraseShutdownControl(operation: value)
+        tracePreactivationShutdown("control-capture.complete")
+        tracePreactivationShutdown("inventory-seal.enter")
         let witness = try value.prepareOriginalShutdownControls(
             registry: control.registry, writer: control.writer,
             installed: control.installed)
+        tracePreactivationShutdown("inventory-seal.complete")
         // Selective fence and EX acquisition are synchronous with no await.
+        tracePreactivationShutdown("registry-g.enter")
         try control.registry.beginOriginalEraseCheckedShutdown(witness)
+        tracePreactivationShutdown("registry-g.complete")
         try coordinator.requireOriginalEraseShutdownProducerDrain(drainID)
+        tracePreactivationShutdown("registry-ex.enter")
         try control.registry.acquireTemporalNormalizationActivityForOriginalEraseShutdown(
             witness: witness, retainedWriter: control.writer.token,
             retain: { try value.retainOriginalShutdownActivity($0, registry: control.registry) })
+        tracePreactivationShutdown("registry-ex.complete")
+        tracePreactivationShutdown("root-owner.enter")
         let root = try StoreTemporalPhysicalRootExclusionV1
             .unacquiredOriginalEraseShutdown(at: control.supportURL)
         try value.retainOriginalShutdownRoot(root)
+        tracePreactivationShutdown("root-owner.complete")
+        tracePreactivationShutdown("root-ex.enter")
         try root.acquireOriginalEraseShutdown()
+        tracePreactivationShutdown("root-ex.complete")
         try coordinator.requireOriginalEraseShutdownProducerDrain(drainID)
         coordinator.workspaceWriter.invalidate()
         // If another genuine activation route retained the target strongly,
         // reprove its exact identity before transferring that aggregate.
-        try requireInterruptedDurableEraseRouteForTesting(
-            operationID: ticket.operationID, coordinator: coordinator,
-            targetGenerationID: subject.newGenerationID,
-            expectedFault: expectedFault,
-            durableRetiredFault: durableRetiredFault)
+        if let preactivationIntent, let expectedFault {
+            tracePreactivationShutdown("route-before-transfer.enter")
+            try requirePreactivationDurableEraseRouteForTesting(
+                value, state: state, coordinator: coordinator,
+                subject: subject, expectedFault: expectedFault,
+                originalService: originalService,
+                canonicalIntent: preactivationIntent, poisoned: true)
+            guard !control.installed else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            tracePreactivationShutdown("route-before-transfer.complete")
+        } else {
+            try requireInterruptedDurableEraseRouteForTesting(
+                operationID: ticket.operationID, coordinator: coordinator,
+                targetGenerationID: subject.newGenerationID,
+                expectedFault: expectedFault,
+                durableRetiredFault: durableRetiredFault)
+        }
+        tracePreactivationShutdown("transfer.enter")
         try value.markOriginalShutdownControlsTransferred()
+        tracePreactivationShutdown("transfer.complete")
         // The operation now owns only exact handles, weak observations, EX,
         // physical root and the inert registry. The matched retirement owner
         // must be released before the weak target-session drain.

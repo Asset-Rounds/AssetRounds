@@ -8439,6 +8439,15 @@ private extension BackupRestoreService {
               let destinationHistory = destination.mutationHistory else {
             throw attributedRestoreAuthorityFailureV1(line: #line)
         }
+        func traceReplacementStage(_ stage: StaticString) {
+#if DEBUG
+            guard !retainsHistoricSource else { return }
+            FileHandle.standardError.write(Data(
+                "C46_REPLACEMENT_STAGE_V1 stage=\(stage)\n".utf8
+            ))
+#endif
+        }
+        traceReplacementStage("entered")
         let workspaceID = WorkspaceID(rawValue: identity.targetPointer.workspaceID)
         let replicaIdentity = try workspaceIdentity(identity)
         var parties = try Dictionary(uniqueKeysWithValues: destination.partyAccountability.compactMap {
@@ -8459,6 +8468,7 @@ private extension BackupRestoreService {
         var sourceMutationKeys = Set<String>()
         var retainedReceipts: [MutationHistoryReceiptRecordV1] = []
         var retainedTargetReceipts: [MutationHistoryReceiptRecordV1] = []
+        var retainedTargetWorkspaceRevision: UInt64?
         var targetSequence = retainsHistoricSource ? 0 : destinationHistory.lastLocalSequence
         var targetWorkspaceRevision = destinationHistory.workspaceRevision
         for record in sourceHistory.receipts {
@@ -8502,12 +8512,30 @@ private extension BackupRestoreService {
                 if retainsHistoricSource { retainedReceipts.append(record) }
             } else {
                 retainedReceipts.append(record)
+                if receipt.identity.workspaceID == workspaceID {
+                    retainedTargetWorkspaceRevision = max(
+                        retainedTargetWorkspaceRevision ?? 0,
+                        receipt.resultingRevision.workspaceRevision
+                    )
+                }
                 if (envelope.command.kind == .applyOperationalContact
                     || envelope.command.kind == .applyPartyContactSiteRoleImport),
                    envelope.workspaceID == workspaceID {
                     retainedTargetReceipts.append(record)
                 }
             }
+        }
+        traceReplacementStage("source-partitioned")
+        if !retainsHistoricSource, let retainedTargetWorkspaceRevision {
+            // The merged snapshot's scalar revision is the maximum of source
+            // and incumbent workspaces. Imported C46 commits after a live
+            // incumbent must instead begin at the full retained target receipt
+            // chain's authenticated terminal. A receipt-free target keeps the
+            // existing projected-baseline behavior.
+            guard retainedTargetWorkspaceRevision <= destinationHistory.workspaceRevision else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+            targetWorkspaceRevision = retainedTargetWorkspaceRevision
         }
         sourceReceipts.sort {
             ($0.receipt.resultingRevision.workspaceRevision,
@@ -9204,6 +9232,7 @@ private extension BackupRestoreService {
             }
         }
 
+        traceReplacementStage("receipts-transformed")
         let targetCurrentContacts = try sourceCurrentContacts.map { sourceValue in
             guard let value = transformedContactBySourceRevision[contactRevisionKey(sourceValue)] else {
                 throw BackupRestoreServiceError.invalidPackage
@@ -9240,6 +9269,49 @@ private extension BackupRestoreService {
         var entityRevisionByIdentity = Dictionary(uniqueKeysWithValues:
             destinationHistory.entityRevisions.map { ($0.identity, $0) }
         )
+        // An imported C32 image can precede a later direct contact update.
+        // Overlay historical images before the actual terminal rows so the
+        // destination frontier cannot regress behind its own receipt history.
+        for image in compoundPostImages {
+            let entity = try image.identity
+            entityRevisionByIdentity[entity] = .init(
+                identity: entity,
+                revision: image.revision,
+                externalProjectionSHA256: image.semanticSHA256
+            )
+        }
+        if retainsHistoricSource {
+            // Clone/fork rebinds the current Party row into the destination
+            // workspace without issuing a new Party command. The destination
+            // journal therefore stores its exact persisted post-image digest
+            // as an external projection. Use that basis, not the Party's
+            // domain receipt checksum, in the planned readback history.
+            for record in reboundPartyAccountability where record.kind == .serviceParty {
+                let value = try PartyAccountabilitySnapshotCodecV1.decode(
+                    ServicePartyReferenceV1.self, from: record.canonicalData
+                )
+                guard record.workspaceID == workspaceID.rawValue,
+                      let revision = record.revision,
+                      record.id == value.partyID,
+                      value.workspaceID == workspaceID,
+                      value.revision == revision else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                let entity = try WorkspaceEntityIdentityV1(
+                    kind: .serviceParty, id: value.partyID
+                )
+                guard entityRevisionByIdentity[entity]?.revision == revision else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+                entityRevisionByIdentity[entity] = .init(
+                    identity: entity,
+                    revision: revision,
+                    externalProjectionSHA256: try PersistedMutationPostImageDigestV1.sha256(
+                        identity: entity, revision: revision, value: value
+                    )
+                )
+            }
+        }
         for value in targetCurrentContacts {
             let entity = try WorkspaceEntityIdentityV1(
                 kind: .serviceContactPoint, id: value.contactPointID
@@ -9260,14 +9332,8 @@ private extension BackupRestoreService {
                 externalProjectionSHA256: value.intentSHA256
             )
         }
-        for image in compoundPostImages {
-            let entity = try image.identity
-            entityRevisionByIdentity[entity] = .init(
-                identity: entity,
-                revision: image.revision,
-                externalProjectionSHA256: image.semanticSHA256
-            )
-        }
+        traceReplacementStage("history-before-order")
+        traceRestorePhase("c46.rebind.history.before-order")
         let history = MutationHistorySnapshotV1(
             workspaceRevision: targetWorkspaceRevision,
             lastLocalSequence: targetSequence,
@@ -9279,7 +9345,13 @@ private extension BackupRestoreService {
                 $0.identity.stableKey < $1.identity.stableKey
             }
         )
-        try MutationJournalStoreV1.validateImportedSnapshot(history)
+        traceReplacementStage("history-before-validate")
+        traceRestorePhase("c46.rebind.history.before-validate")
+        try MutationJournalStoreV1.validateImportedSnapshot(
+            history, diagnoseC46Replacement: !retainsHistoricSource
+        )
+        traceReplacementStage("history-after-validate")
+        traceRestorePhase("c46.rebind.history.after-validate")
         let finalRetainedTargetBytes = try history.receipts.filter { record in
             let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
             return envelope.workspaceID == workspaceID

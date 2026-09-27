@@ -1127,6 +1127,13 @@ final class V9_53OperationalContactTests: XCTestCase {
                     FileHandle.standardError.write(Data(
                         "C46_R01_RESTORE_DIAGNOSTIC_V1 modeIndex=\(index) phase=\(phase)\n".utf8
                     ))
+                case let category where category.hasPrefix("rows."):
+                    // traceRestoreRecordDifferences emits only schema field
+                    // names, fixed kind labels, equality flags and counts.
+                    // It never emits IDs, contact values, paths or digests.
+                    FileHandle.standardError.write(Data(
+                        "C46_R01_READBACK_SHAPE_V1 modeIndex=\(index) category=\(category)\n".utf8
+                    ))
                 default:
                     break
                 }
@@ -2141,6 +2148,20 @@ final class C32OperationalContactRestoreBoundaryTests: XCTestCase {
             applicationSupportURL: secondCloneSupport,
             storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
         lifetime.retain(secondService)
+#if DEBUG
+        secondService.restorePhaseDiagnosticForTesting = { phase in
+            switch phase {
+            case "c46.rebind.history.before-order",
+                 "c46.rebind.history.before-validate",
+                 "c46.rebind.history.after-validate":
+                FileHandle.standardError.write(Data(
+                    "C46_SECOND_CLONE_HISTORY_STAGE_V1 phase=\(phase)\n".utf8
+                ))
+            default:
+                break
+            }
+        }
+#endif
         let secondClone = try await secondService.restore(
             validatedPackage: secondValidated,
             currentModelContext: secondCurrent.modelContext,
