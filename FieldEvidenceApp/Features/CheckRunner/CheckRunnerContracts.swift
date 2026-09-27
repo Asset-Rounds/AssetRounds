@@ -470,6 +470,57 @@ struct CaptureCandidate: Equatable, Sendable {
     let createdAt: Date
     let previewJPEG: Data
     let stagedBundle: StagedEvidenceBundle
+    // Copies of the returned candidate share this real lifetime, including
+    // copies that outlive the importing coordinator. It is not authorization.
+    let producerLifetime: CaptureCandidateProducerLifetimeV1
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.id == rhs.id && lhs.recordID == rhs.recordID && lhs.purposeKey == rhs.purposeKey
+            && lhs.createdAt == rhs.createdAt && lhs.previewJPEG == rhs.previewJPEG
+            && lhs.stagedBundle == rhs.stagedBundle
+    }
+}
+
+final class CaptureCandidateProducerLifetimeV1: @unchecked Sendable {
+    enum SessionLifetime {
+        case current(StoreTemporalProducerResourceV1)
+        case frozenCompatibility
+    }
+    private let physical: OwnedStorageProducerActivityV1
+    private let session: SessionLifetime
+    @MainActor private var finished = false
+
+    init(generationRootURL: URL, session: SessionLifetime) throws {
+        physical = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        self.session = session
+    }
+
+    @MainActor func withCurrentProducer<Value: Sendable>(for owner: StoreSessionCoordinator,
+        _ body: @MainActor () async throws -> Value) async throws -> Value {
+        guard case let .current(resource) = session else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        if finished {
+            // A terminal value may still be used for incumbent replay. Admit a
+            // fresh real operation; do not treat the old closed scope as live.
+            guard resource.generationID == owner.generationID,
+                  resource.generationRootURL == owner.generationRootURL else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            return try await owner.withTemporalProducer(body)
+        }
+        return try await resource.withRetainedProducer(for: owner, body)
+    }
+
+    @MainActor func finish() {
+        // Only successful accept/retake reaches here, after canonical/error
+        // tails settle. Cancellation never calls this terminal operation.
+        finished = true
+        physical.close()
+        if case let .current(resource) = session { resource.close() }
+    }
+
+    deinit { physical.close() }
 }
 
 // MARK: - C36 draft capture bridge

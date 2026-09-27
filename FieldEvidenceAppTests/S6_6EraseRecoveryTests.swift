@@ -1,4 +1,5 @@
 import Darwin
+import Combine
 import Foundation
 import SwiftData
 import XCTest
@@ -35,6 +36,16 @@ private actor S66EraseReceiptAuthentication: LocalAuthenticationClient {
     func cancel(attemptID: UUID) {}
 }
 
+fileprivate actor S66ColdEraseAuthentication: LocalAuthenticationClient {
+    func availability() -> LocalAuthenticationAvailabilityV1 {
+        .systemValue(status: .available, biometry: .faceID)
+    }
+    func authenticate(_ attempt: LocalAuthenticationAttemptV1) -> LocalAuthenticationOutcomeV1 {
+        .authenticated
+    }
+    func cancel(attemptID: UUID) {}
+}
+
 final class C45EraseRecoveryCompatibilityTests: XCTestCase {
     func testV23P03C45CompatibilityLeavesNoDurableRenderScratch() {
         XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.persistentFamilies, ["AcceptedLabelGenerationSnapshotRow"])
@@ -55,6 +66,61 @@ final class C30EvidenceContextAnchorS6_6EraseRecovery: XCTestCase {
 }
 
 final class S6_6EraseRecoveryTests: XCTestCase {
+    @MainActor fileprivate static var retainedS6ColdOwners:
+        [(URL, StartupRouter, AppAccessGateV1)] = []
+    @MainActor private static var retainedKernelAbortOwners:
+        [(URL, StartupRouter, ProductionAppAccessSessionV1, AppAccessPresentationV1)] = []
+    /// A Service may own a pinned intent/control descriptor even when its
+    /// operation is terminal. Keep the exact original and cold copies alive
+    /// through every checked-close or refusal outcome.
+    @MainActor private static var retainedS6EraseServices:
+        [(URL, EraseAllService)] = []
+
+    @MainActor
+    private final class WeakKernelSourceAliases {
+        weak var context: ModelContext?
+        weak var container: ModelContainer?
+        init(_ context: ModelContext) {
+            self.context = context
+            container = context.container
+        }
+        var drained: Bool { context == nil && container == nil }
+    }
+
+    @MainActor
+    private func startKernelColdOwner(_ harness: Harness,
+        service: EraseAllService) async throws -> StoreSessionCoordinator {
+        try await startKernelColdOwner(root: harness.root, support: harness.support,
+            service: service)
+    }
+
+    @MainActor
+    private func startKernelColdOwner(root: URL, support: URL,
+        service: EraseAllService) async throws -> StoreSessionCoordinator {
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let profiles = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        let gate = AppAccessGateV1(setting: .value(.init(isEnabled: true)),
+            authentication: S66ColdEraseAuthentication(),
+            clock: SystemApplicationClock(), identifiers: SystemApplicationIDSource())
+        guard await gate.authenticate(trigger: .unlock) == .authenticated else {
+            throw FixtureError.invalid
+        }
+        let router = StartupRouter(applicationSupportURL: support,
+            entitlementRuntime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            lifecycleProfileRegistry: profiles)
+        // Retain the new cold owner and its root even if startup refuses.
+        Self.retainedS6ColdOwners.append((root, router, gate))
+        Self.retainedS6EraseServices.append((root, service))
+        try router.bindStartupAccessGate(gate)
+        try await router.retryColdEraseForTesting(service: service, accessGate: gate)
+        guard case let .ready(coordinator, _, _) = router.route else {
+            throw FixtureError.invalid
+        }
+        return coordinator
+    }
+
     @MainActor
     func testSeededEraseFixtureRejectsLaterDirectMutationWithoutCheckpointAdoption() async throws {
         let harness = try await makeHarness("checkpoint-drift")
@@ -87,8 +153,11 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         do {
             let harness = try await makeHarness("notification-readback", observePhase: { diagnosticPhase = $0 })
             defer { cleanup(harness) }
-            let coordinator = try XCTUnwrap(harness.coordinator)
-            let oldID = coordinator.generationID
+            var coordinator: StoreSessionCoordinator? = try XCTUnwrap(harness.coordinator)
+            let oldID = try XCTUnwrap(coordinator).generationID
+            let owner = harness.originalOwner
+            try await owner.admit(coordinator: try XCTUnwrap(coordinator))
+            let eraseOperation = try owner.originalOperationForInterruption()
             let preferences = PreferencesAdapterV1(defaults: harness.defaults)
             let policy = try preferences.readReminderPolicy()
             diagnosticPhase = "prepare-notification-control"
@@ -104,20 +173,40 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                 settingWrite: plan, expectedPredecessor: nil)
             harness.defaults.set("retain-until-notifications-cleared", forKey: "notification-erase-sentinel")
             let system = S66NotificationSystemProbe(requests: [request])
-            let service = EraseAllService(applicationSupportURL: harness.support,
+            let service = try owner.configure(EraseAllService(applicationSupportURL: harness.support,
                 cachesDirectoryURL: harness.caches, temporaryDirectoryURL: harness.temporary,
                 userDefaults: harness.defaults, bundleIdentifier: bundleID,
-                defaultsDomainName: harness.defaultsSuiteName, notificationSystem: system)
+                defaultsDomainName: harness.defaultsSuiteName, notificationSystem: system,
+                admitErase: { try await owner.admitSubject($0) }))
+            service.enableOriginalColdExitWitnessForTesting = true
+            Self.retainedS6EraseServices.append((harness.root, service))
             service.erasePhaseDiagnosticForTesting = { diagnosticPhase = $0 }
             diagnosticPhase = "erase-with-unverified-notification-removal"
+            var activationFailure: Error?
             do {
-                _ = try await service.erase(confirmation: "ERASE", coordinator: coordinator,
-                    diagnosticsStore: harness.diagnostics) { coordinator.activate(session: $0) }
+                _ = try await service.erase(
+                    confirmation: "ERASE",
+                    coordinator: try XCTUnwrap(coordinator),
+                    diagnosticsStore: harness.diagnostics,
+                    operation: eraseOperation,
+                    activate: { [weak coordinator, weak router = owner.router] session in
+                        do {
+                            guard let coordinator, let router else {
+                                throw FixtureError.invalid
+                            }
+                            try router.activateErasePreparationSession(
+                                session, coordinator: coordinator,
+                                operation: eraseOperation)
+                        } catch {
+                            activationFailure = error
+                        }
+                    })
                 XCTFail("an ignored OS removal completed Erase")
             } catch {
                 recordReminderEraseDiagnostic(error, method: "testActualEraseRetainsGenerationAndPreferencesUntilNotificationAbsenceIsVerified", phase: diagnosticPhase, enabled: true)
                 /* The retained intent and bytes below are the recovery proof. */
             }
+            XCTAssertNil(activationFailure)
             XCTAssertGreaterThan(system.observationCount, 0)
             XCTAssertTrue(fileManager.fileExists(atPath: harness.factory.installedGenerationURL(id: oldID).path))
             XCTAssertEqual(harness.defaults.string(forKey: "notification-erase-sentinel"), "retain-until-notifications-cleared")
@@ -125,6 +214,12 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             XCTAssertThrowsError(try control.requireNotificationPublicationAllowed())
             let retained = try XCTUnwrap(EraseIntentStore(applicationSupportURL: harness.support).load())
             XCTAssertEqual(retained.phase, .sessionActivated)
+            try await owner.router.beginNotificationRefusalEraseColdRestartForTesting(
+                eraseOperation, originalService: service)
+            coordinator = nil
+            harness.coordinator = nil
+            try owner.router.finishNotificationRefusalEraseColdRestartForTesting(
+                eraseOperation)
             system.removalEnabled = true
             let recovery = EraseAllService(applicationSupportURL: harness.support,
                 cachesDirectoryURL: harness.caches, temporaryDirectoryURL: harness.temporary,
@@ -132,9 +227,9 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                 defaultsDomainName: harness.defaultsSuiteName, notificationSystem: system)
             recovery.erasePhaseDiagnosticForTesting = { diagnosticPhase = $0 }
             diagnosticPhase = "startup-reconcile-after-notification-removal"
-            let recovered = try await recovery.reconcileAtStartup(diagnosticsStore: harness.diagnostics)
+            let recovered = try await startKernelColdOwner(harness, service: recovery)
             diagnosticPhase = "post-recovery-assertions"
-            XCTAssertEqual(recovered?.generationID, retained.newGenerationID)
+            XCTAssertEqual(recovered.generationID, retained.newGenerationID)
             XCTAssertTrue(system.requests.isEmpty)
             XCTAssertFalse(fileManager.fileExists(atPath: harness.factory.installedGenerationURL(id: oldID).path))
             XCTAssertNil(harness.defaults.object(forKey: "notification-erase-sentinel"))
@@ -218,7 +313,7 @@ final class S6_6EraseRecoveryTests: XCTestCase {
     func testCompletedEraseReceiptUsesActualIDsAndOnlyPublishesAfterEraseRootRemoval() async throws {
         let harness = try await makeHarness("completed-receipt")
         defer { cleanup(harness) }
-        let coordinator = try XCTUnwrap(harness.coordinator)
+        let owner = harness.originalOwner
         let newGenerationID = uuid("66000000-0000-0000-0000-000000000701")
         let eraseID = uuid("66000000-0000-0000-0000-000000000702")
         var supportStatus = stat()
@@ -226,29 +321,55 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             lstat($0, &supportStatus)
         }, 0)
         var received: CompletedEraseReceiptV1?
-        let service = EraseAllService(
-            applicationSupportURL: harness.support,
-            cachesDirectoryURL: harness.caches,
-            temporaryDirectoryURL: harness.temporary,
-            userDefaults: harness.defaults,
-            bundleIdentifier: bundleID,
-            makeUUID: sequence([newGenerationID, eraseID]),
-            didCompleteErase: { receipt in
-                XCTAssertFalse(self.fileManager.fileExists(atPath: harness.support
-                    .appendingPathComponent("FieldEvidenceErase").path))
-                XCTAssertTrue((try? EraseIntentStore.completedCleanupRootIsAbsent(
-                    applicationSupportURL: harness.support)) == true)
-                XCTAssertFalse(self.fileManager.fileExists(atPath: harness.support
-                    .appendingPathComponent("FieldEvidenceErase").path))
-                received = receipt
+        var admittedReservation: AppAccessGateV1.EraseAdoptionToken?
+        try await { @MainActor () async throws -> Void in
+            let coordinator = try XCTUnwrap(harness.coordinator)
+            try await owner.admit(coordinator: coordinator)
+            let operation = try owner.originalOperationForInterruption()
+            let service = try owner.configure(EraseAllService(
+                applicationSupportURL: harness.support,
+                cachesDirectoryURL: harness.caches,
+                temporaryDirectoryURL: harness.temporary,
+                userDefaults: harness.defaults,
+                bundleIdentifier: bundleID,
+                defaultsDomainName: harness.defaultsSuiteName,
+                makeUUID: sequence([newGenerationID, eraseID]),
+                admitErase: { subject in
+                    let reservation = try await owner.admitSubject(subject)
+                    admittedReservation = reservation
+                    return reservation
+                },
+                didCompleteErase: { receipt in
+                    XCTAssertFalse(self.fileManager.fileExists(atPath: harness.support
+                        .appendingPathComponent("FieldEvidenceErase").path))
+                    XCTAssertTrue((try? EraseIntentStore.completedCleanupRootIsAbsent(
+                        applicationSupportURL: harness.support)) == true)
+                    XCTAssertFalse(self.fileManager.fileExists(atPath: harness.support
+                        .appendingPathComponent("FieldEvidenceErase").path))
+                    received = receipt
+                }
+            ))
+            Self.retainedS6EraseServices.append((harness.root, service))
+            var activationFailure: Error?
+            let prepared = try await service.erase(
+                confirmation: "ERASE", coordinator: coordinator,
+                diagnosticsStore: harness.diagnostics, operation: operation
+            ) { [weak coordinator] session in
+                do {
+                    guard let coordinator else { throw V23EraseOperationHarnessV1.Failure.activation }
+                    try owner.router.activateErasePreparationSession(
+                        session, coordinator: coordinator, operation: operation
+                    )
+                } catch { activationFailure = error }
             }
-        )
-
-        _ = try await service.erase(
-            confirmation: "ERASE",
-            coordinator: coordinator,
-            diagnosticsStore: harness.diagnostics
-        ) { coordinator.activate(session: $0) }
+            if let activationFailure { throw activationFailure }
+            XCTAssertTrue(prepared.operation === operation)
+            XCTAssertEqual(try EraseIntentStore(applicationSupportURL: harness.support)
+                .load()?.phase, .sessionActivated)
+            XCTAssertNil(received)
+            harness.coordinator = nil
+        }()
+        try await owner.completeCleanup()
 
         let receipt = try XCTUnwrap(received)
         XCTAssertEqual(receipt.subject.eraseID, eraseID)
@@ -256,30 +377,50 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         XCTAssertEqual(receipt.subject.applicationSupportURL, harness.support.standardizedFileURL)
         XCTAssertEqual(receipt.subject.applicationSupportDevice, Int64(supportStatus.st_dev))
         XCTAssertEqual(receipt.subject.applicationSupportInode, UInt64(supportStatus.st_ino))
-        XCTAssertNil(receipt.reservation)
+        XCTAssertEqual(receipt.reservation, try XCTUnwrap(admittedReservation))
+        try await owner.adoptCompletedReceipt()
     }
 
     @MainActor
     func testFaultedEraseNeverPublishesCompletedReceipt() async throws {
         let harness = try await makeHarness("faulted-receipt")
         defer { cleanup(harness) }
+        let owner = harness.originalOwner
         var completionCount = 0
-        let service = EraseAllService(
-            applicationSupportURL: harness.support,
-            cachesDirectoryURL: harness.caches,
-            temporaryDirectoryURL: harness.temporary,
-            userDefaults: harness.defaults,
-            bundleIdentifier: bundleID,
-            failureInjection: EraseAllFailureInjection(failOnceAt: .beforeJournalRemoval),
-            didCompleteErase: { _ in completionCount += 1 }
-        )
-
+        weak var originalContext: ModelContext?
+        weak var originalContainer: ModelContainer?
+        try await { @MainActor () async throws -> Void in
+            let coordinator = try XCTUnwrap(harness.coordinator)
+            originalContext = coordinator.modelContext
+            originalContainer = coordinator.modelContext.container
+            try await owner.admit(coordinator: coordinator)
+            let service = try owner.configure(EraseAllService(
+                applicationSupportURL: harness.support,
+                cachesDirectoryURL: harness.caches,
+                temporaryDirectoryURL: harness.temporary,
+                userDefaults: harness.defaults,
+                bundleIdentifier: bundleID,
+                defaultsDomainName: harness.defaultsSuiteName,
+                failureInjection: EraseAllFailureInjection(failOnceAt: .beforeJournalRemoval),
+                admitErase: { try await owner.admitSubject($0) },
+                didCompleteErase: { _ in completionCount += 1 }
+            ))
+            Self.retainedS6EraseServices.append((harness.root, service))
+            try await owner.prepareCompatibility(
+                service: service, confirmation: "ERASE",
+                coordinator: coordinator, diagnostics: harness.diagnostics
+            )
+            harness.coordinator = nil
+        }()
+        let drained = expectation(for: NSPredicate { _, _ in
+            originalContext == nil && originalContainer == nil
+        }, evaluatedWith: NSObject())
+        await fulfillment(of: [drained], timeout: 30)
+        XCTAssertNil(originalContext)
+        XCTAssertNil(originalContainer)
+        let operation = try owner.originalOperationForInterruption()
         await XCTAssertThrowsErrorAsync {
-            _ = try await service.erase(
-                confirmation: "ERASE",
-                coordinator: try XCTUnwrap(harness.coordinator),
-                diagnosticsStore: harness.diagnostics
-            ) { harness.coordinator?.activate(session: $0) }
+            _ = try await operation.advanceCleanup()
         } verify: { error in
             XCTAssertEqual(error as? EraseAllServiceError, .injectedFailure)
         }
@@ -293,41 +434,47 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         defer { cleanup(harness) }
         let coordinator = try XCTUnwrap(harness.coordinator)
         let oldID = coordinator.generationID
-        let gate = AppAccessGateV1(
-            setting: .absentDisabled,
-            authentication: S66EraseReceiptAuthentication(),
-            clock: S66EraseReceiptClock(),
-            identifiers: S66EraseReceiptIDs([])
-        )
-        let authorization = try await gate.beginContentRead(for: .startupRecovery)
+        let owner = harness.originalOwner
+        try await owner.admit(coordinator: coordinator)
+        let operation = try owner.originalOperationForInterruption()
         var reservation: AppAccessGateV1.EraseAdoptionToken?
         var aborts = [AbortedEraseAdmissionReceiptV1]()
         var completions = 0
-        let service = EraseAllService(
+        let service = try owner.configure(EraseAllService(
             applicationSupportURL: harness.support,
             cachesDirectoryURL: harness.caches,
             temporaryDirectoryURL: harness.temporary,
             userDefaults: harness.defaults,
             bundleIdentifier: bundleID,
+            defaultsDomainName: harness.defaultsSuiteName,
             admitErase: { subject in
-                let token = try await gate.reserveEraseAdoption(
-                    subject: subject, authorization: authorization
-                )
+                let token = try await owner.admitSubject(subject)
                 reservation = token
                 coordinator.modelContext.insert(Site(label: "admission changed"))
                 return token
             },
             didCompleteErase: { _ in completions += 1 },
             didAbortEraseAdmission: { aborts.append($0) }
-        )
+        ))
+        Self.retainedS6EraseServices.append((harness.root, service))
+        var activationFailure: Error?
         await XCTAssertThrowsErrorAsync {
             _ = try await service.erase(
                 confirmation: "ERASE", coordinator: coordinator,
-                diagnosticsStore: harness.diagnostics, activate: { _ in }
+                diagnosticsStore: harness.diagnostics, operation: operation,
+                activate: { [weak coordinator] session in
+                    do {
+                        guard let coordinator else { throw V23EraseOperationHarnessV1.Failure.activation }
+                        try owner.router.activateErasePreparationSession(
+                            session, coordinator: coordinator, operation: operation
+                        )
+                    } catch { activationFailure = error }
+                }
             )
         } verify: { error in
             XCTAssertEqual(error as? EraseAllServiceError, .contextHasChanges)
         }
+        XCTAssertNil(activationFailure)
         XCTAssertEqual(aborts.count, 1)
         let abort = try XCTUnwrap(aborts.first)
         XCTAssertEqual(abort.reservation, reservation)
@@ -348,32 +495,38 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             let harness = try await makeHarness("abort-\(point)")
             defer { cleanup(harness) }
             let coordinator = try XCTUnwrap(harness.coordinator)
-            let gate = AppAccessGateV1(
-                setting: .absentDisabled,
-                authentication: S66EraseReceiptAuthentication(),
-                clock: S66EraseReceiptClock(), identifiers: S66EraseReceiptIDs([])
-            )
-            let authorization = try await gate.beginContentRead(for: .startupRecovery)
+            let owner = harness.originalOwner
+            try await owner.admit(coordinator: coordinator)
+            let operation = try owner.originalOperationForInterruption()
             var reservation: AppAccessGateV1.EraseAdoptionToken?
             var aborts = [AbortedEraseAdmissionReceiptV1]()
-            let service = EraseAllService(
+            let service = try owner.configure(EraseAllService(
                 applicationSupportURL: harness.support, cachesDirectoryURL: harness.caches,
                 temporaryDirectoryURL: harness.temporary, userDefaults: harness.defaults,
-                bundleIdentifier: bundleID,
+                bundleIdentifier: bundleID, defaultsDomainName: harness.defaultsSuiteName,
                 failureInjection: EraseAllFailureInjection(failOnceAt: point),
                 admitErase: { subject in
-                    let token = try await gate.reserveEraseAdoption(
-                        subject: subject, authorization: authorization
-                    )
+                    let token = try await owner.admitSubject(subject)
                     reservation = token
                     return token
                 },
                 didAbortEraseAdmission: { aborts.append($0) }
-            )
+            ))
+            Self.retainedS6EraseServices.append((harness.root, service))
+            var activationFailure: Error?
             await XCTAssertThrowsErrorAsync {
                 _ = try await service.erase(confirmation: "ERASE", coordinator: coordinator,
-                    diagnosticsStore: harness.diagnostics, activate: { coordinator.activate(session: $0) })
+                    diagnosticsStore: harness.diagnostics, operation: operation,
+                    activate: { [weak coordinator] session in
+                        do {
+                            guard let coordinator else { throw V23EraseOperationHarnessV1.Failure.activation }
+                            try owner.router.activateErasePreparationSession(
+                                session, coordinator: coordinator, operation: operation
+                            )
+                        } catch { activationFailure = error }
+                    })
             } verify: { error in XCTAssertEqual(error as? EraseAllServiceError, .injectedFailure) }
+            XCTAssertNil(activationFailure)
             XCTAssertEqual(aborts.count, expectsAbort ? 1 : 0)
             if expectsAbort {
                 XCTAssertEqual(aborts.first?.reservation, reservation)
@@ -490,66 +643,94 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         defer { print("EraseGolden.exit phase=" + diagnosticPhase) }
         let harness = try await makeHarness("golden", observePhase: { diagnosticPhase = $0 })
         defer { cleanup(harness) }
-        let coordinator = try XCTUnwrap(harness.coordinator)
-        let oldID = coordinator.generationID
-        try seedGoldenMutationEvidence(coordinator: coordinator) { diagnosticPhase = $0 }
-        diagnosticPhase = "diagnostic-seed"
-        try await harness.diagnostics.recordOperationalFailure(try OperationalFailureV1(
-            code: .interrupted,
-            occurredAt: Date(timeIntervalSince1970: 1_786_800_011)
-        ))
-        let diagnosticBeforeErase = try await harness.diagnostics.operationalSupportSnapshot()
-        XCTAssertEqual(diagnosticBeforeErase.health.failures.count, 1)
-        diagnosticPhase = "scratch-open"
-        let scratch = try ScratchDataLeaseStoreV1(
-            applicationSupportURL: harness.support,
-            clock: { Date(timeIntervalSince1970: 1_786_800_012) },
-            capacityProvider: { _ in Int64.max }
-        )
-        let scratchRequest = try ScratchDataLeaseRequestV1(
-            leaseID: uuid("66000000-0000-0000-0000-000000000103"),
-            purpose: .supportExport,
-            owner: .supportExport,
-            ownerOperationID: uuid("66000000-0000-0000-0000-000000000104"),
-            requestedByteCount: 16,
-            createdAt: Date(timeIntervalSince1970: 1_786_800_012),
-            expiresAt: Date(timeIntervalSince1970: 1_786_800_912)
-        )
-        diagnosticPhase = "scratch-acquire"
-        let scratchLease = try await scratch.acquireScratchLease(scratchRequest)
-        diagnosticPhase = "scratch-write"
-        _ = try await scratch.writeScratchData(
-            Data("erase scratch".utf8), named: "support.json", lease: scratchLease
-        )
-        let erasedCustomerSentinel = "customer-only-before-erase"
-        harness.defaults.set(erasedCustomerSentinel, forKey: "customer-sentinel")
+        let owner = harness.originalOwner
         let newID = uuid("66000000-0000-0000-0000-000000000101")
-        let service = EraseAllService(
-            applicationSupportURL: harness.support,
-            cachesDirectoryURL: harness.caches,
-            temporaryDirectoryURL: harness.temporary,
-            userDefaults: harness.defaults,
-            bundleIdentifier: bundleID,
-            defaultsDomainName: harness.defaultsSuiteName,
-            makeUUID: sequence([
-                newID,
-                uuid("66000000-0000-0000-0000-000000000102"),
-            ])
-        )
-
-        service.erasePhaseDiagnosticForTesting = { diagnosticPhase = "service." + $0 }
-        diagnosticPhase = "service-erase"
-        let erased = try await service.erase(
-            confirmation: "ERASE",
-            coordinator: coordinator,
-            diagnosticsStore: harness.diagnostics
-        ) { session in
-            coordinator.activate(session: session)
-        }
-
-        print("EraseGolden.cleanupDeferred=\(erased.cleanupDeferred)")
-        XCTAssertFalse(erased.cleanupDeferred)
-        guard !erased.cleanupDeferred else { return }
+        let erasedCustomerSentinel = "customer-only-before-erase"
+        var completedReceipts = [CompletedEraseReceiptV1]()
+        let (oldID, oldWriterID) = try await { @MainActor () async throws -> (UUID, UUID) in
+            let coordinator = try XCTUnwrap(harness.coordinator)
+            let oldID = coordinator.generationID
+            let retiredWriter = coordinator.workspaceWriter
+            let oldWriterID = try retiredWriter.currentRevision().writerInstanceID
+            try seedGoldenMutationEvidence(coordinator: coordinator) { diagnosticPhase = $0 }
+            diagnosticPhase = "diagnostic-seed"
+            try await harness.diagnostics.recordOperationalFailure(try OperationalFailureV1(
+                code: .interrupted,
+                occurredAt: Date(timeIntervalSince1970: 1_786_800_011)
+            ))
+            let diagnosticBeforeErase = try await harness.diagnostics.operationalSupportSnapshot()
+            XCTAssertEqual(diagnosticBeforeErase.health.failures.count, 1)
+            weak var endedScratchOwner: ScratchDataLeaseStoreV1?
+            // Finish the real producer without releasing/deleting its durable
+            // scratch lease. Erase must still remove that abandoned payload.
+            let residualScratch = try await { @MainActor () async throws -> URL in
+                diagnosticPhase = "scratch-open"
+                let scratch = try ScratchDataLeaseStoreV1(
+                    applicationSupportURL: harness.support,
+                    clock: { Date(timeIntervalSince1970: 1_786_800_012) },
+                    capacityProvider: { _ in Int64.max }
+                )
+                let scratchRequest = try ScratchDataLeaseRequestV1(
+                    leaseID: uuid("66000000-0000-0000-0000-000000000103"),
+                    purpose: .supportExport,
+                    owner: .supportExport,
+                    ownerOperationID: uuid("66000000-0000-0000-0000-000000000104"),
+                    requestedByteCount: 16,
+                    createdAt: Date(timeIntervalSince1970: 1_786_800_012),
+                    expiresAt: Date(timeIntervalSince1970: 1_786_800_912)
+                )
+                diagnosticPhase = "scratch-acquire"
+                let scratchLease = try await scratch.acquireScratchLease(scratchRequest)
+                diagnosticPhase = "scratch-write"
+                let payload = try await scratch.writeScratchData(
+                    Data("erase scratch".utf8), named: "support.json", lease: scratchLease
+                )
+                // A genuinely active producer must exclude an exclusive root owner.
+                let probe = Darwin.open(harness.support.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+                XCTAssertGreaterThanOrEqual(probe, 0)
+                if probe >= 0 {
+                    let result = withExtendedLifetime(scratch) { flock(probe, LOCK_EX | LOCK_NB) }
+                    let failure = errno
+                    if result == 0 { XCTAssertEqual(flock(probe, LOCK_UN), 0) }
+                    XCTAssertEqual(Darwin.close(probe), 0)
+                    XCTAssertEqual(result, -1)
+                    XCTAssertEqual(failure, EWOULDBLOCK)
+                }
+                endedScratchOwner = scratch
+                return payload
+            }()
+            XCTAssertNil(endedScratchOwner)
+            XCTAssertEqual(try Data(contentsOf: residualScratch), Data("erase scratch".utf8))
+            harness.defaults.set(erasedCustomerSentinel, forKey: "customer-sentinel")
+            try await owner.admit(coordinator: coordinator)
+            let service = try owner.configure(EraseAllService(
+                applicationSupportURL: harness.support,
+                cachesDirectoryURL: harness.caches,
+                temporaryDirectoryURL: harness.temporary,
+                userDefaults: harness.defaults,
+                bundleIdentifier: bundleID,
+                defaultsDomainName: harness.defaultsSuiteName,
+                makeUUID: sequence([
+                    newID,
+                    uuid("66000000-0000-0000-0000-000000000102"),
+                ]),
+                admitErase: { try await owner.admitSubject($0) },
+                didCompleteErase: { completedReceipts.append($0) }
+            ))
+            Self.retainedS6EraseServices.append((harness.root, service))
+            service.erasePhaseDiagnosticForTesting = { diagnosticPhase = "service." + $0 }
+            diagnosticPhase = "service-erase"
+            try await owner.prepareCompatibility(service: service,
+                confirmation: "ERASE", coordinator: coordinator,
+                diagnostics: harness.diagnostics)
+            XCTAssertThrowsError(try retiredWriter.currentRevision())
+            harness.coordinator = nil
+            return (oldID, oldWriterID)
+        }()
+        XCTAssertTrue(completedReceipts.isEmpty)
+        try await owner.completeCleanup()
+        XCTAssertEqual(completedReceipts.count, 1)
+        XCTAssertEqual(completedReceipts.first?.subject.newGenerationID, newID)
         diagnosticPhase = "erase-postconditions"
         XCTAssertFalse(fileManager.fileExists(
             atPath: harness.support.appendingPathComponent("FieldEvidenceErase").path
@@ -563,41 +744,46 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         let pointerURL = harness.support.appendingPathComponent("FieldEvidenceData/current.json")
         diagnosticPhase = "pointer-bytes"
         let erasedPointerBytes = try Data(contentsOf: pointerURL)
-        XCTAssertEqual(erased.session.generationID, newID)
-        XCTAssertEqual(coordinator.generationID, newID)
+        try await owner.adoptCompletedReceipt()
+        try await owner.activateFreshOrdinarySession()
+        guard case let .ready(fresh, _, _) = owner.router.route else {
+            return XCTFail("Golden Erase must publish a fresh ordinary owner")
+        }
+        XCTAssertEqual(fresh.generationID, newID)
+        XCTAssertNotEqual(try fresh.workspaceWriter.currentRevision().writerInstanceID, oldWriterID)
         diagnosticPhase = "factory-current-id"
         XCTAssertEqual(try harness.factory.currentGenerationID(), newID)
         diagnosticPhase = "factory-retired-ids"
         XCTAssertEqual(try harness.factory.retiredGenerationIDs(), [])
         diagnosticPhase = "empty-row-counts"
         XCTAssertEqual(
-            try counts(erased.session.modelContext),
+            try counts(fresh.modelContext),
             [0, 0, 0, 0, 0, 0, 0]
         )
         XCTAssertEqual(
-            try erased.session.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()),
+            try fresh.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()),
             0
         )
         XCTAssertEqual(
-            try erased.session.modelContext.fetchCount(FetchDescriptor<MutationQuarantineRow>()),
+            try fresh.modelContext.fetchCount(FetchDescriptor<MutationQuarantineRow>()),
             0
         )
         XCTAssertEqual(
-            try erased.session.modelContext.fetchCount(FetchDescriptor<EntityMutationRevisionRow>()),
+            try fresh.modelContext.fetchCount(FetchDescriptor<EntityMutationRevisionRow>()),
             0
         )
         XCTAssertEqual(
-            try erased.session.modelContext.fetchCount(FetchDescriptor<AuthoritySourceReleaseRow>()),
+            try fresh.modelContext.fetchCount(FetchDescriptor<AuthoritySourceReleaseRow>()),
             0
         )
-        XCTAssertEqual(try erased.session.modelContext.fetchCount(FetchDescriptor<RequirementBasisBindingRow>()), 0)
-        XCTAssertEqual(try erased.session.modelContext.fetchCount(FetchDescriptor<ApplicabilityContextSnapshotRow>()), 0)
-        XCTAssertEqual(try erased.session.modelContext.fetchCount(FetchDescriptor<AssessmentScopeSnapshotRow>()), 0)
-        XCTAssertEqual(try erased.session.modelContext.fetchCount(FetchDescriptor<SeverityScaleReleaseRow>()), 0)
-        XCTAssertEqual(try erased.session.modelContext.fetchCount(FetchDescriptor<FindingClassificationBindingRow>()), 0)
-        XCTAssertEqual(try erased.session.modelContext.fetchCount(FetchDescriptor<MeasurementProtocolReleaseRow>()), 0)
-        XCTAssertEqual(try erased.session.modelContext.fetchCount(FetchDescriptor<DerivedFactEvaluatorDescriptorRow>()), 0)
-        XCTAssertEqual(try erased.session.modelContext.fetchCount(FetchDescriptor<DerivedFactProvenanceRow>()), 0)
+        XCTAssertEqual(try fresh.modelContext.fetchCount(FetchDescriptor<RequirementBasisBindingRow>()), 0)
+        XCTAssertEqual(try fresh.modelContext.fetchCount(FetchDescriptor<ApplicabilityContextSnapshotRow>()), 0)
+        XCTAssertEqual(try fresh.modelContext.fetchCount(FetchDescriptor<AssessmentScopeSnapshotRow>()), 0)
+        XCTAssertEqual(try fresh.modelContext.fetchCount(FetchDescriptor<SeverityScaleReleaseRow>()), 0)
+        XCTAssertEqual(try fresh.modelContext.fetchCount(FetchDescriptor<FindingClassificationBindingRow>()), 0)
+        XCTAssertEqual(try fresh.modelContext.fetchCount(FetchDescriptor<MeasurementProtocolReleaseRow>()), 0)
+        XCTAssertEqual(try fresh.modelContext.fetchCount(FetchDescriptor<DerivedFactEvaluatorDescriptorRow>()), 0)
+        XCTAssertEqual(try fresh.modelContext.fetchCount(FetchDescriptor<DerivedFactProvenanceRow>()), 0)
         diagnosticPhase = "diagnostic-readback"
         let diagnosticsAfterErase = await harness.diagnostics.snapshot()
         XCTAssertEqual(diagnosticsAfterErase, .zero)
@@ -674,13 +860,11 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         XCTAssertFalse(fileManager.fileExists(
             atPath: harness.factory.installedGenerationURL(id: oldID).path
         ))
-        diagnosticPhase = "cold-open"
-        // Relaunch cannot reuse the factory's retained, physically erased lease
-        // registry. Keep its stale owner denied and create the real cold owner.
-        let reopenedFactory = StoreGenerationFactory(applicationSupportURL: harness.support)
-        let reopened = try reopenedFactory.openOrBootstrapCurrent()
-        XCTAssertEqual(reopened.generationID, newID)
-        let pointer = try reopenedFactory.currentGenerationPointerV3(expectedGenerationID: newID)
+        diagnosticPhase = "published-owner-readback"
+        // The Router's post-adoption publication is the genuine fresh owner.
+        // Physical pointer/manifest reads below add no second store lease.
+        XCTAssertEqual(fresh.generationID, newID)
+        let pointer = try harness.factory.currentGenerationPointerV3(expectedGenerationID: newID)
         diagnosticPhase = "manifest-readback"
         let manifest = try StoreMigrationJournalStoreV1(applicationSupportURL: harness.support)
             .loadManifest(targetGenerationID: newID, expectedDigest: pointer.generationManifestSHA256)
@@ -689,29 +873,26 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         XCTAssertEqual(try regularFileIdentity(restoredManifestURL), erasedManifestIdentity)
         XCTAssertEqual(try Data(contentsOf: pointerURL), erasedPointerBytes)
         XCTAssertFalse(fileManager.fileExists(atPath: handedOffManifest.path))
-        let marker = try XCTUnwrap(reopened.modelContext.fetch(FetchDescriptor<PersistentSchemaReleaseMarker>()).first)
+        let marker = try XCTUnwrap(fresh.modelContext.fetch(FetchDescriptor<PersistentSchemaReleaseMarker>()).first)
         XCTAssertEqual(pointer.storeSchemaVersion, 53)
         XCTAssertEqual(manifest.storeSchemaRelease, .v53)
         XCTAssertEqual(marker.schemaVersion, 53)
         XCTAssertEqual(marker.releaseID, PersistentSchemaReleaseV1.v53.compatibilityID)
         XCTAssertEqual(marker.predecessorReleaseID, PersistentSchemaReleaseV1.v52.compatibilityID)
         XCTAssertEqual(marker.migrationID, manifest.migrationID)
-        XCTAssertEqual(reopened.workspaceIdentity, erased.session.workspaceIdentity)
-        XCTAssertEqual(try reopened.modelContext.fetchCount(FetchDescriptor<LightingNightWorkflowRowV1>()), 0)
-        XCTAssertEqual(try counts(reopened.modelContext), [0, 0, 0, 0, 0, 0, 0])
+        XCTAssertEqual(fresh.workspaceIdentity.workspaceID.rawValue.uuidString.lowercased(),
+            pointer.workspaceID)
+        XCTAssertEqual(fresh.workspaceIdentity.replicaID.rawValue.uuidString.lowercased(),
+            pointer.replicaID)
+        XCTAssertEqual(try fresh.modelContext.fetchCount(FetchDescriptor<LightingNightWorkflowRowV1>()), 0)
+        XCTAssertEqual(try counts(fresh.modelContext), [0, 0, 0, 0, 0, 0, 0])
         XCTAssertEqual(
-            try reopened.modelContext.fetchCount(FetchDescriptor<AuthoritySourceReleaseRow>()),
+            try fresh.modelContext.fetchCount(FetchDescriptor<AuthoritySourceReleaseRow>()),
             0
         )
-        // Physical cleanup leaves the old lease retired and all frozen roots
-        // absent. Explicit standalone activation creates the new writer only
-        // after those postconditions have been checked.
-        let retiredWriter = coordinator.workspaceWriter
-        XCTAssertThrowsError(try retiredWriter.currentRevision())
-        diagnosticPhase = "standalone-activation"
-        try coordinator.activateAfterErasedCleanup(session: erased.session)
-        XCTAssertFalse(coordinator.workspaceWriter === retiredWriter)
-        XCTAssertNoThrow(try coordinator.workspaceWriter.currentRevision())
+        // The original writer was rejected before source aliases drained.
+        // After actual cleanup, receipt adoption publishes a distinct writer.
+        XCTAssertNoThrow(try fresh.workspaceWriter.currentRevision())
         diagnosticPhase = "complete"
     }
 
@@ -883,16 +1064,21 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         do {
             let harness = try await makeHarness("deferred-drain", diagnoseInitialOpen: true,
                 observePhase: { diagnosticPhase = $0 })
-            defer { cleanup(harness) }
-            let coordinator = try XCTUnwrap(harness.coordinator)
-            let oldID = coordinator.generationID
+            // The deliberately edited original remains pinned after the
+            // physical-identity refusal; test teardown cannot unlink it.
+            var coordinator: StoreSessionCoordinator? = try XCTUnwrap(harness.coordinator)
+            let oldID = try XCTUnwrap(coordinator).generationID
+            let owner = harness.originalOwner
+            try await owner.admit(coordinator: try XCTUnwrap(coordinator))
+            let eraseOperation = try owner.originalOperationForInterruption()
             let newID = uuid("66000000-0000-0000-0000-000000000111")
-            var retainedContext: ModelContext? = coordinator.modelContext
+            var retainedContext: ModelContext? = try XCTUnwrap(coordinator).modelContext
             // ModelContext does not keep its ModelContainer alive. The added
             // retained-source checks need both until their final read completes.
-            var retainedContainer: ModelContainer? = coordinator.modelContext.container
+            var retainedContainer: ModelContainer? =
+                try XCTUnwrap(coordinator).modelContext.container
             var initialCompletionCount = 0
-            let service = EraseAllService(
+            let service = try owner.configure(EraseAllService(
                 applicationSupportURL: harness.support,
                 cachesDirectoryURL: harness.caches,
                 temporaryDirectoryURL: harness.temporary,
@@ -902,22 +1088,40 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                     newID,
                     uuid("66000000-0000-0000-0000-000000000112"),
                 ]),
+                admitErase: { try await owner.admitSubject($0) },
                 didCompleteErase: { _ in initialCompletionCount += 1 }
-            )
+            ))
+            service.enableOriginalColdExitWitnessForTesting = true
+            Self.retainedS6EraseServices.append((harness.root, service))
             service.erasePhaseDiagnosticForTesting = { diagnosticPhase = $0 }
 
             diagnosticPhase = "erase-with-retained-context"
+            var activationFailure: Error?
             let outcome = try await service.erase(
                 confirmation: "ERASE",
-                coordinator: coordinator,
-                diagnosticsStore: harness.diagnostics
-            ) { session in
-                coordinator.activate(session: session)
-            }
+                coordinator: try XCTUnwrap(coordinator),
+                diagnosticsStore: harness.diagnostics,
+                operation: eraseOperation,
+                activate: { [weak coordinator, weak router = owner.router] session in
+                    do {
+                        guard let coordinator, let router else {
+                            throw FixtureError.invalid
+                        }
+                        try router.activateErasePreparationSession(
+                            session, coordinator: coordinator,
+                            operation: eraseOperation)
+                    } catch {
+                        activationFailure = error
+                    }
+                })
+            if let activationFailure { throw activationFailure }
 
             diagnosticPhase = "post-erase-assertions"
-            XCTAssertTrue(outcome.cleanupDeferred)
-            XCTAssertEqual(outcome.session.generationID, newID)
+            XCTAssertTrue(outcome.operation === eraseOperation)
+            XCTAssertTrue(outcome.operation.detached)
+            XCTAssertTrue(outcome.operation.hasPreparedCleanup)
+            XCTAssertEqual(try XCTUnwrap(coordinator).generationID, newID)
+            let preparedContext = try XCTUnwrap(coordinator).modelContext
             XCTAssertEqual(try harness.factory.currentGenerationID(), newID)
             XCTAssertTrue(fileManager.fileExists(atPath:
                 harness.factory.installedGenerationURL(id: oldID).path
@@ -947,7 +1151,7 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                     XCTAssertEqual(error as? BackupExportServiceError, .invalidGeneration)
                 }
                 XCTAssertThrowsError(try validation.revalidate(
-                    modelContext: outcome.session.modelContext
+                    modelContext: preparedContext
                 ))
                 XCTAssertThrowsError(try EraseRetainedSourceValidationV1.acquire(
                     intent: pending.advancing(to: .cleanupComplete),
@@ -1007,44 +1211,317 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                     applicationSupportURL: harness.support
                 ).load(), pending)
                 XCTAssertFalse(oldContext.hasChanges)
-                XCTAssertFalse(outcome.session.modelContext.hasChanges)
+                XCTAssertFalse(preparedContext.hasChanges)
                 try validation.revalidate(modelContext: oldContext)
             }
 
-            withExtendedLifetime(retainedContainer) {}
-            retainedContext = nil
-            retainedContainer = nil
-            _ = retainedContext
-            await Task.yield()
+            diagnosticPhase = "same-root-physical-identity-refusal"
+            let beforeRefusalFiles = try tree(harness.support)
+            let beforeRefusalDefaults =
+                harness.defaults.persistentDomain(
+                    forName: harness.defaultsSuiteName) as NSDictionary?
+            XCTAssertThrowsError(
+                try owner.router.beginPristinePreparedEraseColdRestartForTesting(
+                    eraseOperation, originalService: service)
+            ) { error in
+                XCTAssertEqual(error as? EraseAllServiceError,
+                    .invalidAuthority)
+            }
+            XCTAssertEqual(initialCompletionCount, 0)
+            XCTAssertEqual(try EraseIntentStore(
+                applicationSupportURL: harness.support).load(), pending)
+            XCTAssertEqual(try tree(harness.support), beforeRefusalFiles)
+            XCTAssertEqual(harness.defaults.persistentDomain(
+                forName: harness.defaultsSuiteName) as NSDictionary?,
+                beforeRefusalDefaults)
+            XCTAssertTrue(try owner.router.eraseRetirementOperation(
+                for: owner.originalTicketForInterruption())
+                === eraseOperation)
+            XCTAssertTrue(fileManager.fileExists(atPath:
+                harness.factory.installedGenerationURL(id: oldID).path))
+
+            // A second genuine original owner proves positive cold recovery
+            // without adopting bytes after an intervening hostile rewrite.
+            let pristine = try await makeHarness("deferred-drain-pristine",
+                diagnoseInitialOpen: true,
+                observePhase: { diagnosticPhase = $0 })
+            defer { cleanup(pristine) }
+            let pristineOwner = pristine.originalOwner
+            var pristineCoordinator: StoreSessionCoordinator? =
+                try XCTUnwrap(pristine.coordinator)
+            let pristineOldID = try XCTUnwrap(pristineCoordinator).generationID
+            let pristineNewID = uuid("66000000-0000-0000-0000-000000000113")
+            var pristineContext: ModelContext? =
+                try XCTUnwrap(pristineCoordinator).modelContext
+            var pristineContainer: ModelContainer? =
+                try XCTUnwrap(pristineCoordinator).modelContext.container
+            try await pristineOwner.admit(
+                coordinator: try XCTUnwrap(pristineCoordinator))
+            let pristineOperation =
+                try pristineOwner.originalOperationForInterruption()
+            var pristineInitialCompletions = 0
+            let pristineService = try pristineOwner.configure(EraseAllService(
+                applicationSupportURL: pristine.support,
+                cachesDirectoryURL: pristine.caches,
+                temporaryDirectoryURL: pristine.temporary,
+                userDefaults: pristine.defaults,
+                bundleIdentifier: bundleID,
+                makeUUID: sequence([pristineNewID, UUID()]),
+                admitErase: { try await pristineOwner.admitSubject($0) },
+                didCompleteErase: { _ in pristineInitialCompletions += 1 }
+            ))
+            pristineService.enableOriginalColdExitWitnessForTesting = true
+            Self.retainedS6EraseServices.append(
+                (pristine.root, pristineService))
+            var pristineActivationFailure: Error?
+            diagnosticPhase = "pristine-original-preparation"
+            let pristineOutcome = try await pristineService.erase(
+                confirmation: "ERASE",
+                coordinator: try XCTUnwrap(pristineCoordinator),
+                diagnosticsStore: pristine.diagnostics,
+                operation: pristineOperation,
+                activate: {
+                    [weak pristineCoordinator,
+                     weak router = pristineOwner.router] session in
+                    do {
+                        guard let pristineCoordinator, let router else {
+                            throw FixtureError.invalid
+                        }
+                        try router.activateErasePreparationSession(
+                            session, coordinator: pristineCoordinator,
+                            operation: pristineOperation)
+                    } catch {
+                        pristineActivationFailure = error
+                    }
+                })
+            if let pristineActivationFailure {
+                throw pristineActivationFailure
+            }
+            XCTAssertTrue(pristineOutcome.operation === pristineOperation)
+            XCTAssertTrue(pristineOutcome.operation.detached)
+            XCTAssertTrue(pristineOutcome.operation.hasPreparedCleanup)
+            XCTAssertEqual(try XCTUnwrap(pristineCoordinator).generationID,
+                pristineNewID)
+            XCTAssertEqual(pristineInitialCompletions, 0)
+            XCTAssertTrue(fileManager.fileExists(atPath:
+                pristine.factory.installedGenerationURL(
+                    id: pristineOldID).path))
+            let pristinePending = try XCTUnwrap(try EraseIntentStore(
+                applicationSupportURL: pristine.support).load())
+            XCTAssertEqual(pristinePending.phase, .sessionActivated)
+            let pristineReservation =
+                try pristineOwner.originalReservationForInterruption()
+            try pristineOwner.router
+                .beginPristinePreparedEraseColdRestartForTesting(
+                    pristineOperation, originalService: pristineService)
+            pristineCoordinator = nil
+            pristine.coordinator = nil
+            pristineContext = nil
+            pristineContainer = nil
+            try await pristineOwner.router
+                .finishPristinePreparedEraseColdRestartForTesting(
+                    pristineOperation,
+                    subject: pristineReservation.subject,
+                    reservation: pristineReservation)
             var recoveryReceipts = [CompletedEraseReceiptV1]()
             diagnosticPhase = "startup-reconcile-after-context-release"
             let recovery = EraseAllService(
-                applicationSupportURL: harness.support,
-                cachesDirectoryURL: harness.caches,
-                temporaryDirectoryURL: harness.temporary,
-                userDefaults: harness.defaults,
+                applicationSupportURL: pristine.support,
+                cachesDirectoryURL: pristine.caches,
+                temporaryDirectoryURL: pristine.temporary,
+                userDefaults: pristine.defaults,
                 bundleIdentifier: bundleID,
                 didCompleteErase: { recoveryReceipts.append($0) }
             )
             recovery.erasePhaseDiagnosticForTesting = { diagnosticPhase = $0 }
-            let recovered = try await recovery.reconcileAtStartup(
-                diagnosticsStore: harness.diagnostics
-            )
+            let recovered = try await startKernelColdOwner(
+                pristine, service: recovery)
 
             diagnosticPhase = "post-recovery-assertions"
-            XCTAssertEqual(recovered?.generationID, newID)
-            XCTAssertEqual(recoveryReceipts.map(\.subject.eraseID), [pending.eraseID])
-            XCTAssertEqual(recoveryReceipts.map(\.subject.newGenerationID), [newID])
+            XCTAssertEqual(recovered.generationID, pristineNewID)
+            XCTAssertEqual(recoveryReceipts.map(\.subject.eraseID),
+                [pristinePending.eraseID])
+            XCTAssertEqual(recoveryReceipts.map(\.subject.newGenerationID),
+                [pristineNewID])
             XCTAssertFalse(fileManager.fileExists(atPath:
-                harness.factory.installedGenerationURL(id: oldID).path
+                pristine.factory.installedGenerationURL(id: pristineOldID).path
             ))
             XCTAssertFalse(fileManager.fileExists(atPath:
-                harness.support.appendingPathComponent("FieldEvidenceErase").path
+                pristine.support.appendingPathComponent("FieldEvidenceErase").path
             ))
-            let diagnosticsAfterRecovery = await harness.diagnostics.snapshot()
+            let diagnosticsAfterRecovery = await pristine.diagnostics.snapshot()
             XCTAssertEqual(diagnosticsAfterRecovery, .zero)
         } catch {
             recordReminderEraseDiagnostic(error, method: "testRetainedLiveContextDefersCleanupUntilColdRecovery", phase: diagnosticPhase, enabled: true)
+            throw error
+        }
+    }
+
+    @MainActor
+    private func runKernelCompletedAbortOriginal(
+        presentation: AppAccessPresentationV1, router: StartupRouter,
+        support: URL, caches: URL, temporary: URL,
+        point: EraseAllFailurePoint
+    ) async throws -> (UUID, WeakKernelSourceAliases, [FileFact], Data) {
+        guard case let .ready(coordinator, diagnostics, _) = router.route else {
+            throw FixtureError.invalid
+        }
+        let oldID = coordinator.generationID
+        try await seedRouterOwnedSource(coordinator: coordinator,
+            diagnostics: diagnostics, support: support, caches: caches,
+            temporary: temporary)
+        let aliases = WeakKernelSourceAliases(coordinator.modelContext)
+        let sourceRoot = StoreGenerationFactory(applicationSupportURL: support)
+            .installedGenerationURL(id: oldID)
+        let before = try tree(sourceRoot)
+        let pointer = try Data(contentsOf: support
+            .appendingPathComponent("FieldEvidenceData/current.json"))
+        try presentation.expectCompletedAbortColdRestartForTesting(point)
+        do {
+            try await presentation.performErase(applicationSupportURL: support,
+                confirmation: "ERASE", coordinator: coordinator,
+                diagnosticsStore: diagnostics)
+            XCTFail("pre-intent injection did not interrupt original Erase")
+            throw FixtureError.invalid
+        } catch EraseAllServiceError.injectedFailure {
+            return (oldID, aliases, before, pointer)
+        }
+    }
+
+    @MainActor
+    private func exerciseKernelCompletedAbort(point: EraseAllFailurePoint,
+        offset: Int) async throws {
+        let root = fileManager.temporaryDirectory.appendingPathComponent(
+            "S6_6-phase-\(offset)-\(UUID().uuidString)", isDirectory: true)
+        let support = root.appendingPathComponent("Library/Application Support", isDirectory: true)
+        let caches = root.appendingPathComponent("Library/Caches", isDirectory: true)
+        let temporary = root.appendingPathComponent("tmp", isDirectory: true)
+        for url in [support, caches, temporary] {
+            try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
+        }
+        let defaultsName = "S6_6-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsName))
+        defaults.setPersistentDomain(["erase-test": true], forName: bundleID)
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let profiles = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        let router = StartupRouter(applicationSupportURL: support,
+            entitlementRuntime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            lifecycleProfileRegistry: profiles)
+        let session = try await ProductionCompositionRoot.makeAppAccessSession(
+            applicationSupportURL: support, startupRouter: router, defaults: defaults,
+            authenticationClient: S66ColdEraseAuthentication())
+        var aborts = [AbortedEraseAdmissionReceiptV1]()
+        var completions = [CompletedEraseReceiptV1]()
+        let newID = UUID(uuid: (0x66, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, UInt8(0x40 + offset), UInt8(0x60 + offset)))
+        let presentation = AppAccessPresentationV1(startupRouter: router,
+            eraseServiceFactory: { admission, completion, aborted, sceneState in
+                let original = EraseAllService(applicationSupportURL: support,
+                    cachesDirectoryURL: caches, temporaryDirectoryURL: temporary,
+                    userDefaults: defaults, bundleIdentifier: self.bundleID,
+                    defaultsDomainName: defaultsName,
+                    makeUUID: self.sequence([newID, UUID()]),
+                    failureInjection: EraseAllFailureInjection(failOnceAt: point),
+                    sceneNavigationStatePort: sceneState,
+                    privateSystemDiscoveryIndex: nil,
+                    admitErase: admission,
+                    didCompleteErase: { receipt in
+                        completions.append(receipt)
+                        XCTAssertNotNil(completion)
+                        completion?(receipt)
+                    },
+                    didAbortEraseAdmission: { receipt in
+                        aborts.append(receipt)
+                        XCTAssertNotNil(aborted)
+                        aborted?(receipt)
+                    })
+                Self.retainedS6EraseServices.append((root, original))
+                return original
+            }, sessionFactory: { session })
+        Self.retainedKernelAbortOwners.append((root, router, session, presentation))
+        let published = expectation(description: "S6 original abort Router publishes ready")
+        let subscription = presentation.$permitsContentPresentation
+            .filter { $0 }.prefix(1).sink { _ in published.fulfill() }
+        defer { subscription.cancel() }
+        await presentation.bootstrapIfNeeded()
+        await fulfillment(of: [published], timeout: 30)
+        let (oldID, aliases, sourceBefore, pointerBefore) = try await
+            runKernelCompletedAbortOriginal(presentation: presentation,
+                router: router, support: support, caches: caches,
+                temporary: temporary, point: point)
+        XCTAssertEqual(aborts.count, 1, "\(point) must deliver its genuine abort receipt once")
+        XCTAssertTrue(completions.isEmpty, "\(point) cannot complete Erase")
+        let abort = try XCTUnwrap(aborts.first)
+        XCTAssertEqual(abort.originalGenerationID, oldID)
+        XCTAssertEqual(abort.subject.newGenerationID, newID)
+        XCTAssertEqual(abort.reservation.subject, abort.subject)
+        XCTAssertNil(try EraseIntentStore(applicationSupportURL: support).load())
+        XCTAssertNil(try EraseIntentStore(applicationSupportURL: support).loadPreparation())
+        let sourceRoot = StoreGenerationFactory(applicationSupportURL: support)
+            .installedGenerationURL(id: oldID)
+        XCTAssertEqual(try tree(sourceRoot), sourceBefore)
+        XCTAssertEqual(try Data(contentsOf: support
+            .appendingPathComponent("FieldEvidenceData/current.json")), pointerBefore)
+        let operation = try await presentation.continueCompletedAbortColdRestartForTesting()
+        let drained = expectation(for: NSPredicate { _, _ in aliases.drained },
+            evaluatedWith: NSObject())
+        await fulfillment(of: [drained], timeout: 30)
+        XCTAssertTrue(aliases.drained)
+        try presentation.finishCompletedAbortColdRestartForTesting(operation)
+        XCTAssertThrowsError(try operation.completedRetirement())
+        do {
+            try await router.startIfNeeded(accessGate: session.gate)
+            XCTFail("completed-abort original Router re-entered")
+        } catch { }
+        XCTAssertEqual(try tree(sourceRoot), sourceBefore)
+        XCTAssertEqual(try Data(contentsOf: support
+            .appendingPathComponent("FieldEvidenceData/current.json")), pointerBefore)
+        let recovered = try await startKernelColdOwner(root: root, support: support,
+            service: EraseAllService(applicationSupportURL: support,
+                cachesDirectoryURL: caches, temporaryDirectoryURL: temporary,
+                userDefaults: defaults, bundleIdentifier: bundleID,
+                defaultsDomainName: defaultsName))
+        XCTAssertEqual(recovered.generationID, oldID)
+        XCTAssertEqual(try recovered.modelContext.fetchCount(FetchDescriptor<Asset>()), 1)
+        let diagnostics = await DiagnosticsStore(applicationSupportURL: support).snapshot()
+        XCTAssertNotEqual(diagnostics, .zero)
+        XCTAssertEqual(aborts.count, 1)
+        XCTAssertTrue(completions.isEmpty)
+    }
+
+    /// Executes the real ticketed original frame. The configured copy is
+    /// retained even when the injected fault throws, because the checked
+    /// shutdown seam authenticates that exact Service frame.
+    @MainActor
+    private func runKernelOriginalErase(_ harness: Harness,
+        service: EraseAllService) async throws {
+        let coordinator = try XCTUnwrap(harness.coordinator)
+        try await harness.originalOwner.admit(coordinator: coordinator)
+        let operation = try harness.originalOwner.originalOperationForInterruption()
+        let configured = try harness.originalOwner.configure(service)
+        configured.erasePhaseDiagnosticForTesting = service.erasePhaseDiagnosticForTesting
+        Self.retainedS6EraseServices.append((harness.root, configured))
+        harness.interruptedOperation = operation
+        harness.interruptedService = configured
+        var activationFailure: Error?
+        do {
+            let outcome = try await configured.erase(
+                confirmation: EraseAllService.requiredConfirmation,
+                coordinator: coordinator, diagnosticsStore: harness.diagnostics,
+                operation: operation,
+                activate: { [weak coordinator, weak router = harness.originalOwner.router] replacement in
+                    do {
+                        guard let coordinator, let router else { throw FixtureError.invalid }
+                        try router.activateErasePreparationSession(replacement,
+                            coordinator: coordinator, operation: operation)
+                    } catch { activationFailure = error }
+                })
+            if let activationFailure { throw activationFailure }
+            XCTAssertTrue(outcome.operation === operation)
+        } catch {
+            if let activationFailure { throw activationFailure }
             throw error
         }
     }
@@ -1054,6 +1531,11 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         var diagnosticPhase = "harness"
         do {
             for (offset, point) in EraseAllFailurePoint.allCases.enumerated() {
+                if point == .afterEmptyGenerationDirectoryCreate
+                    || point == .beforePreparedWrite {
+                    try await exerciseKernelCompletedAbort(point: point, offset: offset)
+                    continue
+                }
                 let harness = try await makeHarness(
                     "phase-\(offset)",
                     diagnoseInitialOpen: true,
@@ -1066,6 +1548,7 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                     0, 0, 0, 0, 0, 0,
                     UInt8(0x40 + offset), UInt8(0x60 + offset)
                 ))
+                var originalCompletionCount = 0
                 let service = EraseAllService(
                     applicationSupportURL: harness.support,
                     cachesDirectoryURL: harness.caches,
@@ -1076,7 +1559,9 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                         ? harness.defaultsSuiteName
                         : nil,
                     makeUUID: sequence([newID, UUID()]),
-                    failureInjection: EraseAllFailureInjection(failOnceAt: point)
+                    failureInjection: EraseAllFailureInjection(failOnceAt: point),
+                    admitErase: { try await harness.originalOwner.admitSubject($0) },
+                    didCompleteErase: { _ in originalCompletionCount += 1 }
                 )
                 service.erasePhaseDiagnosticForTesting = { phase in
                     if phase.hasPrefix("ERASE_FILE_SNAPSHOT_V1 ") {
@@ -1086,18 +1571,42 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                     }
                 }
                 diagnosticPhase = "erase.injection.\(point)"
-                await XCTAssertThrowsErrorAsync {
-                    _ = try await service.erase(
-                        confirmation: "ERASE",
-                        coordinator: try XCTUnwrap(harness.coordinator),
-                        diagnosticsStore: harness.diagnostics
-                    ) { session in
-                        harness.coordinator?.activate(session: session)
+                weak var originalContext = harness.coordinator?.modelContext
+                weak var originalContainer = harness.coordinator?.modelContext.container
+                let retiresBeforeInjection = point == .afterSessionRetirementBeforeCleanup
+                    || point == .afterCleanup || point == .beforeCleanupPhaseWrite
+                    || point == .afterCleanupPhaseWrite || point == .beforeJournalRemoval
+                if retiresBeforeInjection {
+                    try await runKernelOriginalErase(harness, service: service)
+                    harness.coordinator = nil
+                    let operation = try XCTUnwrap(harness.interruptedOperation)
+                    let drain = expectation(for: NSPredicate { _, _ in
+                        originalContext == nil && originalContainer == nil
+                    }, evaluatedWith: NSObject())
+                    await fulfillment(of: [drain], timeout: 30)
+                    XCTAssertNil(originalContext)
+                    XCTAssertNil(originalContainer)
+                    do {
+                        let complete = try await operation.advanceCleanup()
+                        XCTFail("Actual post-retirement fault returned \(complete)")
+                    } catch {
+                        recordReminderEraseDiagnostic(error,
+                            method: "testEveryInterruptionRecoversOldOrFullyErasedNew",
+                            phase: diagnosticPhase, enabled: true)
+                        XCTAssertEqual(error as? EraseAllServiceError, .injectedFailure)
                     }
-                } verify: { error in
-                    recordReminderEraseDiagnostic(error, method: "testEveryInterruptionRecoversOldOrFullyErasedNew", phase: diagnosticPhase, enabled: true)
-                    XCTAssertEqual(error as? EraseAllServiceError, .injectedFailure)
+                } else {
+                    await XCTAssertThrowsErrorAsync {
+                        try await runKernelOriginalErase(harness, service: service)
+                    } verify: { error in
+                        recordReminderEraseDiagnostic(error,
+                            method: "testEveryInterruptionRecoversOldOrFullyErasedNew",
+                            phase: diagnosticPhase, enabled: true)
+                        XCTAssertEqual(error as? EraseAllServiceError, .injectedFailure)
+                    }
                 }
+                XCTAssertEqual(originalCompletionCount, 0,
+                    "interrupted original Erase cannot deliver a completed receipt")
 
                 diagnosticPhase = "post-injection.\(point)"
                 let handoffBeforeRecovery: (manifest: Data, pointer: Data, identity: ManifestFileIdentity)?
@@ -1143,8 +1652,40 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                     cooldownBeforeRecovery = nil
                 }
 
-                harness.coordinator = nil
-                await Task.yield()
+                let originalOperation = try XCTUnwrap(harness.interruptedOperation)
+                let originalService = try XCTUnwrap(harness.interruptedService)
+                if !retiresBeforeInjection {
+                    try await harness.originalOwner.router
+                        .beginInterruptedEarlyEraseColdRestartForTesting(
+                            originalOperation, originalService: originalService,
+                            expectedFault: point)
+                    harness.coordinator = nil
+                    let drain = expectation(for: NSPredicate { _, _ in
+                        originalContext == nil && originalContainer == nil
+                    }, evaluatedWith: NSObject())
+                    await fulfillment(of: [drain], timeout: 30)
+                    XCTAssertNil(originalContext)
+                    XCTAssertNil(originalContainer)
+                    try harness.originalOwner.router
+                        .finishInterruptedEarlyEraseColdRestartForTesting(originalOperation)
+                } else if point == .afterSessionRetirementBeforeCleanup {
+                    try harness.originalOwner.router
+                        .abandonInterruptedPostRetiredEraseForColdRestartForTesting(
+                            originalOperation, originalService: originalService)
+                } else {
+                    try harness.originalOwner.router
+                        .abandonInterruptedLateEraseForColdRestartForTesting(
+                            originalOperation, expectedFault: point)
+                }
+                XCTAssertThrowsError(try originalOperation.completedRetirement())
+                XCTAssertEqual(originalCompletionCount, 0)
+                XCTAssertThrowsError(try harness.originalOwner.router.eraseRetirementOperation(
+                    for: try harness.originalOwner.originalTicketForInterruption()))
+                do {
+                    try await harness.originalOwner.router.startIfNeeded(
+                        accessGate: harness.originalOwner.accessGate)
+                    XCTFail("original Router re-entered after checked shutdown at \(point)")
+                } catch { }
                 let recovery = EraseAllService(
                     applicationSupportURL: harness.support,
                     cachesDirectoryURL: harness.caches,
@@ -1163,26 +1704,11 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                     }
                 }
                 diagnosticPhase = "startup-reconcile.\(point)"
-                let recovered = try await recovery.reconcileAtStartup(
-                    diagnosticsStore: harness.diagnostics
-                )
+                let recovered = try await startKernelColdOwner(harness, service: recovery)
 
                 diagnosticPhase = "post-recovery-assertions.\(point)"
-                if point == .afterEmptyGenerationDirectoryCreate
-                    || point == .beforePreparedWrite {
-                    XCTAssertNil(recovered, "\(point)")
-                    XCTAssertEqual(try harness.factory.currentGenerationID(), oldID)
-                    let retainedSession = try harness.factory.openOrBootstrapCurrent()
-                    XCTAssertEqual(
-                        try retainedSession.modelContext.fetchCount(
-                            FetchDescriptor<Asset>()
-                        ),
-                        1
-                    )
-                    let retainedDiagnostics = await harness.diagnostics.snapshot()
-                    XCTAssertNotEqual(retainedDiagnostics, .zero)
-                } else {
-                    let session = try XCTUnwrap(recovered, "\(point)")
+                do {
+                    let session = recovered
                     XCTAssertEqual(session.generationID, newID, "\(point)")
                     assertAuxiliaryRootsCleared(harness)
                     if let handoff = handoffBeforeRecovery {
@@ -1199,17 +1725,13 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                     let clearedDiagnostics = await harness.diagnostics.snapshot()
                     XCTAssertEqual(clearedDiagnostics, .zero)
                     if let handoff = handoffBeforeRecovery {
-                        // A cold relaunch uses a new owner; the pre-Erase registry
-                        // retains descriptors to physically erased control files.
-                        XCTAssertThrowsError(try harness.factory.openOrBootstrapCurrent()) { error in
-                            XCTAssertEqual(error as? GenerationLeaseRegistryFailureV1, .invalidIdentity)
-                        }
+                        // A passive factory was never the original owner;
+                        // startup refusal was checked on the exact old Router
+                        // before this fresh cold owner began.
                         XCTAssertEqual(try Data(contentsOf: sidecarURL), handoff.manifest, "\(point)")
                         XCTAssertEqual(try regularFileIdentity(sidecarURL), handoff.identity, "\(point)")
-                        let reopenedFactory = StoreGenerationFactory(applicationSupportURL: harness.support)
-                        let reopened = try reopenedFactory.openOrBootstrapCurrent()
-                        XCTAssertEqual(reopened.generationID, newID, "\(point)")
-                        XCTAssertEqual(try counts(reopened.modelContext), [0, 0, 0, 0, 0, 0, 0], "\(point)")
+                        XCTAssertEqual(session.generationID, newID, "\(point)")
+                        XCTAssertEqual(try counts(session.modelContext), [0, 0, 0, 0, 0, 0, 0], "\(point)")
                         let restoredURL = manifestURL(harness, generationID: newID)
                         XCTAssertEqual(try Data(contentsOf: restoredURL), handoff.manifest, "\(point)")
                         XCTAssertEqual(try regularFileIdentity(restoredURL), handoff.identity, "\(point)")
@@ -1250,40 +1772,64 @@ final class S6_6EraseRecoveryTests: XCTestCase {
     func testCancelAndDirtyContextChangeNothingBeforeMarker() async throws {
         let harness = try await makeHarness("no-marker")
         defer { cleanup(harness) }
+        let coordinator = try XCTUnwrap(harness.coordinator)
+        let owner = harness.originalOwner
+        try await owner.admit(coordinator: coordinator)
+        let operation = try owner.originalOperationForInterruption()
         let before = try tree(harness.support)
-        let service = EraseAllService(
+        let service = try owner.configure(EraseAllService(
             applicationSupportURL: harness.support,
             cachesDirectoryURL: harness.caches,
             temporaryDirectoryURL: harness.temporary,
             userDefaults: harness.defaults,
-            bundleIdentifier: bundleID
-        )
+            bundleIdentifier: bundleID,
+            defaultsDomainName: harness.defaultsSuiteName,
+            admitErase: { try await owner.admitSubject($0) }
+        ))
+        Self.retainedS6EraseServices.append((harness.root, service))
+        var activationFailure: Error?
 
         await XCTAssertThrowsErrorAsync {
             _ = try await service.erase(
                 confirmation: "erase",
-                coordinator: try XCTUnwrap(harness.coordinator),
+                coordinator: coordinator,
                 diagnosticsStore: harness.diagnostics,
-                activate: { _ in }
+                operation: operation,
+                activate: { [weak coordinator] session in
+                    do {
+                        guard let coordinator else { throw V23EraseOperationHarnessV1.Failure.activation }
+                        try owner.router.activateErasePreparationSession(
+                            session, coordinator: coordinator, operation: operation
+                        )
+                    } catch { activationFailure = error }
+                }
             )
         } verify: { error in
             XCTAssertEqual(error as? EraseAllServiceError, .invalidConfirmation)
         }
         XCTAssertEqual(try tree(harness.support), before)
 
-        let coordinator = try XCTUnwrap(harness.coordinator)
         coordinator.modelContext.insert(Site(label: "Unsaved"))
         await XCTAssertThrowsErrorAsync {
             _ = try await service.erase(
                 confirmation: "ERASE",
                 coordinator: coordinator,
                 diagnosticsStore: harness.diagnostics,
-                activate: { _ in }
+                operation: operation,
+                activate: { [weak coordinator] session in
+                    do {
+                        guard let coordinator else { throw V23EraseOperationHarnessV1.Failure.activation }
+                        try owner.router.activateErasePreparationSession(
+                            session, coordinator: coordinator, operation: operation
+                        )
+                    } catch { activationFailure = error }
+                }
             )
         } verify: { error in
             XCTAssertEqual(error as? EraseAllServiceError, .contextHasChanges)
         }
         coordinator.modelContext.rollback()
+        XCTAssertNil(activationFailure)
         XCTAssertEqual(try tree(harness.support), before)
         XCTAssertFalse(fileManager.fileExists(
             atPath: harness.support.appendingPathComponent(
@@ -1298,61 +1844,86 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         do {
             let harness = try await makeHarness("drain", observePhase: { diagnosticPhase = $0 })
             defer { cleanup(harness) }
-            let coordinator = try XCTUnwrap(harness.coordinator)
-            let oldID = coordinator.generationID
+            let owner = harness.originalOwner
             let newID = uuid("66000000-0000-0000-0000-000000000301")
-            var retainedContext: ModelContext? = coordinator.modelContext
-            let service = EraseAllService(
-                applicationSupportURL: harness.support,
-                cachesDirectoryURL: harness.caches,
-                temporaryDirectoryURL: harness.temporary,
-                userDefaults: harness.defaults,
-                bundleIdentifier: bundleID,
-                makeUUID: sequence([
-                    newID,
-                    uuid("66000000-0000-0000-0000-000000000302"),
-                ])
-            )
-
-            diagnosticPhase = "erase-with-retained-context"
-            let outcome = try await service.erase(
-                confirmation: "ERASE",
-                coordinator: coordinator,
-                diagnosticsStore: harness.diagnostics
-            ) { session in
-                coordinator.activate(session: session)
-            }
+            var retainedContext: ModelContext?
+            var retainedContainer: ModelContainer?
+            weak var observedOldCoordinator: StoreSessionCoordinator?
+            weak var observedOldContext: ModelContext?
+            weak var observedOldContainer: ModelContainer?
+            var completedReceipts = [CompletedEraseReceiptV1]()
+            let (operation, oldID) = try await { @MainActor () async throws
+                -> (EraseRouterOperationV1, UUID) in
+                let coordinator = try XCTUnwrap(harness.coordinator)
+                observedOldCoordinator = coordinator
+                retainedContext = coordinator.modelContext
+                retainedContainer = coordinator.modelContext.container
+                observedOldContext = retainedContext
+                observedOldContainer = retainedContainer
+                let oldID = coordinator.generationID
+                try await owner.admit(coordinator: coordinator)
+                let operation = try owner.originalOperationForInterruption()
+                let service = try owner.configure(EraseAllService(
+                    applicationSupportURL: harness.support,
+                    cachesDirectoryURL: harness.caches,
+                    temporaryDirectoryURL: harness.temporary,
+                    userDefaults: harness.defaults,
+                    bundleIdentifier: bundleID,
+                    defaultsDomainName: harness.defaultsSuiteName,
+                    makeUUID: sequence([
+                        newID,
+                        uuid("66000000-0000-0000-0000-000000000302"),
+                    ]),
+                    admitErase: { try await owner.admitSubject($0) },
+                    didCompleteErase: { completedReceipts.append($0) }
+                ))
+                Self.retainedS6EraseServices.append((harness.root, service))
+                diagnosticPhase = "erase-with-retained-context"
+                try await owner.prepareCompatibility(service: service,
+                    confirmation: "ERASE", coordinator: coordinator,
+                    diagnostics: harness.diagnostics)
+                harness.coordinator = nil
+                return (operation, oldID)
+            }()
             diagnosticPhase = "post-erase-assertions"
-            XCTAssertTrue(outcome.cleanupDeferred)
-            XCTAssertEqual(outcome.session.generationID, newID)
+            XCTAssertNil(observedOldCoordinator)
             XCTAssertNotNil(retainedContext)
+            XCTAssertNotNil(retainedContainer)
+            let cleanupAdvancedWhileHeld = try await operation.advanceCleanup()
+            XCTAssertFalse(cleanupAdvancedWhileHeld)
+            XCTAssertEqual(completedReceipts.count, 0)
+            XCTAssertEqual(try harness.factory.currentGenerationID(), newID)
             XCTAssertTrue(fileManager.fileExists(
                 atPath: harness.factory.installedGenerationURL(id: oldID).path
             ))
             XCTAssertEqual(
-                try EraseIntentStore(applicationSupportURL: harness.support)
-                    .load()?.phase,
+                try EraseIntentStore(applicationSupportURL: harness.support).load()?.phase,
                 .sessionActivated
             )
 
             retainedContext = nil
-            harness.coordinator = nil
-            await Task.yield()
-            diagnosticPhase = "startup-reconcile-after-context-release"
-            let recovered = try await EraseAllService(
-                applicationSupportURL: harness.support,
-                cachesDirectoryURL: harness.caches,
-                temporaryDirectoryURL: harness.temporary,
-                userDefaults: harness.defaults,
-                bundleIdentifier: bundleID
-            ).reconcileAtStartup(diagnosticsStore: harness.diagnostics)
-            diagnosticPhase = "post-recovery-assertions"
-            XCTAssertEqual(recovered?.generationID, newID)
+            retainedContainer = nil
+            guard observedOldContext == nil, observedOldContainer == nil else {
+                XCTFail("Old context and container must drain before live cleanup")
+                throw V23EraseOperationHarnessV1.Failure.drainPending
+            }
+            diagnosticPhase = "live-cleanup-after-context-release"
+            try await owner.completeCleanup()
+            XCTAssertEqual(completedReceipts.count, 1)
+            XCTAssertEqual(completedReceipts.first?.subject.newGenerationID, newID)
+            try await owner.adoptCompletedReceipt()
+            try await owner.activateFreshOrdinarySession()
+            guard case let .ready(reopened, _, _) = owner.router.route else {
+                return XCTFail("Live cleanup must publish the fresh ordinary owner")
+            }
+            diagnosticPhase = "post-cleanup-assertions"
+            XCTAssertEqual(reopened.generationID, newID)
             XCTAssertFalse(fileManager.fileExists(
                 atPath: harness.factory.installedGenerationURL(id: oldID).path
             ))
         } catch {
-            recordReminderEraseDiagnostic(error, method: "testLiveCleanupWaitsForOldContextReferenceDrain", phase: diagnosticPhase, enabled: true)
+            recordReminderEraseDiagnostic(error, method: "testLiveCleanupWaitsForOldContextReferenceDrain",
+                phase: diagnosticPhase, enabled: true)
             throw error
         }
     }
@@ -1361,9 +1932,23 @@ final class S6_6EraseRecoveryTests: XCTestCase {
     func testMalformedAuxiliaryTreeFailsBeforeAnyDeletion() async throws {
         let harness = try await makeHarness("auxiliary")
         defer { cleanup(harness) }
+        let coordinator = try XCTUnwrap(harness.coordinator)
+        let owner = harness.originalOwner
+        try await owner.admit(coordinator: coordinator)
+        let operation = try owner.originalOperationForInterruption()
         let external = harness.root.appendingPathComponent("external.bin")
         let externalBytes = Data("outside erase authority".utf8)
         try externalBytes.write(to: external)
+        let service = try owner.configure(EraseAllService(
+            applicationSupportURL: harness.support,
+            cachesDirectoryURL: harness.caches,
+            temporaryDirectoryURL: harness.temporary,
+            userDefaults: harness.defaults,
+            bundleIdentifier: bundleID,
+            defaultsDomainName: harness.defaultsSuiteName,
+            admitErase: { try await owner.admitSubject($0) }
+        ))
+        Self.retainedS6EraseServices.append((harness.root, service))
         let link = harness.support.appendingPathComponent(
             "FieldEvidenceOperations/unsafe-link"
         )
@@ -1372,24 +1957,27 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             withDestinationURL: external
         )
         let before = try tree(harness.support)
-        let service = EraseAllService(
-            applicationSupportURL: harness.support,
-            cachesDirectoryURL: harness.caches,
-            temporaryDirectoryURL: harness.temporary,
-            userDefaults: harness.defaults,
-            bundleIdentifier: bundleID
-        )
+        var activationFailure: Error?
 
         await XCTAssertThrowsErrorAsync {
             _ = try await service.erase(
                 confirmation: "ERASE",
-                coordinator: try XCTUnwrap(harness.coordinator),
+                coordinator: coordinator,
                 diagnosticsStore: harness.diagnostics,
-                activate: { _ in }
+                operation: operation,
+                activate: { [weak coordinator] session in
+                    do {
+                        guard let coordinator else { throw V23EraseOperationHarnessV1.Failure.activation }
+                        try owner.router.activateErasePreparationSession(
+                            session, coordinator: coordinator, operation: operation
+                        )
+                    } catch { activationFailure = error }
+                }
             )
         } verify: { error in
             XCTAssertEqual(error as? EraseAllServiceError, .invalidAuthority)
         }
+        XCTAssertNil(activationFailure)
         XCTAssertEqual(try tree(harness.support), before)
         XCTAssertEqual(try Data(contentsOf: external), externalBytes)
         XCTAssertTrue(fileManager.fileExists(atPath: link.path))
@@ -1507,33 +2095,54 @@ final class S6_6EraseRecoveryTests: XCTestCase {
     func testReplacedGenerationAncestorFailsClosedWithoutDeletingEitherTree() async throws {
         let harness = try await makeHarness("ancestor")
         defer { cleanup(harness) }
+        let owner = harness.originalOwner
         let newID = uuid("66000000-0000-0000-0000-000000000401")
-        let service = EraseAllService(
-            applicationSupportURL: harness.support,
-            cachesDirectoryURL: harness.caches,
-            temporaryDirectoryURL: harness.temporary,
-            userDefaults: harness.defaults,
-            bundleIdentifier: bundleID,
-            makeUUID: sequence([
-                newID,
-                uuid("66000000-0000-0000-0000-000000000402"),
-            ]),
-            failureInjection: EraseAllFailureInjection(
-                failOnceAt: .afterPreparedWrite
+        weak var releasedCoordinator: StoreSessionCoordinator?
+        let (originalService, originalOperation) = try await { @MainActor () async throws
+            -> (EraseAllService, EraseRouterOperationV1) in
+            let coordinator = try XCTUnwrap(harness.coordinator)
+            releasedCoordinator = coordinator
+            try await owner.admit(coordinator: coordinator)
+            let operation = try owner.originalOperationForInterruption()
+            let service = try owner.configure(EraseAllService(
+                applicationSupportURL: harness.support,
+                cachesDirectoryURL: harness.caches,
+                temporaryDirectoryURL: harness.temporary,
+                userDefaults: harness.defaults,
+                bundleIdentifier: bundleID,
+                defaultsDomainName: harness.defaultsSuiteName,
+                makeUUID: sequence([
+                    newID,
+                    uuid("66000000-0000-0000-0000-000000000402"),
+                ]),
+                failureInjection: EraseAllFailureInjection(failOnceAt: .afterPreparedWrite),
+                admitErase: { try await owner.admitSubject($0) }
+            ))
+            Self.retainedS6EraseServices.append((harness.root, service))
+            var activationEntries = 0
+            await XCTAssertThrowsErrorAsync {
+                _ = try await service.erase(
+                    confirmation: "ERASE", coordinator: coordinator,
+                    diagnosticsStore: harness.diagnostics, operation: operation,
+                    activate: { _ in activationEntries += 1 }
+                )
+            } verify: { error in
+                XCTAssertEqual(error as? EraseAllServiceError, .injectedFailure)
+            }
+            XCTAssertEqual(activationEntries, 0)
+            try await owner.router.beginInterruptedEarlyEraseColdRestartForTesting(
+                operation, originalService: service, expectedFault: .afterPreparedWrite
             )
-        )
-        await XCTAssertThrowsErrorAsync {
-            _ = try await service.erase(
-                confirmation: "ERASE",
-                coordinator: try XCTUnwrap(harness.coordinator),
-                diagnosticsStore: harness.diagnostics,
-                activate: { _ in }
-            )
-        } verify: { error in
-            XCTAssertEqual(error as? EraseAllServiceError, .injectedFailure)
+            harness.coordinator = nil
+            return (service, operation)
+        }()
+        guard releasedCoordinator == nil else {
+            XCTFail("The source coordinator must drain before hostile ancestor mutation")
+            throw FixtureError.invalid
         }
-        harness.coordinator = nil
-        await Task.yield()
+        try withExtendedLifetime(originalService) {
+            try owner.router.finishInterruptedEarlyEraseColdRestartForTesting(originalOperation)
+        }
 
         let dataRoot = harness.support.appendingPathComponent("FieldEvidenceData")
         let canonical = dataRoot.appendingPathComponent("generations")
@@ -1544,24 +2153,41 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         let replacementBytes = Data("unowned replacement".utf8)
         try replacementBytes.write(to: replacement)
         let detachedBefore = try tree(detached)
+        let replacementBefore = try tree(canonical)
+        let intentBefore = try XCTUnwrap(EraseIntentStore(
+            applicationSupportURL: harness.support).load())
 
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let profiles = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        let freshGate = AppAccessGateV1(setting: .value(.init(isEnabled: true)),
+            authentication: S66ColdEraseAuthentication(), clock: S66EraseReceiptClock(),
+            identifiers: SystemApplicationIDSource())
+        let freshRouter = StartupRouter(applicationSupportURL: harness.support,
+            entitlementRuntime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            lifecycleProfileRegistry: profiles)
+        // Shared fixture owns this static host-lifetime holder across a denied retry.
+        Self.retainedS6ColdOwners.append((harness.root, freshRouter, freshGate))
+        let freshAuthentication = await freshGate.authenticate(trigger: .unlock)
+        XCTAssertEqual(freshAuthentication, .authenticated)
         let recovery = EraseAllService(
             applicationSupportURL: harness.support,
             cachesDirectoryURL: harness.caches,
             temporaryDirectoryURL: harness.temporary,
             userDefaults: harness.defaults,
-            bundleIdentifier: bundleID
+            bundleIdentifier: bundleID,
+            defaultsDomainName: harness.defaultsSuiteName
         )
-        await XCTAssertThrowsErrorAsync {
-            _ = try await recovery.reconcileAtStartup(
-                diagnosticsStore: harness.diagnostics
-            )
-        } verify: { _ in }
+        Self.retainedS6EraseServices.append((harness.root, recovery))
+        try await freshRouter.retryColdEraseForTesting(service: recovery, accessGate: freshGate)
+        guard case .maintenance(.eraseInconsistent) = freshRouter.route else {
+            return XCTFail("The hostile ancestor must keep cold startup in Erase maintenance")
+        }
         XCTAssertEqual(try tree(detached), detachedBefore)
+        XCTAssertEqual(try tree(canonical), replacementBefore)
         XCTAssertEqual(try Data(contentsOf: replacement), replacementBytes)
-        XCTAssertNotNil(try EraseIntentStore(
-            applicationSupportURL: harness.support
-        ).load())
+        XCTAssertEqual(try EraseIntentStore(applicationSupportURL: harness.support).load(), intentBefore)
     }
 }
 
@@ -1732,7 +2358,10 @@ private extension S6_6EraseRecoveryTests {
         let caches: URL
         let temporary: URL
         let factory: StoreGenerationFactory
+        let originalOwner: V23EraseOperationHarnessV1
         var coordinator: StoreSessionCoordinator?
+        var interruptedOperation: EraseRouterOperationV1?
+        var interruptedService: EraseAllService?
         let diagnostics: DiagnosticsStore
         let defaults: UserDefaults
         let defaultsSuiteName: String
@@ -1743,6 +2372,7 @@ private extension S6_6EraseRecoveryTests {
             caches: URL,
             temporary: URL,
             factory: StoreGenerationFactory,
+            originalOwner: V23EraseOperationHarnessV1,
             coordinator: StoreSessionCoordinator,
             diagnostics: DiagnosticsStore,
             defaults: UserDefaults,
@@ -1753,6 +2383,7 @@ private extension S6_6EraseRecoveryTests {
             self.caches = caches
             self.temporary = temporary
             self.factory = factory
+            self.originalOwner = originalOwner
             self.coordinator = coordinator
             self.diagnostics = diagnostics
             self.defaults = defaults
@@ -1822,12 +2453,49 @@ private extension S6_6EraseRecoveryTests {
         try fileManager.createDirectory(at: support, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: caches, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: temporary, withIntermediateDirectories: true)
-        var factory = StoreGenerationFactory(applicationSupportURL: support)
-        factory.coldOpenDiagnosticForTesting = diagnoseInitialOpen
+        // The original Erase owner must be the Router's published writer.
+        // Opening a separate factory here would retain a competing registry
+        // and make the checked cold-restart seam impossible to prove.
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let profiles = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        let owner = V23EraseOperationHarnessV1(retainingRoot: root,
+            applicationSupportURL: support,
+            runtime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            profileRegistry: profiles)
+        owner.router.startupFailureDiagnosticForTesting = { observePhase?($0) }
         observePhase?("harness.open-current")
-        let session = try factory.openOrBootstrapCurrent()
-        factory.coldOpenDiagnosticForTesting = false
-        let context = session.modelContext
+        let (coordinator, diagnostics) = try await owner.startOriginalOwner()
+        let factory = StoreGenerationFactory(applicationSupportURL: support)
+        try await seedRouterOwnedSource(coordinator: coordinator, diagnostics: diagnostics,
+            support: support, caches: caches, temporary: temporary, observePhase: observePhase)
+        observePhase?("harness.defaults")
+        let defaultsSuiteName = "S6_6-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsSuiteName))
+        defaults.setPersistentDomain(["erase-test": true], forName: bundleID)
+        observePhase?("harness.coordinator")
+        return Harness(
+            root: root,
+            support: support,
+            caches: caches,
+            temporary: temporary,
+            factory: factory,
+            originalOwner: owner,
+            coordinator: coordinator,
+            diagnostics: diagnostics,
+            defaults: defaults,
+            defaultsSuiteName: defaultsSuiteName
+        )
+    }
+
+    @MainActor
+    func seedRouterOwnedSource(
+        coordinator: StoreSessionCoordinator, diagnostics: DiagnosticsStore,
+        support: URL, caches: URL, temporary: URL,
+        observePhase: (@MainActor (String) -> Void)? = nil
+    ) async throws {
+        let context = coordinator.modelContext
         let created = Date(timeIntervalSince1970: 1_786_800_000)
         let siteID = uuid("66000000-0000-0000-0000-000000000001")
         context.insert(Site(
@@ -1863,7 +2531,7 @@ private extension S6_6EraseRecoveryTests {
         let deletionLedger = DeletionLedgerStore(context: context)
         try deletionLedger.stageUnion([packetTombstone])
         observePhase?("harness.seed-journal")
-        try adoptSeededEraseBaseline(session)
+        try adoptSeededEraseBaseline(coordinator)
         XCTAssertEqual(try deletionLedger.snapshot().entries, [packetTombstone])
 
         observePhase?("harness.auxiliary-seed")
@@ -1890,34 +2558,17 @@ private extension S6_6EraseRecoveryTests {
             )
         }
         observePhase?("harness.diagnostics")
-        let diagnostics = DiagnosticsStore(applicationSupportURL: support)
         await diagnostics.prepare()
         await diagnostics.increment(.reportSaved)
-        observePhase?("harness.defaults")
-        let defaultsSuiteName = "S6_6-\(UUID())"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsSuiteName))
-        defaults.setPersistentDomain(["erase-test": true], forName: bundleID)
-        observePhase?("harness.coordinator")
-        return Harness(
-            root: root,
-            support: support,
-            caches: caches,
-            temporary: temporary,
-            factory: factory,
-            coordinator: StoreSessionCoordinator(session: session),
-            diagnostics: diagnostics,
-            defaults: defaults,
-            defaultsSuiteName: defaultsSuiteName
-        )
     }
 
     @MainActor
-    func adoptSeededEraseBaseline(_ session: StoreGenerationSession) throws {
-        let context = session.modelContext
+    func adoptSeededEraseBaseline(_ coordinator: StoreSessionCoordinator) throws {
+        let context = coordinator.modelContext
         let journal = try MutationJournalStoreV1(
             modelContext: context,
-            identity: session.workspaceIdentity,
-            generationID: session.generationID,
+            identity: coordinator.workspaceIdentity,
+            generationID: coordinator.generationID,
             allowStateBootstrap: false
         )
         try journal.stageMutableSemanticStateAfterAuthorizedExternalMutation()
@@ -2102,8 +2753,8 @@ extension S6_6EraseRecoveryTests {
             declaredActor: fixture.actor,
             method: fixture.customerAttestation.method,
             action: .voided,
-            occurredAt: C13EvidenceAssuranceTestSupportV1.fixedDate.addingTimeInterval(1),
-            recordedAt: C13EvidenceAssuranceTestSupportV1.fixedDate.addingTimeInterval(1),
+            occurredAt: fixture.customerAttestation.recordedAt.addingTimeInterval(1),
+            recordedAt: fixture.customerAttestation.recordedAt.addingTimeInterval(1),
             supersedesAttestationID: fixture.customerAttestation.attestationID,
             revision: 2,
             mutationID: try C13EvidenceAssuranceTestSupportV1.mutation(51_662)
@@ -2207,44 +2858,57 @@ extension S6_6EraseRecoveryTests {
             XCTAssertTrue(scenario.operations.contains { $0.kind == .deleteErase })
             let harness = try await makeHarness("c42-\(index)")
             defer { cleanup(harness) }
-            let coordinator = try XCTUnwrap(harness.coordinator)
-            let asset = try XCTUnwrap(
-                coordinator.modelContext.fetch(FetchDescriptor<Asset>()).first
-            )
-            asset.label = scenario.archetypeID
-            try coordinator.modelContext.save()
-            XCTAssertEqual(
-                try coordinator.modelContext.fetch(FetchDescriptor<Asset>()).map(\.label),
-                [scenario.archetypeID]
-            )
-
+            let owner = harness.originalOwner
             let replacementID = UUID(
                 uuidString: String(format: "42000000-0000-4000-8000-%012x", index + 1)
             )!
-            let service = EraseAllService(
-                applicationSupportURL: harness.support,
-                cachesDirectoryURL: harness.caches,
-                temporaryDirectoryURL: harness.temporary,
-                userDefaults: harness.defaults,
-                bundleIdentifier: bundleID,
-                makeUUID: sequence([
-                    replacementID,
-                    UUID(uuidString: String(
-                        format: "42000000-0000-4000-8001-%012x", index + 1
-                    ))!,
-                ])
-            )
-            let outcome = try await service.erase(
-                confirmation: "ERASE",
-                coordinator: coordinator,
-                diagnosticsStore: harness.diagnostics
-            ) { session in
-                coordinator.activate(session: session)
+            var completedReceipts = [CompletedEraseReceiptV1]()
+            try await { @MainActor () async throws -> Void in
+                let coordinator = try XCTUnwrap(harness.coordinator)
+                let asset = try XCTUnwrap(
+                    coordinator.modelContext.fetch(FetchDescriptor<Asset>()).first
+                )
+                asset.label = scenario.archetypeID
+                try coordinator.modelContext.save()
+                try adoptSeededEraseBaseline(coordinator)
+                XCTAssertEqual(
+                    try coordinator.modelContext.fetch(FetchDescriptor<Asset>()).map(\.label),
+                    [scenario.archetypeID]
+                )
+                try await owner.admit(coordinator: coordinator)
+                let service = try owner.configure(EraseAllService(
+                    applicationSupportURL: harness.support,
+                    cachesDirectoryURL: harness.caches,
+                    temporaryDirectoryURL: harness.temporary,
+                    userDefaults: harness.defaults,
+                    bundleIdentifier: bundleID,
+                    defaultsDomainName: harness.defaultsSuiteName,
+                    makeUUID: sequence([
+                        replacementID,
+                        UUID(uuidString: String(
+                            format: "42000000-0000-4000-8001-%012x", index + 1
+                        ))!,
+                    ]),
+                    admitErase: { try await owner.admitSubject($0) },
+                    didCompleteErase: { completedReceipts.append($0) }
+                ))
+                Self.retainedS6EraseServices.append((harness.root, service))
+                try await owner.prepareCompatibility(service: service,
+                    confirmation: "ERASE", coordinator: coordinator,
+                    diagnostics: harness.diagnostics)
+                harness.coordinator = nil
+            }()
+            XCTAssertTrue(completedReceipts.isEmpty)
+            try await owner.completeCleanup()
+            XCTAssertEqual(completedReceipts.count, 1)
+            XCTAssertEqual(completedReceipts.first?.subject.newGenerationID, replacementID)
+            try await owner.adoptCompletedReceipt()
+            try await owner.activateFreshOrdinarySession()
+            guard case let .ready(reopened, _, _) = owner.router.route else {
+                return XCTFail("C42 Erase must publish a fresh ordinary owner")
             }
-
-            XCTAssertEqual(outcome.session.generationID, replacementID)
-            XCTAssertEqual(try counts(outcome.session.modelContext), [0, 0, 0, 0, 0, 0, 0])
-            XCTAssertFalse(outcome.cleanupDeferred)
+            XCTAssertEqual(reopened.generationID, replacementID)
+            XCTAssertEqual(try counts(reopened.modelContext), [0, 0, 0, 0, 0, 0, 0])
             assertAuxiliaryRootsCleared(harness)
         }
     }
@@ -2255,76 +2919,107 @@ extension S6_6EraseRecoveryTests {
     func testC33RealEraseRemovesTemporalRowsJournalAndCanonicalOriginalBytes() async throws {
         let harness = try await makeHarness("c33-temporal-evidence")
         defer { cleanup(harness) }
-        let coordinator = try XCTUnwrap(harness.coordinator)
-        let fixture = try C33TemporalEvidenceTestSupport.clip(
-            slot: 760,
-            workspaceID: coordinator.workspaceIdentity.workspaceID,
-            reportProjection: .typedLinkOnly
-        )
-        let current = try coordinator.workspaceWriter.currentRevision()
-        let expected = try C33TemporalEvidenceTestSupport.expectedRevision(
-            for: fixture.clip,
-            generationID: current.generationID,
-            writerInstanceID: current.writerInstanceID,
-            workspaceRevision: current.revision
-        )
-        let digest = try XCTUnwrap(fixture.clip.original.digests.digest(for: .sha256))
-        let contentRequest = try DraftImmutableContentWriteRequestV1(
-            workspaceID: fixture.clip.workspaceID,
-            contentID: fixture.clip.original.contentID,
-            digest: digest,
-            byteLength: fixture.clip.original.byteLength,
-            mediaType: fixture.clip.original.mediaType,
-            mutationID: fixture.clip.mutationID,
-            createdAt: fixture.clip.original.createdAt
-        )
-        _ = try await EvidenceBundleStore(
-            generationRootURL: coordinator.generationRootURL
-        ).persistImmutableOriginal(
-            bytes: C33TemporalEvidenceTestSupport.bytes(for: fixture.clip.facts.kind),
-            request: contentRequest
-        )
-        _ = try coordinator.workspaceWriter.commitTemporalEvidence(TemporalEvidenceMutationV1(
-            workspaceID: fixture.clip.workspaceID,
-            expectedRevision: expected,
-            mutationID: fixture.clip.mutationID,
-            payload: .acceptClip(
-                fixture.clip,
-                review: C33TemporalEvidenceTestSupport.review(for: fixture.clip),
-                predecessor: nil
+        let owner = harness.originalOwner
+        var completedReceipts = [CompletedEraseReceiptV1]()
+        let originalURL = try await { @MainActor () async throws -> URL in
+            let coordinator = try XCTUnwrap(harness.coordinator)
+            let fixture = try C33TemporalEvidenceTestSupport.clip(
+                slot: 760,
+                workspaceID: coordinator.workspaceIdentity.workspaceID,
+                reportProjection: .typedLinkOnly
             )
-        ))
-        XCTAssertEqual(
-            try coordinator.modelContext.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()),
-            1
-        )
-        let originalURL = coordinator.generationRootURL.appendingPathComponent(
-            try TemporalEvidenceBackupMemberV1.original(for: fixture.clip)
-        )
-        XCTAssertTrue(fileManager.fileExists(atPath: originalURL.path))
-
-        let service = EraseAllService(
-            applicationSupportURL: harness.support,
-            cachesDirectoryURL: harness.caches,
-            temporaryDirectoryURL: harness.temporary,
-            userDefaults: harness.defaults,
-            bundleIdentifier: bundleID,
-            makeUUID: sequence([
-                uuid("66000000-0000-0000-0000-00000000c331"),
-                uuid("66000000-0000-0000-0000-00000000c332")
-            ])
-        )
-        let outcome = try await service.erase(
-            confirmation: "ERASE",
-            coordinator: coordinator,
-            diagnosticsStore: harness.diagnostics
-        ) { session in
-            coordinator.activate(session: session)
+            let current = try coordinator.workspaceWriter.currentRevision()
+            let expected = try C33TemporalEvidenceTestSupport.expectedRevision(
+                for: fixture.clip,
+                generationID: current.generationID,
+                writerInstanceID: current.writerInstanceID,
+                workspaceRevision: current.revision
+            )
+            let digest = try XCTUnwrap(fixture.clip.original.digests.digest(for: .sha256))
+            let contentRequest = try DraftImmutableContentWriteRequestV1(
+                workspaceID: fixture.clip.workspaceID,
+                contentID: fixture.clip.original.contentID,
+                digest: digest,
+                byteLength: fixture.clip.original.byteLength,
+                mediaType: fixture.clip.original.mediaType,
+                mutationID: fixture.clip.mutationID,
+                createdAt: fixture.clip.original.createdAt
+            )
+            _ = try await EvidenceBundleStore(
+                generationRootURL: coordinator.generationRootURL
+            ).persistImmutableOriginal(
+                bytes: C33TemporalEvidenceTestSupport.bytes(for: fixture.clip.facts.kind),
+                request: contentRequest
+            )
+            _ = try coordinator.workspaceWriter.commitTemporalEvidence(TemporalEvidenceMutationV1(
+                workspaceID: fixture.clip.workspaceID,
+                expectedRevision: expected,
+                mutationID: fixture.clip.mutationID,
+                payload: .acceptClip(
+                    fixture.clip,
+                    review: C33TemporalEvidenceTestSupport.review(for: fixture.clip),
+                    predecessor: nil
+                )
+            ))
+            XCTAssertEqual(
+                try coordinator.modelContext.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()),
+                1
+            )
+            let originalURL = coordinator.generationRootURL.appendingPathComponent(
+                try TemporalEvidenceBackupMemberV1.original(for: fixture.clip)
+            )
+            XCTAssertTrue(fileManager.fileExists(atPath: originalURL.path))
+            try await owner.admit(coordinator: coordinator)
+            let service = try owner.configure(EraseAllService(
+                applicationSupportURL: harness.support,
+                cachesDirectoryURL: harness.caches,
+                temporaryDirectoryURL: harness.temporary,
+                userDefaults: harness.defaults,
+                bundleIdentifier: bundleID,
+                defaultsDomainName: harness.defaultsSuiteName,
+                makeUUID: sequence([
+                    uuid("66000000-0000-0000-0000-00000000c331"),
+                    uuid("66000000-0000-0000-0000-00000000c332")
+                ]),
+                admitErase: { try await owner.admitSubject($0) },
+                didCompleteErase: { completedReceipts.append($0) }
+            ))
+            Self.retainedS6EraseServices.append((harness.root, service))
+            try await owner.prepareCompatibility(service: service,
+                confirmation: "ERASE", coordinator: coordinator,
+                diagnostics: harness.diagnostics)
+            harness.coordinator = nil
+            return originalURL
+        }()
+        XCTAssertTrue(completedReceipts.isEmpty)
+        try await owner.completeCleanup()
+        XCTAssertEqual(completedReceipts.count, 1)
+        try await owner.adoptCompletedReceipt()
+        try await owner.activateFreshOrdinarySession()
+        guard case let .ready(reopened, _, _) = owner.router.route else {
+            return XCTFail("C33 Erase must publish a fresh ordinary owner")
         }
-        try service.validateTemporalEvidenceEraseClosure(session: outcome.session)
+        XCTAssertEqual(reopened.generationID,
+            try XCTUnwrap(completedReceipts.first).subject.newGenerationID)
+        // Exact predicate body of validateTemporalEvidenceEraseClosure, read
+        // through the Router's published coordinator without a second lease.
         XCTAssertEqual(
-            try outcome.session.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()),
-            0
+            try reopened.modelContext.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()), 0
+        )
+        XCTAssertEqual(
+            try reopened.modelContext.fetchCount(FetchDescriptor<TimecodedEvidenceAnchorRow>()), 0
+        )
+        let contentRoot = reopened.generationRootURL.appendingPathComponent(
+            "content", isDirectory: true
+        )
+        var isDirectory: ObjCBool = false
+        if FileManager.default.fileExists(atPath: contentRoot.path, isDirectory: &isDirectory) {
+            XCTAssertTrue(isDirectory.boolValue)
+            XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: contentRoot.path).isEmpty)
+        }
+        try TemporalEvidenceEraseAllEnrollmentV1.validate()
+        XCTAssertEqual(
+            try reopened.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), 0
         )
         XCTAssertFalse(fileManager.fileExists(atPath: originalURL.path))
     }

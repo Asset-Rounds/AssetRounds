@@ -22,8 +22,14 @@ final class EncryptedPortableEnvelopeCancellationTokenV1:EncryptedEnvelopeCancel
     var isCancellationRequested:Bool{lock.withLock{cancelled}}
 }
 
-struct EncryptedPortableEnvelopeSealResourcesV1:Sendable{let operation:EncryptedPortableEnvelopeOperationIdentityV1;let envelopeScratch:any EncryptedEnvelopeProtectedScratchSinkV1;let reopenPlaintextScratch:any EncryptedEnvelopeProtectedScratchSinkV1;let cancellation:EncryptedPortableEnvelopeCancellationTokenV1}
-struct EncryptedPortableEnvelopeOpenResourcesV1:Sendable{let operation:EncryptedPortableEnvelopeOperationIdentityV1;let plaintextScratch:any EncryptedEnvelopeProtectedScratchSinkV1;let cancellation:EncryptedPortableEnvelopeCancellationTokenV1}
+/// A sink's writable resource remains owned until this terminal operation.
+/// It closes the real descriptor under its I/O lock; cancellation is separate.
+protocol EncryptedPortableEnvelopeTerminalScratchV1: EncryptedEnvelopeProtectedScratchSinkV1 {
+    func closeResource()
+}
+
+struct EncryptedPortableEnvelopeSealResourcesV1:Sendable{let operation:EncryptedPortableEnvelopeOperationIdentityV1;let envelopeScratch:any EncryptedPortableEnvelopeTerminalScratchV1;let reopenPlaintextScratch:any EncryptedPortableEnvelopeTerminalScratchV1;let cancellation:EncryptedPortableEnvelopeCancellationTokenV1}
+struct EncryptedPortableEnvelopeOpenResourcesV1:Sendable{let operation:EncryptedPortableEnvelopeOperationIdentityV1;let plaintextScratch:any EncryptedPortableEnvelopeTerminalScratchV1;let cancellation:EncryptedPortableEnvelopeCancellationTokenV1}
 struct EncryptedPortableEnvelopeFinalizedSealV1:Sendable{let source:any EncryptedEnvelopeBoundedSeekableSourceV1;let receipt:EncryptedEnvelopeSealReceiptV1}
 
 protocol EncryptedPortableEnvelopeCryptographicPortV1:Sendable{
@@ -38,6 +44,7 @@ protocol EncryptedPortableEnvelopePublishedSourceV1:EncryptedEnvelopeBoundedSeek
 protocol EncryptedPortableEnvelopePublicationTransactionV1:AnyObject,Sendable{var stagedSource:any EncryptedPortableEnvelopePublishedSourceV1{get};func commitPublication()async throws;func rollbackPublication()async}
 protocol EncryptedPortableEnvelopeSharePublishingV1:Sendable{func stageEncryptedEnvelope(source:any EncryptedEnvelopeBoundedSeekableSourceV1,byteCount:UInt64,filename:String,shareTitle:String,cancellation:any EncryptedEnvelopeCancellationCheckingV1)async throws->any EncryptedPortableEnvelopePublicationTransactionV1}
 protocol EncryptedPortableEnvelopeAttemptLifecycleV1:AnyObject,Sendable{
+    func acquireProducerActivity() async throws -> OwnedStorageProducerActivityV1
     func claimSecret(operation:EncryptedPortableEnvelopeOperationIdentityV1,secret:EphemeralPassphraseV1)async throws->EncryptedPortableEnvelopeCancellationTokenV1
     func prepareSeal(operation:EncryptedPortableEnvelopeOperationIdentityV1,topology:EncryptedPortableEnvelopeTopologyV1)async throws->EncryptedPortableEnvelopeSealResourcesV1
     func prepareOpen(operation:EncryptedPortableEnvelopeOperationIdentityV1,preflight:EncryptedEnvelopeStructuralPreflightReceiptV1)async throws->EncryptedPortableEnvelopeOpenResourcesV1
@@ -78,7 +85,12 @@ actor EncryptedPortableEnvelopeCoordinatorV1{
 
     private func sealLocked(_ request:EncryptedPortableEnvelopeSealRequestV1)async throws->EncryptedPortableEnvelopeSealOutcomeV1{
         let cancellation=try await claim(operation:request.operation,secret:request.passphrase)
+        let producerActivity: OwnedStorageProducerActivityV1
+        do { producerActivity = try await lifecycle.acquireProducerActivity() }
+        catch { throw await finalizedFailure(operation: request.operation, context: request.receiptContext, error: error) }
+        defer { producerActivity.close() }
         do{
+
             try Self.validateContext(request.receiptContext,for:request.operation)
             try Self.validateReviewMode(kind:request.innerKind,mode:request.reviewProtectionMode)
             let byteCount=try request.source.encryptedEnvelopeByteCount()
@@ -87,6 +99,7 @@ actor EncryptedPortableEnvelopeCoordinatorV1{
             if let cached=try cachedSeal(operation:request.operation,identity:identity){try await lifecycle.abort(operation:request.operation);return cached}
             if request.executionMode == .retry{try await lifecycle.abort(operation:request.operation);return .init(effect:.noEffect,source:nil,receipt:nil,filename:nil,shareTitle:nil)}
             let resources=try await lifecycle.prepareSeal(operation:request.operation,topology:topology)
+            defer { resources.envelopeScratch.closeResource(); resources.reopenPlaintextScratch.closeResource() }
             let result=try crypto.sealStreaming(innerSource:request.source,innerKind:request.innerKind,innerProtocolVersion:request.innerProtocolVersion,reviewProtectionMode:request.reviewProtectionMode,passphrase:request.passphrase,context:request.receiptContext,limits:request.limits,envelopeScratch:resources.envelopeScratch,reopenPlaintextScratch:resources.reopenPlaintextScratch,validateSourceInner:validateSourceInner,validateReopenedInner:validateReopenedInner,cancellation:resources.cancellation)
             guard result.facts.plaintextSHA256 == identity.sourceSHA256,result.publicHeader.declaredPlaintextByteCount == identity.sourceByteCount else{throw EncryptedPortableEnvelopeFailureV1.invalidFrameLayout}
             let finalized=try await lifecycle.publishAndCleanupSeal(resources:resources,facts:result.facts)
@@ -104,7 +117,12 @@ actor EncryptedPortableEnvelopeCoordinatorV1{
 
     private func openLocked(_ request:EncryptedPortableEnvelopeOpenRequestV1)async throws->EncryptedPortableEnvelopeOpenOutcomeV1{
         let entryCancellation=try await claim(operation:request.operation,secret:request.passphrase)
+        let producerActivity: OwnedStorageProducerActivityV1
+        do { producerActivity = try await lifecycle.acquireProducerActivity() }
+        catch { throw await finalizedFailure(operation: request.operation, context: request.receiptContext, error: error) }
+        defer { producerActivity.close() }
         do{
+
             try Self.validateContext(request.receiptContext,for:request.operation)
             let preflight=try crypto.structuralPreflight(source:request.source,limits:request.limits,cancellation:entryCancellation)
             let headerBytes=try Self.readExactly(source:request.source,atOffset:0,byteCount:EncryptedPortableEnvelopeProtocolReleaseV1.headerByteCount)
@@ -113,6 +131,7 @@ actor EncryptedPortableEnvelopeCoordinatorV1{
             if let cached=try cachedOpen(operation:request.operation,identity:identity){try await lifecycle.abort(operation:request.operation);return cached}
             if request.executionMode == .retry{try await lifecycle.abort(operation:request.operation);return .init(effect:.noEffect,receipt:nil)}
             let resources=try await lifecycle.prepareOpen(operation:request.operation,preflight:preflight)
+            defer { resources.plaintextScratch.closeResource() }
             let result=try crypto.openStreaming(envelopeSource:request.source,passphrase:request.passphrase,context:request.receiptContext,limits:request.limits,plaintextScratch:resources.plaintextScratch,validateInner:validateReopenedInner,cancellation:resources.cancellation)
             guard result.facts.encryptedFileSHA256 == identity.sourceSHA256,result.facts.envelopeByteCount == identity.sourceByteCount else{throw EncryptedPortableEnvelopeFailureV1.invalidFrameLayout}
             let transaction=try await innerConsumer.stageAuthenticatedInner(source:resources.plaintextScratch,kind:result.publicHeader.innerKind,version:result.publicHeader.innerProtocolVersion)
@@ -136,6 +155,8 @@ actor EncryptedPortableEnvelopeCoordinatorV1{
         let operations=[request.operation,response.operation].sorted{$0.attemptID.uuidString<$1.attemptID.uuidString}
         for operation in operations{await acquire(operation)}
         defer{for operation in operations.reversed(){release(operation)}}
+        let producerActivity = try await lifecycle.acquireProducerActivity()
+        defer { producerActivity.close() }
         _ = try await claim(operation:request.operation,secret:request.passphrase)
         do{
             _ = try await claim(operation:response.operation,secret:response.passphrase)

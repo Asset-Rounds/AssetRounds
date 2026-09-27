@@ -384,12 +384,14 @@ private enum C35Support {
     }
 }
 
-private final class C35Bytes: EncryptedEnvelopeProtectedScratchSinkV1,
+private final class C35Bytes: EncryptedPortableEnvelopeTerminalScratchV1,
     EncryptedPortableEnvelopePublishedSourceV1, @unchecked Sendable {
     let protectionClass = EncryptedEnvelopeProtectionClassV1.complete
     let isExcludedFromBackup = true
     var isIndependentFromProtectedScratch: Bool { true }
     private let lock = NSLock()
+    private var resourceClosed = false
+    func closeResource() { lock.withLock { resourceClosed = true } }
     private var bytes: Data
     private var expected: UInt64?
     init(_ bytes: Data = Data()) { self.bytes = bytes }
@@ -403,11 +405,14 @@ private final class C35Bytes: EncryptedEnvelopeProtectedScratchSinkV1,
         }
     }
     func prepareForStreamingWrite(expectedByteCount: UInt64) throws {
-        lock.withLock { bytes.removeAll(); expected = expectedByteCount }
+        try lock.withLock {
+            guard !resourceClosed else { throw EncryptedPortableEnvelopeFailureV1.resourceLimitExceeded }
+            bytes.removeAll(); expected = expectedByteCount
+        }
     }
     func appendStreamingBytes(_ value: Data) throws {
         try lock.withLock {
-            guard let expected, UInt64(bytes.count + value.count) <= expected else {
+            guard !resourceClosed, let expected, UInt64(bytes.count + value.count) <= expected else {
                 throw EncryptedPortableEnvelopeFailureV1.resourceLimitExceeded
             }
             bytes.append(value)
@@ -415,10 +420,13 @@ private final class C35Bytes: EncryptedEnvelopeProtectedScratchSinkV1,
     }
     func synchronizeStreamingWrite() throws {
         try lock.withLock {
-            guard UInt64(bytes.count) == expected else { throw EncryptedPortableEnvelopeFailureV1.invalidFrameLayout }
+            guard !resourceClosed, UInt64(bytes.count) == expected else { throw EncryptedPortableEnvelopeFailureV1.invalidFrameLayout }
         }
     }
-    func discardStreamingBytes() throws { lock.withLock { bytes.removeAll(); expected = nil } }
+    func discardStreamingBytes() throws { try lock.withLock {
+        guard !resourceClosed else { throw EncryptedPortableEnvelopeFailureV1.resourceLimitExceeded }
+        bytes.removeAll(); expected = nil
+    } }
     func data() -> Data { lock.withLock { bytes } }
 }
 
@@ -460,6 +468,14 @@ private struct C35CryptoPort: EncryptedPortableEnvelopeCryptographicPortV1, @unc
 }
 
 private actor C35CryptoLifecycle: EncryptedPortableEnvelopeAttemptLifecycleV1 {
+    private let producerSupport = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+        .appendingPathComponent("EnvelopeProducerFixture-\(UUID().uuidString)")
+    func acquireProducerActivity() async throws -> OwnedStorageProducerActivityV1 {
+        try FileManager.default.createDirectory(at: producerSupport, withIntermediateDirectories: true)
+        return try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: producerSupport)
+    }
+    deinit { try? FileManager.default.removeItem(at: producerSupport) }
+
     private struct State { let secret: EphemeralPassphraseV1; let token: EncryptedPortableEnvelopeCancellationTokenV1
         var envelope: C35Bytes?; var reopen: C35Bytes?; var plaintext: C35Bytes? }
     private var states: [EncryptedPortableEnvelopeOperationIdentityV1: State] = [:]

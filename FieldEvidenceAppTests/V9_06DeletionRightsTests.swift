@@ -419,7 +419,7 @@ enum V906Integration {
     static func makeHarness(
         _ name: String,
         withAsset: Bool,
-        placementSource: AssetPlacementSourceV1 = .migratedBaseline
+        placementSource: AssetPlacementSourceV1 = .manual
     ) throws -> Harness {
         let root = fileManager.temporaryDirectory.appendingPathComponent(
             "V9_06-\(name)-\(UUID().uuidString)", isDirectory: true
@@ -492,6 +492,48 @@ enum V906Integration {
         try journal.stageMutableSemanticStateAfterAuthorizedExternalMutation()
         try context.save()
         try journal.validateAll()
+    }
+
+    /// Seed the same deletion fixture under the Router's one published writer.
+    /// The caller owns the authenticated Router and keeps its session lexical.
+    static func seedRouterOwnedAsset(_ session: StoreGenerationSession) throws {
+        let siteID = fixtureID(1)
+        session.modelContext.insert(Site(
+            id: siteID,
+            label: "Deletion fixture site",
+            address: nil,
+            timeZoneID: "America/New_York",
+            createdAt: deletedAt.addingTimeInterval(-120)
+        ))
+        session.modelContext.insert(Asset(
+            id: fixtureID(2),
+            siteID: siteID,
+            packID: SignPack.illuminatedSignV1.packID,
+            packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
+            packContentVersion: SignPack.illuminatedSignV1.contentVersion,
+            label: "Deletion fixture sign",
+            createdAt: deletedAt.addingTimeInterval(-119)
+        ))
+        let placement = try AssetPlacementEventV1(
+            id: fixtureID(3),
+            workspaceID: session.workspaceIdentity.workspaceID,
+            assetID: fixtureID(2),
+            siteID: siteID,
+            locationNodeID: nil,
+            predecessorEventID: nil,
+            source: .manual,
+            physicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: fixtureID(4)),
+            continuity: .samePhysicalInstallation,
+            pathSnapshot: LocationPathSnapshotV1(
+                siteID: siteID,
+                siteDisplay: "Deletion fixture site",
+                nodes: []
+            ),
+            mutationID: MutationIDV1(rawValue: fixtureID(5)),
+            occurredAt: deletedAt.addingTimeInterval(-118)
+        )
+        session.modelContext.insert(try AssetPlacementEventRow(placement))
+        try adoptSeededDeletionBaseline(session)
     }
 
     static func deletionService(

@@ -179,46 +179,49 @@ final class ProductionCheckRunnerItemCapturePresentationV1: ObservableObject {
     /// proposal, parent selection, private staging, raw publication and the
     /// normalized pair. Nothing commits until the separate explicit Use Photo.
     func stagePhoto(_ data: Data, origin: OriginalContentOriginV1) async throws {
-        try requireIdle()
-        guard let editor, case let .capture(step) = stage, !data.isEmpty else {
-            throw ProductionCheckRunnerItemCaptureFailureV1.missingEditor
-        }
-        let operation = try captureOperation()
-        isPerformingAction = true
-        defer { isPerformingAction = false }
-        let proof = try await editor.forceFlushAndReadBack(reason: origin == .humanCapture ? .camera : .photos)
-        try editor.validateForPublication(proof)
-        try requireActive()
-        guard self.editor === editor else { throw CheckRunnerItemEditingSessionFailureV1.changedCheckpoint }
-        let parent = proof.parent.checkpoint
-        let proposal = try service.makeRawPhotoProposal(parentDraftID: parent.draftID,
-            expectedCheckpointSHA256: parent.checkpointSHA256, captureStep: step,
-            expectedSourceByteCount: Int64(data.count), origin: origin, authorizing: operation)
-        // A private per-selection copy is the only source the stager reads.
-        let sourceURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("round-photo-\(proposal.childDraftID.uuidString.lowercased())")
-        try data.write(to: sourceURL, options: [.atomic, .completeFileProtection])
-        defer { try? FileManager.default.removeItem(at: sourceURL) }
-        // The parent slot changes; its old acknowledgement must not write.
-        await supersede(editor)
-        do {
-            _ = try operation.withAuthorization {
-                try requireActive()
-                return try service.prepareRawPhoto(parentDraftID: parent.draftID,
-                    expectedCheckpointSHA256: parent.checkpointSHA256, proposal: proposal)
+        try await service.withPhotoProducer {
+            try requireIdle()
+            guard let editor, case let .capture(step) = stage, !data.isEmpty else {
+                throw ProductionCheckRunnerItemCaptureFailureV1.missingEditor
             }
-            try service.prepareLivePhotoStaging(authorizing: operation)
-            _ = try await service.publishRawPhoto(parentDraftID: parent.draftID,
-                childDraftID: proposal.childDraftID, sourceURL: sourceURL, authorizing: operation)
-            _ = try await service.preparePhotoPair(parentDraftID: parent.draftID,
-                childDraftID: proposal.childDraftID, authorizing: operation)
-        } catch {
-            if (try? requireActive()) != nil { try? installCurrentRead(authorizing: operation) }
-            throw error
+            let operation = try captureOperation()
+            isPerformingAction = true
+            defer { isPerformingAction = false }
+            let proof = try await editor.forceFlushAndReadBack(reason: origin == .humanCapture ? .camera : .photos)
+            try editor.validateForPublication(proof)
+            try requireActive()
+            guard self.editor === editor else { throw CheckRunnerItemEditingSessionFailureV1.changedCheckpoint }
+            let parent = proof.parent.checkpoint
+            let proposal = try service.makeRawPhotoProposal(parentDraftID: parent.draftID,
+                expectedCheckpointSHA256: parent.checkpointSHA256, captureStep: step,
+                expectedSourceByteCount: Int64(data.count), origin: origin, authorizing: operation)
+            // A private per-selection copy is the only source the stager reads.
+            let sourceURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("round-photo-\(proposal.childDraftID.uuidString.lowercased())")
+            try data.write(to: sourceURL, options: [.atomic, .completeFileProtection])
+            defer { try? FileManager.default.removeItem(at: sourceURL) }
+            // The parent slot changes; its old acknowledgement must not write.
+            await supersede(editor)
+            do {
+                _ = try operation.withAuthorization {
+                    try requireActive()
+                    return try service.prepareRawPhoto(parentDraftID: parent.draftID,
+                        expectedCheckpointSHA256: parent.checkpointSHA256, proposal: proposal)
+                }
+                try service.prepareLivePhotoStaging(authorizing: operation)
+                _ = try await service.publishRawPhoto(parentDraftID: parent.draftID,
+                    childDraftID: proposal.childDraftID, sourceURL: sourceURL, authorizing: operation)
+                _ = try await service.preparePhotoPair(parentDraftID: parent.draftID,
+                    childDraftID: proposal.childDraftID, authorizing: operation)
+            } catch {
+                if (try? requireActive()) != nil { try? installCurrentRead(authorizing: operation) }
+                throw error
+            }
+            try requireActive()
+            try installCurrentRead(authorizing: operation)
+            selectedPhotoPreview = data
+        
         }
-        try requireActive()
-        try installCurrentRead(authorizing: operation)
-        selectedPhotoPreview = data
     }
 
     /// Explicit Use Photo, or explicit recovery of a saved selection: pair if

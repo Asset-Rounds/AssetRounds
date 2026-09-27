@@ -31,7 +31,10 @@
     "S26",
     "S27",
     "S28",
-    "S29"
+    "S29",
+    "S30",
+    "S31",
+    "S32"
   ],
   "partitions": [
     {
@@ -376,7 +379,7 @@
     {
       "id": "S05",
       "tier": "D50C",
-      "estimatedSeconds": 1630.0,
+      "estimatedSeconds": 1810.0,
       "selectors": [
         "FieldEvidenceAppTests/C27S41TypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/S3_7CouldNotVerifyTests/testDuplicateAndWrongPurposeEvidenceFailClosedWithoutFinalizationRows",
@@ -501,6 +504,9 @@
         "FieldEvidenceAppTests/V9_12SystemHealthOperationalDiagnosticsTests/testV9_12H01SupportExportRejectsCustomerDataAndSourceScratch",
         "FieldEvidenceAppTests/V9_12SystemHealthOperationalDiagnosticsTests/testV9_12I01StoreScratchAndSupportExportRecoverWithoutDuplicateEffects",
         "FieldEvidenceAppTests/V9_12SystemHealthOperationalDiagnosticsTests/testV9_12R01MigrationResetEraseAndBootstrapRemainDeviceLocal",
+        "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testAbortRefusesOccupiedTargetBeforeManifestRemovalAndWithholdsReceipt",
+        "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testAbortedEraseRetryWaitsForExactOriginalReaderDrain",
+        "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testBeforePreparedWriteAbortClosesCapturedReadersBeforeReceiptAndPreservesOriginal",
         "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressUnfinishedPreparationsEnforceThe128IntentLimit",
         "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressUnpublishedEraseReopensAfterRemovalBeforeTerminalWrite",
         "FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testProtectedDataRecoveryGenerationRejectsNewLossDuringRecovery",
@@ -539,8 +545,9 @@
     {
       "id": "S06",
       "tier": "D50C",
-      "estimatedSeconds": 1499.9,
+      "estimatedSeconds": 1619.9,
       "selectors": [
+        "FieldEvidenceAppTests/C32OperationalContactRestoreBoundaryTests/testV23P03C46HistoricalIntentAcceptsGenuineC32SuccessorAndRejectsMissingReceipt",
         "FieldEvidenceAppTests/C32OperationalContactRestoreBoundaryTests/testV23P04C32RestoreRebindsOneAggregateReceiptWithoutContactFanout",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorS66EraseRecovery/testC33S66EraseRecoveryCompatibilityBindsTypedTemporalEvidenceToItsOwner",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorV907CompatibilityCorpusIntegration/testC33V907CompatibilityCorpusIntegrationCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -601,6 +608,7 @@
         "FieldEvidenceAppTests/V23SearchReconciliationTests/testConcreteRebuildGateRejectsLockUnlockABABeforePublication",
         "FieldEvidenceAppTests/V23SearchReconciliationTests/testConcreteSearchGateRejectsLockUnlockABAAfterSuspendedProjection",
         "FieldEvidenceAppTests/V23SearchReconciliationTests/testConcreteTokenDeniesLocalProjectionCreationAfterLock",
+        "FieldEvidenceAppTests/V23SearchReconciliationTests/testDerivedSearchDatesRoundTripAtMillisecondPrecisionWithoutChangingCanonicalRows",
         "FieldEvidenceAppTests/V23SearchReconciliationTests/testDiscoveryOptOutDuringProtectedDataAwaitPublishesNoActions",
         "FieldEvidenceAppTests/V23SearchReconciliationTests/testDiscoveryStoreRebindsWhenRemovalFollowsCoordinatorLookup",
         "FieldEvidenceAppTests/V23SearchReconciliationTests/testDiscoveryTrueRemoveTrueWithSameSourceRestoresActions",
@@ -1152,7 +1160,7 @@
     {
       "id": "S13",
       "tier": "D50C",
-      "estimatedSeconds": 1603.5,
+      "estimatedSeconds": 1843.5,
       "selectors": [
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS3_6CameraRecovery/testTypedEvidenceContextContractAnchor",
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS8_3DiagnosticPrivacy/testTypedEvidenceContextContractAnchor",
@@ -1541,12 +1549,16 @@
         "FieldEvidenceAppTests/V9_44PlacementPoseTests/testV23P03C37H01InvalidFramesAnglesTransformsForksAndClaimsFailClosed",
         "FieldEvidenceAppTests/V9_44PlacementPoseTests/testV23P03C37I01InterruptedMoveRebaseAndPromotionExposeOldOrOneSealedSuccessor",
         "FieldEvidenceAppTests/V9_44PlacementPoseTests/testV23P03C37R01RestoreReplayRebuildAndHistoricArtifactsPreserveExactPoseTruth",
+        "FieldEvidenceAppTests/V9_52AssetLabelTests/testC45LegacyV1AcceptedSnapshotKeepsExactHistoricReprintTruth",
+        "FieldEvidenceAppTests/V9_52AssetLabelTests/testC45V2BaselineCandidatesRejectImpossibleHeightAndPreservePathlessNominal",
+        "FieldEvidenceAppTests/V9_52AssetLabelTests/testC45V2GlyphInsetReleaseRejectsMixedTuplesAndPlanEnvironment",
         "FieldEvidenceAppTests/V9_52AssetLabelTests/testEvidenceBundleExactPublicationRemovalPreservesSiblingJobs",
         "FieldEvidenceAppTests/V9_52AssetLabelTests/testV23P03C45A01ManualShortCodeAndCameraResolutionParityPreserveExplicitStart",
         "FieldEvidenceAppTests/V9_52AssetLabelTests/testV23P03C45G01AcceptedPlanGeneratesByteIdenticalPDFCSVTextAndIndependentQRDecode",
         "FieldEvidenceAppTests/V9_52AssetLabelTests/testV23P03C45H01MalformedStaleRevokedAndOversizedInputsFailClosedWithoutWrongEntity",
         "FieldEvidenceAppTests/V9_52AssetLabelTests/testV23P03C45I01LocatorIssuanceAndRenderPublicationRecoverZeroOrCompleteWithoutPartialOutput",
         "FieldEvidenceAppTests/V9_52AssetLabelTests/testV23P03C45R01BackupRestoreReplayDeleteEraseReprintAndScratchCleanupRemainExact",
+        "FieldEvidenceAppTests/V9_52AssetLabelTests/testV23P03C45T01FractionalReadbackRoundtripsPublishedAndAdoptedSnapshots",
         "FieldEvidenceAppTests/V9_67EvidenceCurationTests/testCurationPreviewRendersAvailableAndMissingOriginalWithoutInvokingActions",
         "FieldEvidenceAppTests/V9_67EvidenceCurationTests/testV23P04C02A01VersionPinnedComparisonAndMissingFallback",
         "FieldEvidenceAppTests/V9_67EvidenceCurationTests/testV23P04C02G01EligibleSelectionAndAdmissionNegatives",
@@ -1673,7 +1685,7 @@
     {
       "id": "S15",
       "tier": "D50C",
-      "estimatedSeconds": 1499.9,
+      "estimatedSeconds": 1559.9,
       "selectors": [
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS6_2BackupExport/testTypedEvidenceContextContractAnchor",
         "FieldEvidenceAppTests/C30EvidenceContextAnchorV9_06DeletionArchiveIntegration/testTypedEvidenceContextContractAnchor",
@@ -1789,6 +1801,7 @@
         "FieldEvidenceAppTests/V9_79WorkspaceExperienceTests/testBlindHygieneDoesNotLoadPendingIntentContent",
         "FieldEvidenceAppTests/V9_79WorkspaceExperienceTests/testBlindHygieneRejectsPreparedTargetSubstitutionAndPreservesLaterEntry",
         "FieldEvidenceAppTests/V9_79WorkspaceExperienceTests/testBlindHygieneRejectsReplacedControlDirectory",
+        "FieldEvidenceAppTests/V9_79WorkspaceExperienceTests/testPracticeProvenanceCanonicalMillisecondRoundTripRejectsTampering",
         "FieldEvidenceAppTests/V9_79WorkspaceExperienceTests/testPreAuthenticationFactoryDoesNotRequireWorkspaceReconciliation",
         "FieldEvidenceAppTests/V9_79WorkspaceExperienceTests/testScratchRecoveryRejectsReplacedOperationsDirectory",
         "FieldEvidenceAppTests/V9_79WorkspaceExperienceTests/testV23P04C16A01PracticeWorkspaceIsolationAndReset",
@@ -3757,8 +3770,11 @@
     {
       "id": "S29",
       "tier": "D50C",
-      "estimatedSeconds": 1320.0,
+      "estimatedSeconds": 1500.0,
       "selectors": [
+        "FieldEvidenceAppTests/TemporalCaptureOwnerClassifierTests/testActualWriterThumbnailOnlyDescriptorOwnsPreparedOriginal",
+        "FieldEvidenceAppTests/TemporalCaptureOwnerClassifierTests/testWriterProducedInboxRetainsOriginalAndThumbnailDescriptors",
+        "FieldEvidenceAppTests/TemporalCaptureOwnerClassifierTests/testWriterProducedQualityOwnsSubjectComparisonAndWaiverAcrossAllHistory",
         "FieldEvidenceAppTests/V23BackupSchemaAdmissionTests/testEveryEnrolledV4TupleRoundTripsAndValidatesActualPackage",
         "FieldEvidenceAppTests/V23BackupSchemaAdmissionTests/testHistoricalEmptyC52ShapePreservesPhysicalBytesAndRejectsOtherShapes",
         "FieldEvidenceAppTests/V23BackupSchemaAdmissionTests/testHistoricalManifestTuplesRemainExplicitAndForeignBackupVersionsFail",
@@ -3781,6 +3797,95 @@
         "FieldEvidenceAppTests/V23StartupMediaOwnershipReadTests/testZeroPhotoReadRequiresExactContextFreshFenceAndPoisonsFailedProof",
         "FieldEvidenceAppTests/V23WorkPacketRestoreProjectionTests/testFiveKindPublicReplacementAndColdReadbackPreserveImmutableOriginals",
         "FieldEvidenceAppTests/V23WorkPacketRestoreProjectionTests/testWriterProducedFiveKindHistoryPlansExactImagesAndRejectsHostileDTOs"
+      ]
+    },
+    {
+      "id": "S30",
+      "tier": "D50C",
+      "estimatedSeconds": 1380.0,
+      "selectors": [
+        "FieldEvidenceAppTests/TemporalPhotoDraftOwnershipTests/testActualPhotoPublicationRetainsRawAndPairOwnersInCurrentAndHistory",
+        "FieldEvidenceAppTests/TemporalReportEndpointTests/testExactReportClipAndAnchorBindingsUseIncumbentLaw",
+        "FieldEvidenceAppTests/TemporalRoundReferenceOwnershipTests/testActualWriterRoundHistoryResolvesExactReferencesAndPreservesEveryOrigin",
+        "FieldEvidenceAppTests/TemporalServiceReliabilityOwnershipTests/testRealReliabilityWriterPreservesEverySharedCurrentAndHistoricalEvidenceOwner",
+        "FieldEvidenceAppTests/TemporalUncommittedOriginalClassifierTests/testFinishedMarkerCannotBeUncommittedEvenWithNoCanonicalReference",
+        "FieldEvidenceAppTests/TemporalUncommittedOriginalClassifierTests/testPopulatedOptionalSnapshotRemainsUnsupportedAndCounted",
+        "FieldEvidenceAppTests/TemporalUncommittedOriginalClassifierTests/testPublishedReservationWithExportShapedEmptySnapshotsHasExactBoundedNoReferenceResult",
+        "FieldEvidenceAppTests/TemporalUncommittedOriginalClassifierTests/testRealM1InterruptedSuccessorBlocksBeforeAnyRemovalClassification",
+        "FieldEvidenceAppTests/TemporalUncommittedOriginalClassifierTests/testReleasedMyDayPayloadRetainsSelectedAndEligibleOwnerOccurrences",
+        "FieldEvidenceAppTests/TemporalUncommittedOriginalClassifierTests/testSharedPromotionBlocksButSameContentIDInForeignWorkspaceDoesNotAlias",
+        "FieldEvidenceAppTests/TemporalUncommittedOriginalClassifierTests/testWrongReservationDigestIsDivergentRatherThanUnreferenced",
+        "FieldEvidenceAppTests/V23EraseUnadmittedControlObservationTests/testAbsentRootAndEmptyRootAreObservedWithoutCreatingOrRepairing",
+        "FieldEvidenceAppTests/V23EraseUnadmittedControlObservationTests/testCanonicalPendingAndUnknownEntriesRefuseWithExactBytesAndInodes",
+        "FieldEvidenceAppTests/V23EraseUnadmittedControlObservationTests/testExpectedSourceIdentityCannotBeReplacedByReturnPath",
+        "FieldEvidenceAppTests/V23EraseUnadmittedControlObservationTests/testHostileRootAndLeafRefuseWithoutFollowingOrRepairing",
+        "FieldEvidenceAppTests/V23TemporalNormalizationTests/testClosedActivityAndWrongRegistryCannotRevalidateAsLiveOwnership",
+        "FieldEvidenceAppTests/V23TemporalNormalizationTests/testExclusiveActivityDoesNotRetainGenerationMutationLock",
+        "FieldEvidenceAppTests/V23TemporalNormalizationTests/testExclusiveActivityRejectsProducerAndWriterAdmissionWithoutChangingRegistryBytes",
+        "FieldEvidenceAppTests/V23TemporalNormalizationTests/testM1ObservationDistinguishesPendingSuccessorFromPublishedWinnerWithoutRecoveryEffects",
+        "FieldEvidenceAppTests/V23TemporalNormalizationTests/testM1ObservationDoesNotCreateAbsentNamespace",
+        "FieldEvidenceAppTests/V23TemporalNormalizationTests/testM1ObservationIncludesFinishedAndPreservesMalformedSibling",
+        "FieldEvidenceAppTests/V23TemporalNormalizationTests/testNoWriterNormalizationRefusesAnIdleForeignWriter",
+        "FieldEvidenceAppTests/V23TemporalNormalizationTests/testProducerActivityRetainsSharedExclusionUntilLastIndependentHandleCloses"
+      ]
+    },
+    {
+      "id": "S31",
+      "tier": "D50C",
+      "estimatedSeconds": 1320.0,
+      "selectors": [
+        "FieldEvidenceAppTests/V23TemporalProducerOwnershipTests/testActualImmutablePreparationRetainsPhysicalExclusionThroughPrivateCleanup",
+        "FieldEvidenceAppTests/V23TemporalProducerOwnershipTests/testActualNormalizationExclusionRejectsOrdinaryWriterRead",
+        "FieldEvidenceAppTests/V23TemporalProducerOwnershipTests/testCancelledDetachedWorkerAndCatchTailKeepActualSessionProducerOwned",
+        "FieldEvidenceAppTests/V23TemporalProducerOwnershipTests/testCancelledLeaseDoesNotDrainEscapedWritableSourceSink",
+        "FieldEvidenceAppTests/V23TemporalProducerOwnershipTests/testEscapedCandidateCopyRetainsActualSessionAndStagedMediaUntilTerminalRemoval",
+        "FieldEvidenceAppTests/V23TemporalProducerOwnershipTests/testIndependentRetainedPhysicalChildBlocksCrossInstanceExclusion",
+        "FieldEvidenceAppTests/V23TemporalProducerOwnershipTests/testIndependentScratchInstanceCannotAcquireWhileActualSupportIsExclusive",
+        "FieldEvidenceAppTests/V23TemporalPromotionJournalSeparationTests/testConcurrentSameInstanceReadRefusesWithoutReleasingFirstReadLock",
+        "FieldEvidenceAppTests/V23TemporalPromotionJournalSeparationTests/testFailedContentRemovalStillQuarantinesAndDoesNotFinishJournal",
+        "FieldEvidenceAppTests/V23TemporalPromotionJournalSeparationTests/testFullAdapterPreparationForwardsWithoutCallingContentEffects",
+        "FieldEvidenceAppTests/V23TemporalPromotionJournalSeparationTests/testPreparedJournalReopensAndRejectsNonpreparedInput",
+        "FieldEvidenceAppTests/V23TemporalPromotionJournalSeparationTests/testSynchronousReadHookReentryRefusesBeforeSharedDescriptorAccess",
+        "FieldEvidenceAppTests/V23TemporalPublicationRecoveryTests/testNewManifestPublicationRecoversEveryDurableBoundary",
+        "FieldEvidenceAppTests/V23TemporalPublicationRecoveryTests/testPromotionAndRetentionRemovalRequireEveryImmutableBindingField",
+        "FieldEvidenceAppTests/V23TemporalPublicationRecoveryTests/testPublicationPinsRootAncestorPayloadAndTargetAcrossBoundaries",
+        "FieldEvidenceAppTests/V23TemporalPublicationRecoveryTests/testPublicationRecoveryIsNoCreateAndPreservesUnknownLegacyArtifacts",
+        "FieldEvidenceAppTests/V23TemporalPublicationRecoveryTests/testPublicationRecoveryRejectsContradictoryAndExtraSlotMembersWithoutEffects",
+        "FieldEvidenceAppTests/V23TemporalPublicationRecoveryTests/testReplacementPublicationRecoversBeforeAndAfterSwap",
+        "FieldEvidenceAppTests/V23TemporalPublicationRecoveryTests/testScratchRecoveryRejectsDifferentOwnerAndUnsafeLeaseShapeWithoutEffects",
+        "FieldEvidenceAppTests/V23TemporalPublicationRecoveryTests/testScratchRecoveryRemovesExactColdLeaseAndIsIdempotent",
+        "FieldEvidenceAppTests/V23TemporalPublicationRecoveryTests/testScratchRecoveryResumesOwnedDeletionTombstone",
+        "FieldEvidenceAppTests/V23TemporalPublicationRecoveryTests/testTwoIndependentAdaptersSerializeFullManifestMutation"
+      ]
+    },
+    {
+      "id": "S32",
+      "tier": "D50C",
+      "estimatedSeconds": 1380.0,
+      "selectors": [
+        "FieldEvidenceAppTests/V23C05PublicationAuthorityTests/testOriginalC05PublicationAuthorityBindsExactWriterRegistryAndEpoch",
+        "FieldEvidenceAppTests/V23C05PublicationAuthorityTests/testOriginalC05PublicationCloseUncertaintyPermanentlyRefusesEffect",
+        "FieldEvidenceAppTests/V23LateEraseAbandonmentTests/testAfterCleanupCanAbandonAndColdReplay",
+        "FieldEvidenceAppTests/V23LateEraseAbandonmentTests/testAfterCleanupPhaseWriteCanAbandonAndColdReplay",
+        "FieldEvidenceAppTests/V23LateEraseAbandonmentTests/testBeforeCleanupPhaseWriteCanAbandonAndColdReplay",
+        "FieldEvidenceAppTests/V23LateEraseAbandonmentTests/testBeforeJournalRemovalCanAbandonAndColdReplay",
+        "FieldEvidenceAppTests/V23OperationalContactImportAuthorityTests/testAlteredReceiptDigestRefusesWithoutRepair",
+        "FieldEvidenceAppTests/V23OperationalContactImportAuthorityTests/testDirtyContextRefusesWithoutSavingOrRollingBackCallerChanges",
+        "FieldEvidenceAppTests/V23OperationalContactImportAuthorityTests/testMissingCheckpointRefusesWithoutBootstrappingIt",
+        "FieldEvidenceAppTests/V23OperationalContactImportAuthorityTests/testMissingCommittedReceiptRefusesOtherwisePresentParty",
+        "FieldEvidenceAppTests/V23OperationalContactImportAuthorityTests/testOrdinaryReceiptBackedPartyIsReadableWithoutProjectionOrMutation",
+        "FieldEvidenceAppTests/V23OperationalContactImportAuthorityTests/testWrongExternalProjectionRefusesWithoutRepair",
+        "FieldEvidenceAppTests/V23UnadmittedEraseReturnRouteTests/testGenuineIssuedAuthorityWithoutReservationCannotReturn",
+        "FieldEvidenceAppTests/V23UnadmittedEraseReturnRouteTests/testGenuineNoAdmissionReturnsSameWriterAndAuthenticatedRestartPublishesIt",
+        "FieldEvidenceAppTests/V23UnadmittedEraseReturnRouteTests/testPresentPendingControlRefusesReturnWithoutChangingControlOrWriter",
+        "FieldEvidenceAppTests/V23UnadmittedEraseReturnRouteTests/testRelockedEpochRefusesReturnAndPreservesOriginalWriter",
+        "FieldEvidenceAppTests/V23WholeSignSharedOwnerTests/testAdmittedProducerDrainsBeforeOriginalEraseCanCaptureWriter",
+        "FieldEvidenceAppTests/V23WholeSignSharedOwnerTests/testClosedOriginalWriterRefusesSharedDeletionWithoutLedgerChange",
+        "FieldEvidenceAppTests/V23WholeSignSharedOwnerTests/testDirectSharedCommitWithoutAdmittedProducerRefusesBeforeBody",
+        "FieldEvidenceAppTests/V23WholeSignSharedOwnerTests/testEraseCaptureRefusesDeletionUntilExactAuthenticatedReturn",
+        "FieldEvidenceAppTests/V23WholeSignSharedOwnerTests/testForeignAndRelockedEraseReturnCannotReopenDeletion",
+        "FieldEvidenceAppTests/V23WholeSignSharedOwnerTests/testForeignContextAndWriterRefuseBeforeDeletionEffects",
+        "FieldEvidenceAppTests/V23WholeSignSharedOwnerTests/testLiveDeleteUsesPublishedWriterAndProducesRealAssetTombstone"
       ]
     }
   ]

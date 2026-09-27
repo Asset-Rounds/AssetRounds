@@ -940,6 +940,7 @@ final class V9_30FieldDraftResilienceTests: XCTestCase {
 
         let fm = FileManager.default
         let support = fm.temporaryDirectory.appendingPathComponent("staging-owners-\(UUID().uuidString)")
+        try fm.createDirectory(at: support, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: support) }
         let first = try stagingDiagnosticPhase("A01.initialize-first") {
             try DraftAttachmentStagingAdapterV1(applicationSupportURL: support)
@@ -1001,6 +1002,7 @@ final class V9_30FieldDraftResilienceTests: XCTestCase {
         let dateSupport = fm.temporaryDirectory.appendingPathComponent(
             "staging-date-roundtrip-\(UUID().uuidString)")
         defer { try? fm.removeItem(at: dateSupport) }
+        try fm.createDirectory(at: dateSupport, withIntermediateDirectories: true)
         let dateWriter = try DraftAttachmentStagingAdapterV1(applicationSupportURL: dateSupport)
         let datedItem = try await dateWriter.stage(data: Data("sub-millisecond manifest entry".utf8),
             draftID: fixture.draftID, workspaceID: fixture.workspaceID, attachmentKind: .file,
@@ -1977,6 +1979,11 @@ extension V9_30FieldDraftResilienceTests {
         let sourceSupport = root.appendingPathComponent("source")
         let actorSupport = root.appendingPathComponent("actor")
         let synchronousSupport = root.appendingPathComponent("synchronous")
+        // Establish actual support owners before any producer admission. The
+        // staging namespace and all original restore inputs remain untouched.
+        for support in [sourceSupport, actorSupport, synchronousSupport] {
+            try fm.createDirectory(at: support, withIntermediateDirectories: true)
+        }
         let workspace = WorkspaceID(rawValue: UUID())
         let draftID = UUID(), restoreID = UUID()
         let now = Date(timeIntervalSince1970: 1_800_000_000)
@@ -2129,6 +2136,7 @@ extension V9_30FieldDraftResilienceTests {
         var hostileRestorePhase = "hostile-restore.setup-source"
         do {
         let sourceSupport = root.appendingPathComponent("source")
+        try fm.createDirectory(at: sourceSupport, withIntermediateDirectories: true)
         let workspace = WorkspaceID(rawValue: UUID())
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let source = try DraftAttachmentStagingAdapterV1(
@@ -2164,6 +2172,7 @@ extension V9_30FieldDraftResilienceTests {
             if name == "missing" { try fm.removeItem(at: sourceURL) }
             if name == "photo-witness" { try Data("unknown photo owner".utf8).write(to: witnessURL) }
             let support = root.appendingPathComponent(name)
+            try fm.createDirectory(at: support, withIntermediateDirectories: true)
             hostileRestorePhase = "hostile-restore.\(name).publish"
             XCTAssertThrowsError(try DraftAttachmentStagingAdapterV1.publishRestoredStagingSynchronously(
                 applicationSupportURL: support, from: sourceRoot, entries: candidateEntries,
@@ -2194,6 +2203,7 @@ extension V9_30FieldDraftResilienceTests {
         try fm.moveItem(at: sourceURL, to: retainedSource)
         XCTAssertEqual(mkfifo(sourceURL.path, mode_t(0o600)), 0)
         let fifoSupport = root.appendingPathComponent("fifo-restore")
+        try fm.createDirectory(at: fifoSupport, withIntermediateDirectories: true)
         hostileRestorePhase = "hostile-restore.fifo-initialize"
         let fifoDestination = try DraftAttachmentStagingAdapterV1(applicationSupportURL: fifoSupport)
         hostileRestorePhase = "hostile-restore.fifo-actor-reject"
@@ -2221,6 +2231,7 @@ extension V9_30FieldDraftResilienceTests {
 
         hostileRestorePhase = "hostile-restore.occupied-arrange"
         let occupiedSupport = root.appendingPathComponent("occupied")
+        try fm.createDirectory(at: occupiedSupport, withIntermediateDirectories: true)
         let occupied = try DraftAttachmentStagingAdapterV1(applicationSupportURL: occupiedSupport)
         let occupiedRoot = occupiedSupport.appendingPathComponent(
             "FieldEvidenceData/\(DraftAttachmentStagingAdapterV1.directoryName)")
@@ -2439,4 +2450,75 @@ private struct V23ReviewedConflictDomainFixture {
 
     func checkpoint(payload: MyDayPlanningDraftPayloadV1, base: UInt64, revision: UInt64, state: FieldDraftStateV1, mutation: UUID, at: Date) throws -> FieldDraftCheckpointV1 { try Self.checkpoint(workspace: workspace, key: key, payload: payload, base: base, revision: revision, state: state, mutation: mutation, at: at) }
     private static func checkpoint(workspace: WorkspaceID, key: MyDayKeyV1, payload: MyDayPlanningDraftPayloadV1, base: UInt64, revision: UInt64, state: FieldDraftStateV1, mutation: UUID, at: Date) throws -> FieldDraftCheckpointV1 { try .init(draftID: UUID(uuidString: "00000000-0000-0000-0000-000000000231")!, workspaceID: workspace, scope: try MyDayPlanningDraftCodecV1.scope(for: key), purpose: .myDayPlanning, codec: try MyDayPlanningDraftCodecV1.release(), baseCanonicalRevision: base, draftRevision: revision, payloadData: try MyDayPlanningDraftCodecV1.encode(payload), stageIDs: [], resumeAnchor: .init(sectionID: "review"), state: state, updatedAt: at, mutationID: .init(rawValue: mutation)) }
+}
+
+
+/// M19 uses the real Begin/PENDING/photo publication fixture above. Pure
+/// reference observations neither construct nor replace a source-owner proof.
+@MainActor
+final class TemporalPhotoDraftOwnershipTests: XCTestCase {
+    func testActualPhotoPublicationRetainsRawAndPairOwnersInCurrentAndHistory() async throws {
+        try await withAsyncFrozenBeginFixture("m19-photo-ownership", entry: .check,
+            storedTimeZoneID: "America/New_York") { h in
+            let writer = EvidenceBundleStore(generationRootURL: h.session.generationRootURL)
+            let photo = try await C36PhotoPromotionFixture.make(h, writer: writer)
+            let pairCheckpoint = try await photo.service.preparePhotoPair(
+                parentDraftID: photo.parentID, childDraftID: photo.childID)
+            let pairPayload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(pairCheckpoint)
+            let before = try h.snapshot()
+            let rawID = photo.raw.inspection.rawContentID
+            XCTAssertNil(photo.raw.readyItem.contentReference,
+                "the production raw witness intentionally omits ContentReference")
+            let direct = try TemporalNormalizationKnownDraftPayloadReferencesV1.photoDescendants(pairPayload)
+            XCTAssertEqual(direct.count, 2, "raw and normalized source each retain ownership")
+            for binding in direct {
+                XCTAssertTrue(try TemporalNormalizationKnownDraftPayloadReferencesV1.photoOwnsOriginal(
+                    binding, workspaceID: h.workspaceID, contentID: rawID))
+                XCTAssertFalse(try TemporalNormalizationKnownDraftPayloadReferencesV1.photoOwnsOriginal(
+                    binding, workspaceID: WorkspaceID(rawValue: UUID()), contentID: rawID))
+                XCTAssertFalse(try TemporalNormalizationKnownDraftPayloadReferencesV1.photoOwnsOriginal(
+                    binding, workspaceID: h.workspaceID, contentID: "unrelated-original"))
+            }
+            // Inspect every retained genuine envelope, including the old ready
+            // checkpoint after the live child has advanced to PAIR_READY.
+            var readyHistoryOwners = 0, pairHistoryOwners = 0, currentOwners = 0
+            for row in before.history.receipts {
+                let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+                guard case let .applyFieldDraft(command) = envelope.command else { continue }
+                let checkpoints: [FieldDraftCheckpointV1]
+                switch command.postImage {
+                case let .createCheckpoint(value), let .reviseCheckpoint(value): checkpoints = [value]
+                case let .publishReadyStage(bundle): checkpoints = [bundle.expectedCheckpoint, bundle.successorCheckpoint]
+                default: checkpoints = [] // This witness has not begun commit/discard.
+                }
+                for checkpoint in checkpoints where checkpoint.draftID == photo.childID {
+                    let payload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(checkpoint)
+                    for binding in try TemporalNormalizationKnownDraftPayloadReferencesV1.photoDescendants(payload) {
+                        guard try TemporalNormalizationKnownDraftPayloadReferencesV1.photoOwnsOriginal(
+                            binding, workspaceID: h.workspaceID, contentID: rawID) else { continue }
+                        switch binding {
+                        case .photoRaw: readyHistoryOwners += 1
+                        case .photoPair: pairHistoryOwners += 1
+                        default: XCTFail("unexpected photo binding")
+                        }
+                    }
+                }
+            }
+            for row in try h.context.fetch(FetchDescriptor<FieldDraftCheckpointRow>()) {
+                let checkpoint = try row.value()
+                guard checkpoint.draftID == photo.childID else { continue }
+                let payload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(checkpoint)
+                for binding in try TemporalNormalizationKnownDraftPayloadReferencesV1.photoDescendants(payload) {
+                    if try TemporalNormalizationKnownDraftPayloadReferencesV1.photoOwnsOriginal(
+                        binding, workspaceID: h.workspaceID, contentID: rawID) { currentOwners += 1 }
+                }
+            }
+            XCTAssertGreaterThanOrEqual(readyHistoryOwners, 2)
+            XCTAssertGreaterThanOrEqual(pairHistoryOwners, 1)
+            XCTAssertEqual(currentOwners, 2)
+            XCTAssertEqual(try h.snapshot(), before, "pure traversal never rewrites rows or receipts")
+            XCTAssertEqual(try Data(contentsOf: photo.rawDirectory.appendingPathComponent(
+                DraftAttachmentStagingAdapterV1.payloadName)), photo.sourceBytes)
+        }
+    }
 }

@@ -3,6 +3,677 @@ import Darwin
 import Foundation
 import SwiftData
 
+#if DEBUG
+/// A distinct read-only source container is weakly inventoried before its
+/// constructor. An ambiguous constructor failure remains in progress and
+/// therefore prevents the original EX from being released for cold startup.
+final class EraseOriginalColdExitContextObservationV1: @unchecked Sendable {
+    private let lock = NSRecursiveLock()
+    private var constructing = true
+    private weak var context: ModelContext?
+    private weak var container: ModelContainer?
+
+    @MainActor
+    func complete(_ value: ModelContainer) throws {
+        try lock.withLock {
+            guard constructing, container == nil, context == nil else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            container = value
+            context = value.mainContext
+            constructing = false
+        }
+    }
+
+    func requireDrained() throws {
+        try lock.withLock {
+            guard !constructing, container == nil, context == nil else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        }
+    }
+}
+
+#if DEBUG
+/// Test-only, one-use owner of a *new* retired-source corruption window. The
+/// original Erase controls have already checked closed. This owner is pinned
+/// before the first new descriptor is opened, and remains pinned on every
+/// uncertain exit; no deinit or task yield counts as checked closure.
+@MainActor
+final class V949RetiredSourceFixtureOwnerV1 {
+    private static var hostPins: [V949RetiredSourceFixtureOwnerV1] = []
+    private let factory: StoreGenerationFactory
+    private let witness: V949PostHandoffHostileFixtureWitnessV1
+    private var physicalRoot: StoreTemporalPhysicalRootExclusionV1?
+    private var construction: TemporalColdRegistryConstructionV1?
+    private var registry: GenerationLeaseRegistryV1?
+    private var activityAttempt: GenerationTemporalColdActivityAcquisitionV1?
+    private var activity: GenerationTemporalActivityHandleV1?
+    private var allocation: GenerationLeaseAllocationAttemptV1?
+    private var reader: GenerationLeaseHandleV1?
+    private weak var observedSession: StoreGenerationSession?
+    private weak var observedContext: ModelContext?
+    private weak var observedContainer: ModelContainer?
+    private var contextObservation: EraseOriginalColdExitContextObservationV1?
+    private enum State: Equatable {
+        case acquiring, ready, mutating, closing, uncertain, closed
+    }
+    private var state = State.acquiring
+
+    private init(factory: StoreGenerationFactory,
+        witness: V949PostHandoffHostileFixtureWitnessV1) {
+        self.factory = factory
+        self.witness = witness
+    }
+
+    static func acquire(factory: StoreGenerationFactory,
+        witness: V949PostHandoffHostileFixtureWitnessV1) throws
+        -> V949RetiredSourceFixtureOwnerV1 {
+        let owner = V949RetiredSourceFixtureOwnerV1(
+            factory: factory, witness: witness)
+        hostPins.append(owner)
+        do {
+            try owner.acquire()
+        } catch {
+            owner.state = .uncertain
+            if let activityAttempt = owner.activityAttempt {
+                // One checked pretransfer or transferred-handle disposition.
+                // A close error keeps the actual attempt pinned and terminal.
+                do { try activityAttempt.closeAfterFailure() }
+                catch { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            }
+            throw error
+        }
+        return owner
+    }
+
+    private func acquire() throws {
+        try witness.beginFixtureOwner()
+        let root = try StoreTemporalPhysicalRootExclusionV1
+            .unacquiredOriginalEraseShutdown(at: witness.subject.applicationSupportURL)
+        physicalRoot = root
+        try root.acquireOriginalEraseShutdown()
+        let construction = TemporalColdRegistryConstructionV1()
+        self.construction = construction
+        let registry = try GenerationLeaseRegistryV1
+            .openExistingForV949HostileFixture(
+                applicationSupportURL: witness.subject.applicationSupportURL,
+                witness: witness, construction: construction)
+        self.registry = registry
+        try registry.finishV949HostileFixtureConstruction(witness: witness)
+        let activityAttempt = try registry
+            .makeV949HostileActivityAcquisition(witness: witness)
+        self.activityAttempt = activityAttempt
+        try registry.acquireV949HostileExclusive(
+            witness: witness, attempt: activityAttempt) {
+            activity = $0
+        }
+        try witness.originalService.requireV949PostHandoffOriginalSourceUnchanged(
+            witness.binding, operation: witness.operation)
+        state = .ready
+    }
+
+    /// The closure has the only new SwiftData source alias. It executes while
+    /// the exact fresh reader, EX, physical root, and G are held. Its result
+    /// must be a value snapshot, not an escaped session or model object.
+    func withRetiredRowMutation<Value>(
+        _ body: (StoreGenerationSession) throws -> Value
+    ) throws -> Value {
+        guard state == .ready, allocation == nil,
+              let registry, let activity else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        state = .mutating
+        do {
+            return try registry.withV949HostileMutationLock(
+                witness: witness, activity: activity) {
+                try witness.originalService
+                    .requireV949PostHandoffOriginalSourceUnchanged(
+                        witness.binding, operation: witness.operation)
+                let epoch = try GenerationEpochV1(
+                    generationID: witness.binding.oldGenerationID,
+                    generationManifestSHA256:
+                        witness.binding.sourceManifestSHA256)
+                let allocation = try registry.makeReaderAllocationAttempt(
+                    epoch: epoch)
+                self.allocation = allocation
+                let reader = try allocation.acquireReaderWhileExcluded(
+                    activity: activity)
+                self.reader = reader
+                let contextObservation = EraseOriginalColdExitContextObservationV1()
+                self.contextObservation = contextObservation
+                @MainActor func perform() throws -> Value {
+                    let session = try factory.openV949RetiredSourceUnderExclusive(
+                        witness: witness, allocation: allocation,
+                        reader: reader,
+                        contextObservation: contextObservation)
+                    observedSession = session
+                    observedContext = session.modelContext
+                    observedContainer = session.modelContext.container
+                    try witness.originalService
+                        .requireV949PostHandoffOriginalSourceUnchanged(
+                            witness.binding, operation: witness.operation)
+                    let result = try body(session)
+                    guard !session.modelContext.hasChanges else {
+                        throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                    }
+                    try witness.originalService
+                        .requireV949PostHandoffControlsUnchanged(
+                            witness.binding, operation: witness.operation)
+                    return result
+                }
+                return try perform()
+            }
+        } catch {
+            state = .uncertain
+            throw error
+        }
+    }
+
+    /// Physical hostile cases use the same fresh EX/G but no SwiftData reader.
+    /// The callback is a test fixture edit, never a source of expected bytes.
+    func withRetiredPhysicalMutation<Value>(
+        _ body: (URL) throws -> Value
+    ) throws -> Value {
+        guard state == .ready, allocation == nil,
+              let registry, let activity else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        state = .mutating
+        do {
+            return try registry.withV949HostileMutationLock(
+                witness: witness, activity: activity) {
+                try witness.originalService
+                    .requireV949PostHandoffOriginalSourceUnchanged(
+                        witness.binding, operation: witness.operation)
+                let root = factory.installedGenerationURL(
+                    id: witness.binding.oldGenerationID)
+                let result = try body(root)
+                try witness.originalService
+                    .requireV949PostHandoffControlsUnchanged(
+                        witness.binding, operation: witness.operation)
+                return result
+            }
+        } catch {
+            state = .uncertain
+            throw error
+        }
+    }
+
+    /// Calling this with a live source alias throws and retains the real EX,
+    /// reader allocation, registry guard, and physical root for host lifetime.
+    func closeAfterCheckedDrain() throws {
+        guard state == .mutating, let registry, let activity,
+              observedSession == nil, observedContext == nil,
+              observedContainer == nil else {
+            state = .uncertain
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        state = .closing
+        do {
+            try contextObservation?.requireDrained()
+            if let allocation {
+                allocation.sealForRetirement()
+                try allocation.closeAfterDrain(activity: activity)
+                self.allocation = nil
+                reader = nil
+            }
+            try registry.requireV949ZeroLeaseCensus(
+                witness: witness, activity: activity)
+            try registry.closeTemporalColdOwnerGuard(activity: activity)
+            try activity.closeAfterColdOwnerGuardRemoval()
+            self.activity = nil
+            try construction?.closeUntransferred()
+            construction = nil
+            try physicalRoot?.closeCheckedForOriginalEraseShutdown()
+            physicalRoot = nil
+            state = .closed
+        } catch {
+            // A partially completed release has no generic retry contract.
+            // Keep the exact graph and every unresolved descriptor host-pinned.
+            state = .uncertain
+            throw error
+        }
+        // Keep the inert, guardless registry and exact original witness pinned
+        // until the host ends. Neither can authorize later ordinary work.
+    }
+}
+
+/// Captures a real restore-produced reader wrapper before its session scope
+/// ends. A fresh Router may start only after every original SwiftData alias
+/// drains and this exact wrapper completes its durable checked release.
+@MainActor
+final class V949RestoredSourceReaderExitV1 {
+    private static var hostPins: [V949RestoredSourceReaderExitV1] = []
+    private let handle: GenerationLeaseHandleV1
+    private weak var session: StoreGenerationSession?
+    private weak var context: ModelContext?
+    private weak var container: ModelContainer?
+    private enum State { case ready, closing, uncertain, closed }
+    private var state = State.ready
+
+    private init(session: StoreGenerationSession,
+        handle: GenerationLeaseHandleV1) {
+        self.handle = handle
+        self.session = session
+        context = session.modelContext
+        container = session.modelContext.container
+    }
+
+    fileprivate static func capture(session: StoreGenerationSession,
+        factory: StoreGenerationFactory) throws
+        -> V949RestoredSourceReaderExitV1 {
+        guard session.generationRootURL.standardizedFileURL
+                == factory.installedGenerationURL(
+                    id: session.generationID).standardizedFileURL,
+              let handle = session.eraseRetirementReaderHandle,
+              let epoch = session.generationEpoch,
+              handle.token.role == .reader,
+              handle.token.epoch == epoch else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let value = V949RestoredSourceReaderExitV1(
+            session: session, handle: handle)
+        hostPins.append(value)
+        return value
+    }
+
+    func closeAfterCheckedAliasDrain() throws {
+        guard state == .ready, session == nil, context == nil,
+              container == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        state = .closing
+        do {
+            try handle.close()
+            try handle.requireClosedForAbortedEraseReaderRetirement()
+            state = .closed
+        } catch {
+            state = .uncertain
+            throw error
+        }
+    }
+}
+#endif
+
+/// Descriptor owner for the completed-abort source-byte witness. An ambiguous
+/// close is kept here as an actual unresolved handle and bars every snapshot.
+final class EraseAbortCheckedSnapshotIOV1 {
+    private var uncertainDescriptors: [Int32] = []
+    private var uncertainDirectories: [UnsafeMutablePointer<DIR>] = []
+
+    func requireSettled() throws {
+        guard uncertainDescriptors.isEmpty, uncertainDirectories.isEmpty else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+    }
+
+    func withOpen<Value>(parent: Int32, name: String, flags: Int32,
+                         _ body: (Int32) throws -> Value) throws -> Value {
+        try requireSettled()
+        let descriptor = Darwin.openat(parent, name, flags | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+        var closeAttempted = false
+        do {
+            let result = try body(descriptor)
+            closeAttempted = true
+            guard Darwin.close(descriptor) == 0 else {
+                uncertainDescriptors.append(descriptor)
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            return result
+        } catch {
+            if !closeAttempted, Darwin.close(descriptor) != 0 {
+                uncertainDescriptors.append(descriptor)
+            }
+            throw error
+        }
+    }
+
+    func names(in parent: Int32) throws -> [String] {
+        try requireSettled()
+        let descriptor = Darwin.openat(parent, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+        guard let directory = Darwin.fdopendir(descriptor) else {
+            if Darwin.close(descriptor) != 0 { uncertainDescriptors.append(descriptor) }
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        var closeAttempted = false
+        do {
+            var result = [String]()
+            errno = 0
+            while let entry = Darwin.readdir(directory) {
+                guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                if name != "." && name != ".." { result.append(name) }
+                errno = 0
+            }
+            guard errno == 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+            closeAttempted = true
+            guard Darwin.closedir(directory) == 0 else {
+                uncertainDirectories.append(directory)
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            return result.sorted()
+        } catch {
+            if !closeAttempted, Darwin.closedir(directory) != 0 {
+                uncertainDirectories.append(directory)
+            }
+            throw error
+        }
+    }
+
+    private func digestFile(_ descriptor: Int32, before: stat) throws -> String {
+        var digest = SHA256()
+        var count: off_t = 0
+        var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+        while true {
+            let readCount = buffer.withUnsafeMutableBytes {
+                Darwin.read(descriptor, $0.baseAddress, $0.count)
+            }
+            if readCount > 0 {
+                count += off_t(readCount)
+                guard count <= before.st_size else { throw StoreGenerationFailure.dataPointerInvalid }
+                digest.update(data: Data(buffer.prefix(readCount)))
+            } else if readCount == 0 { break }
+            else if errno != EINTR { throw StoreGenerationFailure.dataPointerInvalid }
+        }
+        guard count == before.st_size else { throw StoreGenerationFailure.dataPointerInvalid }
+        return digest.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+
+    func control(parent: Int32, name: String,
+                 maximum: Int = 4 * 1024 * 1024) throws -> (Data, String) {
+        guard maximum > 0, maximum <= 32 * 1024 * 1024 else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try requireSettled()
+        func requireNoPending() throws {
+            let pendingNames = name == "current.json"
+                ? [".current.json.restore-next", ".current.json.migration-next"]
+                : [".\(name).restore-next"]
+            for pendingName in pendingNames {
+                var pending = stat()
+                guard Darwin.fstatat(parent, pendingName, &pending,
+                                     AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+            }
+        }
+        try requireNoPending()
+        return try withOpen(parent: parent, name: name,
+                            flags: O_RDONLY | O_NONBLOCK) { descriptor in
+            var before = stat(), after = stat(), named = stat()
+            guard Darwin.fstat(descriptor, &before) == 0,
+                  before.st_mode & S_IFMT == S_IFREG,
+                  before.st_nlink == 1, before.st_size >= 0,
+                  before.st_size <= off_t(maximum),
+                  Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  named.st_dev == before.st_dev, named.st_ino == before.st_ino else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            var data = Data()
+            var buffer = [UInt8](repeating: 0, count: 16 * 1024)
+            while true {
+                let count = buffer.withUnsafeMutableBytes {
+                    Darwin.read(descriptor, $0.baseAddress, $0.count)
+                }
+                if count > 0 {
+                    guard data.count <= maximum - count else {
+                        throw StoreGenerationFailure.dataPointerInvalid
+                    }
+                    data.append(contentsOf: buffer.prefix(count))
+                } else if count == 0 { break }
+                else if errno != EINTR { throw StoreGenerationFailure.dataPointerInvalid }
+            }
+            guard Darwin.fstat(descriptor, &after) == 0,
+                  Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  after.st_dev == before.st_dev, after.st_ino == before.st_ino,
+                  after.st_size == before.st_size,
+                  data.count == Int(before.st_size),
+                  after.st_mtimespec.tv_sec == before.st_mtimespec.tv_sec,
+                  after.st_mtimespec.tv_nsec == before.st_mtimespec.tv_nsec,
+                  after.st_ctimespec.tv_sec == before.st_ctimespec.tv_sec,
+                  after.st_ctimespec.tv_nsec == before.st_ctimespec.tv_nsec,
+                  named.st_dev == before.st_dev, named.st_ino == before.st_ino else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            try requireNoPending()
+            let identity = "\(before.st_dev)|\(before.st_ino)|\(before.st_mode)|\(before.st_nlink)|\(before.st_size)|\(before.st_mtimespec.tv_sec)|\(before.st_mtimespec.tv_nsec)|\(before.st_ctimespec.tv_sec)|\(before.st_ctimespec.tv_nsec)"
+            return (data, identity)
+        }
+    }
+
+    func tree(parent: Int32, name: String) throws -> String {
+        try requireSettled()
+        var tokens = [String]()
+        var nodeCount = 0
+        var hasModel = false
+        func walk(_ parent: Int32, _ name: String, _ path: String, _ depth: Int) throws {
+            guard depth <= 64, nodeCount < 100_000 else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            nodeCount += 1
+            if !path.isEmpty {
+                _ = try GenerationOwnedPathV1.classify(path, nodeType: .directory)
+            }
+            try withOpen(parent: parent, name: name, flags: O_RDONLY | O_DIRECTORY) { directory in
+                var before = stat(), namedBefore = stat()
+                guard Darwin.fstat(directory, &before) == 0,
+                      before.st_mode & S_IFMT == S_IFDIR,
+                      Darwin.fstatat(parent, name, &namedBefore, AT_SYMLINK_NOFOLLOW) == 0,
+                      namedBefore.st_dev == before.st_dev,
+                      namedBefore.st_ino == before.st_ino else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                let initial = try names(in: directory)
+                tokens.append("D|\(path)|\(before.st_dev)|\(before.st_ino)|\(before.st_mode)|\(before.st_mtimespec.tv_sec)|\(before.st_mtimespec.tv_nsec)|\(before.st_ctimespec.tv_sec)|\(before.st_ctimespec.tv_nsec)|\(initial.joined(separator: ","))")
+                for child in initial {
+                    guard !child.isEmpty, child != ".", child != "..",
+                          !child.contains("/") else {
+                        throw StoreGenerationFailure.dataPointerInvalid
+                    }
+                    let childPath = path.isEmpty ? child : "\(path)/\(child)"
+                    var named = stat()
+                    guard Darwin.fstatat(directory, child, &named, AT_SYMLINK_NOFOLLOW) == 0 else {
+                        throw StoreGenerationFailure.dataPointerInvalid
+                    }
+                    if named.st_mode & S_IFMT == S_IFDIR {
+                        try walk(directory, child, childPath, depth + 1)
+                    } else if named.st_mode & S_IFMT == S_IFREG {
+                        nodeCount += 1
+                        guard nodeCount < 100_000, named.st_nlink == 1 else {
+                            throw StoreGenerationFailure.dataPointerInvalid
+                        }
+                        _ = try GenerationOwnedPathV1.classify(childPath, nodeType: .regularFile)
+                        if childPath == "model.sqlite" { hasModel = true }
+                        try withOpen(parent: directory, name: child,
+                                     flags: O_RDONLY | O_NONBLOCK) { file in
+                            var start = stat(), end = stat(), renamed = stat()
+                            guard Darwin.fstat(file, &start) == 0,
+                                  start.st_mode & S_IFMT == S_IFREG,
+                                  start.st_nlink == 1,
+                                  start.st_dev == named.st_dev,
+                                  start.st_ino == named.st_ino,
+                                  start.st_size == named.st_size,
+                                  start.st_size >= 0 else {
+                                throw StoreGenerationFailure.dataPointerInvalid
+                            }
+                            let hash = try digestFile(file, before: start)
+                            guard Darwin.fstat(file, &end) == 0,
+                                  Darwin.fstatat(directory, child, &renamed, AT_SYMLINK_NOFOLLOW) == 0,
+                                  end.st_dev == start.st_dev, end.st_ino == start.st_ino,
+                                  end.st_size == start.st_size, end.st_nlink == start.st_nlink,
+                                  end.st_mtimespec.tv_sec == start.st_mtimespec.tv_sec,
+                                  end.st_mtimespec.tv_nsec == start.st_mtimespec.tv_nsec,
+                                  end.st_ctimespec.tv_sec == start.st_ctimespec.tv_sec,
+                                  end.st_ctimespec.tv_nsec == start.st_ctimespec.tv_nsec,
+                                  renamed.st_dev == start.st_dev, renamed.st_ino == start.st_ino else {
+                                throw StoreGenerationFailure.dataPointerInvalid
+                            }
+                            tokens.append("F|\(childPath)|\(start.st_dev)|\(start.st_ino)|\(start.st_mode)|\(start.st_nlink)|\(start.st_size)|\(start.st_mtimespec.tv_sec)|\(start.st_mtimespec.tv_nsec)|\(start.st_ctimespec.tv_sec)|\(start.st_ctimespec.tv_nsec)|\(hash)")
+                        }
+                    } else { throw StoreGenerationFailure.dataPointerInvalid }
+                }
+                var after = stat(), namedAfter = stat()
+                guard try names(in: directory) == initial,
+                      Darwin.fstat(directory, &after) == 0,
+                      Darwin.fstatat(parent, name, &namedAfter, AT_SYMLINK_NOFOLLOW) == 0,
+                      after.st_dev == before.st_dev, after.st_ino == before.st_ino,
+                      after.st_mtimespec.tv_sec == before.st_mtimespec.tv_sec,
+                      after.st_mtimespec.tv_nsec == before.st_mtimespec.tv_nsec,
+                      after.st_ctimespec.tv_sec == before.st_ctimespec.tv_sec,
+                      after.st_ctimespec.tv_nsec == before.st_ctimespec.tv_nsec,
+                      namedAfter.st_dev == before.st_dev, namedAfter.st_ino == before.st_ino else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+            }
+        }
+        try walk(parent, name, "", 0)
+        guard hasModel else { throw StoreGenerationFailure.dataGenerationMissing }
+        try requireSettled()
+        return StoreMigrationCanonicalJSONV1.sha256(Data(tokens.sorted().joined(separator: "\n").utf8))
+    }
+
+    /// Nonmutating, checked-close walk of an exact owner-held directory tree.
+    /// Every transient descriptor remains here on an ambiguous close. This is
+    /// intentionally independent of the generation-only path classifier.
+    func postRetiredTree(parent: Int32, name: String,
+        excluding excludedPaths: Set<String> = [],
+        ignoringDirectoryMetadata ignoredDirectories: Set<String> = []
+    ) throws -> String {
+        try requireSettled()
+        var tokens: [String] = []
+        var nodeCount = 0
+        var totalBytes: Int64 = 0
+        // Directory names are adversarial UTF-8. Hex framing makes every
+        // path and entry injective even when a name contains our token
+        // separators, commas, newlines, or digits.
+        func encoded(_ value: String) -> String {
+            value.utf8.map { String(format: "%02x", $0) }.joined()
+        }
+        func nodeFact(_ value: stat) -> String {
+            "\(value.st_dev)|\(value.st_ino)|\(value.st_mode)|\(value.st_nlink)|\(value.st_size)|\(value.st_mtimespec.tv_sec)|\(value.st_mtimespec.tv_nsec)|\(value.st_ctimespec.tv_sec)|\(value.st_ctimespec.tv_nsec)"
+        }
+        func stableDirectoryFact(_ value: stat, path: String) -> String {
+            if ignoredDirectories.contains(path) {
+                return "\(value.st_dev)|\(value.st_ino)|\(value.st_mode)|\(value.st_nlink)"
+            }
+            return nodeFact(value)
+        }
+        func walk(_ parent: Int32, _ name: String, _ path: String, _ depth: Int) throws {
+            guard depth <= 64, nodeCount < 100_000 else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            nodeCount += 1
+            try withOpen(parent: parent, name: name,
+                         flags: O_RDONLY | O_DIRECTORY) { directory in
+                var before = stat(), named = stat()
+                guard Darwin.fstat(directory, &before) == 0,
+                      before.st_mode & S_IFMT == S_IFDIR,
+                      Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                      named.st_dev == before.st_dev, named.st_ino == before.st_ino,
+                      named.st_mode & S_IFMT == S_IFDIR else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                let entries = try names(in: directory)
+                let visible = entries.filter { entry in
+                    let child = path.isEmpty ? entry : "\(path)/\(entry)"
+                    return !excludedPaths.contains(child)
+                }
+                tokens.append("D|\(encoded(path))|\(stableDirectoryFact(before, path: path))|\(visible.map(encoded).joined(separator: ","))")
+                for entry in visible {
+                    guard !entry.isEmpty, entry != ".", entry != "..",
+                          !entry.contains("/") else {
+                        throw StoreGenerationFailure.dataPointerInvalid
+                    }
+                    let childPath = path.isEmpty ? entry : "\(path)/\(entry)"
+                    var child = stat()
+                    guard Darwin.fstatat(directory, entry, &child,
+                                         AT_SYMLINK_NOFOLLOW) == 0 else {
+                        throw StoreGenerationFailure.dataPointerInvalid
+                    }
+                    switch child.st_mode & S_IFMT {
+                    case S_IFDIR:
+                        try walk(directory, entry, childPath, depth + 1)
+                    case S_IFREG:
+                        nodeCount += 1
+                        guard nodeCount < 100_000, child.st_nlink == 1,
+                              child.st_size >= 0, child.st_size <= 1_073_741_824,
+                              totalBytes <= 1_073_741_824 - Int64(child.st_size) else {
+                            throw StoreGenerationFailure.dataPointerInvalid
+                        }
+                        totalBytes += Int64(child.st_size)
+                        try withOpen(parent: directory, name: entry,
+                                     flags: O_RDONLY | O_NONBLOCK) { file in
+                            var start = stat(), end = stat(), namedAfter = stat()
+                            guard Darwin.fstat(file, &start) == 0,
+                                  start.st_mode & S_IFMT == S_IFREG,
+                                  start.st_nlink == 1,
+                                  start.st_dev == child.st_dev,
+                                  start.st_ino == child.st_ino,
+                                  start.st_size == child.st_size else {
+                                throw StoreGenerationFailure.dataPointerInvalid
+                            }
+                            let digest = try digestFile(file, before: start)
+                            guard Darwin.fstat(file, &end) == 0,
+                                  Darwin.fstatat(directory, entry, &namedAfter,
+                                                AT_SYMLINK_NOFOLLOW) == 0,
+                                  nodeFact(start) == nodeFact(end),
+                                  nodeFact(start) == nodeFact(namedAfter) else {
+                                throw StoreGenerationFailure.dataPointerInvalid
+                            }
+                            tokens.append("F|\(encoded(childPath))|\(nodeFact(start))|\(digest)")
+                        }
+                    default:
+                        throw StoreGenerationFailure.dataPointerInvalid
+                    }
+                }
+                var after = stat(), namedAfter = stat()
+                guard try names(in: directory) == entries,
+                      Darwin.fstat(directory, &after) == 0,
+                      Darwin.fstatat(parent, name, &namedAfter,
+                                    AT_SYMLINK_NOFOLLOW) == 0,
+                      nodeFact(before) == nodeFact(after),
+                      nodeFact(before) == nodeFact(namedAfter) else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+            }
+        }
+        try walk(parent, name, "", 0)
+        try requireSettled()
+        return StoreMigrationCanonicalJSONV1.sha256(
+            Data(tokens.sorted().joined(separator: "\n").utf8))
+    }
+
+}
+
+struct ErasePostRetiredGenerationSnapshotV1: Equatable {
+    let current: Data
+    let currentIdentity: String
+    let retired: Data
+    let retiredIdentity: String
+    let installedNames: [String]
+    let treeDigests: [String: String]
+    let dataRootDigest: String
+}
+
+struct EraseCompletedAbortSourceBytesV1: Equatable {
+    let current: Data
+    let currentIdentity: String
+    let retired: Data
+    let retiredIdentity: String
+    let sourceTreeDigest: String
+}
+struct EraseOriginalColdExitControlsV1: Equatable {
+    let current: Data
+    let currentIdentity: String
+    let retired: Data
+    let retiredIdentity: String
+}
+#endif
+
 struct StoreApplicationSupportIdentity: Equatable {
     let device: dev_t
     let inode: ino_t
@@ -1356,6 +2027,7 @@ private extension StoreGenerationFactory {
         identity: WorkspaceReplicaIdentityV1,
         expectedPointerData: Data? = nil
     ) throws -> StoreGenerationSession {
+        try eraseReaderRetirementInventory?.requireUnsealed()
         try pointer.validate()
         guard let generationID = canonicalUUID(from: pointer.generationID) else {
             throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
@@ -1426,6 +2098,9 @@ private extension StoreGenerationFactory {
             expectedPointerData: expectedPointerData
                 ?? (try pointer.canonicalData())
         )
+        let retirementConstruction = try eraseReaderRetirementInventory?
+            .beginConstruction(reader: readerLease)
+        defer { retirementConstruction?.constructionInProgress = false }
         let generationRootURL = dataRootURL
             .appendingPathComponent(Self.generationsDirectoryName, isDirectory: true)
             .appendingPathComponent(pointer.generationID, isDirectory: true)
@@ -1444,7 +2119,10 @@ private extension StoreGenerationFactory {
         )
         let container: ModelContainer
         do {
+            retirementConstruction?.constructorStarted = true
             container = try makeV2Container(at: modelStoreURL, migrate: false)
+            retirementConstruction?.container = container
+            retirementConstruction?.context = container.mainContext
             _ = try requireV2Marker(
                 in: container.mainContext,
                 expectedMigrationID: manifest.migrationID
@@ -1459,7 +2137,7 @@ private extension StoreGenerationFactory {
             staging: false,
             requireModel: true
         )
-        return StoreGenerationSession(
+        let session = StoreGenerationSession(
             generationID: generationID,
             generationRootURL: generationRootURL,
             workspaceIdentity: identity,
@@ -1467,7 +2145,7 @@ private extension StoreGenerationFactory {
             storeSchemaRelease: .v2,
             generationEpoch: epoch,
             readerLeaseHandle: readerLease,
-            afterSaveReproof: { [factory = self.withoutColdOpenDiagnostics()] in
+            afterSaveReproof: { [factory = self.forSaveReproof()] in
                 try factory.protectGeneration(
                     at: generationRootURL,
                     staging: false,
@@ -1475,14 +2153,18 @@ private extension StoreGenerationFactory {
                 )
             }
         )
+        retirementConstruction?.session = session
+        return session
     }
 
     @MainActor
     private func openValidatedV3Current(
         pointer: CurrentGenerationPointerV3,
         dataRootURL: URL,
-        store: StoreMigrationJournalStoreV1
+        store: StoreMigrationJournalStoreV1,
+        observeManifest: ((StoreGenerationManifestV1) -> Void)? = nil
     ) throws -> StoreGenerationSession {
+        try eraseReaderRetirementInventory?.requireUnsealed()
         let identity = try pointer.identity()
         if pointer.storeSchemaVersion == 2 {
             return try openValidatedV2Current(
@@ -1511,6 +2193,7 @@ private extension StoreGenerationFactory {
         guard manifest.storeSchemaRelease == release else {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
+        observeManifest?(manifest)
         let epoch = try GenerationEpochV1(
             generationID: generationID,
             generationManifestSHA256: pointer.generationManifestSHA256
@@ -1522,6 +2205,9 @@ private extension StoreGenerationFactory {
             epoch: epoch,
             expectedPointerData: try pointer.canonicalData()
         )
+        let retirementConstruction = try eraseReaderRetirementInventory?
+            .beginConstruction(reader: readerLease)
+        defer { retirementConstruction?.constructionInProgress = false }
 #if DEBUG
         coldOpenDiagnostic("current-reader-lease-after")
 #endif
@@ -1530,66 +2216,68 @@ private extension StoreGenerationFactory {
         try protectGeneration(at: generationRootURL, staging: false, requireModel: true)
         let container: ModelContainer
         switch pointer.storeSchemaVersion {
-        case 3: container = try makeV3Container(at: modelStoreURL, migrate: false)
-        case 4: container = try makeV4Container(at: modelStoreURL, migrate: false)
-        case 5: container = try makeV5Container(at: modelStoreURL, migrate: false)
-        case 6: container = try makeV6Container(at: modelStoreURL, migrate: false)
-        case 7: container = try makeV7Container(at: modelStoreURL, migrate: false)
-        case 8: container = try makeV8Container(at: modelStoreURL, migrate: false)
-        case 9: container = try makeV9Container(at: modelStoreURL, migrate: false)
-        case 10: container = try makeV10Container(at: modelStoreURL, migrate: false)
-        case 11: container = try makeV11Container(at: modelStoreURL, migrate: false)
-        case 12: container = try makeV12Container(at: modelStoreURL, migrate: false)
-        case 13: container = try makeV13Container(at:modelStoreURL,migrate:false)
-        case 14: container = try makeV14Container(at:modelStoreURL,migrate:false)
-        case 15: container = try makeV15Container(at:modelStoreURL,migrate:false)
-        case 16: container = try makeV16Container(at:modelStoreURL,migrate:false)
-        case 17: container = try makeV17Container(at:modelStoreURL,migrate:false)
-        case 18: container = try makeV18Container(at:modelStoreURL,migrate:false)
-        case 19: container = try makeV19Container(at:modelStoreURL,migrate:false)
-        case 20: container = try makeV20Container(at:modelStoreURL,migrate:false)
-        case 21: container = try makeV21Container(at:modelStoreURL,migrate:false)
-        case 22: container = try makeV22Container(at:modelStoreURL,migrate:false)
-        case 23: container = try makeV23Container(at:modelStoreURL,migrate:false)
-        case 24: container = try makeV24Container(at:modelStoreURL,migrate:false)
-        case 25: container = try makeV25Container(at:modelStoreURL,migrate:false)
-        case 26: container = try makeV26Container(at:modelStoreURL,migrate:false)
-        case 27: container = try makeV27Container(at:modelStoreURL,migrate:false)
-        case 28: container = try makeV28Container(at:modelStoreURL,migrate:false)
-        case 29: container = try makeV29Container(at:modelStoreURL,migrate:false)
-        case 30: container = try makeV30Container(at:modelStoreURL,migrate:false)
-        case 31: container = try makeV31Container(at:modelStoreURL,migrate:false)
-        case 32: container = try makeV32Container(at:modelStoreURL,migrate:false)
-        case 33: container = try makeV33Container(at:modelStoreURL,migrate:false)
-        case 34: container = try makeV34Container(at:modelStoreURL,migrate:false)
-        case 35: container = try makeV35Container(at:modelStoreURL,migrate:false)
-        case 36: container = try makeV36Container(at:modelStoreURL,migrate:false)
-        case 37: container = try makeV37Container(at:modelStoreURL,migrate:false)
-        case 38: container = try makeV38Container(at:modelStoreURL,migrate:false)
-        case 39: container = try makeV39Container(at:modelStoreURL,migrate:false)
-        case 40: container = try makeV40Container(at:modelStoreURL,migrate:false)
-        case 41: container = try makeV41Container(at:modelStoreURL,migrate:false)
-        case 42: container = try makeV42Container(at:modelStoreURL,migrate:false)
-        case 43: container = try makeV43Container(at:modelStoreURL,migrate:false)
-        case 44: container = try makeV44Container(at:modelStoreURL,migrate:false)
-        case 45: container = try makeV45Container(at:modelStoreURL,migrate:false)
-        case 46: container = try makeV46Container(at:modelStoreURL,migrate:false)
-        case 47: container = try makeV47Container(at:modelStoreURL,migrate:false)
-        case 48: container = try makeV48Container(at:modelStoreURL,migrate:false)
-        case 49: container = try makeV49Container(at:modelStoreURL,migrate:false)
-        case 50: container = try makeV50Container(at:modelStoreURL,migrate:false)
-        case 51: container = try makeV51Container(at:modelStoreURL,migrate:false)
-        case 52: container = try makeV52Container(at:modelStoreURL,migrate:false)
+        case 3: retirementConstruction?.constructorStarted = true; container = try makeV3Container(at: modelStoreURL, migrate: false)
+        case 4: retirementConstruction?.constructorStarted = true; container = try makeV4Container(at: modelStoreURL, migrate: false)
+        case 5: retirementConstruction?.constructorStarted = true; container = try makeV5Container(at: modelStoreURL, migrate: false)
+        case 6: retirementConstruction?.constructorStarted = true; container = try makeV6Container(at: modelStoreURL, migrate: false)
+        case 7: retirementConstruction?.constructorStarted = true; container = try makeV7Container(at: modelStoreURL, migrate: false)
+        case 8: retirementConstruction?.constructorStarted = true; container = try makeV8Container(at: modelStoreURL, migrate: false)
+        case 9: retirementConstruction?.constructorStarted = true; container = try makeV9Container(at: modelStoreURL, migrate: false)
+        case 10: retirementConstruction?.constructorStarted = true; container = try makeV10Container(at: modelStoreURL, migrate: false)
+        case 11: retirementConstruction?.constructorStarted = true; container = try makeV11Container(at: modelStoreURL, migrate: false)
+        case 12: retirementConstruction?.constructorStarted = true; container = try makeV12Container(at: modelStoreURL, migrate: false)
+        case 13: retirementConstruction?.constructorStarted = true; container = try makeV13Container(at:modelStoreURL,migrate:false)
+        case 14: retirementConstruction?.constructorStarted = true; container = try makeV14Container(at:modelStoreURL,migrate:false)
+        case 15: retirementConstruction?.constructorStarted = true; container = try makeV15Container(at:modelStoreURL,migrate:false)
+        case 16: retirementConstruction?.constructorStarted = true; container = try makeV16Container(at:modelStoreURL,migrate:false)
+        case 17: retirementConstruction?.constructorStarted = true; container = try makeV17Container(at:modelStoreURL,migrate:false)
+        case 18: retirementConstruction?.constructorStarted = true; container = try makeV18Container(at:modelStoreURL,migrate:false)
+        case 19: retirementConstruction?.constructorStarted = true; container = try makeV19Container(at:modelStoreURL,migrate:false)
+        case 20: retirementConstruction?.constructorStarted = true; container = try makeV20Container(at:modelStoreURL,migrate:false)
+        case 21: retirementConstruction?.constructorStarted = true; container = try makeV21Container(at:modelStoreURL,migrate:false)
+        case 22: retirementConstruction?.constructorStarted = true; container = try makeV22Container(at:modelStoreURL,migrate:false)
+        case 23: retirementConstruction?.constructorStarted = true; container = try makeV23Container(at:modelStoreURL,migrate:false)
+        case 24: retirementConstruction?.constructorStarted = true; container = try makeV24Container(at:modelStoreURL,migrate:false)
+        case 25: retirementConstruction?.constructorStarted = true; container = try makeV25Container(at:modelStoreURL,migrate:false)
+        case 26: retirementConstruction?.constructorStarted = true; container = try makeV26Container(at:modelStoreURL,migrate:false)
+        case 27: retirementConstruction?.constructorStarted = true; container = try makeV27Container(at:modelStoreURL,migrate:false)
+        case 28: retirementConstruction?.constructorStarted = true; container = try makeV28Container(at:modelStoreURL,migrate:false)
+        case 29: retirementConstruction?.constructorStarted = true; container = try makeV29Container(at:modelStoreURL,migrate:false)
+        case 30: retirementConstruction?.constructorStarted = true; container = try makeV30Container(at:modelStoreURL,migrate:false)
+        case 31: retirementConstruction?.constructorStarted = true; container = try makeV31Container(at:modelStoreURL,migrate:false)
+        case 32: retirementConstruction?.constructorStarted = true; container = try makeV32Container(at:modelStoreURL,migrate:false)
+        case 33: retirementConstruction?.constructorStarted = true; container = try makeV33Container(at:modelStoreURL,migrate:false)
+        case 34: retirementConstruction?.constructorStarted = true; container = try makeV34Container(at:modelStoreURL,migrate:false)
+        case 35: retirementConstruction?.constructorStarted = true; container = try makeV35Container(at:modelStoreURL,migrate:false)
+        case 36: retirementConstruction?.constructorStarted = true; container = try makeV36Container(at:modelStoreURL,migrate:false)
+        case 37: retirementConstruction?.constructorStarted = true; container = try makeV37Container(at:modelStoreURL,migrate:false)
+        case 38: retirementConstruction?.constructorStarted = true; container = try makeV38Container(at:modelStoreURL,migrate:false)
+        case 39: retirementConstruction?.constructorStarted = true; container = try makeV39Container(at:modelStoreURL,migrate:false)
+        case 40: retirementConstruction?.constructorStarted = true; container = try makeV40Container(at:modelStoreURL,migrate:false)
+        case 41: retirementConstruction?.constructorStarted = true; container = try makeV41Container(at:modelStoreURL,migrate:false)
+        case 42: retirementConstruction?.constructorStarted = true; container = try makeV42Container(at:modelStoreURL,migrate:false)
+        case 43: retirementConstruction?.constructorStarted = true; container = try makeV43Container(at:modelStoreURL,migrate:false)
+        case 44: retirementConstruction?.constructorStarted = true; container = try makeV44Container(at:modelStoreURL,migrate:false)
+        case 45: retirementConstruction?.constructorStarted = true; container = try makeV45Container(at:modelStoreURL,migrate:false)
+        case 46: retirementConstruction?.constructorStarted = true; container = try makeV46Container(at:modelStoreURL,migrate:false)
+        case 47: retirementConstruction?.constructorStarted = true; container = try makeV47Container(at:modelStoreURL,migrate:false)
+        case 48: retirementConstruction?.constructorStarted = true; container = try makeV48Container(at:modelStoreURL,migrate:false)
+        case 49: retirementConstruction?.constructorStarted = true; container = try makeV49Container(at:modelStoreURL,migrate:false)
+        case 50: retirementConstruction?.constructorStarted = true; container = try makeV50Container(at:modelStoreURL,migrate:false)
+        case 51: retirementConstruction?.constructorStarted = true; container = try makeV51Container(at:modelStoreURL,migrate:false)
+        case 52: retirementConstruction?.constructorStarted = true; container = try makeV52Container(at:modelStoreURL,migrate:false)
 #if DEBUG
         case 53:
             coldOpenDiagnostic("v53-container-before")
             container = try makeV53Container(at:modelStoreURL,migrate:false)
             coldOpenDiagnostic("v53-container-after")
 #else
-        case 53: container = try makeV53Container(at:modelStoreURL,migrate:false)
+        case 53: retirementConstruction?.constructorStarted = true; container = try makeV53Container(at:modelStoreURL,migrate:false)
 #endif
         default: throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
         }
+        retirementConstruction?.container = container
+        retirementConstruction?.context = container.mainContext
         if pointer.storeSchemaVersion == 3 {
             _ = try requireV3Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
         } else if pointer.storeSchemaVersion == 4 {
@@ -1664,7 +2352,7 @@ private extension StoreGenerationFactory {
                 throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
             }
         }
-        return StoreGenerationSession(
+        let session = StoreGenerationSession(
             generationID: generationID,
             generationRootURL: generationRootURL,
             workspaceIdentity: identity,
@@ -1672,7 +2360,7 @@ private extension StoreGenerationFactory {
             storeSchemaRelease: release,
             generationEpoch: epoch,
             readerLeaseHandle: readerLease,
-            afterSaveReproof: { [factory = self.withoutColdOpenDiagnostics()] in
+            afterSaveReproof: { [factory = self.forSaveReproof()] in
                 try factory.protectGeneration(
                     at: generationRootURL,
                     staging: false,
@@ -1680,6 +2368,8 @@ private extension StoreGenerationFactory {
                 )
             }
         )
+        retirementConstruction?.session = session
+        return session
     }
 
     @MainActor
@@ -2192,10 +2882,13 @@ private extension StoreGenerationFactory {
     }
 #endif
 
-    /// Exact released schema selection never opens the original SQLite store.
+    /// Exact released schema selection for private semantic reads. The DEBUG
+    /// completed-abort caller may open the original source only under its
+    /// retained EX and immutable before/after physical witness.
     @MainActor
     private func openReadOnlyReleasedContainer(at url: URL, release: PersistentSchemaReleaseV1,
-        markerMigrationID: UUID?, observe: (ModelContainer) -> Void) throws -> ModelContainer {
+        markerMigrationID: UUID?, observe: (ModelContainer) -> Void,
+        afterConstruct: ((ModelContainer) throws -> Void)? = nil) throws -> ModelContainer {
         let type: any VersionedSchema.Type
         switch release {
         case .v1: type = PersistentSchemaV1.self
@@ -2257,6 +2950,7 @@ private extension StoreGenerationFactory {
             url: url, allowsSave: false, cloudKitDatabase: .none)
         let container = try ModelContainer(for: schema, migrationPlan: nil, configurations: [configuration])
         observe(container)
+        try afterConstruct?(container)
         container.mainContext.autosaveEnabled = false
         switch release {
         case .v1:
@@ -5414,13 +6108,14 @@ private extension StoreGenerationFactory {
 
     @MainActor
     private func requireCurrentManifest(
-        _ pointer: CurrentGenerationPointerV2
+        _ pointer: CurrentGenerationPointerV2,
+        retainedStore: StoreMigrationJournalStoreV1? = nil
     ) throws -> StoreGenerationManifestV1 {
         try pointer.validate()
         guard let generationID = canonicalUUID(from: pointer.generationID) else {
             throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
         }
-        let store = try StoreMigrationJournalStoreV1(
+        let store = try retainedStore ?? StoreMigrationJournalStoreV1(
             applicationSupportURL: applicationSupportURL
         )
         let manifest = try store.loadManifest(
@@ -5436,13 +6131,14 @@ private extension StoreGenerationFactory {
 
     @MainActor
     private func requireCurrentManifest(
-        _ pointer: CurrentGenerationPointerV3
+        _ pointer: CurrentGenerationPointerV3,
+        retainedStore: StoreMigrationJournalStoreV1? = nil
     ) throws -> StoreGenerationManifestV1 {
         try pointer.validate()
         guard let generationID = canonicalUUID(from: pointer.generationID) else {
             throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
         }
-        let store = try StoreMigrationJournalStoreV1(
+        let store = try retainedStore ?? StoreMigrationJournalStoreV1(
             applicationSupportURL: applicationSupportURL
         )
         let manifest = try store.loadManifest(
@@ -6696,6 +7392,898 @@ private final class ErasePreexistingRetiredDrainProofV1 {
     var isDrained: Bool { session == nil && context == nil && container == nil }
 }
 
+/// Metadata for one admitted Erase. This is not an admission, drain or
+/// completion capability; the Router and transferred exclusion retain those.
+struct EraseRetirementBindingV1: Equatable, Sendable {
+    let subject: EraseAllOperationSubjectV1
+    let operationID: UUID
+    let ownerMint: UUID
+    let registryIdentity: StreamingArchiveRootIdentityV1
+    let generationEpoch: GenerationEpochV1
+    let workspaceIdentity: WorkspaceReplicaIdentityV1
+}
+
+fileprivate struct ErasePreparedTargetSnapshotV1: Equatable, Sendable {
+    let facts: [StoreRestoreGenerationFileSnapshotV1.NodeFact]
+    let files: [StoreGenerationFileDigestV1]
+
+    func requireCurrent(_ current: Self, removalStarted: Bool) throws {
+        guard let root = facts.first, current.facts.first == root else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        if removalStarted {
+            // Recursive deletion may have removed a prefix of this exact
+            // validated tree. It may not admit a new or changed survivor.
+            guard current.facts.allSatisfy(facts.contains),
+                  current.files.allSatisfy(files.contains) else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        } else {
+            guard current == self else { throw StoreGenerationFailure.dataPointerInvalid }
+        }
+    }
+}
+
+@MainActor
+final class ErasePreparedGenerationDiscardV1 {
+    fileprivate let expectedOldPointer: RestorePointerIdentityV1
+    fileprivate let targetGenerationID: UUID
+    fileprivate let targetIdentity: WorkspaceReplicaIdentityV1
+    fileprivate let expectedEmptyLedger: DeletionLedgerProofV2
+    fileprivate let authority: StoreRestoreGenerationAuthority
+    fileprivate let expectedNames: Set<String>
+    fileprivate let store: StoreMigrationJournalStoreV1
+    fileprivate let targetRootIdentity: ReportPDFAnchoredFile.RootIdentity?
+    fileprivate let targetSnapshot: ErasePreparedTargetSnapshotV1?
+    fileprivate var removalStarted = false
+    fileprivate init(expectedOldPointer: RestorePointerIdentityV1, targetGenerationID: UUID,
+        targetIdentity: WorkspaceReplicaIdentityV1, expectedEmptyLedger: DeletionLedgerProofV2,
+        authority: StoreRestoreGenerationAuthority, expectedNames: Set<String>,
+        store: StoreMigrationJournalStoreV1, targetRootIdentity: ReportPDFAnchoredFile.RootIdentity?,
+        targetSnapshot: ErasePreparedTargetSnapshotV1? = nil) {
+        self.expectedOldPointer = expectedOldPointer; self.targetGenerationID = targetGenerationID
+        self.targetIdentity = targetIdentity; self.expectedEmptyLedger = expectedEmptyLedger
+        self.authority = authority; self.expectedNames = expectedNames; self.store = store
+        self.targetRootIdentity = targetRootIdentity
+        self.targetSnapshot = targetSnapshot
+    }
+}
+
+/// Captured before EX transfer. This retains only the original manifest-store
+/// descriptors and immutable controls, never a session, context or callback.
+/// Its private construction prevents substituting another root's manifest.
+@MainActor
+final class EraseCurrentManifestScopeV1 {
+    let binding: EraseRetirementBindingV1
+    fileprivate let pointerData: Data
+    fileprivate let store: StoreMigrationJournalStoreV1?
+
+    fileprivate init(binding: EraseRetirementBindingV1, pointerData: Data,
+                     store: StoreMigrationJournalStoreV1?) {
+        self.binding = binding
+        self.pointerData = pointerData
+        self.store = store
+    }
+}
+
+/// Each observation is weak all the way through SwiftData. A retained service,
+/// raw context, or container therefore keeps retirement pending even after its
+/// published coordinator has gone away.
+@MainActor
+fileprivate final class EraseSessionWeakObservationV1 {
+    weak var session: StoreGenerationSession?
+    weak var context: ModelContext?
+    weak var container: ModelContainer? {
+        didSet { if container != nil { returnedContainerObserved = true } }
+    }
+
+    var constructionInProgress = false
+    var constructorStarted = false
+    private var returnedContainerObserved = false
+
+    init(_ session: StoreGenerationSession) {
+        self.session = session
+        context = session.modelContext
+        container = session.modelContext.container
+        returnedContainerObserved = true
+    }
+
+    init() { constructionInProgress = true }
+
+#if DEBUG
+    func completeCompletedAbortContextConstruction(_ value: ModelContainer) throws {
+        guard constructionInProgress, context == nil, session == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        container = value
+        context = value.mainContext
+        constructorStarted = true
+        returnedContainerObserved = true
+        constructionInProgress = false
+    }
+#endif
+
+    var isDrained: Bool {
+        !constructionInProgress && (!constructorStarted || returnedContainerObserved)
+            && session == nil && context == nil && container == nil
+    }
+}
+
+/// Captures exact leases while the owning sessions are still alive. It stores
+/// no factory, callback, arbitrary Error, writer or strong SwiftData reference.
+/// The owner must retain this inventory on every failure until handoff closes
+/// its captured handles. Sealing is a one-way transfer, not proof of drain.
+@MainActor
+final class EraseReaderRetirementInventoryV1 {
+    private var observations: [EraseSessionWeakObservationV1] = []
+    private var readers: [GenerationLeaseHandleV1] = []
+    private var allocations: [GenerationLeaseAllocationAttemptV1] = []
+    private var sealedWitness: EraseSessionDrainWitnessV1?
+    private var freshAdoptionWitness: EraseFreshAdoptionDrainWitnessV1?
+    private var admissionClosed = false
+    private weak var freshOwner: EraseFreshAdoptionOwnerV1?
+    private var freshOwnerWasBound = false
+    private weak var preparationOperation: EraseRouterOperationV1?
+    private var preparationWasBound = false
+    private var preparationWitness: ErasePreparationFailureDrainWitnessV1?
+#if DEBUG
+    private var originalShutdownWitness: EraseOriginalShutdownWitnessV1?
+#endif
+    private weak var coldPreparationOperation: EraseColdPreparationOperationV1?
+    private var coldPreparationWasBound = false
+    private var originalObservationCount = 0
+    private var originalReaders: [GenerationLeaseHandleV1] = []
+    private var abortedOriginalReaderRetirementArmed = false
+#if DEBUG
+    private(set) var lastAbortResourceCensusForTesting = "not-checked"
+
+    private func abortResourceCensusForTesting() -> String {
+        let original = observations.prefix(originalObservationCount)
+        let preparation = observations.dropFirst(originalObservationCount)
+        return "observations=\(observations.count) original=\(original.count)"
+            + " originalUndrained=\(original.filter { !$0.isDrained }.count)"
+            + " preparation=\(preparation.count)"
+            + " preparationUndrained=\(preparation.filter { !$0.isDrained }.count)"
+            + " inProgress=\(observations.filter { $0.constructionInProgress }.count)"
+            + " started=\(observations.filter { $0.constructorStarted }.count)"
+            + " liveSession=\(observations.filter { $0.session != nil }.count)"
+            + " liveContext=\(observations.filter { $0.context != nil }.count)"
+            + " liveContainer=\(observations.filter { $0.container != nil }.count)"
+            + " allocations=\(allocations.count) readers=\(readers.count)"
+    }
+#endif
+
+    func bindColdPreparation(operation: EraseColdPreparationOperationV1) throws {
+        try requireUnsealed()
+        guard !coldPreparationWasBound, !preparationWasBound, !freshOwnerWasBound,
+              observations.isEmpty, readers.isEmpty, allocations.isEmpty else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try operation.requireInventoryBinding(self)
+        coldPreparationOperation = operation
+        coldPreparationWasBound = true
+    }
+
+    func containsColdPreparationAllocation(_ value: GenerationLeaseAllocationAttemptV1) -> Bool {
+        coldPreparationWasBound && allocations.contains(where: { $0 === value })
+    }
+
+    func requireColdPreparationCensus(_ leases: [GenerationLeaseTokenV1],
+        registry: GenerationLeaseRegistryV1) throws {
+        try requireUnsealed()
+        guard coldPreparationWasBound, coldPreparationOperation != nil,
+              allocations.allSatisfy({ $0.matches(registry: registry) }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let expected = allocations.compactMap(\.coldPreparationPublishedToken)
+        guard expected.allSatisfy({ $0.role == .reader }),
+              Set(expected.map(\.leaseID)).count == expected.count,
+              leases.count == expected.count, leases.allSatisfy({ expected.contains($0) }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    func sealForColdPreparationFailure(operation: EraseColdPreparationOperationV1,
+        registry: GenerationLeaseRegistryV1) throws -> EraseColdPreparationFailureDrainWitnessV1 {
+        try requireUnsealed()
+        guard coldPreparationOperation === operation,
+              observations.allSatisfy({ !$0.constructionInProgress }),
+              allocations.allSatisfy({ $0.matches(registry: registry) }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try operation.requireFailureWitnessRegistration(inventory: self, registry: registry)
+        admissionClosed = true
+        allocations.forEach { $0.sealForRetirement() }
+        return EraseColdPreparationFailureDrainWitnessV1(operation: operation, registry: registry,
+            observations: observations, readers: allocations)
+    }
+
+    func bindPreparation(operation: EraseRouterOperationV1) throws {
+        try requireUnsealed()
+        guard !preparationWasBound, !freshOwnerWasBound, !coldPreparationWasBound, allocations.isEmpty else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try operation.requirePreparationInventoryBinding(self)
+        originalObservationCount = observations.count
+        originalReaders = readers
+        preparationOperation = operation
+        preparationWasBound = true
+    }
+
+    func requirePreparationCensus(_ leases: [GenerationLeaseTokenV1],
+        registry: GenerationLeaseRegistryV1, sourceWriter: GenerationLeaseHandleV1,
+        writer: GenerationWriterAllocationAttemptV1?) throws {
+        var expected: [GenerationLeaseTokenV1] = []
+#if DEBUG
+        var diagnosticStage = "unsealed"
+#endif
+        do {
+            try requireUnsealed()
+#if DEBUG
+            diagnosticStage = "binding"
+#endif
+            guard preparationWasBound, preparationOperation != nil,
+                  allocations.allSatisfy({ $0.matches(registry: registry) }),
+                  writer.map({ $0.matches(registry: registry) }) ?? true else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+#if DEBUG
+            diagnosticStage = "source-writer"
+#endif
+            try sourceWriter.requireLiveTemporalIdentity(mutationRegistry: registry)
+#if DEBUG
+            diagnosticStage = "original-readers"
+#endif
+            for reader in originalReaders { try reader.requireLiveTemporalIdentity(mutationRegistry: registry) }
+            expected = originalReaders.map(\.token) + [sourceWriter.token]
+            expected += allocations.compactMap(\.preparationPublishedToken)
+            if let token = writer?.preparationPublishedToken { expected.append(token) }
+#if DEBUG
+            diagnosticStage = "lease-set"
+#endif
+            guard Set(expected.map(\.leaseID)).count == expected.count,
+                  leases.count == expected.count,
+                  leases.allSatisfy({ expected.contains($0) }) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        } catch {
+#if DEBUG
+            let expectedReaders = expected.filter { $0.role == .reader }.count
+            let expectedWriters = expected.filter { $0.role == .writer }.count
+            let observedReaders = leases.filter { $0.role == .reader }.count
+            let observedWriters = leases.filter { $0.role == .writer }.count
+            FileHandle.standardError.write(Data((
+                "ERASE_PREPARATION_CENSUS_V1 stage=\(diagnosticStage)"
+                    + " errorType=\(String(reflecting: type(of: error)))"
+                    + " originalReaders=\(originalReaders.count)"
+                    + " allocations=\(allocations.count)"
+                    + " expected=\(expected.count) expectedReaders=\(expectedReaders)"
+                    + " expectedWriters=\(expectedWriters) observed=\(leases.count)"
+                    + " observedReaders=\(observedReaders) observedWriters=\(observedWriters)\n"
+            ).utf8))
+#endif
+            throw error
+        }
+    }
+
+    func containsPreparationAllocation(_ value: GenerationLeaseAllocationAttemptV1) -> Bool {
+        preparationWasBound && allocations.contains(where: { $0 === value })
+    }
+
+    func observesPreparationSession(_ value: StoreGenerationSession) -> Bool {
+        preparationWasBound && observations.dropFirst(originalObservationCount).contains(where: {
+            $0.session === value && $0.context === value.modelContext && !$0.constructionInProgress
+        })
+    }
+
+    func sealForPreparationFailure(operation: EraseRouterOperationV1,
+        registry: GenerationLeaseRegistryV1,
+        writer: GenerationWriterAllocationAttemptV1?) throws -> ErasePreparationFailureDrainWitnessV1 {
+        guard preparationOperation === operation, preparationWitness == nil,
+              !admissionClosed, sealedWitness == nil,
+              observations.allSatisfy({ !$0.constructionInProgress }),
+              allocations.allSatisfy({ $0.matches(registry: registry) }),
+              writer.map({ $0.matches(registry: registry) }) ?? true else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try operation.requirePreparationFailureWitnessRegistration(inventory: self, registry: registry, writer: writer)
+        admissionClosed = true
+        allocations.forEach { $0.sealForRetirement() }
+        writer?.sealForRetirement()
+        let result = ErasePreparationFailureDrainWitnessV1(operation: operation, registry: registry,
+            observations: Array(observations.dropFirst(originalObservationCount)),
+            readers: allocations, writer: writer)
+        preparationWitness = result
+        return result
+    }
+
+#if DEBUG
+    /// Seals the actual original and preparation inventory together. The
+    /// preparation-failure witness deliberately excludes original readers and
+    /// therefore cannot authorize this test-host shutdown.
+    func sealForOriginalShutdown(operation: EraseRouterOperationV1,
+        registry: GenerationLeaseRegistryV1,
+        writer: GenerationWriterAllocationAttemptV1?) throws
+        -> EraseOriginalShutdownWitnessV1 {
+        guard preparationOperation === operation, originalShutdownWitness == nil,
+              !admissionClosed, sealedWitness == nil, preparationWitness == nil,
+              observations.allSatisfy({ !$0.constructionInProgress }),
+              allocations.allSatisfy({ $0.matches(registry: registry) }),
+              writer.map({ $0.matches(registry: registry) }) ?? true else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try operation.requireOriginalShutdownInventoryRegistration(
+            inventory: self, registry: registry, writer: writer)
+        admissionClosed = true
+        allocations.forEach { $0.sealForRetirement() }
+        writer?.sealForRetirement()
+        let result = EraseOriginalShutdownWitnessV1(operation: operation,
+            registry: registry, observations: observations,
+            originalReaders: originalReaders, capturedReaders: readers,
+            readers: allocations, writer: writer)
+        originalShutdownWitness = result
+        return result
+    }
+#endif
+
+    func bindFreshAdoption(owner: EraseFreshAdoptionOwnerV1) throws {
+        try requireUnsealed()
+        guard !freshOwnerWasBound, !preparationWasBound, !coldPreparationWasBound else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        try owner.requireReaderInventoryBinding(self)
+        freshOwner = owner
+        freshOwnerWasBound = true
+    }
+
+    fileprivate func registerFreshRegistry(_ registry: GenerationLeaseRegistryV1,
+        factory: StoreGenerationFactory) throws {
+        if coldPreparationWasBound {
+            guard let coldPreparationOperation else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            try coldPreparationOperation.registerRegistry(registry, factory: factory, inventory: self)
+        }
+        if preparationWasBound {
+            guard let preparationOperation else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            try preparationOperation.registerPreparationRegistry(registry, factory: factory, inventory: self)
+        }
+        guard freshOwnerWasBound else { return }
+        guard let freshOwner else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        try freshOwner.registerReaderRegistry(registry, inventory: self, factory: factory)
+    }
+
+    fileprivate func requireUnsealed() throws {
+        guard !admissionClosed, sealedWitness == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    /// Register before token publication so partial publication, wrapper and
+    /// outer-postcheck failures retain their actual allocation owner.
+    func retainAllocation(_ allocation: GenerationLeaseAllocationAttemptV1) throws {
+        try requireUnsealed()
+        guard !allocations.contains(where: { $0 === allocation }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        if freshOwnerWasBound {
+            guard let freshOwner else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            try freshOwner.retainReaderAllocation(allocation, inventory: self)
+        }
+        allocations.append(allocation)
+    }
+
+    fileprivate func acquireCapturedReader(_ allocation: GenerationLeaseAllocationAttemptV1) throws
+        -> GenerationLeaseHandleV1 {
+        try requireUnsealed()
+        guard allocations.contains(where: { $0 === allocation }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        if coldPreparationWasBound {
+            guard let coldPreparationOperation else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            return try allocation.acquireReaderForColdErasePreparation(operation: coldPreparationOperation)
+        }
+        if freshOwnerWasBound {
+            guard let freshOwner else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            return try allocation.acquireReaderForEraseFreshAdoption(adoption: freshOwner)
+        }
+        if preparationWasBound {
+            guard let preparationOperation else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            return try allocation.acquireReaderForErasePreparation(operation: preparationOperation)
+        }
+        return try allocation.acquireReader()
+    }
+
+    /// Capture happens immediately after lease acquisition, before container
+    /// construction can throw. The factory ends this scope synchronously; a
+    /// still-running construction cannot become a drain witness.
+    fileprivate func beginConstruction(reader: GenerationLeaseHandleV1?) throws
+        -> EraseSessionWeakObservationV1 {
+        try requireUnsealed()
+        let observation = EraseSessionWeakObservationV1()
+        observations.append(observation)
+        if let reader, !readers.contains(where: { $0 === reader }) {
+            readers.append(reader)
+        }
+        return observation
+    }
+
+    func capture(_ session: StoreGenerationSession) throws {
+        try requireUnsealed()
+        guard !observations.contains(where: { $0.session === session }) else { return }
+        observations.append(EraseSessionWeakObservationV1(session))
+        if let reader = session.eraseRetirementReaderHandle,
+           !readers.contains(where: { $0 === reader }) {
+            readers.append(reader)
+        }
+    }
+
+#if DEBUG
+    /// Returns the actual source reader captured before Erase preparation. A
+    /// token alone cannot identify its retained wrapper or original session.
+    func capturedOriginalReaderForV949Fixture(
+        session: StoreGenerationSession,
+        operation: EraseRouterOperationV1,
+        registry: GenerationLeaseRegistryV1,
+        sealedDrain: EraseSessionDrainWitnessV1?
+    ) throws -> GenerationLeaseHandleV1 {
+        guard preparationWasBound, preparationOperation === operation,
+              let reader = session.eraseRetirementReaderHandle,
+              let token = session.readerLeaseToken,
+              reader.token == token, token.role == .reader,
+              token.epoch.generationID == session.generationID,
+              originalReaders.contains(where: { $0 === reader }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let capturedOriginal: Bool
+        if let sealedDrain {
+            // seal(binding:) moved the original aliases into this exact
+            // witness and cleared the inventory's mutable arrays.
+            capturedOriginal = admissionClosed && sealedWitness === sealedDrain
+                && sealedDrain.capturedOriginalReaderForV949Fixture(
+                    session: session, reader: reader)
+        } else {
+            capturedOriginal = !admissionClosed && sealedWitness == nil
+                && readers.contains(where: { $0 === reader })
+                && observations.prefix(originalObservationCount).contains(where: {
+                    $0.session === session && $0.context === session.modelContext
+                        && $0.container === session.modelContext.container
+                        && !$0.constructionInProgress
+                })
+        }
+        guard capturedOriginal else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try reader.requireLiveTemporalIdentity(mutationRegistry: registry)
+        return reader
+    }
+#endif
+
+    func requireNoConstructedResourcesForAbort() throws {
+        // Original source capture does not allocate a reader. Any actual
+        // allocation remains owned until the separate preparation-failure
+        // disposal boundary has genuinely settled it.
+#if DEBUG
+        lastAbortResourceCensusForTesting = abortResourceCensusForTesting()
+#endif
+        guard !admissionClosed, allocations.isEmpty,
+              observations.allSatisfy({ !$0.constructionInProgress && (!$0.constructorStarted || $0.isDrained) }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    /// Cancellation records the already-checked no-effect preparation boundary
+    /// while its actual operation is still current.  The original cohort is
+    /// deliberately not closed here: its SwiftData aliases may still be live.
+    func armAbortedOriginalReaderRetirement(operation: EraseRouterOperationV1) throws {
+        guard preparationOperation === operation, preparationWasBound,
+              !abortedOriginalReaderRetirementArmed,
+              originalObservationCount > 0, !originalReaders.isEmpty,
+              originalReaders.allSatisfy({ original in
+                  readers.contains(where: { $0 === original })
+              }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        if let preparationWitness {
+            try preparationWitness.requireDisposed()
+        } else {
+            try requireNoConstructedResourcesForAbort()
+        }
+        abortedOriginalReaderRetirementArmed = true
+    }
+
+    /// The Router calls this only after the exact old writer has been checked
+    /// closed.  A live original session/context/container leaves every reader
+    /// retained for a later retry; close never relies on wrapper destruction.
+    func closeAbortedOriginalReadersAfterDrain() throws {
+        guard abortedOriginalReaderRetirementArmed,
+              observations.prefix(originalObservationCount).allSatisfy({ $0.isDrained }),
+              originalReaders.allSatisfy({ original in
+                  readers.contains(where: { $0 === original })
+              }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        for original in originalReaders { try original.close() }
+    }
+
+    /// A pre-intent Erase may keep the original owner and source readers while
+    /// proving the prepared target absent. No target or unknown lease may
+    /// survive the first destructive target step.
+    func requireSourceOnlyPreparationForAbort(
+        sourceEpoch: GenerationEpochV1,
+        registry: GenerationLeaseRegistryV1
+    ) throws {
+        try requireUnsealed()
+        guard preparationWasBound, preparationOperation != nil,
+              originalObservationCount <= observations.count,
+              observations.dropFirst(originalObservationCount).allSatisfy({ $0.isDrained }),
+              allocations.allSatisfy({
+                  $0.matches(registry: registry) && $0.generationEpoch == sourceEpoch
+              }),
+              readers.allSatisfy({ reader in
+                  originalReaders.contains(where: { $0 === reader })
+                      || allocations.contains(where: { $0.allocatedHandle === reader })
+              }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    func sealForFreshAdoptionFailure(owner: EraseFreshAdoptionOwnerV1,
+        registry: GenerationLeaseRegistryV1,
+        writerAllocation: GenerationWriterAllocationAttemptV1?) throws -> EraseFreshAdoptionDrainWitnessV1 {
+        guard !admissionClosed, sealedWitness == nil, freshAdoptionWitness == nil,
+              observations.allSatisfy({ !$0.constructionInProgress }),
+              allocations.allSatisfy({ $0.matches(registry: registry) }),
+              readers.allSatisfy({ reader in allocations.contains(where: { $0.allocatedHandle === reader }) }),
+              writerAllocation.map({ $0.matches(registry: registry) }) ?? true else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try owner.requireFailureWitnessRegistration(inventory: self, registry: registry,
+            writerAllocation: writerAllocation)
+        admissionClosed = true
+        for allocation in allocations { allocation.sealForRetirement() }
+        writerAllocation?.sealForRetirement()
+        let witness = EraseFreshAdoptionDrainWitnessV1(owner: owner, registry: registry,
+            observations: observations, readers: allocations, writer: writerAllocation)
+        freshAdoptionWitness = witness
+        return witness
+    }
+
+    func seal(binding: EraseRetirementBindingV1) throws -> EraseSessionDrainWitnessV1 {
+        guard !admissionClosed, sealedWitness == nil,
+              (!observations.isEmpty || !allocations.isEmpty),
+              observations.allSatisfy({ !$0.constructionInProgress }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        // Monotonic admission closure only. Actual drain and physical close
+        // remain independently checked by the transferred exclusion.
+        admissionClosed = true
+        for allocation in allocations { allocation.sealForRetirement() }
+        let witness = EraseSessionDrainWitnessV1(binding: binding,
+            observations: observations, originalObservationCount: originalObservationCount,
+            readers: readers, allocations: allocations)
+        sealedWitness = witness
+        observations.removeAll()
+        readers.removeAll()
+        allocations.removeAll()
+        return witness
+    }
+}
+
+#if DEBUG
+/// One original-ticket witness covers every reader, including those captured
+/// before preparation. Its drain is re-read at every physical close.
+@MainActor
+final class EraseOriginalShutdownWitnessV1 {
+    private weak var operation: EraseRouterOperationV1?
+    let registry: GenerationLeaseRegistryV1
+    private let observations: [EraseSessionWeakObservationV1]
+#if DEBUG
+    private var completedAbortContextObservation: EraseSessionWeakObservationV1?
+
+    fileprivate func beginCompletedAbortContextConstruction(
+        registry expected: GenerationLeaseRegistryV1
+    ) throws -> EraseSessionWeakObservationV1 {
+        try requireBound(registry: expected)
+        guard completedAbortContextObservation == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let observation = EraseSessionWeakObservationV1()
+        completedAbortContextObservation = observation
+        return observation
+    }
+#endif
+    let originalReaders: [GenerationLeaseHandleV1]
+    let capturedReaders: [GenerationLeaseHandleV1]
+    let preparationReaders: [GenerationLeaseAllocationAttemptV1]
+    let preparationWriter: GenerationWriterAllocationAttemptV1?
+
+    fileprivate init(operation: EraseRouterOperationV1,
+        registry: GenerationLeaseRegistryV1,
+        observations: [EraseSessionWeakObservationV1],
+        originalReaders: [GenerationLeaseHandleV1],
+        capturedReaders: [GenerationLeaseHandleV1],
+        readers: [GenerationLeaseAllocationAttemptV1],
+        writer: GenerationWriterAllocationAttemptV1?) {
+        self.operation = operation; self.registry = registry
+        self.observations = observations; self.originalReaders = originalReaders
+        self.capturedReaders = capturedReaders
+        preparationReaders = readers; preparationWriter = writer
+    }
+
+    func requireBound(registry expected: GenerationLeaseRegistryV1) throws {
+        guard expected === registry, let operation,
+              originalReaders.allSatisfy({ original in
+                  original.token.role == .reader && capturedReaders.contains(where: { $0 === original }) }),
+              capturedReaders.allSatisfy({ $0.token.role == .reader }),
+              preparationReaders.allSatisfy({ $0.sealedForRetirement && $0.matches(registry: registry) }),
+              preparationWriter.map({ $0.sealedForRetirement && $0.matches(registry: registry) }) ?? true else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try operation.requireOriginalShutdownWitness(self, registry: registry)
+    }
+
+    func requireDrained(registry expected: GenerationLeaseRegistryV1) throws {
+        try requireBound(registry: expected)
+        let completedAbortContextDrained: Bool
+#if DEBUG
+        completedAbortContextDrained = completedAbortContextObservation?.isDrained ?? true
+#else
+        completedAbortContextDrained = true
+#endif
+        guard observations.allSatisfy({ $0.isDrained }),
+              completedAbortContextDrained else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    func requireCapturedReader(_ value: GenerationLeaseHandleV1,
+        registry expected: GenerationLeaseRegistryV1) throws {
+        try requireDrained(registry: expected)
+        guard capturedReaders.contains(where: { $0 === value }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    func requirePreparationReader(_ value: GenerationLeaseAllocationAttemptV1,
+        registry expected: GenerationLeaseRegistryV1) throws {
+        try requireDrained(registry: expected)
+        guard preparationReaders.contains(where: { $0 === value }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    func requirePreparationWriter(_ value: GenerationWriterAllocationAttemptV1,
+        registry expected: GenerationLeaseRegistryV1) throws {
+        try requireDrained(registry: expected)
+        guard preparationWriter === value else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+}
+#endif
+
+/// A live weak observation, not a cached Boolean. The actual exclusion must
+/// bind this exact instance while observes(session:) still identifies its own
+/// session. Every fixed lease close rechecks it; callers cannot manufacture a
+/// witness from metadata or a list of arbitrary lease tokens.
+@MainActor
+final class EraseSessionDrainWitnessV1 {
+    let binding: EraseRetirementBindingV1
+    private let observations: [EraseSessionWeakObservationV1]
+    private let originalObservationCount: Int
+    private let readers: [GenerationLeaseHandleV1]
+    private let allocations: [GenerationLeaseAllocationAttemptV1]
+
+    fileprivate init(binding: EraseRetirementBindingV1,
+                     observations: [EraseSessionWeakObservationV1],
+                     originalObservationCount: Int,
+                     readers: [GenerationLeaseHandleV1],
+                     allocations: [GenerationLeaseAllocationAttemptV1]) {
+        self.binding = binding
+        self.observations = observations
+        self.originalObservationCount = originalObservationCount
+        self.readers = readers
+        self.allocations = allocations
+    }
+
+#if DEBUG
+    fileprivate func capturedOriginalReaderForV949Fixture(
+        session: StoreGenerationSession,
+        reader: GenerationLeaseHandleV1
+    ) -> Bool {
+        originalObservationCount > 0 && originalObservationCount <= observations.count
+            && readers.contains(where: { $0 === reader })
+            && observations.prefix(originalObservationCount).contains(where: {
+                $0.session === session && $0.context === session.modelContext
+                    && $0.container === session.modelContext.container
+                    && !$0.constructionInProgress
+            })
+    }
+#endif
+
+    func observes(session: StoreGenerationSession) -> Bool {
+        observations.contains(where: {
+            $0.session === session && $0.context === session.modelContext
+                && $0.container === session.modelContext.container
+        })
+    }
+
+    var isActuallyDrained: Bool { observations.allSatisfy { $0.isDrained } }
+
+    /// These are the original wrappers, never reconstructed handles. The
+    /// transferred exclusion independently proves their physical namespace.
+    var capturedReaders: [GenerationLeaseHandleV1] {
+        var result = readers
+        for allocation in allocations {
+            if let handle = allocation.allocatedHandle,
+               !result.contains(where: { $0 === handle }) { result.append(handle) }
+        }
+        return result
+    }
+
+    var capturedAllocations: [GenerationLeaseAllocationAttemptV1] { allocations }
+
+    fileprivate var postDrainValidation: StoreRestoreGenerationAuthority.EraseTargetValidationAttemptV1?
+
+    fileprivate func registerPostDrainValidation(
+        _ attempt: StoreRestoreGenerationAuthority.EraseTargetValidationAttemptV1
+    ) throws {
+        guard postDrainValidation == nil, attempt.isBound(to: self) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        postDrainValidation = attempt
+    }
+
+    func registerManifestRetirement(_ attempt: EraseManifestRetirementAttemptV1,
+        retirement: ErasedRegistryRetirementProofV1, exclusion: EraseRetirementExclusionV1,
+        store: StoreMigrationJournalStoreV1) throws {
+        guard let postDrainValidation else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        try retirement.requireManifestRegistration(witness: self, attempt: attempt,
+            store: store, exclusion: exclusion)
+        try postDrainValidation.registerManifestRetirement(attempt, retirement: retirement,
+            exclusion: exclusion, store: store)
+    }
+
+    func observesManifestRetirement(_ attempt: EraseManifestRetirementAttemptV1) -> Bool {
+        postDrainValidation?.observesManifestRetirement(attempt) == true
+    }
+
+    /// Pre-validation access proves only the ORIGINAL immutable aliases gone.
+    /// It never authorizes close, deletion, completion or publication.
+    func requireOriginalAliasesDrained(binding expected: EraseRetirementBindingV1,
+                                       reader: GenerationLeaseHandleV1) throws {
+        guard binding == expected, (!observations.isEmpty || !allocations.isEmpty),
+              isActuallyDrained,
+              capturedReaders.contains(where: { $0 === reader }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    func requireDrained(binding expected: EraseRetirementBindingV1) throws {
+        guard binding == expected, (!observations.isEmpty || !allocations.isEmpty),
+              isActuallyDrained else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        guard let postDrainValidation else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        try postDrainValidation.requireValidatedAndDrained(binding: expected, witness: self)
+    }
+
+    func requireDrained(binding expected: EraseRetirementBindingV1,
+                        reader: GenerationLeaseHandleV1) throws {
+        try requireDrained(binding: expected)
+        guard capturedReaders.contains(where: { $0 === reader }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+    func requireDrained(binding expected: EraseRetirementBindingV1,
+                        allocation: GenerationLeaseAllocationAttemptV1) throws {
+        try requireDrained(binding: expected)
+        guard allocations.contains(where: { $0 === allocation }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+}
+
+/// A distinct original-operation witness. The original source aggregate is
+/// intentionally excluded; only captured transient construction aliases drain.
+@MainActor
+final class ErasePreparationFailureDrainWitnessV1 {
+    private weak var operation: EraseRouterOperationV1?
+    private let registry: GenerationLeaseRegistryV1
+    private let observations: [EraseSessionWeakObservationV1]
+    private let readers: [GenerationLeaseAllocationAttemptV1]
+    private let writer: GenerationWriterAllocationAttemptV1?
+
+    fileprivate init(operation: EraseRouterOperationV1, registry: GenerationLeaseRegistryV1,
+        observations: [EraseSessionWeakObservationV1], readers: [GenerationLeaseAllocationAttemptV1],
+        writer: GenerationWriterAllocationAttemptV1?) {
+        self.operation = operation; self.registry = registry; self.observations = observations
+        self.readers = readers; self.writer = writer
+    }
+
+    private var disposalCompleted = false
+
+    func disposeOwnedAllocations() throws {
+        try requireDrained(registry: registry)
+        // Repeat only fixed same-attempt checks. A prior success still checks
+        // actual owned-token absence; an uncertain close stays refused.
+        if let writer { try writer.closeAfterErasePreparationFailure(proof: self) }
+        for reader in readers { try reader.closeAfterErasePreparationFailure(proof: self) }
+        disposalCompleted = true
+    }
+
+    func requireDisposed() throws {
+        guard disposalCompleted else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        try requireDrained(registry: registry)
+    }
+
+    private func requireDrained(registry expected: GenerationLeaseRegistryV1) throws {
+        guard expected === registry, let operation,
+              observations.allSatisfy({ $0.isDrained }),
+              readers.allSatisfy({ $0.sealedForRetirement && $0.matches(registry: registry) }),
+              writer.map({ $0.sealedForRetirement && $0.matches(registry: registry) }) ?? true else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try operation.requirePreparationFailureDisposal(witness: self, registry: registry)
+    }
+
+    func requireDrained(registry: GenerationLeaseRegistryV1,
+        readerAllocation: GenerationLeaseAllocationAttemptV1) throws {
+        guard readers.contains(where: { $0 === readerAllocation }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireDrained(registry: registry)
+    }
+
+    func requireDrained(registry: GenerationLeaseRegistryV1,
+        writerAllocation: GenerationWriterAllocationAttemptV1) throws {
+        guard writer === writerAllocation else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        try requireDrained(registry: registry)
+    }
+}
+
+/// Fresh-adoption disposal is bound to the NEW registry and genuine captured
+/// allocations. It never borrows the old retirement exclusion or reconstructs
+/// a handle from a durable token. Only the actual inventory can mint this.
+@MainActor
+final class EraseFreshAdoptionDrainWitnessV1 {
+    private weak var owner: EraseFreshAdoptionOwnerV1?
+    private let registry: GenerationLeaseRegistryV1
+    private let observations: [EraseSessionWeakObservationV1]
+    private let readers: [GenerationLeaseAllocationAttemptV1]
+    private let writer: GenerationWriterAllocationAttemptV1?
+
+    fileprivate init(owner: EraseFreshAdoptionOwnerV1, registry: GenerationLeaseRegistryV1,
+        observations: [EraseSessionWeakObservationV1], readers: [GenerationLeaseAllocationAttemptV1],
+        writer: GenerationWriterAllocationAttemptV1?) {
+        self.owner = owner; self.registry = registry; self.observations = observations
+        self.readers = readers; self.writer = writer
+    }
+
+    private func requireDrained(registry expected: GenerationLeaseRegistryV1) throws {
+        guard registry === expected, let owner,
+              observations.allSatisfy({ $0.isDrained }),
+              readers.allSatisfy({ $0.sealedForRetirement && $0.matches(registry: registry) }),
+              writer.map({ $0.sealedForRetirement && $0.matches(registry: registry) }) ?? true else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        // This fixed owner guard checks the original Router registration,
+        // actual synchronous frame exit and actual weak writer/coordinator.
+        try owner.requireFreshFailureDisposal(witness: self, registry: registry)
+    }
+
+    func requireDrained(registry expected: GenerationLeaseRegistryV1,
+        writerAllocation: GenerationWriterAllocationAttemptV1) throws {
+        guard writer === writerAllocation else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        try requireDrained(registry: expected)
+    }
+
+    func requireDrained(registry expected: GenerationLeaseRegistryV1,
+        readerAllocation: GenerationLeaseAllocationAttemptV1) throws {
+        guard readers.contains(where: { $0 === readerAllocation }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireDrained(registry: expected)
+    }
+}
+
 @MainActor
 final class StoreGenerationSession {
     let generationID: UUID
@@ -6713,6 +8301,11 @@ final class StoreGenerationSession {
 
     private let modelContainer: ModelContainer
     private let readerLeaseHandle: GenerationLeaseHandleV1?
+    /// File-private capture preserves the original wrapper before the session
+    /// can deallocate. Capturing does not close or invalidate any alias.
+    fileprivate var eraseRetirementReaderHandle: GenerationLeaseHandleV1? {
+        readerLeaseHandle
+    }
     private let afterSaveReproof: () throws -> Void
     private var didSaveObserver: NSObjectProtocol? = nil
     private var afterSaveFailure: Error? = nil
@@ -6893,6 +8486,241 @@ final class StoreRestoreGenerationAuthority {
 
     private static let migrationStreamBufferByteCount = 64 * 1024
     private static let maximumControlFileByteCount = 4 * 1024 * 1024
+#if DEBUG
+    private let completedAbortIO = EraseAbortCheckedSnapshotIOV1()
+
+    private func requireCompletedAbortHeldRoots() throws {
+        func requireNamed(_ parent: Int32, _ name: String, _ expected: Identity) throws {
+            var named = stat()
+            guard Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  named.st_mode & S_IFMT == S_IFDIR,
+                  named.st_dev == expected.device, named.st_ino == expected.inode else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        }
+        try Self.require(applicationSupportDescriptor, applicationSupportIdentity)
+        try Self.require(dataDescriptor, dataIdentity)
+        try Self.require(installedGenerationsDescriptor, installedGenerationsIdentity)
+        var namedSupport = stat()
+        guard Darwin.lstat(applicationSupportURL.path, &namedSupport) == 0,
+              namedSupport.st_mode & S_IFMT == S_IFDIR,
+              namedSupport.st_dev == applicationSupportIdentity.device,
+              namedSupport.st_ino == applicationSupportIdentity.inode else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try requireNamed(applicationSupportDescriptor, Self.dataName, dataIdentity)
+        try requireNamed(dataDescriptor, Self.generationsName, installedGenerationsIdentity)
+        try completedAbortIO.requireSettled()
+    }
+
+    func requireCompletedAbortTargetAbsent(_ targetID: UUID) throws {
+        try requireCompletedAbortHeldRoots()
+        var target = stat()
+        let name = Self.canonical(targetID)
+        let result = Darwin.fstatat(installedGenerationsDescriptor, name,
+                                    &target, AT_SYMLINK_NOFOLLOW)
+        let lookupError = errno
+        guard result != 0, lookupError == ENOENT else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try requireCompletedAbortHeldRoots()
+    }
+
+    func requireCompletedAbortModelURL(id: UUID, rootURL: URL,
+                                       modelURL: URL) throws {
+        try requireCompletedAbortHeldRoots()
+        guard rootURL.standardizedFileURL
+                  == applicationSupportURL.appendingPathComponent(Self.dataName)
+                      .appendingPathComponent(Self.generationsName)
+                      .appendingPathComponent(Self.canonical(id)).standardizedFileURL,
+              modelURL.standardizedFileURL
+                  == rootURL.appendingPathComponent("model.sqlite").standardizedFileURL else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        var heldRoot = stat(), namedRoot = stat(), pathRoot = stat()
+        guard Darwin.fstatat(installedGenerationsDescriptor, Self.canonical(id),
+                             &namedRoot, AT_SYMLINK_NOFOLLOW) == 0,
+              namedRoot.st_mode & S_IFMT == S_IFDIR,
+              Darwin.lstat(rootURL.path, &pathRoot) == 0,
+              pathRoot.st_mode & S_IFMT == S_IFDIR,
+              pathRoot.st_dev == namedRoot.st_dev,
+              pathRoot.st_ino == namedRoot.st_ino else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try completedAbortIO.withOpen(parent: installedGenerationsDescriptor,
+                                      name: Self.canonical(id),
+                                      flags: O_RDONLY | O_DIRECTORY) { root in
+            guard Darwin.fstat(root, &heldRoot) == 0,
+                  heldRoot.st_dev == namedRoot.st_dev,
+                  heldRoot.st_ino == namedRoot.st_ino else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            var namedModel = stat(), pathModel = stat()
+            guard Darwin.fstatat(root, "model.sqlite", &namedModel,
+                                 AT_SYMLINK_NOFOLLOW) == 0,
+                  namedModel.st_mode & S_IFMT == S_IFREG,
+                  namedModel.st_nlink == 1,
+                  Darwin.lstat(modelURL.path, &pathModel) == 0,
+                  pathModel.st_mode & S_IFMT == S_IFREG,
+                  pathModel.st_dev == namedModel.st_dev,
+                  pathModel.st_ino == namedModel.st_ino else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        }
+        try requireCompletedAbortHeldRoots()
+    }
+
+    func snapshotCompletedAbortSource(
+        id: UUID, oldPointer: RestorePointerIdentityV1,
+        priorRetired: [UUID]
+    ) throws -> EraseCompletedAbortSourceBytesV1 {
+        try requireCompletedAbortHeldRoots()
+        let (current, currentIdentity) = try completedAbortIO.control(
+            parent: dataDescriptor, name: "current.json")
+        let (retired, retiredIdentity) = try completedAbortIO.control(
+            parent: dataDescriptor, name: "retired.json")
+        guard case .v3(let pointer, _) = try CurrentPointerCodecV1.decode(current) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let parsedReplicaIDs = pointer.knownReplicaIDs.compactMap(UUID.init(uuidString:))
+        guard oldPointer.generationID == id,
+              try pointer.canonicalData() == current,
+              pointer.generationID == Self.canonical(oldPointer.generationID),
+              pointer.generationManifestSHA256 == oldPointer.generationManifestSHA256,
+              UUID(uuidString: pointer.workspaceID) == oldPointer.workspaceID,
+              UUID(uuidString: pointer.replicaID) == oldPointer.replicaID,
+              parsedReplicaIDs.count == pointer.knownReplicaIDs.count,
+              Set(parsedReplicaIDs).count == parsedReplicaIDs.count,
+              parsedReplicaIDs == oldPointer.knownReplicaIDs,
+              zip(pointer.knownReplicaIDs, parsedReplicaIDs).allSatisfy({
+                  $0.0 == $0.1.uuidString.lowercased()
+              }) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let retiredValue = try JSONDecoder().decode(RetiredPointerV1.self, from: retired)
+        try StorePointerSchemaRegistry.requireRetired(retiredValue.schemaVersion)
+        guard try Self.canonicalData(retiredValue) == retired,
+              retiredValue.generationIDs == priorRetired.map(Self.canonical) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let sourceTreeDigest = try completedAbortIO.tree(
+            parent: installedGenerationsDescriptor, name: Self.canonical(id))
+        let (currentAfter, currentIdentityAfter) = try completedAbortIO.control(
+            parent: dataDescriptor, name: "current.json")
+        let (retiredAfter, retiredIdentityAfter) = try completedAbortIO.control(
+            parent: dataDescriptor, name: "retired.json")
+        guard currentAfter == current, currentIdentityAfter == currentIdentity,
+              retiredAfter == retired, retiredIdentityAfter == retiredIdentity else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try requireCompletedAbortHeldRoots()
+        return EraseCompletedAbortSourceBytesV1(
+            current: current, currentIdentity: currentIdentity,
+            retired: retired, retiredIdentity: retiredIdentity,
+            sourceTreeDigest: sourceTreeDigest)
+    }
+    /// DEBUG original-Erase cold-exit observation after the current pointer
+    /// has legitimately moved. It observes the *same held old generation*,
+    /// never a fresh path owner or the new target, and does not repair control
+    /// state. The caller compares this result to its pre-admission digest.
+    func originalEraseSourceTreeForColdExitForTesting(id: UUID) throws -> String {
+        try requireCompletedAbortHeldRoots()
+        let digest = try completedAbortIO.tree(
+            parent: installedGenerationsDescriptor, name: Self.canonical(id))
+        try requireCompletedAbortHeldRoots()
+        return digest
+    }
+
+    func originalEraseControlsForColdExitForTesting()
+        throws -> EraseOriginalColdExitControlsV1 {
+        try requireCompletedAbortHeldRoots()
+        let (current, currentIdentity) = try completedAbortIO.control(
+            parent: dataDescriptor, name: "current.json")
+        let (retired, retiredIdentity) = try completedAbortIO.control(
+            parent: dataDescriptor, name: "retired.json")
+        try requireCompletedAbortHeldRoots()
+        return EraseOriginalColdExitControlsV1(
+            current: current, currentIdentity: currentIdentity,
+            retired: retired, retiredIdentity: retiredIdentity)
+    }
+
+    func requireOriginalErasePublishedControlsForColdExitForTesting(
+        target: RestorePointerIdentityV1,
+        retiredIDs: [UUID]
+    ) throws -> EraseOriginalColdExitControlsV1 {
+        guard Set(retiredIDs).count == retiredIDs.count,
+              retiredIDs == retiredIDs.sorted(by: Self.idOrder),
+              !retiredIDs.contains(target.generationID) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let actual = try originalEraseControlsForColdExitForTesting()
+        let expectedRetired = try Self.canonicalData(RetiredPointerV1(
+            generationIDs: retiredIDs.map(Self.canonical),
+            schemaVersion: StorePointerSchemaRegistry.retiredVersion))
+        let expectedCurrent = try CurrentGenerationPointerV3(
+            generationID: target.generationID,
+            generationManifestSHA256: target.generationManifestSHA256,
+            workspaceID: WorkspaceID(rawValue: target.workspaceID),
+            replicaID: ReplicaID(rawValue: target.replicaID),
+            knownReplicaIDs: Set(target.knownReplicaIDs.map { ReplicaID(rawValue: $0) }),
+            storeSchemaVersion: PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major)
+        guard actual.current == (try expectedCurrent.canonicalData()),
+              actual.retired == expectedRetired else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        return actual
+    }
+    /// Exact nonrepairing post-retirement physical observation under the
+    /// transferred original EX. It never accepts a newly constructed owner.
+    func snapshotPostRetiredEraseGenerations(
+        newID: UUID, deleting oldIDs: [UUID]
+    ) throws -> ErasePostRetiredGenerationSnapshotV1 {
+        try requireCompletedAbortHeldRoots()
+        let allowed = Set(([newID] + oldIDs).map(Self.canonical))
+        guard allowed.count == oldIDs.count + 1 else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let names = try completedAbortIO.names(in: installedGenerationsDescriptor)
+        guard Set(names) == allowed, names.count == allowed.count else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let (current, currentIdentity) = try completedAbortIO.control(
+            parent: dataDescriptor, name: "current.json")
+        let (retired, retiredIdentity) = try completedAbortIO.control(
+            parent: dataDescriptor, name: "retired.json")
+        guard case .v3(let pointer, _) = try CurrentPointerCodecV1.decode(current),
+              try pointer.canonicalData() == current,
+              pointer.generationID == Self.canonical(newID) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let dataRootDigest = try completedAbortIO.postRetiredTree(
+            parent: applicationSupportDescriptor, name: Self.dataName)
+        var digests: [String: String] = [:]
+        for name in names {
+            digests[name] = try completedAbortIO.tree(
+                parent: installedGenerationsDescriptor, name: name)
+        }
+        let (currentAfter, currentIdentityAfter) = try completedAbortIO.control(
+            parent: dataDescriptor, name: "current.json")
+        let (retiredAfter, retiredIdentityAfter) = try completedAbortIO.control(
+            parent: dataDescriptor, name: "retired.json")
+        guard currentAfter == current, currentIdentityAfter == currentIdentity,
+              retiredAfter == retired, retiredIdentityAfter == retiredIdentity,
+              try completedAbortIO.names(in: installedGenerationsDescriptor) == names,
+              try completedAbortIO.postRetiredTree(
+                  parent: applicationSupportDescriptor,
+                  name: Self.dataName) == dataRootDigest else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try requireCompletedAbortHeldRoots()
+        return ErasePostRetiredGenerationSnapshotV1(
+            current: current, currentIdentity: currentIdentity,
+            retired: retired, retiredIdentity: retiredIdentity,
+            installedNames: names, treeDigests: digests,
+            dataRootDigest: dataRootDigest)
+    }
+
+#endif
 
     /// Holds every parent in one operation's root-to-leaf chain, while the
     /// complete inventory stores identities rather than an unbounded FD set.
@@ -7194,11 +9022,12 @@ final class StoreRestoreGenerationAuthority {
 
         func fileDigests(
             durable: Bool,
-            restoreProof: StoreRestoreGenerationManifestProofV1? = nil
+            restoreProof: StoreRestoreGenerationManifestProofV1? = nil,
+            includeRecoveryOwnedForEraseDiscard: Bool = false
         ) throws -> [StoreGenerationFileDigestV1] {
             if let restoreProof {
                 try requireRestoreManifestInput(restoreProof)
-            } else {
+            } else if !includeRecoveryOwnedForEraseDiscard {
                 try requireSettledMigrationInput()
             }
             try revalidate()
@@ -7975,6 +9804,91 @@ final class StoreRestoreGenerationAuthority {
         )
     }
 
+    /// Fixed retirement observation. This never reconciles pointer temporaries
+    /// or invokes policy repair, and remains usable after Operations retirement.
+    @MainActor
+    func readPointerForEraseRetirement(name: String, binding: EraseRetirementBindingV1,
+        exclusion: EraseRetirementExclusionV1) throws -> Data {
+        guard name == "current.json" || name == "retired.json" else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        func requireAuthority() throws {
+            try exclusion.requireSupport(binding: binding)
+            guard applicationSupportURL.standardizedFileURL == binding.subject.applicationSupportURL,
+                  Int64(applicationSupportIdentity.device) == binding.subject.applicationSupportDevice,
+                  UInt64(applicationSupportIdentity.inode) == binding.subject.applicationSupportInode else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            try Self.require(applicationSupportDescriptor, applicationSupportIdentity)
+            try Self.require(dataDescriptor, dataIdentity)
+            guard try Self.directoryIdentity(at: applicationSupportURL) == applicationSupportIdentity,
+                  try Self.requiredDirectoryIdentity(parent: applicationSupportDescriptor,
+                    name: Self.dataName) == dataIdentity else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            var pending = stat()
+            guard Darwin.fstatat(dataDescriptor, ".\(name).restore-next", &pending,
+                AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        }
+        func read() throws -> RegularFileRead {
+            try requireAuthority()
+            let descriptor = Darwin.openat(dataDescriptor, name,
+                O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+            guard descriptor >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+            defer { _ = Darwin.close(descriptor) }
+            var before = stat()
+            guard Darwin.fstat(descriptor, &before) == 0,
+                  before.st_mode & S_IFMT == S_IFREG, before.st_nlink == 1,
+                  before.st_size >= 0,
+                  before.st_size <= off_t(Self.maximumControlFileByteCount) else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            let identity = RegularFileIdentity(device: before.st_dev, inode: before.st_ino,
+                linkCount: before.st_nlink)
+            guard try Self.regularFileIdentity(parent: dataDescriptor, name: name) == identity else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            let policy = try ProtectedFilePolicyV1.observeTemporalPolicy(.generationPointer,
+                at: dataURL.appendingPathComponent(name))
+            guard policy.state == .strictComplete,
+                  policy.device == UInt64(before.st_dev), policy.inode == UInt64(before.st_ino) else {
+                throw EraseIntentStoreError.retirementPolicyEffectUnavailable
+            }
+            var data = Data()
+            var buffer = [UInt8](repeating: 0, count: 16 * 1024)
+            while true {
+                let count = buffer.withUnsafeMutableBytes {
+                    Darwin.read(descriptor, $0.baseAddress, $0.count)
+                }
+                if count > 0 {
+                    guard data.count <= Self.maximumControlFileByteCount - count else {
+                        throw StoreGenerationFailure.dataPointerInvalid
+                    }
+                    data.append(contentsOf: buffer.prefix(count))
+                } else if count == 0 { break }
+                else if errno != EINTR { throw StoreGenerationFailure.dataPointerInvalid }
+            }
+            var after = stat()
+            guard Darwin.fstat(descriptor, &after) == 0,
+                  after.st_mode & S_IFMT == S_IFREG, after.st_nlink == 1,
+                  before.st_dev == after.st_dev, before.st_ino == after.st_ino,
+                  before.st_size == after.st_size, data.count == Int(after.st_size),
+                  try Self.regularFileIdentity(parent: dataDescriptor, name: name) == identity else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            try requireAuthority()
+            return RegularFileRead(data: data, identity: identity)
+        }
+        let first = try read()
+        let second = try read()
+        guard first.identity == second.identity, first.data == second.data else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        return first.data
+    }
+
     func currentGenerationID() throws -> UUID {
         try verify()
         try reconcileRestorePointerTemporary(name: "current.json")
@@ -8745,6 +10659,80 @@ final class StoreRestoreGenerationAuthority {
         }
     }
 
+    /// Pure target closure observation for the actual Erase EX owner. It
+    /// deliberately does not require the Restore or Operations namespaces,
+    /// which the same operation later retires. No creating getter or policy
+    /// repair is used; pending protection facts remain unavailable here.
+    @MainActor
+    func snapshotTargetForEraseValidation(binding: EraseRetirementBindingV1,
+        exclusion: EraseRetirementExclusionV1) throws -> MigrationCloneResult {
+        func requireInstalledAuthority() throws {
+            try exclusion.requireSupport(binding: binding)
+            guard applicationSupportURL.standardizedFileURL == binding.subject.applicationSupportURL,
+                  Int64(applicationSupportIdentity.device) == binding.subject.applicationSupportDevice,
+                  UInt64(applicationSupportIdentity.inode) == binding.subject.applicationSupportInode else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            try Self.require(applicationSupportDescriptor, applicationSupportIdentity)
+            try Self.require(dataDescriptor, dataIdentity)
+            try Self.require(installedGenerationsDescriptor, installedGenerationsIdentity)
+            guard try Self.directoryIdentity(at: applicationSupportURL) == applicationSupportIdentity,
+                  try Self.requiredDirectoryIdentity(parent: applicationSupportDescriptor,
+                    name: Self.dataName) == dataIdentity,
+                  try Self.requiredDirectoryIdentity(parent: dataDescriptor,
+                    name: Self.generationsName) == installedGenerationsIdentity else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        }
+        try requireInstalledAuthority()
+        let name = Self.canonical(binding.subject.newGenerationID)
+        let descriptor = Darwin.openat(installedGenerationsDescriptor, name,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+        defer { _ = Darwin.close(descriptor) }
+        let inventory = try GenerationInventory(parent: descriptor, requireModel: true)
+        let rootURL = installedGenerationsURL.appendingPathComponent(name, isDirectory: true)
+        func observeProtection() throws {
+            try inventory.revalidate()
+            let rootPolicy = try ProtectedFilePolicyV1.observeTemporalPolicy(.durableDirectory, at: rootURL)
+            guard rootPolicy.state == .strictComplete,
+                  rootPolicy.device == UInt64(inventory.root.identity.device),
+                  rootPolicy.inode == UInt64(inventory.root.identity.inode) else {
+                throw EraseIntentStoreError.retirementPolicyEffectUnavailable
+            }
+            for path in inventory.directories.keys.sorted() + inventory.files.keys.sorted() {
+                let directory = inventory.directories[path] != nil
+                let owned = try GenerationOwnedPathV1.classify(path,
+                    nodeType: directory ? .directory : .regularFile)
+                let policy = try ProtectedFilePolicyV1.observeTemporalPolicy(owned.kind,
+                    at: rootURL.appendingPathComponent(path, isDirectory: directory))
+                guard policy.state == .strictComplete else {
+                    throw EraseIntentStoreError.retirementPolicyEffectUnavailable
+                }
+            }
+            try inventory.revalidate()
+        }
+        try observeProtection()
+        let files = try inventory.fileDigests(durable: false)
+        let identity = inventory.root.identity
+        var tokens = ["source-directory|\(identity.device)|\(identity.inode)"]
+        for file in files {
+            guard let source = inventory.files[file.relativePath] else {
+                throw StoreMigrationFailure.invalidPath
+            }
+            let held = source.snapshot
+            tokens.append("\(file.relativePath)|\(held.device)|\(held.inode)|\(held.linkCount)|\(file.sha256)")
+        }
+        tokens.append(contentsOf: inventory.directoryIdentityTokens)
+        try observeProtection()
+        try requireInstalledAuthority()
+        guard try Self.requiredDirectoryIdentity(parent: installedGenerationsDescriptor,
+            name: name) == identity else { throw StoreGenerationFailure.dataPointerInvalid }
+        return MigrationCloneResult(files: files,
+            sourceTreeDigest: StoreMigrationCanonicalJSONV1.sha256(try StoreMigrationCanonicalJSONV1.encode(files)),
+            frozenIdentityDigest: StoreMigrationCanonicalJSONV1.sha256(Data(tokens.sorted().joined(separator: "\n").utf8)))
+    }
+
     /// Snapshots the classified durable file closure and binds each owned
     /// directory identity, including empty directories. File reads use bounded
     /// descriptor chains and revalidate bytes and identity before returning.
@@ -9099,6 +11087,30 @@ final class StoreRestoreGenerationAuthority {
         )
     }
 
+    /// Descriptor-pinned physical binding for a semantically validated Erase
+    /// preparation target. The full owned tree is inventoried and hashed,
+    /// including recovery-owned leaves of a genuinely interrupted target.
+    fileprivate func snapshotErasePreparedTarget(id: UUID, partialCleanup: Bool = false) throws
+        -> ErasePreparedTargetSnapshotV1 {
+        try requireInstalledGeneration(id: id)
+        let descriptor = Darwin.openat(installedGenerationsDescriptor,
+            Self.canonical(id), O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        guard descriptor >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+        defer { _ = Darwin.close(descriptor) }
+        let inventory = try GenerationInventory(parent: descriptor,
+            requireModel: !partialCleanup, partialCleanup: partialCleanup)
+        defer { inventory.close() }
+        let facts = try inventory.snapshotFacts(rootName: Self.canonical(id))
+        let files = try inventory.fileDigests(durable: false,
+            includeRecoveryOwnedForEraseDiscard: true)
+        guard try inventory.snapshotFacts(rootName: Self.canonical(id)) == facts,
+              try Self.requiredDirectoryIdentity(parent: installedGenerationsDescriptor,
+                  name: Self.canonical(id)) == inventory.root.identity else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        return ErasePreparedTargetSnapshotV1(facts: facts, files: files)
+    }
+
     func stagingTree(id: UUID) throws -> Tree {
         try tree(parent: stagingGenerationsDescriptor, id: id)
     }
@@ -9117,6 +11129,63 @@ final class StoreRestoreGenerationAuthority {
         try mutationRegistry.withNoMigrationReservation {
             try removeDirectory(parent: installedGenerationsDescriptor, name: Self.canonical(id), ownership: .generation)
         }
+    }
+
+    /// Fixed Erase-only mutation under the actual retained EX. Ordinary
+    /// generation removal continues through its original reservation guard.
+    @MainActor
+    func removeInstalledGenerationForEraseRetirement(
+        id: UUID, keeping currentID: UUID, retirement: ErasedRegistryRetirementProofV1
+    ) throws {
+        try retirement.requireGenerationDeletion(id: id, keeping: currentID)
+        guard applicationSupportURL.standardizedFileURL
+                == retirement.binding.subject.applicationSupportURL.standardizedFileURL,
+              Int64(applicationSupportIdentity.device) == retirement.binding.subject.applicationSupportDevice,
+              UInt64(applicationSupportIdentity.inode) == retirement.binding.subject.applicationSupportInode,
+              try CurrentPointerCodecV1.decode(retirement.readPointer(using: self,
+                name: "current.json")).generationID == Self.canonical(currentID) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try removeDirectory(parent: installedGenerationsDescriptor,
+            name: Self.canonical(id), ownership: .generation)
+        try retirement.requireGenerationDeletion(id: id, keeping: currentID)
+    }
+
+    @MainActor
+    func clearRetiredGenerationsForEraseRetirement(
+        expected: [UUID], currentID: UUID, retirement: ErasedRegistryRetirementProofV1
+    ) throws {
+        try retirement.requireRetiredPointerClear(expected: expected, currentID: currentID)
+        guard applicationSupportURL.standardizedFileURL
+                == retirement.binding.subject.applicationSupportURL.standardizedFileURL,
+              Int64(applicationSupportIdentity.device) == retirement.binding.subject.applicationSupportDevice,
+              UInt64(applicationSupportIdentity.inode) == retirement.binding.subject.applicationSupportInode else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let currentBytes = try retirement.readPointer(using: self, name: "current.json")
+        guard try CurrentPointerCodecV1.decode(currentBytes).generationID == Self.canonical(currentID) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let retiredBytes = try retirement.readPointer(using: self, name: "retired.json")
+        let retired: RetiredPointerV1 = try Self.decodeCanonicalPointer(retiredBytes)
+        try StorePointerSchemaRegistry.requireRetired(retired.schemaVersion)
+        guard retired.generationIDs == retired.generationIDs.sorted(),
+              Set(retired.generationIDs).count == retired.generationIDs.count,
+              retired.generationIDs == expected.map(Self.canonical),
+              !expected.contains(currentID) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let replacement = RetiredPointerV1(generationIDs: [],
+            schemaVersion: StorePointerSchemaRegistry.retiredVersion)
+        // This is the existing pointer writer, with its private CAS and exact
+        // expected bytes. Only the preceding/following observations are fixed;
+        // there is no ordinary reservation getter or temporary reconciliation.
+        try replacePointer(name: "retired.json", value: replacement, expectedData: retiredBytes)
+        guard try retirement.readPointer(using: self, name: "retired.json") == Self.canonicalData(replacement),
+              try retirement.readPointer(using: self, name: "current.json") == currentBytes else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try retirement.requireRetiredPointerClear(expected: expected, currentID: currentID)
     }
 
     func replaceRetiredGenerationIDs(
@@ -9539,7 +11608,7 @@ final class StoreRestoreGenerationAuthority {
 
     private enum DirectoryCleanupOwnership { case generation, importStaging }
 
-    private func removeDirectory(parent: Int32, name: String, ownership: DirectoryCleanupOwnership) throws {
+    private func removeDirectory(parent: Int32, name: String, ownership: DirectoryCleanupOwnership, expectedRoot: Identity? = nil) throws {
         try Self.requireSafeBasename(name)
         try verify()
         let descriptor = Darwin.openat(
@@ -9551,6 +11620,9 @@ final class StoreRestoreGenerationAuthority {
         guard descriptor >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
         defer { _ = Darwin.close(descriptor) }
         let expected = try Self.identity(descriptor)
+        guard expectedRoot == nil || expectedRoot == expected else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
         switch ownership {
         case .generation:
             try Self.removeContents(of: descriptor, authorityCheck: {
@@ -10124,6 +12196,95 @@ struct StoreGenerationFactory {
     private let migrationIdentitySource: StoreMigrationIdentitySourceV1?
     private let pointerEnrichmentIdentity: WorkspaceReplicaIdentityV1
     private let generationLeaseRegistryProvider: StoreGenerationLeaseRegistryProvider
+    // Opt-in operation ownership. Ordinary factory behavior is unchanged.
+    // The Erase operation, not this value or its save callback, must retain the
+    // inventory until every captured lease has explicitly settled.
+    private var eraseReaderRetirementInventory: EraseReaderRetirementInventoryV1? = nil
+
+    func sharesRegistryProvider(with other: StoreGenerationFactory) -> Bool {
+        generationLeaseRegistryProvider === other.generationLeaseRegistryProvider
+            && applicationSupportURL.standardizedFileURL == other.applicationSupportURL.standardizedFileURL
+    }
+
+    /// Explicit single-use adoption after actual namespace/EX/descriptor
+    /// retirement. This is never an exception-based cache refresh.
+    @MainActor
+    func freshForEraseAdoption(retirement: ErasedRegistryRetirementProofV1) throws -> Self {
+        guard applicationSupportURL.standardizedFileURL == retirement.binding.subject.applicationSupportURL else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try retirement.consumeFreshFactoryCreation()
+        return StoreGenerationFactory(copyingConfiguration: self)
+    }
+
+    private init(copyingConfiguration source: StoreGenerationFactory) {
+        applicationSupportURL = source.applicationSupportURL
+        fileManager = source.fileManager
+        migrationIdentitySource = source.migrationIdentitySource
+        pointerEnrichmentIdentity = source.pointerEnrichmentIdentity
+        generationLeaseRegistryProvider = StoreGenerationLeaseRegistryProvider()
+#if DEBUG
+        migrationFailureInjection = source.migrationFailureInjection
+        pruneFailureInjection = source.pruneFailureInjection
+        coldOpenDiagnosticForTesting = source.coldOpenDiagnosticForTesting
+#endif
+    }
+
+    /// Fixed fresh-writer construction uses ordinary future session behavior,
+    /// with the identical provider and configuration. Existing captures stay
+    /// retained by the adoption owner; no provider or identity is refreshed.
+    @MainActor
+    func ordinaryViewForEraseFreshWriter(adoption: EraseFreshAdoptionOwnerV1) throws -> Self {
+        guard let inventory = eraseReaderRetirementInventory else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try adoption.requireOrdinaryFactoryView(factory: self, inventory: inventory)
+        var ordinary = self
+        ordinary.eraseReaderRetirementInventory = nil
+        return ordinary
+    }
+
+    @MainActor
+    func ordinaryViewForErasePreparation(operation: EraseRouterOperationV1,
+        session: StoreGenerationSession, coordinator: StoreSessionCoordinator) throws -> Self {
+        guard eraseReaderRetirementInventory === operation.inventory else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try operation.requirePreparationWriterConstruction(session: session, factory: self,
+            coordinator: coordinator)
+        var ordinary = self
+        ordinary.eraseReaderRetirementInventory = nil
+        return ordinary
+    }
+
+    @MainActor
+    func ordinaryViewAfterEraseFreshFailure(adoption: EraseFreshAdoptionOwnerV1) throws -> Self {
+        guard let inventory = eraseReaderRetirementInventory else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try adoption.requireDisposedFactoryView(factory: self, inventory: inventory)
+        var ordinary = self
+        ordinary.eraseReaderRetirementInventory = nil
+        return ordinary
+    }
+
+    @MainActor
+    func requireEraseReaderInventory(_ inventory: EraseReaderRetirementInventoryV1) throws {
+        guard eraseReaderRetirementInventory === inventory else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    @MainActor
+    func capturingEraseReaders(in inventory: EraseReaderRetirementInventoryV1) throws -> Self {
+        try inventory.requireUnsealed()
+        guard eraseReaderRetirementInventory == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        var captured = self
+        captured.eraseReaderRetirementInventory = inventory
+        return captured
+    }
 #if DEBUG
     private let migrationFailureInjection: StoreMigrationFailureInjection?
     private let pruneFailureInjection: StoreGenerationPruneFailureInjectionV1?
@@ -10196,6 +12357,15 @@ struct StoreGenerationFactory {
             }
         }
         preconditionFailure("Unable to create distinct workspace and replica identities")
+    }
+
+    private func forSaveReproof() -> StoreGenerationFactory {
+        // The fixed closure below only reproves this session's generation.
+        // Allocation ownership stays with the actual operation inventory;
+        // saving must not extend that inventory's lifetime through a factory.
+        var reproof = withoutColdOpenDiagnostics()
+        reproof.eraseReaderRetirementInventory = nil
+        return reproof
     }
 
     private func withoutColdOpenDiagnostics() -> StoreGenerationFactory {
@@ -10293,26 +12463,53 @@ struct StoreGenerationFactory {
         )
     }
 
+    @MainActor
     private func acquireCurrentReaderLease(
         epoch: GenerationEpochV1,
         expectedPointerData: Data
     ) throws -> GenerationLeaseHandleV1 {
+#if DEBUG
+        coldOpenDiagnostic("current-reader-registry-before")
+#endif
         let registry = try makeGenerationLeaseRegistry()
+#if DEBUG
+        coldOpenDiagnostic("current-reader-registry-after")
+#endif
+        try eraseReaderRetirementInventory?.registerFreshRegistry(registry, factory: self)
+#if DEBUG
+        coldOpenDiagnostic("current-reader-registration-after")
+#endif
         return try registry.withNoMigrationReservation {
+#if DEBUG
+            coldOpenDiagnostic("current-reader-g-after")
+#endif
             let current = try decodeCurrentPointer(
                 at: dataRootURL.appendingPathComponent(Self.currentPointerName)
             )
             guard current.data == expectedPointerData else {
                 throw GenerationLeaseRegistryFailureV1.staleGeneration
             }
+            if let inventory = eraseReaderRetirementInventory {
+                let allocation = try registry.makeReaderAllocationAttempt(epoch: epoch)
+#if DEBUG
+                coldOpenDiagnostic("current-reader-allocation-after")
+#endif
+                try inventory.retainAllocation(allocation)
+#if DEBUG
+                coldOpenDiagnostic("current-reader-retain-after")
+#endif
+                return try inventory.acquireCapturedReader(allocation)
+            }
             return try registry.acquireHandle(epoch: epoch, role: .reader)
         }
     }
 
+    @MainActor
     private func acquireAcceptedReaderLease(
         epoch: GenerationEpochV1
     ) throws -> GenerationLeaseHandleV1 {
         let registry = try makeGenerationLeaseRegistry()
+        try eraseReaderRetirementInventory?.registerFreshRegistry(registry, factory: self)
         return try registry.withNoMigrationReservation {
             let authority = try makeRestoreGenerationAuthority()
             let acceptedIDs = try Set(
@@ -10322,8 +12519,155 @@ struct StoreGenerationFactory {
             guard acceptedIDs.contains(epoch.generationID) else {
                 throw GenerationLeaseRegistryFailureV1.staleGeneration
             }
+            if let inventory = eraseReaderRetirementInventory {
+                let allocation = try registry.makeReaderAllocationAttempt(epoch: epoch)
+                try inventory.retainAllocation(allocation)
+                return try inventory.acquireCapturedReader(allocation)
+            }
             return try registry.acquireHandle(epoch: epoch, role: .reader)
         }
+    }
+
+    /// Capture while ordinary admission is still held, before transferred EX.
+    /// Every legacy/v2/v3 validation branch remains the incumbent predicate.
+    @MainActor
+    func captureEraseCurrentManifest(binding: EraseRetirementBindingV1,
+                                     authority: StoreRestoreGenerationAuthority) throws
+        -> EraseCurrentManifestScopeV1 {
+        guard applicationSupportURL.standardizedFileURL
+                == binding.subject.applicationSupportURL.standardizedFileURL else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let current = try authority.currentGenerationID()
+        let envelope = try decodeCurrentPointer(
+            at: dataRootURL.appendingPathComponent(Self.currentPointerName))
+        guard current == binding.subject.newGenerationID,
+              envelope.generationID == canonicalString(for: current) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let store: StoreMigrationJournalStoreV1?
+        switch envelope {
+        case .legacy:
+            store = nil
+        case .v2(let pointer, _):
+            guard pointer.generationManifestSHA256 == binding.generationEpoch.generationManifestSHA256 else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            let retained = try StoreMigrationJournalStoreV1(applicationSupportURL: applicationSupportURL)
+            _ = try requireCurrentManifest(pointer, retainedStore: retained)
+            store = retained
+        case .v3(let pointer, _):
+            guard pointer.generationManifestSHA256 == binding.generationEpoch.generationManifestSHA256,
+                  try pointer.identity() == binding.workspaceIdentity else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            let retained = try StoreMigrationJournalStoreV1(applicationSupportURL: applicationSupportURL)
+            _ = try requireCurrentManifest(pointer, retainedStore: retained)
+            store = retained
+        }
+        // Creating the pre-transfer store must not have changed the bound
+        // physical namespace. The EX owner revalidates again at transfer.
+        var information = stat()
+        let operations = applicationSupportURL.appendingPathComponent("FieldEvidenceOperations", isDirectory: true)
+        guard Darwin.lstat(operations.path, &information) == 0,
+              information.st_mode & S_IFMT == S_IFDIR,
+              UInt64(bitPattern: Int64(information.st_dev)) == binding.registryIdentity.device,
+              UInt64(information.st_ino) == binding.registryIdentity.inode else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        return EraseCurrentManifestScopeV1(binding: binding, pointerData: envelope.data, store: store)
+    }
+
+    @MainActor
+    func captureEraseTargetReader(session: StoreGenerationSession,
+        inventory: EraseReaderRetirementInventoryV1, binding: EraseRetirementBindingV1)
+        throws -> GenerationLeaseHandleV1 {
+        guard eraseReaderRetirementInventory === inventory,
+              session.generationID == binding.subject.newGenerationID,
+              session.generationEpoch == binding.generationEpoch,
+              session.workspaceIdentity == binding.workspaceIdentity,
+              let reader = session.eraseRetirementReaderHandle else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try inventory.capture(session)
+        return reader
+    }
+
+    @MainActor
+    func preserveEraseManifest(scope: EraseCurrentManifestScopeV1,
+        retirement: ErasedRegistryRetirementProofV1) throws {
+        guard scope.binding == retirement.binding, let store = scope.store else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let attempt = try retirement.prepareManifestRetirement(using: store)
+        try attempt.preserveAfterLeaseDrain(retirement: retirement)
+    }
+
+    @MainActor
+    func retiredGenerationIDsForEraseRetirement(authority: StoreRestoreGenerationAuthority,
+        retirement: ErasedRegistryRetirementProofV1) throws -> [UUID] {
+        let bytes = try retirement.readPointer(using: authority, name: "retired.json")
+        let pointer = try JSONDecoder().decode(RetiredPointerV1.self, from: bytes)
+        guard try canonicalData(for: pointer) == bytes else { throw StoreGenerationFailure.dataPointerInvalid }
+        try StorePointerSchemaRegistry.requireRetired(pointer.schemaVersion)
+        let ids = pointer.generationIDs.compactMap { UUID(uuidString: $0) }
+        guard ids.count == pointer.generationIDs.count,
+              pointer.generationIDs == ids.map({ canonicalString(for: $0) }),
+              pointer.generationIDs == pointer.generationIDs.sorted(),
+              Set(ids).count == ids.count else { throw StoreGenerationFailure.dataPointerInvalid }
+        return ids
+    }
+
+    /// Fixed noncreating current validation under the genuine retired-reader
+    /// capability. No new registry or migration store is constructed here.
+    @MainActor
+    func currentGenerationIDForEraseRetirement(
+        authority: StoreRestoreGenerationAuthority,
+        retirement: ErasedRegistryRetirementProofV1,
+        manifestScope: EraseCurrentManifestScopeV1
+    ) throws -> UUID {
+        try retirement.requireCurrentGenerationValidation()
+        guard manifestScope.binding == retirement.binding,
+              applicationSupportURL.standardizedFileURL
+                == retirement.binding.subject.applicationSupportURL.standardizedFileURL else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let pointerData = try retirement.readPointer(using: authority, name: "current.json")
+        let envelope = try CurrentPointerCodecV1.decode(pointerData)
+        guard let current = UUID(uuidString: envelope.generationID),
+              current == retirement.binding.subject.newGenerationID,
+              envelope.data == manifestScope.pointerData,
+              envelope.generationID == canonicalString(for: current) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        switch envelope {
+        case .legacy:
+            guard manifestScope.store == nil else { throw EraseAllServiceError.invalidAuthority }
+        case .v2(let pointer, _):
+            guard let store = manifestScope.store else { throw EraseAllServiceError.invalidAuthority }
+            try pointer.validate()
+            let manifest = try retirement.readCurrentManifest(using: store,
+                generationID: current, expectedDigest: pointer.generationManifestSHA256)
+            guard manifest.generationID == current, manifest.storeSchemaRelease == .v2 else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+        case .v3(let pointer, _):
+            guard let store = manifestScope.store else { throw EraseAllServiceError.invalidAuthority }
+            try pointer.validate()
+            let manifest = try retirement.readCurrentManifest(using: store,
+                generationID: current, expectedDigest: pointer.generationManifestSHA256)
+            guard let expectedRelease = PersistentSchemaReleaseRegistryV1.releases.first(where: {
+                $0.versionIdentifier.major == pointer.storeSchemaVersion
+            }) else {
+                throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
+            }
+            guard manifest.generationID == current,
+                  manifest.storeSchemaRelease == expectedRelease else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+        }
+        try retirement.requireCurrentGenerationValidation()
+        return current
     }
 
     @MainActor
@@ -10397,15 +12741,298 @@ struct StoreGenerationFactory {
     @MainActor
     func currentGenerationDeletionLedgerProof(
         expectedPointer: RestorePointerIdentityV1,
-        authority: StoreRestoreGenerationAuthority
+        authority: StoreRestoreGenerationAuthority,
+        observeManifest: ((StoreGenerationManifestV1) -> Void)? = nil
     ) throws -> DeletionLedgerProofV2 {
         let pointer = try requireCurrentPointer(expectedPointer, authority: authority)
         let session = try openValidatedV3Current(
             pointer: pointer,
             dataRootURL: dataRootURL,
-            store: StoreMigrationJournalStoreV1(applicationSupportURL: applicationSupportURL)
+            store: StoreMigrationJournalStoreV1(applicationSupportURL: applicationSupportURL),
+            observeManifest: observeManifest
         )
-        return try deletionLedgerProof(in: session.modelContext)
+#if DEBUG
+        coldOpenDiagnostic("current-ledger.open-complete")
+#endif
+        let proof = try deletionLedgerProof(in: session.modelContext)
+#if DEBUG
+        coldOpenDiagnostic("current-ledger.proof-complete")
+#endif
+        return proof
+    }
+
+    @MainActor
+    func prepareErasePreparationDiscard(
+        expectedOldPointer: RestorePointerIdentityV1,
+        targetGenerationID: UUID,
+        targetIdentity: WorkspaceReplicaIdentityV1,
+        expectedEmptyLedger: DeletionLedgerProofV2,
+        authority: StoreRestoreGenerationAuthority,
+        coldOperation: EraseColdPreparationOperationV1? = nil,
+        diagnosticPhase: (@MainActor (String) -> Void)? = nil
+    ) throws -> ErasePreparedGenerationDiscardV1 {
+        diagnosticPhase?("discard.expected-ledger")
+        try expectedEmptyLedger.validate()
+        diagnosticPhase?("discard.current-pointer")
+        let old = try requireCurrentPointer(expectedOldPointer, authority: authority)
+        let oldIdentityValues = Set(
+            [
+                expectedOldPointer.workspaceID,
+                expectedOldPointer.replicaID,
+            ] + expectedOldPointer.knownReplicaIDs
+        )
+        let forbidden = Set(
+            [
+                expectedOldPointer.generationID,
+                expectedOldPointer.workspaceID,
+                expectedOldPointer.replicaID,
+                targetGenerationID,
+            ] + expectedOldPointer.knownReplicaIDs
+        )
+        let activeRelease = PersistentSchemaReleaseRegistryV1.activeRelease
+        let activeSchemaVersion = PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major
+        diagnosticPhase?("discard.identity")
+        guard old.storeSchemaVersion == activeSchemaVersion,
+              expectedEmptyLedger.entryCount == 0,
+              targetGenerationID != expectedOldPointer.generationID,
+              !oldIdentityValues.contains(targetGenerationID),
+              targetIdentity.workspaceID.rawValue != targetIdentity.replicaID.rawValue,
+              !forbidden.contains(targetIdentity.workspaceID.rawValue),
+              !forbidden.contains(targetIdentity.replicaID.rawValue) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        diagnosticPhase?("discard.restore-journal")
+        try authority.requireNoRestoreJournal()
+
+        diagnosticPhase?("discard.inventory")
+        let retired = try authority.retiredGenerationIDs()
+        guard !retired.contains(targetGenerationID),
+              try authority.restoreGenerationNames().isEmpty,
+              try authority.importStagingNames().isEmpty else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let expectedNames = Set(
+            ([expectedOldPointer.generationID] + retired).map {
+                canonicalString(for: $0)
+            }
+        )
+        let actualNames = Set(try authority.installedGenerationNames())
+        let targetName = canonicalString(for: targetGenerationID)
+        guard actualNames == expectedNames
+                || actualNames == expectedNames.union([targetName]) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let presence = try authority.presence(id: targetGenerationID)
+        guard !presence.staging,
+              presence.installed == actualNames.contains(targetName) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+
+        let store = try StoreMigrationJournalStoreV1(
+            applicationSupportURL: applicationSupportURL
+        )
+        guard presence.installed else {
+            guard try store.loadManifestIfPresent(
+                targetGenerationID: targetGenerationID
+            ) == nil else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+            _ = try requireCurrentPointer(expectedOldPointer, authority: authority)
+            return ErasePreparedGenerationDiscardV1(expectedOldPointer: expectedOldPointer,
+            targetGenerationID: targetGenerationID, targetIdentity: targetIdentity,
+            expectedEmptyLedger: expectedEmptyLedger, authority: authority,
+            expectedNames: expectedNames, store: store,
+            targetRootIdentity: presence.installed
+                ? try ReportPDFAnchoredFile.rootIdentity(at: installedGenerationURL(id: targetGenerationID)) : nil)
+        }
+
+        diagnosticPhase?("discard.open-target")
+        let root = installedGenerationURL(id: targetGenerationID)
+#if DEBUG
+        if diagnosticPhase != nil {
+            observeEraseFileSnapshot(
+                generationID: targetGenerationID,
+                at: root,
+                stage: .beforeTargetOpen,
+                manifestObservation: .notLoaded,
+                expectedFiles: nil,
+                diagnosticPhase: diagnosticPhase
+            )
+        }
+#endif
+        func requireSemanticEmptyTarget(_ session: StoreGenerationSession) throws {
+            diagnosticPhase?("discard.marker")
+            let marker = try session.modelContext.fetch(
+                FetchDescriptor<PersistentSchemaReleaseMarker>()
+            )
+            guard marker.count == 1,
+                  marker.first?.schemaVersion == activeSchemaVersion,
+                  marker.first?.releaseID
+                    == activeRelease.compatibilityID,
+                   marker.first?.migrationID == targetGenerationID else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+            diagnosticPhase?("discard.empty-content")
+            guard BackupRestoreService.isEmptyCurrent(session.modelContext) else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+            diagnosticPhase?("discard.empty-ledger")
+            guard try deletionLedgerProof(in: session.modelContext) == expectedEmptyLedger else {
+                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+            }
+        }
+
+        // The cold route binds physical bytes around the exact semantic read
+        // while the same Registry G excludes another app writer. It repeats
+        // after the actual connection has left its autoreleasepool. A byte
+        // change during validation or close is an unresolved target.
+        let targetSnapshot: ErasePreparedTargetSnapshotV1?
+        if let coldOperation {
+            try coldOperation.requireServiceAccess()
+            let registry = try makeGenerationLeaseRegistry()
+            guard authority.mutationRegistry === registry else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            targetSnapshot = try registry.withNoMigrationReservation {
+                try coldOperation.requireServiceAccess()
+                // Bind the bytes before the semantic read, through the read,
+                // and after the actual connection closes. Any drift fails
+                // this attempt; a retry must not adopt a newly changed tree.
+                let observed = try autoreleasepool { () throws
+                    -> (before: ErasePreparedTargetSnapshotV1,
+                        after: ErasePreparedTargetSnapshotV1) in
+                    let session = try openGeneration(id: targetGenerationID,
+                        at: root, identity: targetIdentity)
+                    let before = try authority.snapshotErasePreparedTarget(id: targetGenerationID)
+                    try requireSemanticEmptyTarget(session)
+                    let after = try authority.snapshotErasePreparedTarget(id: targetGenerationID)
+                    return (before, after)
+                }
+                let closed = try authority.snapshotErasePreparedTarget(id: targetGenerationID)
+                guard observed.before == observed.after, observed.after == closed else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                return closed
+            }
+        } else {
+            // Original-operation validation retains its existing scope.
+            try autoreleasepool {
+                let session = try openGeneration(id: targetGenerationID,
+                    at: root, identity: targetIdentity)
+                try requireSemanticEmptyTarget(session)
+            }
+            targetSnapshot = nil
+        }
+
+        return ErasePreparedGenerationDiscardV1(expectedOldPointer: expectedOldPointer,
+            targetGenerationID: targetGenerationID, targetIdentity: targetIdentity,
+            expectedEmptyLedger: expectedEmptyLedger, authority: authority,
+            expectedNames: expectedNames, store: store,
+            targetRootIdentity: presence.installed
+                ? try ReportPDFAnchoredFile.rootIdentity(at: installedGenerationURL(id: targetGenerationID)) : nil,
+            targetSnapshot: targetSnapshot)
+    }
+
+    @MainActor
+    func completeColdErasePreparationDiscard(_ validation: ErasePreparedGenerationDiscardV1,
+        sourceLedger: DeletionLedgerProofV2, operation: EraseColdPreparationOperationV1) throws {
+        try operation.requireRollbackRemoval(validation, factory: self)
+        let expectedOldPointer = validation.expectedOldPointer
+        let targetGenerationID = validation.targetGenerationID
+        let authority = validation.authority
+        let expectedNames = validation.expectedNames
+        let store = validation.store
+        let activeRelease = PersistentSchemaReleaseRegistryV1.activeRelease
+        let root = installedGenerationURL(id: targetGenerationID)
+        let diagnosticPhase: (@MainActor (String) -> Void)? = nil
+        let registry = try makeGenerationLeaseRegistry()
+        guard authority.mutationRegistry === registry else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        try registry.withNoMigrationReservation {
+            try operation.requireRollbackRemoval(validation, factory: self)
+            // The actual source reader is captured by this SAME provider and
+            // cold operation while G excludes writer acquisition/mutation.
+            // Do not reuse a ledger observed before the target cohort drained.
+            guard try currentGenerationDeletionLedgerProof(expectedPointer: expectedOldPointer,
+                authority: authority) == sourceLedger else { throw StoreGenerationFailure.dataPointerInvalid }
+            guard try !registry.activeEpochs().contains(where: { $0.generationID == targetGenerationID }) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            _ = try requireCurrentPointer(expectedOldPointer, authority: authority)
+            let names = Set(try authority.installedGenerationNames())
+            let presence = try authority.presence(id: targetGenerationID)
+            guard !presence.staging,
+                  names == expectedNames || names == expectedNames.union([canonicalString(for: targetGenerationID)]),
+                  presence.installed == names.contains(canonicalString(for: targetGenerationID)) else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            if presence.installed {
+                guard let expectedRoot = validation.targetRootIdentity,
+                      try ReportPDFAnchoredFile.rootIdentity(at: root) == expectedRoot else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+            }
+            if !presence.installed {
+                guard validation.targetRootIdentity == nil || validation.removalStarted else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                guard try store.loadManifestIfPresent(targetGenerationID: targetGenerationID) == nil,
+                      names == expectedNames else { throw StoreGenerationFailure.dataPointerInvalid }
+                return
+            }
+            guard let snapshot = validation.targetSnapshot else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            let currentTarget = try authority.snapshotErasePreparedTarget(
+                id: targetGenerationID, partialCleanup: validation.removalStarted)
+            try snapshot.requireCurrent(currentTarget, removalStarted: validation.removalStarted)
+            diagnosticPhase?("discard.manifest-load")
+            if let prepared = try store.loadManifestIfPresent(
+                targetGenerationID: targetGenerationID
+            ) {
+                diagnosticPhase?("discard.manifest-identity")
+                guard prepared.manifest.generationID == targetGenerationID,
+                      prepared.manifest.predecessorGenerationID
+                        == expectedOldPointer.generationID,
+                      prepared.manifest.storeSchemaRelease == activeRelease,
+                      prepared.manifest.migrationID == targetGenerationID else {
+                    throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+                }
+                diagnosticPhase?("discard.manifest-snapshot")
+                try requireRestoreManifestSnapshot(
+                    prepared.manifest,
+                    expectedOldID: expectedOldPointer.generationID,
+                    generationID: targetGenerationID,
+                    at: root,
+                    staging: false,
+                    diagnosticPhase: diagnosticPhase
+                )
+                diagnosticPhase?("discard.remove-manifest")
+                validation.removalStarted = true
+                try removePreparedRestoreGenerationManifestBeforeDiscard(
+                    expectedOldID: expectedOldPointer.generationID,
+                    generationID: targetGenerationID,
+                    expectedDigest: prepared.digest,
+                    authority: authority
+                )
+            }
+    
+            diagnosticPhase?("discard.final-current-pointer")
+            _ = try requireCurrentPointer(expectedOldPointer, authority: authority)
+            diagnosticPhase?("discard.remove-target")
+            validation.removalStarted = true
+            try authority.removeInstalledGeneration(id: targetGenerationID)
+            diagnosticPhase?("discard.final-presence")
+            let finalPresence = try authority.presence(id: targetGenerationID)
+            guard !finalPresence.staging,
+                  !finalPresence.installed,
+                  Set(try authority.installedGenerationNames()) == expectedNames,
+                  try store.loadManifestIfPresent(
+                    targetGenerationID: targetGenerationID
+                  ) == nil else {
+                throw StoreMigrationFailure.maintenanceRequired(.forwardFixRequired)
+            }
+            _ = try requireCurrentPointer(expectedOldPointer, authority: authority)
+        }
     }
 
     @MainActor
@@ -10637,41 +13264,55 @@ struct StoreGenerationFactory {
             }
         }
 
-        diagnosticPhase?("discard.manifest-load")
-        if let prepared = try store.loadManifestIfPresent(
-            targetGenerationID: targetGenerationID
-        ) {
-            diagnosticPhase?("discard.manifest-identity")
-            guard prepared.manifest.generationID == targetGenerationID,
-                  prepared.manifest.predecessorGenerationID
-                    == expectedOldPointer.generationID,
-                  prepared.manifest.storeSchemaRelease == activeRelease,
-                  prepared.manifest.migrationID == targetGenerationID else {
-                throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
-            }
-            diagnosticPhase?("discard.manifest-snapshot")
-            try requireRestoreManifestSnapshot(
-                prepared.manifest,
-                expectedOldID: expectedOldPointer.generationID,
-                generationID: targetGenerationID,
-                at: root,
-                staging: false,
-                diagnosticPhase: diagnosticPhase
-            )
-            diagnosticPhase?("discard.remove-manifest")
-            try removePreparedRestoreGenerationManifestBeforeDiscard(
-                expectedOldID: expectedOldPointer.generationID,
-                generationID: targetGenerationID,
-                expectedDigest: prepared.digest,
-                authority: authority
-            )
-        }
-
-        diagnosticPhase?("discard.final-current-pointer")
-        _ = try requireCurrentPointer(expectedOldPointer, authority: authority)
         let registry = try makeGenerationLeaseRegistry()
-        diagnosticPhase?("discard.remove-target")
+        let sourceEpoch = try GenerationEpochV1(
+            generationID: expectedOldPointer.generationID,
+            generationManifestSHA256: expectedOldPointer.generationManifestSHA256
+        )
+        // One genuine registry exclusion spans both destructive steps. The
+        // original source readers may remain live, but no target/unknown
+        // allocation or weak target session may authorize manifest removal.
         try registry.withNoMigrationReservation {
+            try eraseReaderRetirementInventory?.requireSourceOnlyPreparationForAbort(
+                sourceEpoch: sourceEpoch, registry: registry)
+            guard try !registry.activeEpochs().contains(where: {
+                $0.generationID == targetGenerationID
+            }) else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            diagnosticPhase?("discard.manifest-load")
+            if let prepared = try store.loadManifestIfPresent(
+                targetGenerationID: targetGenerationID
+            ) {
+                diagnosticPhase?("discard.manifest-identity")
+                guard prepared.manifest.generationID == targetGenerationID,
+                      prepared.manifest.predecessorGenerationID
+                        == expectedOldPointer.generationID,
+                      prepared.manifest.storeSchemaRelease == activeRelease,
+                      prepared.manifest.migrationID == targetGenerationID else {
+                    throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+                }
+                diagnosticPhase?("discard.manifest-snapshot")
+                try requireRestoreManifestSnapshot(
+                    prepared.manifest,
+                    expectedOldID: expectedOldPointer.generationID,
+                    generationID: targetGenerationID,
+                    at: root,
+                    staging: false,
+                    diagnosticPhase: diagnosticPhase
+                )
+                diagnosticPhase?("discard.remove-manifest")
+                try removePreparedRestoreGenerationManifestBeforeDiscard(
+                    expectedOldID: expectedOldPointer.generationID,
+                    generationID: targetGenerationID,
+                    expectedDigest: prepared.digest,
+                    authority: authority
+                )
+            }
+
+            diagnosticPhase?("discard.final-current-pointer")
+            _ = try requireCurrentPointer(expectedOldPointer, authority: authority)
+            diagnosticPhase?("discard.remove-target")
+            try eraseReaderRetirementInventory?.requireSourceOnlyPreparationForAbort(
+                sourceEpoch: sourceEpoch, registry: registry)
             guard try !registry.activeEpochs().contains(where: {
                 $0.generationID == targetGenerationID
             }) else {
@@ -10704,6 +13345,106 @@ struct StoreGenerationFactory {
             )
         )
     }
+
+#if DEBUG
+    @MainActor
+    func requireFreshCompletedAbortSourceLedger(
+        coordinator: StoreSessionCoordinator,
+        witness: EraseOriginalShutdownWitnessV1,
+        registry: GenerationLeaseRegistryV1,
+        sourceAuthority: StoreRestoreGenerationAuthority,
+        sourceBytes: EraseCompletedAbortSourceBytesV1,
+        manifestMigrationID: UUID,
+        manifestRelease: PersistentSchemaReleaseV1,
+        expected: DeletionLedgerProofV2,
+        reproveOriginal: @escaping () throws -> Void
+    ) throws {
+        guard coordinator.generationRootURL.standardizedFileURL
+                  == installedGenerationURL(id: coordinator.generationID),
+              case .v3(let pointer, _) = try CurrentPointerCodecV1.decode(sourceBytes.current),
+              try pointer.canonicalData() == sourceBytes.current,
+              pointer.generationID == coordinator.generationID.uuidString.lowercased(),
+              let release = PersistentSchemaReleaseV1(
+                  rawValue: "V\(pointer.storeSchemaVersion)"),
+              release == manifestRelease else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let observation = try witness.beginCompletedAbortContextConstruction(
+            registry: registry)
+        let modelURL = coordinator.generationRootURL
+            .appendingPathComponent(Self.modelStoreName)
+        func reprove() throws {
+            try reproveOriginal()
+            try sourceAuthority.requireCompletedAbortModelURL(
+                id: coordinator.generationID,
+                rootURL: coordinator.generationRootURL,
+                modelURL: modelURL)
+        }
+        // Construct a distinct no-save container from the exact original
+        // source URL. The constructor is weak-observed before invocation.
+        // Its first marker fetch and the ledger fetch each have the original
+        // Service-frame physical source witness checked on both sides.
+        try reprove()
+        let container = try openReadOnlyReleasedContainer(
+            at: modelURL,
+            release: release, markerMigrationID: manifestMigrationID,
+            observe: { _ in },
+            afterConstruct: { opened in
+                try observation.completeCompletedAbortContextConstruction(opened)
+                try reprove()
+            })
+        try reprove()
+        let fresh = container.mainContext
+        guard !fresh.hasChanges else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let freshLedger = try deletionLedgerProof(in: fresh)
+        try reprove()
+        guard freshLedger == expected, !fresh.hasChanges else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+    }
+    @MainActor
+    func requireFreshRetiredOriginalSourceLedgerForColdExit(
+        sourceGenerationID: UUID,
+        manifestMigrationID: UUID,
+        manifestRelease: PersistentSchemaReleaseV1,
+        expected: DeletionLedgerProofV2,
+        sourceAuthority: StoreRestoreGenerationAuthority,
+        retainObservation: (EraseOriginalColdExitContextObservationV1) throws -> Void,
+        reproveOriginal: @escaping () throws -> Void
+    ) throws {
+        try expected.validate()
+        let sourceRoot = installedGenerationURL(id: sourceGenerationID)
+        let modelURL = sourceRoot.appendingPathComponent(Self.modelStoreName)
+        let observation = EraseOriginalColdExitContextObservationV1()
+        try retainObservation(observation)
+        func reprove() throws {
+            try reproveOriginal()
+            try sourceAuthority.requireCompletedAbortModelURL(
+                id: sourceGenerationID, rootURL: sourceRoot, modelURL: modelURL)
+        }
+        try reprove()
+        let container = try openReadOnlyReleasedContainer(
+            at: modelURL, release: manifestRelease,
+            markerMigrationID: manifestMigrationID,
+            observe: { _ in },
+            afterConstruct: { opened in
+                try observation.complete(opened)
+                try reprove()
+            })
+        try reprove()
+        let context = container.mainContext
+        guard !context.hasChanges else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let actual = try deletionLedgerProof(in: context)
+        try reprove()
+        guard actual == expected, !context.hasChanges else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+    }
+#endif
 
     private func currentPointer(
         from identity: RestorePointerIdentityV1
@@ -13289,6 +16030,94 @@ struct StoreGenerationFactory {
         )
     }
 
+#if DEBUG
+    /// A private-minted, one-use post-handoff witness is required. Ordinary
+    /// generation opening would acquire SH against this fixture's retained EX.
+    @MainActor
+    func makeV949RetiredSourceFixtureOwner(
+        witness: V949PostHandoffHostileFixtureWitnessV1
+    ) throws -> V949RetiredSourceFixtureOwnerV1 {
+        try V949RetiredSourceFixtureOwnerV1.acquire(
+            factory: self, witness: witness)
+    }
+
+    @MainActor
+    func captureV949RestoredSourceReaderExit(
+        session: StoreGenerationSession
+    ) throws -> V949RestoredSourceReaderExitV1 {
+        try V949RestoredSourceReaderExitV1.capture(
+            session: session, factory: self)
+    }
+
+    /// A deliberately hostile V9_49 row edit uses the original retired
+    /// generation only after the original Erase owner checked closed. The
+    /// caller already holds a new EX and retains this exact allocation before
+    /// SwiftData construction; ordinary `openInstalledGeneration` would take
+    /// a conflicting SH activity and cannot be substituted here.
+    @MainActor
+    func openV949RetiredSourceUnderExclusive(
+        witness: V949PostHandoffHostileFixtureWitnessV1,
+        allocation: GenerationLeaseAllocationAttemptV1,
+        reader: GenerationLeaseHandleV1,
+        contextObservation: EraseOriginalColdExitContextObservationV1
+    ) throws -> StoreGenerationSession {
+        try witness.requireFixtureOwnerStarted()
+        let binding = witness.binding
+        guard applicationSupportURL.standardizedFileURL
+                == witness.subject.applicationSupportURL,
+              allocation.generationEpoch.generationID == binding.oldGenerationID,
+              allocation.generationEpoch.generationManifestSHA256
+                == binding.sourceManifestSHA256,
+              reader.token.epoch.generationID == binding.oldGenerationID,
+              reader.token.role == .reader,
+              allocation.allocatedHandle === reader else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let generationRootURL = installedGenerationURL(id: binding.oldGenerationID)
+        guard generationRootURL.lastPathComponent
+                == binding.oldGenerationID.uuidString.lowercased(),
+              try itemType(at: generationRootURL) == .typeDirectory else {
+            throw StoreGenerationFailure.dataGenerationMissing
+        }
+        try protectGeneration(at: generationRootURL,
+            staging: false, requireModel: true)
+        let modelURL = generationRootURL.appendingPathComponent(
+            Self.modelStoreName, isDirectory: false)
+        guard try itemType(at: modelURL) == .typeRegular else {
+            throw StoreGenerationFailure.dataGenerationMissing
+        }
+        let container = try makeV53Container(at: modelURL, migrate: false)
+        try contextObservation.complete(container)
+        _ = try requireV53Marker(in: container.mainContext,
+            expectedMigrationID: nil)
+        try protectGeneration(at: generationRootURL,
+            staging: false, requireModel: true)
+        guard binding.sourcePointer.generationID
+                == binding.oldGenerationID,
+              binding.sourcePointer.generationManifestSHA256
+                == binding.sourceManifestSHA256 else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let identity = try WorkspaceReplicaIdentityV1(
+            workspaceID: WorkspaceID(
+                rawValue: binding.sourcePointer.workspaceID),
+            replicaID: ReplicaID(
+                rawValue: binding.sourcePointer.replicaID))
+        return StoreGenerationSession(
+            generationID: binding.oldGenerationID,
+            generationRootURL: generationRootURL,
+            workspaceIdentity: identity,
+            modelContainer: container,
+            storeSchemaRelease: PersistentSchemaReleaseRegistryV1.activeRelease,
+            generationEpoch: allocation.generationEpoch,
+            readerLeaseHandle: reader,
+            afterSaveReproof: { [factory = self.forSaveReproof()] in
+                try factory.protectGeneration(at: generationRootURL,
+                    staging: false, requireModel: true)
+            })
+    }
+#endif
+
     @MainActor
     func openInstalledGeneration(
         id: UUID,
@@ -15551,6 +18380,7 @@ struct StoreGenerationFactory {
         diagnosticPhase: (@MainActor (String) -> Void)? = nil
     ) throws -> StoreGenerationSession {
         diagnosticPhase?("generation-open.begin")
+        try eraseReaderRetirementInventory?.requireUnsealed()
         guard generationRootURL.lastPathComponent == canonicalString(for: id) else {
             throw StoreGenerationFailure.dataGenerationMissing
         }
@@ -15584,6 +18414,9 @@ struct StoreGenerationFactory {
             epoch = nil
             readerLease = nil
         }
+        let retirementConstruction = try eraseReaderRetirementInventory?
+            .beginConstruction(reader: readerLease)
+        defer { retirementConstruction?.constructionInProgress = false }
         diagnosticPhase?("generation-open.lease.done")
         guard try itemType(at: generationRootURL) == .typeDirectory else {
             throw StoreGenerationFailure.dataGenerationMissing
@@ -15600,7 +18433,10 @@ struct StoreGenerationFactory {
         let container: ModelContainer
         do {
             diagnosticPhase?("reviews.staging.container.begin")
+            retirementConstruction?.constructorStarted = true
             container = try makeV53Container(at: modelStoreURL, migrate: false)
+            retirementConstruction?.container = container
+            retirementConstruction?.context = container.mainContext
             diagnosticPhase?("reviews.staging.marker.begin")
             _ = try requireV53Marker(in: container.mainContext, expectedMigrationID: nil)
             diagnosticPhase?("reviews.staging.marker.end")
@@ -15614,7 +18450,7 @@ struct StoreGenerationFactory {
         try protectGeneration(at: generationRootURL, staging: staging, requireModel: true)
         diagnosticPhase?("generation-open.post-protection.done")
         let resolvedIdentity = identity ?? pointerEnrichmentIdentity
-        return StoreGenerationSession(
+        let session = StoreGenerationSession(
             generationID: id,
             generationRootURL: generationRootURL,
             workspaceIdentity: resolvedIdentity,
@@ -15622,7 +18458,7 @@ struct StoreGenerationFactory {
             storeSchemaRelease: PersistentSchemaReleaseRegistryV1.activeRelease,
             generationEpoch: epoch,
             readerLeaseHandle: readerLease,
-            afterSaveReproof: { [factory = self.withoutColdOpenDiagnostics()] in
+            afterSaveReproof: { [factory = self.forSaveReproof()] in
                 try factory.protectGeneration(
                     at: generationRootURL,
                     staging: staging,
@@ -15630,6 +18466,8 @@ struct StoreGenerationFactory {
                 )
             }
         )
+        retirementConstruction?.session = session
+        return session
     }
 
     private func removeOwnedDirectory(
@@ -16411,3 +19249,2304 @@ enum StoreRestoreReviewAuthorityProbeV1 {
     }
 }
 #endif
+
+/// Read-only physical bindings for the current source. Construction is confined
+/// to this file's fixed owner; no directory creation, reconciliation, SQLite
+/// open, writer query or policy setter occurs here. These facts alone never
+/// authorize cleanup or normalization effects.
+fileprivate final class TemporalNormalizationCurrentPinsV1: @unchecked Sendable {
+    struct FileIdentity: Equatable, Sendable {
+        let device: UInt64, inode: UInt64, links: UInt64
+        let mode: UInt16
+        let size: Int64, modifiedSeconds: Int64, modifiedNanoseconds: Int64
+        let changedSeconds: Int64, changedNanoseconds: Int64
+        init(_ value: stat) throws {
+            guard value.st_mode & S_IFMT == S_IFREG, value.st_nlink == 1,
+                  value.st_size >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+            device = UInt64(value.st_dev); inode = UInt64(value.st_ino)
+            links = UInt64(value.st_nlink); mode = UInt16(value.st_mode); size = Int64(value.st_size)
+            modifiedSeconds = Int64(value.st_mtimespec.tv_sec)
+            modifiedNanoseconds = Int64(value.st_mtimespec.tv_nsec)
+            changedSeconds = Int64(value.st_ctimespec.tv_sec)
+            changedNanoseconds = Int64(value.st_ctimespec.tv_nsec)
+        }
+    }
+    struct File: Sendable {
+        let parent: Int32, descriptor: Int32, name: String, url: URL
+        let identity: FileIdentity
+        let policy: TemporalPolicyObservationV1
+        let kind: OwnedFileKindV1
+    }
+    private struct Directory {
+        let descriptor: Int32, parent: Int32?, name: String, url: URL
+        let device: dev_t, inode: ino_t
+    }
+    let applicationSupportURL: URL
+    private var directories: [Directory] = []
+    private(set) var files: [File] = []
+    private(set) var directoryPolicies: [String: TemporalPolicyObservationV1] = [:]
+    private var directoryKinds: [String: OwnedFileKindV1] = [:]
+    private(set) var pointer: CurrentGenerationPointerV3?
+    private(set) var manifest: StoreGenerationManifestV1?
+    private(set) var pointerBytes = Data()
+    private(set) var manifestBytes = Data()
+    private(set) var observedFileDigests: [String: String] = [:]
+    private var checkedClosedDescriptors = Set<Int32>()
+    private var checkedCloseStarted = false
+    private var checkedCloseUncertain = false
+    private var closed = false
+    private var absentSQLiteNames: [(parent: Int32, name: String)] = []
+
+    func requireSupportDescriptor(_ descriptor: Int32) throws {
+        guard !closed, let support = directories.first,
+              support.parent == nil, support.url == applicationSupportURL else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var value = stat()
+        guard Darwin.fstat(support.descriptor, &value) == 0, value.st_mode & S_IFMT == S_IFDIR,
+              value.st_dev == support.device, value.st_ino == support.inode,
+              Darwin.lstat(applicationSupportURL.path, &value) == 0, value.st_mode & S_IFMT == S_IFDIR,
+              value.st_dev == support.device, value.st_ino == support.inode,
+              Darwin.fstat(descriptor, &value) == 0, value.st_mode & S_IFMT == S_IFDIR,
+              value.st_dev == support.device, value.st_ino == support.inode else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+
+    @MainActor
+    init(applicationSupportURL: URL, session: StoreGenerationSession,
+         exclusion: StoreTemporalNormalizationExclusionV1) throws {
+        self.applicationSupportURL = applicationSupportURL.standardizedFileURL
+        do {
+            try exclusion.revalidate()
+            guard let epoch = session.generationEpoch,
+                  epoch == exclusion.retainedWriter.epoch,
+                  session.generationID == epoch.generationID,
+                  session.generationRootURL.standardizedFileURL == self.applicationSupportURL
+                    .appendingPathComponent("FieldEvidenceData/generations")
+                    .appendingPathComponent(session.generationID.uuidString.lowercased()) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            let support = try openDirectory(parent: nil, name: "", url: self.applicationSupportURL)
+            let data = try openDirectory(parent: support, name: "FieldEvidenceData",
+                url: self.applicationSupportURL.appendingPathComponent("FieldEvidenceData"), kind: .durableDirectory)
+            let generations = try openDirectory(parent: data, name: "generations",
+                url: self.applicationSupportURL.appendingPathComponent("FieldEvidenceData/generations"), kind: .durableDirectory)
+            let generation = try openDirectory(parent: generations,
+                name: session.generationID.uuidString.lowercased(), url: session.generationRootURL,
+                kind: .durableDirectory)
+            let pointerFile = try openFile(parent: data, name: "current.json",
+                url: self.applicationSupportURL.appendingPathComponent("FieldEvidenceData/current.json"), kind: .generationPointer)
+            pointerBytes = try readControl(pointerFile, maximum: 1_048_576)
+            guard case .v3(let current, _) = try CurrentPointerCodecV1.decode(pointerBytes),
+                  current.generationID == session.generationID.uuidString.lowercased(),
+                  current.generationManifestSHA256 == epoch.generationManifestSHA256,
+                  try current.identity() == session.workspaceIdentity,
+                  current.storeSchemaVersion == session.storeSchemaRelease.versionIdentifier.major else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            pointer = current
+            let operationsURL = self.applicationSupportURL.appendingPathComponent("FieldEvidenceOperations")
+            let operations = try openDirectory(parent: support, name: "FieldEvidenceOperations",
+                url: operationsURL, kind: .stagingDirectory)
+            let migrationURL = operationsURL.appendingPathComponent("schema-migration")
+            let migration = try openDirectory(parent: operations, name: "schema-migration",
+                url: migrationURL, kind: .stagingDirectory)
+            let manifestName = "manifest-" + session.generationID.uuidString.lowercased() + ".json"
+            let manifestFile = try openFile(parent: migration, name: manifestName,
+                url: migrationURL.appendingPathComponent(manifestName), kind: .journal)
+            manifestBytes = try readControl(manifestFile, maximum: 32 * 1_048_576)
+            let decoded = try StoreGenerationManifestV1.decodeCanonical(from: manifestBytes)
+            guard StoreMigrationCanonicalJSONV1.sha256(manifestBytes) == epoch.generationManifestSHA256,
+                  decoded.generationID == session.generationID,
+                  decoded.storeSchemaRelease == session.storeSchemaRelease else {
+                throw StoreMigrationFailure.digestMismatch
+            }
+            manifest = decoded
+            _ = try openFile(parent: generation, name: "model.sqlite",
+                url: session.generationRootURL.appendingPathComponent("model.sqlite"), kind: .database)
+            for (name, kind) in [("model.sqlite-wal", OwnedFileKindV1.databaseWAL),
+                                 ("model.sqlite-shm", OwnedFileKindV1.databaseSHM)] {
+                var value = stat()
+                if Darwin.fstatat(generation, name, &value, AT_SYMLINK_NOFOLLOW) != 0 {
+                    guard errno == ENOENT else { throw StoreMigrationFailure.invalidIdentity }
+                    absentSQLiteNames.append((generation, name))
+                    continue
+                }
+                _ = try openFile(parent: generation, name: name,
+                    url: session.generationRootURL.appendingPathComponent(name), kind: kind)
+            }
+            try revalidate()
+            try exclusion.revalidate()
+        } catch { close(); throw error }
+    }
+
+    @MainActor
+    init(applicationSupportURL: URL, retiredGenerationID: UUID,
+         currentSession: StoreGenerationSession, exclusion: StoreTemporalNormalizationExclusionV1) throws {
+        self.applicationSupportURL = applicationSupportURL.standardizedFileURL
+        do {
+            try exclusion.revalidate()
+            guard let currentEpoch = currentSession.generationEpoch,
+                  currentEpoch == exclusion.retainedWriter.epoch,
+                  retiredGenerationID != currentSession.generationID else { throw StoreMigrationFailure.invalidIdentity }
+            let support = try openDirectory(parent: nil, name: "", url: self.applicationSupportURL)
+            let dataURL = self.applicationSupportURL.appendingPathComponent("FieldEvidenceData")
+            let data = try openDirectory(parent: support, name: "FieldEvidenceData", url: dataURL, kind: .durableDirectory)
+            let currentFile = try openFile(parent: data, name: "current.json",
+                url: dataURL.appendingPathComponent("current.json"), kind: .generationPointer)
+            pointerBytes = try readControl(currentFile, maximum: 1_048_576)
+            guard case .v3(let current, _) = try CurrentPointerCodecV1.decode(pointerBytes),
+                  current.generationID == currentSession.generationID.uuidString.lowercased(),
+                  current.generationManifestSHA256 == currentEpoch.generationManifestSHA256,
+                  try current.identity() == currentSession.workspaceIdentity else { throw StoreMigrationFailure.invalidIdentity }
+            pointer = current
+            let retiredFile = try openFile(parent: data, name: "retired.json",
+                url: dataURL.appendingPathComponent("retired.json"), kind: .generationPointer)
+            let retiredData = try readControl(retiredFile, maximum: 1_048_576)
+            let retired = try JSONDecoder().decode(RetiredPointerV1.self, from: retiredData)
+            let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+            try StorePointerSchemaRegistry.requireRetired(retired.schemaVersion)
+            guard try encoder.encode(retired) == retiredData,
+                  retired.generationIDs == retired.generationIDs.sorted(),
+                  Set(retired.generationIDs).count == retired.generationIDs.count,
+                  retired.generationIDs.allSatisfy({ UUID(uuidString: $0)?.uuidString.lowercased() == $0 }),
+                  !retired.generationIDs.contains(current.generationID),
+                  retired.generationIDs.contains(retiredGenerationID.uuidString.lowercased()) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            let generationsURL = dataURL.appendingPathComponent("generations")
+            let generations = try openDirectory(parent: data, name: "generations", url: generationsURL, kind: .durableDirectory)
+            let generationURL = generationsURL.appendingPathComponent(retiredGenerationID.uuidString.lowercased())
+            let generation = try openDirectory(parent: generations, name: retiredGenerationID.uuidString.lowercased(),
+                url: generationURL, kind: .durableDirectory)
+            let operationsURL = self.applicationSupportURL.appendingPathComponent("FieldEvidenceOperations")
+            let operations = try openDirectory(parent: support, name: "FieldEvidenceOperations", url: operationsURL, kind: .stagingDirectory)
+            let migrationURL = operationsURL.appendingPathComponent("schema-migration")
+            let migration = try openDirectory(parent: operations, name: "schema-migration", url: migrationURL, kind: .stagingDirectory)
+            let currentManifestName = "manifest-" + currentSession.generationID.uuidString.lowercased() + ".json"
+            let currentManifestFile = try openFile(parent: migration, name: currentManifestName,
+                url: migrationURL.appendingPathComponent(currentManifestName), kind: .journal)
+            let currentManifestData = try readControl(currentManifestFile, maximum: 32 * 1_048_576)
+            let currentManifest = try StoreGenerationManifestV1.decodeCanonical(from: currentManifestData)
+            guard StoreMigrationCanonicalJSONV1.sha256(currentManifestData) == currentEpoch.generationManifestSHA256,
+                  currentManifest.generationID == currentSession.generationID,
+                  currentManifest.storeSchemaRelease == currentSession.storeSchemaRelease else {
+                throw StoreMigrationFailure.digestMismatch
+            }
+            let name = "manifest-" + retiredGenerationID.uuidString.lowercased() + ".json"
+            let file = try openFile(parent: migration, name: name, url: migrationURL.appendingPathComponent(name), kind: .journal)
+            manifestBytes = try readControl(file, maximum: 32 * 1_048_576)
+            let decoded = try StoreGenerationManifestV1.decodeCanonical(from: manifestBytes)
+            // Retired membership has no workspace identity. This route uses
+            // only the incumbent v53 semantic identity law on the private copy.
+            guard decoded.generationID == retiredGenerationID, decoded.storeSchemaRelease == .v53 else {
+                throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+            }
+            manifest = decoded
+            _ = try openFile(parent: generation, name: "model.sqlite", url: generationURL.appendingPathComponent("model.sqlite"), kind: .database)
+            for (name, kind) in [("model.sqlite-wal", OwnedFileKindV1.databaseWAL), ("model.sqlite-shm", OwnedFileKindV1.databaseSHM)] {
+                var value = stat()
+                if Darwin.fstatat(generation, name, &value, AT_SYMLINK_NOFOLLOW) != 0 {
+                    guard errno == ENOENT else { throw StoreMigrationFailure.invalidIdentity }
+                    absentSQLiteNames.append((generation, name)); continue
+                }
+                _ = try openFile(parent: generation, name: name, url: generationURL.appendingPathComponent(name), kind: kind)
+            }
+            try revalidate(); try exclusion.revalidate()
+        } catch { close(); throw error }
+    }
+
+    @MainActor
+    init(applicationSupportURL: URL, retiredGenerationID: UUID,
+         coldExclusion: TemporalNormalizationColdExclusionV1) throws {
+        self.applicationSupportURL = applicationSupportURL.standardizedFileURL
+        do {
+            try coldExclusion.revalidateSourceOwnership()
+            guard try coldExclusion.observeSourceRegistry().leases.isEmpty else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            let support = try openDirectory(parent: nil, name: "", url: self.applicationSupportURL)
+            let dataURL = self.applicationSupportURL.appendingPathComponent("FieldEvidenceData")
+            let data = try openDirectory(parent: support, name: "FieldEvidenceData", url: dataURL, kind: .durableDirectory)
+            let currentFile = try openFile(parent: data, name: "current.json",
+                url: dataURL.appendingPathComponent("current.json"), kind: .generationPointer)
+            pointerBytes = try readControl(currentFile, maximum: 1_048_576)
+            guard case .v3(let current, _) = try CurrentPointerCodecV1.decode(pointerBytes),
+                  let currentID = UUID(uuidString: current.generationID),
+                  currentID.uuidString.lowercased() == current.generationID,
+                  current.storeSchemaVersion == PersistentSchemaReleaseV1.v53.versionIdentifier.major,
+                  retiredGenerationID != currentID else { throw StoreMigrationFailure.invalidIdentity }
+            _ = try current.identity()
+            pointer = current
+            let retiredFile = try openFile(parent: data, name: "retired.json",
+                url: dataURL.appendingPathComponent("retired.json"), kind: .generationPointer)
+            let retiredData = try readControl(retiredFile, maximum: 1_048_576)
+            let retired = try JSONDecoder().decode(RetiredPointerV1.self, from: retiredData)
+            let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+            try StorePointerSchemaRegistry.requireRetired(retired.schemaVersion)
+            guard try encoder.encode(retired) == retiredData,
+                  retired.generationIDs == retired.generationIDs.sorted(),
+                  Set(retired.generationIDs).count == retired.generationIDs.count,
+                  retired.generationIDs.allSatisfy({ UUID(uuidString: $0)?.uuidString.lowercased() == $0 }),
+                  !retired.generationIDs.contains(current.generationID),
+                  retired.generationIDs.contains(retiredGenerationID.uuidString.lowercased()) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            let generationsURL = dataURL.appendingPathComponent("generations")
+            let generations = try openDirectory(parent: data, name: "generations", url: generationsURL, kind: .durableDirectory)
+            let generationURL = generationsURL.appendingPathComponent(retiredGenerationID.uuidString.lowercased())
+            let generation = try openDirectory(parent: generations, name: retiredGenerationID.uuidString.lowercased(),
+                url: generationURL, kind: .durableDirectory)
+            let operationsURL = self.applicationSupportURL.appendingPathComponent("FieldEvidenceOperations")
+            let operations = try openDirectory(parent: support, name: "FieldEvidenceOperations", url: operationsURL, kind: .stagingDirectory)
+            let migrationURL = operationsURL.appendingPathComponent("schema-migration")
+            let migration = try openDirectory(parent: operations, name: "schema-migration", url: migrationURL, kind: .stagingDirectory)
+            let currentManifestName = "manifest-" + current.generationID + ".json"
+            let currentManifestFile = try openFile(parent: migration, name: currentManifestName,
+                url: migrationURL.appendingPathComponent(currentManifestName), kind: .journal)
+            let currentManifestData = try readControl(currentManifestFile, maximum: 32 * 1_048_576)
+            let currentManifest = try StoreGenerationManifestV1.decodeCanonical(from: currentManifestData)
+            guard StoreMigrationCanonicalJSONV1.sha256(currentManifestData) == current.generationManifestSHA256,
+                  currentManifest.generationID == currentID,
+                  currentManifest.storeSchemaRelease == .v53 else {
+                throw StoreMigrationFailure.digestMismatch
+            }
+            let name = "manifest-" + retiredGenerationID.uuidString.lowercased() + ".json"
+            let file = try openFile(parent: migration, name: name, url: migrationURL.appendingPathComponent(name), kind: .journal)
+            manifestBytes = try readControl(file, maximum: 32 * 1_048_576)
+            let decoded = try StoreGenerationManifestV1.decodeCanonical(from: manifestBytes)
+            // Retired membership has no workspace identity. This route uses
+            // only the incumbent v53 semantic identity law on the private copy.
+            guard decoded.generationID == retiredGenerationID, decoded.storeSchemaRelease == .v53 else {
+                throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+            }
+            manifest = decoded
+            _ = try openFile(parent: generation, name: "model.sqlite", url: generationURL.appendingPathComponent("model.sqlite"), kind: .database)
+            for (name, kind) in [("model.sqlite-wal", OwnedFileKindV1.databaseWAL), ("model.sqlite-shm", OwnedFileKindV1.databaseSHM)] {
+                var value = stat()
+                if Darwin.fstatat(generation, name, &value, AT_SYMLINK_NOFOLLOW) != 0 {
+                    guard errno == ENOENT else { throw StoreMigrationFailure.invalidIdentity }
+                    absentSQLiteNames.append((generation, name)); continue
+                }
+                _ = try openFile(parent: generation, name: name, url: generationURL.appendingPathComponent(name), kind: kind)
+            }
+            try revalidate(); try coldExclusion.revalidateSourceOwnership()
+            guard try coldExclusion.observeSourceRegistry().leases.isEmpty else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        } catch { close(); throw error }
+    }
+
+    @MainActor
+    init(applicationSupportURL: URL, coldExclusion: TemporalNormalizationColdExclusionV1) throws {
+        self.applicationSupportURL = applicationSupportURL.standardizedFileURL
+        do {
+            try coldExclusion.revalidateSourceOwnership()
+            let support = try openDirectory(parent: nil, name: "", url: self.applicationSupportURL)
+            let dataURL = self.applicationSupportURL.appendingPathComponent("FieldEvidenceData")
+            let data = try openDirectory(parent: support, name: "FieldEvidenceData", url: dataURL, kind: .durableDirectory)
+            let currentFile = try openFile(parent: data, name: "current.json", url: dataURL.appendingPathComponent("current.json"), kind: .generationPointer)
+            pointerBytes = try readControl(currentFile, maximum: 1_048_576)
+            guard case .v3(let current, _) = try CurrentPointerCodecV1.decode(pointerBytes),
+                  let generationID = UUID(uuidString: current.generationID),
+                  generationID.uuidString.lowercased() == current.generationID,
+                  current.storeSchemaVersion == PersistentSchemaReleaseV1.v53.versionIdentifier.major else {
+                throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+            }
+            _ = try current.identity()
+            pointer = current
+            let generationsURL = dataURL.appendingPathComponent("generations")
+            let generations = try openDirectory(parent: data, name: "generations", url: generationsURL, kind: .durableDirectory)
+            let generationURL = generationsURL.appendingPathComponent(current.generationID)
+            let generation = try openDirectory(parent: generations, name: current.generationID, url: generationURL, kind: .durableDirectory)
+            let operationsURL = self.applicationSupportURL.appendingPathComponent("FieldEvidenceOperations")
+            let operations = try openDirectory(parent: support, name: "FieldEvidenceOperations", url: operationsURL, kind: .stagingDirectory)
+            let migrationURL = operationsURL.appendingPathComponent("schema-migration")
+            let migration = try openDirectory(parent: operations, name: "schema-migration", url: migrationURL, kind: .stagingDirectory)
+            let name = "manifest-" + current.generationID + ".json"
+            let file = try openFile(parent: migration, name: name, url: migrationURL.appendingPathComponent(name), kind: .journal)
+            manifestBytes = try readControl(file, maximum: 32 * 1_048_576)
+            let decoded = try StoreGenerationManifestV1.decodeCanonical(from: manifestBytes)
+            guard StoreMigrationCanonicalJSONV1.sha256(manifestBytes) == current.generationManifestSHA256,
+                  decoded.generationID == generationID, decoded.storeSchemaRelease == .v53 else {
+                throw StoreMigrationFailure.digestMismatch
+            }
+            manifest = decoded
+            _ = try openFile(parent: generation, name: "model.sqlite", url: generationURL.appendingPathComponent("model.sqlite"), kind: .database)
+            for (name, kind) in [("model.sqlite-wal", OwnedFileKindV1.databaseWAL), ("model.sqlite-shm", OwnedFileKindV1.databaseSHM)] {
+                var value = stat()
+                if Darwin.fstatat(generation, name, &value, AT_SYMLINK_NOFOLLOW) != 0 {
+                    guard errno == ENOENT else { throw StoreMigrationFailure.invalidIdentity }
+                    absentSQLiteNames.append((generation, name)); continue
+                }
+                _ = try openFile(parent: generation, name: name, url: generationURL.appendingPathComponent(name), kind: kind)
+            }
+            try revalidate(); try coldExclusion.revalidateSourceOwnership()
+        } catch { close(); throw error }
+    }
+
+    private func openDirectory(parent: Int32?, name: String, url: URL,
+                               kind: OwnedFileKindV1? = nil) throws -> Int32 {
+        let flags = O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC
+        let descriptor = parent.map { Darwin.openat($0, name, flags) } ?? Darwin.open(url.path, flags)
+        guard descriptor >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+        var info = stat()
+        guard Darwin.fstat(descriptor, &info) == 0, info.st_mode & S_IFMT == S_IFDIR else {
+            _ = Darwin.close(descriptor); throw StoreMigrationFailure.invalidIdentity
+        }
+        directories.append(Directory(descriptor: descriptor, parent: parent, name: name,
+            url: url, device: info.st_dev, inode: info.st_ino))
+        try revalidate()
+        if let kind {
+            directoryPolicies[url.path] = try ProtectedFilePolicyV1.observeTemporalPolicy(kind, at: url)
+            directoryKinds[url.path] = kind
+        }
+        try revalidate()
+        return descriptor
+    }
+
+    private func openFile(parent: Int32, name: String, url: URL, kind: OwnedFileKindV1) throws -> File {
+        let descriptor = Darwin.openat(parent, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+        do {
+            var info = stat()
+            guard Darwin.fstat(descriptor, &info) == 0 else { throw StoreMigrationFailure.invalidIdentity }
+            let identity = try FileIdentity(info)
+            let policy = try ProtectedFilePolicyV1.observeTemporalPolicy(kind, at: url)
+            let file = File(parent: parent, descriptor: descriptor, name: name, url: url,
+                identity: identity, policy: policy, kind: kind)
+            try Self.revalidate(file)
+            files.append(file)
+            return file
+        } catch { _ = Darwin.close(descriptor); throw error }
+    }
+
+    func retainSourceMembership(currentGenerationID: UUID) throws -> [UUID] {
+        try revalidate()
+        guard pointer?.generationID == currentGenerationID.uuidString.lowercased(),
+              let data = directories.first(where: { $0.url == applicationSupportURL.appendingPathComponent("FieldEvidenceData") }),
+              let generations = directories.first(where: { $0.url == data.url.appendingPathComponent("generations") }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let url = data.url.appendingPathComponent("retired.json")
+        let file = try files.first(where: { $0.url == url }) ?? openFile(parent: data.descriptor, name: "retired.json", url: url, kind: .generationPointer)
+        let bytes = try readControl(file, maximum: 1_048_576)
+        let value = try JSONDecoder().decode(RetiredPointerV1.self, from: bytes)
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        try StorePointerSchemaRegistry.requireRetired(value.schemaVersion)
+        let ids = value.generationIDs.compactMap(UUID.init(uuidString:))
+        guard try encoder.encode(value) == bytes, value.generationIDs == value.generationIDs.sorted(),
+              ids.count == value.generationIDs.count, Set(ids).count == ids.count,
+              zip(ids, value.generationIDs).allSatisfy({ $0.0.uuidString.lowercased() == $0.1 }),
+              !ids.contains(currentGenerationID) else { throw StoreMigrationFailure.invalidIdentity }
+        let expected = ([currentGenerationID] + ids).map { $0.uuidString.lowercased() }.sorted()
+        guard try StoreRestoreGenerationAuthority.names(in: generations.descriptor) == expected else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        for name in expected {
+            var info = stat()
+            guard fstatat(generations.descriptor, name, &info, AT_SYMLINK_NOFOLLOW) == 0,
+                  (info.st_mode & S_IFMT) == S_IFDIR else { throw StoreMigrationFailure.invalidIdentity }
+        }
+        try revalidate()
+        return ids
+    }
+    func recordObservedDigest(_ digest: String, file: File) throws {
+        guard files.contains(where: { $0.descriptor == file.descriptor && $0.identity == file.identity }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try Self.revalidate(file)
+        observedFileDigests[file.url.path] = digest
+    }
+
+    func retainReportSnapshotFile(report: V4BackupReportDTO, generationRootURL: URL) throws -> File {
+        try revalidate()
+        let name = report.id.uuidString.lowercased() + ".json"
+        guard (report.snapshotSchemaVersion == 1 || report.snapshotSchemaVersion == 2),
+              report.snapshotRelativePath == "snapshots/" + name,
+              let generation = directories.first(where: { $0.url == generationRootURL }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let directoryURL = generationRootURL.appendingPathComponent("snapshots", isDirectory: true)
+        let url = directoryURL.appendingPathComponent(name)
+        if let existing = files.first(where: { $0.url == url }) {
+            try Self.revalidate(existing)
+            return existing
+        }
+        let parent: Int32
+        if let retained = directories.first(where: { $0.url == directoryURL }) {
+            parent = retained.descriptor
+        } else {
+            parent = try openDirectory(parent: generation.descriptor, name: "snapshots", url: directoryURL,
+                kind: .durableDirectory)
+        }
+        let file = try openFile(parent: parent, name: name, url: url, kind: .reportSnapshot)
+        try revalidate()
+        return file
+    }
+
+    private func readControl(_ file: File, maximum: Int) throws -> Data {
+        guard file.identity.size <= maximum else { throw StoreMigrationFailure.invalidIdentity }
+        var data = Data(count: Int(file.identity.size))
+        try data.withUnsafeMutableBytes { bytes in
+            var offset = 0
+            while offset < bytes.count {
+                let count = Darwin.pread(file.descriptor, bytes.baseAddress!.advanced(by: offset),
+                    bytes.count - offset, off_t(offset))
+                if count < 0, errno == EINTR { continue }
+                guard count > 0 else { throw StoreMigrationFailure.invalidIdentity }
+                offset += count
+            }
+        }
+        try Self.revalidate(file)
+        observedFileDigests[file.url.path] = KernelCanonicalHashV1.sha256(data)
+        return data
+    }
+
+    func requireStrictPolicyForEffect() throws {
+        try revalidate()
+        for directory in directories {
+            if let kind = directoryKinds[directory.url.path] {
+                let observed = try ProtectedFilePolicyV1.observeTemporalPolicy(kind, at: directory.url)
+                guard observed == directoryPolicies[directory.url.path], observed.state == .strictComplete,
+                      observed.device == UInt64(directory.device), observed.inode == UInt64(directory.inode) else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+            }
+        }
+        for file in files {
+            let observed = try ProtectedFilePolicyV1.observeTemporalPolicy(file.kind, at: file.url)
+            guard observed == file.policy, observed.state == .strictComplete,
+                  observed.device == file.identity.device, observed.inode == file.identity.inode else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        try revalidate()
+    }
+
+    func revalidate() throws {
+        guard !closed else { throw StoreMigrationFailure.invalidIdentity }
+        for directory in directories {
+            var held = stat(), named = stat()
+            let namedResult = directory.parent.map {
+                Darwin.fstatat($0, directory.name, &named, AT_SYMLINK_NOFOLLOW)
+            } ?? Darwin.lstat(directory.url.path, &named)
+            guard namedResult == 0, Darwin.fstat(directory.descriptor, &held) == 0,
+                  [held, named].allSatisfy({ $0.st_mode & S_IFMT == S_IFDIR &&
+                      $0.st_dev == directory.device && $0.st_ino == directory.inode }) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        for file in files { try Self.revalidate(file) }
+        for absent in absentSQLiteNames {
+            var named = stat()
+            guard Darwin.fstatat(absent.parent, absent.name, &named, AT_SYMLINK_NOFOLLOW) != 0,
+                  errno == ENOENT else { throw StoreMigrationFailure.invalidIdentity }
+        }
+    }
+
+    static func revalidate(_ file: File) throws {
+        var held = stat(), named = stat()
+        guard Darwin.fstat(file.descriptor, &held) == 0,
+              Darwin.fstatat(file.parent, file.name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+              try FileIdentity(held) == file.identity,
+              try FileIdentity(named) == file.identity else { throw StoreMigrationFailure.invalidIdentity }
+    }
+
+    func closeRetainedSourceSetPins() throws {
+        guard !checkedCloseUncertain else { throw StoreMigrationFailure.invalidIdentity }
+        if closed { return }
+        if !checkedCloseStarted { try revalidate(); checkedCloseStarted = true }
+        let descriptors = files.reversed().map(\.descriptor) + directories.reversed().map(\.descriptor)
+        for descriptor in descriptors where !checkedClosedDescriptors.contains(descriptor) {
+            checkedClosedDescriptors.insert(descriptor)
+            guard Darwin.close(descriptor) == 0 else {
+                checkedCloseUncertain = true; throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        closed = true; files.removeAll(); directories.removeAll()
+    }
+    func close() {
+        guard !closed else { return }
+        closed = true
+        for file in files.reversed() where !checkedClosedDescriptors.contains(file.descriptor) { _ = Darwin.close(file.descriptor) }
+        for directory in directories.reversed() where !checkedClosedDescriptors.contains(directory.descriptor) { _ = Darwin.close(directory.descriptor) }
+        files.removeAll(); directories.removeAll()
+    }
+    deinit { close() }
+}
+
+/// Genuine current-owner binding. A privately minted Router access scope and
+/// the Coordinator's exact exclusion are both required before pins are opened.
+/// This owner does not turn physical exclusion or a parsed snapshot into a
+/// completed normalization result.
+@MainActor
+final class TemporalNormalizationSourceOwnerV1 {
+    private let operation: TemporalNormalizationSourceOperationV1
+    private let sourceFactory: StoreGenerationFactory
+    private var activeReadScope: TemporalNormalizationOriginalAccessScopeV1?
+    private var activeReadCapability: TemporalNormalizationSourceReadAuthorityV1?
+    private let exclusion: TemporalNormalizationSourceExclusionV1
+    private var sourceSession: StoreGenerationSession?
+    private var pins: TemporalNormalizationCurrentPinsV1?
+    private var released = false
+    private var unregistered = false
+    private var privateSourceRequest: ScratchDataLeaseRequestV1?
+    private var privateAllocation: TemporalNormalizationSourceAllocationV1?
+    private var sourceWorker: Task<Void, any Error>?
+    private var sourceTransfers: [TemporalNormalizationSQLiteTransferV1] = []
+    private enum CopyPhase { case none, copying, verified }
+    private var copyPhase: CopyPhase = .none
+    private weak var observedPrivateContainer: ModelContainer?
+    private weak var observedPrivateContext: ModelContext?
+    private var privateReaderAttempted = false
+    let applicationSupportURL: URL
+    let generationRootURL: URL
+    private enum SemanticBinding { case current(WorkspaceReplicaIdentityV1), retiredV53 }
+    private let semanticBinding: SemanticBinding
+    private var sourceReaderAllocation: GenerationLeaseAllocationAttemptV1?
+    let generationID: UUID
+    let persistentSchemaRelease: PersistentSchemaReleaseV1
+    let profileRegistry: WorkspacePackageLifecycleProfileRegistryV1
+    private var retainedCanonicalSnapshot: TemporalNormalizationCanonicalSnapshotV1?
+    private var retainedReportObservations: [UUID: (TemporalNormalizationCurrentPinsV1.File, TemporalNormalizationReportSnapshotObservationV1)] = [:]
+    private var retainedRegistryObservation: TemporalGenerationRegistryObservationV1?
+
+    fileprivate init(factory: StoreGenerationFactory, applicationSupportURL: URL,
+                     operation: TemporalNormalizationOperationAuthorityV1,
+                     coordinator: StoreSessionCoordinator,
+                     exclusion: StoreTemporalNormalizationExclusionV1,
+                     scope: TemporalNormalizationOriginalAccessScopeV1) throws {
+        try scope.requirePreparation(operation: operation, exclusion: exclusion)
+        let session = try exclusion.retainSourceSession(for: coordinator)
+        guard !session.modelContext.hasChanges else {
+            throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+        }
+        self.operation = .coordinated(operation); self.exclusion = .coordinated(exclusion); sourceFactory = factory
+        self.applicationSupportURL = applicationSupportURL.standardizedFileURL
+        generationRootURL = session.generationRootURL
+        semanticBinding = .current(session.workspaceIdentity); generationID = session.generationID
+        persistentSchemaRelease = session.storeSchemaRelease
+        profileRegistry = coordinator.lifecycleProfileRegistry
+        sourceSession = session
+        pins = try TemporalNormalizationCurrentPinsV1(applicationSupportURL: applicationSupportURL,
+            session: session, exclusion: exclusion)
+        try requireExactSourceCensus()
+        try scope.requirePreparation(operation: operation, exclusion: exclusion)
+        try exclusion.registerSourceOwner(self)
+    }
+
+    fileprivate init(factory: StoreGenerationFactory, applicationSupportURL: URL,
+                     retiredGenerationID: UUID, operation: TemporalNormalizationOperationAuthorityV1,
+                     coordinator: StoreSessionCoordinator, exclusion: StoreTemporalNormalizationExclusionV1,
+                     scope: TemporalNormalizationOriginalAccessScopeV1) throws {
+        try scope.requirePreparation(operation: operation, exclusion: exclusion)
+        let currentSession = try exclusion.retainSourceSession(for: coordinator)
+        guard !currentSession.modelContext.hasChanges else { throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch) }
+        self.operation = .coordinated(operation); self.exclusion = .coordinated(exclusion); sourceFactory = factory
+        self.applicationSupportURL = applicationSupportURL.standardizedFileURL
+        generationID = retiredGenerationID
+        generationRootURL = self.applicationSupportURL.appendingPathComponent("FieldEvidenceData/generations")
+            .appendingPathComponent(retiredGenerationID.uuidString.lowercased())
+        semanticBinding = .retiredV53
+        persistentSchemaRelease = .v53; profileRegistry = coordinator.lifecycleProfileRegistry
+        sourceSession = currentSession
+        pins = try TemporalNormalizationCurrentPinsV1(applicationSupportURL: applicationSupportURL,
+            retiredGenerationID: retiredGenerationID, currentSession: currentSession, exclusion: exclusion)
+        try requireExactSourceCensus()
+        try scope.requirePreparation(operation: operation, exclusion: exclusion)
+        try exclusion.registerSourceOwner(self)
+    }
+
+    func allocateRetiredReaderUnderOriginalAccess(scope: TemporalNormalizationOriginalAccessScopeV1) throws {
+        try revalidateUnderOriginalAccess(operation: operation, scope: scope)
+        guard case .retiredV53 = semanticBinding, sourceReaderAllocation == nil,
+              let pins, let manifest = pins.manifest, manifest.generationID == generationID else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let epoch = try GenerationEpochV1(generationID: generationID,
+            generationManifestSHA256: StoreMigrationCanonicalJSONV1.sha256(pins.manifestBytes))
+        let allocation = try exclusion.registry.makeReaderAllocationAttempt(epoch: epoch)
+        sourceReaderAllocation = allocation // before the first publication effect
+        _ = try exclusion.acquireRetiredSourceReader(allocation, source: self)
+        try revalidateUnderOriginalAccess(operation: operation, scope: scope)
+    }
+
+    func requireSourceReaderAllocation(_ allocation: GenerationLeaseAllocationAttemptV1) throws {
+        guard !released, sourceReaderAllocation === allocation else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+    }
+
+    private func privateReaderIdentity(context: ModelContext) throws -> WorkspaceReplicaIdentityV1 {
+        switch semanticBinding {
+        case .current(let identity): return identity
+        case .retiredV53:
+            guard persistentSchemaRelease == .v53, let manifest = pins?.manifest,
+                  sourceReaderAllocation?.allocatedHandle != nil else { throw StoreMigrationFailure.invalidIdentity }
+            return try sourceFactory.acceptedV53SemanticIdentity(in: context,
+                generationID: generationID, migrationID: manifest.migrationID)
+        }
+    }
+
+    fileprivate init(factory: StoreGenerationFactory, applicationSupportURL: URL,
+        operation: TemporalNormalizationColdOperationAuthorityV1, exclusion: TemporalNormalizationColdExclusionV1,
+        profileRegistry: WorkspacePackageLifecycleProfileRegistryV1,
+        scope: TemporalNormalizationOriginalAccessScopeV1) throws {
+        try scope.requireColdPreparation(operation: operation, exclusion: exclusion)
+        let observed = try TemporalNormalizationCurrentPinsV1(applicationSupportURL: applicationSupportURL, coldExclusion: exclusion)
+        guard let pointer = observed.pointer, let manifest = observed.manifest,
+              let id = UUID(uuidString: pointer.generationID), manifest.generationID == id else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        self.operation = .cold(operation); self.exclusion = .cold(exclusion); sourceFactory = factory
+        self.applicationSupportURL = applicationSupportURL.standardizedFileURL
+        generationID = id
+        generationRootURL = self.applicationSupportURL.appendingPathComponent("FieldEvidenceData/generations").appendingPathComponent(pointer.generationID)
+        semanticBinding = .current(try pointer.identity())
+        persistentSchemaRelease = manifest.storeSchemaRelease
+        self.profileRegistry = profileRegistry
+        sourceSession = nil; pins = observed
+        try requireExactSourceCensus()
+        try scope.requireColdPreparation(operation: operation, exclusion: exclusion)
+        try exclusion.registerSourceOwner(self)
+    }
+
+    /// Authentic cold retired membership has no writer or current Session.
+    /// Its private-copy semantic identity still uses the incumbent V53 law.
+    fileprivate init(factory: StoreGenerationFactory, applicationSupportURL: URL,
+        retiredGenerationID: UUID, operation: TemporalNormalizationColdOperationAuthorityV1,
+        exclusion: TemporalNormalizationColdExclusionV1,
+        profileRegistry: WorkspacePackageLifecycleProfileRegistryV1,
+        scope: TemporalNormalizationOriginalAccessScopeV1) throws {
+        try scope.requireColdPreparation(operation: operation, exclusion: exclusion)
+        self.operation = .cold(operation); self.exclusion = .cold(exclusion); sourceFactory = factory
+        self.applicationSupportURL = applicationSupportURL.standardizedFileURL
+        generationID = retiredGenerationID
+        generationRootURL = self.applicationSupportURL.appendingPathComponent("FieldEvidenceData/generations")
+            .appendingPathComponent(retiredGenerationID.uuidString.lowercased())
+        semanticBinding = .retiredV53; persistentSchemaRelease = .v53
+        self.profileRegistry = profileRegistry; sourceSession = nil
+        pins = try TemporalNormalizationCurrentPinsV1(applicationSupportURL: applicationSupportURL,
+            retiredGenerationID: retiredGenerationID, coldExclusion: exclusion)
+        try requireExactSourceCensus()
+        try scope.requireColdPreparation(operation: operation, exclusion: exclusion)
+        try exclusion.registerSourceOwner(self)
+    }
+
+    func isBound(to expected: TemporalNormalizationColdExclusionV1) -> Bool {
+        if case .cold(let actual) = exclusion { return actual === expected }
+        return false
+    }
+
+    func allocateColdReaderUnderOriginalAccess(scope: TemporalNormalizationOriginalAccessScopeV1) throws {
+        try revalidateUnderOriginalAccess(operation: operation, scope: scope)
+        guard case .cold = exclusion, sourceReaderAllocation == nil,
+              let pins, let manifest = pins.manifest, manifest.generationID == generationID else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let epoch = try GenerationEpochV1(generationID: generationID,
+            generationManifestSHA256: StoreMigrationCanonicalJSONV1.sha256(pins.manifestBytes))
+        let allocation = try exclusion.registry.makeReaderAllocationAttempt(epoch: epoch)
+        sourceReaderAllocation = allocation
+        _ = try exclusion.acquireRetiredSourceReader(allocation, source: self)
+        try revalidateUnderOriginalAccess(operation: operation, scope: scope)
+    }
+
+    func isBound(to expected: StoreTemporalNormalizationExclusionV1) -> Bool {
+        if case .coordinated(let actual) = exclusion { return actual === expected }
+        return false
+    }
+
+    /// Called only inside the Router's ephemeral original-reference scope.
+    /// The caller cannot replace access with a closure or cached success bit.
+    func revalidateUnderOriginalAccess(operation expected: TemporalNormalizationSourceOperationV1,
+                                       scope: TemporalNormalizationOriginalAccessScopeV1) throws {
+        guard operation.matches(expected), !released, let pins,
+              sourceSession?.modelContext.hasChanges != true else {
+            throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+        }
+        try scope.requireSourceRead(operation: operation, source: self)
+        try exclusion.revalidate()
+        try pins.revalidate()
+        try requireExactSourceCensus()
+        try pins.revalidate()
+        try scope.requireSourceRead(operation: operation, source: self)
+    }
+
+    func revalidateUnderOriginalAccess(operation expected: TemporalNormalizationOperationAuthorityV1,
+        scope: TemporalNormalizationOriginalAccessScopeV1) throws {
+        try revalidateUnderOriginalAccess(operation: .coordinated(expected), scope: scope)
+    }
+    func revalidateUnderOriginalAccess(operation expected: TemporalNormalizationColdOperationAuthorityV1,
+        scope: TemporalNormalizationOriginalAccessScopeV1) throws {
+        try revalidateUnderOriginalAccess(operation: .cold(expected), scope: scope)
+    }
+    func requireTerminalDrain(operation expected: TemporalNormalizationOperationAuthorityV1) throws {
+        try requireTerminalDrain(operation: .coordinated(expected))
+    }
+    func requireTerminalDrain(operation expected: TemporalNormalizationColdOperationAuthorityV1) throws {
+        try requireTerminalDrain(operation: .cold(expected))
+    }
+
+    private func requireExactSourceCensus() throws {
+        guard !released else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        var expected: [GenerationLeaseTokenV1] = []
+        switch exclusion {
+        case .coordinated(let owner):
+            guard let sourceSession, let epoch = sourceSession.generationEpoch,
+                  epoch == owner.retainedWriter.epoch else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            expected.append(owner.retainedWriter)
+            if let reader = sourceSession.actualTemporalSourceReaderHandle() {
+                try reader.requireLiveTemporalIdentity(mutationRegistry: owner.registry)
+                guard reader.token.role == .reader, reader.token.epoch == epoch else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                expected.append(reader.token)
+            }
+        case .cold:
+            guard sourceSession == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        }
+        if let reader = sourceReaderAllocation?.allocatedHandle {
+            try reader.requireLiveTemporalIdentity(mutationRegistry: exclusion.registry)
+            guard let pins, reader.token.role == .reader, reader.token.epoch.generationID == generationID,
+                  reader.token.epoch.generationManifestSHA256 == StoreMigrationCanonicalJSONV1.sha256(pins.manifestBytes) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            expected.append(reader.token)
+        }
+        let observation = try exclusion.observeSourceRegistry()
+        guard observation.leases.count == expected.count,
+              observation.leases.allSatisfy({ expected.contains($0) }),
+              expected.allSatisfy({ observation.leases.contains($0) }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        // Retention is evidence only. Every next edge rereads the registry.
+        retainedRegistryObservation = observation
+    }
+
+    func requirePrivateSourceAllocationRequest(scope: TemporalNormalizationOriginalAccessScopeV1) throws
+        -> ScratchDataLeaseRequestV1 {
+        try revalidateUnderOriginalAccess(operation: operation, scope: scope)
+        guard privateSourceRequest == nil, privateAllocation == nil, let pins else {
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+        if case .retiredV53 = semanticBinding {
+            guard let allocation = sourceReaderAllocation, allocation.allocatedHandle != nil,
+                  !allocation.sealedForRetirement else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        }
+        if case .cold = exclusion {
+            guard let allocation = sourceReaderAllocation, allocation.allocatedHandle != nil,
+                  !allocation.sealedForRetirement else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        }
+        let sqlite = pins.files.filter { $0.url.deletingLastPathComponent() == generationRootURL }
+        guard sqlite.contains(where: { $0.name == "model.sqlite" && $0.identity.size > 0 }),
+              sqlite.allSatisfy({ ["model.sqlite", "model.sqlite-wal", "model.sqlite-shm"].contains($0.name) }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var requested: UInt64 = 0
+        for file in sqlite {
+            let (next, overflow) = requested.addingReportingOverflow(UInt64(file.identity.size))
+            guard !overflow else { throw ScratchDataLeaseStoreFailureV1.sizeLimitExceeded }
+            requested = next
+        }
+        if !sqlite.contains(where: { $0.name == "model.sqlite-shm" }) {
+            let wal = UInt64(sqlite.first(where: { $0.name == "model.sqlite-wal" })?.identity.size ?? 0)
+            let (next, overflow) = requested.addingReportingOverflow(max(32_768, wal))
+            guard !overflow else { throw ScratchDataLeaseStoreFailureV1.sizeLimitExceeded }
+            requested = next
+        }
+        guard requested > 0, requested <= ScratchDataPurposeV1.source.maximumByteCount else {
+            throw ScratchDataLeaseStoreFailureV1.sizeLimitExceeded
+        }
+        let now = Date()
+        let request = try ScratchDataLeaseRequestV1(leaseID: UUID(), purpose: .source, owner: .source,
+            ownerOperationID: operation.sourceOperationID, requestedByteCount: requested,
+            createdAt: now, expiresAt: now.addingTimeInterval(ScratchDataPurposeV1.source.maximumLifetimeSeconds))
+        privateSourceRequest = request
+        return request
+    }
+
+    func registerPrivateSourceAllocation(_ allocation: TemporalNormalizationSourceAllocationV1,
+                                        scope: TemporalNormalizationOriginalAccessScopeV1) throws {
+        try revalidateUnderOriginalAccess(operation: operation, scope: scope)
+        guard privateAllocation == nil, let privateSourceRequest,
+              allocation.lease.request == privateSourceRequest else {
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+        privateAllocation = allocation
+    }
+
+    func revalidatePrivateSourceAllocation(_ allocation: TemporalNormalizationSourceAllocationV1,
+                                          scope: TemporalNormalizationOriginalAccessScopeV1) throws {
+        guard privateAllocation === allocation, let privateSourceRequest,
+              allocation.lease.request == privateSourceRequest,
+              Date() < privateSourceRequest.expiresAt else {
+            throw ScratchDataLeaseStoreFailureV1.leaseExpired
+        }
+        try revalidateUnderOriginalAccess(operation: operation, scope: scope)
+    }
+
+    func requirePrivateSourceSupportDescriptor(_ descriptor: Int32,
+        allocation: TemporalNormalizationSourceAllocationV1) throws {
+        guard !released, privateAllocation === allocation, let pins else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try pins.requireSupportDescriptor(descriptor)
+    }
+
+    func expectedPrivateSQLiteByteCount(named name: String,
+                                       allocation: TemporalNormalizationSourceAllocationV1) throws -> UInt64 {
+        guard !released, privateAllocation === allocation, let pins,
+              ["model.sqlite", "model.sqlite-wal", "model.sqlite-shm"].contains(name),
+              let file = pins.files.first(where: { $0.name == name &&
+                  $0.url.deletingLastPathComponent() == generationRootURL }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try TemporalNormalizationCurrentPinsV1.revalidate(file)
+        return UInt64(file.identity.size)
+    }
+
+    func revalidateSourceCleanupScope(allocation: TemporalNormalizationSourceAllocationV1) throws {
+        guard !released, privateAllocation === allocation else {
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+        try exclusion.revalidate()
+    }
+
+    func hasActualPrivateReaderAttempt(allocation: TemporalNormalizationSourceAllocationV1) -> Bool {
+        privateAllocation === allocation && privateReaderAttempted
+    }
+
+    fileprivate func observeActualPrivateContainer(_ container: ModelContainer,
+                                                   allocation: TemporalNormalizationSourceAllocationV1,
+                                                   scope: TemporalNormalizationOriginalAccessScopeV1) throws {
+        try scope.requireSourceRead(operation: operation, source: self)
+        guard privateAllocation === allocation, activeReadScope === scope,
+              observedPrivateContainer == nil, observedPrivateContext == nil else {
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+        observedPrivateContainer = container
+        observedPrivateContext = container.mainContext
+    }
+
+    fileprivate func validatePrivateReader(_ capability: TemporalNormalizationSourceReadAuthorityV1,
+                                           context: ModelContext) throws {
+        guard activeReadCapability === capability, let activeReadScope,
+              observedPrivateContext === context, observedPrivateContainer != nil,
+              !context.hasChanges, copyPhase == .verified, let privateAllocation else {
+            throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+        }
+        try revalidateUnderOriginalAccess(operation: operation, scope: activeReadScope)
+        try privateAllocation.verifyForRead()
+    }
+
+    func readCanonicalSnapshotUnderOriginalAccess(scope: TemporalNormalizationOriginalAccessScopeV1) throws
+        -> TemporalNormalizationCanonicalSnapshotV1 {
+        try revalidateUnderOriginalAccess(operation: operation, scope: scope)
+        guard persistentSchemaRelease == .v53 else {
+            throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+        }
+        guard copyPhase == .verified, sourceWorker == nil, activeReadScope == nil,
+              activeReadCapability == nil, observedPrivateContainer == nil,
+              observedPrivateContext == nil, let privateAllocation, let manifest = pins?.manifest else {
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+        try privateAllocation.verifyForRead()
+        activeReadScope = scope
+        defer {
+            activeReadCapability?.revoke()
+            activeReadCapability = nil
+            activeReadScope = nil
+        }
+        let outcome = Result { try autoreleasepool {
+            privateReaderAttempted = true
+            let container = try sourceFactory.openTemporalPrivateSourceReader(owner: self,
+                allocation: privateAllocation, release: persistentSchemaRelease,
+                markerMigrationID: manifest.migrationID, scope: scope)
+            let identity = try privateReaderIdentity(context: container.mainContext)
+            let capability = TemporalNormalizationSourceReadAuthorityV1(owner: self,
+                context: container.mainContext, workspaceIdentity: identity)
+            activeReadCapability = capability
+            try capability.revalidate(modelContext: container.mainContext)
+            let snapshot = try BackupExportService.readTemporalNormalizationCanonicalSnapshot(
+                modelContext: container.mainContext, authority: capability)
+            try capability.revalidate(modelContext: container.mainContext)
+            return snapshot
+        } }
+        do {
+            guard observedPrivateContainer == nil, observedPrivateContext == nil else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+            try privateAllocation.verifyForRead()
+            try revalidateUnderOriginalAccess(operation: operation, scope: scope)
+        } catch {
+            if case .failure(let readFailure) = outcome {
+                throw TemporalNormalizationSourceBoundaryFailureV1(
+                    operationFailure: readFailure, boundaryFailure: error)
+            }
+            throw error
+        }
+        let snapshot = try outcome.get()
+        if let prior = retainedCanonicalSnapshot {
+            guard prior.recordsData == snapshot.recordsData,
+                  prior.semanticRecordsData == snapshot.semanticRecordsData,
+                  prior.source == snapshot.source else { throw StoreMigrationFailure.invalidIdentity }
+        }
+        retainedCanonicalSnapshot = snapshot
+        return snapshot
+    }
+
+    func readCanonicalSnapshot() async throws -> TemporalNormalizationCanonicalSnapshotV1 {
+        if copyPhase == .none { try await copyPrivateSource() }
+        try await operation.validate()
+        return try operation.readPrivateCanonicalSource(self)
+    }
+
+    func beginRetainedSourceSet(scope: TemporalNormalizationOriginalAccessScopeV1) throws -> TemporalNormalizationRetainedSourceSetV1 {
+        try revalidateUnderOriginalAccess(operation: operation, scope: scope)
+        guard let pins, let snapshot = retainedCanonicalSnapshot,
+              pins.pointer?.generationID == generationID.uuidString.lowercased() else { throw StoreMigrationFailure.invalidIdentity }
+        let retiredIDs = try pins.retainSourceMembership(currentGenerationID: generationID)
+        var baseline = try exclusion.observeSourceRegistry().leases
+        if let owned = sourceReaderAllocation?.allocatedHandle { baseline.removeAll { $0 == owned.token } }
+        return TemporalNormalizationRetainedSourceSetV1(operation: operation, exclusion: exclusion,
+            currentGenerationID: snapshot.generationID, retiredGenerationIDs: retiredIDs, baselineLeases: baseline)
+    }
+    func transferReadSource(to set: TemporalNormalizationRetainedSourceSetV1,
+        scope: TemporalNormalizationOriginalAccessScopeV1) throws {
+        try revalidateUnderOriginalAccess(operation: operation, scope: scope)
+        try set.requireExpectedSource(operation: operation, generationID: generationID)
+        guard let pins, let snapshot = retainedCanonicalSnapshot, copyPhase == .verified,
+              sourceWorker == nil, activeReadScope == nil, activeReadCapability == nil,
+              observedPrivateContainer == nil, observedPrivateContext == nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let reports = retainedReportObservations.values.map { $0.1 }.sorted { $0.report.id.uuidString < $1.report.id.uuidString }
+        guard Set(reports.map { $0.report.id }) == Set(snapshot.records.reports.map { $0.id }),
+              reports.count == snapshot.records.reports.count else { throw StoreMigrationFailure.invalidIdentity }
+        for transfer in sourceTransfers { try transfer.recordVerifiedDigest(owner: self, pins: pins) }
+        guard Set(pins.observedFileDigests.keys) == Set(pins.files.map { $0.url.path }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        if let privateAllocation {
+            try privateAllocation.closeAfterReaderDrain(); try privateAllocation.requireClosed()
+            self.privateAllocation = nil
+        }
+        if let allocation = sourceReaderAllocation {
+            allocation.sealForRetirement()
+            try exclusion.closeRetiredSourceReader(allocation, source: self)
+            sourceReaderAllocation = nil
+        }
+        try revalidateUnderOriginalAccess(operation: operation, scope: scope)
+        // Receiver owns the exact pins before this object relinquishes them.
+        try set.acceptSource(operation: operation, snapshot: snapshot, reports: reports,
+            profileRegistry: profileRegistry, pins: pins)
+        self.pins = nil; retainedCanonicalSnapshot = nil; retainedReportObservations.removeAll()
+        sourceTransfers.removeAll(); privateSourceRequest = nil; copyPhase = .none
+        sourceSession = nil; retainedRegistryObservation = nil; released = true
+        try exclusion.releaseSourceOwnerAfterDrain(self)
+        unregistered = true
+    }
+
+    /// The byte limit is a caller resource budget, never a content-validity or
+    /// policy decision. No DTO or relative path can be supplied by the caller.
+    func readReportSnapshot(reportID: UUID, maximumByteCount: Int) async throws
+        -> TemporalNormalizationReportSnapshotObservationV1 {
+        try await operation.validate()
+        return try operation.readReportSnapshot(self, reportID: reportID, maximumByteCount: maximumByteCount)
+    }
+
+    func readReportSnapshotUnderOriginalAccess(reportID: UUID, maximumByteCount: Int,
+        scope: TemporalNormalizationOriginalAccessScopeV1) throws -> TemporalNormalizationReportSnapshotObservationV1 {
+        try revalidateUnderOriginalAccess(operation: operation, scope: scope)
+        guard maximumByteCount > 0 else { throw TemporalNormalizationReportReadFailureV1.invalidBudget }
+        guard copyPhase == .verified, sourceWorker == nil, activeReadScope == nil,
+              activeReadCapability == nil, observedPrivateContainer == nil, observedPrivateContext == nil,
+              let snapshot = retainedCanonicalSnapshot, let pins,
+              snapshot.generationID == generationID else { throw StoreMigrationFailure.invalidIdentity }
+        let matches = snapshot.records.reports.filter { $0.id == reportID }
+        guard matches.count == 1, let report = matches.first else { throw StoreMigrationFailure.invalidIdentity }
+        let file = try pins.retainReportSnapshotFile(report: report, generationRootURL: generationRootURL)
+        guard file.identity.size <= Int64(maximumByteCount) else {
+            throw TemporalNormalizationReportReadFailureV1.byteBudgetExceeded(actual: file.identity.size, maximum: maximumByteCount)
+        }
+        let bytes = try readRetainedReportBytes(file, scope: scope)
+        let sha = CanonicalJSONV1.sha256(bytes)
+        guard sha == report.snapshotSHA256 else { throw StoreMigrationFailure.digestMismatch }
+        try pins.recordObservedDigest(sha, file: file)
+        if let prior = retainedReportObservations.values.first(where: { $0.1.report.id == report.id }) {
+            guard prior.0.identity == file.identity, prior.1.report == report, prior.1.bytes == bytes,
+                  prior.1.sha256 == sha, prior.1.source == snapshot.source,
+                  prior.1.recordsSHA256 == KernelCanonicalHashV1.sha256(snapshot.recordsData) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            try revalidateUnderOriginalAccess(operation: operation, scope: scope)
+            return prior.1 // fresh bytes and identities above; no cached admission
+        }
+        let observation = TemporalNormalizationReportSnapshotObservationV1(snapshot: snapshot, report: report,
+            bytes: bytes, sha256: sha, identity: file.identity)
+        try revalidateUnderOriginalAccess(operation: operation, scope: scope)
+        retainedReportObservations[observation.observationID] = (file, observation)
+        return observation
+    }
+
+    func revalidateReportSnapshot(_ observation: TemporalNormalizationReportSnapshotObservationV1) async throws {
+        try await operation.validate()
+        try operation.revalidateReportSnapshot(self, observation: observation)
+    }
+    func revalidateReportSnapshotUnderOriginalAccess(_ observation: TemporalNormalizationReportSnapshotObservationV1,
+        scope: TemporalNormalizationOriginalAccessScopeV1) throws {
+        try revalidateUnderOriginalAccess(operation: operation, scope: scope)
+        guard let retained = retainedReportObservations[observation.observationID],
+              retained.1 == observation else { throw StoreMigrationFailure.invalidIdentity }
+        let bytes = try readRetainedReportBytes(retained.0, scope: scope)
+        guard bytes == observation.bytes, CanonicalJSONV1.sha256(bytes) == observation.sha256 else {
+            throw StoreMigrationFailure.digestMismatch
+        }
+        try revalidateUnderOriginalAccess(operation: operation, scope: scope)
+    }
+    private func readRetainedReportBytes(_ file: TemporalNormalizationCurrentPinsV1.File,
+        scope: TemporalNormalizationOriginalAccessScopeV1) throws -> Data {
+        guard let count = Int(exactly: file.identity.size) else { throw StoreMigrationFailure.invalidIdentity }
+        try revalidateUnderOriginalAccess(operation: operation, scope: scope)
+        guard try ProtectedFilePolicyV1.observeTemporalPolicy(.reportSnapshot, at: file.url) == file.policy else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var bytes = Data(); bytes.reserveCapacity(count)
+        var offset = 0
+        while offset < count {
+            try revalidateUnderOriginalAccess(operation: operation, scope: scope)
+            var chunk = Data(count: min(65_536, count - offset))
+            let amount = chunk.withUnsafeMutableBytes { buffer in
+                Darwin.pread(file.descriptor, buffer.baseAddress!, buffer.count, off_t(offset))
+            }
+            if amount < 0, errno == EINTR { continue }
+            guard amount >= 0 else { throw TemporalNormalizationReportReadFailureV1.readFailed(errorNumber: errno) }
+            guard amount > 0 else {
+                throw TemporalNormalizationReportReadFailureV1.unexpectedEOF(expected: file.identity.size, observed: Int64(offset))
+            }
+            chunk.count = amount; bytes.append(chunk); offset += amount
+            try TemporalNormalizationCurrentPinsV1.revalidate(file)
+        }
+        try revalidateUnderOriginalAccess(operation: operation, scope: scope)
+        guard bytes.count == count,
+              try ProtectedFilePolicyV1.observeTemporalPolicy(.reportSnapshot, at: file.url) == file.policy else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return bytes
+    }
+
+    func requireActualPrivateReaderAttempt(allocation: TemporalNormalizationSourceAllocationV1) throws {
+        guard privateAllocation === allocation, privateReaderAttempted else {
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+    }
+
+    func requirePrivateSourceWorkersAndReadersDrained(allocation: TemporalNormalizationSourceAllocationV1) throws {
+        guard privateAllocation === allocation, sourceWorker == nil,
+              activeReadScope == nil, activeReadCapability == nil,
+              observedPrivateContainer == nil, observedPrivateContext == nil else {
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+    }
+
+    func requirePrivateCopyAccess(scope: TemporalNormalizationOriginalAccessScopeV1) throws {
+        try revalidateUnderOriginalAccess(operation: operation, scope: scope)
+        guard privateAllocation != nil, sourceWorker == nil, sourceTransfers.isEmpty,
+              copyPhase == .none else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+    }
+
+    func startPrivateCopyUnderOriginalAccess(scope: TemporalNormalizationOriginalAccessScopeV1,
+                                            access: TemporalNormalizationSourceCopyAccessV1) throws {
+        try requirePrivateCopyAccess(scope: scope)
+        guard let privateAllocation, let pins else { throw StoreMigrationFailure.invalidIdentity }
+        let sqlite = pins.files.filter { $0.url.deletingLastPathComponent() == generationRootURL }
+        for file in sqlite {
+            let target = try privateAllocation.createSQLiteTarget(named: file.name, scope: scope)
+            sourceTransfers.append(try TemporalNormalizationSQLiteTransferV1(owner: self, source: file, target: target))
+        }
+        try revalidateUnderOriginalAccess(operation: operation, scope: scope)
+        let transfers = sourceTransfers
+        copyPhase = .copying
+        sourceWorker = Task.detached(priority: .utility) {
+            for transfer in transfers {
+                while try access.copyNextChunk(transfer) {}
+            }
+        }
+    }
+
+    func copyPrivateSource() async throws {
+        try await operation.validate()
+        do {
+            try operation.allocatePrivateSourceCopy(self)
+            try operation.startPrivateSourceCopy(self)
+        } catch {
+            let preparationFailure = error
+            // A Router postcondition can fail after the worker was launched.
+            // Even on that edge, retain and join the actual worker before any
+            // caller may dispose its descriptors or the private directory.
+            if let worker = sourceWorker {
+                let workerOutcome = await worker.result
+                sourceWorker = nil
+                if case .failure(let workerFailure) = workerOutcome {
+                    throw TemporalNormalizationSourceBoundaryFailureV1(
+                        operationFailure: preparationFailure, boundaryFailure: workerFailure)
+                }
+            }
+            throw preparationFailure
+        }
+        guard let worker = sourceWorker else { throw StoreMigrationFailure.invalidIdentity }
+        // Await the actual worker even if the caller is cancelled. Revocation
+        // can stop its next chunk, but never stands in for this join.
+        let outcome = await worker.result
+        sourceWorker = nil
+        try outcome.get()
+        for transfer in sourceTransfers { try transfer.requireCompleted() }
+        try await operation.validate()
+        try operation.revalidateSource(self)
+        copyPhase = .verified
+    }
+
+    func allocatePrivateCopyUnderOriginalAccess(scope: TemporalNormalizationOriginalAccessScopeV1) throws {
+        try scope.requireSourceRead(operation: operation, source: self)
+        _ = try TemporalNormalizationSourceAllocationV1.allocate(owner: self, scope: scope)
+    }
+
+    /// Failure-only disposal of this owner's exact pins and private SOURCE.
+    /// The actual worker must have joined and actual private readers must have
+    /// drained; a caller cannot supply a "drained" Boolean.
+    func closePinnedSourceAfterFailure() throws {
+        guard !unregistered else { return }
+        if !released {
+            try exclusion.revalidate()
+            if let privateAllocation {
+                try privateAllocation.closeAfterReaderDrain()
+                try privateAllocation.requireClosed()
+                self.privateAllocation = nil
+            }
+            guard sourceWorker == nil, observedPrivateContainer == nil,
+                  observedPrivateContext == nil else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+            pins?.close(); pins = nil
+            retainedReportObservations.removeAll(); retainedCanonicalSnapshot = nil
+            if let allocation = sourceReaderAllocation {
+                allocation.sealForRetirement()
+                try exclusion.closeRetiredSourceReader(allocation, source: self)
+                sourceReaderAllocation = nil
+            }
+            sourceTransfers.removeAll()
+            privateSourceRequest = nil
+            copyPhase = .none
+            sourceSession = nil
+            retainedRegistryObservation = nil
+            released = true
+        }
+        try exclusion.releaseSourceOwnerAfterDrain(self)
+        unregistered = true
+    }
+
+    func requireResourcesDrained() throws {
+        guard released, pins == nil, sourceSession == nil, sourceReaderAllocation == nil,
+              retainedReportObservations.isEmpty, retainedCanonicalSnapshot == nil,
+              retainedRegistryObservation == nil, privateAllocation == nil,
+              privateSourceRequest == nil, sourceWorker == nil, sourceTransfers.isEmpty,
+              observedPrivateContainer == nil, observedPrivateContext == nil,
+              activeReadScope == nil, activeReadCapability == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    func requireTerminalDrain(operation expected: TemporalNormalizationSourceOperationV1) throws {
+        guard operation.matches(expected), unregistered else { throw AppAccessContractFailureV1.staleAttempt }
+        try requireResourcesDrained()
+    }
+}
+
+extension StoreGenerationFactory {
+    @MainActor
+    func makeTemporalNormalizationCurrentSource(
+        operation: TemporalNormalizationOperationAuthorityV1,
+        coordinator: StoreSessionCoordinator,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        scope: TemporalNormalizationOriginalAccessScopeV1
+    ) throws -> TemporalNormalizationSourceOwnerV1 {
+        try scope.requirePreparation(operation: operation, exclusion: exclusion)
+        return try TemporalNormalizationSourceOwnerV1(factory: self, applicationSupportURL: applicationSupportURL,
+            operation: operation, coordinator: coordinator, exclusion: exclusion, scope: scope)
+    }
+}
+
+
+extension StoreGenerationSession {
+    fileprivate func actualTemporalSourceReaderHandle() -> GenerationLeaseHandleV1? {
+        readerLeaseHandle
+    }
+}
+
+/// One exact original-to-private-copy transfer, constructed only beside the
+/// concrete source owner. Each invocation performs at most one 64 KiB read and
+/// write/hash step while the real original access reference is held.
+final class TemporalNormalizationSQLiteTransferV1: @unchecked Sendable {
+    let sourceOwnerIdentity: ObjectIdentifier
+    private let source: TemporalNormalizationCurrentPinsV1.File
+    private let target: TemporalNormalizationSourceTargetV1
+    private enum Phase { case copy, verifyTarget, verifySource, complete }
+    private var phase: Phase = .copy
+    private var offset: UInt64 = 0
+    private var hash = SHA256()
+    private var digest: String?
+    private let lock = NSLock()
+
+    @MainActor
+    fileprivate init(owner: TemporalNormalizationSourceOwnerV1,
+                     source: TemporalNormalizationCurrentPinsV1.File,
+                     target: TemporalNormalizationSourceTargetV1) throws {
+        guard source.name == target.fileName,
+              UInt64(source.identity.size) == target.expectedByteCount else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        sourceOwnerIdentity = ObjectIdentifier(owner)
+        self.source = source; self.target = target
+    }
+
+    func copyNextChunkUnderOriginalReference() throws -> Bool {
+        try lock.withLock {
+            try TemporalNormalizationCurrentPinsV1.revalidate(source)
+            if case .complete = phase { return false }
+            let size = UInt64(source.identity.size)
+            let count = Int(min(UInt64(65_536), size - offset))
+            let bytes: Data
+            switch phase {
+            case .copy, .verifySource:
+                var read = Data(count: count)
+                try read.withUnsafeMutableBytes { buffer in
+                    var done = 0
+                    while done < buffer.count {
+                        let amount = Darwin.pread(source.descriptor,
+                            buffer.baseAddress!.advanced(by: done), buffer.count - done,
+                            off_t(offset + UInt64(done)))
+                        if amount < 0, errno == EINTR { continue }
+                        guard amount > 0 else { throw StoreMigrationFailure.invalidIdentity }
+                        done += amount
+                    }
+                }
+                bytes = read
+            case .verifyTarget:
+                bytes = try target.readChunk(offset: offset)
+            case .complete:
+                return false
+            }
+            guard bytes.count == count else { throw StoreMigrationFailure.invalidIdentity }
+            if case .copy = phase { try target.append(bytes) }
+            hash.update(data: bytes)
+            offset += UInt64(bytes.count)
+            try TemporalNormalizationCurrentPinsV1.revalidate(source)
+            guard offset == size else { return true }
+            let finished = hash.finalize().map { String(format: "%02x", $0) }.joined()
+            switch phase {
+            case .copy:
+                try target.finish()
+                digest = finished; phase = .verifyTarget
+            case .verifyTarget:
+                guard finished == digest else { throw StoreMigrationFailure.digestMismatch }
+                phase = .verifySource
+            case .verifySource:
+                guard finished == digest else { throw StoreMigrationFailure.digestMismatch }
+                phase = .complete
+            case .complete: break
+            }
+            offset = 0; hash = SHA256()
+            if case .complete = phase { return false }
+            return true
+        }
+    }
+
+    @MainActor
+    fileprivate func recordVerifiedDigest(owner: TemporalNormalizationSourceOwnerV1,
+        pins: TemporalNormalizationCurrentPinsV1) throws {
+        guard sourceOwnerIdentity == ObjectIdentifier(owner) else { throw StoreMigrationFailure.invalidIdentity }
+        try lock.withLock {
+            guard case .complete = phase, let digest else { throw StoreMigrationFailure.invalidIdentity }
+            try TemporalNormalizationCurrentPinsV1.revalidate(source)
+            try pins.recordObservedDigest(digest, file: source)
+        }
+    }
+    fileprivate func requireCompleted() throws {
+        try lock.withLock {
+            guard case .complete = phase, digest != nil else { throw StoreMigrationFailure.invalidIdentity }
+            try TemporalNormalizationCurrentPinsV1.revalidate(source)
+            try target.revalidate()
+        }
+    }
+}
+
+extension StoreGenerationFactory {
+    @MainActor
+    fileprivate func openTemporalPrivateSourceReader(owner: TemporalNormalizationSourceOwnerV1,
+        allocation: TemporalNormalizationSourceAllocationV1, release: PersistentSchemaReleaseV1,
+        markerMigrationID: UUID, scope: TemporalNormalizationOriginalAccessScopeV1) throws -> ModelContainer {
+        try owner.revalidatePrivateSourceAllocation(allocation, scope: scope)
+        try allocation.verifyForRead()
+        var observationFailure: (any Error)?
+        let container = try openReadOnlyReleasedContainer(at: allocation.modelURL,
+            release: release, markerMigrationID: markerMigrationID) { container in
+                do { try owner.observeActualPrivateContainer(container, allocation: allocation, scope: scope) }
+                catch { observationFailure = error }
+            }
+        if let observationFailure { throw observationFailure }
+        try owner.revalidatePrivateSourceAllocation(allocation, scope: scope)
+        return container
+    }
+}
+
+/// Read capability for only the actual private read-only context while its
+/// fixed Router reference scope remains live. It is never a writer capability,
+/// cannot bootstrap journal state, and is revoked at the synchronous read exit.
+@MainActor
+final class TemporalNormalizationSourceReadAuthorityV1 {
+    private let owner: TemporalNormalizationSourceOwnerV1
+    private weak var context: ModelContext?
+    private var active = true
+    var generationRootURL: URL { owner.generationRootURL }
+    let workspaceIdentity: WorkspaceReplicaIdentityV1
+    var generationID: UUID { owner.generationID }
+    var persistentSchemaRelease: PersistentSchemaReleaseV1 { owner.persistentSchemaRelease }
+    var profileRegistry: WorkspacePackageLifecycleProfileRegistryV1 { owner.profileRegistry }
+
+    fileprivate init(owner: TemporalNormalizationSourceOwnerV1, context: ModelContext,
+                     workspaceIdentity: WorkspaceReplicaIdentityV1) {
+        self.owner = owner; self.context = context; self.workspaceIdentity = workspaceIdentity
+    }
+    fileprivate func revoke() { active = false }
+    func revalidate(modelContext: ModelContext) throws {
+        guard active, context === modelContext else { throw StoreMigrationFailure.invalidIdentity }
+        try owner.validatePrivateReader(self, context: modelContext)
+    }
+    func revision(for history: MutationHistorySnapshotV1) throws -> TemporalNormalizationSourceRevisionV1 {
+        guard let context else { throw StoreMigrationFailure.invalidIdentity }
+        try revalidate(modelContext: context)
+        let journal = try MutationJournalStoreV1(modelContext: context, identity: workspaceIdentity,
+            generationID: generationID, allowStateBootstrap: false)
+        guard try journal.exportSnapshot() == history else { throw StoreMigrationFailure.invalidIdentity }
+        return try TemporalNormalizationSourceRevisionV1(workspaceID: workspaceIdentity.workspaceID,
+            generationID: generationID, history: history)
+    }
+    func validateLifecycleQuery(modelContext: ModelContext,
+        operation: WorkspacePackageLifecycleOperationV1, identities: [WorkspaceEntityIdentityV1],
+        expectedBindings: [WorkspacePackageBindingV1]) throws {
+        try revalidate(modelContext: modelContext)
+        guard operation == .backup || operation == .archive,
+              Set(identities).count == identities.count else { throw StoreMigrationFailure.invalidIdentity }
+        let adapter = WorkspaceWriterAdapterV1(modelContext: modelContext,
+            generationRootURL: generationRootURL, lifecycleProfileRegistry: profileRegistry)
+        var bindings: [WorkspacePackageBindingV1] = []
+        for start in stride(from: 0, to: identities.count, by: 256) {
+            let slice = Array(identities[start..<min(start + 256, identities.count)])
+            let request = try WorkspacePackageLifecycleQueryRequestV1(workspaceID: workspaceIdentity.workspaceID,
+                generationID: generationID, operation: operation, identities: slice)
+            let observed = try adapter.queryExisting(identities: request.identities)
+            guard observed.identities == request.identities else { throw StoreMigrationFailure.invalidIdentity }
+            bindings.append(contentsOf: observed.packageBindings)
+        }
+        guard bindings.sorted(by: { $0.assetID.uuidString < $1.assetID.uuidString }) == expectedBindings else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try revalidate(modelContext: modelContext)
+    }
+}
+
+/// Retains both the initiating error and a failed terminal/reproof boundary.
+/// Neither error is converted into successful ownership disposal.
+struct TemporalNormalizationSourceBoundaryFailureV1: Error {
+    let operationFailure: any Error
+    let boundaryFailure: any Error
+}
+
+
+extension StoreGenerationFactory {
+    @MainActor
+    func makeTemporalNormalizationRetiredSource(operation: TemporalNormalizationOperationAuthorityV1,
+        coordinator: StoreSessionCoordinator, exclusion: StoreTemporalNormalizationExclusionV1,
+        generationID: UUID, scope: TemporalNormalizationOriginalAccessScopeV1) throws -> TemporalNormalizationSourceOwnerV1 {
+        try scope.requirePreparation(operation: operation, exclusion: exclusion)
+        return try TemporalNormalizationSourceOwnerV1(factory: self, applicationSupportURL: applicationSupportURL,
+            retiredGenerationID: generationID, operation: operation, coordinator: coordinator,
+            exclusion: exclusion, scope: scope)
+    }
+}
+
+
+@MainActor
+fileprivate enum TemporalNormalizationSourceExclusionV1 {
+    case coordinated(StoreTemporalNormalizationExclusionV1)
+    case cold(TemporalNormalizationColdExclusionV1)
+    var registry: GenerationLeaseRegistryV1 {
+        get throws {
+            switch self { case .coordinated(let value): return value.registry
+            case .cold(let value): return try value.retainedRegistryForSource() }
+        }
+    }
+    func revalidate() throws {
+        switch self { case .coordinated(let value): try value.revalidate()
+        case .cold(let value): try value.revalidateSourceOwnership() }
+    }
+    func observeSourceRegistry() throws -> TemporalGenerationRegistryObservationV1 {
+        switch self { case .coordinated(let value): return try value.observeSourceRegistry()
+        case .cold(let value): return try value.observeSourceRegistry() }
+    }
+    func acquireRetiredSourceReader(_ allocation: GenerationLeaseAllocationAttemptV1,
+        source: TemporalNormalizationSourceOwnerV1) throws -> GenerationLeaseHandleV1 {
+        switch self { case .coordinated(let value): return try value.acquireRetiredSourceReader(allocation, source: source)
+        case .cold(let value): return try value.acquireSourceReader(allocation, source: source) }
+    }
+    func closeRetiredSourceReader(_ allocation: GenerationLeaseAllocationAttemptV1,
+        source: TemporalNormalizationSourceOwnerV1) throws {
+        switch self { case .coordinated(let value): try value.closeRetiredSourceReader(allocation, source: source)
+        case .cold(let value): try value.closeSourceReader(allocation, source: source) }
+    }
+    func releaseSourceOwnerAfterDrain(_ source: TemporalNormalizationSourceOwnerV1) throws {
+        switch self { case .coordinated(let value): try value.releaseSourceOwnerAfterDrain(source)
+        case .cold(let value): try value.releaseSourceOwnerAfterDrain(source) }
+    }
+}
+
+
+extension StoreGenerationFactory {
+    @MainActor
+    func makeTemporalNormalizationColdSource(operation: TemporalNormalizationColdOperationAuthorityV1,
+        exclusion: TemporalNormalizationColdExclusionV1, profileRegistry: WorkspacePackageLifecycleProfileRegistryV1,
+        scope: TemporalNormalizationOriginalAccessScopeV1) throws -> TemporalNormalizationSourceOwnerV1 {
+        try scope.requireColdPreparation(operation: operation, exclusion: exclusion)
+        return try TemporalNormalizationSourceOwnerV1(factory: self, applicationSupportURL: applicationSupportURL,
+            operation: operation, exclusion: exclusion, profileRegistry: profileRegistry, scope: scope)
+    }
+}
+
+
+enum TemporalNormalizationReportReadFailureV1: Error {
+    case invalidBudget
+    case byteBudgetExceeded(actual: Int64, maximum: Int)
+    case readFailed(errorNumber: Int32)
+    case unexpectedEOF(expected: Int64, observed: Int64)
+}
+
+/// Immutable original-member facts. This is not access, graph validation,
+/// absence, removal or publication authority. The owner retains the real FDs.
+struct TemporalNormalizationReportSnapshotObservationV1: Equatable, Sendable {
+    struct PhysicalIdentity: Equatable, Sendable {
+        let device: UInt64, inode: UInt64, links: UInt64
+        let mode: UInt16
+        let byteCount: Int64, modifiedSeconds: Int64, modifiedNanoseconds: Int64
+        let changedSeconds: Int64, changedNanoseconds: Int64
+        fileprivate init(_ value: TemporalNormalizationCurrentPinsV1.FileIdentity) {
+            device = value.device; inode = value.inode; links = value.links; mode = value.mode
+            byteCount = value.size; modifiedSeconds = value.modifiedSeconds; modifiedNanoseconds = value.modifiedNanoseconds
+            changedSeconds = value.changedSeconds; changedNanoseconds = value.changedNanoseconds
+        }
+    }
+    fileprivate let observationID: UUID
+    let source: V4BackupSourceV1
+    let workspaceIdentity: WorkspaceReplicaIdentityV1
+    let generationID: UUID
+    let revision: TemporalNormalizationSourceRevisionV1
+    let recordsSHA256: String
+    let report: V4BackupReportDTO
+    let bytes: Data
+    let byteCount: Int64
+    let sha256: String
+    let physicalIdentity: PhysicalIdentity
+    fileprivate init(snapshot: TemporalNormalizationCanonicalSnapshotV1, report: V4BackupReportDTO,
+        bytes: Data, sha256: String, identity: TemporalNormalizationCurrentPinsV1.FileIdentity) {
+        observationID = UUID(); source = snapshot.source; workspaceIdentity = snapshot.workspaceIdentity
+        generationID = snapshot.generationID; revision = snapshot.revision
+        recordsSHA256 = KernelCanonicalHashV1.sha256(snapshot.recordsData); self.report = report
+        self.bytes = bytes; byteCount = Int64(bytes.count); self.sha256 = sha256
+        physicalIdentity = PhysicalIdentity(identity)
+    }
+}
+
+
+struct TemporalNormalizationRetainedSourceObservationV1 {
+    let snapshot: TemporalNormalizationCanonicalSnapshotV1
+    let reports: [TemporalNormalizationReportSnapshotObservationV1]
+    let profileRegistry: WorkspacePackageLifecycleProfileRegistryV1
+    fileprivate init(snapshot: TemporalNormalizationCanonicalSnapshotV1,
+        reports: [TemporalNormalizationReportSnapshotObservationV1],
+        profileRegistry: WorkspacePackageLifecycleProfileRegistryV1) {
+        self.snapshot = snapshot; self.reports = reports; self.profileRegistry = profileRegistry
+    }
+}
+
+/// Privately created from actual current membership and kept by its Router
+/// operation. Caller arrays can never supply or extend exhaustive coverage.
+@MainActor
+final class TemporalNormalizationRetainedSourceSetV1 {
+    private let operation: TemporalNormalizationSourceOperationV1
+    private let exclusion: TemporalNormalizationSourceExclusionV1
+    let currentGenerationID: UUID
+    let retiredGenerationIDs: [UUID]
+    private let baselineLeases: [GenerationLeaseTokenV1]
+    private struct Retained {
+        let observation: TemporalNormalizationRetainedSourceObservationV1
+        let pins: TemporalNormalizationCurrentPinsV1
+        let digests: [String: String]
+    }
+    private var retained: [UUID: Retained] = [:]
+    private var worker: Task<[String: String], any Error>?
+    private var pendingObservedBytes: [String: String]?
+    private var closed = false
+    private var disposalStarted = false
+    private var abandonmentRead: TemporalNormalizationAbandonmentReadV1?
+    private var abandonmentWorker: Task<Void, any Error>?
+    private var abandonmentJournal: TemporalOperationalJournalObservationV1?
+    private var abandonmentPrepared: PreparedTemporalUncommittedOriginalV1?
+    private var abandonmentClassificationWorker: Task<TemporalNormalizationUncommittedOriginalClassificationV1, any Error>?
+    private var abandonmentClassification: TemporalNormalizationUncommittedOriginalClassificationV1?
+    private var abandonmentEffectStarted = false
+    private weak var activePublication: TemporalNormalizationPublicationProofV1?
+    fileprivate init(operation: TemporalNormalizationSourceOperationV1,
+        exclusion: TemporalNormalizationSourceExclusionV1, currentGenerationID: UUID,
+        retiredGenerationIDs: [UUID], baselineLeases: [GenerationLeaseTokenV1]) {
+        self.operation = operation; self.exclusion = exclusion; self.currentGenerationID = currentGenerationID
+        self.retiredGenerationIDs = retiredGenerationIDs; self.baselineLeases = baselineLeases
+    }
+    func isBound(to expected: TemporalNormalizationSourceOperationV1) -> Bool { operation.matches(expected) }
+    fileprivate func requireExpectedSource(operation expected: TemporalNormalizationSourceOperationV1,
+        generationID: UUID) throws {
+        guard operation.matches(expected), !closed, !disposalStarted, worker == nil,
+              ([currentGenerationID] + retiredGenerationIDs).contains(generationID), retained[generationID] == nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try exclusion.revalidate()
+    }
+    fileprivate func acceptSource(operation expected: TemporalNormalizationSourceOperationV1,
+        snapshot: TemporalNormalizationCanonicalSnapshotV1,
+        reports: [TemporalNormalizationReportSnapshotObservationV1],
+        profileRegistry: WorkspacePackageLifecycleProfileRegistryV1,
+        pins: TemporalNormalizationCurrentPinsV1) throws {
+        try requireExpectedSource(operation: expected, generationID: snapshot.generationID)
+        try pins.revalidate()
+        guard pins.manifest?.generationID == snapshot.generationID,
+              Set(pins.observedFileDigests.keys) == Set(pins.files.map { $0.url.path }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        retained[snapshot.generationID] = Retained(observation: .init(snapshot: snapshot, reports: reports,
+            profileRegistry: profileRegistry), pins: pins, digests: pins.observedFileDigests)
+    }
+    func requireCompletePhysicalSet(scope: TemporalNormalizationOriginalAccessScopeV1) throws {
+        try scope.requireSourceSet(operation: operation, sourceSet: self)
+        guard !closed, !disposalStarted, Set(retained.keys) == Set([currentGenerationID] + retiredGenerationIDs),
+              let current = retained[currentGenerationID] else { throw StoreMigrationFailure.invalidIdentity }
+        try exclusion.revalidate()
+        let leases = try exclusion.observeSourceRegistry().leases
+        guard leases.count == baselineLeases.count, Set(leases.map(\.leaseID)).count == leases.count,
+              leases.allSatisfy({ baselineLeases.contains($0) }) else { throw StoreMigrationFailure.invalidIdentity }
+        guard try current.pins.retainSourceMembership(currentGenerationID: currentGenerationID) == retiredGenerationIDs else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        for value in retained.values {
+            try value.pins.revalidate()
+            guard value.pins.observedFileDigests == value.digests else { throw StoreMigrationFailure.invalidIdentity }
+        }
+        try scope.requireSourceSet(operation: operation, sourceSet: self)
+    }
+    func startFreshByteObservation(scope: TemporalNormalizationOriginalAccessScopeV1,
+        access: TemporalNormalizationSourceSetReadAccessV1) throws {
+        try requireCompletePhysicalSet(scope: scope)
+        guard worker == nil else { throw StoreMigrationFailure.invalidIdentity }
+        // Paths shared between source pins must denote exactly identical
+        // original facts/digests; no later source wins an overwrite.
+        var files: [String: TemporalNormalizationCurrentPinsV1.File] = [:]
+        var expected: [String: String] = [:]
+        for value in retained.values {
+            for file in value.pins.files {
+                guard let digest = value.digests[file.url.path] else { throw StoreMigrationFailure.invalidIdentity }
+                if let prior = files[file.url.path] {
+                    guard prior.identity == file.identity, expected[file.url.path] == digest else { throw StoreMigrationFailure.invalidIdentity }
+                } else { files[file.url.path] = file; expected[file.url.path] = digest }
+            }
+        }
+        pendingObservedBytes = nil
+        let reads = files.keys.sorted().map { TemporalNormalizationSourceSetFingerprintV1(sourceSet: self,
+            file: files[$0]!, expectedSHA256: expected[$0]!) }
+        worker = Task.detached(priority: .utility) {
+            var result: [String: String] = [:]
+            for read in reads {
+                while try access.readNextChunk(read) {}
+                let completed = try read.completed()
+                result[completed.path] = completed.sha256
+            }
+            return result
+        }
+    }
+    func joinFreshByteObservationIfRunning() async throws {
+        if worker != nil { try await joinFreshByteObservation() }
+    }
+    func joinFreshByteObservation() async throws {
+        guard let worker else { throw StoreMigrationFailure.invalidIdentity }
+        let result = await worker.result
+        self.worker = nil
+        pendingObservedBytes = try result.get() // actual completed worker, not a success Boolean
+    }
+    func observations(scope: TemporalNormalizationOriginalAccessScopeV1) throws -> [TemporalNormalizationRetainedSourceObservationV1] {
+        try requireCompletePhysicalSet(scope: scope)
+        guard worker == nil, pendingObservedBytes != nil else { throw StoreMigrationFailure.invalidIdentity }
+        pendingObservedBytes = nil // this actual byte pass is consumed once
+        return ([currentGenerationID] + retiredGenerationIDs).map { retained[$0]!.observation }
+    }
+    func closeAfterFailure() throws {
+        guard worker == nil, abandonmentWorker == nil, abandonmentClassificationWorker == nil, activePublication == nil else { throw StoreMigrationFailure.invalidIdentity }
+        if closed { return }
+        disposalStarted = true; pendingObservedBytes = nil
+        try abandonmentRead?.closeAfterWorkerJoined()
+        abandonmentRead = nil
+        for id in retained.keys.sorted(by: { $0.uuidString < $1.uuidString }) {
+            guard let value = retained[id] else { throw StoreMigrationFailure.invalidIdentity }
+            try value.pins.closeRetainedSourceSetPins()
+            retained.removeValue(forKey: id)
+        }
+        closed = true
+    }
+    func requireClosed() throws {
+        guard closed, retained.isEmpty, worker == nil else { throw StoreMigrationFailure.invalidIdentity }
+    }
+}
+
+/// Read-only chunk operation bound to the actual retained source set. No URL,
+/// FD, expected digest or owner identity can be supplied outside this file.
+final class TemporalNormalizationSourceSetFingerprintV1: @unchecked Sendable {
+    let sourceSetIdentity: ObjectIdentifier
+    private let file: TemporalNormalizationCurrentPinsV1.File
+    private let expectedSHA256: String
+    private let lock = NSLock()
+    private var offset: Int64 = 0
+    private var hash = SHA256()
+    private var result: String?
+    @MainActor
+    fileprivate init(sourceSet: TemporalNormalizationRetainedSourceSetV1,
+        file: TemporalNormalizationCurrentPinsV1.File, expectedSHA256: String) {
+        sourceSetIdentity = ObjectIdentifier(sourceSet); self.file = file; self.expectedSHA256 = expectedSHA256
+    }
+    func readNextChunkUnderOriginalReference() throws -> Bool {
+        try lock.withLock {
+            try TemporalNormalizationCurrentPinsV1.revalidate(file)
+            if result != nil { return false }
+            let remaining = file.identity.size - offset
+            guard remaining >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+            if remaining > 0 {
+                var bytes = Data(count: Int(min(65_536, remaining)))
+                let amount = bytes.withUnsafeMutableBytes { Darwin.pread(file.descriptor, $0.baseAddress!, $0.count, off_t(offset)) }
+                if amount < 0, errno == EINTR { return true }
+                guard amount >= 0 else { throw TemporalNormalizationReportReadFailureV1.readFailed(errorNumber: errno) }
+                guard amount > 0 else { throw TemporalNormalizationReportReadFailureV1.unexpectedEOF(expected: file.identity.size, observed: offset) }
+                bytes.count = amount; hash.update(data: bytes); offset += Int64(amount)
+            }
+            try TemporalNormalizationCurrentPinsV1.revalidate(file)
+            if offset == file.identity.size {
+                let digest = hash.finalize().map { String(format: "%02x", $0) }.joined()
+                guard digest == expectedSHA256 else { throw StoreMigrationFailure.digestMismatch }
+                result = digest; return false
+            }
+            return true
+        }
+    }
+    fileprivate func completed() throws -> (path: String, sha256: String) {
+        try lock.withLock {
+            guard let result, offset == file.identity.size else { throw StoreMigrationFailure.invalidIdentity }
+            try TemporalNormalizationCurrentPinsV1.revalidate(file)
+            return (file.url.path, result)
+        }
+    }
+}
+
+
+extension StoreGenerationFactory {
+    @MainActor
+    func makeTemporalNormalizationColdRetiredSource(operation: TemporalNormalizationColdOperationAuthorityV1,
+        exclusion: TemporalNormalizationColdExclusionV1, generationID: UUID,
+        profileRegistry: WorkspacePackageLifecycleProfileRegistryV1,
+        scope: TemporalNormalizationOriginalAccessScopeV1) throws -> TemporalNormalizationSourceOwnerV1 {
+        try scope.requireColdPreparation(operation: operation, exclusion: exclusion)
+        return try TemporalNormalizationSourceOwnerV1(factory: self, applicationSupportURL: applicationSupportURL,
+            retiredGenerationID: generationID, operation: operation, exclusion: exclusion,
+            profileRegistry: profileRegistry, scope: scope)
+    }
+}
+
+/// The only original-removal publication authority. Construction is confined to
+/// the actual source-set executor after fixed M17 classification under real G.
+@MainActor
+final class TemporalNormalizationPublicationProofV1 {
+    fileprivate let owner: TemporalNormalizationRetainedSourceSetV1
+    fileprivate let read: TemporalNormalizationAbandonmentReadV1
+    fileprivate let reservation: TemporalEvidencePromotionReservationV1
+    fileprivate let originalAccess: TemporalNormalizationOriginalAccessScopeV1
+    fileprivate let mutationScope: TemporalNormalizationMutationScopeV1
+    private var active = true
+    fileprivate init(owner: TemporalNormalizationRetainedSourceSetV1,
+        read: TemporalNormalizationAbandonmentReadV1, reservation: TemporalEvidencePromotionReservationV1,
+        originalAccess: TemporalNormalizationOriginalAccessScopeV1,
+        mutationScope: TemporalNormalizationMutationScopeV1) {
+        self.owner = owner; self.read = read; self.reservation = reservation
+        self.originalAccess = originalAccess; self.mutationScope = mutationScope
+    }
+    fileprivate func revoke() { active = false }
+    func originalOnlyCensus() throws -> Bool {
+        try requireUncommittedOriginalRemoval(reservation: reservation, generationRootURL: read.generationRootURL)
+        return try read.originalOnlyCensus()
+    }
+    func publishRetainedOriginal(_ prepared: PreparedTemporalUncommittedOriginalV1,
+        service: OrphanFileCleanupService) throws -> OrphanFileCleanupSummary {
+        try requireUncommittedOriginalRemoval(reservation: prepared.reservation, generationRootURL: prepared.generationRootURL)
+        return try read.publishRetainedOriginal(prepared, service: service, publication: self)
+    }
+    func requireUncommittedOriginalRemoval(reservation expected: TemporalEvidencePromotionReservationV1,
+        generationRootURL: URL) throws {
+        guard active, reservation == expected, generationRootURL == read.generationRootURL else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try Task.checkCancellation()
+        try owner.requireOriginalPublication(self)
+    }
+}
+
+extension TemporalNormalizationRetainedSourceSetV1 {
+    func prepareAbandonmentRead(scope: TemporalNormalizationOriginalAccessScopeV1) throws -> TemporalNormalizationAbandonmentReadV1 {
+        try requireCompletePhysicalSet(scope: scope)
+        guard abandonmentRead == nil, abandonmentWorker == nil, !abandonmentEffectStarted,
+              let current = retained[currentGenerationID] else { throw StoreMigrationFailure.invalidIdentity }
+        let root = current.pins.applicationSupportURL.appendingPathComponent("FieldEvidenceData/generations")
+            .appendingPathComponent(currentGenerationID.uuidString.lowercased(), isDirectory: true)
+        let read = TemporalNormalizationAbandonmentReadV1(sourceSet: self, generationRootURL: root)
+        abandonmentRead = read // retained before the first open or throwing observation
+        try read.prepareJournalDescriptors()
+        return read
+    }
+    func startAbandonmentRead(scope: TemporalNormalizationOriginalAccessScopeV1,
+        access: TemporalNormalizationAbandonmentReadAccessV1) throws {
+        try requireCompletePhysicalSet(scope: scope)
+        guard let read = abandonmentRead, abandonmentWorker == nil, !abandonmentEffectStarted else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        abandonmentWorker = Task.detached(priority: .utility) {
+            while try access.readNextChunk(read) {}
+        }
+    }
+    func joinAbandonmentRead() async throws {
+        guard let worker = abandonmentWorker else { throw StoreMigrationFailure.invalidIdentity }
+        let result = await worker.result
+        abandonmentWorker = nil
+        try result.get()
+    }
+    func joinAbandonmentReadIfRunning() async throws {
+        if abandonmentWorker != nil { try await joinAbandonmentRead() }
+    }
+    func prepareAbandonmentOriginal(mutationID: MutationIDV1,
+        scope: TemporalNormalizationOriginalAccessScopeV1) throws {
+        try requireCompletePhysicalSet(scope: scope)
+        guard let read = abandonmentRead, abandonmentWorker == nil,
+              abandonmentJournal == nil, !abandonmentEffectStarted else { throw StoreMigrationFailure.invalidIdentity }
+        let journal = try read.completedJournal()
+        let candidates = journal.published.flatMap(\.promotions).filter { $0.mutationID == mutationID }
+        guard candidates.count == 1 else { throw StoreMigrationFailure.invalidIdentity }
+        abandonmentJournal = journal
+        try read.prepareOriginalDescriptors(candidates[0])
+    }
+    func finishAbandonmentOriginal(scope: TemporalNormalizationOriginalAccessScopeV1) throws {
+        try requireCompletePhysicalSet(scope: scope)
+        guard let read = abandonmentRead, abandonmentWorker == nil, abandonmentJournal != nil,
+              abandonmentPrepared == nil, !abandonmentEffectStarted else { throw StoreMigrationFailure.invalidIdentity }
+        abandonmentPrepared = try read.completedOriginal()
+    }
+    func startAbandonmentClassification(scope: TemporalNormalizationOriginalAccessScopeV1) throws {
+        try requireCompletePhysicalSet(scope: scope)
+        guard abandonmentWorker == nil, abandonmentClassificationWorker == nil,
+              abandonmentClassification == nil, !abandonmentEffectStarted,
+              let read = abandonmentRead, let journal = abandonmentJournal,
+              let prepared = abandonmentPrepared else { throw StoreMigrationFailure.invalidIdentity }
+        try read.requireJournalUnchanged()
+        let ownedSources = try observations(scope: scope) // actual fresh pass, consumed once
+        abandonmentClassificationWorker = Task.detached(priority: .utility) {
+            let sources = try ownedSources.map { item in
+                try TemporalNormalizationReferencePreflightV1.observe(snapshot: item.snapshot,
+                    history: TemporalNormalizationHistoryObservationV1(history: item.snapshot.history),
+                    reports: item.reports, profileRegistry: item.profileRegistry)
+            }
+            return try TemporalNormalizationUncommittedOriginalClassificationV1(
+                reservation: prepared.reservation, operational: journal, sources: sources)
+        }
+    }
+    func joinAbandonmentClassification() async throws {
+        guard let worker = abandonmentClassificationWorker else { throw StoreMigrationFailure.invalidIdentity }
+        let result = await worker.result
+        abandonmentClassificationWorker = nil
+        abandonmentClassification = try result.get()
+    }
+    func joinAbandonmentClassificationIfRunning() async throws {
+        if abandonmentClassificationWorker != nil { try await joinAbandonmentClassification() }
+    }
+    func executeOriginalAbandonment(scope: TemporalNormalizationOriginalAccessScopeV1) throws -> OrphanFileCleanupSummary {
+        try requireCompletePhysicalSet(scope: scope)
+        switch exclusion {
+        case .coordinated(let value): return try value.executeOriginalAbandonment(sourceSet: self, originalAccess: scope)
+        case .cold(let value): return try value.executeOriginalAbandonment(sourceSet: self, originalAccess: scope)
+        }
+    }
+    private func requireMutationScope(_ scope: TemporalNormalizationMutationScopeV1) throws {
+        switch exclusion {
+        case .coordinated(let value): try value.requireOriginalAbandonmentScope(scope)
+        case .cold(let value): try value.requireOriginalAbandonmentScope(scope)
+        }
+    }
+    func publishOriginalAbandonment(mutationScope: TemporalNormalizationMutationScopeV1,
+        originalAccess: TemporalNormalizationOriginalAccessScopeV1) throws -> OrphanFileCleanupSummary {
+        try requireMutationScope(mutationScope)
+        try requireCompletePhysicalSet(scope: originalAccess)
+        guard abandonmentWorker == nil, !abandonmentEffectStarted, activePublication == nil,
+              let read = abandonmentRead, let journal = abandonmentJournal,
+              let prepared = abandonmentPrepared else { throw StoreMigrationFailure.invalidIdentity }
+        try read.requireJournalUnchanged()
+        for value in retained.values { try value.pins.requireStrictPolicyForEffect() }
+        // The pure worker is joined before G. Its data result is usable only
+        // with this same retained input set and these fresh physical checks.
+        guard abandonmentClassificationWorker == nil, let classification = abandonmentClassification,
+              classification.reservation == prepared.reservation, classification.blockers.isEmpty,
+              case .noReferencedContentInSuppliedObservations = classification.decision else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let proof = TemporalNormalizationPublicationProofV1(owner: self, read: read,
+            reservation: prepared.reservation, originalAccess: originalAccess, mutationScope: mutationScope)
+        activePublication = proof
+        defer { proof.revoke(); activePublication = nil }
+        try requireOriginalPublication(proof)
+        let service = try read.fixedRemovalService()
+        abandonmentEffectStarted = true // failure after an effect is never reminted as initial absence
+        let result = try service.publishTemporalUncommittedOriginalRemoval(prepared, publication: proof)
+        try requireOriginalPublication(proof) // unchanged raw source/journal and census at exit
+        try read.closeAfterWorkerJoined() // checked terminal close; uncertainty remains owned
+        return result
+    }
+    fileprivate func requireOriginalPublication(_ proof: TemporalNormalizationPublicationProofV1) throws {
+        guard activePublication === proof, proof.owner === self, abandonmentRead === proof.read,
+              abandonmentPrepared?.reservation == proof.reservation, abandonmentWorker == nil,
+              abandonmentClassificationWorker == nil, worker == nil else { throw StoreMigrationFailure.invalidIdentity }
+        try requireMutationScope(proof.mutationScope)
+        try requireCompletePhysicalSet(scope: proof.originalAccess)
+        try proof.read.requireJournalUnchanged()
+        for value in retained.values { try value.pins.requireStrictPolicyForEffect() }
+    }
+}
+
+
+extension StoreRestoreGenerationAuthority {
+    // The worker is deliberately outside the MainActor attempt type. It owns
+    // only pinned filesystem authority and immutable IDs, never SwiftData or
+    // callbacks. The caller retains actual EX and joins this one Task before
+    // any validation, disposal or lease close.
+    fileprivate enum EraseValidationCopyOutcome: Sendable { case complete, failed }
+    fileprivate final class EraseValidationCopyWork: @unchecked Sendable {
+        let authority: StoreRestoreGenerationAuthority
+        let sourceID: UUID
+        let targetID: UUID
+        let targetIdentity: Identity
+        init(authority: StoreRestoreGenerationAuthority, sourceID: UUID,
+             targetID: UUID, targetIdentity: Identity) {
+            self.authority = authority; self.sourceID = sourceID
+            self.targetID = targetID; self.targetIdentity = targetIdentity
+        }
+        func run() -> EraseValidationCopyOutcome {
+            do {
+                guard try StoreRestoreGenerationAuthority.requiredDirectoryIdentity(
+                    parent: authority.stagingGenerationsDescriptor,
+                    name: StoreRestoreGenerationAuthority.canonical(targetID)) == targetIdentity else {
+                    return .failed
+                }
+                _ = try authority.cloneInstalledGenerationLocked(sourceID: sourceID,
+                    toStagingGeneration: targetID)
+                guard try StoreRestoreGenerationAuthority.requiredDirectoryIdentity(
+                    parent: authority.stagingGenerationsDescriptor,
+                    name: StoreRestoreGenerationAuthority.canonical(targetID)) == targetIdentity else {
+                    return .failed
+                }
+                return .complete
+            } catch { return .failed }
+        }
+    }
+
+
+    /// One registered private-copy validation attempt. It owns the exact
+    /// created namespace before fsync/protection/copy can throw, retains a real
+    /// copy Task until join, and never stores an arbitrary model-bearing Error.
+    @MainActor
+    final class EraseTargetValidationAttemptV1 {
+        private enum Phase { case registered, allocating, copying, copied, reading,
+            validated, disposing, ready, failed, constructorUnresolved, closeUncertain }
+        private let authority: StoreRestoreGenerationAuthority
+        fileprivate let binding: EraseRetirementBindingV1
+        private weak var exclusion: EraseRetirementExclusionV1?
+        private weak var witness: EraseSessionDrainWitnessV1?
+        private let reader: GenerationLeaseHandleV1
+        fileprivate let intent: EraseIntentV1
+        fileprivate let manifest: StoreGenerationManifestV1
+        private let manifestScope: EraseCurrentManifestScopeV1
+        private var manifestRetirement: EraseManifestRetirementAttemptV1?
+        private let copyID = UUID()
+        private var phase: Phase = .registered
+        private var original: MigrationCloneResult?
+        private var copyDescriptor: Int32?
+        private var copyIdentity: Identity?
+        private var copyTask: Task<EraseValidationCopyOutcome, Never>?
+        private weak var privateContainer: ModelContainer?
+        private weak var privateContext: ModelContext?
+        private var returnedContainerObserved = false
+        private var closeAdmissionClosed = false
+
+        fileprivate init(authority: StoreRestoreGenerationAuthority,
+            binding: EraseRetirementBindingV1, exclusion: EraseRetirementExclusionV1,
+            witness: EraseSessionDrainWitnessV1, reader: GenerationLeaseHandleV1,
+            intent: EraseIntentV1, manifest: StoreGenerationManifestV1,
+            manifestScope: EraseCurrentManifestScopeV1) {
+            self.authority = authority; self.binding = binding; self.exclusion = exclusion
+            self.witness = witness; self.reader = reader; self.intent = intent; self.manifest = manifest
+            self.manifestScope = manifestScope
+        }
+
+        fileprivate func isBound(to value: EraseSessionDrainWitnessV1) -> Bool { witness === value }
+        fileprivate var modelURL: URL {
+            authority.stagingGenerationsURL.appendingPathComponent(
+                StoreRestoreGenerationAuthority.canonical(copyID), isDirectory: true)
+                .appendingPathComponent("model.sqlite")
+        }
+
+        private func requireBeforeClose() throws -> EraseRetirementExclusionV1 {
+            guard let exclusion, let witness, !closeAdmissionClosed else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try exclusion.requirePostDrainValidation(reader: reader, proof: witness)
+            return exclusion
+        }
+
+        private func requireSourceUnchanged() throws {
+            guard let exclusion, let original, manifestScope.binding == binding,
+                  let store = manifestScope.store else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            guard try authority.readPointerForEraseRetirement(name: "current.json",
+                binding: binding, exclusion: exclusion) == manifestScope.pointerData else {
+                throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+            }
+            let observedManifest: StoreGenerationManifestV1
+            if let manifestRetirement {
+                observedManifest = try manifestRetirement.requireCurrentManifest(
+                    binding: binding, exclusion: exclusion)
+            } else {
+                observedManifest = try store.readManifestForEraseRetirement(
+                    targetGenerationID: binding.subject.newGenerationID,
+                    expectedDigest: binding.generationEpoch.generationManifestSHA256,
+                    binding: binding, exclusion: exclusion)
+            }
+            guard observedManifest == manifest else {
+                throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+            }
+            let current = try authority.snapshotTargetForEraseValidation(binding: binding, exclusion: exclusion)
+            guard current.files == original.files,
+                  current.sourceTreeDigest == original.sourceTreeDigest,
+                  current.frozenIdentityDigest == original.frozenIdentityDigest else {
+                throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+            }
+        }
+
+        private func requireCopyIdentity() throws {
+            guard let descriptor = copyDescriptor, let identity = copyIdentity else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try authority.verify()
+            try StoreRestoreGenerationAuthority.require(descriptor, identity)
+            guard try StoreRestoreGenerationAuthority.requiredDirectoryIdentity(
+                parent: authority.stagingGenerationsDescriptor,
+                name: StoreRestoreGenerationAuthority.canonical(copyID)) == identity else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        }
+
+        fileprivate func copyAfterOriginalDrain() async throws {
+            guard phase == .registered, copyTask == nil else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            let exclusion = try requireBeforeClose()
+            original = try authority.snapshotTargetForEraseValidation(binding: binding, exclusion: exclusion)
+            try authority.verify()
+            let name = StoreRestoreGenerationAuthority.canonical(copyID)
+            guard try !StoreRestoreGenerationAuthority.itemExists(
+                parent: authority.stagingGenerationsDescriptor, name: name),
+                  try !StoreRestoreGenerationAuthority.itemExists(
+                    parent: authority.installedGenerationsDescriptor, name: name) else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            phase = .allocating
+            do {
+                guard Darwin.mkdirat(authority.stagingGenerationsDescriptor, name, mode_t(0o700)) == 0 else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                let descriptor = Darwin.openat(authority.stagingGenerationsDescriptor, name,
+                    O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+                guard descriptor >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+                copyDescriptor = descriptor // retain before any throwing identity/policy/fsync
+                copyIdentity = try StoreRestoreGenerationAuthority.identity(descriptor)
+                try requireCopyIdentity()
+                guard Darwin.fsync(authority.stagingGenerationsDescriptor) == 0 else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                try authority.enforce(.restoreStaging,
+                    at: authority.stagingGenerationsURL.appendingPathComponent(name, isDirectory: true),
+                    authorityCheck: { try self.requireCopyIdentity() })
+                guard let identity = copyIdentity else { throw StoreGenerationFailure.dataPointerInvalid }
+                let work = EraseValidationCopyWork(authority: authority, sourceID: binding.subject.newGenerationID,
+                    targetID: copyID, targetIdentity: identity)
+                phase = .copying
+                let task = Task.detached { work.run() }
+                copyTask = task
+                let result = await task.value // real join, including cancellation/failure
+                copyTask = nil
+                guard case .complete = result else { throw StoreGenerationFailure.dataPointerInvalid }
+                _ = try requireBeforeClose()
+                try requireCopyIdentity()
+                try requireSourceUnchanged()
+                phase = .copied
+            } catch {
+                phase = .failed
+                throw EraseAllServiceError.recoveryRequired
+            }
+        }
+
+        fileprivate func beginRead() throws {
+            guard phase == .copied, copyTask == nil,
+                  privateContainer == nil, privateContext == nil else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            _ = try requireBeforeClose(); try requireCopyIdentity(); try requireSourceUnchanged()
+            phase = .reading
+        }
+        fileprivate func observe(_ container: ModelContainer) {
+            returnedContainerObserved = true
+            privateContainer = container; privateContext = container.mainContext
+        }
+        fileprivate func endRead(valid: Bool) throws {
+            guard phase == .reading else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            guard returnedContainerObserved else {
+                phase = .constructorUnresolved
+                throw EraseAllServiceError.recoveryRequired
+            }
+            guard valid else { phase = .failed; throw EraseAllServiceError.recoveryRequired }
+            phase = .validated
+            // A surviving private alias remains a real pending attempt; it is
+            // not cleared or converted to success because the scope returned.
+        }
+
+        fileprivate func disposeValidatedCopy() throws -> Bool {
+            guard phase == .validated || phase == .disposing, copyTask == nil else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            guard privateContainer == nil, privateContext == nil else { return false }
+            _ = try requireBeforeClose(); try requireSourceUnchanged()
+            guard let identity = copyIdentity else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            if phase == .validated {
+                try requireCopyIdentity()
+                phase = .disposing
+            }
+            if let descriptor = copyDescriptor {
+                // Never retry an uncertain close using an integer that could
+                // have been reused. The retained failed attempt denies success.
+                guard Darwin.close(descriptor) == 0 else {
+                    phase = .closeUncertain
+                    throw EraseAllServiceError.recoveryRequired
+                }
+                copyDescriptor = nil
+            }
+            try authority.removeDirectory(parent: authority.stagingGenerationsDescriptor,
+                name: StoreRestoreGenerationAuthority.canonical(copyID), ownership: .generation,
+                expectedRoot: identity)
+            guard try !StoreRestoreGenerationAuthority.itemExists(
+                parent: authority.stagingGenerationsDescriptor,
+                name: StoreRestoreGenerationAuthority.canonical(copyID)) else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            try requireSourceUnchanged()
+            phase = .ready
+            return true
+        }
+
+        fileprivate func registerManifestRetirement(_ attempt: EraseManifestRetirementAttemptV1,
+            retirement: ErasedRegistryRetirementProofV1,
+            exclusion expectedExclusion: EraseRetirementExclusionV1,
+            store: StoreMigrationJournalStoreV1) throws {
+            guard phase == .ready, closeAdmissionClosed, manifestRetirement == nil,
+                  exclusion === expectedExclusion, manifestScope.store === store,
+                  let witness, copyTask == nil, copyDescriptor == nil,
+                  privateContainer == nil, privateContext == nil else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try retirement.requireManifestRegistration(witness: witness, attempt: attempt,
+                store: store, exclusion: expectedExclusion)
+            try requireSourceUnchanged()
+            try attempt.requireOriginalPointerBytes(manifestScope.pointerData)
+            guard try attempt.requireCurrentManifest(binding: binding,
+                exclusion: expectedExclusion) == manifest else {
+                throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+            }
+            manifestRetirement = attempt // last, nonthrowing: original proof stays intact on failure
+        }
+
+        fileprivate func observesManifestRetirement(_ attempt: EraseManifestRetirementAttemptV1) -> Bool {
+            manifestRetirement === attempt
+        }
+
+        /// Resume disposal of this exact already-validated private reader.
+        /// This cannot start another constructor/copy or treat failed-nil as drain.
+        func resumeValidatedDisposal(binding expected: EraseRetirementBindingV1,
+            witness expectedWitness: EraseSessionDrainWitnessV1,
+            exclusion expectedExclusion: EraseRetirementExclusionV1) throws -> Bool {
+            guard binding == expected, witness === expectedWitness,
+                  exclusion === expectedExclusion else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            if phase == .ready {
+                guard copyTask == nil, copyDescriptor == nil,
+                      privateContainer == nil, privateContext == nil else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                try requireSourceUnchanged()
+                return true
+            }
+            return try disposeValidatedCopy()
+        }
+
+        fileprivate func requireValidatedAndDrained(binding expected: EraseRetirementBindingV1,
+            witness expectedWitness: EraseSessionDrainWitnessV1) throws {
+            guard binding == expected, witness === expectedWitness, phase == .ready,
+                  copyTask == nil, copyDescriptor == nil,
+                  privateContainer == nil, privateContext == nil else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            // This one-way edge prevents another private reader after any
+            // close gate is reached, including a subsequently failed close.
+            closeAdmissionClosed = true
+            try requireSourceUnchanged()
+        }
+    }
+}
+
+extension StoreGenerationFactory {
+    /// Returns only the retained attempt. Its fixed private reader cannot
+    /// escape, acquire a new lease, repair policy or create a writer/session.
+    @MainActor
+    func validateOrResumeEraseTargetAfterOriginalDrain(binding: EraseRetirementBindingV1,
+        reader: GenerationLeaseHandleV1, drain: EraseSessionDrainWitnessV1,
+        exclusion: EraseRetirementExclusionV1, authority: StoreRestoreGenerationAuthority,
+        intent: EraseIntentV1, manifestScope: EraseCurrentManifestScopeV1) async throws -> Bool {
+        if let attempt = drain.postDrainValidation {
+            return try attempt.resumeValidatedDisposal(binding: binding,
+                witness: drain, exclusion: exclusion)
+        }
+        let attempt = try await validateEraseTargetAfterOriginalDrain(binding: binding,
+            reader: reader, drain: drain, exclusion: exclusion, authority: authority,
+            intent: intent, manifestScope: manifestScope)
+        return try attempt.resumeValidatedDisposal(binding: binding,
+            witness: drain, exclusion: exclusion)
+    }
+
+    @MainActor
+    func validateEraseTargetAfterOriginalDrain(binding: EraseRetirementBindingV1,
+        reader: GenerationLeaseHandleV1, drain: EraseSessionDrainWitnessV1,
+        exclusion: EraseRetirementExclusionV1, authority: StoreRestoreGenerationAuthority,
+        intent: EraseIntentV1, manifestScope: EraseCurrentManifestScopeV1) async throws
+        -> StoreRestoreGenerationAuthority.EraseTargetValidationAttemptV1 {
+        try exclusion.requirePostDrainValidation(reader: reader, proof: drain)
+        guard drain.postDrainValidation == nil, manifestScope.binding == binding,
+              manifestScope.pointerData == (try authority.readPointerForEraseRetirement(
+                name: "current.json", binding: binding, exclusion: exclusion)),
+              let store = manifestScope.store,
+              intent.eraseID == binding.subject.eraseID,
+              intent.newGenerationID == binding.subject.newGenerationID,
+              intent.phase == .sessionActivated || intent.phase == .cleanupComplete,
+              EraseIntentCodecV1.valid(intent) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let manifest = try store.readManifestForEraseRetirement(
+            targetGenerationID: binding.subject.newGenerationID,
+            expectedDigest: binding.generationEpoch.generationManifestSHA256,
+            binding: binding, exclusion: exclusion)
+        // Incumbent current Erase targets use the complete v53 empty-graph
+        // validator. This does not invent older released schema validation.
+        guard manifest.storeSchemaRelease == .v53 else {
+            throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
+        }
+        let attempt = StoreRestoreGenerationAuthority.EraseTargetValidationAttemptV1(
+            authority: authority, binding: binding, exclusion: exclusion,
+            witness: drain, reader: reader, intent: intent, manifest: manifest,
+            manifestScope: manifestScope)
+        try drain.registerPostDrainValidation(attempt) // before mkdir/copy/model construction
+        try await attempt.copyAfterOriginalDrain()
+        try attempt.beginRead()
+        let valid: Bool = autoreleasepool {
+            do {
+                let container = try openReadOnlyReleasedContainer(at: attempt.modelURL,
+                    release: manifest.storeSchemaRelease, markerMigrationID: manifest.migrationID,
+                    observe: { attempt.observe($0) })
+                let identity = try acceptedV53SemanticIdentity(in: container.mainContext,
+                    generationID: binding.subject.newGenerationID, migrationID: manifest.migrationID)
+                guard identity == binding.workspaceIdentity else { return false }
+                try EraseAllService.requireEmptyErasePublishedGraph(context: container.mainContext,
+                    generationID: binding.subject.newGenerationID, identity: identity,
+                    activated: intent.advancing(to: .sessionActivated))
+                return true
+            } catch { return false } // map inside pool; no arbitrary Error escapes
+        }
+        try attempt.endRead(valid: valid)
+        _ = try attempt.disposeValidatedCopy()
+        return attempt
+    }
+}
+
+
+@MainActor
+final class EraseColdPreparationFailureDrainWitnessV1 {
+    private weak var operation: EraseColdPreparationOperationV1?
+    private let registry: GenerationLeaseRegistryV1
+    private let observations: [EraseSessionWeakObservationV1]
+    private let readers: [GenerationLeaseAllocationAttemptV1]
+    private var disposed = false
+
+    fileprivate init(operation: EraseColdPreparationOperationV1, registry: GenerationLeaseRegistryV1,
+        observations: [EraseSessionWeakObservationV1], readers: [GenerationLeaseAllocationAttemptV1]) {
+        self.operation = operation; self.registry = registry
+        self.observations = observations; self.readers = readers
+    }
+
+    private func requireDrained(registry expected: GenerationLeaseRegistryV1) throws {
+        guard let operation, expected === registry,
+              observations.allSatisfy({ $0.isDrained }),
+              readers.allSatisfy({ $0.sealedForRetirement && $0.matches(registry: registry) }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try operation.requireFailureDisposal(witness: self, registry: registry)
+    }
+
+    func requireDrained(registry: GenerationLeaseRegistryV1,
+        readerAllocation: GenerationLeaseAllocationAttemptV1) throws {
+        guard readers.contains(where: { $0 === readerAllocation }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireDrained(registry: registry)
+    }
+
+    func disposeOwnedAllocations() throws {
+        try requireDrained(registry: registry)
+        for reader in readers { try reader.closeAfterColdErasePreparationFailure(proof: self) }
+        disposed = true
+    }
+
+    func requireDisposed() throws {
+        guard disposed else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        try requireDrained(registry: registry)
+    }
+}

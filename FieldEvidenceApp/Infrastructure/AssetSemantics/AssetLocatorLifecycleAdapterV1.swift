@@ -33,8 +33,8 @@ struct AssetLocatorLifecycleAdapterV1{
     let writer:(any AssetLocatorMutationCommittingV1)?
     init(resolver:OfflineAssetLocatorResolverV1,writer:(any AssetLocatorMutationCommittingV1)?=nil){self.resolver=resolver;self.writer=writer}
     func resolve(_ input:LocatorResolutionInputV1,workspaceID:WorkspaceID,evaluatedAt:Date)async throws->LocatorResolutionV1{try await resolver.resolve(input,workspaceID:workspaceID,evaluatedAt:evaluatedAt)}
-    func publish(_ mutation:AssetLocatorMutationV1)throws->AssetLocatorMutationReceiptV1{guard let writer else{throw WorkspaceMutationFailureV1.writerInvalidated};try mutation.validate();let receipt=try writer.commitAssetLocator(mutation);return try .init(mutation:mutation,mutationReceipt:receipt)}
-    func manualShortCodeIssuanceCoordinator() throws -> ManualShortCodeIssuanceCoordinatorV1 {
+    @MainActor func publish(_ mutation:AssetLocatorMutationV1)throws->AssetLocatorMutationReceiptV1{guard let writer else{throw WorkspaceMutationFailureV1.writerInvalidated};try mutation.validate();let receipt=try writer.commitAssetLocator(mutation);return try .init(mutation:mutation,mutationReceipt:receipt)}
+    @MainActor func manualShortCodeIssuanceCoordinator() throws -> ManualShortCodeIssuanceCoordinatorV1 {
         guard let writer else { throw WorkspaceMutationFailureV1.writerInvalidated }
         return .init(query: resolver.query, writer: writer,
                      entropy: SystemManualShortCodeCryptographicEntropyV1())

@@ -229,6 +229,24 @@ final class V9_79WorkspaceExperienceTests: XCTestCase {
         XCTAssertFalse(WorkspaceExperienceDataPolicyV1.practiceMetricsCollected)
     }
 
+    func testPracticeProvenanceCanonicalMillisecondRoundTripRejectsTampering() throws {
+        let command = try C16Fixture().command()
+        let row = try PracticeWorkspaceProvenanceRowV1(command.provenance)
+        let original = row.canonicalData
+        let decoded = try row.value()
+        XCTAssertEqual(decoded.installedAt, command.provenance.installedAt)
+        XCTAssertEqual(decoded.provenanceSHA256, command.provenance.provenanceSHA256)
+        XCTAssertEqual(try WorkspaceExperienceCanonicalCodecV1.data(decoded), original)
+
+        row.canonicalData = Data(original.dropLast())
+        XCTAssertThrowsError(try row.value())
+        row.canonicalData = original
+        row.provenanceSHA256 = String(repeating: "b", count: 64)
+        XCTAssertThrowsError(try row.value()) { error in
+            XCTAssertEqual(error as? WorkspaceExperienceFailureV1, .invalidDigest)
+        }
+    }
+
     func testV23P04C16A01PracticeWorkspaceIsolationAndReset() async throws {
         let fixture = try C16Fixture()
         let command = try fixture.command()
@@ -253,46 +271,95 @@ final class V9_79WorkspaceExperienceTests: XCTestCase {
         XCTAssertTrue(WorkspaceExperienceLifecycleAdapterV1.practiceResetUsesWholeWorkspaceDeletion)
         XCTAssertFalse(WorkspaceExperienceLifecycleAdapterV1.practiceResetAutomaticallyReinstalls)
 
-        let eraseSupport = FileManager.default.temporaryDirectory.appendingPathComponent(
+        let eraseRoot = FileManager.default.temporaryDirectory.appendingPathComponent(
             "c16-erase-\(UUID().uuidString.lowercased())", isDirectory: true
         )
-        defer { try? FileManager.default.removeItem(at: eraseSupport) }
-        let factory = StoreGenerationFactory(applicationSupportURL: eraseSupport)
-        let eraseCoordinator = StoreSessionCoordinator(
-            session: try factory.openOrBootstrapCurrent()
-        )
-        let diagnostics = DiagnosticsStore(applicationSupportURL: eraseSupport)
-        await diagnostics.prepare()
+        let eraseSupport = eraseRoot.appendingPathComponent("ApplicationSupport", isDirectory: true)
+        let eraseCaches = eraseRoot.appendingPathComponent("Caches", isDirectory: true)
+        let eraseTemporary = eraseRoot.appendingPathComponent("Temporary", isDirectory: true)
+        for directory in [eraseSupport, eraseCaches, eraseTemporary] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        let eraseOwner = V23EraseOperationHarnessV1(retainingRoot: eraseRoot,
+            applicationSupportURL: eraseSupport,
+            runtime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            profileRegistry: try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        defer { eraseOwner.router.entitlementProcessor?.stop() }
+        var eraseCoordinator: StoreSessionCoordinator?
+        let diagnostics = try await { () async throws -> DiagnosticsStore in
+            let (coordinator, diagnostics) = try await eraseOwner.startOriginalOwner()
+            eraseCoordinator = coordinator
+            return diagnostics
+        }()
+        weak var originalCoordinator: StoreSessionCoordinator? = eraseCoordinator
+        weak var originalContext: ModelContext? = eraseCoordinator?.modelContext
+        weak var originalContainer: ModelContainer? = eraseCoordinator?.modelContext.container
         let defaultsSuiteName = "c16.erase.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsSuiteName))
         defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
-        let eraseService = EraseAllService(
+        var admittedReservation: AppAccessGateV1.EraseAdoptionToken?
+        var completedReceipts: [CompletedEraseReceiptV1] = []
+        try await eraseOwner.admit(coordinator: XCTUnwrap(eraseCoordinator))
+        let eraseService = try eraseOwner.configure(EraseAllService(
             applicationSupportURL: eraseSupport,
-            cachesDirectoryURL: eraseSupport.appendingPathComponent("Caches", isDirectory: true),
-            temporaryDirectoryURL: eraseSupport.appendingPathComponent("Temporary", isDirectory: true),
+            cachesDirectoryURL: eraseCaches,
+            temporaryDirectoryURL: eraseTemporary,
             userDefaults: defaults,
-            bundleIdentifier: defaultsSuiteName,
+            bundleIdentifier: "com.palatis3.fieldrecord",
             defaultsDomainName: defaultsSuiteName,
-            privateSystemDiscoveryIndex: nil
-        )
-        let erased = try await eraseService.erase(
+            privateSystemDiscoveryIndex: nil,
+            admitErase: { subject in
+                let reservation = try await eraseOwner.admitSubject(subject)
+                admittedReservation = reservation
+                return reservation
+            },
+            didCompleteErase: { completedReceipts.append($0) }
+        ))
+        try await eraseOwner.prepareCompatibility(service: eraseService,
             confirmation: EraseAllService.requiredConfirmation,
-            coordinator: eraseCoordinator,
-            diagnosticsStore: diagnostics
-        ) { session in
-            eraseCoordinator.activate(session: session)
+            coordinator: XCTUnwrap(eraseCoordinator), diagnostics: diagnostics)
+        eraseCoordinator = nil
+        guard originalCoordinator == nil, originalContext == nil, originalContainer == nil else {
+            XCTFail("Original practice Erase readers must drain before cleanup")
+            throw V23EraseOperationHarnessV1.Failure.drainPending
         }
-        XCTAssertFalse(erased.cleanupDeferred)
-        XCTAssertEqual(erased.session.generationID, eraseCoordinator.generationID)
-        XCTAssertEqual(erased.session.workspaceID, eraseCoordinator.workspaceID)
-        XCTAssertTrue(try BackupRestoreService.isEmptyCurrent(erased.session.modelContext))
+        XCTAssertTrue(completedReceipts.isEmpty)
+        try await eraseOwner.completeCleanup()
+        XCTAssertEqual(completedReceipts.count, 1)
+        let deliveredReceipt = try XCTUnwrap(completedReceipts.first)
+        let reservation = try XCTUnwrap(admittedReservation)
+        XCTAssertEqual(deliveredReceipt.reservation, reservation)
+        XCTAssertEqual(deliveredReceipt.subject, reservation.subject)
+        try await eraseOwner.adoptCompletedReceipt()
+        let token = try await eraseOwner.accessGate.beginContentRead(for: .startupRecovery)
+        weak var observedSession: StoreGenerationSession?
+        weak var observedContext: ModelContext?
+        weak var observedContainer: ModelContainer?
+        let completed = try token.withContentRead(for: .startupRecovery) {
+            try autoreleasepool {
+                let session = try StoreGenerationFactory(applicationSupportURL: eraseSupport).openOrBootstrapCurrent()
+                observedSession = session; observedContext = session.modelContext
+                observedContainer = session.modelContext.container
+                XCTAssertTrue(try BackupRestoreService.isEmptyCurrent(session.modelContext))
+                XCTAssertEqual(try WorkspaceExperienceLifecycleAdapterV1(
+                    modelContext: session.modelContext, workspaceID: session.workspaceID).classification(), .real)
+                return (generationID: session.generationID, workspaceID: session.workspaceID)
+            }
+        }
+        guard observedSession == nil, observedContext == nil, observedContainer == nil else {
+            XCTFail("Completed-generation read aliases must drain before fresh startup")
+            throw V23EraseOperationHarnessV1.Failure.drainPending
+        }
+        try await eraseOwner.activateFreshOrdinarySession()
+        guard case let .ready(reopened, _, _) = eraseOwner.router.route else {
+            return XCTFail("Completed Erase must publish a fresh ordinary owner")
+        }
+        XCTAssertEqual(completed.generationID, reopened.generationID)
+        XCTAssertEqual(completed.workspaceID, reopened.workspaceID)
         XCTAssertEqual(try WorkspaceExperienceLifecycleAdapterV1(
-            modelContext: erased.session.modelContext, workspaceID: erased.session.workspaceID
-        ).classification(), .real)
-        XCTAssertEqual(try WorkspaceExperienceLifecycleAdapterV1(
-            modelContext: eraseCoordinator.modelContext, workspaceID: eraseCoordinator.workspaceID
-        ).classification(), .real)
-
+            modelContext: reopened.modelContext, workspaceID: reopened.workspaceID).classification(), .real)
         let destination = WorkspaceID(rawValue: UUID())
         let clone = try ConfigurationClonePlanV1(
             planID: UUID(), sourceWorkspaceID: fixture.workspaceID,

@@ -251,6 +251,10 @@ private final class C54LockedValues<Value>: @unchecked Sendable {
 }
 
 private actor C54EnvelopeScratchProbe: ScratchDataLeasePortV1, EncryptedPortableEnvelopeStreamingScratchPortV1 {
+    private let applicationSupportURL: URL
+    func acquireOwnedStorageProducerActivity() async throws -> OwnedStorageProducerActivityV1 {
+        try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
+    }
     private let failWrites: Bool
     private let recoveredCount: Int
     private let failRelease: Bool
@@ -259,8 +263,9 @@ private actor C54EnvelopeScratchProbe: ScratchDataLeasePortV1, EncryptedPortable
     private var terminals: [ScratchDataLeaseTerminalV1] = []
     private var recoveryCalls = 0
 
-    init(failWrites: Bool = false, recoveredCount: Int = 0, failRelease: Bool = false,
+    init(applicationSupportURL: URL, failWrites: Bool = false, recoveredCount: Int = 0, failRelease: Bool = false,
          resetGate: C54ResetGate? = nil) {
+        self.applicationSupportURL = applicationSupportURL
         self.failWrites = failWrites
         self.recoveredCount = recoveredCount
         self.failRelease = failRelease
@@ -306,7 +311,7 @@ private actor C54EnvelopeScratchProbe: ScratchDataLeasePortV1, EncryptedPortable
     func activeLeaseCount() -> Int { acquired.count }
     func makeEncryptedPortableEnvelopeStreamingScratch(
         named: String, lease: ScratchDataLeaseV1, maximumByteCount: UInt64
-    ) async throws -> any EncryptedEnvelopeProtectedScratchSinkV1 {
+    ) async throws -> any EncryptedPortableEnvelopeTerminalScratchV1 {
         guard acquired[lease.request.leaseID] == lease else { throw EncryptedPortableEnvelopeFailureV1.resourceLimitExceeded }
         _ = named
         return C54StreamingBuffer()
@@ -358,12 +363,14 @@ private struct C54StreamingBufferSnapshot {
     let discardCount: Int
 }
 
-private final class C54StreamingBuffer: EncryptedEnvelopeProtectedScratchSinkV1,
+private final class C54StreamingBuffer: EncryptedPortableEnvelopeTerminalScratchV1,
     @unchecked Sendable {
     let protectionClass = EncryptedEnvelopeProtectionClassV1.complete
     let isExcludedFromBackup = true
 
     private let lock = NSLock()
+    private var resourceClosed = false
+    func closeResource() { lock.withLock { resourceClosed = true } }
     private var bytes: Data
     private var expectedByteCount: UInt64?
     private var maximumReadByteCount = 0
@@ -396,7 +403,7 @@ private final class C54StreamingBuffer: EncryptedEnvelopeProtectedScratchSinkV1,
 
     func prepareForStreamingWrite(expectedByteCount: UInt64) throws {
         try lock.withLock {
-            guard expectedByteCount <= UInt64(Int.max) else {
+            guard !resourceClosed, expectedByteCount <= UInt64(Int.max) else {
                 throw EncryptedPortableEnvelopeFailureV1.resourceLimitExceeded
             }
             bytes.removeAll(keepingCapacity: false)
@@ -407,7 +414,7 @@ private final class C54StreamingBuffer: EncryptedEnvelopeProtectedScratchSinkV1,
 
     func appendStreamingBytes(_ bytes: Data) throws {
         try lock.withLock {
-            guard let expectedByteCount,
+            guard !resourceClosed, let expectedByteCount,
                   UInt64(self.bytes.count) + UInt64(bytes.count) <= expectedByteCount else {
                 throw EncryptedPortableEnvelopeFailureV1.resourceLimitExceeded
             }
@@ -418,7 +425,7 @@ private final class C54StreamingBuffer: EncryptedEnvelopeProtectedScratchSinkV1,
 
     func synchronizeStreamingWrite() throws {
         try lock.withLock {
-            guard let expectedByteCount, UInt64(bytes.count) == expectedByteCount else {
+            guard !resourceClosed, let expectedByteCount, UInt64(bytes.count) == expectedByteCount else {
                 throw EncryptedPortableEnvelopeFailureV1.invalidFrameLayout
             }
             synchronizeCount += 1
@@ -426,7 +433,8 @@ private final class C54StreamingBuffer: EncryptedEnvelopeProtectedScratchSinkV1,
     }
 
     func discardStreamingBytes() throws {
-        lock.withLock {
+        try lock.withLock {
+            guard !resourceClosed else { throw EncryptedPortableEnvelopeFailureV1.resourceLimitExceeded }
             bytes.removeAll(keepingCapacity: false)
             expectedByteCount = nil
             discardCount += 1
@@ -572,6 +580,14 @@ private final class C54HostileSource: EncryptedEnvelopeBoundedSeekableSourceV1, 
 #endif
 
 private actor C54CoordinatorLifecycleProbe: EncryptedPortableEnvelopeAttemptLifecycleV1 {
+    private let producerSupport = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+        .appendingPathComponent("EnvelopeProducerFixture-\(UUID().uuidString)")
+    func acquireProducerActivity() async throws -> OwnedStorageProducerActivityV1 {
+        try FileManager.default.createDirectory(at: producerSupport, withIntermediateDirectories: true)
+        return try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: producerSupport)
+    }
+    deinit { try? FileManager.default.removeItem(at: producerSupport) }
+
     private struct State {
         let secret: EphemeralPassphraseV1
         let envelope: C54StreamingBuffer?
@@ -1712,7 +1728,7 @@ final class V9_62EncryptedPortableEnvelopeTests: XCTestCase {
             reviewRequest: .init(version: .v1, validate: { _, _, _ in }),
             reviewResponse: .init(version: .v1, validate: { _, _, _ in })
         )
-        let blockedScratch = C54EnvelopeScratchProbe()
+        let blockedScratch = C54EnvelopeScratchProbe(applicationSupportURL: recoveryRoot)
         let blockedLifecycle = try EncryptedPortableEnvelopeLifecycleAdapterV1(
             scratch: blockedScratch, storageLedger: storageLedger, scratchRootURL: recoveryRoot,
             publication: C54PublicationProbe(),
@@ -1760,7 +1776,7 @@ final class V9_62EncryptedPortableEnvelopeTests: XCTestCase {
             XCTAssertEqual(blockCountAfterResume, 0)
         }
         let resetGate = C54ResetGate()
-        let resetScratch = C54EnvelopeScratchProbe(resetGate: resetGate)
+        let resetScratch = C54EnvelopeScratchProbe(applicationSupportURL: recoveryRoot, resetGate: resetGate)
         let resetDeviceLifecycle = try await DeviceLifecycleCoordinatorV1.bootstrap(
             jobs: C54LifecycleJobsProbe(), operationalSupportStore: try C54OperationalSupportResetProbe(),
             scratchDataLeaseStore: resetScratch, encryptedPortableEnvelopeSecrets: registry,
@@ -1781,7 +1797,7 @@ final class V9_62EncryptedPortableEnvelopeTests: XCTestCase {
         }
         let eraseBlockAfterRejectedOverlap = await registry.activeBlockCount()
         XCTAssertEqual(eraseBlockAfterRejectedOverlap, 1)
-        let resetAttemptScratch = C54EnvelopeScratchProbe()
+        let resetAttemptScratch = C54EnvelopeScratchProbe(applicationSupportURL: recoveryRoot)
         let resetAttemptLifecycle = try EncryptedPortableEnvelopeLifecycleAdapterV1(
             scratch: resetAttemptScratch, storageLedger: storageLedger, scratchRootURL: recoveryRoot,
             publication: C54PublicationProbe(),
@@ -1894,7 +1910,7 @@ final class V9_62EncryptedPortableEnvelopeTests: XCTestCase {
             reviewRequest: .init(version: .v1, validate: { _, _, _ in }),
             reviewResponse: .init(version: .v1, validate: { _, _, _ in })
         )
-        let cleanupScratch = C54EnvelopeScratchProbe(failRelease: true)
+        let cleanupScratch = C54EnvelopeScratchProbe(applicationSupportURL: recoveryRoot, failRelease: true)
         let cleanupLifecycle = try EncryptedPortableEnvelopeLifecycleAdapterV1(
             scratch: cleanupScratch, storageLedger: storageLedger, scratchRootURL: recoveryRoot,
             publication: C54PublicationProbe(),
@@ -1933,7 +1949,7 @@ final class V9_62EncryptedPortableEnvelopeTests: XCTestCase {
 
         let rollbackPublisher = C54RollbackPublicationProbe()
         let rollbackLifecycle = try EncryptedPortableEnvelopeLifecycleAdapterV1(
-            scratch: C54EnvelopeScratchProbe(), storageLedger: storageLedger, scratchRootURL: recoveryRoot,
+            scratch: C54EnvelopeScratchProbe(applicationSupportURL: recoveryRoot), storageLedger: storageLedger, scratchRootURL: recoveryRoot,
             publication: rollbackPublisher,
             storagePreflight: StoragePreflightService(capacityProvider: { _ in Int64.max / 4 })
         )
@@ -1962,7 +1978,7 @@ final class V9_62EncryptedPortableEnvelopeTests: XCTestCase {
         XCTAssertEqual(rollbackTerminalCount, 0)
 
         let revokingPublisher = C54RevokingPublicationProbe()
-        let revokingScratch = C54EnvelopeScratchProbe()
+        let revokingScratch = C54EnvelopeScratchProbe(applicationSupportURL: recoveryRoot)
         let revokingLifecycle = try EncryptedPortableEnvelopeLifecycleAdapterV1(
             scratch: revokingScratch, storageLedger: storageLedger, scratchRootURL: recoveryRoot,
             publication: revokingPublisher,
@@ -2002,7 +2018,7 @@ final class V9_62EncryptedPortableEnvelopeTests: XCTestCase {
         XCTAssertEqual(blocksAfterRevocationRace, 0)
 
         let explicitPublisher = C54ExplicitCancellingPublicationProbe()
-        let explicitScratch = C54EnvelopeScratchProbe()
+        let explicitScratch = C54EnvelopeScratchProbe(applicationSupportURL: recoveryRoot)
         let explicitLifecycle = try EncryptedPortableEnvelopeLifecycleAdapterV1(
             scratch: explicitScratch, storageLedger: storageLedger, scratchRootURL: recoveryRoot,
             publication: explicitPublisher,
@@ -2066,7 +2082,7 @@ final class V9_62EncryptedPortableEnvelopeTests: XCTestCase {
             validateReopenedInner: { _, _, _ in }
         )
         innerCancellationSealSecret.clear()
-        let innerCancellationScratch = C54EnvelopeScratchProbe()
+        let innerCancellationScratch = C54EnvelopeScratchProbe(applicationSupportURL: recoveryRoot)
         let innerCancellationLifecycle = try EncryptedPortableEnvelopeLifecycleAdapterV1(
             scratch: innerCancellationScratch, storageLedger: storageLedger, scratchRootURL: recoveryRoot,
             publication: C54PublicationProbe(),

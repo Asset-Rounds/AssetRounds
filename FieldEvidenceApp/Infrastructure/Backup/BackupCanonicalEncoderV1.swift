@@ -1464,8 +1464,40 @@ private extension BackupCanonicalEncoderV1 {
         let keys = records.operationalContacts.map {
             "\($0.kind.rawValue)|\($0.workspaceID.uuidString.lowercased())|\($0.id.uuidString.lowercased())"
         }
-        return keys == keys.sorted() && Set(keys).count == keys.count
-            && (try? records.validateC46OperationalContacts()) != nil
+        let orderedAndUnique = keys == keys.sorted() && Set(keys).count == keys.count
+        guard orderedAndUnique else {
+#if DEBUG
+            FileHandle.standardError.write(Data("C46_ENCODER_DIAGNOSTIC_V1 stage=keys-ordered-unique result=false\n".utf8))
+#endif
+            return false
+        }
+        do {
+            _ = try records.validateC46OperationalContacts()
+            return true
+        } catch {
+#if DEBUG
+            let reason: String
+            if let failure = error as? OperationalContactFailureV1 {
+                switch failure {
+                case .invalidValue: reason = "invalidValue"
+                case .incompatibleVersion: reason = "incompatibleVersion"
+                case .unknownKey: reason = "unknownKey"
+                case .digestMismatch: reason = "digestMismatch"
+                case .crossWorkspaceReference: reason = "crossWorkspaceReference"
+                case .staleRevision: reason = "staleRevision"
+                case .preferredConflict: reason = "preferredConflict"
+                case .invalidHandoffTarget: reason = "invalidHandoffTarget"
+                case .limitExceeded: reason = "limitExceeded"
+                }
+            } else {
+                reason = "other"
+            }
+            FileHandle.standardError.write(Data((
+                "C46_ENCODER_DIAGNOSTIC_V1 stage=typed-closure reason=\(reason) contactRows=\(records.operationalContacts.count) receiptRows=\(records.mutationHistory?.receipts.count ?? 0)\n"
+            ).utf8))
+#endif
+            return false
+        }
     }
 
     static func activityContractRecord(_ value: V36BackupActivityContractRecordV2) throws -> CanonicalJSONValueV1 {

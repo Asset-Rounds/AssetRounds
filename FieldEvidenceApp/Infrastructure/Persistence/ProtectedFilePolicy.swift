@@ -1438,3 +1438,176 @@ enum C52ServiceRequestProtectedFileBoundaryV1 {
     static let rawCapabilityBytesMayEnterWorkspaceFiles = false
     static let unsanitizedMediaMayEnterCanonicalContent = false
 }
+
+/// Observation only. Pending means the exact incumbent DEBUG Simulator
+/// fallback shape; it is not an accepted protection result or effect authority.
+struct TemporalPolicyObservationV1: Equatable, Sendable {
+    enum State: String, Sendable { case strictComplete, pendingSimulatorRequest }
+    let state: State
+    let device: UInt64
+    let inode: UInt64
+    let linkCount: UInt64
+    let mode: UInt16
+    let urlProtection: String
+    let fileManagerProtection: String
+    let backupExcluded: Bool?
+    let isDirectory: Bool?
+    let volumeSupportsProtection: Bool?
+}
+
+extension ProtectedFilePolicyV1 {
+    /// This path must never call verify/applyAndVerify or emit a success
+    /// disposition. It independently reads Foundation metadata between held
+    /// and named identity checks and does not populate the caller URL cache.
+    static func observeTemporalPolicy(_ kind: OwnedFileKindV1, at url: URL)
+        throws -> TemporalPolicyObservationV1 {
+        let expected = disposition(for: kind)
+        let before = try pin(kind, at: url, disposition: expected)
+        let flags = O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC
+            | (expected.expectsDirectory ? O_DIRECTORY : 0)
+        let descriptor = Darwin.open(url.path, flags)
+        guard descriptor >= 0 else { throw ProtectedFilePolicyError.invalidURL }
+        defer { Darwin.close(descriptor) }
+        func reproveHeld() throws {
+            var held = stat()
+            guard Darwin.fstat(descriptor, &held) == 0,
+                  held.st_dev == before.device, held.st_ino == before.inode,
+                  held.st_nlink == before.linkCount,
+                  (held.st_mode & S_IFMT) == (expected.expectsDirectory ? S_IFDIR : S_IFREG) else {
+                throw ProtectedFilePolicyError.identityChanged
+            }
+        }
+        try reproveHeld()
+        let result = try readTemporalPolicy(kind, at: url,
+            expectedDevice: UInt64(before.device), expectedInode: UInt64(before.inode),
+            expectedLinkCount: UInt64(before.linkCount))
+        try reproveHeld()
+        guard try pin(kind, at: url, disposition: expected) == before else {
+            throw ProtectedFilePolicyError.identityChanged
+        }
+        return result
+    }
+
+    /// Narrow census observation for the actual two names of one scratch
+    /// final/partial inode. No caller-selected link-count exemption exists.
+    /// This is not accepted policy and does not authorize a setter/removal.
+    static func observeTemporalScratchPair(finalURL: URL, partialURL: URL)
+        throws -> [TemporalPolicyObservationV1] {
+        let parent = finalURL.deletingLastPathComponent()
+        let partialName = partialURL.lastPathComponent
+        guard finalURL.isFileURL, partialURL.isFileURL,
+              parent == partialURL.deletingLastPathComponent(),
+              OperationalDiagnosticsBoundsV1.validRelativeName(finalURL.lastPathComponent),
+              !finalURL.lastPathComponent.hasPrefix(".partial-"),
+              partialName.hasPrefix(".partial-"),
+              let id = UUID(uuidString: String(partialName.dropFirst(9))),
+              partialName == ".partial-" + id.uuidString.lowercased() else {
+            throw ProtectedFilePolicyError.invalidURL
+        }
+        let parentFD = Darwin.open(parent.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard parentFD >= 0 else { throw ProtectedFilePolicyError.invalidURL }
+        defer { Darwin.close(parentFD) }
+        let finalFD = Darwin.openat(parentFD, finalURL.lastPathComponent,
+            O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+        guard finalFD >= 0 else { throw ProtectedFilePolicyError.invalidURL }
+        defer { Darwin.close(finalFD) }
+        let partialFD = Darwin.openat(parentFD, partialName,
+            O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+        guard partialFD >= 0 else { throw ProtectedFilePolicyError.invalidURL }
+        defer { Darwin.close(partialFD) }
+        func inspect(_ fd: Int32, name: String) throws -> stat {
+            var held = stat(), named = stat()
+            guard Darwin.fstat(fd, &held) == 0,
+                  Darwin.fstatat(parentFD, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  (held.st_mode & S_IFMT) == S_IFREG, held.st_nlink == 2,
+                  named.st_dev == held.st_dev, named.st_ino == held.st_ino,
+                  named.st_mode == held.st_mode, named.st_nlink == held.st_nlink else {
+                throw ProtectedFilePolicyError.identityChanged
+            }
+            return held
+        }
+        let first = try inspect(finalFD, name: finalURL.lastPathComponent)
+        let second = try inspect(partialFD, name: partialName)
+        guard first.st_dev == second.st_dev, first.st_ino == second.st_ino else {
+            throw ProtectedFilePolicyError.hardLink
+        }
+        let values = try [finalURL, partialURL].map {
+            try readTemporalPolicy(.temporaryFile, at: $0,
+                expectedDevice: UInt64(first.st_dev), expectedInode: UInt64(first.st_ino),
+                expectedLinkCount: 2)
+        }
+        let afterFirst = try inspect(finalFD, name: finalURL.lastPathComponent)
+        let afterSecond = try inspect(partialFD, name: partialName)
+        guard afterFirst.st_dev == first.st_dev, afterFirst.st_ino == first.st_ino,
+              afterSecond.st_dev == first.st_dev, afterSecond.st_ino == first.st_ino else {
+            throw ProtectedFilePolicyError.identityChanged
+        }
+        return values
+    }
+
+    private static func readTemporalPolicy(_ kind: OwnedFileKindV1, at url: URL,
+        expectedDevice: UInt64, expectedInode: UInt64, expectedLinkCount: UInt64)
+        throws -> TemporalPolicyObservationV1 {
+        let expected = disposition(for: kind)
+        var independent = URL(fileURLWithPath: url.path)
+        independent.removeAllCachedResourceValues()
+        let values: URLResourceValues
+        let attributes: [FileAttributeKey: Any]
+        do {
+            values = try independent.resourceValues(forKeys: [.fileProtectionKey,
+                .isExcludedFromBackupKey, .isDirectoryKey, .volumeSupportsFileProtectionKey])
+            attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        } catch { throw mapWriteError(error) }
+        func protectionName(_ value: URLFileProtection?) -> String {
+            switch value {
+            case .some(.complete): return "complete"
+            case .some(.completeUnlessOpen): return "completeUnlessOpen"
+            case .some(.completeUntilFirstUserAuthentication): return "completeUntilFirstUserAuthentication"
+            case .some(.none): return "none"
+            case nil: return "unknown"
+            default: return "other"
+            }
+        }
+        let managerProtection: String
+        switch attributes[.protectionKey] as? FileProtectionType {
+        case .some(.complete): managerProtection = "complete"
+        case .some(.completeUnlessOpen): managerProtection = "completeUnlessOpen"
+        case .some(.completeUntilFirstUserAuthentication): managerProtection = "completeUntilFirstUserAuthentication"
+        case .some(.none): managerProtection = "none"
+        case nil: managerProtection = "unknown"
+        default: managerProtection = "other"
+        }
+        var named = stat()
+        guard Darwin.lstat(url.path, &named) == 0,
+              UInt64(named.st_dev) == expectedDevice, UInt64(named.st_ino) == expectedInode,
+              UInt64(named.st_nlink) == expectedLinkCount,
+              (named.st_mode & S_IFMT) == (expected.expectsDirectory ? S_IFDIR : S_IFREG),
+              attributes[.type] as? FileAttributeType == (expected.expectsDirectory ? .typeDirectory : .typeRegular),
+              values.isDirectory == expected.expectsDirectory,
+              values.isExcludedFromBackup == expected.isExcludedFromBackup else {
+            throw ProtectedFilePolicyError.resourceValueMismatch
+        }
+        let capability = values.allValues[.volumeSupportsFileProtectionKey] as? Bool
+        let state: TemporalPolicyObservationV1.State
+        if values.fileProtection == .complete {
+            state = .strictComplete
+        } else {
+#if DEBUG && os(iOS) && targetEnvironment(simulator)
+            let readback = DirectoryProtectionReadback(urlProtection: protectionName(values.fileProtection),
+                fileManagerProtection: managerProtection, backupExcluded: values.isExcludedFromBackup,
+                isDirectory: values.isDirectory, volumeSupportsProtection: capability)
+            guard simulatorReadbackIsExactFallback(readback, disposition: expected) else {
+                throw ProtectedFilePolicyError.resourceValueMismatch
+            }
+            state = .pendingSimulatorRequest
+#else
+            throw ProtectedFilePolicyError.resourceValueMismatch
+#endif
+        }
+        return TemporalPolicyObservationV1(state: state, device: expectedDevice,
+            inode: expectedInode, linkCount: expectedLinkCount, mode: UInt16(named.st_mode),
+            urlProtection: protectionName(values.fileProtection), fileManagerProtection: managerProtection,
+            backupExcluded: values.isExcludedFromBackup, isDirectory: values.isDirectory,
+            volumeSupportsProtection: capability)
+    }
+}

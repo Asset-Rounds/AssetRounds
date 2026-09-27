@@ -275,6 +275,9 @@ final class OrphanFileCleanupService {
     private let rootIdentity: Identity
     private let fileManager: FileManager
     private let replacementInjection: OrphanFileCleanupReplacementInjection?
+    #if DEBUG
+    private var temporalRemovalBoundary: (@MainActor (TemporalUncommittedOriginalRemovalBoundaryV1, URL) throws -> Void)?
+    #endif
 
     init(
         generationRootURL: URL,
@@ -301,6 +304,20 @@ final class OrphanFileCleanupService {
         self.fileManager = fileManager
         self.replacementInjection = replacementInjection
         rootIdentity = try Self.identity(descriptor, directory: true)
+    }
+
+    /// Fixed retained-owner view; no transient root descriptor is opened.
+    fileprivate init(temporalRootURL root: URL, heldRoot: Int32) throws {
+        guard root.isFileURL, root == root.standardizedFileURL,
+              root.deletingLastPathComponent().lastPathComponent == "generations",
+              root.deletingLastPathComponent().deletingLastPathComponent().lastPathComponent == "FieldEvidenceData",
+              let generation = UUID(uuidString: root.lastPathComponent),
+              generation.uuidString.lowercased() == root.lastPathComponent else {
+            throw OrphanFileCleanupServiceError.invalidGeneration
+        }
+        generationRootURL = root; generationID = generation
+        rootIdentity = try Self.identity(heldRoot, directory: true)
+        fileManager = .default; replacementInjection = nil
     }
 
     func reconcile(
@@ -1184,3 +1201,741 @@ enum C48PortableExchangeOrphanCleanupBoundaryV2 {
     }
 }
 // C52_BOUNDARY_ANCHOR: sanitized-media-cleanup-only
+
+// MARK: - Prepared, original-only temporal reservation cleanup
+
+/// Immutable physical observation only. Canonical/operational no-owner proof
+/// belongs to the normalizer and must be freshly supplied at publication.
+struct PreparedTemporalUncommittedOriginalV1: Equatable, Sendable {
+    let reservation: TemporalEvidencePromotionReservationV1
+    let generationRootURL: URL
+    let observedByteCount: Int64
+    fileprivate let directories: [TemporalOrphanDirectoryObservationV1]
+    fileprivate let state: TemporalOrphanOriginalStateV1
+
+    fileprivate init(reservation: TemporalEvidencePromotionReservationV1, generationRootURL: URL,
+                     directories: [TemporalOrphanDirectoryObservationV1], state: TemporalOrphanOriginalStateV1) {
+        self.reservation = reservation
+        self.generationRootURL = generationRootURL
+        self.directories = directories
+        self.state = state
+        if case .original(let facts, _, _) = state { observedByteCount = facts.byteCount }
+        else { observedByteCount = 0 }
+    }
+}
+
+fileprivate struct TemporalOrphanFileFactsV1: Equatable, Sendable {
+    let device: dev_t
+    let inode: ino_t
+    let mode: mode_t
+    let links: nlink_t
+    let byteCount: Int64
+    let modifiedSeconds: Int64
+    let modifiedNanoseconds: Int64
+    let changedSeconds: Int64
+    let changedNanoseconds: Int64
+
+    init(_ info: stat) {
+        device = info.st_dev; inode = info.st_ino; mode = info.st_mode; links = info.st_nlink
+        byteCount = Int64(info.st_size)
+        modifiedSeconds = Int64(info.st_mtimespec.tv_sec)
+        modifiedNanoseconds = Int64(info.st_mtimespec.tv_nsec)
+        changedSeconds = Int64(info.st_ctimespec.tv_sec)
+        changedNanoseconds = Int64(info.st_ctimespec.tv_nsec)
+    }
+    func sameDirectoryIdentity(as other: Self) -> Bool {
+        mode & S_IFMT == S_IFDIR && other.mode & S_IFMT == S_IFDIR
+            && device == other.device && inode == other.inode
+    }
+}
+
+fileprivate struct TemporalOrphanDirectoryObservationV1: Equatable, Sendable {
+    let facts: TemporalOrphanFileFactsV1
+    let policy: TemporalPolicyObservationV1
+}
+
+fileprivate enum TemporalOrphanOriginalStateV1: Equatable, Sendable {
+    // The next component after the exact observed directory prefix is absent.
+    case absent
+    case emptyObject
+    case original(TemporalOrphanFileFactsV1, TemporalPolicyObservationV1, String)
+}
+
+#if DEBUG
+enum TemporalUncommittedOriginalRemovalBoundaryV1: Sendable {
+    case afterOriginalUnlink
+    case beforeObjectRemoval
+}
+#endif
+
+extension OrphanFileCleanupService {
+    #if DEBUG
+    convenience init(generationRootURL: URL,
+                     temporalRemovalBoundary: @escaping @MainActor (TemporalUncommittedOriginalRemovalBoundaryV1, URL) throws -> Void) throws {
+        try self.init(generationRootURL: generationRootURL)
+        self.temporalRemovalBoundary = temporalRemovalBoundary
+    }
+    #endif
+
+    /// Call off-main, before acquiring G. Never creates, repairs or removes a
+    /// path; request allowance is not substituted for observed file length.
+    func prepareTemporalUncommittedOriginal(
+        _ reservation: TemporalEvidencePromotionReservationV1
+    ) throws -> PreparedTemporalUncommittedOriginalV1 {
+        let components = try temporalOriginalComponents(reservation)
+        return try withTemporalOriginalDirectories(components: components) { descriptors in
+            let directories = try temporalDirectoryObservations(descriptors, components: components)
+            let state: TemporalOrphanOriginalStateV1
+            if descriptors.count < 4 {
+                guard Self.entryIsAbsent(parent: descriptors.last!, name: components[descriptors.count - 1]) else {
+                    throw OrphanFileCleanupServiceError.identityChanged
+                }
+                state = .absent
+            } else {
+                let object = descriptors[3]
+                let hasOriginal = try temporalOriginalOnlyCensus(object)
+                if !hasOriginal {
+                    state = .emptyObject
+                } else {
+                    let descriptor = Darwin.openat(object, "original.bin", O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+                    guard descriptor >= 0 else { throw OrphanFileCleanupServiceError.identityChanged }
+                    defer { Darwin.close(descriptor) }
+                    let facts = try temporalRegularFacts(descriptor)
+                    guard facts.byteCount > 0, facts.byteCount <= Self.maximumInspectedBytes,
+                          UInt64(facts.byteCount) <= reservation.binding.request.requestedByteCount else {
+                        throw OrphanFileCleanupServiceError.byteLimitExceeded
+                    }
+                    try temporalRequireNamedFile(object: object, descriptor: descriptor, facts: facts)
+                    let policy = try ProtectedFilePolicyV1.observeTemporalPolicy(.mediaOriginal, at: temporalOriginalURL(components))
+                    try temporalRequireNamedFile(object: object, descriptor: descriptor, facts: facts)
+                    var hasher = SHA256()
+                    var buffer = [UInt8](repeating: 0, count: 64 * 1_024)
+                    var remaining = facts.byteCount
+                    while remaining > 0 {
+                        let limit = Int(min(Int64(buffer.count), remaining))
+                        let count = buffer.withUnsafeMutableBytes { Darwin.read(descriptor, $0.baseAddress, limit) }
+                        if count < 0, errno == EINTR { continue }
+                        guard count > 0 else { throw OrphanFileCleanupServiceError.identityChanged }
+                        hasher.update(data: Data(buffer[0..<count]))
+                        remaining -= Int64(count)
+                    }
+                    let digest = hasher.finalize().map { String(format: "%02x", $0) }.joined()
+                    guard digest == reservation.contentSHA256 else {
+                        throw OrphanFileCleanupServiceError.identityChanged
+                    }
+                    try temporalRequireNamedFile(object: object, descriptor: descriptor, facts: facts)
+                    guard try temporalOriginalOnlyCensus(object) else { throw OrphanFileCleanupServiceError.identityChanged }
+                    state = .original(facts, policy, digest)
+                }
+            }
+            try temporalReproveDirectories(descriptors, components: components, expected: directories)
+            if descriptors.count == 4 {
+                guard try temporalDirectoryFacts(descriptors[3]) == directories[3].facts else {
+                    throw OrphanFileCleanupServiceError.identityChanged
+                }
+            } else if !Self.entryIsAbsent(parent: descriptors.last!, name: components[descriptors.count - 1]) {
+                throw OrphanFileCleanupServiceError.identityChanged
+            }
+            return PreparedTemporalUncommittedOriginalV1(reservation: reservation, generationRootURL: generationRootURL,
+                                                        directories: directories, state: state)
+        }
+    }
+
+    /// Fixed synchronous publication: physical preparation is never authority.
+    /// The genuine normalizer revalidates its same-G no-owner closure at entry
+    /// and immediately before every unlink/rmdir. No hashing occurs here.
+    @MainActor
+    func publishTemporalUncommittedOriginalRemoval(
+        _ prepared: PreparedTemporalUncommittedOriginalV1,
+        publication: TemporalNormalizationPublicationProofV1
+    ) throws -> OrphanFileCleanupSummary {
+        try publication.requireUncommittedOriginalRemoval(reservation: prepared.reservation,
+            generationRootURL: prepared.generationRootURL)
+        return try publication.publishRetainedOriginal(prepared, service: self)
+    }
+
+    fileprivate func retainedTemporalOriginalComponents(_ reservation: TemporalEvidencePromotionReservationV1) throws -> [String] {
+        try temporalOriginalComponents(reservation)
+    }
+
+    /// Only the actual retained read object calls this file-private mechanism.
+    /// Every original predicate remains; no transient publication FD is opened.
+    @MainActor
+    fileprivate func publishHeldTemporalOriginal(_ prepared: PreparedTemporalUncommittedOriginalV1,
+        publication: TemporalNormalizationPublicationProofV1, descriptors: [Int32],
+        retainedOriginal: Int32?) throws -> OrphanFileCleanupSummary {
+        try publication.requireUncommittedOriginalRemoval(reservation: prepared.reservation,
+            generationRootURL: prepared.generationRootURL)
+        guard prepared.generationRootURL == generationRootURL else { throw OrphanFileCleanupServiceError.invalidGeneration }
+        let components = try temporalOriginalComponents(prepared.reservation)
+        try temporalReproveDirectories(descriptors, components: components, expected: prepared.directories)
+        if case .absent = prepared.state {
+            guard descriptors.count < 4,
+                  Self.entryIsAbsent(parent: descriptors.last!, name: components[descriptors.count - 1]) else {
+                throw OrphanFileCleanupServiceError.identityChanged
+            }
+            try publication.requireUncommittedOriginalRemoval(reservation: prepared.reservation,
+                                                              generationRootURL: prepared.generationRootURL)
+            try temporalReproveDirectories(descriptors, components: components, expected: prepared.directories)
+            guard Self.entryIsAbsent(parent: descriptors.last!, name: components[descriptors.count - 1]) else {
+                throw OrphanFileCleanupServiceError.identityChanged
+            }
+            return .init(inspectedFileCount: 0, removedFileCount: 0, removedByteCount: 0, removedDirectoryCount: 0)
+        }
+        guard descriptors.count == 4,
+              try temporalDirectoryFacts(descriptors[3]) == prepared.directories[3].facts else {
+            throw OrphanFileCleanupServiceError.identityChanged
+        }
+        let object = descriptors[3], workspace = descriptors[2]
+        let objectURL = temporalOriginalURL(components).deletingLastPathComponent()
+        var removedFiles = 0
+        var removedBytes: Int64 = 0
+        let emptyObject: TemporalOrphanFileFactsV1
+        if case .original(let facts, let policy, let digest) = prepared.state {
+            guard digest == prepared.reservation.contentSHA256,
+                  try publication.originalOnlyCensus() else { throw OrphanFileCleanupServiceError.identityChanged }
+            guard let descriptor = retainedOriginal else { throw OrphanFileCleanupServiceError.identityChanged }
+            try temporalRequireNamedFile(object: object, descriptor: descriptor, facts: facts)
+            guard try ProtectedFilePolicyV1.observeTemporalPolicy(.mediaOriginal, at: temporalOriginalURL(components)) == policy else {
+                throw OrphanFileCleanupServiceError.identityChanged
+            }
+            try temporalReproveDirectories(descriptors, components: components, expected: prepared.directories)
+            guard try temporalDirectoryFacts(object) == prepared.directories[3].facts,
+                  try publication.originalOnlyCensus() else { throw OrphanFileCleanupServiceError.identityChanged }
+            try temporalRequireNamedFile(object: object, descriptor: descriptor, facts: facts)
+            try publication.requireUncommittedOriginalRemoval(reservation: prepared.reservation,
+                                                              generationRootURL: prepared.generationRootURL)
+            try temporalReproveDirectories(descriptors, components: components, expected: prepared.directories)
+            try temporalRequireNamedFile(object: object, descriptor: descriptor, facts: facts)
+            guard try temporalDirectoryFacts(object) == prepared.directories[3].facts,
+                  try publication.originalOnlyCensus(),
+                  Darwin.unlinkat(object, "original.bin", 0) == 0 else {
+                throw OrphanFileCleanupServiceError.identityChanged
+            }
+            // An observed-present disappearance is never reinterpreted as
+            // initial absence; only this successful unlink reaches here.
+            guard Self.entryIsAbsent(parent: object, name: "original.bin"),
+                  try !publication.originalOnlyCensus(), Darwin.fsync(object) == 0 else {
+                throw OrphanFileCleanupServiceError.cleanupFailed
+            }
+            removedFiles = 1; removedBytes = facts.byteCount
+            emptyObject = try temporalDirectoryFacts(object)
+            #if DEBUG
+            try temporalRemovalBoundary?(.afterOriginalUnlink, temporalOriginalURL(components))
+            #endif
+        } else {
+            guard try !publication.originalOnlyCensus() else {
+                throw OrphanFileCleanupServiceError.identityChanged
+            }
+            emptyObject = prepared.directories[3].facts
+        }
+        #if DEBUG
+        try temporalRemovalBoundary?(.beforeObjectRemoval, objectURL)
+        #endif
+        try temporalReproveDirectories(descriptors, components: components, expected: prepared.directories)
+        guard try temporalDirectoryFacts(object) == emptyObject,
+              try !publication.originalOnlyCensus() else { throw OrphanFileCleanupServiceError.identityChanged }
+        try publication.requireUncommittedOriginalRemoval(reservation: prepared.reservation,
+                                                          generationRootURL: prepared.generationRootURL)
+        try temporalReproveDirectories(descriptors, components: components, expected: prepared.directories)
+        guard try temporalDirectoryFacts(object) == emptyObject,
+              try !publication.originalOnlyCensus(),
+              Darwin.unlinkat(workspace, components[2], AT_REMOVEDIR) == 0 else {
+            throw OrphanFileCleanupServiceError.identityChanged
+        }
+        guard Self.entryIsAbsent(parent: workspace, name: components[2]), Darwin.fsync(workspace) == 0 else {
+            throw OrphanFileCleanupServiceError.cleanupFailed
+        }
+        // The object is intentionally gone; reprove every retained named
+        // ancestor instead of trying to remint a new absent observation.
+        try temporalReproveDirectories(Array(descriptors.prefix(3)), components: components,
+                                        expected: Array(prepared.directories.prefix(3)))
+        return .init(inspectedFileCount: removedFiles, removedFileCount: removedFiles,
+                     removedByteCount: removedBytes, removedDirectoryCount: 1)
+    }
+
+}
+
+private extension OrphanFileCleanupService {
+    func temporalOriginalComponents(_ reservation: TemporalEvidencePromotionReservationV1) throws -> [String] {
+        let workspace = reservation.workspaceID.rawValue.uuidString.lowercased()
+        guard canonicalUUID(workspace), ContentContractValidationV1.validID(reservation.contentID),
+              reservation.contentID != ".", reservation.contentID != "..",
+              MutationEnvelopeV1.isSHA256(reservation.contentSHA256),
+              reservation.mutationID == reservation.binding.mutationID,
+              reservation.contentID == reservation.binding.contentID,
+              reservation.contentSHA256 == reservation.binding.contentSHA256,
+              reservation.binding.request.leaseID == reservation.binding.lease.leaseID,
+              reservation.binding.request.purpose == reservation.binding.lease.purpose,
+              reservation.binding.request.operationID == reservation.mutationID.rawValue,
+              !ProtectedFilePolicyV1.isExcludedFromBackup(for: .mediaOriginal) else {
+            throw OrphanFileCleanupServiceError.invalidReference
+        }
+        _ = try CapabilityScratchLeaseRequestV1(leaseID: reservation.binding.request.leaseID,
+            operationID: reservation.binding.request.operationID, purpose: reservation.binding.request.purpose,
+            requestedByteCount: reservation.binding.request.requestedByteCount,
+            createdAt: reservation.binding.request.createdAt, expiresAt: reservation.binding.request.expiresAt)
+        return ["content", workspace, reservation.contentID]
+    }
+
+    func temporalOriginalURL(_ components: [String]) -> URL {
+        components.reduce(generationRootURL) { $0.appendingPathComponent($1, isDirectory: true) }
+            .appendingPathComponent("original.bin")
+    }
+
+    func withTemporalOriginalDirectories<Value>(components: [String],
+        body: ([Int32]) throws -> Value) throws -> Value {
+        var descriptors = [try openPinnedRoot()]
+        defer { descriptors.reversed().forEach { Darwin.close($0) } }
+        for name in components {
+            guard let next = try openRootIfPresent(parent: descriptors.last!, name: name) else { break }
+            descriptors.append(next.descriptor)
+        }
+        return try body(descriptors)
+    }
+
+    func temporalDirectoryFacts(_ descriptor: Int32) throws -> TemporalOrphanFileFactsV1 {
+        var info = stat()
+        guard Darwin.fstat(descriptor, &info) == 0, info.st_mode & S_IFMT == S_IFDIR else {
+            throw OrphanFileCleanupServiceError.identityChanged
+        }
+        return .init(info)
+    }
+
+    func temporalRegularFacts(_ descriptor: Int32) throws -> TemporalOrphanFileFactsV1 {
+        var info = stat()
+        guard Darwin.fstat(descriptor, &info) == 0, info.st_mode & S_IFMT == S_IFREG,
+              info.st_nlink == 1, info.st_size >= 0 else { throw OrphanFileCleanupServiceError.invalidOwnedLayout }
+        return .init(info)
+    }
+
+    func temporalDirectoryObservations(_ descriptors: [Int32], components: [String]) throws -> [TemporalOrphanDirectoryObservationV1] {
+        var result: [TemporalOrphanDirectoryObservationV1] = []
+        var url = generationRootURL
+        for index in descriptors.indices {
+            if index > 0 { url.appendPathComponent(components[index - 1], isDirectory: true) }
+            let before = try temporalDirectoryFacts(descriptors[index])
+            let policy = try ProtectedFilePolicyV1.observeTemporalPolicy(.durableDirectory, at: url)
+            guard try temporalDirectoryFacts(descriptors[index]) == before else {
+                throw OrphanFileCleanupServiceError.identityChanged
+            }
+            result.append(.init(facts: before, policy: policy))
+        }
+        try temporalReproveDirectories(descriptors, components: components, expected: result)
+        return result
+    }
+
+    func temporalReproveDirectories(_ descriptors: [Int32], components: [String],
+        expected: [TemporalOrphanDirectoryObservationV1]) throws {
+        guard !descriptors.isEmpty, descriptors.count == expected.count, descriptors.count <= 4 else {
+            throw OrphanFileCleanupServiceError.identityChanged
+        }
+        var url = generationRootURL
+        for index in descriptors.indices {
+            let held = try temporalDirectoryFacts(descriptors[index])
+            var named = stat()
+            let status: Int32
+            if index == 0 { status = Darwin.lstat(generationRootURL.path, &named) }
+            else {
+                url.appendPathComponent(components[index - 1], isDirectory: true)
+                status = Darwin.fstatat(descriptors[index - 1], components[index - 1], &named, AT_SYMLINK_NOFOLLOW)
+            }
+            guard status == 0, held.sameDirectoryIdentity(as: expected[index].facts),
+                  held.sameDirectoryIdentity(as: .init(named)), held.device == expected[0].facts.device,
+                  try ProtectedFilePolicyV1.observeTemporalPolicy(.durableDirectory, at: url) == expected[index].policy,
+                  try temporalDirectoryFacts(descriptors[index]).sameDirectoryIdentity(as: held) else {
+                throw OrphanFileCleanupServiceError.identityChanged
+            }
+            var afterNamed = stat()
+            let afterStatus = index == 0 ? Darwin.lstat(generationRootURL.path, &afterNamed)
+                : Darwin.fstatat(descriptors[index - 1], components[index - 1], &afterNamed, AT_SYMLINK_NOFOLLOW)
+            guard afterStatus == 0, held.sameDirectoryIdentity(as: .init(afterNamed)) else {
+                throw OrphanFileCleanupServiceError.identityChanged
+            }
+        }
+        // Resource checks above use URLs. Finish with the complete pinned
+        // descriptor/name chain again before allowing the caller's effect.
+        for index in descriptors.indices.reversed() {
+            let held = try temporalDirectoryFacts(descriptors[index])
+            var named = stat()
+            let status = index == 0 ? Darwin.lstat(generationRootURL.path, &named)
+                : Darwin.fstatat(descriptors[index - 1], components[index - 1], &named, AT_SYMLINK_NOFOLLOW)
+            guard status == 0, held.sameDirectoryIdentity(as: expected[index].facts),
+                  held.sameDirectoryIdentity(as: .init(named)) else {
+                throw OrphanFileCleanupServiceError.identityChanged
+            }
+        }
+    }
+
+    func temporalRequireNamedFile(object: Int32, descriptor: Int32, facts: TemporalOrphanFileFactsV1) throws {
+        var named = stat()
+        guard try temporalRegularFacts(descriptor) == facts,
+              Darwin.fstatat(object, "original.bin", &named, AT_SYMLINK_NOFOLLOW) == 0,
+              TemporalOrphanFileFactsV1(named) == facts else { throw OrphanFileCleanupServiceError.identityChanged }
+    }
+
+    /// Closed original-only census, bounded by its first unexpected member.
+    /// Opening dot gives an independent directory offset for every reproof.
+    func temporalOriginalOnlyCensus(_ descriptor: Int32) throws -> Bool {
+        let duplicate = Darwin.openat(descriptor, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard duplicate >= 0 else { throw OrphanFileCleanupServiceError.invalidOwnedLayout }
+        guard let directory = Darwin.fdopendir(duplicate) else {
+            Darwin.close(duplicate); throw OrphanFileCleanupServiceError.invalidOwnedLayout
+        }
+        defer { Darwin.closedir(directory) }
+        var found = false
+        while true {
+            errno = 0
+            guard let entry = Darwin.readdir(directory) else {
+                guard errno == 0 else { throw OrphanFileCleanupServiceError.invalidOwnedLayout }
+                return found
+            }
+            var tuple = entry.pointee.d_name
+            let capacity = MemoryLayout.size(ofValue: tuple)
+            let name = withUnsafePointer(to: &tuple) {
+                $0.withMemoryRebound(to: CChar.self, capacity: capacity) { String(cString: $0) }
+            }
+            if name == "." || name == ".." { continue }
+            guard name == "original.bin", !found else { throw OrphanFileCleanupServiceError.invalidOwnedLayout }
+            found = true
+        }
+    }
+}
+
+/// Fixed original-abandonment read resources. The genuine source set retains
+/// this object before its first open. It is observation, never effect authority.
+final class TemporalNormalizationAbandonmentReadV1: @unchecked Sendable {
+    let sourceSetIdentity: ObjectIdentifier
+    let generationRootURL: URL
+    private let lock = NSLock()
+    private var owned: [Int32] = []
+    private var closed = Set<Int32>()
+    private var closeUncertain = false
+    private var closing = false
+    private struct Directory {
+        let fd: Int32, parent: Int32?, name: String, url: URL
+        let facts: TemporalOrphanFileFactsV1
+        let kind: OwnedFileKindV1
+        let policy: TemporalPolicyObservationV1
+    }
+    private struct File {
+        let fd: Int32, parent: Int32, name: String, url: URL
+        let facts: TemporalOrphanFileFactsV1
+        let kind: OwnedFileKindV1
+        let policy: TemporalPolicyObservationV1
+        let retainsBytes: Bool
+        var offset: Int64 = 0
+        var bytes = Data()
+        var hash = SHA256()
+        var digest: String?
+    }
+    private var directories: [Directory] = []
+    private var files: [File] = []
+    private var journalDirectory: Int32?
+    private var journalNames: [String] = []
+    private var journalResult: TemporalOperationalJournalObservationV1?
+    private var originalDirectoryStart: Int?
+    private var reservation: TemporalEvidencePromotionReservationV1?
+    private var originalAbsent = false
+    private var originalPrepared: PreparedTemporalUncommittedOriginalV1?
+    private var readIndex = 0
+    private var readPassComplete = false
+
+    @MainActor
+    init(sourceSet: TemporalNormalizationRetainedSourceSetV1, generationRootURL: URL) {
+        sourceSetIdentity = ObjectIdentifier(sourceSet)
+        self.generationRootURL = generationRootURL
+    }
+    private func requireOpen() throws {
+        guard !closing, !closeUncertain else { throw OrphanFileCleanupServiceError.identityChanged }
+    }
+    private func retain(_ fd: Int32) throws -> Int32 {
+        guard fd >= 0 else { throw OrphanFileCleanupServiceError.identityChanged }
+        owned.append(fd) // before any stat, policy or allocation may throw
+        return fd
+    }
+    private func openDirectory(parent: Int32?, name: String, url: URL,
+                               kind: OwnedFileKindV1) throws -> Int32 {
+        let fd = try retain(parent.map { Darwin.openat($0, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC) }
+            ?? Darwin.open(url.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC))
+        var held = stat(), named = stat()
+        guard Darwin.fstat(fd, &held) == 0, held.st_mode & S_IFMT == S_IFDIR,
+              (parent.map { Darwin.fstatat($0, name, &named, AT_SYMLINK_NOFOLLOW) }
+                ?? Darwin.lstat(url.path, &named)) == 0,
+              named.st_mode & S_IFMT == S_IFDIR, held.st_dev == named.st_dev,
+              held.st_ino == named.st_ino else { throw OrphanFileCleanupServiceError.identityChanged }
+        let policy = try ProtectedFilePolicyV1.observeTemporalPolicy(kind, at: url)
+        let value = Directory(fd: fd, parent: parent, name: name, url: url,
+            facts: .init(held), kind: kind, policy: policy)
+        directories.append(value)
+        try revalidate(value)
+        return fd
+    }
+    private func openFile(parent: Int32, name: String, url: URL, kind: OwnedFileKindV1,
+                          maximum: Int64, retainsBytes: Bool) throws {
+        let fd = try retain(Darwin.openat(parent, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC))
+        var held = stat()
+        guard Darwin.fstat(fd, &held) == 0, held.st_mode & S_IFMT == S_IFREG,
+              held.st_nlink == 1, held.st_size >= 0, held.st_size <= maximum else {
+            throw OrphanFileCleanupServiceError.byteLimitExceeded
+        }
+        let policy = try ProtectedFilePolicyV1.observeTemporalPolicy(kind, at: url)
+        let file = File(fd: fd, parent: parent, name: name, url: url,
+            facts: .init(held), kind: kind, policy: policy, retainsBytes: retainsBytes)
+        files.append(file)
+        try revalidate(file)
+    }
+    private func revalidate(_ value: Directory) throws {
+        var held = stat(), named = stat()
+        guard Darwin.fstat(value.fd, &held) == 0,
+              (value.parent.map { Darwin.fstatat($0, value.name, &named, AT_SYMLINK_NOFOLLOW) }
+                ?? Darwin.lstat(value.url.path, &named)) == 0,
+              value.facts.sameDirectoryIdentity(as: .init(held)),
+              value.facts.sameDirectoryIdentity(as: .init(named)) else {
+            throw OrphanFileCleanupServiceError.identityChanged
+        }
+        let policy = try ProtectedFilePolicyV1.observeTemporalPolicy(value.kind, at: value.url)
+        guard policy == value.policy, policy.device == UInt64(held.st_dev),
+              policy.inode == UInt64(held.st_ino) else { throw OrphanFileCleanupServiceError.identityChanged }
+    }
+    private func revalidate(_ value: File) throws {
+        var held = stat(), named = stat()
+        guard Darwin.fstat(value.fd, &held) == 0,
+              Darwin.fstatat(value.parent, value.name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+              TemporalOrphanFileFactsV1(held) == value.facts,
+              TemporalOrphanFileFactsV1(named) == value.facts else { throw OrphanFileCleanupServiceError.identityChanged }
+        let policy = try ProtectedFilePolicyV1.observeTemporalPolicy(value.kind, at: value.url)
+        guard policy == value.policy, policy.device == UInt64(held.st_dev),
+              policy.inode == UInt64(held.st_ino) else { throw OrphanFileCleanupServiceError.identityChanged }
+    }
+    /// A fresh directory description is always closed exactly once, with its
+    /// close result checked even on a scan failure. Ambiguity poisons this owner.
+    private func names(_ fd: Int32, limit: Int) throws -> [String] {
+        let fresh = Darwin.openat(fd, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard fresh >= 0 else { throw OrphanFileCleanupServiceError.identityChanged }
+        guard let stream = Darwin.fdopendir(fresh) else {
+            if Darwin.close(fresh) != 0 { closeUncertain = true }
+            throw OrphanFileCleanupServiceError.identityChanged
+        }
+        let result: Result<[String], any Error> = Result {
+            var result: [String] = []
+            while true {
+                errno = 0
+                guard let entry = Darwin.readdir(stream) else {
+                    guard errno == 0 else { throw OrphanFileCleanupServiceError.identityChanged }
+                    break
+                }
+                guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+                    throw OrphanFileCleanupServiceError.invalidOwnedLayout
+                }
+                if name == "." || name == ".." { continue }
+                guard result.count < limit else { throw OrphanFileCleanupServiceError.byteLimitExceeded }
+                result.append(name)
+            }
+            guard Set(result).count == result.count else { throw OrphanFileCleanupServiceError.invalidOwnedLayout }
+            return result.sorted()
+        }
+        guard Darwin.closedir(stream) == 0 else {
+            closeUncertain = true
+            throw OrphanFileCleanupServiceError.identityChanged
+        }
+        return try result.get()
+    }
+    @MainActor
+    func prepareJournalDescriptors() throws {
+        try lock.withLock {
+            try requireOpen()
+            guard owned.isEmpty, journalDirectory == nil else { throw OrphanFileCleanupServiceError.identityChanged }
+            let root = try openDirectory(parent: nil, name: "", url: generationRootURL, kind: .durableDirectory)
+            let operationalURL = generationRootURL.appendingPathComponent("operational", isDirectory: true)
+            let operational = try openDirectory(parent: root, name: "operational", url: operationalURL, kind: .stagingDirectory)
+            let url = operationalURL.appendingPathComponent("temporal-evidence-promotion-v1", isDirectory: true)
+            let directory = try openDirectory(parent: operational, name: "temporal-evidence-promotion-v1", url: url, kind: .stagingDirectory)
+            journalDirectory = directory
+            journalNames = try names(directory, limit: 257)
+            // This fixed action never performs M1 recovery. Any registered slot
+            // blocks before reads/classification/effects, including partial slots.
+            guard journalNames.count <= 256, !journalNames.contains(where: { $0.hasPrefix(".tp2-") }) else {
+                throw OrphanFileCleanupServiceError.invalidOwnedLayout
+            }
+            var total: Int64 = 0
+            for name in journalNames {
+                try openFile(parent: directory, name: name, url: url.appendingPathComponent(name),
+                    kind: .journal, maximum: 1_048_576, retainsBytes: true)
+                total += files.last!.facts.byteCount
+                guard total <= 15 * 1_048_576 else { throw OrphanFileCleanupServiceError.byteLimitExceeded }
+            }
+            guard try names(directory, limit: 257) == journalNames else { throw OrphanFileCleanupServiceError.identityChanged }
+        }
+    }
+    /// Called only by the original-reference access object's fixed chunk method.
+    /// The caller cannot select a path, FD, offset, expected bytes or hash.
+    func readNextChunkUnderOriginalReference() throws -> Bool {
+        try lock.withLock {
+            try requireOpen()
+            guard journalDirectory != nil else { throw OrphanFileCleanupServiceError.identityChanged }
+            if readIndex == files.count { readPassComplete = true; return false }
+            let index = readIndex
+            var file = files[index]
+            try revalidate(file)
+            let remaining = file.facts.byteCount - file.offset
+            guard remaining >= 0 else { throw OrphanFileCleanupServiceError.identityChanged }
+            if remaining > 0 {
+                var bytes = Data(count: Int(min(65_536, remaining)))
+                let count = bytes.withUnsafeMutableBytes { Darwin.pread(file.fd, $0.baseAddress!, $0.count, off_t(file.offset)) }
+                if count < 0 && errno == EINTR { return true }
+                guard count > 0 else { throw OrphanFileCleanupServiceError.identityChanged }
+                bytes.count = count; file.offset += Int64(count); file.hash.update(data: bytes)
+                if file.retainsBytes { file.bytes.append(bytes) }
+            }
+            try revalidate(file)
+            if file.offset == file.facts.byteCount {
+                file.digest = file.hash.finalize().map { String(format: "%02x", $0) }.joined()
+                readIndex += 1
+            }
+            files[index] = file
+            if readIndex == files.count { readPassComplete = true; return false }
+            return true
+        }
+    }
+    @MainActor
+    func completedJournal() throws -> TemporalOperationalJournalObservationV1 {
+        try lock.withLock {
+            try requireOpen()
+            guard reservation == nil, readPassComplete, let directory = journalDirectory,
+                  try names(directory, limit: 257) == journalNames else { throw OrphanFileCleanupServiceError.identityChanged }
+            for value in directories { try revalidate(value) }
+            var bytes: [String: Data] = [:], policies: [String: TemporalPolicyObservationV1] = [:]
+            for file in files {
+                try revalidate(file)
+                guard file.retainsBytes, file.offset == file.facts.byteCount,
+                      file.bytes.count == Int(file.facts.byteCount), file.digest != nil else {
+                    throw OrphanFileCleanupServiceError.identityChanged
+                }
+                bytes[file.name] = file.bytes; policies[file.url.path] = file.policy
+            }
+            for value in directories { policies[value.url.path] = value.policy }
+            let result = try TemporalOperationalJournalObservationV1.decodeRetainedSettled(
+                generationRootURL: generationRootURL, manifests: bytes, policyObservations: policies)
+            journalResult = result
+            return result
+        }
+    }
+    @MainActor
+    func prepareOriginalDescriptors(_ value: TemporalEvidencePromotionReservationV1) throws {
+        try lock.withLock {
+            try requireOpen()
+            guard journalResult != nil, reservation == nil, readPassComplete, let root = directories.first else {
+                throw OrphanFileCleanupServiceError.identityChanged
+            }
+            let service = try OrphanFileCleanupService(temporalRootURL: generationRootURL, heldRoot: root.fd)
+            let components = try service.retainedTemporalOriginalComponents(value)
+            reservation = value; originalDirectoryStart = directories.count
+            var parent = root.fd, url = generationRootURL
+            for name in components {
+                url.appendPathComponent(name, isDirectory: true)
+                var named = stat()
+                if Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) != 0 {
+                    guard errno == ENOENT else { throw OrphanFileCleanupServiceError.identityChanged }
+                    originalAbsent = true; break
+                }
+                parent = try openDirectory(parent: parent, name: name, url: url, kind: .durableDirectory)
+            }
+            if !originalAbsent {
+                let children = try names(parent, limit: 2)
+                guard children.isEmpty || children == ["original.bin"] else { throw OrphanFileCleanupServiceError.invalidOwnedLayout }
+                if !children.isEmpty {
+                    let maximum = min(UInt64(OrphanFileCleanupService.maximumInspectedBytes), value.binding.request.requestedByteCount)
+                    try openFile(parent: parent, name: "original.bin", url: url.appendingPathComponent("original.bin"),
+                        kind: .mediaOriginal, maximum: Int64(maximum), retainsBytes: false)
+                    guard files.last!.facts.byteCount > 0 else { throw OrphanFileCleanupServiceError.invalidOwnedLayout }
+                }
+            }
+            readPassComplete = readIndex == files.count
+        }
+    }
+    @MainActor
+    func completedOriginal() throws -> PreparedTemporalUncommittedOriginalV1 {
+        try lock.withLock {
+            try requireOpen()
+            guard readPassComplete, let value = reservation, let start = originalDirectoryStart,
+                  let root = directories.first else { throw OrphanFileCleanupServiceError.identityChanged }
+            let originalDirectories = [root] + Array(directories[start...])
+            for directory in originalDirectories { try revalidate(directory) }
+            let state: TemporalOrphanOriginalStateV1
+            if originalAbsent { state = .absent }
+            else if let file = files.first(where: { !$0.retainsBytes }) {
+                try revalidate(file)
+                guard let digest = file.digest, digest == value.contentSHA256 else { throw OrphanFileCleanupServiceError.identityChanged }
+                state = .original(file.facts, file.policy, digest)
+            } else { state = .emptyObject }
+            let prepared = PreparedTemporalUncommittedOriginalV1(reservation: value, generationRootURL: generationRootURL,
+                directories: originalDirectories.map { .init(facts: $0.facts, policy: $0.policy) }, state: state)
+            originalPrepared = prepared
+            return prepared
+        }
+    }
+    @MainActor
+    func originalOnlyCensus() throws -> Bool {
+        try lock.withLock {
+            try requireOpen()
+            guard let start = originalDirectoryStart, !originalAbsent,
+                  directories.count == start + 3 else { throw OrphanFileCleanupServiceError.identityChanged }
+            let children = try names(directories.last!.fd, limit: 2)
+            guard children.isEmpty || children == ["original.bin"] else { throw OrphanFileCleanupServiceError.invalidOwnedLayout }
+            return !children.isEmpty
+        }
+    }
+    @MainActor
+    func publishRetainedOriginal(_ expected: PreparedTemporalUncommittedOriginalV1,
+        service: OrphanFileCleanupService, publication: TemporalNormalizationPublicationProofV1) throws -> OrphanFileCleanupSummary {
+        let retained = try lock.withLock { () throws -> ([Int32], Int32?) in
+            try requireOpen()
+            guard let prepared = originalPrepared, prepared == expected, let root = directories.first,
+                  let start = originalDirectoryStart, readPassComplete else { throw OrphanFileCleanupServiceError.identityChanged }
+            return ([root.fd] + directories[start...].map(\.fd), files.first(where: { !$0.retainsBytes })?.fd)
+        }
+        return try service.publishHeldTemporalOriginal(expected, publication: publication,
+            descriptors: retained.0, retainedOriginal: retained.1)
+    }
+    @MainActor
+    func fixedRemovalService() throws -> OrphanFileCleanupService {
+        try lock.withLock {
+            try requireOpen()
+            guard originalPrepared != nil, let root = directories.first else {
+                throw OrphanFileCleanupServiceError.identityChanged
+            }
+            try revalidate(root)
+            return try OrphanFileCleanupService(temporalRootURL: generationRootURL, heldRoot: root.fd)
+        }
+    }
+    @MainActor
+    func requireJournalUnchanged() throws {
+        try lock.withLock {
+            try requireOpen()
+            guard let directory = journalDirectory, journalResult != nil, readPassComplete,
+                  try names(directory, limit: 257) == journalNames else { throw OrphanFileCleanupServiceError.identityChanged }
+            for value in directories.prefix(3) { try revalidate(value) }
+            for file in files where file.retainsBytes { try revalidate(file) }
+            // Pending observation is never admitted as complete. This first
+            // fixed action requires genuine current strict observations.
+            guard directories.allSatisfy({ $0.policy.state == .strictComplete }),
+                  files.allSatisfy({ $0.policy.state == .strictComplete }) else {
+                throw OrphanFileCleanupServiceError.identityChanged
+            }
+        }
+    }
+    @MainActor
+    func closeAfterWorkerJoined() throws {
+        try lock.withLock {
+            closing = true
+            guard !closeUncertain else { throw OrphanFileCleanupServiceError.identityChanged }
+            for fd in owned.reversed() where !closed.contains(fd) {
+                closed.insert(fd)
+                guard Darwin.close(fd) == 0 else {
+                    closeUncertain = true; throw OrphanFileCleanupServiceError.identityChanged
+                }
+            }
+        }
+    }
+}

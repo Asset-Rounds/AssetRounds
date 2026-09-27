@@ -470,7 +470,7 @@ struct PartyContactSiteRoleImportPreparedV1: Sendable {
     }
 }
 
-struct PartyContactSiteRoleImportMaterializerV1: ImportWorkspaceCommandMaterializingV1 {
+struct PartyContactSiteRoleImportMaterializerV1: ImportSessionTransitionMaterializingV1 {
     let prepared: PartyContactSiteRoleImportPreparedV1
 
     func materialize(
@@ -485,63 +485,137 @@ struct PartyContactSiteRoleImportMaterializerV1: ImportWorkspaceCommandMateriali
               context.command.expectedRevision == nil,
               context.command.dependencyCommandIDs.isEmpty,
               context.mutationID == prepared.mutation.mutationID,
-              try normalizedCASBasisMatches(context.expectedRevision) else {
+              context.expectedRevision == (try authenticatedScopedBasis(
+                  workspaceRevision: context.expectedRevision.workspaceRevision,
+                  writerInstanceID: context.expectedRevision.writerInstanceID
+              )) else {
             throw ImportBulkFailureV1.changedInputQuarantined
         }
-        return try prepared.mutation.canonicalWorkspaceMutationRequest()
+        return try prepared.mutation
+            .withAuthenticatedSessionExpectedRevision(context.expectedRevision)
+            .canonicalWorkspaceMutationRequest()
     }
 
-    /// C08 supplies the full, live snapshot.  The aggregate must additionally
-    /// carry zero-revision entries for the Party/contact/role post-images it
-    /// creates, so raw expected-revision equality would quarantine every valid
-    /// new-identity import.  Compare a fail-closed normalized basis instead.
-    private func normalizedCASBasisMatches(
-        _ live: WorkspaceExpectedRevisionV1
-    ) throws -> Bool {
-        let expected = prepared.mutation.expectedRevision
-        guard live.workspaceID == expected.workspaceID,
-              live.generationID == expected.generationID,
-              live.writerInstanceID == expected.writerInstanceID,
-              live.workspaceRevision == expected.workspaceRevision else {
-            return false
+    func expectedRevisionAfterSessionStart(
+        session: BulkSessionV1,
+        sessionStartReceipt: MutationReceiptV1,
+        liveRevision: WorkspaceRevisionV1,
+        aggregateReceipt: MutationReceiptV1?
+    ) throws -> WorkspaceExpectedRevisionV1 {
+        let previewBasis = prepared.mutation.expectedRevision
+        let sessionIdentity = try WorkspaceEntityIdentityV1(
+            kind: .bulkSession, id: session.sessionID
+        )
+        let (afterStart, overflow) = previewBasis.workspaceRevision.addingReportingOverflow(1)
+        guard !overflow,
+              session.state == .active, session.chunkReceipts.isEmpty,
+              session.workspaceID == prepared.mutation.workspaceID,
+              session.bulkPlanID == prepared.preview.bulkPlan.bulkPlanID,
+              session.bulkPlanSHA256 == prepared.preview.bulkPlan.planSHA256,
+              session.sourceSHA256 == prepared.preview.importPlan.source.sourceSHA256,
+              session.expectedWorkspaceRevisionSHA256
+                == prepared.preview.importPlan.workspaceRevisionSHA256,
+              sessionStartReceipt.expectedRevision.workspaceID == previewBasis.workspaceID,
+              sessionStartReceipt.expectedRevision.generationID == previewBasis.generationID,
+              sessionStartReceipt.expectedRevision.workspaceRevision
+                == previewBasis.workspaceRevision,
+              sessionStartReceipt.resultingRevision.workspaceRevision == afterStart,
+              sessionStartReceipt.postImages == [
+                  .bulkSession(id: session.sessionID, revision: 1,
+                               semanticSHA256: session.sessionSHA256)
+              ],
+              liveRevision.workspaceID == previewBasis.workspaceID,
+              liveRevision.generationID == previewBasis.generationID else {
+            throw ImportBulkFailureV1.changedInputQuarantined
         }
-
-        func revisionMap(
-            _ rows: [WorkspaceEntityRevisionV1]
-        ) -> [WorkspaceEntityIdentityV1: UInt64]? {
-            guard Set(rows.map(\.identity)).count == rows.count else { return nil }
-            return Dictionary(uniqueKeysWithValues: rows.map { ($0.identity, $0.revision) })
-        }
-
-        guard let liveByIdentity = revisionMap(live.entityRevisions),
-              let expectedByIdentity = revisionMap(expected.entityRevisions) else {
-            return false
-        }
-
-        // A full live snapshot may never lose, alter, or replace unrelated
-        // rows in the prepared basis.
-        guard liveByIdentity.allSatisfy({ expectedByIdentity[$0.key] == $0.value }) else {
-            return false
-        }
-
-        let requiredConcurrency = Set(try prepared.mutation.concurrencyIdentities)
-        // Existing aggregate dependencies (notably every bound Site) must be
-        // present in the live snapshot at their exact nonzero revision.
-        for identity in requiredConcurrency {
-            guard let revision = expectedByIdentity[identity] else { return false }
-            if revision > 0, liveByIdentity[identity] != revision { return false }
-        }
-
-        // The only allowed prepared-only rows are this aggregate's own new
-        // concurrency identities, each absent live and explicitly zero.
-        var normalized = liveByIdentity
-        for (identity, revision) in expectedByIdentity where liveByIdentity[identity] == nil {
-            guard requiredConcurrency.contains(identity), revision == 0 else {
-                return false
+        let expected = try authenticatedScopedBasis(
+            workspaceRevision: afterStart,
+            writerInstanceID: liveRevision.writerInstanceID
+        )
+        let concurrency = Set(try prepared.mutation.concurrencyIdentities)
+        var required: [WorkspaceEntityIdentityV1: UInt64] = [:]
+        for row in previewBasis.entityRevisions {
+            if row.revision == 0 {
+                guard concurrency.contains(row.identity) else {
+                    throw ImportBulkFailureV1.changedInputQuarantined
+                }
+            } else {
+                required[row.identity] = row.revision
             }
-            normalized[identity] = revision
         }
-        return normalized == expectedByIdentity
+        guard required[sessionIdentity] == nil else {
+            throw ImportBulkFailureV1.changedInputQuarantined
+        }
+        required[sessionIdentity] = 1
+        let afterStartRows = Dictionary(uniqueKeysWithValues:
+            sessionStartReceipt.resultingRevision.entityRevisions.map {
+                ($0.identity, $0.revision)
+            }
+        )
+        guard afterStartRows == required else {
+            throw ImportBulkFailureV1.changedInputQuarantined
+        }
+        if let aggregateReceipt {
+            guard aggregateReceipt.expectedRevision
+                    == (try MutationPortableExpectedRevisionV1(expected)) else {
+                throw ImportBulkFailureV1.changedInputQuarantined
+            }
+        } else {
+            guard liveRevision.revision == afterStart else {
+                throw ImportBulkFailureV1.changedInputQuarantined
+            }
+            let actual = Dictionary(uniqueKeysWithValues:
+                liveRevision.entityRevisions.map { ($0.identity, $0.revision) }
+            )
+            for row in previewBasis.entityRevisions {
+                if row.revision == 0 {
+                    guard concurrency.contains(row.identity), actual[row.identity] == nil else {
+                        throw ImportBulkFailureV1.changedInputQuarantined
+                    }
+                }
+            }
+            guard actual == required else { throw ImportBulkFailureV1.changedInputQuarantined }
+        }
+        return expected
+    }
+
+    func requireRecordedAggregateCommand(
+        _ recorded: MutationEnvelopeV1,
+        receipt: MutationReceiptV1,
+        reconstructedRequest: WorkspaceMutationRequestV1
+    ) throws {
+        guard case let .applyPartyContactSiteRoleImport(original) = recorded.command,
+              case let .applyPartyContactSiteRoleImport(reconstructed) =
+                reconstructedRequest.command,
+              original.mutationID == prepared.mutation.mutationID,
+              original.workspaceID == prepared.mutation.workspaceID,
+              original.expectedRevision.workspaceID
+                == reconstructedRequest.expectedRevision.workspaceID,
+              original.expectedRevision.generationID
+                == reconstructedRequest.expectedRevision.generationID,
+              original.expectedRevision.workspaceRevision
+                == reconstructedRequest.expectedRevision.workspaceRevision,
+              original.expectedRevision.entityRevisions
+                == reconstructedRequest.expectedRevision.entityRevisions,
+              try original.withAuthenticatedSessionExpectedRevision(
+                  reconstructedRequest.expectedRevision) == reconstructed else {
+            throw ImportBulkFailureV1.changedInputQuarantined
+        }
+        _ = try PartyContactSiteRoleImportMutationReceiptV1(
+            mutation: original, mutationReceipt: receipt)
+    }
+
+    private func authenticatedScopedBasis(
+        workspaceRevision: UInt64, writerInstanceID: UUID
+    ) throws -> WorkspaceExpectedRevisionV1 {
+        let original = prepared.mutation.expectedRevision
+        return try WorkspaceExpectedRevisionV1(
+            workspaceID: original.workspaceID,
+            generationID: original.generationID,
+            writerInstanceID: writerInstanceID,
+            workspaceRevision: workspaceRevision,
+            entityRevisions: original.entityRevisions
+        )
     }
 }
 
@@ -565,6 +639,11 @@ protocol PartyContactSiteRoleImportScratchDiscardingV1: Sendable {
 final class PartyContactSiteRoleImportCoordinatorV1 {
     private let bulk: ImportBulkCoordinatorV1
     private let scratch: any PartyContactSiteRoleImportScratchDiscardingV1
+#if DEBUG
+    func interruptAfterNextWriterEffectBeforeChunkReceiptForTesting() {
+        bulk.interruptAfterNextWriterEffectBeforeChunkReceiptForTesting()
+    }
+#endif
 
     init(
         bulk: ImportBulkCoordinatorV1,

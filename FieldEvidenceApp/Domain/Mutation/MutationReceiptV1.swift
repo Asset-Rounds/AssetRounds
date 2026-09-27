@@ -1,5 +1,25 @@
 import Foundation
 
+/// The persisted row checksum used by ordinary mutation post-images. The
+/// domain receipt checksum inside a value has a different canonical basis.
+enum PersistedMutationPostImageDigestV1 {
+    nonisolated static func sha256<Value: Codable>(
+        identity: WorkspaceEntityIdentityV1,
+        revision: UInt64,
+        value: Value
+    ) throws -> String {
+        try WorkspaceMutationCanonicalV1.sha256(
+            Basis(identity: identity, revision: revision, value: value)
+        )
+    }
+
+    private struct Basis<Value: Codable>: Codable {
+        let identity: WorkspaceEntityIdentityV1
+        let revision: UInt64
+        let value: Value
+    }
+}
+
 struct MutationReceiptIdentityV1: Codable, Equatable, Hashable, Sendable {
     let workspaceID: WorkspaceID
     let replicaID: ReplicaID

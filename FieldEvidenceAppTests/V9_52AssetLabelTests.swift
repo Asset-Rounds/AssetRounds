@@ -1,4 +1,5 @@
 import CoreImage
+import CoreText
 import Foundation
 import SwiftData
 import XCTest
@@ -144,11 +145,13 @@ final class V9_52AssetLabelTests: XCTestCase {
         XCTAssertFalse(expandedInspection.usesType1TextOperators)
 
         let rtlAsset = String(repeating: "משאבה صناعية ארוכה ", count: 5)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
             .precomposedStringWithCanonicalMapping
         let rtlLocation = (
             String(repeating: "gypqj ", count: 4)
                 + String(repeating: "חדר שירות موقع شرقي ", count: 3)
         )
+            .trimmingCharacters(in: .whitespacesAndNewlines)
             .precomposedStringWithCanonicalMapping
         let rtlFixture = try C45AssetLabelTestSupport.fixture(
             itemCount: 1,
@@ -189,7 +192,31 @@ final class V9_52AssetLabelTests: XCTestCase {
             ]
         }
         XCTAssertTrue(rasterRows[0].allSatisfy { $0 == 255 })
-        XCTAssertTrue(rasterRows[rtlText.pixelHeight - 1].allSatisfy { $0 == 255 })
+        let bottomInkColumns = Array(rasterRows[rtlText.pixelHeight - 1]).enumerated()
+            .filter { $0.element < 255 }.map { $0.offset }
+        let rowInkCounts = rasterRows.map { $0.filter { $0 < 255 }.count }
+        let diagnosticFont = CTFontCreateWithName(
+            DeterministicPDFRendererV1.assetLabelNativeFontPostScriptName as CFString, 7, nil)
+        let lineMetrics = try rtlText.isolatedLines.enumerated().map { index, value in
+            let range = CFRange(location: 0, length: (value as NSString).length)
+            let selected = CTFontCreateForString(diagnosticFont, value as CFString, range)
+            let attributed = NSAttributedString(string: value, attributes: [
+                NSAttributedString.Key(kCTFontAttributeName as String): selected,
+                NSAttributedString.Key(kCTForegroundColorAttributeName as String): CGColor(gray: 0, alpha: 1)
+            ])
+            let line = CTLineCreateWithAttributedString(attributed)
+            var ascent: CGFloat = 0
+            var descent: CGFloat = 0
+            let width = CTLineGetTypographicBounds(line, &ascent, &descent, nil)
+            let baseline = try DeterministicPDFRendererV1.assetLabelTextBaseline(
+                ascent: ascent, descent: descent,
+                lineBoxBottom: CGFloat(rtlText.pixelHeight - (index + 1) * 10))
+            let glyphBounds = CTLineGetBoundsWithOptions(line, [.useGlyphPathBounds])
+            let imageBounds = CTLineGetImageBounds(line, nil)
+            return "index=\(index) width=\(width) ascent=\(ascent) descent=\(descent) baseline=\(baseline) glyphBounds=\(glyphBounds) imageBounds=\(imageBounds)"
+        }
+        XCTAssertTrue(rasterRows[rtlText.pixelHeight - 1].allSatisfy { $0 == 255 },
+            "C45_RTL_RASTER_V1 bottomColumns=\(bottomInkColumns) rowInk=\(rowInkCounts) metrics=\(lineMetrics)")
         for lineBox in 0..<3 {
             let box = rasterRows[(lineBox * 10)..<((lineBox + 1) * 10)]
             XCTAssertTrue(box.contains { row in row.contains { $0 < 255 } })
@@ -247,6 +274,231 @@ final class V9_52AssetLabelTests: XCTestCase {
         XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.durableModelCount, 1)
         XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.createsSecondLocatorStore)
         XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.createsSecondRenderer)
+    }
+
+    func testC45V2GlyphInsetReleaseRejectsMixedTuplesAndPlanEnvironment() async throws {
+        let fixture = try C45AssetLabelTestSupport.fixture(
+            itemCount: 1,
+            disclosure: .assetLocationAndShortCode,
+            assetDisplay: "משאבה صناعية ארוכה",
+            locationDisplay: "gypqj חדר שירות موقع شرقي",
+            templateProfile: .a4SeventyByThirtySeven
+        )
+        let currentRelease = try AssetLabelRendererReleaseReferenceV1.current
+        let legacyRelease = try AssetLabelRendererReleaseReferenceV1.legacy
+        XCTAssertEqual(fixture.plan.template.revision, 2)
+        XCTAssertEqual(fixture.plan.template.rendererRelease, currentRelease)
+        XCTAssertNotEqual(currentRelease, legacyRelease)
+        let oldDigest = KernelCanonicalHashV1.sha256(Data(
+            "assetrounds.deterministic-pdf-renderer-v1|deterministic-pdf-renderer-v1|asset-label-contract-v1|CORETEXT_NFC_NATIVE_POSTSCRIPT_FSI_PDI_GRAY1X_AA_OFF_LINE10_V1".utf8
+        ))
+        XCTAssertEqual(legacyRelease.rendererSHA256, oldDigest)
+        XCTAssertThrowsError(try AssetLabelRendererReleaseReferenceV1(
+            rendererID: currentRelease.rendererID,
+            rendererVersion: currentRelease.rendererVersion,
+            rendererSHA256: legacyRelease.rendererSHA256,
+            nativeTextLayoutReleaseID: currentRelease.nativeTextLayoutReleaseID
+        ))
+        XCTAssertThrowsError(try AssetLabelRendererReleaseReferenceV1(
+            rendererID: legacyRelease.rendererID,
+            rendererVersion: legacyRelease.rendererVersion,
+            rendererSHA256: legacyRelease.rendererSHA256,
+            nativeTextLayoutReleaseID: currentRelease.nativeTextLayoutReleaseID
+        ))
+
+        let legacyTemplate = try AssetLabelTemplateCatalogV1.makeLegacyRelease(
+            .a4SeventyByThirtySeven
+        )
+        XCTAssertEqual(legacyTemplate.revision, 1)
+        XCTAssertNil(legacyTemplate.supersedes)
+        XCTAssertEqual(fixture.plan.template.supersedes, try legacyTemplate.reference)
+        XCTAssertEqual(
+            try AssetLabelCanonicalCodecV1.decode(
+                AssetLabelTemplateReleaseV1.self,
+                from: AssetLabelCanonicalCodecV1.encode(legacyTemplate)
+            ), legacyTemplate
+        )
+        let legacyPlan = try AssetLabelGenerationPlanV1(
+            planID: fixture.plan.planID,
+            workspaceID: fixture.plan.workspaceID,
+            template: legacyTemplate,
+            disclosure: fixture.plan.disclosure,
+            items: fixture.plan.items,
+            startOffset: fixture.plan.startOffset,
+            localeIdentifier: fixture.plan.localeIdentifier,
+            frozenGeneratedAt: fixture.plan.frozenGeneratedAt
+        )
+        let legacyProjection = try DeterministicPDFRendererV1.renderAssetLabels(legacyPlan)
+        let currentProjection = try DeterministicPDFRendererV1.renderAssetLabels(fixture.plan)
+        XCTAssertEqual(
+            legacyProjection,
+            try DeterministicPDFRendererV1.renderAssetLabels(legacyPlan)
+        )
+        XCTAssertEqual(legacyProjection.nativeTextEnvironment.nativeTextLayoutReleaseID,
+                       legacyRelease.nativeTextLayoutReleaseID)
+        XCTAssertEqual(currentProjection.nativeTextEnvironment.nativeTextLayoutReleaseID,
+                       currentRelease.nativeTextLayoutReleaseID)
+        let currentText = try DeterministicPDFRendererV1.renderAssetLabelText(
+            fixture.plan.items[0], pixelWidth: 158, pixelHeight: 30
+        )
+        let legacyText = try DeterministicPDFRendererV1.renderAssetLabelText(
+            fixture.plan.items[0], pixelWidth: 158, pixelHeight: 30,
+            rendererRelease: legacyRelease
+        )
+        XCTAssertEqual(currentText, try DeterministicPDFRendererV1.renderAssetLabelText(
+            fixture.plan.items[0], pixelWidth: 158, pixelHeight: 30
+        ))
+        XCTAssertEqual(legacyText, try DeterministicPDFRendererV1.renderAssetLabelText(
+            fixture.plan.items[0], pixelWidth: 158, pixelHeight: 30,
+            rendererRelease: legacyRelease
+        ))
+        XCTAssertTrue(currentText.grayscaleBytes[0..<currentText.pixelWidth].allSatisfy { $0 == 255 })
+        XCTAssertTrue(currentText.grayscaleBytes.suffix(currentText.pixelWidth).allSatisfy { $0 == 255 })
+        for row in [0, 9, 10, 19, 20, 29] {
+            let start = row * currentText.pixelWidth
+            XCTAssertTrue(currentText.grayscaleBytes[start..<(start + currentText.pixelWidth)]
+                .allSatisfy { $0 == 255 }, "V2 painted line-box border row \(row)")
+        }
+
+        func environment(_ source: AssetLabelNativeTextEnvironmentV1,
+                         planSHA256: String, layoutID: String) throws -> AssetLabelNativeTextEnvironmentV1 {
+            try AssetLabelNativeTextEnvironmentV1(
+                planSHA256: planSHA256,
+                nativeTextLayoutReleaseID: layoutID,
+                coreTextVersion: source.coreTextVersion,
+                operatingSystemBuild: source.operatingSystemBuild,
+                baseFont: source.baseFont,
+                selectedFonts: source.selectedFonts
+            )
+        }
+        XCTAssertThrowsError(try LabelProjectionResultV1(
+            plan: legacyPlan,
+            artifacts: legacyProjection.artifacts,
+            nativeTextEnvironment: environment(
+                legacyProjection.nativeTextEnvironment,
+                planSHA256: legacyPlan.planSHA256,
+                layoutID: currentRelease.nativeTextLayoutReleaseID
+            )
+        ))
+        XCTAssertThrowsError(try LabelProjectionResultV1(
+            plan: fixture.plan,
+            artifacts: currentProjection.artifacts,
+            nativeTextEnvironment: environment(
+                currentProjection.nativeTextEnvironment,
+                planSHA256: fixture.plan.planSHA256,
+                layoutID: legacyRelease.nativeTextLayoutReleaseID
+            )
+        ))
+        let currentAuthority = AssetLabelAuthoritativePlanAdapterV1 { _ in
+            XCTFail("A legacy plan must not reach live current-plan validation")
+        }
+        do {
+            try await currentAuthority.validateCurrent(legacyPlan)
+            XCTFail("Legacy V1 must not be a new publication authority")
+        } catch {
+            XCTAssertEqual(error as? AssetLabelContractFailureV1, .unsupportedTemplate)
+        }
+    }
+
+    func testC45V2BaselineCandidatesRejectImpossibleHeightAndPreservePathlessNominal() throws {
+        let nominal: CGFloat = 22
+        let ordinaryBounds = CGRect(x: 4, y: nominal - 1, width: 10, height: 6)
+        let candidates = try DeterministicPDFRendererV1.assetLabelV2CandidateBaselines(
+            imageBounds: ordinaryBounds, nominalBaseline: nominal, lineBoxBottom: 20
+        )
+        XCTAssertEqual(candidates.first, 23)
+        XCTAssertEqual(candidates, try DeterministicPDFRendererV1.assetLabelV2CandidateBaselines(
+            imageBounds: ordinaryBounds, nominalBaseline: nominal, lineBoxBottom: 20
+        ))
+        XCTAssertLessThanOrEqual(candidates.count, 16)
+        XCTAssertTrue(candidates.allSatisfy { $0 > 22 && $0 < 24 })
+        XCTAssertEqual(try DeterministicPDFRendererV1.assetLabelV2CandidateBaselines(
+            imageBounds: .null, nominalBaseline: nominal, lineBoxBottom: 20
+        ), [nominal])
+        XCTAssertThrowsError(try DeterministicPDFRendererV1.assetLabelV2CandidateBaselines(
+            imageBounds: CGRect(x: 4, y: nominal - 1, width: 10, height: 9),
+            nominalBaseline: nominal, lineBoxBottom: 20
+        ))
+        var mask = [UInt8](repeating: 255, count: 24 * 20)
+        XCTAssertFalse(DeterministicPDFRendererV1.assetLabelV2MaskHasConfinedInk(
+            mask, pixelWidth: 24, pixelHeight: 20, lineIndex: 0
+        ), "A pathless or all-white trial cannot publish a blank required line")
+        mask[3 * 24 + 4] = 0
+        XCTAssertTrue(DeterministicPDFRendererV1.assetLabelV2MaskHasConfinedInk(
+            mask, pixelWidth: 24, pixelHeight: 20, lineIndex: 0
+        ))
+        mask[0] = 0
+        XCTAssertFalse(DeterministicPDFRendererV1.assetLabelV2MaskHasConfinedInk(
+            mask, pixelWidth: 24, pixelHeight: 20, lineIndex: 0
+        ))
+        mask[0] = 255
+        mask[10 * 24 + 4] = 0
+        XCTAssertFalse(DeterministicPDFRendererV1.assetLabelV2MaskHasConfinedInk(
+            mask, pixelWidth: 24, pixelHeight: 20, lineIndex: 0
+        ))
+        mask[10 * 24 + 4] = 255
+        mask[3 * 24] = 0
+        XCTAssertFalse(DeterministicPDFRendererV1.assetLabelV2MaskHasConfinedInk(
+            mask, pixelWidth: 24, pixelHeight: 20, lineIndex: 0
+        ))
+    }
+
+    func testC45LegacyV1AcceptedSnapshotKeepsExactHistoricReprintTruth() throws {
+        let fixture = try C45AssetLabelTestSupport.fixture(itemCount: 1)
+        let plan = try AssetLabelGenerationPlanV1(
+            planID: fixture.plan.planID,
+            workspaceID: fixture.plan.workspaceID,
+            template: AssetLabelTemplateCatalogV1.makeLegacyRelease(.letterOneByTwoAndFiveEighths),
+            disclosure: fixture.plan.disclosure,
+            items: fixture.plan.items,
+            startOffset: fixture.plan.startOffset,
+            localeIdentifier: fixture.plan.localeIdentifier,
+            frozenGeneratedAt: fixture.plan.frozenGeneratedAt
+        )
+        let legacyFixture = C45AssetLabelTestSupport.Fixture(
+            plan: plan, locators: fixture.locators, receipts: fixture.receipts
+        )
+        let result = try DeterministicPDFRendererV1.renderAssetLabels(plan)
+        let output = try C45AssetLabelTestSupport.output(plan: plan, result: result, slot: 9_520)
+        let snapshot = try C45AssetLabelTestSupport.snapshot(
+            fixture: legacyFixture, result: result, output: output, slot: 9_530
+        )
+        let row = try AcceptedLabelGenerationSnapshotRow(snapshot)
+        XCTAssertEqual(try row.value(), snapshot)
+        XCTAssertEqual(row.canonicalData, try AssetLabelCanonicalCodecV1.encode(snapshot))
+        XCTAssertEqual(snapshot.plan.template.rendererRelease,
+                       try AssetLabelRendererReleaseReferenceV1.legacy)
+        let active = try C45AssetLabelTestSupport.currentBinding(item: plan.items[0])
+        XCTAssertEqual(try snapshot.reprintEligibility(in: AssetLabelReprintContextV1(
+            templateRelease: plan.template.reference,
+            rendererRelease: plan.template.rendererRelease,
+            nativeTextEnvironment: output.nativeTextEnvironment,
+            currentBindings: [active]
+        )), .activeExactReprint)
+        let destination = C45AssetLabelTestSupport.workspace(9_540)
+        let historic = try snapshot.rebound(
+            to: destination,
+            expectedRevision: C45AssetLabelTestSupport.expectedRevision(
+                workspaceID: destination, snapshotID: snapshot.snapshotID, slot: 9_541
+            ),
+            mutationID: C45AssetLabelTestSupport.mutation(9_542),
+            recordedBy: C45AssetLabelTestSupport.actor(workspaceID: destination, slot: 9_543),
+            recordedAt: C45AssetLabelTestSupport.date(9_544)
+        )
+        XCTAssertEqual(historic.plan, plan)
+        XCTAssertEqual(historic.outputReceipt, output)
+        XCTAssertEqual(try historic.reprintEligibility(in: AssetLabelReprintContextV1(
+            templateRelease: plan.template.reference,
+            rendererRelease: plan.template.rendererRelease,
+            nativeTextEnvironment: output.nativeTextEnvironment,
+            currentBindings: []
+        )), .historicExportOnly)
+        XCTAssertEqual(try snapshot.reprintEligibility(in: AssetLabelReprintContextV1(
+            templateRelease: nil,
+            rendererRelease: nil,
+            nativeTextEnvironment: nil,
+            currentBindings: [active]
+        )), .blockedMissingRelease)
     }
 
     func testV23P03C45A01ManualShortCodeAndCameraResolutionParityPreserveExplicitStart() async throws {
@@ -636,6 +888,17 @@ final class V9_52AssetLabelTests: XCTestCase {
         try await C45AssetLabelTestSupport.verifyEvidenceBundlePublicationRecovery(slot: 940)
     }
 
+    @MainActor
+    func testV23P03C45T01FractionalReadbackRoundtripsPublishedAndAdoptedSnapshots()
+        async throws {
+        try await C45AssetLabelTestSupport.verifyFractionalPublicationRoundtrip(
+            slot: 1_220, interruptAfterPublish: false
+        )
+        try await C45AssetLabelTestSupport.verifyFractionalPublicationRoundtrip(
+            slot: 1_320, interruptAfterPublish: true
+        )
+    }
+
     func testV23P03C45R01BackupRestoreReplayDeleteEraseReprintAndScratchCleanupRemainExact() async throws {
         let source = try C45AssetLabelTestSupport.fixture(itemCount: 1)
         let result = try DeterministicPDFRendererV1.renderAssetLabels(source.plan)
@@ -780,6 +1043,18 @@ final class V9_52AssetLabelTests: XCTestCase {
 }
 
 private enum C45AssetLabelTestSupport {
+    // Keep genuine control owners and their roots alive until host termination;
+    // a finished job proves its reader release, not whole-registry FD closure.
+    @MainActor private static var retainedJobRegistries: [GenerationLeaseRegistryV1] = []
+    @MainActor private static var retainedEraseServices: [EraseAllService] = []
+
+    @MainActor
+    private static func retainJobRegistry(_ registry: GenerationLeaseRegistryV1, root: URL) {
+        retainedJobRegistries.append(registry)
+        FileHandle.standardError.write(Data((
+            "C45_JOB_ROOT_RETAINED_V1 root=\(root.path) retention=until-host-termination\n"
+        ).utf8))
+    }
     struct Fixture: Sendable {
         let plan: AssetLabelGenerationPlanV1
         let locators: [AssetLocatorV1]
@@ -838,6 +1113,7 @@ private enum C45AssetLabelTestSupport {
     ) throws -> (item: AssetLabelItemSnapshotV1, locator: AssetLocatorV1, receipt: LocatorBindingReceiptV1) {
         let shortCode = try ManualShortCodeV1(randomBody: body(index))
         let assetID = id(10_000 + index)
+        let bindingMutationID = try mutation(30_000 + index)
         let locator = try AssetLocatorV1(
             locatorID: id(20_000 + index),
             workspaceID: workspaceID,
@@ -845,7 +1121,7 @@ private enum C45AssetLabelTestSupport {
             representation: .externalKey(shortCode.externalKey()),
             state: .active,
             revision: 1,
-            mutationID: mutation(30_000 + index),
+            mutationID: bindingMutationID,
             recordedAt: date(Double(30_000 + index))
         )
         let actor = try actor(workspaceID: workspaceID, slot: 40_000 + index)
@@ -863,7 +1139,7 @@ private enum C45AssetLabelTestSupport {
             recordedBy: actor,
             predecessor: nil,
             revision: 1,
-            mutationID: mutation(70_000 + index),
+            mutationID: bindingMutationID,
             recordedAt: date(Double(50_001 + index))
         )
         let assetDisplay: String
@@ -1339,60 +1615,22 @@ private enum C45AssetLabelTestSupport {
             isDirectory: true
         )
         try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? fileManager.removeItem(at: root) }
-
-        let session = try StoreGenerationFactory(
-            applicationSupportURL: root
-        ).openOrBootstrapCurrent()
+        let factory = StoreGenerationFactory(applicationSupportURL: root)
+        let registry = try factory.makeGenerationLeaseRegistry()
+        retainJobRegistry(registry, root: root)
+        let session = try factory.openOrBootstrapCurrent()
         let fixture = try fixture(itemCount: 2, workspaceID: session.workspaceID)
         let siteID = id(slot + 1)
-        session.modelContext.insert(Site(
-            id: siteID,
-            label: "C45 issuer site",
-            createdAt: date(Double(slot + 1))
-        ))
-        for item in fixture.plan.items {
-            session.modelContext.insert(Asset(
-                id: item.assetID,
-                siteID: siteID,
-                packID: SignPack.illuminatedSignV1.packID,
-                packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
-                packContentVersion: SignPack.illuminatedSignV1.contentVersion,
-                label: "C45 issuer asset",
-                createdAt: date(Double(slot + 2))
-            ))
-        }
-        let collidingLocator = fixture.locators[0]
         XCTAssertEqual(fixture.plan.items[0].shortCode.randomBody, "2222222222")
-        session.modelContext.insert(try AssetLocatorRow(collidingLocator))
         let historicCodesAndStates: [(ManualShortCodeV1, AssetLocatorStateV1)] = try [
             (ManualShortCodeV1(randomBody: "3333333333"), .retired),
             (ManualShortCodeV1(randomBody: "4444444444"), .revoked),
             (ManualShortCodeV1(randomBody: "5555555555"), .replaced),
         ]
-        var historicLocators: [AssetLocatorV1] = []
-        for (index, pair) in historicCodesAndStates.enumerated() {
-            let replacementID = pair.1 == .replaced ? id(slot + 80 + index) : nil
-            let historic = try AssetLocatorV1(
-                locatorID: id(slot + 75 + index),
-                workspaceID: session.workspaceID,
-                assetID: fixture.plan.items[0].assetID,
-                representation: .externalKey(pair.0.externalKey()),
-                state: pair.1,
-                replacedByLocatorID: replacementID,
-                revision: 1,
-                mutationID: mutation(slot + 75 + index),
-                recordedAt: date(Double(slot + 75 + index))
-            )
-            historicLocators.append(historic)
-            session.modelContext.insert(try AssetLocatorRow(historic))
-        }
         let issuanceActor = try actor(
             workspaceID: session.workspaceID,
             slot: slot + 8
         )
-        session.modelContext.insert(try ActorSnapshotRow(issuanceActor))
-        try session.modelContext.save()
 
         let journal = try MutationJournalStoreV1(
             modelContext: session.modelContext,
@@ -1405,13 +1643,195 @@ private enum C45AssetLabelTestSupport {
                 identity: session.workspaceIdentity,
                 generationID: session.generationID,
                 initialRevision: journal.currentRevision(writerInstanceID: writerInstanceID),
-                clock: C45ApplicationClock(value: date(Double(slot + 4))),
+                clock: C45ApplicationClock(value: date(Double(slot + 100))),
                 idSource: C45ApplicationIDSource(value: writerInstanceID),
                 fileAuthority: C45ApplicationFileAuthority(),
                 adapter: WorkspaceWriterAdapterV1(modelContext: session.modelContext),
                 journalStore: journal
             )
         }
+        let query = AssetLocatorRowQueryV1(modelContext: session.modelContext)
+        var seededIssuances: [ManualShortCodeIssuanceReceiptV1] = []
+        var historicLocators: [AssetLocatorV1] = []
+        var historicReceipts: [LocatorBindingReceiptV1] = []
+        var replacementLocator: AssetLocatorV1?
+        do {
+            let seedWriter = try makeWriter()
+            for (index, item) in fixture.plan.items.enumerated() {
+                let firstSignMutationID = try mutation(slot + 500 + index)
+                let firstSign = FirstSignMutationV1(
+                    siteID: siteID,
+                    newSite: index == 0 ? .init(
+                        id: siteID,
+                        label: "C45 issuer site",
+                        address: nil,
+                        timeZoneID: nil
+                    ) : nil,
+                    assetID: item.assetID,
+                    assetLabel: "C45 issuer asset",
+                    packID: SignPack.illuminatedSignV1.packID,
+                    packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
+                    packContentVersion: SignPack.illuminatedSignV1.contentVersion,
+                    createdAt: date(Double(slot + 1 + index)),
+                    initialPlacementMutationID: firstSignMutationID,
+                    initialPlacementEventID: id(slot + 600 + index),
+                    initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(
+                        rawValue: id(slot + 700 + index)
+                    )
+                )
+                _ = try seedWriter.execute(
+                    .createFirstSign(firstSign),
+                    mutationID: firstSignMutationID
+                )
+                XCTAssertNotNil(try journal.receipt(mutationID: firstSignMutationID))
+            }
+            let actorMutationID = try mutation(slot + 502)
+            _ = try seedWriter.execute(
+                .applyPartyAccountability(.appendActorSnapshot(issuanceActor)),
+                mutationID: actorMutationID
+            )
+            XCTAssertNotNil(try journal.receipt(mutationID: actorMutationID))
+            for index in 0..<4 {
+                let seedOperation = try ManualShortCodeIssuanceOperationV1(
+                    workspaceID: session.workspaceID,
+                    assetID: fixture.plan.items[0].assetID,
+                    locatorID: id(slot + 200 + index),
+                    bindingReceiptID: id(slot + 210 + index),
+                    mutationID: mutation(slot + 220 + index),
+                    recordedBy: issuanceActor,
+                    requestedAt: date(Double(slot + 8))
+                )
+                let seedEntropy = C45DeterministicShortCodeEntropy(values: [
+                    Data(
+                        repeating: UInt8(index),
+                        count: ManualShortCodeIssuanceCoordinatorV1.entropyBytesPerAttempt
+                    ),
+                ])
+                let coordinator = ManualShortCodeIssuanceCoordinatorV1(
+                    query: query,
+                    writer: seedWriter,
+                    entropy: seedEntropy
+                )
+                let seeded = try await coordinator.issue(seedOperation)
+                try seeded.validate()
+                XCTAssertEqual(seedEntropy.requestCount, 1)
+                XCTAssertEqual(
+                    seeded.request.shortCode.randomBody,
+                    String(repeating: String(index + 2), count: 10)
+                )
+                XCTAssertNotNil(try journal.receipt(mutationID: seedOperation.mutationID))
+                seededIssuances.append(seeded)
+            }
+            for (index, pair) in historicCodesAndStates.enumerated() {
+                let predecessor = seededIssuances[index + 1]
+                XCTAssertEqual(predecessor.request.shortCode, pair.0)
+                let lifecycleMutationID = try mutation(slot + 230 + index)
+                let replacement: AssetLocatorV1? = pair.1 == .replaced
+                    ? try AssetLocatorV1(
+                        locatorID: id(slot + 240),
+                        workspaceID: session.workspaceID,
+                        assetID: fixture.plan.items[0].assetID,
+                        representation: .externalKey(try ExternalKeyV1(
+                            namespaceID: "asset",
+                            normalization: .asciiCaseInsensitive,
+                            suppliedValue: "C45-I01-Replacement-\(slot)"
+                        )),
+                        state: .active,
+                        revision: 1,
+                        mutationID: lifecycleMutationID,
+                        recordedAt: date(Double(slot + 8))
+                    )
+                    : nil
+                let successor = try AssetLocatorV1(
+                    locatorID: predecessor.locator.locatorID,
+                    workspaceID: session.workspaceID,
+                    assetID: predecessor.locator.assetID,
+                    representation: predecessor.locator.representation,
+                    state: pair.1,
+                    replacedByLocatorID: replacement?.locatorID,
+                    predecessorLocatorSHA256: predecessor.locator.locatorSHA256,
+                    revision: 2,
+                    mutationID: lifecycleMutationID,
+                    recordedAt: date(Double(slot + 8))
+                )
+                let action: LocatorBindingActionV1
+                switch pair.1 {
+                case .retired: action = .retire
+                case .revoked: action = .revoke
+                case .replaced: action = .replace
+                case .active: XCTFail("Historic reuse fixture must not be active"); continue
+                }
+                let preview = try LocatorBindingPreviewV1(
+                    workspaceID: session.workspaceID,
+                    action: action,
+                    before: predecessor.locator.reference,
+                    after: successor.reference,
+                    replacement: replacement?.reference,
+                    generatedAt: date(Double(slot + 8))
+                )
+                let lifecycleReceipt = try LocatorBindingReceiptV1(
+                    receiptID: id(slot + 250 + index),
+                    preview: preview,
+                    recordedBy: issuanceActor,
+                    predecessor: predecessor.bindingReceipt,
+                    revision: 2,
+                    mutationID: lifecycleMutationID,
+                    recordedAt: date(Double(slot + 8))
+                )
+                let payload: AssetLocatorMutationPayloadV1
+                if let replacement {
+                    payload = .replace(
+                        successor,
+                        replacement: replacement,
+                        receipt: lifecycleReceipt,
+                        predecessorLocator: predecessor.locator,
+                        predecessorReceipt: predecessor.bindingReceipt
+                    )
+                } else {
+                    payload = .transition(
+                        successor,
+                        receipt: lifecycleReceipt,
+                        predecessorLocator: predecessor.locator,
+                        predecessorReceipt: predecessor.bindingReceipt
+                    )
+                }
+                let lifecycleMutation = try AssetLocatorMutationV1(
+                    workspaceID: session.workspaceID,
+                    mutationID: lifecycleMutationID,
+                    payload: payload
+                )
+                _ = try seedWriter.commitAssetLocator(lifecycleMutation)
+                XCTAssertNotNil(try journal.receipt(mutationID: lifecycleMutationID))
+                let persistedSuccessor = try await query.locator(
+                    id: successor.locatorID,
+                    workspaceID: session.workspaceID
+                )
+                XCTAssertEqual(
+                    persistedSuccessor,
+                    successor
+                )
+                XCTAssertEqual(lifecycleReceipt.predecessorReceiptID, predecessor.bindingReceipt.receiptID)
+                XCTAssertEqual(lifecycleReceipt.predecessorReceiptSHA256, predecessor.bindingReceipt.receiptSHA256)
+                historicLocators.append(successor)
+                historicReceipts.append(lifecycleReceipt)
+                replacementLocator = replacement ?? replacementLocator
+            }
+        }
+        // The seed writer's external alias ends before independent recovery writers start.
+        let collidingLocator = seededIssuances[0].locator
+        XCTAssertEqual(
+            collidingLocator.representation,
+            .externalKey(try fixture.plan.items[0].shortCode.externalKey())
+        )
+        let persistedReplacement = try XCTUnwrap(replacementLocator)
+        let readReplacement = try await query.locator(
+            id: persistedReplacement.locatorID,
+            workspaceID: session.workspaceID
+        )
+        XCTAssertEqual(
+            readReplacement,
+            persistedReplacement
+        )
         let operation = try ManualShortCodeIssuanceOperationV1(
             workspaceID: session.workspaceID,
             assetID: fixture.plan.items[1].assetID,
@@ -1469,7 +1889,6 @@ private enum C45AssetLabelTestSupport {
             Data(repeating: 3, count: ManualShortCodeIssuanceCoordinatorV1.entropyBytesPerAttempt),
             Data(repeating: 4, count: ManualShortCodeIssuanceCoordinatorV1.entropyBytesPerAttempt),
         ])
-        let query = AssetLocatorRowQueryV1(modelContext: session.modelContext)
         let historicResolver = OfflineAssetLocatorResolverV1(
             query: query,
             signatureVerifier: C45RejectingSignatureVerifier()
@@ -1497,6 +1916,16 @@ private enum C45AssetLabelTestSupport {
             XCTAssertEqual(resolution.matchedAssetID, locator.assetID)
         }
         let availabilityWriter = try makeWriter()
+        XCTAssertFalse(try availabilityWriter.manualShortCodeIsAvailable(
+            fixture.plan.items[0].shortCode,
+            workspaceID: session.workspaceID
+        ))
+        for pair in historicCodesAndStates {
+            XCTAssertFalse(try availabilityWriter.manualShortCodeIsAvailable(
+                pair.0,
+                workspaceID: session.workspaceID
+            ))
+        }
         let preparingCoordinator = ManualShortCodeIssuanceCoordinatorV1(
             query: query,
             writer: availabilityWriter,
@@ -1547,11 +1976,35 @@ private enum C45AssetLabelTestSupport {
         XCTAssertEqual(replayed, issued)
         XCTAssertEqual(
             try session.modelContext.fetch(FetchDescriptor<AssetLocatorRow>()).count,
-            5
+            6
         )
         XCTAssertEqual(
             try session.modelContext.fetch(FetchDescriptor<LocatorBindingReceiptRow>()).count,
-            1
+            8
+        )
+        // Four genuine binds, three historic successors, and the final bind
+        // leave six current locators (including the replacement) and eight receipts.
+        let persistedLocatorHeads = try session.modelContext.fetch(
+            FetchDescriptor<AssetLocatorRow>()
+        ).map { try $0.value() }
+        XCTAssertEqual(
+            Set(persistedLocatorHeads.map(\.locatorID)),
+            Set([collidingLocator.locatorID, persistedReplacement.locatorID, issued.locator.locatorID]
+                + historicLocators.map(\.locatorID))
+        )
+        let persistedReceiptValues = try session.modelContext.fetch(
+            FetchDescriptor<LocatorBindingReceiptRow>()
+        ).map { try $0.value() }
+        XCTAssertEqual(
+            Set(persistedReceiptValues.map(\.receiptID)),
+            Set(seededIssuances.map { $0.bindingReceipt.receiptID }
+                + historicReceipts.map(\.receiptID) + [issued.bindingReceipt.receiptID])
+        )
+        _ = try AssetLocatorLifecycleClosureV1(
+            locators: seededIssuances.map(\.locator) + historicLocators
+                + [persistedReplacement, issued.locator],
+            receipts: seededIssuances.map(\.bindingReceipt) + historicReceipts
+                + [issued.bindingReceipt]
         )
         let operationReplay = try await resumedAfterReceipt.issue(operation)
         XCTAssertEqual(operationReplay, issued)
@@ -1573,12 +2026,16 @@ private enum C45AssetLabelTestSupport {
             "C45-I01-Content-\(slot)-\(UUID().uuidString)",
             isDirectory: true
         )
-        let generationRoot = root.appendingPathComponent("generation", isDirectory: true)
+        // Physical exclusion binds the actual installed-layout directory. The
+        // synthetic logical epoch below remains this fixture's independent law.
+        let generationRoot = root.appendingPathComponent("FieldEvidenceData/generations", isDirectory: true)
+            .appendingPathComponent(id(slot + 1).uuidString.lowercased(), isDirectory: true)
         let ledgerRoot = root.appendingPathComponent("ledger", isDirectory: true)
         let stagingRoot = root.appendingPathComponent("staging", isDirectory: true)
         try fileManager.createDirectory(at: generationRoot, withIntermediateDirectories: true)
-        defer { try? fileManager.removeItem(at: root) }
 
+        let jobRegistry = try GenerationLeaseRegistryV1(applicationSupportURL: root)
+        retainJobRegistry(jobRegistry, root: root)
         let epoch = try GenerationEpochV1(
             generationID: id(slot + 1),
             generationManifestSHA256: digest("c")
@@ -1608,6 +2065,7 @@ private enum C45AssetLabelTestSupport {
         let interruptedRunner = try ResumableLocalJobRunnerV1(
             store: LocalJobStoreV1(applicationSupportURL: ledgerRoot),
             stagingRootURL: stagingRoot,
+            generationLeaseRegistry: jobRegistry,
             generationPublicationAdapter: publicationAdapter,
             maximumConcurrency: 1
         )
@@ -1638,6 +2096,7 @@ private enum C45AssetLabelTestSupport {
         let recoveredRunner = try ResumableLocalJobRunnerV1(
             store: LocalJobStoreV1(applicationSupportURL: ledgerRoot),
             stagingRootURL: stagingRoot,
+            generationLeaseRegistry: jobRegistry,
             generationPublicationAdapter: publicationAdapter,
             maximumConcurrency: 1
         )
@@ -1765,6 +2224,7 @@ private enum C45AssetLabelTestSupport {
         let cancelledRunner = try ResumableLocalJobRunnerV1(
             store: LocalJobStoreV1(applicationSupportURL: cancelledLedgerRoot),
             stagingRootURL: cancelledStagingRoot,
+            generationLeaseRegistry: jobRegistry,
             generationPublicationAdapter: publicationAdapter,
             maximumConcurrency: 1
         )
@@ -1791,6 +2251,7 @@ private enum C45AssetLabelTestSupport {
         let coldCancellationRunner = try ResumableLocalJobRunnerV1(
             store: LocalJobStoreV1(applicationSupportURL: cancelledLedgerRoot),
             stagingRootURL: cancelledStagingRoot,
+            generationLeaseRegistry: jobRegistry,
             generationPublicationAdapter: publicationAdapter,
             maximumConcurrency: 1
         )
@@ -1844,10 +2305,11 @@ private enum C45AssetLabelTestSupport {
             isDirectory: true
         )
         try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? fileManager.removeItem(at: root) }
         let ledgerRoot = root.appendingPathComponent("ledger", isDirectory: true)
         let stagingRoot = root.appendingPathComponent("runner-staging", isDirectory: true)
         let publishedURL = root.appendingPathComponent("published-manifest.sha256")
+        let jobRegistry = try GenerationLeaseRegistryV1(applicationSupportURL: root)
+        retainJobRegistry(jobRegistry, root: root)
         let epoch = try GenerationEpochV1(
             generationID: id(slot + 1),
             generationManifestSHA256: digest("e")
@@ -1895,6 +2357,7 @@ private enum C45AssetLabelTestSupport {
         let firstRunner = try ResumableLocalJobRunnerV1(
             store: LocalJobStoreV1(applicationSupportURL: ledgerRoot),
             stagingRootURL: stagingRoot,
+            generationLeaseRegistry: jobRegistry,
             generationPublicationAdapter: publicationAdapter,
             maximumConcurrency: 1
         )
@@ -1922,6 +2385,7 @@ private enum C45AssetLabelTestSupport {
         let relaunchedRunner = try ResumableLocalJobRunnerV1(
             store: LocalJobStoreV1(applicationSupportURL: ledgerRoot),
             stagingRootURL: stagingRoot,
+            generationLeaseRegistry: jobRegistry,
             generationPublicationAdapter: publicationAdapter,
             maximumConcurrency: 1
         )
@@ -1991,6 +2455,167 @@ private enum C45AssetLabelTestSupport {
     }
 
     @MainActor
+    static func verifyFractionalPublicationRoundtrip(
+        slot: Int,
+        interruptAfterPublish: Bool
+    ) async throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory.appendingPathComponent(
+            "C45-fractional-readback-\(slot)-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        let support = root.appendingPathComponent("support", isDirectory: true)
+        // The registry acquires a descriptor on this exact owned support root.
+        try fileManager.createDirectory(at: support, withIntermediateDirectories: true)
+        let factory = StoreGenerationFactory(applicationSupportURL: support)
+        let registry = try factory.makeGenerationLeaseRegistry()
+        retainJobRegistry(registry, root: root)
+        let session = try factory.openOrBootstrapCurrent()
+        let epoch = try factory.currentGenerationEpoch()
+        let fixture = try fixture(itemCount: 1, workspaceID: session.workspaceID)
+        let projection = try DeterministicPDFRendererV1.renderAssetLabels(fixture.plan)
+        let stagingRoot = session.generationRootURL.appendingPathComponent(
+            "jobs", isDirectory: true
+        )
+        let ledgerRoot = root.appendingPathComponent("ledger", isDirectory: true)
+        let contentStore = EvidenceBundleStore(generationRootURL: session.generationRootURL)
+        // The original R01 failure captured this genuine fractional readback
+        // bit pattern; C45's millisecond codec decoded it one ULP higher.
+        let fractionalReadback = Date(
+            timeIntervalSinceReferenceDate: Double(bitPattern: 0x41c834a70c4e9e23)
+        )
+        XCTAssertNotEqual(
+            try AssetLabelCanonicalCodecV1.decode(
+                Date.self,
+                from: AssetLabelCanonicalCodecV1.encode(fractionalReadback)
+            ),
+            fractionalReadback,
+            "The injected sub-millisecond readback must exercise the canonicalization defect"
+        )
+        let production = try AssetLabelArtifactOperationsV1.production(
+            jobStagingRootURL: stagingRoot,
+            contentStore: contentStore,
+            readBackClock: { fractionalReadback }
+        )
+        let operations: AssetLabelArtifactOperationsV1
+        if interruptAfterPublish {
+            // The real content-store effect occurs; only the attempt to
+            // persist its first receipt is interrupted. Cancellation then
+            // makes the runner use production's exact adopt-only readback.
+            operations = try AssetLabelArtifactOperationsV1.durableStaging(
+                jobStagingRootURL: stagingRoot,
+                publishOrAdopt: { job, planSHA256, outputSHA256 in
+                    _ = try production.publishOrAdopt(job, planSHA256, outputSHA256)
+                    throw AssetLabelLifecycleFailureV1.publicationMismatch
+                },
+                adoptOnly: production.adoptOnly,
+                publishedReadback: production.publishedReadback,
+                removePublishedOutput: production.removePublishedOutput,
+                removePublishedWorkspace: production.removePublishedWorkspace,
+                eraseAllPublished: production.eraseAllPublished,
+                discardUncommitted: production.discardUncommitted
+            )
+        } else {
+            operations = production
+        }
+        let publicationAdapter = GenerationLocalJobPublicationAdapterV1(
+            currentGenerationEpoch: { epoch },
+            withAuthorizedCommit: { expected, effect in
+                guard expected == epoch else {
+                    throw GenerationLocalJobPublicationFailureV1.staleGeneration
+                }
+                return try effect()
+            }
+        )
+        let runner = try ResumableLocalJobRunnerV1(
+            store: LocalJobStoreV1(applicationSupportURL: ledgerRoot),
+            stagingRootURL: stagingRoot,
+            generationLeaseRegistry: registry,
+            generationPublicationAdapter: publicationAdapter,
+            maximumConcurrency: 1
+        )
+        let acceptingWriter = C45AcceptingWriter()
+        let lifecycle = await AssetLabelLifecycleAdapterV1(
+            authority: AssetLabelAuthoritativePlanAdapterV1 { try $0.validate() },
+            writer: acceptingWriter,
+            query: C45AcceptedSnapshotQuery(),
+            jobs: runner,
+            artifacts: operations
+        )
+        let job = try await lifecycle.enqueueValidatedPlan(
+            fixture.plan,
+            generationEpoch: epoch,
+            createdAt: date(Double(slot))
+        )
+        await runner.waitUntilIdle()
+        if interruptAfterPublish {
+            let pendingValue = try await runner.job(id: job.id)
+            let pending = try XCTUnwrap(pendingValue)
+            XCTAssertEqual(pending.state, .awaitingPublication)
+            XCTAssertNil(pending.publicationReceipt)
+            XCTAssertNotNil(try contentStore.readAssetLabelArtifacts(jobID: job.id))
+            _ = try await runner.requestCancellation(id: job.id)
+            await runner.waitUntilIdle()
+        }
+        let completedValue = try await runner.job(id: job.id)
+        let completed = try XCTUnwrap(completedValue)
+        XCTAssertEqual(completed.state, .succeeded)
+        let receipt = try XCTUnwrap(completed.publicationReceipt)
+        XCTAssertEqual(receipt.disposition, interruptAfterPublish ? .adopted : .published)
+        XCTAssertGreaterThanOrEqual(receipt.readBackAt, fractionalReadback)
+        XCTAssertLessThan(
+            receipt.readBackAt.timeIntervalSince1970
+                - fractionalReadback.timeIntervalSince1970,
+            0.002
+        )
+        XCTAssertEqual(
+            try AssetLabelCanonicalCodecV1.decode(
+                Date.self,
+                from: AssetLabelCanonicalCodecV1.encode(receipt.readBackAt)
+            ),
+            receipt.readBackAt
+        )
+        let reopenedStore = try LocalJobStoreV1(applicationSupportURL: ledgerRoot)
+        let reopenedValue = try await reopenedStore.job(id: job.id)
+        let reopened = try XCTUnwrap(reopenedValue)
+        XCTAssertEqual(reopened.publicationReceipt, receipt)
+        let acceptance = try await lifecycle.acceptPublishedJob(
+            jobID: job.id,
+            outputReceiptID: id(slot + 19),
+            snapshotID: id(slot + 20),
+            expectedRevision: try expectedRevision(
+                workspaceID: fixture.plan.workspaceID,
+                snapshotID: id(slot + 20),
+                slot: slot + 21
+            ),
+            mutationID: mutation(slot + 22),
+            recordedBy: actor(workspaceID: fixture.plan.workspaceID, slot: slot + 23),
+            recordedAt: date(Double(slot + 24))
+        )
+        let snapshot = try XCTUnwrap(acceptingWriter.lastSnapshot)
+        try acceptance.validate(snapshot: snapshot)
+        XCTAssertEqual(snapshot.outputReceipt.publicationBinding.publicationReceipt, receipt)
+        XCTAssertEqual(snapshot.outputReceipt.generatedAt, receipt.readBackAt)
+        let row = try AcceptedLabelGenerationSnapshotRow(snapshot)
+        session.modelContext.insert(row)
+        try session.modelContext.save()
+        let rows = try session.modelContext.fetch(
+            FetchDescriptor<AcceptedLabelGenerationSnapshotRow>()
+        )
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(try XCTUnwrap(rows.first).value(), snapshot)
+        XCTAssertEqual(row.canonicalData, try AssetLabelCanonicalCodecV1.encode(snapshot))
+        XCTAssertEqual(
+            try AssetLabelCanonicalCodecV1.decode(
+                AcceptedLabelGenerationSnapshotV1.self,
+                from: row.canonicalData
+            ),
+            snapshot
+        )
+    }
+
+    @MainActor
     static func verifyRealBackupRestoreCloneAndFork(slot: Int) async throws {
         let fileManager = FileManager.default
         let root = fileManager.temporaryDirectory.appendingPathComponent(
@@ -1998,14 +2623,177 @@ private enum C45AssetLabelTestSupport {
             isDirectory: true
         )
         try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? fileManager.removeItem(at: root) }
 
         let sourceSupport = root.appendingPathComponent("source-support", isDirectory: true)
         try fileManager.createDirectory(at: sourceSupport, withIntermediateDirectories: true)
-        let sourceSession = try StoreGenerationFactory(
-            applicationSupportURL: sourceSupport
-        ).openOrBootstrapCurrent()
-        let fixture = try fixture(itemCount: 3, workspaceID: sourceSession.workspaceID)
+        let sourceFactory = StoreGenerationFactory(applicationSupportURL: sourceSupport)
+        let contentRegistry = try sourceFactory.makeGenerationLeaseRegistry()
+        retainJobRegistry(contentRegistry, root: root)
+        let sourceSession = try sourceFactory.openOrBootstrapCurrent()
+        let contractFixture = try fixture(itemCount: 3, workspaceID: sourceSession.workspaceID)
+        let writerInstanceID = id(slot + 3)
+        let journal = try MutationJournalStoreV1(
+            modelContext: sourceSession.modelContext,
+            identity: sourceSession.workspaceIdentity,
+            generationID: sourceSession.generationID
+        )
+        let sourceWriter = try WorkspaceWriterV1(
+            identity: sourceSession.workspaceIdentity,
+            generationID: sourceSession.generationID,
+            initialRevision: journal.currentRevision(writerInstanceID: writerInstanceID),
+            clock: C45ApplicationClock(value: date(Double(slot + 100))),
+            idSource: C45ApplicationIDSource(value: writerInstanceID),
+            fileAuthority: C45ApplicationFileAuthority(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: sourceSession.modelContext),
+            journalStore: journal
+        )
+        let siteID = id(slot + 8)
+        for (index, item) in contractFixture.plan.items.enumerated() {
+            let firstSignMutationID = try mutation(slot + 200 + index)
+            let firstSign = FirstSignMutationV1(
+                siteID: siteID,
+                newSite: index == 0 ? .init(
+                    id: siteID,
+                    label: "C45 source site",
+                    address: nil,
+                    timeZoneID: nil
+                ) : nil,
+                assetID: item.assetID,
+                assetLabel: "C45 asset",
+                packID: SignPack.illuminatedSignV1.packID,
+                packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
+                packContentVersion: SignPack.illuminatedSignV1.contentVersion,
+                createdAt: date(Double(slot + index)),
+                initialPlacementMutationID: firstSignMutationID,
+                initialPlacementEventID: id(slot + 300 + index),
+                initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(
+                    rawValue: id(slot + 400 + index)
+                )
+            )
+            _ = try sourceWriter.execute(
+                .createFirstSign(firstSign),
+                mutationID: firstSignMutationID
+            )
+            XCTAssertNotNil(try journal.receipt(mutationID: firstSignMutationID))
+        }
+        let sourceActor = try actor(
+            workspaceID: sourceSession.workspaceID,
+            slot: slot + 5
+        )
+        let actorMutationID = try mutation(slot + 210)
+        _ = try sourceWriter.execute(
+            .applyPartyAccountability(.appendActorSnapshot(sourceActor)),
+            mutationID: actorMutationID
+        )
+        XCTAssertNotNil(try journal.receipt(mutationID: actorMutationID))
+        let sourceLocatorQuery = AssetLocatorRowQueryV1(modelContext: sourceSession.modelContext)
+        var issuedBindings: [ManualShortCodeIssuanceReceiptV1] = []
+        let alphabet = Array(ManualShortCodeV1.alphabet)
+        for (index, item) in contractFixture.plan.items.enumerated() {
+            let codeBytes = try item.shortCode.randomBody.map { character -> UInt8 in
+                UInt8(try XCTUnwrap(alphabet.firstIndex(of: character)))
+            }
+            let entropy = C45DeterministicShortCodeEntropy(values: [
+                Data(codeBytes + Array(
+                    repeating: UInt8(0),
+                    count: ManualShortCodeIssuanceCoordinatorV1.entropyBytesPerAttempt
+                        - codeBytes.count
+                ))
+            ])
+            let operation = try ManualShortCodeIssuanceOperationV1(
+                workspaceID: sourceSession.workspaceID,
+                assetID: item.assetID,
+                locatorID: contractFixture.locators[index].locatorID,
+                bindingReceiptID: contractFixture.receipts[index].receiptID,
+                mutationID: contractFixture.locators[index].mutationID,
+                recordedBy: sourceActor,
+                requestedAt: date(Double(slot + 5))
+            )
+            let coordinator = ManualShortCodeIssuanceCoordinatorV1(
+                query: sourceLocatorQuery,
+                writer: sourceWriter,
+                entropy: entropy
+            )
+            let issued = try await coordinator.issue(operation)
+            try issued.validate()
+            XCTAssertEqual(issued.request.shortCode, item.shortCode)
+            XCTAssertEqual(entropy.requestCount, 1)
+            XCTAssertNotNil(try journal.receipt(mutationID: operation.mutationID))
+            let persistedLocator = try await sourceLocatorQuery.locator(
+                id: operation.locatorID,
+                workspaceID: sourceSession.workspaceID
+            )
+            let persistedBinding = try await sourceLocatorQuery.bindingReceipt(
+                id: operation.bindingReceiptID,
+                workspaceID: sourceSession.workspaceID
+            )
+            XCTAssertEqual(persistedLocator, issued.locator)
+            XCTAssertEqual(persistedBinding, issued.bindingReceipt)
+            issuedBindings.append(issued)
+        }
+        let assetRevisions = Dictionary(uniqueKeysWithValues:
+            try sourceWriter.currentRevision().entityRevisions.map {
+                ($0.identity, $0.revision)
+            }
+        )
+        let boundItems = try zip(contractFixture.plan.items, issuedBindings).map {
+            (original, issued) -> AssetLabelItemSnapshotV1 in
+            let assetIdentity = try WorkspaceEntityIdentityV1(
+                kind: .asset, id: original.assetID
+            )
+            let assetRevision = try XCTUnwrap(assetRevisions[assetIdentity])
+            XCTAssertEqual(assetRevision, 1)
+            return try AssetLabelItemSnapshotV1(
+                workspaceID: sourceSession.workspaceID,
+                assetID: original.assetID,
+                assetRevision: assetRevision,
+                locator: issued.locator,
+                bindingReceipt: issued.bindingReceipt,
+                shortCode: original.shortCode,
+                assetDisplay: original.assetDisplay,
+                locationDisplay: original.locationDisplay,
+                disclosure: original.disclosure,
+                orderIndex: original.orderIndex
+            )
+        }
+        let boundPlan = try AssetLabelGenerationPlanV1(
+            planID: contractFixture.plan.planID,
+            workspaceID: sourceSession.workspaceID,
+            template: contractFixture.plan.template,
+            disclosure: contractFixture.plan.disclosure,
+            items: boundItems,
+            startOffset: contractFixture.plan.startOffset,
+            localeIdentifier: contractFixture.plan.localeIdentifier,
+            frozenGeneratedAt: contractFixture.plan.frozenGeneratedAt
+        )
+        let fixture = Fixture(
+            plan: boundPlan,
+            locators: issuedBindings.map(\.locator),
+            receipts: issuedBindings.map(\.bindingReceipt)
+        )
+        XCTAssertEqual(
+            fixture.plan.items.map(\.shortCode),
+            contractFixture.plan.items.map(\.shortCode)
+        )
+        XCTAssertEqual(
+            fixture.plan.items.map(\.assetDisplay),
+            contractFixture.plan.items.map(\.assetDisplay)
+        )
+        XCTAssertEqual(
+            fixture.plan.items.map(\.locationDisplay),
+            contractFixture.plan.items.map(\.locationDisplay)
+        )
+        let placementEvents = try sourceSession.modelContext.fetch(
+            FetchDescriptor<AssetPlacementEventRow>()
+        ).map { try $0.value() }
+        XCTAssertEqual(
+            placementEvents.count,
+            3
+        )
+        XCTAssertEqual(
+            Set(placementEvents.map(\.assetID)),
+            Set(contractFixture.plan.items.map(\.assetID))
+        )
         let projection = try DeterministicPDFRendererV1.renderAssetLabels(fixture.plan)
         let contentStore = EvidenceBundleStore(
             generationRootURL: sourceSession.generationRootURL
@@ -2018,10 +2806,8 @@ private enum C45AssetLabelTestSupport {
             jobStagingRootURL: contentStagingRoot,
             contentStore: contentStore
         )
-        let contentEpoch = try GenerationEpochV1(
-            generationID: sourceSession.generationID,
-            generationManifestSHA256: digest("d")
-        )
+        let contentEpoch = try sourceFactory.currentGenerationEpoch()
+        XCTAssertEqual(contentEpoch.generationID, sourceSession.generationID)
         let contentPublicationAdapter = GenerationLocalJobPublicationAdapterV1(
             currentGenerationEpoch: { contentEpoch },
             withAuthorizedCommit: { expected, effect in
@@ -2039,13 +2825,58 @@ private enum C45AssetLabelTestSupport {
                 )
             ),
             stagingRootURL: contentStagingRoot,
+            generationLeaseRegistry: contentRegistry,
             generationPublicationAdapter: contentPublicationAdapter,
             maximumConcurrency: 1
         )
+        let sourceQuery = AcceptedLabelGenerationSnapshotQueryV1(
+            modelContext: sourceSession.modelContext
+        )
         let contentLifecycle = await AssetLabelLifecycleAdapterV1(
-            authority: AssetLabelAuthoritativePlanAdapterV1 { try $0.validate() },
-            writer: C45AcceptingWriter(),
-            query: C45AcceptedSnapshotQuery(),
+            authority: AssetLabelAuthoritativePlanAdapterV1 { plan in
+                try plan.validate()
+                guard plan.workspaceID == sourceSession.workspaceID else {
+                    throw WorkspaceMutationFailureV1.wrongWorkspace
+                }
+                for item in plan.items {
+                    let assetID = item.assetID
+                    let assets = try sourceSession.modelContext.fetch(
+                        FetchDescriptor<Asset>(predicate: #Predicate { $0.id == assetID })
+                    )
+                    let identity = try WorkspaceEntityIdentityV1(kind: .asset, id: assetID)
+                    let stableKey = identity.stableKey
+                    let revisions = try sourceSession.modelContext.fetch(
+                        FetchDescriptor<EntityMutationRevisionRow>(
+                            predicate: #Predicate { $0.stableIdentity == stableKey }
+                        )
+                    )
+                    let locator = try await sourceLocatorQuery.locator(
+                        id: item.locator.locatorID,
+                        workspaceID: plan.workspaceID
+                    )
+                    let receipt = try await sourceLocatorQuery.bindingReceipt(
+                        id: item.bindingReceiptID,
+                        workspaceID: plan.workspaceID
+                    )
+                    guard let locator,
+                          let receipt,
+                          assets.count == 1,
+                          revisions.count == 1,
+                          let revision = revisions.first?.revision,
+                          revision > 0,
+                          UInt64(revision) == item.assetRevision,
+                          locator.assetID == item.assetID,
+                          locator.state == item.locatorState,
+                          try locator.reference == item.locator,
+                          receipt.after == item.locator,
+                          receipt.revision == item.bindingReceiptRevision,
+                          receipt.receiptSHA256 == item.bindingReceiptSHA256 else {
+                        throw WorkspaceMutationFailureV1.invalidCommand
+                    }
+                }
+            },
+            writer: sourceWriter,
+            query: sourceQuery,
             jobs: contentRunner,
             artifacts: contentOperations
         )
@@ -2071,95 +2902,93 @@ private enum C45AssetLabelTestSupport {
             publicationReceipt: try XCTUnwrap(completedPublishedJob.publicationReceipt)
         )
         let snapshotID = id(slot + 2)
-        let writerInstanceID = id(slot + 3)
-        let journal = try MutationJournalStoreV1(
-            modelContext: sourceSession.modelContext,
-            identity: sourceSession.workspaceIdentity,
-            generationID: sourceSession.generationID
+        let acceptanceMutationID = try mutation(slot + 4)
+        let current = try sourceWriter.currentRevision()
+        let expectedAcceptanceRevision = try WorkspaceExpectedRevisionV1(
+            workspaceID: sourceSession.workspaceID,
+            generationID: current.generationID,
+            writerInstanceID: current.writerInstanceID,
+            workspaceRevision: current.revision,
+            entityRevisions: [
+                WorkspaceEntityRevisionV1(
+                    identity: WorkspaceEntityIdentityV1(
+                        kind: .acceptedLabelGenerationSnapshot,
+                        id: snapshotID
+                    ),
+                    revision: 0
+                )
+            ]
         )
-        let current = try journal.currentRevision(writerInstanceID: writerInstanceID)
-        let snapshot = try AcceptedLabelGenerationSnapshotV1(
+        let accepted = try await contentLifecycle.acceptPublishedJob(
+            jobID: publishedJob.id,
+            outputReceiptID: output.receiptID,
             snapshotID: snapshotID,
-            plan: fixture.plan,
-            result: projection,
-            outputReceipt: output,
-            activationDecision: .enabledBoundedLocalOnly,
-            expectedRevision: try WorkspaceExpectedRevisionV1(
-                workspaceID: sourceSession.workspaceID,
-                generationID: current.generationID,
-                writerInstanceID: current.writerInstanceID,
-                workspaceRevision: current.revision,
-                entityRevisions: [
-                    WorkspaceEntityRevisionV1(
-                        identity: WorkspaceEntityIdentityV1(
-                            kind: .acceptedLabelGenerationSnapshot,
-                            id: snapshotID
-                        ),
-                        revision: 0
-                    )
-                ]
-            ),
-            mutationID: mutation(slot + 4),
-            recordedBy: actor(workspaceID: sourceSession.workspaceID, slot: slot + 5),
+            expectedRevision: expectedAcceptanceRevision,
+            mutationID: acceptanceMutationID,
+            recordedBy: sourceActor,
             recordedAt: date(Double(slot + 6))
         )
+        let persistedSnapshot = try await sourceQuery.acceptedLabelSnapshot(
+            workspaceID: sourceSession.workspaceID,
+            mutationID: acceptanceMutationID
+        )
+        let snapshot = try XCTUnwrap(persistedSnapshot)
         let mutation = try AssetLabelMutationV1(snapshot: snapshot)
-        let receipt = try canonicalReceipt(
-            snapshot: snapshot,
-            replicaID: sourceSession.workspaceIdentity.replicaID
+        try accepted.validate(snapshot: snapshot)
+        XCTAssertEqual(snapshot.outputReceipt.publicationBinding, output.publicationBinding)
+        XCTAssertEqual(snapshot.outputReceipt.receiptID, output.receiptID)
+        XCTAssertEqual(
+            snapshot.outputReceipt.generatedAt,
+            try XCTUnwrap(completedPublishedJob.publicationReceipt).readBackAt
         )
-        let envelope = try MutationEnvelopeV1(
-            request: mutation.canonicalWorkspaceMutationRequest(),
-            identity: sourceSession.workspaceIdentity
-        )
-        let siteID = id(slot + 8)
-        sourceSession.modelContext.insert(Site(
-            id: siteID,
-            label: "C45 source site",
-            createdAt: date(Double(slot + 8))
-        ))
-        for ((item, locator), bindingReceipt) in zip(
-            zip(fixture.plan.items, fixture.locators),
-            fixture.receipts
-        ) {
-            sourceSession.modelContext.insert(Asset(
-                id: item.assetID,
-                siteID: siteID,
-                packID: SignPack.illuminatedSignV1.packID,
-                packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
-                packContentVersion: SignPack.illuminatedSignV1.contentVersion,
-                label: "C45 asset",
-                createdAt: date(Double(slot + 9))
-            ))
-            sourceSession.modelContext.insert(try AssetLocatorRow(locator))
-            sourceSession.modelContext.insert(try LocatorBindingReceiptRow(bindingReceipt))
+        // Diagnose the actual published receipt without changing the snapshot,
+        // its canonical bytes, or the row initializer's fail-closed check.
+        do {
+            let canonicalProbe = try AssetLabelCanonicalCodecV1.encode(snapshot)
+            let decodedProbe = try AssetLabelCanonicalCodecV1.decode(
+                AcceptedLabelGenerationSnapshotV1.self,
+                from: canonicalProbe
+            )
+            let components: [(String, Bool)] = [
+                ("schemaVersion", snapshot.schemaVersion == decodedProbe.schemaVersion),
+                ("snapshotID", snapshot.snapshotID == decodedProbe.snapshotID),
+                ("workspaceID", snapshot.workspaceID == decodedProbe.workspaceID),
+                ("plan", snapshot.plan == decodedProbe.plan),
+                ("manifest", snapshot.manifest == decodedProbe.manifest),
+                ("outputReceipt", snapshot.outputReceipt == decodedProbe.outputReceipt),
+                ("activationDecision", snapshot.activationDecision == decodedProbe.activationDecision),
+                ("disposition", snapshot.disposition == decodedProbe.disposition),
+                ("expectedRevision", snapshot.expectedRevision == decodedProbe.expectedRevision),
+                ("mutationID", snapshot.mutationID == decodedProbe.mutationID),
+                ("recordedBy", snapshot.recordedBy == decodedProbe.recordedBy),
+                ("recordedAt", snapshot.recordedAt == decodedProbe.recordedAt),
+                ("revision", snapshot.revision == decodedProbe.revision),
+                ("snapshotSHA256", snapshot.snapshotSHA256 == decodedProbe.snapshotSHA256)
+            ]
+            let mismatches = components.filter { !$0.1 }.map { $0.0 }
+            let originalReadBackAt = snapshot.outputReceipt.publicationBinding
+                .publicationReceipt.readBackAt
+            let decodedReadBackAt = decodedProbe.outputReceipt.publicationBinding
+                .publicationReceipt.readBackAt
+            var diagnostic = "C45_R01_ROUNDTRIP_V1 fullEqual=\(snapshot == decodedProbe) "
+                + "mismatches=\(mismatches.joined(separator: ",")) "
+                + "readBackAtEqual=\(originalReadBackAt == decodedReadBackAt)"
+            if originalReadBackAt != decodedReadBackAt {
+                diagnostic += " readBackAtBitsOriginal=\(String(originalReadBackAt.timeIntervalSinceReferenceDate.bitPattern, radix: 16))"
+                    + " readBackAtBitsDecoded=\(String(decodedReadBackAt.timeIntervalSinceReferenceDate.bitPattern, radix: 16))"
+            }
+            FileHandle.standardError.write(Data((diagnostic + "\n").utf8))
+        } catch {
+            FileHandle.standardError.write(Data((
+                "C45_R01_ROUNDTRIP_V1 decodeErrorType=\(String(reflecting: type(of: error)))\n"
+            ).utf8))
         }
-        sourceSession.modelContext.insert(try AcceptedLabelGenerationSnapshotRow(snapshot))
-        try journal.replaceHistory(
-            with: MutationHistorySnapshotV1(
-                workspaceRevision: 1,
-                lastLocalSequence: 1,
-                receipts: [MutationHistoryReceiptRecordV1(
-                    envelopeData: try envelope.canonicalData(),
-                    receiptData: try receipt.canonicalData(),
-                    reversalBasisData: nil,
-                    semanticReversalData: nil
-                )],
-                quarantines: [],
-                entityRevisions: [MutationHistoryEntityRevisionV1(
-                    identity: try mutation.affectedIdentity,
-                    revision: snapshot.revision,
-                    externalProjectionSHA256: snapshot.snapshotSHA256
-                )]
-            ),
-            identityDisposition: .preserve
-        )
-        try sourceSession.modelContext.save()
         try journal.validateAll()
         let sourceAcceptance = try XCTUnwrap(
             journal.assetLabelAcceptanceReceipt(mutationID: snapshot.mutationID)
         )
         try sourceAcceptance.validate(snapshot: snapshot)
+        XCTAssertEqual(sourceAcceptance, accepted)
         XCTAssertEqual(sourceAcceptance.snapshotSHA256, snapshot.snapshotSHA256)
         XCTAssertEqual(sourceAcceptance.mutationSHA256, mutation.mutationSHA256)
         XCTAssertEqual(
@@ -2180,7 +3009,7 @@ private enum C45AssetLabelTestSupport {
         let searchRevisionBox = C45SearchRevisionBox(try SearchSourceRevisionV1(
             workspaceID: snapshot.workspaceID.rawValue,
             generationID: sourceSession.generationID,
-            commitRevision: 1
+            commitRevision: try sourceWriter.currentRevision().revision
         ))
         let searchSource = try SwiftDataSearchCanonicalProjectionSourceV1(
             modelContext: sourceSession.modelContext,
@@ -2250,10 +3079,14 @@ private enum C45AssetLabelTestSupport {
                 try validated.records.validateC45AcceptedLabelSnapshots(),
                 [snapshot]
             )
-            let restored = try await BackupRestoreService(
+            let restoreService = try BackupRestoreService(
                 applicationSupportURL: support,
                 storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })
-            ).restore(
+            )
+            restoreService.restorePhaseDiagnosticForTesting = { phase in
+                FileHandle.standardError.write(Data("C45_R01_RESTORE_PHASE_V1 \(phase)\n".utf8))
+            }
+            let restored = try await restoreService.restore(
                 validatedPackage: validated,
                 currentModelContext: currentSession.modelContext,
                 currentGenerationID: currentSession.generationID,
@@ -2300,27 +3133,66 @@ private enum C45AssetLabelTestSupport {
             )
         }
 
-        let sourceQuery = AcceptedLabelGenerationSnapshotQueryV1(
-            modelContext: sourceSession.modelContext
-        )
         let deletedAssetID = try XCTUnwrap(snapshot.plan.items.first?.assetID)
         XCTAssertEqual(
             try contentStore.readAssetLabelArtifacts(jobID: publishedJob.id),
             publishedReadback
         )
-        let unrelatedFixture = try Self.fixture(
+        let unrelatedBase = try Self.fixture(
             itemCount: 1,
             workspaceID: workspace(slot + 100)
         )
+        let unrelatedValue = try Self.item(
+            index: slot + 100,
+            workspaceID: unrelatedBase.plan.workspaceID,
+            templateDisclosure: unrelatedBase.plan.disclosure,
+            orderIndex: 0
+        )
+        let unrelatedFixture = Fixture(
+            plan: try AssetLabelGenerationPlanV1(
+                planID: id(slot + 500),
+                workspaceID: unrelatedBase.plan.workspaceID,
+                template: unrelatedBase.plan.template,
+                disclosure: unrelatedBase.plan.disclosure,
+                items: [unrelatedValue.item],
+                startOffset: unrelatedBase.plan.startOffset,
+                localeIdentifier: unrelatedBase.plan.localeIdentifier,
+                frozenGeneratedAt: unrelatedBase.plan.frozenGeneratedAt
+            ),
+            locators: [unrelatedValue.locator],
+            receipts: [unrelatedValue.receipt]
+        )
+        XCTAssertTrue(Set(unrelatedFixture.plan.items.map(\.assetID))
+            .isDisjoint(with: Set(snapshot.plan.items.map(\.assetID))))
+        XCTAssertFalse(unrelatedFixture.plan.items.contains {
+            $0.assetID == deletedAssetID
+        })
         let unrelatedProjection = try DeterministicPDFRendererV1.renderAssetLabels(
             unrelatedFixture.plan
         )
-        let unrelatedJob = try await contentLifecycle.enqueueValidatedPlan(
+        // This deliberately foreign workspace is rendered only to prove that
+        // deleting the accepted source label leaves sibling content intact.
+        // The source lifecycle's live authority must continue to reject it;
+        // this fixture lifecycle has no canonical acceptance writer.
+        let unrelatedWriter = C45FailClosedWriter()
+        let unrelatedLifecycle = await AssetLabelLifecycleAdapterV1(
+            authority: AssetLabelAuthoritativePlanAdapterV1 { plan in
+                guard plan == unrelatedFixture.plan else {
+                    throw WorkspaceMutationFailureV1.wrongWorkspace
+                }
+            },
+            writer: unrelatedWriter,
+            query: C45AcceptedSnapshotQuery(),
+            jobs: contentRunner,
+            artifacts: contentOperations
+        )
+        let unrelatedJob = try await unrelatedLifecycle.enqueueValidatedPlan(
             unrelatedFixture.plan,
             generationEpoch: contentEpoch,
             createdAt: date(Double(slot + 101))
         )
         await contentRunner.waitUntilIdle()
+        XCTAssertEqual(unrelatedWriter.commitCount, 0)
         let unrelatedCompleted = try await contentRunner.job(id: unrelatedJob.id)
         XCTAssertEqual(unrelatedCompleted?.state, .succeeded)
         let unrelatedReadback = try XCTUnwrap(
@@ -2421,7 +3293,7 @@ private enum C45AssetLabelTestSupport {
         searchRevisionBox.value = try SearchSourceRevisionV1(
             workspaceID: snapshot.workspaceID.rawValue,
             generationID: sourceSession.generationID,
-            commitRevision: 2
+            commitRevision: searchRevisionBox.value.commitRevision + 1
         )
         _ = try await searchRebuild.rebuildIfNeeded()
         let deletedSearchPlan = try searchCoordinator.makePlan(
@@ -2450,57 +3322,344 @@ private enum C45AssetLabelTestSupport {
         try [support, caches, temporary].forEach {
             try fileManager.createDirectory(at: $0, withIntermediateDirectories: true)
         }
-        defer { try? fileManager.removeItem(at: root) }
-        let session = try StoreGenerationFactory(
-            applicationSupportURL: support
-        ).openOrBootstrapCurrent()
-        let fixture = try fixture(itemCount: 1, workspaceID: session.workspaceID)
-        let projection = try DeterministicPDFRendererV1.renderAssetLabels(fixture.plan)
-        let output = try output(plan: fixture.plan, result: projection, slot: slot + 1)
-        let snapshot = try snapshot(
-            fixture: fixture,
-            result: projection,
-            output: output,
-            slot: slot + 2
-        )
-        session.modelContext.insert(try AcceptedLabelGenerationSnapshotRow(snapshot))
-        try session.modelContext.save()
-        let scratch = session.generationRootURL
-            .appendingPathComponent("jobs/asset-label-render/c45-erase-canary", isDirectory: true)
-        try fileManager.createDirectory(at: scratch, withIntermediateDirectories: true)
-        try Data("leased-label-scratch".utf8).write(
-            to: scratch.appendingPathComponent("plan.json"),
-            options: .atomic
-        )
-        let coordinator = StoreSessionCoordinator(session: session)
-        let diagnostics = DiagnosticsStore(applicationSupportURL: support)
-        await diagnostics.prepare()
+        // The harness retains the actual Router, operation and physical root
+        // host lifetime; no unchecked root-removal defer is permitted.
+        let owner = V23EraseOperationHarnessV1(retainingRoot: root, applicationSupportURL: support,
+            runtime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            profileRegistry: try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        defer { owner.router.entitlementProcessor?.stop() }
         let suite = "C45-R01-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
-        let service = EraseAllService(
-            applicationSupportURL: support,
-            cachesDirectoryURL: caches,
-            temporaryDirectoryURL: temporary,
-            userDefaults: defaults,
-            bundleIdentifier: suite
-        )
-        let erased = try await service.erase(
-            confirmation: EraseAllService.requiredConfirmation,
-            coordinator: coordinator,
-            diagnosticsStore: diagnostics
-        ) { replacement in
-            coordinator.activate(session: replacement)
+        var admittedReservation: AppAccessGateV1.EraseAdoptionToken?
+        var completedReceipts: [CompletedEraseReceiptV1] = []
+        weak var originalCoordinator: StoreSessionCoordinator?
+        weak var originalContext: ModelContext?
+        weak var originalContainer: ModelContainer?
+        let prepared = try await { () async throws -> (
+            seeded: (workspaceID: WorkspaceID, snapshotID: UUID, scratch: URL, generationID: UUID),
+            service: EraseAllService
+        ) in
+            let (coordinator, diagnostics) = try await owner.startOriginalOwner()
+            originalCoordinator = coordinator
+            originalContext = coordinator.modelContext
+            originalContainer = coordinator.modelContext.container
+            let seeded = try await { () async throws -> (
+                workspaceID: WorkspaceID, snapshotID: UUID, scratch: URL, generationID: UUID
+            ) in
+                let writer = coordinator.workspaceWriter
+                let fixtureJobOwner = try coordinator.originalAssetLabelFixtureJobOwnerForTesting(
+                    expectedWriter: writer
+                )
+                let registry = fixtureJobOwner.registry
+                let epoch = fixtureJobOwner.epoch
+                let contractFixture = try fixture(itemCount: 1, workspaceID: coordinator.workspaceID)
+                let journal = try MutationJournalStoreV1(
+                    modelContext: coordinator.modelContext,
+                    identity: coordinator.workspaceIdentity,
+                    generationID: coordinator.generationID
+                )
+                let firstSignMutationID = try mutation(slot + 200)
+                let assetID = try XCTUnwrap(contractFixture.plan.items.first?.assetID)
+                _ = try writer.execute(.createFirstSign(FirstSignMutationV1(
+                    siteID: id(slot + 8),
+                    newSite: .init(
+                        id: id(slot + 8),
+                        label: "C45 Erase source site",
+                        address: nil,
+                        timeZoneID: nil
+                    ),
+                    assetID: assetID,
+                    assetLabel: "C45 Erase source asset",
+                    packID: SignPack.illuminatedSignV1.packID,
+                    packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
+                    packContentVersion: SignPack.illuminatedSignV1.contentVersion,
+                    createdAt: date(Double(slot)),
+                    initialPlacementMutationID: firstSignMutationID,
+                    initialPlacementEventID: id(slot + 300),
+                    initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(
+                        rawValue: id(slot + 400)
+                    )
+                )), mutationID: firstSignMutationID)
+                XCTAssertNotNil(try journal.receipt(mutationID: firstSignMutationID))
+                let recordedBy = try actor(workspaceID: coordinator.workspaceID, slot: slot + 5)
+                let actorMutationID = try mutation(slot + 210)
+                _ = try writer.execute(
+                    .applyPartyAccountability(.appendActorSnapshot(recordedBy)),
+                    mutationID: actorMutationID
+                )
+                XCTAssertNotNil(try journal.receipt(mutationID: actorMutationID))
+                let locatorQuery = AssetLocatorRowQueryV1(modelContext: coordinator.modelContext)
+                let firstItem = try XCTUnwrap(contractFixture.plan.items.first)
+                let alphabet = Array(ManualShortCodeV1.alphabet)
+                let codeBytes = try firstItem.shortCode.randomBody.map { character -> UInt8 in
+                    UInt8(try XCTUnwrap(alphabet.firstIndex(of: character)))
+                }
+                let entropy = C45DeterministicShortCodeEntropy(values: [
+                    Data(codeBytes + Array(
+                        repeating: UInt8(0),
+                        count: ManualShortCodeIssuanceCoordinatorV1.entropyBytesPerAttempt
+                            - codeBytes.count
+                    ))
+                ])
+                let issuance = try ManualShortCodeIssuanceOperationV1(
+                    workspaceID: coordinator.workspaceID,
+                    assetID: assetID,
+                    locatorID: try XCTUnwrap(contractFixture.locators.first).locatorID,
+                    bindingReceiptID: try XCTUnwrap(contractFixture.receipts.first).receiptID,
+                    mutationID: try XCTUnwrap(contractFixture.locators.first).mutationID,
+                    recordedBy: recordedBy,
+                    requestedAt: date(Double(slot + 5))
+                )
+                let issued = try await ManualShortCodeIssuanceCoordinatorV1(
+                    query: locatorQuery,
+                    writer: writer,
+                    entropy: entropy
+                ).issue(issuance)
+                try issued.validate()
+                XCTAssertEqual(issued.request.shortCode, firstItem.shortCode)
+                XCTAssertEqual(entropy.requestCount, 1)
+                XCTAssertNotNil(try journal.receipt(mutationID: issuance.mutationID))
+                let persistedLocator = try await locatorQuery.locator(
+                    id: issuance.locatorID, workspaceID: coordinator.workspaceID
+                )
+                let persistedBinding = try await locatorQuery.bindingReceipt(
+                    id: issuance.bindingReceiptID, workspaceID: coordinator.workspaceID
+                )
+                XCTAssertEqual(persistedLocator, issued.locator)
+                XCTAssertEqual(persistedBinding, issued.bindingReceipt)
+                let assetIdentity = try WorkspaceEntityIdentityV1(kind: .asset, id: assetID)
+                let assetRevision = try XCTUnwrap(writer.currentRevision().entityRevisions.first {
+                    $0.identity == assetIdentity
+                }?.revision)
+                XCTAssertEqual(assetRevision, 1)
+                let boundItem = try AssetLabelItemSnapshotV1(
+                    workspaceID: coordinator.workspaceID,
+                    assetID: assetID,
+                    assetRevision: assetRevision,
+                    locator: issued.locator,
+                    bindingReceipt: issued.bindingReceipt,
+                    shortCode: firstItem.shortCode,
+                    assetDisplay: firstItem.assetDisplay,
+                    locationDisplay: firstItem.locationDisplay,
+                    disclosure: firstItem.disclosure,
+                    orderIndex: firstItem.orderIndex
+                )
+                let plan = try AssetLabelGenerationPlanV1(
+                    planID: contractFixture.plan.planID,
+                    workspaceID: coordinator.workspaceID,
+                    template: contractFixture.plan.template,
+                    disclosure: contractFixture.plan.disclosure,
+                    items: [boundItem],
+                    startOffset: contractFixture.plan.startOffset,
+                    localeIdentifier: contractFixture.plan.localeIdentifier,
+                    frozenGeneratedAt: contractFixture.plan.frozenGeneratedAt
+                )
+                let projection = try DeterministicPDFRendererV1.renderAssetLabels(plan)
+                let contentStore = EvidenceBundleStore(generationRootURL: coordinator.generationRootURL)
+                let stagingRoot = coordinator.generationRootURL
+                    .appendingPathComponent("operational", isDirectory: true)
+                    .appendingPathComponent("local-job-staging-v1", isDirectory: true)
+                let artifactOperations = try AssetLabelArtifactOperationsV1.production(
+                    jobStagingRootURL: stagingRoot,
+                    contentStore: contentStore
+                )
+                XCTAssertEqual(epoch.generationID, coordinator.generationID)
+                let publicationAdapter = GenerationLocalJobPublicationAdapterV1(
+                    currentGenerationEpoch: { epoch },
+                    withAuthorizedCommit: { expected, effect in
+                        guard expected == epoch else {
+                            throw GenerationLocalJobPublicationFailureV1.staleGeneration
+                        }
+                        return try effect()
+                    }
+                )
+                let runner = try ResumableLocalJobRunnerV1(
+                    store: LocalJobStoreV1(applicationSupportURL: support),
+                    stagingRootURL: stagingRoot,
+                    generationLeaseRegistry: registry,
+                    generationPublicationAdapter: publicationAdapter,
+                    maximumConcurrency: 1
+                )
+                let query = AcceptedLabelGenerationSnapshotQueryV1(
+                    modelContext: coordinator.modelContext
+                )
+                let lifecycle = await AssetLabelLifecycleAdapterV1(
+                    authority: AssetLabelAuthoritativePlanAdapterV1 { candidate in
+                        try candidate.validate()
+                        guard candidate.workspaceID == coordinator.workspaceID else {
+                            throw WorkspaceMutationFailureV1.wrongWorkspace
+                        }
+                        for item in candidate.items {
+                            let candidateAssetID = item.assetID
+                            let assets = try coordinator.modelContext.fetch(
+                                FetchDescriptor<Asset>(
+                                    predicate: #Predicate { $0.id == candidateAssetID }
+                                )
+                            )
+                            let identity = try WorkspaceEntityIdentityV1(
+                                kind: .asset, id: candidateAssetID
+                            )
+                            let stableKey = identity.stableKey
+                            let revisions = try coordinator.modelContext.fetch(
+                                FetchDescriptor<EntityMutationRevisionRow>(
+                                    predicate: #Predicate { $0.stableIdentity == stableKey }
+                                )
+                            )
+                            let locator = try await locatorQuery.locator(
+                                id: item.locator.locatorID, workspaceID: candidate.workspaceID
+                            )
+                            let receipt = try await locatorQuery.bindingReceipt(
+                                id: item.bindingReceiptID, workspaceID: candidate.workspaceID
+                            )
+                            guard let locator, let receipt,
+                                  assets.count == 1, revisions.count == 1,
+                                  let revision = revisions.first?.revision, revision > 0,
+                                  UInt64(revision) == item.assetRevision,
+                                  locator.assetID == item.assetID,
+                                  locator.state == item.locatorState,
+                                  try locator.reference == item.locator,
+                                  receipt.after == item.locator,
+                                  receipt.revision == item.bindingReceiptRevision,
+                                  receipt.receiptSHA256 == item.bindingReceiptSHA256 else {
+                                throw WorkspaceMutationFailureV1.invalidCommand
+                            }
+                        }
+                    },
+                    writer: writer,
+                    query: query,
+                    jobs: runner,
+                    artifacts: artifactOperations
+                )
+                let job = try await lifecycle.enqueueValidatedPlan(
+                    plan,
+                    generationEpoch: epoch,
+                    createdAt: date(Double(slot + 1))
+                )
+                await runner.waitUntilIdle()
+                let completedJobValue = try await runner.job(id: job.id)
+                let completedJob = try XCTUnwrap(completedJobValue)
+                XCTAssertEqual(completedJob.state, .succeeded)
+                let published = try XCTUnwrap(
+                    try contentStore.readAssetLabelArtifacts(jobID: job.id)
+                )
+                XCTAssertEqual(published.plan, plan)
+                XCTAssertEqual(published.projection, projection)
+                let outputReceipt = try output(
+                    plan: plan,
+                    result: projection,
+                    slot: slot + 1,
+                    publishedArtifacts: published.publishedArtifacts,
+                    publicationReceipt: try XCTUnwrap(completedJob.publicationReceipt)
+                )
+                let snapshotID = id(slot + 2)
+                let acceptanceMutationID = try mutation(slot + 4)
+                let current = try writer.currentRevision()
+                let expected = try WorkspaceExpectedRevisionV1(
+                    workspaceID: coordinator.workspaceID,
+                    generationID: current.generationID,
+                    writerInstanceID: current.writerInstanceID,
+                    workspaceRevision: current.revision,
+                    entityRevisions: [
+                        WorkspaceEntityRevisionV1(
+                            identity: WorkspaceEntityIdentityV1(
+                                kind: .acceptedLabelGenerationSnapshot, id: snapshotID
+                            ),
+                            revision: 0
+                        )
+                    ]
+                )
+                let acceptance = try await lifecycle.acceptPublishedJob(
+                    jobID: job.id,
+                    outputReceiptID: outputReceipt.receiptID,
+                    snapshotID: snapshotID,
+                    expectedRevision: expected,
+                    mutationID: acceptanceMutationID,
+                    recordedBy: recordedBy,
+                    recordedAt: date(Double(slot + 6))
+                )
+                let persistedSnapshot = try await query.acceptedLabelSnapshot(
+                    workspaceID: coordinator.workspaceID,
+                    mutationID: acceptanceMutationID
+                )
+                let snapshot = try XCTUnwrap(persistedSnapshot)
+                try acceptance.validate(snapshot: snapshot)
+                XCTAssertEqual(snapshot.plan, plan)
+                XCTAssertNotNil(try journal.assetLabelAcceptanceReceipt(
+                    mutationID: acceptanceMutationID
+                ))
+                try journal.validateAll()
+                let scratch = coordinator.generationRootURL
+                    .appendingPathComponent("jobs/asset-label-render/c45-erase-canary", isDirectory: true)
+                try fileManager.createDirectory(at: scratch, withIntermediateDirectories: true)
+                try Data("leased-label-scratch".utf8).write(
+                    to: scratch.appendingPathComponent("plan.json"), options: .atomic
+                )
+                return (snapshot.workspaceID, snapshot.snapshotID, scratch, coordinator.generationID)
+            }()
+            // All external job, registry, journal, writer and context aliases
+            // have left their seed frame before the original owner is admitted.
+            try await owner.admit(coordinator: coordinator)
+            XCTAssertThrowsError(try coordinator.originalAssetLabelFixtureJobOwnerForTesting(
+                expectedWriter: coordinator.workspaceWriter
+            ), "The original job-owner accessor must close after real Erase admission") { error in
+                XCTAssertEqual(error as? GenerationLeaseRegistryFailureV1, .uncertainOwner)
+            }
+            let service = try owner.configure(EraseAllService(
+                applicationSupportURL: support,
+                cachesDirectoryURL: caches,
+                temporaryDirectoryURL: temporary,
+                userDefaults: defaults,
+                bundleIdentifier: "com.palatis3.fieldrecord",
+                defaultsDomainName: suite,
+                admitErase: { subject in
+                    let reservation = try await owner.admitSubject(subject)
+                    admittedReservation = reservation
+                    return reservation
+                },
+                didCompleteErase: { completedReceipts.append($0) }
+            ))
+            // The configured service retains the actual pre-cleanup frame and
+            // controls. Keep it with the root even if preparation throws.
+            retainedEraseServices.append(service)
+            try await owner.prepareCompatibility(service: service,
+                confirmation: EraseAllService.requiredConfirmation,
+                coordinator: coordinator, diagnostics: diagnostics)
+            return (seeded, service)
+        }()
+        let seeded = prepared.seeded
+        let service = prepared.service
+        guard originalCoordinator == nil, originalContext == nil, originalContainer == nil else {
+            XCTFail("Original asset-label Erase readers must drain before cleanup")
+            throw V23EraseOperationHarnessV1.Failure.drainPending
         }
-        try service.validateAcceptedLabelEraseClosure(session: erased.session)
-        XCTAssertFalse(fileManager.fileExists(atPath: scratch.path))
+        XCTAssertTrue(completedReceipts.isEmpty)
+        try await owner.completeCleanup()
+        XCTAssertEqual(completedReceipts.count, 1)
+        let deliveredReceipt = try XCTUnwrap(completedReceipts.first)
+        let reservation = try XCTUnwrap(admittedReservation)
+        XCTAssertEqual(deliveredReceipt.reservation, reservation)
+        XCTAssertEqual(deliveredReceipt.subject, reservation.subject)
+        try await owner.adoptCompletedReceipt()
+        let token = try await owner.accessGate.beginContentRead(for: .startupRecovery)
+        let erasedSession = try token.withContentRead(for: .startupRecovery) {
+            try StoreGenerationFactory(applicationSupportURL: support).openOrBootstrapCurrent()
+        }
+        try token.withContentRead(for: .startupRecovery) {
+            try service.validateAcceptedLabelEraseClosure(session: erasedSession)
+        }
+        XCTAssertFalse(fileManager.fileExists(atPath: seeded.scratch.path))
         let erasedQuery = AcceptedLabelGenerationSnapshotQueryV1(
-            modelContext: erased.session.modelContext
+            modelContext: erasedSession.modelContext
         )
+        try await owner.accessGate.validateContentRead(token, for: .startupRecovery)
         let erasedSnapshot = try await erasedQuery.acceptedLabelSnapshot(
-            workspaceID: snapshot.workspaceID,
-            snapshotID: snapshot.snapshotID
+            workspaceID: seeded.workspaceID,
+            snapshotID: seeded.snapshotID
         )
+        try await owner.accessGate.validateContentRead(token, for: .startupRecovery)
         XCTAssertNil(erasedSnapshot)
     }
 

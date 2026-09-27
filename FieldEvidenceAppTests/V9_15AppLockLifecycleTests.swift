@@ -31,15 +31,32 @@ private actor V915EraseProtectedData {
     func releaseCheck() { suspendedCheck?.resume(); suspendedCheck = nil }
 }
 
+@MainActor private final class V915WeakNotificationSource {
+    weak var coordinator: StoreSessionCoordinator?
+}
+
 @MainActor private final class V915CompletedEraseFixture {
+    private enum Failure: Error { case originalOwner, activation, readerDrain, retirement, receipt }
+    private static var retainedOwners: [(URL, V915CompletedEraseFixture)] = []
+    private static var retainedTargetLeaseOwners: [(URL, GenerationLeaseRegistryV1, GenerationLeaseHandleV1)] = []
+    let root: URL
     let support: URL
     let caches: URL
     let temporary: URL
     let suiteName: String
     let defaults: UserDefaults
     let preferences: PreferencesAdapterV1
-    let coordinator: StoreSessionCoordinator
-    let diagnostics: DiagnosticsStore
+    weak var coordinator: StoreSessionCoordinator?
+    let router: StartupRouter
+    private let notificationSource = V915WeakNotificationSource()
+    private var ticket: StartupRouter.OriginalOperationTicket?
+    private var operation: EraseRouterOperationV1?
+    private var retainedServices: [EraseAllService] = []
+    private var activationFailure: Error?
+    private var activationCallbackEntries = 0
+    private var completionCallbackEntries = 0
+    private var failedErasePhaseTrace: [String] = []
+    private var finishedRouterStartup = false
     let system = V915NotificationSystemProbe()
     let availability = V915EraseProtectedData()
     let setting: DeviceLocalAppLockSettingAdapterV1
@@ -50,9 +67,13 @@ private actor V915EraseProtectedData {
     var reservation: AppAccessGateV1.EraseAdoptionToken?
     var abortedReceipt: AbortedEraseAdmissionReceiptV1?
 
+    func retainTargetReader(registry: GenerationLeaseRegistryV1, handle: GenerationLeaseHandleV1) {
+        Self.retainedTargetLeaseOwners.append((root, registry, handle))
+    }
+
     init(authentication: any LocalAuthenticationClient = V915AuthenticationClient(outcomes: []),
          usesNotificationSettingOwner: Bool = false) async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("V915-completed-erase-" + UUID().uuidString)
+        root = FileManager.default.temporaryDirectory.appendingPathComponent("V915-completed-erase-" + UUID().uuidString)
         support = root.appendingPathComponent("Library/Application Support")
         caches = root.appendingPathComponent("Library/Caches")
         temporary = root.appendingPathComponent("tmp")
@@ -62,20 +83,19 @@ private actor V915EraseProtectedData {
         suiteName = "V915.completed-erase." + UUID().uuidString
         defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         preferences = PreferencesAdapterV1(defaults: defaults)
-        coordinator = try StoreSessionCoordinator(validatingSession:
-            StoreGenerationFactory(applicationSupportURL: support).openOrBootstrapCurrent())
-        diagnostics = DiagnosticsStore(applicationSupportURL: support)
-        await diagnostics.prepare()
         let availability = self.availability
         setting = try DeviceLocalAppLockSettingAdapterV1(preferences: preferences,
             registry: SettingsRegistryV1.current(), protectedDataAvailable: { await availability.isAvailable() })
         originalControl = try AppLockNotificationControlStoreV1(applicationSupportURL: support, preferences: preferences)
         let system = self.system
-        let sourceCoordinator = coordinator
+        let notificationSource = self.notificationSource
         let owner = DeviceLocalNotificationOwnerV1(control: originalControl, preferences: preferences,
             system: system, clock: V915Clock()) { authorization in
                 system.sourceOpenCount += 1
                 if usesNotificationSettingOwner {
+                    guard let sourceCoordinator = notificationSource.coordinator else {
+                        throw AppAccessContractFailureV1.staleAttempt
+                    }
                     return ProductionMyDaySourceProviderV1(session: sourceCoordinator, accessGate: authorization.gate)
                 }
                 throw AppAccessContractFailureV1.accessDenied
@@ -87,53 +107,187 @@ private actor V915EraseProtectedData {
             notifications: AppLockNotificationPrivacyCoordinatorV1(effects: owner),
             clock: V915Clock(), identifiers: SystemApplicationIDSource())
         gate = await lifecycle.accessGate()
+        router = StartupRouter(applicationSupportURL: support,
+            entitlementRuntime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            lifecycleProfileRegistry: try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        // The Router, exact Services and physical root outlive every uncertain
+        // close. Nothing in this fixture unlinks a possibly live store owner.
+        Self.retainedOwners.append((root, self))
+        try router.bindStartupAccessGate(gate)
+        try await router.startIfNeeded(accessGate: gate)
+        guard case let .ready(original, _, _) = router.route else { throw Failure.originalOwner }
+        coordinator = original
+        notificationSource.coordinator = original
+    }
+
+    private func readyOriginal() async throws -> (StoreSessionCoordinator, DiagnosticsStore) {
+        if case let .ready(original, diagnostics, _) = router.route {
+            coordinator = original
+            notificationSource.coordinator = original
+            return (original, diagnostics)
+        }
+        // A genuine no-effect abort invalidates the old writer. Only Router
+        // may publish the replacement for a later attempt in the ABA test.
+        try await router.retryChecks(accessGate: gate)
+        guard case let .ready(original, diagnostics, _) = router.route else {
+            throw Failure.originalOwner
+        }
+        coordinator = original
+        notificationSource.coordinator = original
+        return (original, diagnostics)
+    }
+
+    private func beginOriginalErase(_ original: StoreSessionCoordinator) async throws -> EraseRouterOperationV1 {
+        guard ticket == nil, operation == nil else { throw Failure.originalOwner }
+        let actual = try await router.beginEraseOperation(coordinator: original, accessGate: gate)
+        ticket = actual
+        let retirement = try router.eraseRetirementOperation(for: actual)
+        operation = retirement
+        activationFailure = nil
+        activationCallbackEntries = 0
+        completionCallbackEntries = 0
+        receipt = nil
+        return retirement
+    }
+
+    private func admit(_ subject: EraseAllOperationSubjectV1,
+                       afterAdmission: @MainActor (EraseAllOperationSubjectV1,
+                           AppAccessGateV1.EraseAdoptionToken) async throws -> Void) async throws
+        -> AppAccessGateV1.EraseAdoptionToken {
+        guard let ticket else { throw Failure.originalOwner }
+        let authorization = try await router.eraseAdmissionAuthorization(ticket, subject: subject)
+        let accepted = try await lifecycle.beginExternalErase(subject: subject,
+            authorization: authorization)
+        try router.recordEraseReservation(ticket, reservation: accepted)
+        reservation = accepted
+        try await afterAdmission(subject, accepted)
+        return accepted
+    }
+
+    /// Called only after the test has exercised its denied/retry cases and the
+    /// lifecycle has accepted the service's actual no-effect receipt.
+    func finishAbortedOperation(_ receipt: AbortedEraseAdmissionReceiptV1) throws {
+        guard let ticket, let operation, let abortedReceipt,
+              abortedReceipt.subject == receipt.subject,
+              abortedReceipt.reservation == receipt.reservation,
+              abortedReceipt.originalGenerationID == receipt.originalGenerationID else {
+            throw Failure.receipt
+        }
+        try router.requireEraseAbortResourcesSettled(operation)
+        try router.cancelAbortedErase(ticket, receipt: receipt)
+        self.ticket = nil
+        self.operation = nil
+        coordinator = nil
+        notificationSource.coordinator = nil
     }
 
     func erase(
         afterAdmission: @escaping @MainActor (EraseAllOperationSubjectV1, AppAccessGateV1.EraseAdoptionToken) async throws -> Void = { _, _ in }
     ) async throws -> CompletedEraseReceiptV1 {
-        let authorization = try await gate.beginContentRead(for: .startupRecovery)
-        let service = EraseAllService(applicationSupportURL: support, cachesDirectoryURL: caches,
-            temporaryDirectoryURL: temporary, userDefaults: defaults, defaultsDomainName: suiteName,
-            privateSystemDiscoveryIndex: nil, notificationSystem: system,
-            admitErase: { subject in
-                let reservation = try await self.lifecycle.beginExternalErase(subject: subject, authorization: authorization)
-                self.reservation = reservation
-                try await afterAdmission(subject, reservation)
-                return reservation
-            }, didCompleteErase: { self.receipt = $0 })
-        let outcome = try await service.erase(confirmation: "ERASE", coordinator: coordinator,
-            diagnosticsStore: diagnostics) { self.coordinator.activate(session: $0) }
-        XCTAssertFalse(outcome.cleanupDeferred)
-        return try XCTUnwrap(receipt)
+        weak var sourceContext: ModelContext?
+        weak var sourceContainer: ModelContainer?
+        weak var sourceCoordinator: StoreSessionCoordinator?
+        try await { () async throws -> Void in
+            let (original, diagnostics) = try await readyOriginal()
+            sourceContext = original.modelContext
+            sourceContainer = original.modelContext.container
+            sourceCoordinator = original
+            let retirement = try await beginOriginalErase(original)
+            let configured = try router.configureEraseService(EraseAllService(
+                applicationSupportURL: support, cachesDirectoryURL: caches,
+                temporaryDirectoryURL: temporary, userDefaults: defaults,
+                bundleIdentifier: "com.palatis3.fieldrecord", defaultsDomainName: suiteName,
+                privateSystemDiscoveryIndex: nil, notificationSystem: system,
+                admitErase: { subject in
+                    try await self.admit(subject, afterAdmission: afterAdmission)
+                }, didCompleteErase: {
+                    self.completionCallbackEntries += 1
+                    self.receipt = $0
+                }), operation: retirement)
+            retainedServices.append(configured) // exact Service pinned before first effect
+            let outcome = try await configured.erase(confirmation: "ERASE",
+                coordinator: original, diagnosticsStore: diagnostics, operation: retirement,
+                activate: { [weak original] replacement in
+                    self.activationCallbackEntries += 1
+                    do {
+                        guard let original else { throw Failure.activation }
+                        try self.router.activateErasePreparationSession(replacement,
+                            coordinator: original, operation: retirement)
+                    } catch { self.activationFailure = error }
+                })
+            guard outcome.operation === retirement, retirement.detached,
+                  activationCallbackEntries == 1, activationFailure == nil,
+                  completionCallbackEntries == 0, receipt == nil else {
+                throw activationFailure ?? Failure.activation
+            }
+        }()
+        guard sourceContext == nil, sourceContainer == nil, sourceCoordinator == nil,
+              coordinator == nil, notificationSource.coordinator == nil,
+              let operation else { throw Failure.readerDrain }
+        guard try await operation.advanceCleanup() else { throw Failure.retirement }
+        let (_, _, actual) = try operation.completedRetirement()
+        guard let actual, let receipt,
+              actual.subject == receipt.subject,
+              actual.reservation == receipt.reservation,
+              actual.reservation == reservation,
+              completionCallbackEntries == 1 else { throw Failure.receipt }
+        return actual
     }
 
     func failErase(
         at point: EraseAllFailurePoint,
         initialIDs: [UUID] = [],
-        afterAdmission: @escaping @MainActor () async throws -> Void = {}
+        afterAdmission: @escaping @MainActor () async throws -> Void = {},
+        expectedFailure: EraseAllServiceError = .injectedFailure,
+        onPhase: (@MainActor (String) -> Void)? = nil
     ) async throws -> AbortedEraseAdmissionReceiptV1? {
         abortedReceipt = nil
-        let authorization = try await gate.beginContentRead(for: .startupRecovery)
+        failedErasePhaseTrace = []
         var identifiers = initialIDs
-        let service = EraseAllService(applicationSupportURL: support, cachesDirectoryURL: caches,
-            temporaryDirectoryURL: temporary, userDefaults: defaults, defaultsDomainName: suiteName,
+        let (original, diagnostics) = try await readyOriginal()
+        let retirement = try await beginOriginalErase(original)
+        let configured = try router.configureEraseService(EraseAllService(applicationSupportURL: support, cachesDirectoryURL: caches,
+            temporaryDirectoryURL: temporary, userDefaults: defaults,
+            bundleIdentifier: "com.palatis3.fieldrecord", defaultsDomainName: suiteName,
             makeUUID: { identifiers.isEmpty ? UUID() : identifiers.removeFirst() },
             failureInjection: EraseAllFailureInjection(failOnceAt: point),
             privateSystemDiscoveryIndex: nil, notificationSystem: system,
             admitErase: { subject in
-                let reservation = try await self.lifecycle.beginExternalErase(subject: subject, authorization: authorization)
-                self.reservation = reservation
-                try await afterAdmission()
-                return reservation
-            }, didCompleteErase: { self.receipt = $0 }, didAbortEraseAdmission: { self.abortedReceipt = $0 })
+                try await self.admit(subject, afterAdmission: { _, _ in
+                    try await afterAdmission()
+                })
+            }, didCompleteErase: {
+                self.completionCallbackEntries += 1
+                self.receipt = $0
+            }, didAbortEraseAdmission: { self.abortedReceipt = $0 }), operation: retirement)
+        retainedServices.append(configured) // retain uncertain descriptor owners on failure
+        configured.erasePhaseDiagnosticForTesting = { [weak self] phase in
+            guard !phase.hasPrefix("ERASE_FILE_SNAPSHOT_V1 ") else { return }
+            self?.failedErasePhaseTrace.append(phase)
+            onPhase?(phase)
+        }
         do {
-            _ = try await service.erase(confirmation: "ERASE", coordinator: coordinator,
-                diagnosticsStore: diagnostics) { self.coordinator.activate(session: $0) }
+            _ = try await configured.erase(confirmation: "ERASE", coordinator: original,
+                diagnosticsStore: diagnostics, operation: retirement,
+                activate: { [weak original] replacement in
+                    self.activationCallbackEntries += 1
+                    do {
+                        guard let original else { throw Failure.activation }
+                        try self.router.activateErasePreparationSession(replacement,
+                            coordinator: original, operation: retirement)
+                    } catch { self.activationFailure = error }
+                })
             XCTFail("The selected physical failure point did not interrupt Erase")
         } catch {
-            XCTAssertEqual(error as? EraseAllServiceError, .injectedFailure)
+            XCTAssertEqual(error as? EraseAllServiceError, expectedFailure,
+                "Erase phases: \(failedErasePhaseTrace.joined(separator: " > ")); "
+                    + "abort census: \(retirement.inventory.lastAbortResourceCensusForTesting)")
+            guard error as? EraseAllServiceError == expectedFailure else { throw error }
         }
+        guard completionCallbackEntries == 0, receipt == nil else { throw Failure.receipt }
+        if abortedReceipt != nil { try router.requireEraseAbortResourcesSettled(retirement) }
         return abortedReceipt
     }
 
@@ -155,6 +309,16 @@ private actor V915EraseProtectedData {
     }
 
     func finishStartup() async throws {
+        if let operation, receipt != nil, !finishedRouterStartup {
+            try await router.finishRetiredEraseActivation(operation, accessGate: gate)
+            guard case let .ready(fresh, _, _) = router.route,
+                  fresh.generationID == receipt?.subject.newGenerationID else {
+                throw Failure.originalOwner
+            }
+            finishedRouterStartup = true
+        } else if case .checking = router.route {
+            _ = try await readyOriginal()
+        }
         let token = try await gate.beginContentRead(for: .startupRecovery)
         try await gate.completePostEraseStartup(token)
         try await gate.validateContentRead(token, for: .startupRecovery)
@@ -170,10 +334,95 @@ private actor V915EraseProtectedData {
 
 extension V9_15AppLockLifecycleTests {
     @MainActor
+    func testAbortRefusesOccupiedTargetBeforeManifestRemovalAndWithholdsReceipt() async throws {
+        let fixture = try await V915CompletedEraseFixture()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suiteName) }
+        let originalGeneration = try XCTUnwrap(fixture.coordinator).generationID
+        var capturedPreparation: ErasePreparationV2?
+        var capturedManifestDigest: String?
+        var targetRegistry: GenerationLeaseRegistryV1?
+        var targetReader: GenerationLeaseHandleV1?
+        var captureFailure: Error?
+        let aborted = try await fixture.failErase(
+            at: .afterEmptyGenerationDirectoryCreate,
+            expectedFailure: .recoveryRequired,
+            onPhase: { phase in
+                guard phase == "discard.open-target", targetReader == nil,
+                      captureFailure == nil else { return }
+                do {
+                    let preparation = try XCTUnwrap(
+                        EraseIntentStore(applicationSupportURL: fixture.support).loadPreparation())
+                    let pointer = try XCTUnwrap(preparation.targetPointer)
+                    let manifest = try XCTUnwrap(
+                        StoreMigrationJournalStoreV1(applicationSupportURL: fixture.support)
+                            .loadManifestIfPresent(targetGenerationID: preparation.targetGenerationID))
+                    let registry = try GenerationLeaseRegistryV1(applicationSupportURL: fixture.support)
+                    let epoch = try GenerationEpochV1(
+                        generationID: pointer.generationID,
+                        generationManifestSHA256: pointer.generationManifestSHA256)
+                    let handle = try registry.acquireHandle(epoch: epoch, role: .reader)
+                    fixture.retainTargetReader(registry: registry, handle: handle)
+                    capturedPreparation = preparation
+                    capturedManifestDigest = manifest.digest
+                    targetRegistry = registry
+                    targetReader = handle
+                } catch { captureFailure = error }
+            })
+        XCTAssertNil(captureFailure)
+        XCTAssertNil(aborted)
+        XCTAssertNil(fixture.abortedReceipt)
+        XCTAssertNil(fixture.receipt)
+        XCTAssertEqual(try XCTUnwrap(fixture.coordinator).generationID, originalGeneration)
+        let preparation = try XCTUnwrap(capturedPreparation)
+        let registry = try XCTUnwrap(targetRegistry)
+        let reader = try XCTUnwrap(targetReader)
+        let epoch = try GenerationEpochV1(
+            generationID: try XCTUnwrap(preparation.targetPointer).generationID,
+            generationManifestSHA256: try XCTUnwrap(preparation.targetPointer).generationManifestSHA256)
+        XCTAssertTrue(try registry.activeEpochs().contains(epoch))
+        XCTAssertEqual(try EraseIntentStore(applicationSupportURL: fixture.support).loadPreparation(), preparation)
+        XCTAssertNil(try EraseIntentStore(applicationSupportURL: fixture.support).load())
+        let manifest = try XCTUnwrap(
+            StoreMigrationJournalStoreV1(applicationSupportURL: fixture.support)
+                .loadManifestIfPresent(targetGenerationID: preparation.targetGenerationID))
+        XCTAssertEqual(manifest.digest, capturedManifestDigest)
+        XCTAssertTrue(FileManager.default.fileExists(atPath:
+            StoreGenerationFactory(applicationSupportURL: fixture.support)
+                .installedGenerationURL(id: preparation.targetGenerationID).path))
+        try reader.close()
+        XCTAssertFalse(try registry.activeEpochs().contains(epoch))
+    }
+
+    @MainActor
+    func testBeforePreparedWriteAbortClosesCapturedReadersBeforeReceiptAndPreservesOriginal() async throws {
+        let fixture = try await V915CompletedEraseFixture()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suiteName) }
+        let originalGeneration = try XCTUnwrap(fixture.coordinator).generationID
+        let originalRead = try await fixture.gate.beginContentRead(for: .startupRecovery)
+        let aborted = try await fixture.failErase(at: .beforePreparedWrite)
+        let receipt = try XCTUnwrap(aborted)
+        XCTAssertEqual(receipt.originalGenerationID, originalGeneration)
+        XCTAssertEqual(try XCTUnwrap(fixture.coordinator).generationID, originalGeneration)
+        XCTAssertNil(fixture.receipt)
+        XCTAssertNil(try EraseIntentStore(applicationSupportURL: fixture.support).load())
+        XCTAssertNil(try EraseIntentStore(applicationSupportURL: fixture.support).loadPreparation())
+        let target = StoreGenerationFactory(applicationSupportURL: fixture.support)
+            .installedGenerationURL(id: receipt.subject.newGenerationID)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: target.path))
+        try await fixture.lifecycle.abandonEraseAdmission(receipt)
+        try fixture.finishAbortedOperation(receipt)
+        await v915ExpectAccessFailure {
+            try await fixture.gate.validateContentRead(originalRead, for: .startupRecovery)
+        }
+        try await fixture.finishStartup()
+        try await fixture.gate.requireContentAccess()
+    }
+
+    @MainActor
     func testAbortedEraseAdmissionRestoresFreshDisabledAccessAndPreservesOriginalOwners() async throws {
         let fixture = try await V915CompletedEraseFixture()
         defer { fixture.defaults.removePersistentDomain(forName: fixture.suiteName) }
-        let originalGeneration = fixture.coordinator.generationID
+        let originalGeneration = try XCTUnwrap(fixture.coordinator).generationID
         let originalIngress = await fixture.lifecycle.protectedIngress()
         let originalRead = try await fixture.gate.beginContentRead(for: .startupRecovery)
         let aborted = try await fixture.failErase(at: .afterEmptyGenerationDirectoryCreate) {
@@ -181,7 +430,7 @@ extension V9_15AppLockLifecycleTests {
         }
         let receipt = try XCTUnwrap(aborted)
         XCTAssertEqual(receipt.originalGenerationID, originalGeneration)
-        XCTAssertEqual(fixture.coordinator.generationID, originalGeneration)
+        XCTAssertEqual(try XCTUnwrap(fixture.coordinator).generationID, originalGeneration)
         XCTAssertNil(fixture.receipt)
         XCTAssertNil(try EraseIntentStore(applicationSupportURL: fixture.support).load())
         XCTAssertNil(try EraseIntentStore(applicationSupportURL: fixture.support).loadPreparation())
@@ -194,6 +443,7 @@ extension V9_15AppLockLifecycleTests {
         XCTAssertEqual(retained?.reservation, receipt.reservation)
         await fixture.availability.setAvailable(true)
         try await fixture.lifecycle.abandonEraseAdmission(receipt)
+        try fixture.finishAbortedOperation(receipt)
         try fixture.originalControl.verifyNotificationStorage()
         let sameIngress = await fixture.lifecycle.protectedIngress()
         XCTAssertTrue(sameIngress === originalIngress)
@@ -227,6 +477,7 @@ extension V9_15AppLockLifecycleTests {
         }
         let receipt = try XCTUnwrap(aborted)
         try await fixture.lifecycle.abandonEraseAdmission(receipt)
+        try fixture.finishAbortedOperation(receipt)
         XCTAssertEqual(try fixture.originalControl.loadControl(), originalControl)
         XCTAssertEqual(try fixture.preferences.readAppLockSettingSnapshot(), originalSetting)
         let heldState = await fixture.gate.currentState()
@@ -253,6 +504,7 @@ extension V9_15AppLockLifecycleTests {
         let first = try await fixture.failErase(at: .afterEmptyGenerationDirectoryCreate)
         let firstReceipt = try XCTUnwrap(first)
         try await fixture.lifecycle.abandonEraseAdmission(firstReceipt)
+        try fixture.finishAbortedOperation(firstReceipt)
         let enabled = await fixture.gate.authenticate(trigger: .enableAppLock)
         XCTAssertEqual(enabled, .authenticated)
         let enableProof = try await fixture.gate.toggleAuthenticationToken(targetEnabled: true)
@@ -271,6 +523,7 @@ extension V9_15AppLockLifecycleTests {
         await v915ExpectAccessFailure { try await fixture.lifecycle.abandonEraseAdmission(firstReceipt) }
         try await fixture.gate.validateEraseAdoption(secondReceipt.reservation)
         try await fixture.lifecycle.abandonEraseAdmission(secondReceipt)
+        try fixture.finishAbortedOperation(secondReceipt)
         let unfinished = try await fixture.failErase(at: .afterPreparedWrite)
         XCTAssertNil(unfinished)
         XCTAssertNil(fixture.receipt)
@@ -278,6 +531,43 @@ extension V9_15AppLockLifecycleTests {
         await v915ExpectAccessFailure { try await fixture.lifecycle.abandonEraseAdmission(secondReceipt) }
         try await fixture.gate.validateEraseAdoption(try XCTUnwrap(fixture.reservation))
         await v915ExpectAccessFailure { try await fixture.gate.requireContentAccess() }
+    }
+
+    @MainActor
+    func testAbortedEraseRetryWaitsForExactOriginalReaderDrain() async throws {
+        let fixture = try await V915CompletedEraseFixture()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suiteName) }
+        var heldOriginal: StoreSessionCoordinator? = try XCTUnwrap(fixture.coordinator)
+        let firstAttempt = try await fixture.failErase(at: .afterEmptyGenerationDirectoryCreate)
+        let first = try XCTUnwrap(firstAttempt)
+        try await fixture.lifecycle.abandonEraseAdmission(first)
+        try fixture.finishAbortedOperation(first)
+
+        do {
+            try await fixture.router.retryChecks(accessGate: fixture.gate)
+            XCTFail("A live original SwiftData owner permitted a second startup")
+        } catch {
+            XCTAssertEqual(error as? GenerationLeaseRegistryFailureV1, .uncertainOwner)
+        }
+        withExtendedLifetime(heldOriginal) {
+            guard case .maintenance(.eraseInconsistent) = fixture.router.route else {
+                XCTFail("The Router published content while its old reader was live")
+                return
+            }
+            XCTAssertNil(fixture.receipt)
+        }
+        heldOriginal = nil
+
+        try await fixture.router.retryChecks(accessGate: fixture.gate)
+        guard case .ready = fixture.router.route else {
+            XCTFail("Checked old-reader retirement did not permit fresh startup")
+            return
+        }
+        let secondAttempt = try await fixture.failErase(at: .afterEmptyGenerationDirectoryCreate)
+        let second = try XCTUnwrap(secondAttempt)
+        XCTAssertNotEqual(second.subject, first.subject)
+        try await fixture.lifecycle.abandonEraseAdmission(second)
+        try fixture.finishAbortedOperation(second)
     }
 
     @MainActor

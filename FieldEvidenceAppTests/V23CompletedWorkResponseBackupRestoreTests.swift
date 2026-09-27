@@ -193,46 +193,104 @@ final class V23CompletedWorkResponseBackupRestoreTests: V23ProductionFourRootShe
     func testEraseRemovesResponsesAndActorSnapshots() async throws {
         let source = try await makeRecordedSource("sig1-restore-erase")
         defer { source.fixture.cleanUp() }
-        let restored = try await restore(source, name: "erase-target", mode: .replaceExisting)
-        XCTAssertEqual(try restored.session.modelContext.fetchCount(FetchDescriptor<SignoffSnapshotRow>()), 1)
-        XCTAssertGreaterThanOrEqual(
-            try restored.session.modelContext.fetchCount(FetchDescriptor<ActorSnapshotRow>()), 1
-        )
-
         let root = source.fixture.root.appendingPathComponent("erase-target", isDirectory: true)
+        let support = root.appendingPathComponent("Application Support", isDirectory: true)
+        let owner = V23EraseOperationHarnessV1(retainingRoot: root,
+            applicationSupportURL: support,
+            runtime: StoreKitEntitlementRuntimeV1(
+                initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }
+            ), profileRegistry: try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        weak var restoredSession: StoreGenerationSession?
+        weak var restoredContext: ModelContext?
+        weak var restoredContainer: ModelContainer?
+        // Verify restored content before its foreign reader can outlive the
+        // actual Router startup and Erase reader census.
+        do {
+            let restored = try await restore(source, name: "erase-target", mode: .replaceExisting)
+            XCTAssertEqual(restored.support, support)
+            restoredSession = restored.session
+            restoredContext = restored.session.modelContext
+            restoredContainer = restored.session.modelContext.container
+            XCTAssertEqual(try restored.session.modelContext.fetchCount(FetchDescriptor<SignoffSnapshotRow>()), 1)
+            XCTAssertGreaterThanOrEqual(
+                try restored.session.modelContext.fetchCount(FetchDescriptor<ActorSnapshotRow>()), 1
+            )
+        }
+        guard restoredSession == nil, restoredContext == nil, restoredContainer == nil else {
+            XCTFail("Restored fixture aliases must drain before authentic Router startup")
+            throw V23EraseOperationHarnessV1.Failure.drainPending
+        }
         let caches = root.appendingPathComponent("caches", isDirectory: true)
         let temporary = root.appendingPathComponent("temporary", isDirectory: true)
         try FileManager.default.createDirectory(at: caches, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true)
-        let coordinator = StoreSessionCoordinator(session: restored.session)
-        let diagnostics = DiagnosticsStore(applicationSupportURL: restored.support)
-        await diagnostics.prepare()
         let suiteName = "SIG1-erase-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let erase = EraseAllService(
-            applicationSupportURL: restored.support,
-            cachesDirectoryURL: caches,
-            temporaryDirectoryURL: temporary,
-            userDefaults: defaults,
-            bundleIdentifier: suiteName
-        )
-        let erased = try await erase.erase(
-            confirmation: EraseAllService.requiredConfirmation,
-            coordinator: coordinator,
-            diagnosticsStore: diagnostics
-        ) { replacement in
-            coordinator.activate(session: replacement)
+        var admittedReservation: AppAccessGateV1.EraseAdoptionToken?
+        var completedReceipts: [CompletedEraseReceiptV1] = []
+        weak var originalCoordinator: StoreSessionCoordinator?
+        weak var originalContext: ModelContext?
+        weak var originalContainer: ModelContainer?
+        try await { @MainActor () async throws -> Void in
+            let (coordinator, diagnostics) = try await owner.startOriginalOwner()
+            await diagnostics.prepare()
+            try await owner.admit(coordinator: coordinator)
+            let erase = try owner.configure(EraseAllService(
+                applicationSupportURL: support,
+                cachesDirectoryURL: caches,
+                temporaryDirectoryURL: temporary,
+                userDefaults: defaults,
+                bundleIdentifier: "com.palatis3.fieldrecord",
+                defaultsDomainName: suiteName,
+                admitErase: { subject in
+                    let reservation = try await owner.admitSubject(subject)
+                    admittedReservation = reservation
+                    return reservation
+                },
+                didCompleteErase: { completedReceipts.append($0) }
+            ))
+            originalCoordinator = coordinator
+            originalContext = coordinator.modelContext
+            originalContainer = coordinator.modelContext.container
+            try await owner.prepareCompatibility(service: erase,
+                confirmation: EraseAllService.requiredConfirmation,
+                coordinator: coordinator, diagnostics: diagnostics)
+        }()
+        guard originalCoordinator == nil, originalContext == nil, originalContainer == nil else {
+            XCTFail("Original aliases must drain before cleanup")
+            throw V23EraseOperationHarnessV1.Failure.drainPending
         }
-        let context = erased.session.modelContext
+        XCTAssertTrue(completedReceipts.isEmpty)
+        try await owner.completeCleanup()
+        XCTAssertEqual(completedReceipts.count, 1)
+        let deliveredReceipt = try XCTUnwrap(completedReceipts.first)
+        let reservation = try XCTUnwrap(admittedReservation)
+        XCTAssertEqual(deliveredReceipt.reservation, reservation)
+        XCTAssertEqual(deliveredReceipt.subject, reservation.subject)
+        try await owner.adoptCompletedReceipt()
+        try await owner.activateFreshOrdinarySession()
+        defer { owner.router.entitlementProcessor?.stop() }
+        guard case let .ready(erased, _, _) = owner.router.route else {
+            return XCTFail("Completed Erase must publish a fresh ordinary session.")
+        }
+        let context = erased.modelContext
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<SignoffSnapshotRow>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ActorSnapshotRow>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<Report>()), 0)
-        let resolver = makeResolver(for: erased.session)
+        let resolver = CompletedWorkSubjectResolverV1(
+            modelContext: erased.modelContext,
+            workspaceID: erased.workspaceID,
+            generationID: erased.generationID,
+            generationRootURL: erased.generationRootURL,
+            signPack: .illuminatedSignV1
+        )
         XCTAssertTrue(try resolver.currentTips().isEmpty)
         XCTAssertTrue(try CompletedWorkResponseHistoryReaderV1(resolver: resolver).boundResponseCounts().isEmpty)
         let erasedKey = try CompletedWorkSubjectKeyV1(
-            workspaceID: erased.session.workspaceID,
+            workspaceID: erased.workspaceID,
             subjectID: source.proof.reportID,
             subjectRevision: source.proof.chainPosition
         )

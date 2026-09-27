@@ -7,6 +7,8 @@ import XCTest
 
 @MainActor
 final class V23ProductionCheckRunnerItemHostTests: XCTestCase {
+    private static var retainedAdmissionRouters: [StartupRouter] = []
+    private static var retainedAdmissionServices: [EraseAllService] = []
     func testPhotoDiscardPreparationReopensOriginalPendingReceipt() async throws {
         for phase in ["awaiting", "raw", "pair"] {
             try await withAsyncFrozenBeginFixture("photo-discard-\(phase)", entry: .check,
@@ -436,7 +438,12 @@ final class V23ProductionCheckRunnerItemHostTests: XCTestCase {
     func testStartupPrivateRetirementPreservesInterruptedFinalizationAndReachesEraseAdmission() async throws {
         for committed in [false, true] {
             try await withAsyncFrozenBeginFixture("private-recovery-\(committed)", entry: .check,
-                storedTimeZoneID: "America/Chicago", appDirectoryLayout: true) { h in
+                storedTimeZoneID: "America/Chicago", appDirectoryLayout: true,
+                registerRootTeardown: { root in
+                    // The actual reopened Router/service stay owned through host exit,
+                    // including any failed close. Never delete their root in this fixture.
+                    print("V23_ITEM_HOST_ADMISSION_RETAINED root=\(root.path)")
+                }) { h in
                 let draft = try await makeFrozenParentFinalizationDraft(h,
                     selection: .couldNotVerify(reasonKey: "conditions_changed", note: nil), photoCount: 0)
                 let runner = try CheckRunnerCoordinator(modelContext: h.coordinator.modelContext,
@@ -498,6 +505,10 @@ final class V23ProductionCheckRunnerItemHostTests: XCTestCase {
                 try h.closeCoordinator()
 
                 let router = StartupRouter(applicationSupportURL: h.root)
+                Self.retainedAdmissionRouters.append(router)
+                let gate = AppAccessGateV1(setting: .absentDisabled,
+                    authentication: FrozenBeginAuthentication(), clock: h.clock, identifiers: h.ids)
+                try router.bindStartupAccessGate(gate)
                 var preparationCount = 0
                 var startupDiagnostics: [String] = []
                 router.startupFailureDiagnosticForTesting = { startupDiagnostics.append($0) }
@@ -507,7 +518,7 @@ final class V23ProductionCheckRunnerItemHostTests: XCTestCase {
                     XCTAssertEqual(try Data(contentsOf: snapshot), snapshotBytes)
                 }
                 defer { router.beforePrivatePreparationCleanupForTesting = nil }
-                await router.startIfNeeded()
+                try await router.startIfNeeded(accessGate: gate)
                 guard case let .ready(store, diagnostics, _) = router.route else {
                     return XCTFail("Private retirement must leave canonical interrupted finalization recoverable " + startupDiagnosis(router, diagnostics: startupDiagnostics, boundary: preparationCount))
                 }
@@ -543,15 +554,25 @@ final class V23ProductionCheckRunnerItemHostTests: XCTestCase {
                         admissionCount += 1
                         throw ItemHostInjectedFailure.stopAtEraseAdmission
                     })
+                let ticket = try await router.beginEraseOperation(coordinator: store, accessGate: gate)
+                let operation = try router.eraseRetirementOperation(for: ticket)
+                let configured = try router.configureEraseService(eraser, operation: operation)
+                Self.retainedAdmissionServices.append(configured)
                 do {
-                    _ = try await eraser.erase(confirmation: "ERASE", coordinator: store,
-                        diagnosticsStore: diagnostics,
+                    _ = try await configured.erase(confirmation: "ERASE", coordinator: store,
+                        diagnosticsStore: diagnostics, operation: operation,
                         activate: { _ in XCTFail("Admission stop must prevent activation") },
                         lifecycleDependencies: store.packageLifecycleDependencies())
                     XCTFail("The admission probe must not perform Erase")
                 } catch {
                     XCTAssertEqual(error as? ItemHostInjectedFailure, .stopAtEraseAdmission)
                 }
+                try router.cancelUnadmittedErase(ticket)
+                try await router.startIfNeeded(accessGate: gate)
+                guard case .ready(let republished, _, _) = router.route else {
+                    return XCTFail("Unadmitted Erase must return to ordinary authenticated startup")
+                }
+                XCTAssertTrue(republished === store)
                 XCTAssertEqual(admissionCount, 1)
                 XCTAssertEqual(try store.workspaceWriter.currentRevision(), revision)
                 XCTAssertEqual(try store.workspaceWriter.sourceMutationHistorySnapshot(), history)

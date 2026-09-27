@@ -88,7 +88,7 @@ struct AssetLocatorCoordinatorV1: Sendable {
     func preview(action:LocatorBindingActionV1,before:AssetLocatorV1?,after:AssetLocatorV1,replacement:AssetLocatorV1?,generatedAt:Date)throws->LocatorBindingPreviewV1{let value=try LocatorBindingPreviewV1(workspaceID:after.workspaceID,action:action,before:try before?.reference,after:after.reference,replacement:try replacement?.reference,generatedAt:generatedAt);try value.validate(before:before,after:after,replacement:replacement);return value}
 }
 
-protocol AssetLocatorMutationCommittingV1: AnyObject {
+@MainActor protocol AssetLocatorMutationCommittingV1: AnyObject {
     func commitAssetLocator(_ mutation: AssetLocatorMutationV1) throws -> MutationReceiptV1
     func durableReceipt(mutationID: MutationIDV1) throws -> MutationReceiptV1?
     func manualShortCodeIsAvailable(_ code: ManualShortCodeV1, workspaceID: WorkspaceID) throws -> Bool
@@ -117,7 +117,7 @@ struct ManualShortCodeIssuanceCoordinatorV1 {
 
     /// Generates a workspace-unique candidate. Persist/retry this exact envelope
     /// through the existing resumable operation boundary if the process can die.
-    func prepare(_ operation: ManualShortCodeIssuanceOperationV1) async throws
+    @MainActor func prepare(_ operation: ManualShortCodeIssuanceOperationV1) async throws
         -> ManualShortCodeIssuanceRequestV1 {
         try operation.validate()
         if let durable = try writer.durableReceipt(mutationID: operation.mutationID) {
@@ -164,7 +164,7 @@ struct ManualShortCodeIssuanceCoordinatorV1 {
         throw AssetLabelContractFailureV1.shortCodeCollisionLimitReached
     }
 
-    func issue(_ operation: ManualShortCodeIssuanceOperationV1) async throws
+    @MainActor func issue(_ operation: ManualShortCodeIssuanceOperationV1) async throws
         -> ManualShortCodeIssuanceReceiptV1 {
         let request = try await prepare(operation)
         return try await issue(request)
@@ -172,7 +172,7 @@ struct ManualShortCodeIssuanceCoordinatorV1 {
 
     /// Idempotent prepared-request path. A durable matching C27 receipt wins;
     /// mismatched MutationID reuse is rejected by the canonical receipt wrapper.
-    func issue(_ request: ManualShortCodeIssuanceRequestV1) async throws
+    @MainActor func issue(_ request: ManualShortCodeIssuanceRequestV1) async throws
         -> ManualShortCodeIssuanceReceiptV1 {
         try request.validate()
         let bundle = try bindingBundle(for: request)

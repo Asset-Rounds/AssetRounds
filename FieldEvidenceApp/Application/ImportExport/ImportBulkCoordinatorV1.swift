@@ -78,6 +78,15 @@ final class ImportBulkCoordinatorV1 {
     private let writer: WorkspaceWriterV1
     private let lifecycle: ImportBulkLifecycleAdapterV1
     private let materializers: [ImportCommandKindV1: ImportBulkMaterializerRegistrationV1]
+#if DEBUG
+    /// One-shot seam at the actual effect-before-C08-receipt interruption edge.
+    /// It never rewrites a durable session or suppresses the writer effect.
+    private var interruptAfterWriterEffectBeforeChunkReceiptForTesting = false
+
+    func interruptAfterNextWriterEffectBeforeChunkReceiptForTesting() {
+        interruptAfterWriterEffectBeforeChunkReceiptForTesting = true
+    }
+#endif
 
     /// ImportSourceV1 is external bounded scratch; zero canonical writes occur
     /// during preview and stable plan identities retain no source bytes.
@@ -221,6 +230,33 @@ final class ImportBulkCoordinatorV1 {
               durable == session else {
             throw ImportBulkFailureV1.staleRevision
         }
+        // A fully completed retry is a read-only acknowledgement of the
+        // exact durable plan. It must not rewind the session or reissue a
+        // writer command merely to replay an immutable receipt.
+        if session.state == .completed {
+            guard try session.firstMissingReceiptChunkIndex(in: bulkPlan) == nil,
+                  session.chunkReceipts.count == bulkPlan.chunks.count else {
+                throw ImportBulkFailureV1.changedInputQuarantined
+            }
+            for (chunkIndex, recorded) in session.chunkReceipts.enumerated() {
+                guard recorded.chunkIndex == chunkIndex,
+                      try lifecycle.durableReceipt(
+                          workspaceID: bulkPlan.workspaceID,
+                          bulkPlan: bulkPlan,
+                          chunkIndex: chunkIndex
+                      ) == recorded else {
+                    throw ImportBulkFailureV1.changedInputQuarantined
+                }
+                for mutationID in recorded.committedMutationIDs {
+                    guard let effect = try writer.durableReceipt(mutationID: mutationID),
+                          effect.mutationID == mutationID,
+                          effect.identity.workspaceID == session.workspaceID else {
+                        throw ImportBulkFailureV1.changedInputQuarantined
+                    }
+                }
+            }
+            return session
+        }
         guard session.state == .active || session.state == .cancellationRequested else {
             throw ImportBulkFailureV1.invalidValue
         }
@@ -250,7 +286,7 @@ final class ImportBulkCoordinatorV1 {
                   receipt.expectedRevision.generationID == current.generationID else {
                 throw ImportBulkFailureV1.changedInputQuarantined
             }
-            let expected = try WorkspaceExpectedRevisionV1(
+            let replayExpected = try WorkspaceExpectedRevisionV1(
                 workspaceID: receipt.expectedRevision.workspaceID,
                 generationID: receipt.expectedRevision.generationID,
                 writerInstanceID: current.writerInstanceID,
@@ -261,6 +297,22 @@ final class ImportBulkCoordinatorV1 {
             try lifecycle.validate(registrationFor: command.kind)
             guard let registration = materializers[command.kind] else {
                 throw ImportBulkFailureV1.unsupportedSchema
+            }
+            let specialized = registration.materializer
+                as? any ImportSessionTransitionMaterializingV1
+            let expected: WorkspaceExpectedRevisionV1
+            if let specialized {
+                expected = try specialized.expectedRevisionAfterSessionStart(
+                    session: session,
+                    sessionStartReceipt: lifecycle.authenticatedInitialSessionReceipt(session),
+                    liveRevision: current,
+                    aggregateReceipt: receipt
+                )
+                guard expected == replayExpected else {
+                    throw ImportBulkFailureV1.changedInputQuarantined
+                }
+            } else {
+                expected = replayExpected
             }
             let context = try ImportCommandMaterializationContextV1(
                 plan: importPlan,
@@ -275,22 +327,65 @@ final class ImportBulkCoordinatorV1 {
             guard registration.allowedWorkspaceCommandKinds.contains(request.command.kind) else {
                 throw ImportBulkFailureV1.unsupportedSchema
             }
-            let replayIdentity = try WorkspaceReplicaIdentityV1(
-                workspaceID: receipt.identity.workspaceID,
-                replicaID: receipt.identity.replicaID
-            )
-            let replayEnvelope = try MutationEnvelopeV1(request: request, identity: replayIdentity)
-            guard receipt.mutationID == request.mutationID,
-                  receipt.expectedRevision == replayEnvelope.expectedRevision,
-                  receipt.commandBodySHA256 == replayEnvelope.commandBodySHA256,
-                  receipt.envelopeSHA256 == (try replayEnvelope.canonicalSHA256()),
-                  receipt.sourceKind == replayEnvelope.sourceKind,
-                  receipt.contentDependencyIDs == replayEnvelope.contentDependencyIDs,
-                  receipt.causationMutationID == replayEnvelope.causationMutationID,
-                  receipt.correlationID == replayEnvelope.correlationID else {
-                throw ImportBulkFailureV1.changedInputQuarantined
+            if let specialized {
+                // The C32 aggregate command embeds a process-local writer
+                // instance. A cold writer can authenticate the historical
+                // effect from its checked journal; rebuilding the command
+                // with its new instance would change the durable digest.
+                let records = try writer.sourceMutationHistorySnapshot().receipts
+                var matched: (MutationEnvelopeV1, MutationReceiptV1)?
+                for record in records {
+                    let envelope = try MutationEnvelopeV1.decodeCanonical(
+                        from: record.envelopeData)
+                    guard envelope.mutationID == request.mutationID else { continue }
+                    guard matched == nil else {
+                        throw ImportBulkFailureV1.changedInputQuarantined
+                    }
+                    matched = (
+                        envelope,
+                        try MutationReceiptV1.decodeCanonical(from: record.receiptData)
+                    )
+                }
+                guard let (recorded, recordedReceipt) = matched,
+                      recordedReceipt == receipt,
+                      receipt.mutationID == request.mutationID,
+                      recorded.mutationID == request.mutationID,
+                      recorded.workspaceID == receipt.identity.workspaceID,
+                      recorded.replicaID == receipt.identity.replicaID,
+                      recorded.generationID == expected.generationID,
+                      recorded.commandKind == request.command.kind,
+                      recorded.expectedRevision
+                        == (try MutationPortableExpectedRevisionV1(expected)),
+                      receipt.expectedRevision == recorded.expectedRevision,
+                      receipt.envelopeSHA256 == (try recorded.canonicalSHA256()),
+                      receipt.commandBodySHA256 == recorded.commandBodySHA256,
+                      receipt.sourceKind == recorded.sourceKind,
+                      receipt.contentDependencyIDs == recorded.contentDependencyIDs,
+                      receipt.causationMutationID == recorded.causationMutationID,
+                      receipt.correlationID == recorded.correlationID else {
+                    throw ImportBulkFailureV1.changedInputQuarantined
+                }
+                try specialized.requireRecordedAggregateCommand(
+                    recorded, receipt: receipt, reconstructedRequest: request)
+            } else {
+                let replayIdentity = try WorkspaceReplicaIdentityV1(
+                    workspaceID: receipt.identity.workspaceID,
+                    replicaID: receipt.identity.replicaID
+                )
+                let replayEnvelope = try MutationEnvelopeV1(
+                    request: request, identity: replayIdentity)
+                guard receipt.mutationID == request.mutationID,
+                      receipt.expectedRevision == replayEnvelope.expectedRevision,
+                      receipt.commandBodySHA256 == replayEnvelope.commandBodySHA256,
+                      receipt.envelopeSHA256 == (try replayEnvelope.canonicalSHA256()),
+                      receipt.sourceKind == replayEnvelope.sourceKind,
+                      receipt.contentDependencyIDs == replayEnvelope.contentDependencyIDs,
+                      receipt.causationMutationID == replayEnvelope.causationMutationID,
+                      receipt.correlationID == replayEnvelope.correlationID else {
+                    throw ImportBulkFailureV1.changedInputQuarantined
+                }
+                _ = try writer.execute(request)
             }
-            _ = try writer.execute(request)
             return try recordCommittedChunk(
                 session: session,
                 bulkPlan: bulkPlan,
@@ -324,7 +419,19 @@ final class ImportBulkCoordinatorV1 {
         guard let registration = materializers[command.kind] else {
             throw ImportBulkFailureV1.unsupportedSchema
         }
-        let expected = WorkspaceExpectedRevisionV1(snapshot: try writer.currentRevision())
+        let current = try writer.currentRevision()
+        let expected: WorkspaceExpectedRevisionV1
+        if let specialized = registration.materializer
+            as? any ImportSessionTransitionMaterializingV1 {
+            expected = try specialized.expectedRevisionAfterSessionStart(
+                session: session,
+                sessionStartReceipt: lifecycle.authenticatedInitialSessionReceipt(session),
+                liveRevision: current,
+                aggregateReceipt: nil
+            )
+        } else {
+            expected = WorkspaceExpectedRevisionV1(snapshot: current)
+        }
         let context = try ImportCommandMaterializationContextV1(
             plan: importPlan,
             rowIdentity: row.identity,
@@ -343,6 +450,12 @@ final class ImportBulkCoordinatorV1 {
         guard try writer.durableReceipt(mutationID: request.mutationID) != nil else {
             throw ImportBulkFailureV1.staleRevision
         }
+#if DEBUG
+        if interruptAfterWriterEffectBeforeChunkReceiptForTesting {
+            interruptAfterWriterEffectBeforeChunkReceiptForTesting = false
+            throw ImportBulkFailureV1.interruptedAfterEffectForTesting
+        }
+#endif
         return try recordCommittedChunk(
             session: session,
             bulkPlan: bulkPlan,

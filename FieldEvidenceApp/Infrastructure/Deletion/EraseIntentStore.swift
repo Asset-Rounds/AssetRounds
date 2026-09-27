@@ -164,6 +164,7 @@ enum PlacementPoseEraseIntentStorePolicyV1 {
 }
 
 enum EraseIntentStoreError: Error, Equatable {
+    case retirementPolicyEffectUnavailable
     case invalidAuthority
     case invalidIntent
     case invalidPreparation
@@ -453,6 +454,12 @@ private enum ErasePreparationCodecV2 {
 /// Descriptor-pinned authority for the erase preparation and intent journals.
 /// Canonical leaves are never followed through symbolic links; replacement is
 /// an atomic exchange whose displaced bytes must equal the expected value.
+#if DEBUG
+struct ErasePostRetiredIntentSnapshotV1: Equatable {
+    let rootDigest: String
+}
+#endif
+
 final class EraseIntentStore {
     private struct Identity: Equatable {
         let device: dev_t
@@ -470,6 +477,9 @@ final class EraseIntentStore {
     private let applicationSupportIdentity: Identity
     private let eraseDescriptor: Int32
     private let eraseIdentity: Identity
+#if DEBUG
+    private let postRetiredIO = EraseAbortCheckedSnapshotIOV1()
+#endif
 
     /// Completed cleanup has removed the entire journal root. Observing that
     /// postcondition must not initialize a new journal namespace.
@@ -604,6 +614,291 @@ final class EraseIntentStore {
     deinit {
         _ = Darwin.close(eraseDescriptor)
         _ = Darwin.close(applicationSupportDescriptor)
+    }
+
+    /// The fixed retirement edge must never run load's pending-file repairs
+    /// while the transferred registry exclusion is held.
+    struct RetirementObservation {
+        fileprivate let storeIdentity: ObjectIdentifier
+        fileprivate let device: dev_t
+        fileprivate let inode: ino_t
+        fileprivate let data: Data
+        let intent: EraseIntentV1
+    }
+
+    func captureRetirementObservation(expected: EraseIntentV1) throws
+        -> RetirementObservation {
+        guard expected.phase == .sessionActivated || expected.phase == .cleanupComplete,
+              EraseIntentCodecV1.valid(expected) else {
+            throw EraseIntentStoreError.invalidIntent
+        }
+        let leaf = try readRetirementCanonical()
+        guard try decode(leaf.data) == expected else {
+            throw EraseIntentStoreError.intentMismatch
+        }
+        return RetirementObservation(storeIdentity: ObjectIdentifier(self),
+            device: leaf.identity.device, inode: leaf.identity.inode,
+            data: leaf.data, intent: expected)
+    }
+
+    func requireRetirementObservation(_ observation: RetirementObservation) throws {
+        guard observation.storeIdentity == ObjectIdentifier(self) else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let leaf = try readRetirementCanonical()
+        guard leaf.identity.device == observation.device,
+              leaf.identity.inode == observation.inode,
+              leaf.data == observation.data,
+              try decode(leaf.data) == observation.intent else {
+            throw EraseIntentStoreError.intentMismatch
+        }
+    }
+
+#if DEBUG
+    /// Original held-root, nonrepairing intent/preparation observation at the
+    /// post-retirement fault. It reuses the genuine retirement observation and
+    /// checked descriptor reads, then binds the complete exact Erase root.
+    func postRetiredSnapshot(
+        observation: RetirementObservation
+    ) throws -> ErasePostRetiredIntentSnapshotV1 {
+        try requireRetirementObservation(observation)
+        try verifyAuthority()
+        let names = try postRetiredIO.names(in: eraseDescriptor)
+        guard names == [Self.intentName, Self.preparationName].sorted() else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let digest = try postRetiredIO.postRetiredTree(
+            parent: applicationSupportDescriptor, name: Self.directoryName)
+        try requireRetirementObservation(observation)
+        guard try postRetiredIO.names(in: eraseDescriptor) == names,
+              try postRetiredIO.postRetiredTree(
+                  parent: applicationSupportDescriptor,
+                  name: Self.directoryName) == digest else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        return ErasePostRetiredIntentSnapshotV1(rootDigest: digest)
+    }
+#endif
+
+    // An ambiguous close is retained as an unresolved actual descriptor;
+    // its integer is never retried or relabeled closed.
+    private var retirementUncertainReadDescriptors: [Int32] = []
+
+    private func readRetirementCanonical() throws -> (data: Data, identity: Identity) {
+        guard let value = try readRetirementLeaf(Self.intentName, kind: .journal) else {
+            throw EraseIntentStoreError.intentMissing
+        }
+        return value
+    }
+
+#if DEBUG
+    /// Admission to a test-host owner shutdown must observe the original
+    /// canonical intent without `load()` repairing either pending leaf. The
+    /// checked retirement reader retains an ambiguous descriptor close and
+    /// throws; this method never promotes or removes a journal entry.
+    func requireLiveOriginalColdShutdownIntent(
+        sameOperationAs expected: EraseIntentV1
+    ) throws {
+        _ = try readLiveOriginalColdShutdownIntent(sameOperationAs: expected)
+    }
+
+    /// Returns the exact canonical value from the retained original Store.
+    /// No fresh owner is opened and no pending leaf is repaired.
+    func readLiveOriginalColdShutdownIntent(
+        sameOperationAs expected: EraseIntentV1,
+        requiringPhase: EraseIntentPhaseV1? = nil
+    ) throws -> EraseIntentV1 {
+        guard EraseIntentCodecV1.valid(expected),
+              expected.phase != .cleanupComplete else {
+            throw EraseIntentStoreError.invalidIntent
+        }
+        func requireNoPendingPreparation() throws {
+            try verifyAuthority()
+            var pending = stat()
+            let result = Darwin.fstatat(
+                eraseDescriptor, Self.preparationNextName, &pending,
+                AT_SYMLINK_NOFOLLOW
+            )
+            let lookupError = errno
+            guard result != 0, lookupError == ENOENT else {
+                throw EraseIntentStoreError.invalidPreparation
+            }
+            try verifyAuthority()
+        }
+        try requireNoPendingPreparation()
+        let leaf = try readRetirementCanonical()
+        let current = try decode(leaf.data)
+        guard current.phase != .cleanupComplete,
+              requiringPhase.map({ current.phase == $0 }) ?? true,
+              sameOperation(current, expected) else {
+            throw EraseIntentStoreError.intentMismatch
+        }
+        try requireNoPendingPreparation()
+        return current
+    }
+#endif
+
+    private func readRetirementLeaf(_ name: String, kind: OwnedFileKindV1) throws
+        -> (data: Data, identity: Identity)? {
+        guard name == Self.intentName || name == Self.preparationName else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        guard retirementUncertainReadDescriptors.isEmpty else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try AssetLocatorEraseIntentEnrollmentV1.validate()
+        try verifyAuthority()
+        var pending = stat()
+        guard Darwin.fstatat(eraseDescriptor, Self.nextName, &pending,
+                             AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else {
+            throw EraseIntentStoreError.invalidIntent
+        }
+        let descriptor = Darwin.openat(eraseDescriptor, name,
+                                       O_RDONLY | O_NOFOLLOW | O_NONBLOCK)
+        if descriptor < 0, errno == ENOENT { return nil }
+        guard descriptor >= 0 else { throw EraseIntentStoreError.invalidAuthority }
+        var closeAttempted = false
+        do {
+        var before = stat()
+        guard Darwin.fstat(descriptor, &before) == 0,
+              (before.st_mode & S_IFMT) == S_IFREG, before.st_nlink == 1,
+              before.st_size >= 0, before.st_size <= 1_048_576 else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let identity = Identity(device: before.st_dev, inode: before.st_ino)
+        try verifyLeaf(name, descriptor: descriptor, expected: identity)
+        let policy = try ProtectedFilePolicyV1.observeTemporalPolicy(kind,
+            at: applicationSupportURL.appendingPathComponent(Self.directoryName)
+                .appendingPathComponent(name))
+        guard policy.device == UInt64(before.st_dev),
+              policy.inode == UInt64(before.st_ino), policy.linkCount == 1 else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        // Pending Simulator facts are not a protection receipt. The genuine
+        // one-shot effect owner is a separate composition dependency.
+        guard policy.state == .strictComplete else {
+            throw EraseIntentStoreError.retirementPolicyEffectUnavailable
+        }
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 16 * 1024)
+        while true {
+            let count = buffer.withUnsafeMutableBytes {
+                Darwin.read(descriptor, $0.baseAddress, $0.count)
+            }
+            if count > 0 {
+                guard data.count <= 1_048_576 - count else { throw EraseIntentStoreError.invalidAuthority }
+                data.append(contentsOf: buffer.prefix(count))
+            }
+            else if count == 0 { break }
+            else if errno != EINTR { throw EraseIntentStoreError.invalidAuthority }
+        }
+        var after = stat()
+        guard Darwin.fstat(descriptor, &after) == 0,
+              before.st_dev == after.st_dev, before.st_ino == after.st_ino,
+              before.st_size == after.st_size, data.count == Int(after.st_size),
+              after.st_nlink == 1,
+              Darwin.fstatat(eraseDescriptor, Self.nextName, &pending,
+                             AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try verifyLeaf(name, descriptor: descriptor, expected: identity)
+        try verifyAuthority()
+        closeAttempted = true
+        guard Darwin.close(descriptor) == 0 else {
+            retirementUncertainReadDescriptors.append(descriptor)
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        return (data, identity)
+        } catch {
+            if !closeAttempted, Darwin.close(descriptor) != 0 {
+                retirementUncertainReadDescriptors.append(descriptor)
+            }
+            throw error
+        }
+    }
+
+    /// The retirement capability belongs to one physical support root. This
+    /// check opens no descriptors and grants no phase or deletion authority.
+    @MainActor
+    private func requireRetirementRoot(_ retirement: ErasedRegistryRetirementProofV1) throws {
+        let subject = retirement.binding.subject
+        guard applicationSupportURL.standardizedFileURL == subject.applicationSupportURL.standardizedFileURL,
+              Int64(applicationSupportIdentity.device) == subject.applicationSupportDevice,
+              UInt64(applicationSupportIdentity.inode) == subject.applicationSupportInode else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try Self.requireDirectory(applicationSupportDescriptor, identity: applicationSupportIdentity)
+        try Self.requireDirectory(eraseDescriptor, identity: eraseIdentity)
+        var namedSupport = stat(), namedErase = stat()
+        guard Darwin.lstat(applicationSupportURL.path, &namedSupport) == 0,
+              namedSupport.st_mode & S_IFMT == S_IFDIR,
+              namedSupport.st_dev == applicationSupportIdentity.device,
+              namedSupport.st_ino == applicationSupportIdentity.inode,
+              Darwin.fstatat(applicationSupportDescriptor, Self.directoryName,
+                &namedErase, AT_SYMLINK_NOFOLLOW) == 0,
+              namedErase.st_mode & S_IFMT == S_IFDIR,
+              namedErase.st_dev == eraseIdentity.device,
+              namedErase.st_ino == eraseIdentity.inode else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+
+    @MainActor
+    func removePreparationAfterRegistryRetirement(expectedIntent: EraseIntentV1,
+        retirement: ErasedRegistryRetirementProofV1) throws {
+        try requireRetirementRoot(retirement)
+        try retirement.requireCompletionControlRemoval(expected: expectedIntent)
+        guard let value = try readRetirementLeaf(Self.preparationName, kind: .journal) else {
+            try retirement.requireAlreadyAbsentPreparation(expected: expectedIntent)
+            try requireRetirementRoot(retirement)
+            try retirement.requireCompletionControlRemoval(expected: expectedIntent)
+            return
+        }
+        let preparation = try decodePreparation(value.data)
+        guard preparation.matches(expectedIntent), try encodePreparation(preparation) == value.data else {
+            throw EraseIntentStoreError.preparationMismatch
+        }
+        try removeRetirementExact(Self.preparationName, expected: value,
+            expectedIntent: expectedIntent, retirement: retirement)
+        try requireRetirementRoot(retirement)
+        try retirement.requireCompletionControlRemoval(expected: expectedIntent)
+    }
+
+    @MainActor
+    func removeAfterRegistryRetirement(expected: EraseIntentV1,
+        retirement: ErasedRegistryRetirementProofV1) throws {
+        try requireRetirementRoot(retirement)
+        try retirement.requireCompletionControlRemoval(expected: expected)
+        let value = try readRetirementCanonical()
+        guard try encode(expected) == value.data, try decode(value.data) == expected else {
+            throw EraseIntentStoreError.intentMismatch
+        }
+        try removeRetirementExact(Self.intentName, expected: value,
+            expectedIntent: expected, retirement: retirement)
+        try requireRetirementRoot(retirement)
+        try retirement.requireCompletionControlRemoval(expected: expected)
+    }
+
+    @MainActor
+    private func removeRetirementExact(_ name: String,
+        expected: (data: Data, identity: Identity), expectedIntent: EraseIntentV1,
+        retirement: ErasedRegistryRetirementProofV1) throws {
+        try requireRetirementRoot(retirement)
+        try retirement.requireCompletionControlRemoval(expected: expectedIntent)
+        guard let current = try readRetirementLeaf(name, kind: .journal),
+              current.identity == expected.identity, current.data == expected.data else {
+            throw EraseIntentStoreError.cleanupFailed
+        }
+        try requireRetirementRoot(retirement)
+        try retirement.requireCompletionControlRemoval(expected: expectedIntent)
+        guard Darwin.unlinkat(eraseDescriptor, name, 0) == 0,
+              Darwin.fsync(eraseDescriptor) == 0,
+              try readRetirementLeaf(name, kind: .journal) == nil else {
+            throw EraseIntentStoreError.cleanupFailed
+        }
+        try requireRetirementRoot(retirement)
+        try retirement.requireCompletionControlRemoval(expected: expectedIntent)
+        try verifyAuthority()
     }
 
     func load() throws -> EraseIntentV1? {
@@ -944,6 +1239,22 @@ final class EraseIntentStore {
         try registry.withNoMigrationReservation {
             try replaceWithoutMigrationReservation(expected: expected, with: replacement)
         }
+    }
+
+    /// Fixed Erase completion boundary after the original registry namespace
+    /// has been retired. The actual support EX and exact operation proof take
+    /// the place of creating a new registry; canonical CAS remains unchanged.
+    @MainActor
+    func replaceAfterRegistryRetirement(
+        expected: EraseIntentV1,
+        with replacement: EraseIntentV1,
+        retirement: ErasedRegistryRetirementProofV1
+    ) throws {
+        try requireRetirementRoot(retirement)
+        try retirement.requireCleanupPhaseWrite(expected: expected, replacement: replacement)
+        try replaceWithoutMigrationReservation(expected: expected, with: replacement)
+        try requireRetirementRoot(retirement)
+        try retirement.requireCleanupPhaseWrite(expected: expected, replacement: replacement)
     }
 
     private func replaceWithoutMigrationReservation(

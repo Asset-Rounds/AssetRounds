@@ -1042,57 +1042,72 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
         return child
     }
 
+    /// Retains the genuine session operation across the host's private source,
+    /// raw publication, pair preparation and all cleanup/catch tails. This is
+    /// lifetime accounting only; every existing access/publication check stays.
+    func withPhotoProducer<Value: Sendable>(
+        _ body: @MainActor () async throws -> Value
+    ) async throws -> Value {
+        try await currentSession().withTemporalProducer(body)
+    }
+
     /// The original pending checkpoint supplies every durable identity and
     /// timestamp. Exact retries adopt existing physical and canonical originals.
     func publishRawPhoto(parentDraftID: UUID, childDraftID: UUID, sourceURL: URL,
         authorizing liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess? = nil) async throws
         -> FieldDraftCommittedEvidenceV1 {
-        try withItemOperation(liveOperation) { _ in }
-        guard let attachmentStaging else { throw FieldDraftFailureV1.invalidValue }
-        let current = try currentSession()
-        let writer = current.workspaceWriter
-        let revision = try writer.currentRevision()
-        let evidence = try currentRawPhotoEvidence(parentDraftID: parentDraftID, childDraftID: childDraftID)
-        guard try currentSession().workspaceWriter.currentRevision() == revision else {
-            throw FieldDraftFailureV1.staleDraftRevision
+        return try await currentSession().withTemporalProducer {
+            try withItemOperation(liveOperation) { _ in }
+            guard let attachmentStaging else { throw FieldDraftFailureV1.invalidValue }
+            let current = try currentSession()
+            let writer = current.workspaceWriter
+            let revision = try writer.currentRevision()
+            let evidence = try currentRawPhotoEvidence(parentDraftID: parentDraftID, childDraftID: childDraftID)
+            guard try currentSession().workspaceWriter.currentRevision() == revision else {
+                throw FieldDraftFailureV1.staleDraftRevision
+            }
+            let authority = CheckRunnerPhotoRawPublicationAuthorityV1(service: self, writer: writer,
+                owner: currentPhotoReadOwner, evidence: evidence, revision: revision,
+                applicationSupportURL: current.checkRunnerPhotoApplicationSupportURL, liveOperation: liveOperation)
+            let result = try await attachmentStaging.stageRawPhoto(sourceURL: sourceURL, authority: authority)
+            return try withItemOperation(liveOperation) { _ in result }
+        
         }
-        let authority = CheckRunnerPhotoRawPublicationAuthorityV1(service: self, writer: writer,
-            owner: currentPhotoReadOwner, evidence: evidence, revision: revision,
-            applicationSupportURL: current.checkRunnerPhotoApplicationSupportURL, liveOperation: liveOperation)
-        let result = try await attachmentStaging.stageRawPhoto(sourceURL: sourceURL, authority: authority)
-        return try withItemOperation(liveOperation) { _ in result }
     }
 
     /// Export can acknowledge only an already published raw stage. Absence
     /// leaves the original pending child untouched; no source URL is supplied.
     func adoptExistingRawPhotoForBackup(parentDraftID: UUID, childDraftID: UUID,
         authorizing operation: AppAccessPresentationV1.BackupOperationAccess) async throws -> FieldDraftCommittedEvidenceV1? {
-        guard let attachmentStaging, photoOperations.insert(childDraftID).inserted else {
-            throw FieldDraftFailureV1.staleDraftRevision
-        }
-        defer { photoOperations.remove(childDraftID) }
-        let authority = try operation.withAuthorization { store in
-            guard try currentSession() === store else { throw ScanToWorkFailureV1.authorityMismatch }
-            let writer = store.workspaceWriter
-            let revision = try writer.currentRevision()
-            let evidence = try currentRawPhotoEvidence(parentDraftID: parentDraftID, childDraftID: childDraftID)
-            guard try writer.currentRevision() == revision else { throw FieldDraftFailureV1.staleDraftRevision }
-            return CheckRunnerPhotoRawPublicationAuthorityV1(service: self, writer: writer,
-                owner: currentPhotoReadOwner, evidence: evidence, revision: revision,
-                applicationSupportURL: store.checkRunnerPhotoApplicationSupportURL, backupOperation: operation)
-        }
-        let result = try await attachmentStaging.adoptExistingRawPhoto(authority: authority)
-        return try operation.withAuthorization { store in
-            guard try currentSession() === store else { throw ScanToWorkFailureV1.authorityMismatch }
-            let observed = try currentRawPhotoEvidence(parentDraftID: parentDraftID, childDraftID: childDraftID)
-            if let result {
-                guard observed.publication == result else { throw FieldDraftFailureV1.missingReceipt }
-            } else {
-                guard observed == authority.evidence, try store.workspaceWriter.currentRevision() == authority.revision else {
-                    throw FieldDraftFailureV1.staleDraftRevision
-                }
+        return try await currentSession().withTemporalProducer {
+            guard let attachmentStaging, photoOperations.insert(childDraftID).inserted else {
+                throw FieldDraftFailureV1.staleDraftRevision
             }
-            return result
+            defer { photoOperations.remove(childDraftID) }
+            let authority = try operation.withAuthorization { store in
+                guard try currentSession() === store else { throw ScanToWorkFailureV1.authorityMismatch }
+                let writer = store.workspaceWriter
+                let revision = try writer.currentRevision()
+                let evidence = try currentRawPhotoEvidence(parentDraftID: parentDraftID, childDraftID: childDraftID)
+                guard try writer.currentRevision() == revision else { throw FieldDraftFailureV1.staleDraftRevision }
+                return CheckRunnerPhotoRawPublicationAuthorityV1(service: self, writer: writer,
+                    owner: currentPhotoReadOwner, evidence: evidence, revision: revision,
+                    applicationSupportURL: store.checkRunnerPhotoApplicationSupportURL, backupOperation: operation)
+            }
+            let result = try await attachmentStaging.adoptExistingRawPhoto(authority: authority)
+            return try operation.withAuthorization { store in
+                guard try currentSession() === store else { throw ScanToWorkFailureV1.authorityMismatch }
+                let observed = try currentRawPhotoEvidence(parentDraftID: parentDraftID, childDraftID: childDraftID)
+                if let result {
+                    guard observed.publication == result else { throw FieldDraftFailureV1.missingReceipt }
+                } else {
+                    guard observed == authority.evidence, try store.workspaceWriter.currentRevision() == authority.revision else {
+                        throw FieldDraftFailureV1.staleDraftRevision
+                    }
+                }
+                return result
+            }
+        
         }
     }
 
@@ -1174,57 +1189,66 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
     /// retained pairReady claim cannot authorize replacement of missing bytes.
     func preparePhotoPair(parentDraftID: UUID, childDraftID: UUID,
         authorizing liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess? = nil) async throws -> FieldDraftCheckpointV1 {
-        guard let result = try await preparePhotoPair(parentDraftID: parentDraftID,
-            childDraftID: childDraftID, backupOperation: nil, liveOperation: liveOperation) else { throw FieldDraftFailureV1.missingContent }
-        return result
+        return try await currentSession().withTemporalProducer {
+            guard let result = try await preparePhotoPair(parentDraftID: parentDraftID,
+                childDraftID: childDraftID, backupOperation: nil, liveOperation: liveOperation) else { throw FieldDraftFailureV1.missingContent }
+            return result
+        
+        }
     }
 
     func adoptExistingPhotoPairForBackup(parentDraftID: UUID, childDraftID: UUID,
         authorizing operation: AppAccessPresentationV1.BackupOperationAccess) async throws -> FieldDraftCheckpointV1? {
-        try await preparePhotoPair(parentDraftID: parentDraftID, childDraftID: childDraftID, backupOperation: operation)
+        return try await currentSession().withTemporalProducer {
+            try await preparePhotoPair(parentDraftID: parentDraftID, childDraftID: childDraftID, backupOperation: operation)
+        
+        }
     }
 
     private func preparePhotoPair(parentDraftID: UUID, childDraftID: UUID,
         backupOperation: AppAccessPresentationV1.BackupOperationAccess?,
         liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess? = nil) async throws -> FieldDraftCheckpointV1? {
-        try withItemOperation(liveOperation) { _ in }
-        guard photoOperations.insert(childDraftID).inserted else { throw FieldDraftFailureV1.staleDraftRevision }
-        defer { photoOperations.remove(childDraftID) }
-        guard let attachmentStaging else { throw FieldDraftFailureV1.invalidValue }
-        if let backupOperation {
-            guard let session else { throw ScanToWorkFailureV1.authorityMismatch }
-            try backupOperation.validate(for: session)
-        }
-        let evidence = try currentPhotoContinuation(parentDraftID: parentDraftID, childDraftID: childDraftID)
-        let read = try photoOperationRead(evidence, backupOperation: backupOperation, liveOperation: liveOperation)
-        let authority = CheckRunnerPhotoPairPublicationAuthorityV1(read: read)
-        try authority.validatePreparation()
-        let root = read.media.rootIdentity
-        let existing = try await read.media.store.readStagedCheckRunnerPhotoPair(childDraftID: childDraftID,
-            parentDraftID: parentDraftID, raw: evidence.raw,
-            expectedGenerationRootIdentity: (root.device, root.inode))
-        try validatePhotoOperation(read)
-        let normalized: NormalizedMediaWithSourceFactsV1?
-        if let existing {
-            if case let .pairReady(pair) = evidence.payload.phase {
-                guard pair.normalizedPair == existing.marker.normalizedPair,
-                      pair.pairPublicationMarkerSHA256 == existing.markerSHA256 else { throw FieldDraftFailureV1.digestMismatch }
+        return try await currentSession().withTemporalProducer {
+            try withItemOperation(liveOperation) { _ in }
+            guard photoOperations.insert(childDraftID).inserted else { throw FieldDraftFailureV1.staleDraftRevision }
+            defer { photoOperations.remove(childDraftID) }
+            guard let attachmentStaging else { throw FieldDraftFailureV1.invalidValue }
+            if let backupOperation {
+                guard let session else { throw ScanToWorkFailureV1.authorityMismatch }
+                try backupOperation.validate(for: session)
             }
-            normalized = nil
-        } else {
-            guard case .rawReady = evidence.payload.phase else { throw FieldDraftFailureV1.missingContent }
-            if backupOperation != nil { return nil }
-            normalized = try await attachmentStaging.normalizeRawPhoto(
-                authority: rawReadAuthority(read, normalizationAllowed: true))
+            let evidence = try currentPhotoContinuation(parentDraftID: parentDraftID, childDraftID: childDraftID)
+            let read = try photoOperationRead(evidence, backupOperation: backupOperation, liveOperation: liveOperation)
+            let authority = CheckRunnerPhotoPairPublicationAuthorityV1(read: read)
+            try authority.validatePreparation()
+            let root = read.media.rootIdentity
+            let existing = try await read.media.store.readStagedCheckRunnerPhotoPair(childDraftID: childDraftID,
+                parentDraftID: parentDraftID, raw: evidence.raw,
+                expectedGenerationRootIdentity: (root.device, root.inode))
+            try validatePhotoOperation(read)
+            let normalized: NormalizedMediaWithSourceFactsV1?
+            if let existing {
+                if case let .pairReady(pair) = evidence.payload.phase {
+                    guard pair.normalizedPair == existing.marker.normalizedPair,
+                          pair.pairPublicationMarkerSHA256 == existing.markerSHA256 else { throw FieldDraftFailureV1.digestMismatch }
+                }
+                normalized = nil
+            } else {
+                guard case .rawReady = evidence.payload.phase else { throw FieldDraftFailureV1.missingContent }
+                if backupOperation != nil { return nil }
+                normalized = try await attachmentStaging.normalizeRawPhoto(
+                    authority: rawReadAuthority(read, normalizationAllowed: true))
+            }
+            try validatePhotoOperation(read)
+            let prepared = try await read.media.store.prepareCheckRunnerPhotoPair(authority: authority,
+                childDraftID: childDraftID, parentDraftID: parentDraftID, raw: evidence.raw, normalized: normalized,
+                expectedGenerationRootIdentity: (root.device, root.inode))
+            try validatePhotoOperation(read)
+            authority.rawVerification = try await attachmentStaging.prepareRawPhotoVerification(
+                authority: rawReadAuthority(read, normalizationAllowed: false))
+            return try authority.publish(prepared)
+        
         }
-        try validatePhotoOperation(read)
-        let prepared = try await read.media.store.prepareCheckRunnerPhotoPair(authority: authority,
-            childDraftID: childDraftID, parentDraftID: parentDraftID, raw: evidence.raw, normalized: normalized,
-            expectedGenerationRootIdentity: (root.device, root.inode))
-        try validatePhotoOperation(read)
-        authority.rawVerification = try await attachmentStaging.prepareRawPhotoVerification(
-            authority: rawReadAuthority(read, normalizationAllowed: false))
-        return try authority.publish(prepared)
     }
 
     fileprivate func validatePreparedPairPublication(_ authority: CheckRunnerPhotoPairPublicationAuthorityV1,
@@ -1555,106 +1579,115 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
     /// reads an actual target receipt before considering another target effect.
     func resumePhotoCommit(parentDraftID: UUID, childDraftID: UUID,
         authorizing liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess? = nil) async throws -> FieldDraftCheckpointV1 {
-        try withItemOperation(liveOperation) { _ in }
-        guard photoOperations.insert(childDraftID).inserted else { throw FieldDraftFailureV1.staleDraftRevision }
-        defer { photoOperations.remove(childDraftID) }
-#if DEBUG
-        photoCommitObservationForTesting?("resume-session-start")
-#endif
-        let current = try currentSession()
-        var rows = FetchDescriptor<FieldDraftCheckpointRow>(predicate: #Predicate { $0.draftID == childDraftID })
-        rows.fetchLimit = 2
-        let found = try current.modelContext.fetch(rows)
-        guard found.count == 1, let row = found.first else { throw FieldDraftFailureV1.missingReceipt }
-        let observed = try row.value()
-        if observed.state == .committed {
+        return try await currentSession().withTemporalProducer {
+            try withItemOperation(liveOperation) { _ in }
+            guard photoOperations.insert(childDraftID).inserted else { throw FieldDraftFailureV1.staleDraftRevision }
+            defer { photoOperations.remove(childDraftID) }
+    #if DEBUG
+            photoCommitObservationForTesting?("resume-session-start")
+    #endif
+            let current = try currentSession()
+            var rows = FetchDescriptor<FieldDraftCheckpointRow>(predicate: #Predicate { $0.draftID == childDraftID })
+            rows.fetchLimit = 2
+            let found = try current.modelContext.fetch(rows)
+            guard found.count == 1, let row = found.first else { throw FieldDraftFailureV1.missingReceipt }
+            let observed = try row.value()
+            if observed.state == .committed {
+                return try withItemOperation(liveOperation) { _ in
+                    try completePhotoParentSlot(parentDraftID: parentDraftID, childDraftID: childDraftID)
+                }
+            }
+    #if DEBUG
+            photoCommitObservationForTesting?("resume-continuation-start")
+    #endif
+            let evidence = try currentPhotoContinuation(parentDraftID: parentDraftID, childDraftID: childDraftID)
+    #if DEBUG
+            photoCommitObservationForTesting?("resume-continuation-complete")
+    #endif
+            guard evidence.checkpoint.state == .committing, let committing = evidence.committing,
+                  case let .reviseCheckpoint(checkpoint) = committing.mutation.postImage,
+                  checkpoint == evidence.checkpoint else { throw FieldDraftFailureV1.invalidTransition }
+            let reconstruction = try CheckRunnerPhotoDraftCodecV1.reconstructPhotoCommit(from: checkpoint)
+            let commit = reconstruction.draftCommit
+            let port = CheckRunnerPhotoCommitPortV1(service: self, parentDraftID: parentDraftID,
+                reconstruction: reconstruction, liveOperation: liveOperation)
+            let lifecycle = CheckRunnerAuthorizedDraftWriterV1(service: self, liveOperation: liveOperation)
+            let drafts = FieldDraftCoordinatorV1(purposeAuthority: try CheckRunnerDraftPurposeAuthorityV1(),
+                writer: lifecycle, content: port, asyncTarget: port)
+    #if DEBUG
+            photoCommitObservationForTesting?("prepared-saga-commit-start")
+    #endif
+            _ = try await drafts.commit(plan: commit.plan, checkpoint: checkpoint, items: commit.items,
+                prepared: commit.prepared, contentPromoted: commit.contentPromoted, targetCommitted: commit.targetCommitted,
+                retirePending: commit.retirePending, retired: commit.retired, commitReceiptID: commit.commitReceiptID,
+                terminalCheckpointUpdatedAt: commit.terminalCheckpointUpdatedAt, rowMutationIDs: commit.rowMutationIDs)
             return try withItemOperation(liveOperation) { _ in
                 try completePhotoParentSlot(parentDraftID: parentDraftID, childDraftID: childDraftID)
             }
-        }
-#if DEBUG
-        photoCommitObservationForTesting?("resume-continuation-start")
-#endif
-        let evidence = try currentPhotoContinuation(parentDraftID: parentDraftID, childDraftID: childDraftID)
-#if DEBUG
-        photoCommitObservationForTesting?("resume-continuation-complete")
-#endif
-        guard evidence.checkpoint.state == .committing, let committing = evidence.committing,
-              case let .reviseCheckpoint(checkpoint) = committing.mutation.postImage,
-              checkpoint == evidence.checkpoint else { throw FieldDraftFailureV1.invalidTransition }
-        let reconstruction = try CheckRunnerPhotoDraftCodecV1.reconstructPhotoCommit(from: checkpoint)
-        let commit = reconstruction.draftCommit
-        let port = CheckRunnerPhotoCommitPortV1(service: self, parentDraftID: parentDraftID,
-            reconstruction: reconstruction, liveOperation: liveOperation)
-        let lifecycle = CheckRunnerAuthorizedDraftWriterV1(service: self, liveOperation: liveOperation)
-        let drafts = FieldDraftCoordinatorV1(purposeAuthority: try CheckRunnerDraftPurposeAuthorityV1(),
-            writer: lifecycle, content: port, asyncTarget: port)
-#if DEBUG
-        photoCommitObservationForTesting?("prepared-saga-commit-start")
-#endif
-        _ = try await drafts.commit(plan: commit.plan, checkpoint: checkpoint, items: commit.items,
-            prepared: commit.prepared, contentPromoted: commit.contentPromoted, targetCommitted: commit.targetCommitted,
-            retirePending: commit.retirePending, retired: commit.retired, commitReceiptID: commit.commitReceiptID,
-            terminalCheckpointUpdatedAt: commit.terminalCheckpointUpdatedAt, rowMutationIDs: commit.rowMutationIDs)
-        return try withItemOperation(liveOperation) { _ in
-            try completePhotoParentSlot(parentDraftID: parentDraftID, childDraftID: childDraftID)
+        
         }
     }
 
     fileprivate func promotePhotoRaw(parentDraftID: UUID, reconstruction: CheckRunnerPhotoCommitReconstructionV1,
         liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess?)
         async throws -> DraftContentReservationV1 {
-        try withItemOperation(liveOperation) { _ in }
-#if DEBUG
-        photoCommitObservationForTesting?("raw-promotion-entered")
-#endif
-        guard let attachmentStaging else { throw FieldDraftFailureV1.invalidValue }
-        let current = try currentSession()
-        let revision = try current.workspaceWriter.currentRevision()
-#if DEBUG
-        photoCommitObservationForTesting?("raw-continuation-start")
-#endif
-        let evidence = try currentPhotoContinuation(parentDraftID: parentDraftID,
-            childDraftID: reconstruction.draftCommit.checkpoint.draftID)
-#if DEBUG
-        photoCommitObservationForTesting?("raw-continuation-complete")
-#endif
-        guard evidence.checkpoint == reconstruction.draftCommit.checkpoint,
-              evidence.sagas.first == reconstruction.draftCommit.prepared,
-              try current.workspaceWriter.currentRevision() == revision else { throw FieldDraftFailureV1.staleDraftRevision }
-        let authority = try CheckRunnerPhotoRawPromotionAuthorityV1(service: self, writer: current.workspaceWriter,
-            owner: currentPhotoReadOwner, evidence: evidence, revision: revision,
-            applicationSupportURL: current.checkRunnerPhotoApplicationSupportURL, liveOperation: liveOperation)
-#if DEBUG
-        photoCommitObservationForTesting?("raw-preparation-start")
-#endif
-        return try await attachmentStaging.promoteRawPhoto(authority: authority)
+        return try await currentSession().withTemporalProducer {
+            try withItemOperation(liveOperation) { _ in }
+    #if DEBUG
+            photoCommitObservationForTesting?("raw-promotion-entered")
+    #endif
+            guard let attachmentStaging else { throw FieldDraftFailureV1.invalidValue }
+            let current = try currentSession()
+            let revision = try current.workspaceWriter.currentRevision()
+    #if DEBUG
+            photoCommitObservationForTesting?("raw-continuation-start")
+    #endif
+            let evidence = try currentPhotoContinuation(parentDraftID: parentDraftID,
+                childDraftID: reconstruction.draftCommit.checkpoint.draftID)
+    #if DEBUG
+            photoCommitObservationForTesting?("raw-continuation-complete")
+    #endif
+            guard evidence.checkpoint == reconstruction.draftCommit.checkpoint,
+                  evidence.sagas.first == reconstruction.draftCommit.prepared,
+                  try current.workspaceWriter.currentRevision() == revision else { throw FieldDraftFailureV1.staleDraftRevision }
+            let authority = try CheckRunnerPhotoRawPromotionAuthorityV1(service: self, writer: current.workspaceWriter,
+                owner: currentPhotoReadOwner, evidence: evidence, revision: revision,
+                applicationSupportURL: current.checkRunnerPhotoApplicationSupportURL, liveOperation: liveOperation)
+    #if DEBUG
+            photoCommitObservationForTesting?("raw-preparation-start")
+    #endif
+            return try await attachmentStaging.promoteRawPhoto(authority: authority)
+        
+        }
     }
 
     fileprivate func commitPhotoTarget(parentDraftID: UUID, reconstruction: CheckRunnerPhotoCommitReconstructionV1,
         reservations: [DraftContentReservationV1], liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess?) async throws -> MutationReceiptV1 {
-        try withItemOperation(liveOperation) { _ in }
-        let evidence = try currentPhotoContinuation(parentDraftID: parentDraftID,
-            childDraftID: reconstruction.draftCommit.checkpoint.draftID)
-        guard evidence.checkpoint == reconstruction.draftCommit.checkpoint,
-              case let .preparedCommit(pair, attempt) = evidence.payload.phase,
-              reservations == [try CheckRunnerPhotoContinuationEvidenceV1.reservation(
-                raw: pair.raw, plan: reconstruction.draftCommit.plan, attempt: attempt)],
-              evidence.currentStage == (try CheckRunnerPhotoContinuationEvidenceV1.committedStage(raw: pair.raw, attempt: attempt)) else {
-            throw FieldDraftFailureV1.digestMismatch
+        return try await currentSession().withTemporalProducer {
+            try withItemOperation(liveOperation) { _ in }
+            let evidence = try currentPhotoContinuation(parentDraftID: parentDraftID,
+                childDraftID: reconstruction.draftCommit.checkpoint.draftID)
+            guard evidence.checkpoint == reconstruction.draftCommit.checkpoint,
+                  case let .preparedCommit(pair, attempt) = evidence.payload.phase,
+                  reservations == [try CheckRunnerPhotoContinuationEvidenceV1.reservation(
+                    raw: pair.raw, plan: reconstruction.draftCommit.plan, attempt: attempt)],
+                  evidence.currentStage == (try CheckRunnerPhotoContinuationEvidenceV1.committedStage(raw: pair.raw, attempt: attempt)) else {
+                throw FieldDraftFailureV1.digestMismatch
+            }
+            let read = try photoOperationRead(evidence, liveOperation: liveOperation)
+            let authority = CheckRunnerPhotoPairPromotionAuthorityV1(read: read)
+            try authority.validatePreparation()
+            let root = read.media.rootIdentity
+            let prepared = try await read.media.store.prepareCheckRunnerPhotoPromotion(authority: authority,
+                childDraftID: evidence.checkpoint.draftID, parentDraftID: parentDraftID, pair: pair,
+                expectedGenerationRootIdentity: (root.device, root.inode))
+            let receipt = try authority.publish(prepared)
+    #if DEBUG
+            try beforePhotoTargetAcknowledgementForTesting?()
+    #endif
+            return receipt
+        
         }
-        let read = try photoOperationRead(evidence, liveOperation: liveOperation)
-        let authority = CheckRunnerPhotoPairPromotionAuthorityV1(read: read)
-        try authority.validatePreparation()
-        let root = read.media.rootIdentity
-        let prepared = try await read.media.store.prepareCheckRunnerPhotoPromotion(authority: authority,
-            childDraftID: evidence.checkpoint.draftID, parentDraftID: parentDraftID, pair: pair,
-            expectedGenerationRootIdentity: (root.device, root.inode))
-        let receipt = try authority.publish(prepared)
-#if DEBUG
-        try beforePhotoTargetAcknowledgementForTesting?()
-#endif
-        return receipt
     }
 
     fileprivate func validatePreparedPairPromotion(_ authority: CheckRunnerPhotoPairPromotionAuthorityV1,
@@ -1949,89 +1982,92 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
         sourceApp: SourceAppSnapshotV1,
         authorizing liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess? = nil,
         validateIntent: @MainActor () throws -> Void) async throws -> FieldDraftCheckpointV1 {
-        try withItemOperation(liveOperation) { _ in }
-        try Task.checkCancellation(); try validateIntent()
-        guard parentOperations.insert(draftID).inserted else { throw FieldDraftFailureV1.staleDraftRevision }
-        defer { parentOperations.remove(draftID) }
-        let checkpoint = try read(draftID: draftID)
-        let payload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint)
-        if payload.phase == .preparedFinalization {
-            let current = try currentSession()
-            guard let proof = try current.workspaceWriter.checkRunnerItemFinalizationEvidence(
-                workspaceID: workspaceID, draftID: draftID), proof.checkpoint == checkpoint,
-                  proof.attempt.sourceApp == sourceApp,
-                  expectedCheckpointSHA256 == checkpoint.checkpointSHA256
-                    || expectedCheckpointSHA256 == proof.editingCheckpoint.checkpointSHA256 else {
-                throw FieldDraftFailureV1.staleDraftRevision
-            }
-            try await validateParentFinalizationMedia(proof.reconstruction)
+        return try await currentSession().withTemporalProducer {
+            try withItemOperation(liveOperation) { _ in }
             try Task.checkCancellation(); try validateIntent()
-            return try withItemOperation(liveOperation) { _ in
-                guard try read(draftID: draftID) == checkpoint else { throw FieldDraftFailureV1.staleDraftRevision }
-                return checkpoint
-            }
-        }
-        guard checkpoint.state == .active, checkpoint.checkpointSHA256 == expectedCheckpointSHA256 else {
-            throw FieldDraftFailureV1.staleDraftRevision
-        }
-        let prepared = try coordinator.prepareParentFinalization(parentCheckpoint: checkpoint,
-            progress: progress, publishedRelease: publishedRelease)
-        try await validateParentMedia(checkpoint)
-        try Task.checkCancellation(); try validateIntent()
-        return try withItemOperation(liveOperation) { _ in
-            let refreshed = try coordinator.prepareParentFinalization(parentCheckpoint: checkpoint,
-                progress: progress, publishedRelease: publishedRelease)
-            guard refreshed.outcome == prepared.outcome, refreshed.workflowRevision == prepared.workflowRevision else {
-                throw FieldDraftFailureV1.staleDraftRevision
-            }
-            let instant = try canonicalPhotoCheckpointInstant()
-            guard instant >= checkpoint.updatedAt else { throw FieldDraftFailureV1.invalidValue }
-            let issueID: UUID?, newIssueID: UUID?
-            switch (payload.source.requestedEntry, prepared.outcome.selection) {
-            case (.check, .noVisibleIssue), (.check, .couldNotVerify): issueID = nil; newIssueID = nil
-            case (.check, .visibleIssue): issueID = ids.makeID(); newIssueID = nil
-            case let (.recheck(original), .resolved), let (.recheck(original), .issueStillVisible),
-                 let (.recheck(original), .couldNotVerify): issueID = original; newIssueID = nil
-            case let (.recheck(original), .originalResolvedDifferentIssue):
-                issueID = original; newIssueID = ids.makeID()
-            default: throw FieldDraftFailureV1.invalidValue
-            }
-            let attempt = try CheckRunnerFinalizationAttemptInputsV1(normalizedOutcome: prepared.outcome,
-                identifiers: .init(.init(mutationID: ids.makeID(), packetID: ids.makeID(),
-                    stableRootID: ids.makeID(), reportID: ids.makeID(), issueID: issueID, newIssueID: newIssueID)),
-                completedAt: instant, snapshotCreatedAt: instant, sourceApp: sourceApp,
-                expectedWorkflowRecordRevision: prepared.workflowRevision,
-                fieldDraftPlanID: ids.makeID(), preparedSagaID: ids.makeID(), contentPromotedSagaID: ids.makeID(),
-                targetCommittedSagaID: ids.makeID(), draftRetirePendingSagaID: ids.makeID(), draftRetiredSagaID: ids.makeID(),
-                preparedSagaMutationID: .init(rawValue: ids.makeID()),
-                contentPromotedSagaMutationID: .init(rawValue: ids.makeID()),
-                targetCommittedSagaMutationID: .init(rawValue: ids.makeID()),
-                draftRetirePendingSagaMutationID: .init(rawValue: ids.makeID()),
-                terminalBundleMutationID: .init(rawValue: ids.makeID()), commitReceiptID: ids.makeID(),
-                preparedSagaUpdatedAt: instant, contentPromotedSagaUpdatedAt: instant,
-                targetCommittedSagaUpdatedAt: instant, draftRetirePendingSagaUpdatedAt: instant,
-                draftRetiredSagaUpdatedAt: instant, terminalCheckpointUpdatedAt: instant)
-            let next = try CheckRunnerItemDraftPayloadV1(prepared: payload.source, field: payload.field, attempt: attempt)
-            let successor = try makeCheckpoint(payload: next, predecessor: checkpoint,
-                frozenUpdatedAt: instant, state: .committing)
-            try successor.validateSuccessor(of: checkpoint, expectedDraftRevision: checkpoint.draftRevision,
-                expectedBaseRevision: checkpoint.baseCanonicalRevision)
-            let reconstruction = try CheckRunnerItemDraftCodecV1.reconstructFinalizationHistory(from: successor)
-            let mutationIDs = [successor.mutationID, reconstruction.plan.mutationID]
-                + reconstruction.sagas.map(\.mutationID)
-            guard Set(mutationIDs).count == mutationIDs.count else { throw FieldDraftFailureV1.invalidValue }
-            let current = try currentSession()
-            guard try read(draftID: draftID) == checkpoint else { throw FieldDraftFailureV1.staleDraftRevision }
-            for mutationID in mutationIDs {
-                guard try current.workspaceWriter.durableReceipt(mutationID: mutationID) == nil else {
+            guard parentOperations.insert(draftID).inserted else { throw FieldDraftFailureV1.staleDraftRevision }
+            defer { parentOperations.remove(draftID) }
+            let checkpoint = try read(draftID: draftID)
+            let payload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(checkpoint)
+            if payload.phase == .preparedFinalization {
+                let current = try currentSession()
+                guard let proof = try current.workspaceWriter.checkRunnerItemFinalizationEvidence(
+                    workspaceID: workspaceID, draftID: draftID), proof.checkpoint == checkpoint,
+                      proof.attempt.sourceApp == sourceApp,
+                      expectedCheckpointSHA256 == checkpoint.checkpointSHA256
+                        || expectedCheckpointSHA256 == proof.editingCheckpoint.checkpointSHA256 else {
                     throw FieldDraftFailureV1.staleDraftRevision
                 }
+                try await validateParentFinalizationMedia(proof.reconstruction)
+                try Task.checkCancellation(); try validateIntent()
+                return try withItemOperation(liveOperation) { _ in
+                    guard try read(draftID: draftID) == checkpoint else { throw FieldDraftFailureV1.staleDraftRevision }
+                    return checkpoint
+                }
             }
-            _ = try current.workspaceWriter.makeFieldDraftLifecycleAdapter(modelContext: current.modelContext)
-                .compareAndSwap(checkpoint: successor, expectedDraftRevision: checkpoint.draftRevision,
-                                expectedBaseRevision: checkpoint.baseCanonicalRevision)
-            guard try currentParentFinalization(reconstruction) == successor else { throw FieldDraftFailureV1.missingReceipt }
-            return successor
+            guard checkpoint.state == .active, checkpoint.checkpointSHA256 == expectedCheckpointSHA256 else {
+                throw FieldDraftFailureV1.staleDraftRevision
+            }
+            let prepared = try coordinator.prepareParentFinalization(parentCheckpoint: checkpoint,
+                progress: progress, publishedRelease: publishedRelease)
+            try await validateParentMedia(checkpoint)
+            try Task.checkCancellation(); try validateIntent()
+            return try withItemOperation(liveOperation) { _ in
+                let refreshed = try coordinator.prepareParentFinalization(parentCheckpoint: checkpoint,
+                    progress: progress, publishedRelease: publishedRelease)
+                guard refreshed.outcome == prepared.outcome, refreshed.workflowRevision == prepared.workflowRevision else {
+                    throw FieldDraftFailureV1.staleDraftRevision
+                }
+                let instant = try canonicalPhotoCheckpointInstant()
+                guard instant >= checkpoint.updatedAt else { throw FieldDraftFailureV1.invalidValue }
+                let issueID: UUID?, newIssueID: UUID?
+                switch (payload.source.requestedEntry, prepared.outcome.selection) {
+                case (.check, .noVisibleIssue), (.check, .couldNotVerify): issueID = nil; newIssueID = nil
+                case (.check, .visibleIssue): issueID = ids.makeID(); newIssueID = nil
+                case let (.recheck(original), .resolved), let (.recheck(original), .issueStillVisible),
+                     let (.recheck(original), .couldNotVerify): issueID = original; newIssueID = nil
+                case let (.recheck(original), .originalResolvedDifferentIssue):
+                    issueID = original; newIssueID = ids.makeID()
+                default: throw FieldDraftFailureV1.invalidValue
+                }
+                let attempt = try CheckRunnerFinalizationAttemptInputsV1(normalizedOutcome: prepared.outcome,
+                    identifiers: .init(.init(mutationID: ids.makeID(), packetID: ids.makeID(),
+                        stableRootID: ids.makeID(), reportID: ids.makeID(), issueID: issueID, newIssueID: newIssueID)),
+                    completedAt: instant, snapshotCreatedAt: instant, sourceApp: sourceApp,
+                    expectedWorkflowRecordRevision: prepared.workflowRevision,
+                    fieldDraftPlanID: ids.makeID(), preparedSagaID: ids.makeID(), contentPromotedSagaID: ids.makeID(),
+                    targetCommittedSagaID: ids.makeID(), draftRetirePendingSagaID: ids.makeID(), draftRetiredSagaID: ids.makeID(),
+                    preparedSagaMutationID: .init(rawValue: ids.makeID()),
+                    contentPromotedSagaMutationID: .init(rawValue: ids.makeID()),
+                    targetCommittedSagaMutationID: .init(rawValue: ids.makeID()),
+                    draftRetirePendingSagaMutationID: .init(rawValue: ids.makeID()),
+                    terminalBundleMutationID: .init(rawValue: ids.makeID()), commitReceiptID: ids.makeID(),
+                    preparedSagaUpdatedAt: instant, contentPromotedSagaUpdatedAt: instant,
+                    targetCommittedSagaUpdatedAt: instant, draftRetirePendingSagaUpdatedAt: instant,
+                    draftRetiredSagaUpdatedAt: instant, terminalCheckpointUpdatedAt: instant)
+                let next = try CheckRunnerItemDraftPayloadV1(prepared: payload.source, field: payload.field, attempt: attempt)
+                let successor = try makeCheckpoint(payload: next, predecessor: checkpoint,
+                    frozenUpdatedAt: instant, state: .committing)
+                try successor.validateSuccessor(of: checkpoint, expectedDraftRevision: checkpoint.draftRevision,
+                    expectedBaseRevision: checkpoint.baseCanonicalRevision)
+                let reconstruction = try CheckRunnerItemDraftCodecV1.reconstructFinalizationHistory(from: successor)
+                let mutationIDs = [successor.mutationID, reconstruction.plan.mutationID]
+                    + reconstruction.sagas.map(\.mutationID)
+                guard Set(mutationIDs).count == mutationIDs.count else { throw FieldDraftFailureV1.invalidValue }
+                let current = try currentSession()
+                guard try read(draftID: draftID) == checkpoint else { throw FieldDraftFailureV1.staleDraftRevision }
+                for mutationID in mutationIDs {
+                    guard try current.workspaceWriter.durableReceipt(mutationID: mutationID) == nil else {
+                        throw FieldDraftFailureV1.staleDraftRevision
+                    }
+                }
+                _ = try current.workspaceWriter.makeFieldDraftLifecycleAdapter(modelContext: current.modelContext)
+                    .compareAndSwap(checkpoint: successor, expectedDraftRevision: checkpoint.draftRevision,
+                                    expectedBaseRevision: checkpoint.baseCanonicalRevision)
+                guard try currentParentFinalization(reconstruction) == successor else { throw FieldDraftFailureV1.missingReceipt }
+                return successor
+            }
+        
         }
     }
 
@@ -2041,46 +2077,49 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
         authorizing liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess? = nil,
         validateIntent: @escaping @MainActor () throws -> Void) async throws
         -> FieldDraftCheckpointV1 {
-        try withItemOperation(liveOperation) { _ in }
-        try Task.checkCancellation(); try validateIntent()
-        guard parentOperations.insert(draftID).inserted else { throw FieldDraftFailureV1.staleDraftRevision }
-        defer { parentOperations.remove(draftID) }
-        let checkpoint = try read(draftID: draftID)
-        let reconstruction = try coordinator.reconstructParentFinalization(parentCheckpoint: checkpoint,
-            progress: progress, publishedRelease: publishedRelease)
-        try await validateParentFinalizationMedia(reconstruction)
-        try Task.checkCancellation(); try validateIntent()
-        try withItemOperation(liveOperation) { _ in }
-        if checkpoint.state == .committed {
+        return try await currentSession().withTemporalProducer {
+            try withItemOperation(liveOperation) { _ in }
+            try Task.checkCancellation(); try validateIntent()
+            guard parentOperations.insert(draftID).inserted else { throw FieldDraftFailureV1.staleDraftRevision }
+            defer { parentOperations.remove(draftID) }
+            let checkpoint = try read(draftID: draftID)
+            let reconstruction = try coordinator.reconstructParentFinalization(parentCheckpoint: checkpoint,
+                progress: progress, publishedRelease: publishedRelease)
+            try await validateParentFinalizationMedia(reconstruction)
+            try Task.checkCancellation(); try validateIntent()
+            try withItemOperation(liveOperation) { _ in }
+            if checkpoint.state == .committed {
+                return try withItemOperation(liveOperation) { _ in
+                    guard try coordinator.readParentFinalization(parentCheckpoint: checkpoint,
+                        progress: progress, publishedRelease: publishedRelease, authorizing: liveOperation) != nil else {
+                        throw FieldDraftFailureV1.missingReceipt
+                    }
+                    return checkpoint
+                }
+            }
+            let port = CheckRunnerParentCommitPortV1(service: self, reconstruction: reconstruction,
+                liveOperation: liveOperation, validateIntent: validateIntent)
+            let lifecycle = CheckRunnerAuthorizedDraftWriterV1(service: self, liveOperation: liveOperation)
+            let drafts = FieldDraftCoordinatorV1(purposeAuthority: try CheckRunnerDraftPurposeAuthorityV1(),
+                writer: lifecycle, content: port, asyncTarget: port)
+            _ = try await drafts.commit(plan: reconstruction.plan, checkpoint: reconstruction.checkpoint,
+                items: reconstruction.items, prepared: reconstruction.prepared,
+                contentPromoted: reconstruction.contentPromoted, targetCommitted: reconstruction.targetCommitted,
+                retirePending: reconstruction.retirePending, retired: reconstruction.retired,
+                commitReceiptID: reconstruction.commitReceiptID,
+                terminalCheckpointUpdatedAt: reconstruction.terminalCheckpointUpdatedAt,
+                rowMutationIDs: reconstruction.rowMutationIDs)
+            try Task.checkCancellation(); try validateIntent()
             return try withItemOperation(liveOperation) { _ in
-                guard try coordinator.readParentFinalization(parentCheckpoint: checkpoint,
-                    progress: progress, publishedRelease: publishedRelease, authorizing: liveOperation) != nil else {
+                let terminal = try currentParentFinalization(reconstruction)
+                guard terminal.state == .committed,
+                      try coordinator.readParentFinalization(parentCheckpoint: terminal,
+                        progress: progress, publishedRelease: publishedRelease, authorizing: liveOperation) != nil else {
                     throw FieldDraftFailureV1.missingReceipt
                 }
-                return checkpoint
+                return terminal
             }
-        }
-        let port = CheckRunnerParentCommitPortV1(service: self, reconstruction: reconstruction,
-            liveOperation: liveOperation, validateIntent: validateIntent)
-        let lifecycle = CheckRunnerAuthorizedDraftWriterV1(service: self, liveOperation: liveOperation)
-        let drafts = FieldDraftCoordinatorV1(purposeAuthority: try CheckRunnerDraftPurposeAuthorityV1(),
-            writer: lifecycle, content: port, asyncTarget: port)
-        _ = try await drafts.commit(plan: reconstruction.plan, checkpoint: reconstruction.checkpoint,
-            items: reconstruction.items, prepared: reconstruction.prepared,
-            contentPromoted: reconstruction.contentPromoted, targetCommitted: reconstruction.targetCommitted,
-            retirePending: reconstruction.retirePending, retired: reconstruction.retired,
-            commitReceiptID: reconstruction.commitReceiptID,
-            terminalCheckpointUpdatedAt: reconstruction.terminalCheckpointUpdatedAt,
-            rowMutationIDs: reconstruction.rowMutationIDs)
-        try Task.checkCancellation(); try validateIntent()
-        return try withItemOperation(liveOperation) { _ in
-            let terminal = try currentParentFinalization(reconstruction)
-            guard terminal.state == .committed,
-                  try coordinator.readParentFinalization(parentCheckpoint: terminal,
-                    progress: progress, publishedRelease: publishedRelease, authorizing: liveOperation) != nil else {
-                throw FieldDraftFailureV1.missingReceipt
-            }
-            return terminal
+        
         }
     }
 
@@ -2120,33 +2159,36 @@ final class ProductionCheckRunnerItemDraftServiceV1 {
         liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess?,
         validateIntent: @MainActor () throws -> Void) async throws
         -> MutationReceiptV1 {
-        try withItemOperation(liveOperation) { _ in }
-        try Task.checkCancellation(); try validateIntent()
-        try await validateParentFinalizationMedia(reconstruction)
-        try Task.checkCancellation(); try validateIntent()
-        try withItemOperation(liveOperation) { _ in }
-        let checkpoint = try currentParentFinalization(reconstruction)
-        let receipt = try await coordinator.commitParentFinalization(parentCheckpoint: checkpoint,
-            progress: progress, publishedRelease: publishedRelease, authorizing: liveOperation) { [weak self] in
-                try validateIntent()
-                guard let self else { throw FieldDraftFailureV1.staleDraftRevision }
-                try self.withItemOperation(liveOperation) { _ in
-                    guard try self.currentParentFinalization(reconstruction) == checkpoint else {
-                        throw FieldDraftFailureV1.staleDraftRevision
+        return try await currentSession().withTemporalProducer {
+            try withItemOperation(liveOperation) { _ in }
+            try Task.checkCancellation(); try validateIntent()
+            try await validateParentFinalizationMedia(reconstruction)
+            try Task.checkCancellation(); try validateIntent()
+            try withItemOperation(liveOperation) { _ in }
+            let checkpoint = try currentParentFinalization(reconstruction)
+            let receipt = try await coordinator.commitParentFinalization(parentCheckpoint: checkpoint,
+                progress: progress, publishedRelease: publishedRelease, authorizing: liveOperation) { [weak self] in
+                    try validateIntent()
+                    guard let self else { throw FieldDraftFailureV1.staleDraftRevision }
+                    try self.withItemOperation(liveOperation) { _ in
+                        guard try self.currentParentFinalization(reconstruction) == checkpoint else {
+                            throw FieldDraftFailureV1.staleDraftRevision
+                        }
                     }
                 }
+            try await validateParentFinalizationMedia(reconstruction)
+            try Task.checkCancellation(); try validateIntent()
+            try withItemOperation(liveOperation) { _ in }
+    #if DEBUG
+            try beforeParentTargetAcknowledgementForTesting?()
+    #endif
+            return try withItemOperation(liveOperation) { _ in
+                guard try parentFinalizationReadback(reconstruction, receipt: receipt, liveOperation: liveOperation) else {
+                    throw FieldDraftFailureV1.missingReceipt
+                }
+                return receipt
             }
-        try await validateParentFinalizationMedia(reconstruction)
-        try Task.checkCancellation(); try validateIntent()
-        try withItemOperation(liveOperation) { _ in }
-#if DEBUG
-        try beforeParentTargetAcknowledgementForTesting?()
-#endif
-        return try withItemOperation(liveOperation) { _ in
-            guard try parentFinalizationReadback(reconstruction, receipt: receipt, liveOperation: liveOperation) else {
-                throw FieldDraftFailureV1.missingReceipt
-            }
-            return receipt
+        
         }
     }
 

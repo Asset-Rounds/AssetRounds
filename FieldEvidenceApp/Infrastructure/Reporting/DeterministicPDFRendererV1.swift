@@ -1026,11 +1026,11 @@ extension DeterministicPDFRendererV1 {
         _ plan: AssetLabelGenerationPlanV1
     ) throws -> LabelProjectionResultV1 {
         try plan.validate()
+        let currentRelease = try AssetLabelRendererReleaseReferenceV1.current
+        let legacyRelease = try AssetLabelRendererReleaseReferenceV1.legacy
         guard plan.template.rendererID == assetLabelRendererID,
-              plan.template.rendererVersion == assetLabelRendererVersion,
-              plan.template.rendererSHA256 == assetLabelRendererSHA256,
-              plan.template.rendererRelease.nativeTextLayoutReleaseID == assetLabelNativeTextLayoutReleaseID,
-              plan.template.rendererRelease == (try AssetLabelRendererReleaseReferenceV1.current),
+              (plan.template.rendererRelease == currentRelease
+                || plan.template.rendererRelease == legacyRelease),
               plan.template.qrCorrectionLevel == .medium,
               !plan.template.interpolationEnabled,
               !plan.template.overlaidLogoEnabled else {
@@ -1272,7 +1272,8 @@ extension DeterministicPDFRendererV1 {
                 $0,
                 pixelWidth: textPixelWidth,
                 pixelHeight: assetLabelTextPixelHeight(for: $0.disclosure),
-                nativeTextEnvironment: nativeTextEnvironment
+                nativeTextEnvironment: nativeTextEnvironment,
+                layoutID: plan.template.rendererRelease.nativeTextLayoutReleaseID
             )
         }
         let capacity = geometry.capacity
@@ -1412,7 +1413,23 @@ extension DeterministicPDFRendererV1 {
             item,
             pixelWidth: pixelWidth,
             pixelHeight: pixelHeight,
-            nativeTextEnvironment: nil
+            rendererRelease: .current
+        )
+    }
+
+    static func renderAssetLabelText(
+        _ item: AssetLabelItemSnapshotV1,
+        pixelWidth: Int,
+        pixelHeight: Int,
+        rendererRelease: AssetLabelRendererReleaseReferenceV1
+    ) throws -> AssetLabelRenderedTextV1 {
+        try rendererRelease.validate()
+        return try renderAssetLabelText(
+            item,
+            pixelWidth: pixelWidth,
+            pixelHeight: pixelHeight,
+            nativeTextEnvironment: nil,
+            layoutID: rendererRelease.nativeTextLayoutReleaseID
         )
     }
 
@@ -1420,11 +1437,17 @@ extension DeterministicPDFRendererV1 {
         _ item: AssetLabelItemSnapshotV1,
         pixelWidth: Int,
         pixelHeight: Int,
-        nativeTextEnvironment: AssetLabelNativeTextEnvironmentV1?
+        nativeTextEnvironment: AssetLabelNativeTextEnvironmentV1?,
+        layoutID: String
     ) throws -> AssetLabelRenderedTextV1 {
         try item.validate()
-        guard pixelWidth >= 24, pixelHeight >= 18,
-              pixelWidth <= 4_096, pixelHeight <= 1_024 else {
+        guard AssetLabelRendererReleaseCatalogV1.isKnownLayout(layoutID),
+              nativeTextEnvironment == nil
+                || nativeTextEnvironment?.nativeTextLayoutReleaseID == layoutID else {
+            throw AssetLabelContractFailureV1.missingRelease
+        }
+        guard (24...4_096).contains(pixelWidth),
+              (18...1_024).contains(pixelHeight) else {
             throw AssetLabelRenderFailureV1.contentDoesNotFit
         }
         let maximumGraphemes = max(8, min(96, (pixelWidth - 8) / 5))
@@ -1440,6 +1463,8 @@ extension DeterministicPDFRendererV1 {
         }
         #if canImport(CoreText)
         var pixels = [UInt8](repeating: 255, count: pixelWidth * pixelHeight)
+        var glyphInsetPixels = layoutID == AssetLabelRendererReleaseCatalogV1.nativeTextLayoutReleaseID
+            ? [UInt8](repeating: 255, count: pixelWidth * pixelHeight) : []
         guard let context = CGContext(
             data: &pixels,
             width: pixelWidth,
@@ -1486,19 +1511,125 @@ extension DeterministicPDFRendererV1 {
                 throw AssetLabelRenderFailureV1.contentDoesNotFit
             }
             let lineBoxBottom = CGFloat(pixelHeight - (index + 1) * 10)
-            let baseline = try assetLabelTextBaseline(
+            let nominalBaseline = try assetLabelTextBaseline(
                 ascent: ascent, descent: descent, lineBoxBottom: lineBoxBottom)
-            context.textPosition = CGPoint(
-                x: 4,
-                y: baseline
-            )
+            if layoutID == AssetLabelRendererReleaseCatalogV1.nativeTextLayoutReleaseID {
+                context.textPosition = CGPoint(x: 4, y: nominalBaseline)
+                let imageBounds = CTLineGetImageBounds(line, context)
+                if !imageBounds.isNull && !imageBounds.isEmpty {
+                    guard imageBounds.minX.isFinite, imageBounds.maxX.isFinite,
+                          imageBounds.minX >= 1,
+                          imageBounds.maxX <= CGFloat(pixelWidth - 1) else {
+                        throw AssetLabelRenderFailureV1.contentDoesNotFit
+                    }
+                }
+                let candidates = try assetLabelV2CandidateBaselines(
+                    imageBounds: imageBounds,
+                    nominalBaseline: nominalBaseline,
+                    lineBoxBottom: lineBoxBottom
+                )
+                var acceptedMask: [UInt8]?
+                var acceptedBaseline: CGFloat?
+                for candidate in candidates {
+                    // Every trial owns a fresh white mask. A failed trial can
+                    // never paint the accumulated bitmap or another line.
+                    var trialPixels = [UInt8](repeating: 255, count: pixelWidth * pixelHeight)
+                    try trialPixels.withUnsafeMutableBufferPointer { buffer in
+                        // The CGContext is destroyed by the callee before
+                        // this pinned backing storage is released.
+                        try assetLabelDrawV2Trial(
+                            line, into: buffer, pixelWidth: pixelWidth,
+                            pixelHeight: pixelHeight, baseline: candidate
+                        )
+                    }
+                    let confinedToInterior = assetLabelV2MaskHasConfinedInk(
+                        trialPixels, pixelWidth: pixelWidth,
+                        pixelHeight: pixelHeight, lineIndex: index
+                    )
+#if DEBUG
+                    let traceTrial = pixelWidth == 158 && pixelHeight == 30 && isolated.count == 3
+                    if traceTrial {
+                        let inkRows = (0..<pixelHeight).filter { row in
+                            trialPixels[(row * pixelWidth)..<((row + 1) * pixelWidth)]
+                                .contains { $0 < 255 }
+                        }
+                        FileHandle.standardError.write(Data(
+                            "C45_RENDER_V2_TRIAL index=\(index) baseline=\(candidate) safe=\(confinedToInterior) inkRows=\(inkRows)\n".utf8))
+                    }
+#endif
+                    if confinedToInterior {
+                        acceptedMask = trialPixels
+                        acceptedBaseline = candidate
+                        break
+                    }
+                }
+                guard let acceptedMask, let acceptedBaseline else {
+                    throw AssetLabelRenderFailureV1.contentDoesNotFit
+                }
+                // The line interiors are disjoint. Copy only proved rows into
+                // the V2 accumulation; previous ink is never trial-drawn over.
+                for row in (index * 10 + 1)...((index + 1) * 10 - 2) {
+                    let start = row * pixelWidth
+                    for column in 0..<pixelWidth {
+                        glyphInsetPixels[start + column] = acceptedMask[start + column]
+                    }
+                }
+#if DEBUG
+                if pixelWidth == 158 && pixelHeight == 30 && isolated.count == 3 {
+                    FileHandle.standardError.write(Data(
+                        "C45_RENDER_V2_ACCEPT index=\(index) baseline=\(acceptedBaseline)\n".utf8))
+                }
+#endif
+                continue
+            }
+            // This is the frozen V1 drawing position, including its old
+            // typographic rather than glyph-bound vertical placement.
+            let baseline = nominalBaseline
+            context.textPosition = CGPoint(x: 4, y: baseline)
+#if DEBUG
+            let traceLabelRaster = pixelWidth == 158 && pixelHeight == 30 && isolated.count == 3
+            let beforeInkRows: [Int] = traceLabelRaster ? (0..<pixelHeight).map { row in
+                pixels[(row * pixelWidth)..<((row + 1) * pixelWidth)].filter { $0 < 255 }.count
+            } : []
+            if traceLabelRaster {
+                let glyphBounds = CTLineGetBoundsWithOptions(line, [.useGlyphPathBounds])
+                let imageBounds = CTLineGetImageBounds(line, context)
+                FileHandle.standardError.write(Data(
+                    "C45_RENDER_LINE_V1 stage=before layout=\(layoutID) index=\(index) baseline=\(baseline) ascent=\(ascent) descent=\(descent) glyphBounds=\(glyphBounds) imageBounds=\(imageBounds) ctm=\(context.ctm) textMatrix=\(context.textMatrix) rows=\(beforeInkRows)\n".utf8))
+            }
+#endif
             CTLineDraw(line, context)
+#if DEBUG
+            if traceLabelRaster {
+                let afterInkRows = (0..<pixelHeight).map { row in
+                    pixels[(row * pixelWidth)..<((row + 1) * pixelWidth)].filter { $0 < 255 }.count
+                }
+                FileHandle.standardError.write(Data(
+                    "C45_RENDER_LINE_V1 stage=after layout=\(layoutID) index=\(index) rows=\(afterInkRows)\n".utf8))
+            }
+#endif
+        }
+        if layoutID == AssetLabelRendererReleaseCatalogV1.nativeTextLayoutReleaseID {
+            let boundaryRows = [0, pixelHeight - 1]
+                + isolated.indices.flatMap { [$0 * 10, ($0 + 1) * 10 - 1] }
+            guard boundaryRows.allSatisfy({ row in
+                glyphInsetPixels[(row * pixelWidth)..<((row + 1) * pixelWidth)]
+                    .allSatisfy { $0 == 255 }
+            }), (0..<pixelHeight).allSatisfy({ row in
+                glyphInsetPixels[row * pixelWidth] == 255
+                    && glyphInsetPixels[(row + 1) * pixelWidth - 1] == 255
+            }) else {
+                throw AssetLabelRenderFailureV1.contentDoesNotFit
+            }
         }
         return AssetLabelRenderedTextV1(
             isolatedLines: isolated,
             pixelWidth: pixelWidth,
             pixelHeight: pixelHeight,
-            grayscaleBytes: Data(pixels),
+            grayscaleBytes: Data(
+                layoutID == AssetLabelRendererReleaseCatalogV1.nativeTextLayoutReleaseID
+                    ? glyphInsetPixels : pixels
+            ),
             fontPostScriptName: assetLabelNativeFontPostScriptName
         )
         #else
@@ -1518,6 +1649,117 @@ extension DeterministicPDFRendererV1 {
         let verticalInset = min(CGFloat(1), (CGFloat(10) - lineHeight) / 2)
         return lineBoxBottom + descent + verticalInset
     }
+
+    #if canImport(CoreText)
+    /// The trial CGContext never outlives its caller's pinned pixel storage.
+    /// Keeping this draw in a separate synchronous frame also releases the
+    /// context before the caller examines or copies the resulting Array.
+    private static func assetLabelDrawV2Trial(
+        _ line: CTLine,
+        into buffer: UnsafeMutableBufferPointer<UInt8>,
+        pixelWidth: Int,
+        pixelHeight: Int,
+        baseline: CGFloat
+    ) throws {
+        guard buffer.count == pixelWidth * pixelHeight,
+              let base = buffer.baseAddress,
+              let trial = CGContext(
+                data: UnsafeMutableRawPointer(base),
+                width: pixelWidth,
+                height: pixelHeight,
+                bitsPerComponent: 8,
+                bytesPerRow: pixelWidth,
+                space: CGColorSpaceCreateDeviceGray(),
+                bitmapInfo: 0
+              ) else {
+            throw AssetLabelRenderFailureV1.nativeUnicodeTextUnavailable
+        }
+        trial.setShouldAntialias(false)
+        trial.setAllowsAntialiasing(false)
+        trial.setShouldSmoothFonts(false)
+        trial.setAllowsFontSmoothing(false)
+        trial.setShouldSubpixelPositionFonts(false)
+        trial.setAllowsFontSubpixelPositioning(false)
+        trial.setShouldSubpixelQuantizeFonts(false)
+        trial.setAllowsFontSubpixelQuantization(false)
+        trial.textMatrix = .identity
+        trial.setFillColor(gray: 1, alpha: 1)
+        trial.fill(CGRect(x: 0, y: 0, width: pixelWidth, height: pixelHeight))
+        trial.setFillColor(gray: 0, alpha: 1)
+        trial.textPosition = CGPoint(x: 4, y: baseline)
+        CTLineDraw(line, trial)
+    }
+
+    /// A blank trial is not a valid label line. Every nonwhite pixel must be
+    /// inside this line's eight interior rows and away from side borders.
+    static func assetLabelV2MaskHasConfinedInk(
+        _ pixels: [UInt8],
+        pixelWidth: Int,
+        pixelHeight: Int,
+        lineIndex: Int
+    ) -> Bool {
+        guard (24...4_096).contains(pixelWidth),
+              (18...1_024).contains(pixelHeight),
+              lineIndex >= 0, lineIndex < pixelHeight / 10,
+              pixels.count == pixelWidth * pixelHeight else {
+            return false
+        }
+        var hasInk = false
+        for row in 0..<pixelHeight {
+            for column in 0..<pixelWidth where pixels[row * pixelWidth + column] < 255 {
+                guard row > lineIndex * 10,
+                      row < (lineIndex + 1) * 10 - 1,
+                      column > 0, column < pixelWidth - 1 else {
+                    return false
+                }
+                hasInk = true
+            }
+        }
+        return hasInk
+    }
+
+    /// The geometric interval bounds work; actual one-pixel raster masks
+    /// decide which of these finite, interior baselines may be committed.
+    static func assetLabelV2CandidateBaselines(
+        imageBounds: CGRect,
+        nominalBaseline: CGFloat,
+        lineBoxBottom: CGFloat
+    ) throws -> [CGFloat] {
+        guard nominalBaseline.isFinite, lineBoxBottom.isFinite else {
+            throw AssetLabelRenderFailureV1.contentDoesNotFit
+        }
+        if imageBounds.isNull || imageBounds.isEmpty {
+            return [nominalBaseline]
+        }
+        let glyphMinY = imageBounds.minY - nominalBaseline
+        let glyphMaxY = imageBounds.maxY - nominalBaseline
+        let lower = lineBoxBottom + 1 - glyphMinY
+        let upper = lineBoxBottom + 9 - glyphMaxY
+        guard glyphMinY.isFinite, glyphMaxY.isFinite,
+              lower.isFinite, upper.isFinite, lower < upper else {
+            throw AssetLabelRenderFailureV1.contentDoesNotFit
+        }
+        var candidates: [CGFloat] = []
+        for denominator in [2, 4, 8, 16] {
+            for numerator in stride(from: 1, to: denominator, by: 2) {
+                let candidate = lower + (upper - lower)
+                    * CGFloat(numerator) / CGFloat(denominator)
+                if candidate.isFinite, candidate > lower, candidate < upper,
+                   !candidates.contains(candidate) {
+                    candidates.append(candidate)
+                }
+            }
+        }
+        if nominalBaseline > lower, nominalBaseline < upper,
+           !candidates.contains(nominalBaseline) {
+            candidates.append(nominalBaseline)
+        }
+        guard !candidates.isEmpty else {
+            throw AssetLabelRenderFailureV1.contentDoesNotFit
+        }
+        return candidates
+    }
+    #endif
 
     static func assetLabelNativeTextEnvironment(
         for plan: AssetLabelGenerationPlanV1
@@ -1543,7 +1785,7 @@ extension DeterministicPDFRendererV1 {
         }
         return try AssetLabelNativeTextEnvironmentV1(
             planSHA256: plan.planSHA256,
-            nativeTextLayoutReleaseID: assetLabelNativeTextLayoutReleaseID,
+            nativeTextLayoutReleaseID: plan.template.rendererRelease.nativeTextLayoutReleaseID,
             coreTextVersion: CTGetCoreTextVersion(),
             operatingSystemBuild: try assetLabelOperatingSystemBuild(),
             baseFont: baseIdentity,

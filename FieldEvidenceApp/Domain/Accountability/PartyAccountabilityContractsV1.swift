@@ -55,7 +55,7 @@ enum PartyAccountabilityValidationV1 {
 
     static func requireText(_ value: String, maximumBytes: Int, allowEmpty: Bool = false) throws {
         guard (allowEmpty || !value.isEmpty), value.utf8.count <= maximumBytes,
-              value == value.precomposedStringWithCanonicalMapping else {
+              value.utf8.elementsEqual(value.precomposedStringWithCanonicalMapping.utf8) else {
             throw PartyAccountabilityFailureV1.invalidValue
         }
         for scalar in value.unicodeScalars {

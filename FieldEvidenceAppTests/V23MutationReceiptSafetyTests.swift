@@ -3423,3 +3423,94 @@ extension V23MutationReceiptSafetyTests {
         XCTAssertThrowsError(try BackupCanonicalEncoderV1().encodeRecords(records(38)))
     }
 }
+
+
+@MainActor
+final class TemporalServiceReliabilityOwnershipTests: XCTestCase {
+    func testRealReliabilityWriterPreservesEverySharedCurrentAndHistoricalEvidenceOwner() throws {
+        let workspace = WorkspaceID(rawValue: UUID()), assetID = UUID()
+        let harness = try ReceiptSafetyHarness(workspaceID: workspace) { context in
+            let site = Site(label: "M20 reliability", timeZoneID: "UTC")
+            context.insert(site)
+            context.insert(Asset(id: assetID, siteID: site.id, packID: "receipt-safety",
+                packSchemaVersion: 1, packContentVersion: 1, label: "M20 asset"))
+        }
+        defer { harness.removeFiles() }
+        let before = try harness.writer.currentRevision()
+        let seed = try ReceiptSafetyServiceReliability.makeBundle(workspaceID: workspace,
+            assetID: assetID, current: before)
+        let base = try XCTUnwrap(seed.bundle.payloads.compactMap { value -> QualifiedServiceExposureV1? in
+            if case let .exposure(value) = value { return value }; return nil
+        }.first)
+        let bytes = Data("retained reliability evidence".utf8)
+        let content = try ContentReferenceV1(workspaceID: workspace.rawValue.uuidString.lowercased(),
+            contentID: "m20-shared-original", byteLength: Int64(bytes.count), mediaType: "text/plain",
+            digests: ContentDigestSetV1([.init(algorithm: .sha256,
+                hexadecimalValue: KernelCanonicalHashV1.sha256(bytes))]),
+            byteRole: .immutableOriginal, createdAt: "2026-09-27T00:00:00.000Z")
+        let mutationID = try MutationIDV1(rawValue: UUID()), incidentID = UUID()
+        let incident = try AssetServiceIncidentV1(eventID: UUID(), incidentID: incidentID,
+            workspaceID: workspace, subject: base.subject, continuation: .newOccurrence,
+            observationBasis: base.observationBasis, time: base.timeBasis, recordedBy: base.recordedBy,
+            revision: 1, mutationID: mutationID)
+        func impact(_ evidence: [ContentReferenceV1]) throws -> ServiceImpactSegmentV1 {
+            try .init(eventID: UUID(), segmentID: UUID(), incidentID: incidentID, workspaceID: workspace,
+                subject: base.subject, impact: .degraded, origin: .unplanned, interval: base.interval,
+                openedAt: base.interval.lowerBound, certainty: .exact,
+                observationBasis: base.observationBasis, recordedTime: base.timeBasis,
+                recordedBy: base.recordedBy, evidence: evidence, revision: 1, mutationID: mutationID)
+        }
+        let first = try impact([content]), second = try impact([content])
+        let payloads: [ServiceReliabilityMutationPayloadV1] = [.incident(incident), .impact(first), .impact(second)]
+        let dependencies = try payloads.map { value in
+            try WorkspaceEntityRevisionV1(identity: value.concurrencyIdentity, revision: value.expectedEntityRevision)
+        }
+        let expected = try WorkspaceExpectedRevisionV1(workspaceID: workspace,
+            generationID: before.generationID, writerInstanceID: before.writerInstanceID,
+            workspaceRevision: before.revision, entityRevisions: dependencies)
+        let bundle = try ServiceReliabilityAtomicBundleV1(workspaceID: workspace,
+            expectedRevision: expected, mutationID: mutationID, payloads: payloads)
+        let receipt = try harness.writer.commitServiceReliability(bundle)
+        let successorMutation = try MutationIDV1(rawValue: UUID())
+        let successor = try ServiceImpactSegmentV1(eventID: UUID(), segmentID: first.segmentID,
+            incidentID: incidentID, workspaceID: workspace, subject: base.subject,
+            impact: first.impact, origin: first.origin, interval: first.interval,
+            openedAt: first.openedAt, certainty: first.certainty,
+            observationBasis: first.observationBasis, recordedTime: first.recordedTime,
+            recordedBy: first.recordedBy, evidence: [], predecessor: first.reference,
+            revision: 2, mutationID: successorMutation)
+        let next = try harness.writer.currentRevision()
+        let successorPayload = ServiceReliabilityMutationPayloadV1.impact(successor)
+        let successorExpected = try WorkspaceExpectedRevisionV1(workspaceID: workspace,
+            generationID: next.generationID, writerInstanceID: next.writerInstanceID,
+            workspaceRevision: next.revision, entityRevisions: [.init(
+                identity: successorPayload.concurrencyIdentity, revision: successorPayload.expectedEntityRevision)])
+        let successorBundle = try ServiceReliabilityAtomicBundleV1(workspaceID: workspace,
+            expectedRevision: successorExpected, mutationID: successorMutation, payloads: [successorPayload])
+        let successorReceipt = try harness.writer.commitServiceReliability(successorBundle)
+        let history = try harness.writer.sourceMutationHistorySnapshot()
+        let rows = try harness.context.fetch(FetchDescriptor<ServiceImpactSegmentRow>()).map { try $0.value() }
+        XCTAssertEqual(Set(rows.map(\.eventID)), Set([first.eventID, second.eventID, successor.eventID]))
+        let current = rows.flatMap { TemporalNormalizationActivityLabelReliabilityReferencesV1.reliabilityContent(.impact($0)) }
+        XCTAssertEqual(current, [content, content], "do not collapse distinct shared owners")
+        var historical: [ContentReferenceV1] = []
+        for row in history.receipts {
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+            guard case let .applyServiceReliability(value) = envelope.command else { continue }
+            let stored = try MutationReceiptV1.decodeCanonical(from: row.receiptData)
+            XCTAssertEqual(try ServiceReliabilityMutationReceiptV1(bundle: value, mutationReceipt: stored),
+                value.mutationID == mutationID ? receipt : successorReceipt)
+            historical += value.payloads.flatMap(TemporalNormalizationActivityLabelReliabilityReferencesV1.reliabilityContent)
+        }
+        XCTAssertEqual(historical, [content, content])
+        let foreign = try ContentReferenceV1(workspaceID: UUID().uuidString.lowercased(),
+            contentID: content.contentID, byteLength: content.byteLength, mediaType: content.mediaType,
+            digests: content.digests, byteRole: content.byteRole, createdAt: content.createdAt)
+        XCTAssertThrowsError(try impact([foreign]), "incumbent same-workspace evidence law")
+        XCTAssertThrowsError(try impact([content, content]), "incumbent duplicate owner descriptor law")
+        XCTAssertTrue(TemporalNormalizationActivityLabelReliabilityReferencesV1.reliabilityContent(.incident(incident)).isEmpty)
+        XCTAssertEqual(try harness.writer.sourceMutationHistorySnapshot(), history)
+        XCTAssertEqual(try harness.writer.commitServiceReliability(bundle), receipt, "real replay preserves receipt")
+        XCTAssertEqual(try harness.writer.sourceMutationHistorySnapshot(), history)
+    }
+}

@@ -478,3 +478,135 @@ final class V9_70RoundSessionStateTests: XCTestCase {
         XCTAssertTrue(corpus.statusFlags.values.allSatisfy { !$0 })
     }
 }
+
+
+@MainActor
+final class TemporalRoundReferenceOwnershipTests: XCTestCase {
+    func testActualWriterRoundHistoryResolvesExactReferencesAndPreservesEveryOrigin() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("M21-round-reference-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let lifetime = M21RoundLifetimeProbe()
+        var retainedRegistry: GenerationLeaseRegistryV1?
+        var retainedLease: GenerationLeaseHandleV1?
+        var constructionObserved = false
+        let result: Result<Void, Error> = Result {
+          try autoreleasepool {
+        let factory = StoreGenerationFactory(applicationSupportURL: directory)
+        let session = try factory.openOrBootstrapCurrent()
+        lifetime.session = session
+        lifetime.context = session.modelContext
+        lifetime.container = session.modelContext.container
+        let epoch = try XCTUnwrap(session.generationEpoch)
+        let registry = try factory.makeGenerationLeaseRegistry()
+        retainedRegistry = registry
+        let lease = try registry.acquireHandle(epoch: epoch, role: .writer)
+        retainedLease = lease
+        let fence = try factory.makeWriterFence(
+            expectedGenerationEpoch: epoch, writerLeaseToken: lease.token, registry: registry
+        )
+        let journal = try MutationJournalStoreV1(
+            modelContext: session.modelContext, identity: session.workspaceIdentity,
+            generationID: session.generationID, allowStateBootstrap: false,
+            staleWriterFence: fence
+        )
+        lifetime.journal = journal
+        let writer = try WorkspaceWriterV1(
+            identity: session.workspaceIdentity, generationID: session.generationID,
+            initialRevision: WorkspaceRevisionV1(
+                workspaceID: session.workspaceID, generationID: session.generationID,
+                revision: 0, entityRevisions: []
+            ),
+            clock: SystemApplicationClock(), idSource: SystemApplicationIDSource(),
+            fileAuthority: SystemApplicationFileAuthorityV1(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: session.modelContext),
+            journalStore: journal
+        )
+
+        lifetime.writer = writer
+        constructionObserved = true
+        defer { writer.invalidate() }
+        let bytes = Data("M21 retained round evidence".utf8)
+        let content = try ContentReferenceV1(workspaceID: session.workspaceID.rawValue.uuidString.lowercased(),
+            contentID: "m21-round-content", byteLength: Int64(bytes.count), mediaType: "text/plain",
+            digests: ContentDigestSetV1([.init(algorithm: .sha256,
+                hexadecimalValue: KernelCanonicalHashV1.sha256(bytes))]), byteRole: .immutableOriginal,
+            createdAt: "2026-09-27T00:00:00.000Z")
+        let requirement = try RoundPackageContentRequirementV1(
+            packageRelease: C05RoundSessionTestSupport.requirement().packageRelease, requiredContent: [content])
+        let created = try C05RoundSessionTestSupport.session(workspace: session.workspaceID,
+            state: .draft, transition: .create,
+            items: [C05RoundSessionTestSupport.item(0, requirement: requirement)])
+        let first = try RoundSessionMutationV1(workspaceID: session.workspaceID,
+            expectedRevision: 0, mutationID: created.mutationID, session: created)
+        _ = try writer.commitRoundSession(first)
+        let active = try C05RoundSessionTestSupport.successor(created, state: .active, transition: .start)
+        _ = try writer.commitRoundSession(.init(workspaceID: session.workspaceID,
+            expectedRevision: 1, mutationID: active.mutationID, session: active))
+        let history = try writer.sourceMutationHistorySnapshot()
+        let canonical = try session.modelContext.fetch(FetchDescriptor<RoundSessionRevisionRowV1>()).map { try $0.value() }
+        let retained = try history.receipts.compactMap { row -> RoundSessionV1? in
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData)
+            if case let .applyRoundSession(value) = envelope.command { return value.session }
+            return nil
+        }
+        let all = canonical + retained
+        let index = try TemporalNormalizationRoundReferenceIndexV1(rounds: all)
+        let positions = try index.matchingPositions(created.reference)
+        XCTAssertEqual(positions.count, 2, "canonical and original history origins are both retained")
+        for offset in positions {
+            XCTAssertEqual(all[offset], created)
+            XCTAssertEqual(all[offset].items.flatMap { $0.requirement.requiredContent }, [content])
+        }
+        XCTAssertEqual(try index.matchingPositions(active.reference).count, 2)
+        let foreign = try RoundSessionReferenceV1(workspaceID: WorkspaceID(rawValue: UUID()),
+            sessionID: created.sessionID, revision: created.revision, sessionSHA256: created.sessionSHA256)
+        XCTAssertTrue(try index.matchingPositions(foreign).isEmpty)
+        let wrongDigest = try RoundSessionReferenceV1(workspaceID: created.workspaceID,
+            sessionID: created.sessionID, revision: created.revision,
+            sessionSHA256: KernelCanonicalHashV1.sha256(Data("wrong endpoint".utf8)))
+        XCTAssertTrue(try index.matchingPositions(wrongDigest).isEmpty)
+        let missing = try TemporalNormalizationRoundReferenceIndexV1(rounds: [])
+        XCTAssertTrue(try missing.matchingPositions(created.reference).isEmpty)
+        let conflicting = try C05RoundSessionTestSupport.session(workspace: session.workspaceID,
+            sessionID: created.sessionID, state: .draft, transition: .create,
+            items: C05RoundSessionTestSupport.items(1))
+        XCTAssertThrowsError(try TemporalNormalizationRoundReferenceIndexV1(rounds: [created, conflicting]))
+        XCTAssertEqual(try writer.sourceMutationHistorySnapshot(), history)
+        XCTAssertEqual(try writer.commitRoundSession(first).mutationReceipt.mutationID, created.mutationID)
+        XCTAssertEqual(try writer.sourceMutationHistorySnapshot(), history)
+          }
+        }
+        // No store aliases escape the autoreleasepool scope. A nil assignment
+        // is not evidence of drain: all actual weak references must be gone.
+        guard constructionObserved, lifetime.isDrained,
+              let registry = retainedRegistry, let lease = retainedLease else {
+            XCTFail("M21 cleanup cannot prove complete store drain; preserving \(directory.path)")
+            throw M21RoundLifetimeProbe.Failure.uncertainDrain
+        }
+        do {
+            try lease.close()
+            guard try registry.activeEpochs().isEmpty else {
+                throw M21RoundLifetimeProbe.Failure.remainingLease
+            }
+            try FileManager.default.removeItem(at: directory)
+        } catch {
+            XCTFail("M21 checked cleanup failed; root preserved when still present: \(directory.path); \(error)")
+            throw error
+        }
+        try result.get()
+    }
+}
+
+@MainActor
+private final class M21RoundLifetimeProbe {
+    enum Failure: Error { case uncertainDrain, remainingLease }
+    weak var session: StoreGenerationSession?
+    weak var context: ModelContext?
+    weak var container: ModelContainer?
+    weak var journal: MutationJournalStoreV1?
+    weak var writer: WorkspaceWriterV1?
+    var isDrained: Bool {
+        session == nil && context == nil && container == nil && journal == nil && writer == nil
+    }
+}

@@ -181,23 +181,33 @@ enum C33TemporalEvidencePackageValidationV1 {
                     continue
                 }
                 let snapshot = try ReportSnapshotEncoderV1().decode(snapshotBytes)
-                for link in snapshot.temporalEvidenceLinks ?? [] {
-                    guard link.workspaceID.rawValue == sourceWorkspaceID,
-                          let clip = clipsByID[link.clipID] else {
-                        throw BackupPackageValidationErrorV1.invalidPackage
-                    }
-                    let anchors = try link.anchorBindings.map { binding in
-                        guard let anchor = anchorsByID[binding.anchorID],
-                              try binding.matches(anchor, clip: clip) else {
-                            throw BackupPackageValidationErrorV1.invalidPackage
-                        }
-                        return anchor
-                    }
-                    try link.validate(clip: clip, anchors: anchors)
-                }
+                try validateReportLinks(snapshot, sourceWorkspaceID: sourceWorkspaceID,
+                    clipsByID: clipsByID, anchorsByID: anchorsByID)
             }
         } catch {
             throw BackupPackageValidationErrorV1.invalidPackage
+        }
+    }
+
+    /// The incumbent pure report-to-C33 endpoint law. Callers provide genuine
+    /// typed source values; this helper does not admit members or a manifest.
+    static func validateReportLinks(_ snapshot: ReportSnapshotV1,
+                                    sourceWorkspaceID: UUID,
+                                    clipsByID: [UUID: TemporalEvidenceClipV1],
+                                    anchorsByID: [UUID: TimecodedEvidenceAnchorV1]) throws {
+        for link in snapshot.temporalEvidenceLinks ?? [] {
+            guard link.workspaceID.rawValue == sourceWorkspaceID,
+                  let clip = clipsByID[link.clipID] else {
+                throw BackupPackageValidationErrorV1.invalidPackage
+            }
+            let anchors = try link.anchorBindings.map { binding in
+                guard let anchor = anchorsByID[binding.anchorID],
+                      try binding.matches(anchor, clip: clip) else {
+                    throw BackupPackageValidationErrorV1.invalidPackage
+                }
+                return anchor
+            }
+            try link.validate(clip: clip, anchors: anchors)
         }
     }
 }
@@ -629,6 +639,31 @@ struct ValidatedBackupPackageCanonicalFactsV1: Sendable {
         self.package = package
         self.recordsFacts = recordsFacts
     }
+}
+
+
+// Pure typed graph inputs. Values are observations, never source capabilities.
+struct AuthorityCriterionGraphValuesV1: Sendable {
+    var sources: [UUID: AuthoritySourceReleaseV1] = [:]
+    var bases: [UUID: RequirementBasisBindingV1] = [:]
+    var contexts: [UUID: ApplicabilityContextSnapshotV1] = [:]
+    var scopes: [UUID: AssessmentScopeSnapshotV1] = [:]
+    var scales: [UUID: SeverityScaleReleaseV1] = [:]
+    var classifications: [UUID: FindingClassificationBindingV1] = [:]
+    var protocols: [UUID: MeasurementProtocolReleaseV1] = [:]
+    var evaluators: [UUID: DerivedFactEvaluatorDescriptorV1] = [:]
+    var facts: [UUID: DerivedFactProvenanceV1] = [:]
+    var actors: [UUID: ActorSnapshotV1] = [:]
+    var qualifications: [UUID: QualificationSnapshotV1] = [:]
+    var workScopes: [UUID: WorkSubjectScopeSnapshotV1] = [:]
+}
+struct MeasurementIntegrityGraphValuesV1: Sendable {
+    var instruments: [UUID: InstrumentReferenceV1] = [:]
+    var calibrations: [UUID: CalibrationStatusSnapshotV1] = [:]
+    var captures: [UUID: MeasurementCaptureV1] = [:]
+    var series: [UUID: MeasurementSeriesV1] = [:]
+    var assessments: [UUID: MeasurementQualityAssessmentV1] = [:]
+    var protocolsByID: [UUID: MeasurementProtocolReleaseV1] = [:]
 }
 
 struct BackupPackageValidatorV1: Sendable {
@@ -2302,6 +2337,16 @@ private extension BackupPackageValidatorV1 {
         guard (10...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               BackupSchemaAdmissionV1.matches(manifest, records: records),
               let workspaceID = manifest.source.workspaceID else { throw invalid() }
+        try validateAuthorityCriterionGraph(records, workspaceID: workspaceID,
+                                            canonicalFacts: canonicalFacts)
+    }
+
+    /// Pure canonical graph law shared by package admission and temporal
+    /// observation. Caller owns schema/source admission; no filesystem effects.
+    internal func validateAuthorityCriterionGraph(
+        _ records: V4BackupRecordsV1, workspaceID: UUID,
+        canonicalFacts: BackupCanonicalRecordsValidationFactsV1? = nil
+    ) throws {
         let keys = records.authorityCriterion.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString)" }
         guard keys == keys.sorted(), Set(keys).count == keys.count,
               records.authorityCriterion.allSatisfy({
@@ -2351,6 +2396,50 @@ private extension BackupPackageValidatorV1 {
                 }
             }
 
+            try validateAuthorityCriterionPredecessors(.init(sources: sources, bases: bases, contexts: contexts, scopes: scopes, scales: scales, classifications: classifications, protocols: protocols, evaluators: evaluators, facts: facts))
+
+            var actors: [UUID: ActorSnapshotV1] = [:]
+            var qualifications: [UUID: QualificationSnapshotV1] = [:]
+            for row in records.partyAccountability {
+                switch row.kind {
+                case .actorSnapshot:
+                    let value = try PartyAccountabilitySnapshotCodecV1.decode(ActorSnapshotV1.self, from: row.canonicalData)
+                    actors[value.snapshotID] = value
+                case .qualificationSnapshot:
+                    let value = try PartyAccountabilitySnapshotCodecV1.decode(QualificationSnapshotV1.self, from: row.canonicalData)
+                    qualifications[value.snapshotID] = value
+                default: break
+                }
+            }
+            var workScopes: [UUID: WorkSubjectScopeSnapshotV1] = [:]
+            for row in records.assetSemantics where row.kind == .workSubjectScopeSnapshot {
+                let value = try AssetSemanticCanonicalCodecV1.decode(WorkSubjectScopeSnapshotV1.self, from: row.canonicalData)
+                workScopes[value.snapshotID] = value
+            }
+
+            try validateAuthorityCriterionReferences(.init(sources: sources, bases: bases, contexts: contexts, scopes: scopes, scales: scales, classifications: classifications, protocols: protocols, evaluators: evaluators, facts: facts, actors: actors, qualifications: qualifications, workScopes: workScopes))
+        } catch { throw invalid() }
+    }
+
+    /// Shared exact typed laws for current rows and immutable-history namespaces.
+    internal func validateAuthorityCriterionValues(_ graph: AuthorityCriterionGraphValuesV1) throws {
+        try validateAuthorityCriterionPredecessors(graph)
+        try validateAuthorityCriterionReferences(graph)
+    }
+
+    private func validateAuthorityCriterionPredecessors(_ graph: AuthorityCriterionGraphValuesV1) throws {
+        let sources = graph.sources
+        let bases = graph.bases
+        let contexts = graph.contexts
+        let scopes = graph.scopes
+        let scales = graph.scales
+        let classifications = graph.classifications
+        let protocols = graph.protocols
+        let evaluators = graph.evaluators
+        let facts = graph.facts
+        let actors = graph.actors
+        let qualifications = graph.qualifications
+        let workScopes = graph.workScopes
             func validateChain<T>(
                 _ values: [T], id: KeyPath<T, UUID>, predecessor: KeyPath<T, UUID?>,
                 revision: KeyPath<T, UInt64>
@@ -2380,25 +2469,21 @@ private extension BackupPackageValidatorV1 {
             try validateChain(Array(evaluators.values), id: \.descriptorID, predecessor: \.supersedesDescriptorID, revision: \.revision)
             try validateChain(Array(facts.values), id: \.provenanceID, predecessor: \.predecessorProvenanceID, revision: \.revision)
 
-            var actors: [UUID: ActorSnapshotV1] = [:]
-            var qualifications: [UUID: QualificationSnapshotV1] = [:]
-            for row in records.partyAccountability {
-                switch row.kind {
-                case .actorSnapshot:
-                    let value = try PartyAccountabilitySnapshotCodecV1.decode(ActorSnapshotV1.self, from: row.canonicalData)
-                    actors[value.snapshotID] = value
-                case .qualificationSnapshot:
-                    let value = try PartyAccountabilitySnapshotCodecV1.decode(QualificationSnapshotV1.self, from: row.canonicalData)
-                    qualifications[value.snapshotID] = value
-                default: break
-                }
-            }
-            var workScopes: [UUID: WorkSubjectScopeSnapshotV1] = [:]
-            for row in records.assetSemantics where row.kind == .workSubjectScopeSnapshot {
-                let value = try AssetSemanticCanonicalCodecV1.decode(WorkSubjectScopeSnapshotV1.self, from: row.canonicalData)
-                workScopes[value.snapshotID] = value
-            }
+    }
 
+    private func validateAuthorityCriterionReferences(_ graph: AuthorityCriterionGraphValuesV1) throws {
+        let sources = graph.sources
+        let bases = graph.bases
+        let contexts = graph.contexts
+        let scopes = graph.scopes
+        let scales = graph.scales
+        let classifications = graph.classifications
+        let protocols = graph.protocols
+        let evaluators = graph.evaluators
+        let facts = graph.facts
+        let actors = graph.actors
+        let qualifications = graph.qualifications
+        let workScopes = graph.workScopes
             guard bases.values.allSatisfy({ value in
                       sources[value.authorityReleaseID] != nil
                         && actors[value.selectedBy.snapshotID] == value.selectedBy
@@ -2430,7 +2515,6 @@ private extension BackupPackageValidatorV1 {
                             let evaluator = evaluators[value.evaluatorDescriptorID] else { return false }
                       return protocolValue.evaluatorDescriptorID == evaluator.descriptorID
                   }) else { throw invalid() }
-        } catch { throw invalid() }
     }
 
     func validateFunctionalRelationships(
@@ -2637,17 +2721,12 @@ private extension BackupPackageValidatorV1 {
                 }
             }
             let packetIDs=Set(records.packets.map(\.id));guard manifests.values.allSatisfy({packetIDs.contains($0.packetID)})else{throw invalid()}
-            let manifestVersions=manifests.values.map{"\($0.packetID.uuidString)\u{0}\($0.packetVersion)"}
-            let claimPredecessors=claims.values.compactMap(\.supersedesClaimID)
-            let leasePredecessors=leases.values.compactMap(\.supersedesLeaseID)
-            guard Set(manifestVersions).count==manifestVersions.count,
-                  Set(claimPredecessors).count==claimPredecessors.count,
-                  Set(leasePredecessors).count==leasePredecessors.count else{throw invalid()}
-            for claim in claims.values {guard let owner=manifests[claim.manifest.manifestID],claim.manifest==(try WorkPacketManifestReferenceV1(owner)),owner.items.contains(where:{(try? WorkPacketItemReferenceV1(manifest:owner,item:$0))==claim.item})else{throw invalid()};if let p=claim.supersedesClaimID{guard let prior=claims[p]else{throw invalid()};try claim.validateSuccessor(of:prior)}}
-            for lease in leases.values {guard let claim=claims[lease.claimID],lease.item==claim.item else{throw invalid()};if let p=lease.supersedesLeaseID{guard let prior=leases[p]else{throw invalid()};try lease.validateSuccessor(of:prior)}}
+            try validateTemporalNormalizationWorkPacketTopology(manifests: manifests, claims: claims, leases: leases)
+            for claim in claims.values { try validateTemporalNormalizationWorkPacketClaim(claim, manifests: manifests, claims: claims) }
+            for lease in leases.values { try validateTemporalNormalizationWorkPacketLease(lease, claims: claims, leases: leases) }
             for release in releases.values {guard let c=claims[release.claimID],let l=leases[release.leaseID],let m=manifests[c.manifest.manifestID],release.resultLinks.allSatisfy({$0.evidence.allSatisfy(known)})else{throw invalid()};try release.validate(claim:c,lease:l,manifest:m)}
             for handoff in handoffs.values {guard let release=releases[handoff.releaseID],handoff.resultLinks.allSatisfy({$0.evidence.allSatisfy(known)})else{throw invalid()};try handoff.validate(release:release)}
-            for value in manifests.values {_ = try WorkPacketProjectionBuilderV1.rebuild(workspaceID:workspaceID,manifest:value,claims:Array(claims.values),leases:Array(leases.values),releases:Array(releases.values),handoffs:Array(handoffs.values),at:.distantFuture)}
+            try validateTemporalNormalizationWorkPacketProjection(workspaceID: workspaceID, manifests: manifests, claims: claims, leases: leases, releases: releases, handoffs: handoffs)
         } catch {throw invalid()}
     }
 
@@ -2865,6 +2944,14 @@ private extension BackupPackageValidatorV1 {
         guard (17...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion).contains(records.recordsSchemaVersion),
               BackupSchemaAdmissionV1.matches(manifest, records: records),
               let rawWorkspaceID = manifest.source.workspaceID else { throw invalid() }
+        try validateMeasurementIntegrityGraph(records, rawWorkspaceID: rawWorkspaceID)
+    }
+
+    /// Pure typed graph law; actual records supply all protocol dependencies.
+    /// No archive manifest is synthesized by callers of this observation seam.
+    internal func validateMeasurementIntegrityGraph(
+        _ records: V4BackupRecordsV1, rawWorkspaceID: UUID
+    ) throws {
         let workspaceID = WorkspaceID(rawValue: rawWorkspaceID)
         var instruments:[UUID:InstrumentReferenceV1]=[:], calibrations:[UUID:CalibrationStatusSnapshotV1]=[:]
         var captures:[UUID:MeasurementCaptureV1]=[:], series:[UUID:MeasurementSeriesV1]=[:]
@@ -2890,12 +2977,39 @@ private extension BackupPackageValidatorV1 {
                     guard v.workspaceID==workspaceID,v.assessmentID==row.id,v.revision==row.revision,assessments.updateValue(v,forKey:v.assessmentID)==nil else{throw invalid()}
                 }
             }
-            for v in instruments.values { if let p=v.supersedesReferenceID { guard let predecessor=instruments[p] else{throw invalid()};try v.validateSuccessor(of:predecessor) } else if v.revision != 1 { throw invalid() } }
-            for v in calibrations.values { guard let instrument=instruments[v.instrument.referenceID] else{throw invalid()};let reference=try InstrumentRevisionReferenceV1(instrument);guard reference==v.instrument else{throw invalid()};if let p=v.supersedesSnapshotID{guard let predecessor=calibrations[p] else{throw invalid()};try v.validateSuccessor(of:predecessor)}else if v.revision != 1{throw invalid()} }
-            for v in captures.values { let instrument=try v.instrument.map{ ref in guard let x=instruments[ref.referenceID] else{throw invalid()};return x};let calibration=try v.calibration.map{ref in guard let x=calibrations[ref.snapshotID] else{throw invalid()};return x};try v.validateClosure(instrument:instrument,calibration:calibration);if let p=v.supersedesCaptureID{guard let predecessor=captures[p] else{throw invalid()};try v.validateSuccessor(of:predecessor)}else if v.revision != 1{throw invalid()} }
+            try validateMeasurementIntegrityInitialValues(.init(instruments: instruments, calibrations: calibrations, captures: captures, series: series, assessments: assessments))
             let protocols = try records.authorityCriterion.filter{$0.kind == .measurementProtocolRelease}.map{try AuthorityCriterionCanonicalCodecV1.decode(MeasurementProtocolReleaseV1.self,from:$0.canonicalData)}
             var protocolsByID:[UUID:MeasurementProtocolReleaseV1]=[:]
             for value in protocols { guard protocolsByID.updateValue(value,forKey:value.releaseID)==nil else{throw invalid()} }
+            try validateMeasurementIntegritySeriesAndQuality(.init(instruments: instruments, calibrations: calibrations, captures: captures, series: series, assessments: assessments, protocolsByID: protocolsByID))
+        } catch { throw invalid() }
+    }
+
+    /// No archive or fabricated records envelope is needed for typed history.
+    internal func validateMeasurementIntegrityValues(_ graph: MeasurementIntegrityGraphValuesV1) throws {
+        try validateMeasurementIntegrityInitialValues(graph)
+        try validateMeasurementIntegritySeriesAndQuality(graph)
+    }
+
+    private func validateMeasurementIntegrityInitialValues(_ graph: MeasurementIntegrityGraphValuesV1) throws {
+        let instruments = graph.instruments
+        let calibrations = graph.calibrations
+        let captures = graph.captures
+        let series = graph.series
+        let assessments = graph.assessments
+        let protocolsByID = graph.protocolsByID
+            for v in instruments.values { if let p=v.supersedesReferenceID { guard let predecessor=instruments[p] else{throw invalid()};try v.validateSuccessor(of:predecessor) } else if v.revision != 1 { throw invalid() } }
+            for v in calibrations.values { guard let instrument=instruments[v.instrument.referenceID] else{throw invalid()};let reference=try InstrumentRevisionReferenceV1(instrument);guard reference==v.instrument else{throw invalid()};if let p=v.supersedesSnapshotID{guard let predecessor=calibrations[p] else{throw invalid()};try v.validateSuccessor(of:predecessor)}else if v.revision != 1{throw invalid()} }
+            for v in captures.values { let instrument=try v.instrument.map{ ref in guard let x=instruments[ref.referenceID] else{throw invalid()};return x};let calibration=try v.calibration.map{ref in guard let x=calibrations[ref.snapshotID] else{throw invalid()};return x};try v.validateClosure(instrument:instrument,calibration:calibration);if let p=v.supersedesCaptureID{guard let predecessor=captures[p] else{throw invalid()};try v.validateSuccessor(of:predecessor)}else if v.revision != 1{throw invalid()} }
+    }
+
+    private func validateMeasurementIntegritySeriesAndQuality(_ graph: MeasurementIntegrityGraphValuesV1) throws {
+        let instruments = graph.instruments
+        let calibrations = graph.calibrations
+        let captures = graph.captures
+        let series = graph.series
+        let assessments = graph.assessments
+        let protocolsByID = graph.protocolsByID
             for v in series.values { guard let protocolRelease=protocolsByID[v.protocolReference.releaseID] else{throw invalid()};try v.validateClosure(captures:Array(captures.values),protocolRelease:protocolRelease);if let p=v.supersedesSnapshotID{guard let predecessor=series[p] else{throw invalid()};try v.validateSuccessor(of:predecessor)}else if v.revision != 1{throw invalid()} }
             for v in assessments.values {
                 switch v.subjectKind {
@@ -2919,7 +3033,6 @@ private extension BackupPackageValidatorV1 {
                     throw invalid()
                 }
             }
-        } catch { throw invalid() }
     }
 
     func validatePrivacyTransforms(
@@ -3516,31 +3629,9 @@ private extension BackupPackageValidatorV1 {
                 return hasReference(family, item.itemID, item.itemRevision, item.itemSHA256)
             }
             guard transitions.values.allSatisfy({ value in
-                (value.dispositionID.map { id in
-                    dispositions[id].map {
-                        (value.toState == .accepted || value.toState == .changesRequested)
-                            && $0.reviewID == value.reviewID && $0.subject == value.subject
-                            && $0.reviewRevision == value.revision && $0.mutationID == value.mutationID
-                            && $0.changeRequestIDs == value.changeRequestIDs
-                            && $0.kind == (value.toState == .accepted ? .accepted : .changesRequested)
-                    } ?? false
-                } ?? true)
-                    && value.changeRequestIDs.allSatisfy { id in
-                        requestsByStableID[id]?.filter {
-                            $0.reviewID == value.reviewID && $0.reviewRevision == value.revision
-                                && $0.mutationID == value.mutationID
-                        }.count == 1
-                    } && known(value.actor) && known(value.subject)
+                temporalNormalizationReviewTransitionRelationsMatch(value, dispositions: dispositions, requestsByStableID: requestsByStableID) && known(value.actor) && known(value.subject)
             }), dispositions.values.allSatisfy({ value in
-                transitions.values.filter {
-                    $0.dispositionID == value.dispositionID && $0.reviewID == value.reviewID
-                        && $0.revision == value.reviewRevision && $0.mutationID == value.mutationID
-                }.count == 1 && value.changeRequestIDs.allSatisfy { id in
-                    requestsByStableID[id]?.contains {
-                        $0.reviewID == value.reviewID && $0.reviewRevision == value.reviewRevision
-                            && $0.mutationID == value.mutationID
-                    } == true
-                } && known(value.reviewer)
+                temporalNormalizationReviewDispositionRelationsMatch(value, transitions: transitions, requestsByStableID: requestsByStableID) && known(value.reviewer)
                     && (value.assuranceManifestID.map { id in
                         assuranceManifests[id].map { manifest in
                             guard let revision = value.assuranceManifestRevision,
@@ -3549,18 +3640,11 @@ private extension BackupPackageValidatorV1 {
                         } ?? false
                     } ?? true)
             }), requests.values.allSatisfy({ value in
-                transitions.values.filter {
-                    $0.reviewID == value.reviewID && $0.revision == value.reviewRevision
-                        && $0.mutationID == value.mutationID
-                        && $0.changeRequestIDs.contains(value.requestID)
-                }.count == 1 && known(value.item) && known(value.requester) && (value.resolution.map {
+                temporalNormalizationReviewRequestRelationsMatch(value, transitions: transitions) && known(value.item) && known(value.requester) && (value.resolution.map {
                     known($0.resolver) && known($0.evidence)
                 } ?? true)
             }), actions.values.allSatisfy({ value in
-                (policies[value.policy.releaseID].map {
-                    $0.policyID == value.policy.policyID && $0.revision == value.policy.revision
-                        && $0.policySHA256 == value.policy.sha256
-                } ?? false)
+                temporalNormalizationReviewActionPolicyRelationsMatch(value, policies: policies)
                     && known(value.recorder) && (value.verifier.map(known) ?? true)
                     && known(value.closureEvidence)
                     && known(value.source)
@@ -4643,6 +4727,16 @@ private extension BackupPackageValidatorV1 {
         photoHistory: CheckRunnerPhotoBackupHistoryV1?,
         cancellation: StreamingArchiveCancellationV1
     ) throws {
+        try validateReportSnapshots(records, reportBytes: { members[$0] },
+            photoHistory: photoHistory, cancellation: cancellation)
+    }
+
+    func validateReportSnapshots(
+        _ records: V4BackupRecordsV1,
+        reportBytes: (String) -> Data?,
+        photoHistory: CheckRunnerPhotoBackupHistoryV1?,
+        cancellation: StreamingArchiveCancellationV1
+    ) throws {
         let workflow = Dictionary(uniqueKeysWithValues: records.workflowRecords.map { ($0.id, $0) })
         let packets = Dictionary(uniqueKeysWithValues: records.packets.map { ($0.id, $0) })
         let evidence = Dictionary(uniqueKeysWithValues: records.evidenceFiles.map { ($0.id, $0) })
@@ -4666,7 +4760,7 @@ private extension BackupPackageValidatorV1 {
         }
         for report in records.reports {
             try cancellation.checkpoint()
-            guard let bytes = members["snapshots/\(uuid(report.id)).json"],
+            guard let bytes = reportBytes("snapshots/\(uuid(report.id)).json"),
                   CanonicalJSONV1.sha256(bytes) == report.snapshotSHA256,
                   let source = workflow[report.sourceRecordID],
                   let packet = packets[report.packetID],
@@ -5291,5 +5385,127 @@ enum C08ImportBulkBackupPackageValidationV1 {
                 throw BackupPackageValidationErrorV1.invalidPackage
             }
         } catch { throw BackupPackageValidationErrorV1.invalidPackage }
+    }
+}
+
+// Pure reuse of the incumbent chain law. This accepts typed graph values only
+// and authenticates no manifest, source owner, retained reader or publication.
+extension BackupPackageValidatorV1 {
+    func validateTemporalNormalizationEvidenceAssuranceChains(
+        visibilities: [UUID: EvidenceVisibilityV1], links: [UUID: ClaimEvidenceLinkV1],
+        manifests: [UUID: AssuranceManifestV1], attestations: [UUID: AttestationV1]
+    ) throws {
+        try validateEvidenceAssuranceChains(visibilities, links, manifests, attestations)
+    }
+}
+
+extension BackupPackageValidatorV1 {
+    // Pure forwarding only; the incumbent private law and all callers stay intact.
+    func validateTemporalNormalizationInspectionReviewChains(
+        transitions: [UUID: InspectionReviewTransitionV1], dispositions: [UUID: ReviewDispositionV1],
+        requests: [UUID: ChangeRequestV1], policies: [UUID: CorrectiveActionPolicyV1],
+        actions: [UUID: CorrectiveActionEventV1]
+    ) throws {
+        try validateInspectionReviewChains(transitions, dispositions, requests, policies, actions)
+    }
+}
+
+extension BackupPackageValidatorV1 {
+    // Shared exact pure subsets of the incumbent work-packet law. Actor/packet
+    // admission and external evidence predicates remain at the incumbent caller.
+    func validateTemporalNormalizationWorkPacketTopology(
+        manifests: [UUID: WorkPacketManifestV1], claims: [UUID: WorkItemClaimV1],
+        leases: [UUID: WorkLeaseV1]
+    ) throws {
+        let manifestVersions=manifests.values.map{"\($0.packetID.uuidString)\u{0}\($0.packetVersion)"}
+        let claimPredecessors=claims.values.compactMap(\.supersedesClaimID)
+        let leasePredecessors=leases.values.compactMap(\.supersedesLeaseID)
+        guard Set(manifestVersions).count==manifestVersions.count,
+              Set(claimPredecessors).count==claimPredecessors.count,
+              Set(leasePredecessors).count==leasePredecessors.count else{throw invalid()}
+    }
+    func validateTemporalNormalizationWorkPacketClaim(
+        _ claim: WorkItemClaimV1, manifests: [UUID: WorkPacketManifestV1], claims: [UUID: WorkItemClaimV1]
+    ) throws {
+        guard let owner=manifests[claim.manifest.manifestID],claim.manifest==(try WorkPacketManifestReferenceV1(owner)),owner.items.contains(where:{(try? WorkPacketItemReferenceV1(manifest:owner,item:$0))==claim.item})else{throw invalid()}
+        if let p=claim.supersedesClaimID{guard let prior=claims[p]else{throw invalid()};try claim.validateSuccessor(of:prior)}
+    }
+    func validateTemporalNormalizationWorkPacketLease(
+        _ lease: WorkLeaseV1, claims: [UUID: WorkItemClaimV1], leases: [UUID: WorkLeaseV1]
+    ) throws {
+        guard let claim=claims[lease.claimID],lease.item==claim.item else{throw invalid()}
+        if let p=lease.supersedesLeaseID{guard let prior=leases[p]else{throw invalid()};try lease.validateSuccessor(of:prior)}
+    }
+    func validateTemporalNormalizationWorkPacketProjection(
+        workspaceID: WorkspaceID, manifests: [UUID: WorkPacketManifestV1],
+        claims: [UUID: WorkItemClaimV1], leases: [UUID: WorkLeaseV1],
+        releases: [UUID: WorkReleaseV1], handoffs: [UUID: WorkHandoffV1]
+    ) throws {
+        for value in manifests.values {_ = try WorkPacketProjectionBuilderV1.rebuild(workspaceID:workspaceID,manifest:value,claims:Array(claims.values),leases:Array(leases.values),releases:Array(releases.values),handoffs:Array(handoffs.values),at:.distantFuture)}
+    }
+}
+
+extension BackupPackageValidatorV1 {
+    // Exact pure expressions factored from the incumbent short-circuit guard.
+    // These Boolean relations authenticate no source and grant no capability.
+    func temporalNormalizationReviewTransitionRelationsMatch(_ value: InspectionReviewTransitionV1,
+        dispositions: [UUID: ReviewDispositionV1], requestsByStableID: [UUID: [ChangeRequestV1]]) -> Bool {
+        return (value.dispositionID.map { id in
+                    dispositions[id].map {
+                        (value.toState == .accepted || value.toState == .changesRequested)
+                            && $0.reviewID == value.reviewID && $0.subject == value.subject
+                            && $0.reviewRevision == value.revision && $0.mutationID == value.mutationID
+                            && $0.changeRequestIDs == value.changeRequestIDs
+                            && $0.kind == (value.toState == .accepted ? .accepted : .changesRequested)
+                    } ?? false
+                } ?? true)
+                    && value.changeRequestIDs.allSatisfy { id in
+                        requestsByStableID[id]?.filter {
+                            $0.reviewID == value.reviewID && $0.reviewRevision == value.revision
+                                && $0.mutationID == value.mutationID
+                        }.count == 1
+                    }
+    }
+    func temporalNormalizationReviewDispositionRelationsMatch(_ value: ReviewDispositionV1,
+        transitions: [UUID: InspectionReviewTransitionV1], requestsByStableID: [UUID: [ChangeRequestV1]]) -> Bool {
+        return transitions.values.filter {
+                    $0.dispositionID == value.dispositionID && $0.reviewID == value.reviewID
+                        && $0.revision == value.reviewRevision && $0.mutationID == value.mutationID
+                }.count == 1 && value.changeRequestIDs.allSatisfy { id in
+                    requestsByStableID[id]?.contains {
+                        $0.reviewID == value.reviewID && $0.reviewRevision == value.reviewRevision
+                            && $0.mutationID == value.mutationID
+                    } == true
+                }
+    }
+    func temporalNormalizationReviewRequestRelationsMatch(_ value: ChangeRequestV1,
+        transitions: [UUID: InspectionReviewTransitionV1]) -> Bool {
+        return transitions.values.filter {
+                    $0.reviewID == value.reviewID && $0.revision == value.reviewRevision
+                        && $0.mutationID == value.mutationID
+                        && $0.changeRequestIDs.contains(value.requestID)
+                }.count == 1
+    }
+    func temporalNormalizationReviewActionPolicyRelationsMatch(_ value: CorrectiveActionEventV1,
+        policies: [UUID: CorrectiveActionPolicyV1]) -> Bool {
+        return (policies[value.policy.releaseID].map {
+                    $0.policyID == value.policy.policyID && $0.revision == value.policy.revision
+                        && $0.policySHA256 == value.policy.sha256
+                } ?? false)
+    }
+}
+
+
+extension BackupPackageValidatorV1 {
+    /// Reuses the incumbent report predicates with genuine observed snapshot
+    /// bytes. The caller still owns source/profile/member admission. This does
+    /// not construct ValidatedV4BackupMembersV1 or a package manifest.
+    func validateTemporalReportSnapshots(
+        records: V4BackupRecordsV1,
+        reportBytes: [String: Data],
+        photoHistory: CheckRunnerPhotoBackupHistoryV1
+    ) throws {
+        try validateReportSnapshots(records, reportBytes: { reportBytes[$0] },
+            photoHistory: photoHistory, cancellation: .none)
     }
 }

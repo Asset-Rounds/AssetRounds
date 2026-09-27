@@ -240,6 +240,7 @@ final class ProductionCompositionRoot {
     }
 
     private let modelContext: ModelContext
+    private weak var storeSession: StoreSessionCoordinator?
     private let diagnosticsStore: DiagnosticsStore
     private let lifecycle: WorkspacePackageLifecycleDependenciesV1
     private let requirementEvaluatorRegistry: RequirementEvaluatorRegistryV1?
@@ -255,6 +256,7 @@ final class ProductionCompositionRoot {
             profileRegistry: profileRegistry
         )
         self.modelContext = storeSession.modelContext
+        self.storeSession = storeSession
         self.diagnosticsStore = diagnosticsStore
         self.requirementEvaluatorRegistry = requirementEvaluatorRegistry
         lifecycle = dependencies
@@ -267,7 +269,6 @@ final class ProductionCompositionRoot {
     /// workflow can be returned or any content/render dependency is created.
     func makeAssetLabelWorkflow(
         generationEpoch: GenerationEpochV1,
-        generationPublicationAdapter: GenerationLocalJobPublicationAdapterV1,
         accessGate: any AppAccessGatePortV1
     ) async throws -> ProductionAssetLabelWorkflow {
         guard Self.c16AccessGateProductionAdoptionComplete
@@ -276,9 +277,16 @@ final class ProductionCompositionRoot {
         }
         _ = try await accessGate.requireContentAccess(for: .render)
         try generationEpoch.validate()
+        guard let storeSession else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
         guard generationEpoch.generationID == lifecycle.generationID else {
             throw GenerationLocalJobPublicationFailureV1.staleGeneration
         }
+        let jobBinding = try storeSession
+            .makeOriginalC05JobBinding(
+                expectedWriter: storeSession.workspaceWriter,
+                expectedEpoch: generationEpoch)
         if let existing = assetLabelWorkflow {
             guard existing.generationEpoch == generationEpoch else {
                 throw GenerationLocalJobPublicationFailureV1.staleGeneration
@@ -300,14 +308,11 @@ final class ProductionCompositionRoot {
             clock: lifecycle.clock,
             idSource: lifecycle.idSource
         )
-        let generationFactory = StoreGenerationFactory(
-            applicationSupportURL: applicationSupportURL
-        )
         let runner = try ResumableLocalJobRunnerV1(
             store: store,
             stagingRootURL: stagingRootURL,
-            generationLeaseRegistry: try generationFactory.makeGenerationLeaseRegistry(),
-            generationPublicationAdapter: generationPublicationAdapter,
+            generationLeaseRegistry: jobBinding.registry,
+            generationPublicationAdapter: jobBinding.publication,
             maximumConcurrency: 1
         )
         let contentStore = EvidenceBundleStore(generationRootURL: generationRootURL)
@@ -382,9 +387,13 @@ final class ProductionCompositionRoot {
             lifecycleDependencies: lifecycle,
             storagePreflight: storagePreflight
         )
-        let deletion = WholeSignDeletionService(
+        guard let storeSession else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let deletion = try WholeSignDeletionService(
             modelContext: modelContext,
-            lifecycleDependencies: lifecycle
+            lifecycleDependencies: lifecycle,
+            storeSession: storeSession
         )
         let firstSign = try FirstSignCoordinator(
             modelContext: modelContext,

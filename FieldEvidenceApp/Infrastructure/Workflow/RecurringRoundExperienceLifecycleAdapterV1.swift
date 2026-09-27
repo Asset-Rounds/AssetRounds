@@ -870,7 +870,49 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
     /// The same source-free implementation serves actual EraseAll recovery.
     static func erase(control: AppLockNotificationControlStoreV1, system: any NotificationSystemPortV1,
                       operationID: UUID) async throws {
+        try await eraseOriginalOwner(
+            control: control, system: system, operationID: operationID,
+            beforeBegin: nil, afterBegin: nil,
+            observedOwnedRefusal: nil, afterSuccess: nil)
+    }
+
+#if DEBUG
+    /// Reports only the actual original OS readback refusal, after the same
+    /// control/mapping/journal checks used for success. A caller cannot infer
+    /// this fact from the error type or a later OS observation.
+    static func eraseForOriginalColdExitForTesting(
+        control: AppLockNotificationControlStoreV1,
+        system: any NotificationSystemPortV1,
+        operationID: UUID,
+        beforeBegin: @escaping @MainActor () throws -> Void,
+        afterBegin: @escaping @MainActor (NotificationEraseRevocationV1) throws -> Void,
+        observedOwnedRefusal: @escaping @MainActor (
+            NotificationEraseRevocationV1, Set<String>, Set<String>
+        ) throws -> Void,
+        afterSuccess: @escaping @MainActor (NotificationEraseRevocationV1) throws -> Void
+    ) async throws {
+        try await eraseOriginalOwner(
+            control: control, system: system, operationID: operationID,
+            beforeBegin: beforeBegin, afterBegin: afterBegin,
+            observedOwnedRefusal: observedOwnedRefusal,
+            afterSuccess: afterSuccess)
+    }
+#endif
+
+    private static func eraseOriginalOwner(
+        control: AppLockNotificationControlStoreV1,
+        system: any NotificationSystemPortV1,
+        operationID: UUID,
+        beforeBegin: (@MainActor () throws -> Void)?,
+        afterBegin: (@MainActor (NotificationEraseRevocationV1) throws -> Void)?,
+        observedOwnedRefusal: (@MainActor (
+            NotificationEraseRevocationV1, Set<String>, Set<String>
+        ) throws -> Void)?,
+        afterSuccess: (@MainActor (NotificationEraseRevocationV1) throws -> Void)?
+    ) async throws {
+        try beforeBegin?()
         let revocation = try control.beginNotificationErase(operationID: operationID)
+        try afterBegin?(revocation)
         await NotificationAddDrainV1.wait(root: control.notificationRootIdentity)
         try control.verifyNotificationStorage()
         let mapping = try control.loadPrivateNotificationMapping()
@@ -885,13 +927,18 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
         try control.verifyNotificationStorage()
         let observed = try await system.observations()
         try control.verifyNotificationStorage()
-        guard !observed.contains(where: { owned.contains($0.requestID) }),
-              !NotificationAddDrainV1.isActive(root: control.notificationRootIdentity),
+        let observedOwned = Set(observed.map(\.requestID)).intersection(owned)
+        guard !NotificationAddDrainV1.isActive(root: control.notificationRootIdentity),
               try control.loadPrivateNotificationMapping() == mapping,
               try control.loadControl()?.journal == journal else {
             throw AppAccessContractFailureV1.notificationReconciliationRequired
         }
+        if !observedOwned.isEmpty {
+            try observedOwnedRefusal?(revocation, owned, observedOwned)
+            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        }
         try control.removeNotificationRecordsAfterErase(revocation)
+        try afterSuccess?(revocation)
     }
 
     private func validate(_ authorization: NotificationOperationAuthorizationV1, target: Bool? = nil) async throws {

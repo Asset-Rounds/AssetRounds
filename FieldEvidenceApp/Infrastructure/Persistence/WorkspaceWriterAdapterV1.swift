@@ -3350,32 +3350,57 @@ final class WorkspaceWriterAdapterV1: WorkspaceWriterAdapterPortV1 {
         _ mutation: PartyContactSiteRoleImportMutationV1,
         temporaryRelativePath: String
     ) throws -> WorkspaceMutationEffectV1 {
+#if DEBUG
+        var diagnosticPhase = "validate"
+#endif
         do {
             try mutation.validate()
+#if DEBUG
+            diagnosticPhase = "party"
+#endif
             for party in mutation.partyMutations {
                 _ = try applyPartyAccountability(
                     party,
                     temporaryRelativePath: temporaryRelativePath
                 )
             }
+#if DEBUG
+            diagnosticPhase = "contact"
+#endif
             _ = try applyOperationalContact(
                 mutation.operationalContactMutation,
                 temporaryRelativePath: temporaryRelativePath
             )
+#if DEBUG
+            diagnosticPhase = "site-role"
+#endif
             for role in mutation.siteRoleMutations {
                 _ = try applyPartyAccountability(
                     role,
                     temporaryRelativePath: temporaryRelativePath
                 )
             }
+#if DEBUG
+            diagnosticPhase = "effect"
+#endif
             return try WorkspaceMutationEffectV1(
                 affectedEntities: mutation.affectedIdentities,
                 temporaryRelativePath: temporaryRelativePath
             )
         } catch let failure as WorkspaceMutationFailureV1 {
+#if DEBUG
+            FileHandle.standardError.write(Data(
+                "WorkspaceWriterAdapterV1.applyPartyContactSiteRoleImport failure phase=\(diagnosticPhase) type=\(String(reflecting: type(of: failure)))\n".utf8
+            ))
+#endif
             modelContext.rollback()
             throw failure
         } catch {
+#if DEBUG
+            FileHandle.standardError.write(Data(
+                "WorkspaceWriterAdapterV1.applyPartyContactSiteRoleImport failure phase=\(diagnosticPhase) type=\(String(reflecting: type(of: error)))\n".utf8
+            ))
+#endif
             modelContext.rollback()
             throw WorkspaceMutationFailureV1.invalidCommand
         }

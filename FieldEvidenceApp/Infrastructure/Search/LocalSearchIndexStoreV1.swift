@@ -993,6 +993,34 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
         try dropProjection(workspaceID: workspaceID)
     }
 
+#if DEBUG
+    /// The original Erase caller supplies its held-root preimage check at the
+    /// last synchronous boundary before this actor replaces a derived file.
+    /// The returned bytes are constructed *before* publication and are the
+    /// exact typed Envelope passed to the ordinary replacement implementation.
+    /// `nil` is the existing foreign-cached-projection no-effect branch.
+    func purgeWorkspaceForOriginalEraseColdExitForTesting(
+        _ workspaceID: UUID,
+        validateOriginalPreimage: @Sendable () throws -> Void,
+        validatePublishedEmpty: @Sendable (Data) throws -> Void
+    ) throws -> Data? {
+        guard workspaceID != SearchContractValidationV1.zeroUUID else {
+            throw SearchContractFailureV1.invalidRevision
+        }
+        if let cached = envelope?.projection,
+           cached.source.workspaceID != workspaceID {
+            try validateOriginalPreimage()
+            return nil
+        }
+        try validateOriginalPreimage()
+        let expected = Envelope()
+        let expectedBytes = try Self.encoder().encode(expected)
+        try replaceWithEmptyStoreWithoutReading(expected)
+        try validatePublishedEmpty(expectedBytes)
+        return expectedBytes
+    }
+#endif
+
     func eraseAll() throws {
         // Erase must remain available specifically when derived bytes cannot
         // be decoded. The fixed store URL is deleted and recreated empty.
@@ -1165,7 +1193,7 @@ private extension LocalSearchIndexStoreV1 {
         let stableID: String
     }
 
-    func replaceWithEmptyStoreWithoutReading() throws {
+    private func replaceWithEmptyStoreWithoutReading(_ expected: Envelope = Envelope()) throws {
         do {
             try SearchIndexPublicationFenceV1.shared.withInvalidation(for: fileURL) {
                 try fileManager.createDirectory(
@@ -1185,9 +1213,8 @@ private extension LocalSearchIndexStoreV1 {
                 var mutableRoot = rootURL
                 try mutableRoot.setResourceValues(values)
                 envelope = nil
-                let empty = Envelope()
-                try persistWithoutLoading(empty)
-                envelope = empty
+                try persistWithoutLoading(expected)
+                envelope = expected
             }
         } catch {
             envelope = nil
@@ -1245,7 +1272,12 @@ private extension LocalSearchIndexStoreV1 {
             let readBack = try Data(contentsOf: fileURL)
             let decoded = try Self.decoder().decode(Envelope.self, from: readBack)
             try decoded.validate()
-            guard decoded == next else { throw LocalSearchIndexStoreFailureV1.writeFailed }
+            guard decoded == next else {
+#if DEBUG
+                debugPersistReadbackMismatch(expected: next, actual: decoded)
+#endif
+                throw LocalSearchIndexStoreFailureV1.writeFailed
+            }
             envelope = decoded
         } catch {
             throw Self.map(error)
@@ -1260,6 +1292,32 @@ private extension LocalSearchIndexStoreV1 {
         try data.write(to: fileURL, options: [.atomic, .completeFileProtection])
         try ProtectedFilePolicyV1.applyAndVerify(.searchIndex, at: fileURL)
     }
+
+#if DEBUG
+    /// Counts and equality categories only. Never emit record text, IDs, dates,
+    /// file paths, or error descriptions from the protected search projection.
+    private func debugPersistReadbackMismatch(expected: Envelope, actual: Envelope) {
+        let expectedProjectionRecords = expected.projection?.records ?? []
+        let actualProjectionRecords = actual.projection?.records ?? []
+        let projectionPairs = zip(expectedProjectionRecords, actualProjectionRecords)
+        let stagedPairs = zip(expected.stagedRecords, actual.stagedRecords)
+        let projectionSourceDateDifferences = projectionPairs.filter {
+            $0.0.sourceTimestamp != $0.1.sourceTimestamp
+        }.count
+        let projectionDueDateDifferences = zip(expectedProjectionRecords, actualProjectionRecords)
+            .filter { $0.0.dueAt != $0.1.dueAt }.count
+        let stagedSourceDateDifferences = stagedPairs.filter {
+            $0.0.sourceTimestamp != $0.1.sourceTimestamp
+        }.count
+        let stagedDueDateDifferences = zip(expected.stagedRecords, actual.stagedRecords)
+            .filter { $0.0.dueAt != $0.1.dueAt }.count
+        let projectionMetadataEqual = expected.projection?.schemaVersion
+            == actual.projection?.schemaVersion
+            && expected.projection?.source == actual.projection?.source
+            && expected.projection?.index == actual.projection?.index
+        print("V23_SEARCH_PERSIST_READBACK_V1 projectionMetadataEqual=\(projectionMetadataEqual) checkpointEqual=\(expected.rebuildCheckpoint == actual.rebuildCheckpoint) projectionRecordCounts=\(expectedProjectionRecords.count),\(actualProjectionRecords.count) stagedRecordCounts=\(expected.stagedRecords.count),\(actual.stagedRecords.count) projectionSourceDateDifferences=\(projectionSourceDateDifferences) projectionDueDateDifferences=\(projectionDueDateDifferences) stagedSourceDateDifferences=\(stagedSourceDateDifferences) stagedDueDateDifferences=\(stagedDueDateDifferences)")
+    }
+#endif
 
     static func encoder() -> JSONEncoder {
         let encoder = JSONEncoder()

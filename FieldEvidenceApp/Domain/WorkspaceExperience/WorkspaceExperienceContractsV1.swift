@@ -57,7 +57,9 @@ enum WorkspaceExperienceCanonicalCodecV1 {
     static func sha256<T: Encodable>(_ value: T) throws -> String { try WorkspaceMutationCanonicalV1.sha256(value) }
 
     static func decode<T: Codable>(_ type: T.Type, from data: Data, validate: (T) throws -> Void) throws -> T {
-        let value = try JSONDecoder().decode(type, from: data)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        let value = try decoder.decode(type, from: data)
         try validate(value)
         guard try self.data(value) == data else { throw WorkspaceExperienceFailureV1.invalidDigest }
         return value

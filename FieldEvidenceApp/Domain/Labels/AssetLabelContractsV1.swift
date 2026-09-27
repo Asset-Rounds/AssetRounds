@@ -386,21 +386,39 @@ struct AssetLabelTemplateReferenceV1: Codable, Equatable, Hashable, Sendable {
 
 enum AssetLabelRendererReleaseCatalogV1 {
     static let rendererID = "deterministic-pdf-renderer-v1"
-    static let rendererVersion = "deterministic-pdf-renderer-v1"
     /// Frozen native text layout release: CoreText shaping, NFC input, native
     /// PostScript font cascade, FSI/PDI bidi isolation, 1x grayscale raster,
     /// antialiasing disabled, and fixed ten-pixel tail-truncating line metrics.
-    static let nativeTextLayoutReleaseID = "CORETEXT_NFC_NATIVE_POSTSCRIPT_FSI_PDI_GRAY1X_AA_OFF_LINE10_V1"
-    static let rendererSHA256 = KernelCanonicalHashV1.sha256(
-        Data("assetrounds.deterministic-pdf-renderer-v1|deterministic-pdf-renderer-v1|asset-label-contract-v1|\(nativeTextLayoutReleaseID)".utf8)
+    static let legacyRendererVersion = "deterministic-pdf-renderer-v1"
+    static let legacyNativeTextLayoutReleaseID = "CORETEXT_NFC_NATIVE_POSTSCRIPT_FSI_PDI_GRAY1X_AA_OFF_LINE10_V1"
+    static let legacyRendererSHA256 = KernelCanonicalHashV1.sha256(
+        Data("assetrounds.deterministic-pdf-renderer-v1|deterministic-pdf-renderer-v1|asset-label-contract-v1|\(legacyNativeTextLayoutReleaseID)".utf8)
     )
+    static let rendererVersion = "deterministic-pdf-renderer-v2"
+    static let nativeTextLayoutReleaseID = "CORETEXT_NFC_NATIVE_POSTSCRIPT_FSI_PDI_GRAY1X_AA_OFF_LINE10_GLYPH_INSET_V2"
+    static let rendererSHA256 = KernelCanonicalHashV1.sha256(
+        Data("assetrounds.deterministic-pdf-renderer-v1|deterministic-pdf-renderer-v2|asset-label-contract-v1|\(nativeTextLayoutReleaseID)".utf8)
+    )
+    static func layoutID(rendererVersion: String, rendererSHA256: String) -> String? {
+        if rendererVersion == legacyRendererVersion && rendererSHA256 == legacyRendererSHA256 {
+            return legacyNativeTextLayoutReleaseID
+        }
+        if rendererVersion == Self.rendererVersion && rendererSHA256 == Self.rendererSHA256 {
+            return nativeTextLayoutReleaseID
+        }
+        return nil
+    }
+    static func isKnownLayout(_ id: String) -> Bool {
+        id == legacyNativeTextLayoutReleaseID || id == nativeTextLayoutReleaseID
+    }
 }
 
 struct AssetLabelRendererReleaseReferenceV1:Codable,Equatable,Hashable,Sendable{
     let rendererID:String;let rendererVersion:String;let rendererSHA256:String;let nativeTextLayoutReleaseID:String
-    init(rendererID:String,rendererVersion:String,rendererSHA256:String,nativeTextLayoutReleaseID:String=AssetLabelRendererReleaseCatalogV1.nativeTextLayoutReleaseID)throws{self.rendererID=rendererID;self.rendererVersion=rendererVersion;self.rendererSHA256=rendererSHA256;self.nativeTextLayoutReleaseID=nativeTextLayoutReleaseID;try validate()}
+    init(rendererID:String,rendererVersion:String,rendererSHA256:String,nativeTextLayoutReleaseID:String?=nil)throws{self.rendererID=rendererID;self.rendererVersion=rendererVersion;self.rendererSHA256=rendererSHA256;self.nativeTextLayoutReleaseID=nativeTextLayoutReleaseID ?? AssetLabelRendererReleaseCatalogV1.layoutID(rendererVersion: rendererVersion, rendererSHA256: rendererSHA256) ?? "";try validate()}
     static var current:Self{get throws{try .init(rendererID:AssetLabelRendererReleaseCatalogV1.rendererID,rendererVersion:AssetLabelRendererReleaseCatalogV1.rendererVersion,rendererSHA256:AssetLabelRendererReleaseCatalogV1.rendererSHA256,nativeTextLayoutReleaseID:AssetLabelRendererReleaseCatalogV1.nativeTextLayoutReleaseID)}}
-    func validate()throws{guard rendererID==AssetLabelRendererReleaseCatalogV1.rendererID,rendererVersion==AssetLabelRendererReleaseCatalogV1.rendererVersion,rendererSHA256==AssetLabelRendererReleaseCatalogV1.rendererSHA256,nativeTextLayoutReleaseID==AssetLabelRendererReleaseCatalogV1.nativeTextLayoutReleaseID else{throw AssetLabelContractFailureV1.missingRelease}}
+    static var legacy:Self{get throws{try .init(rendererID:AssetLabelRendererReleaseCatalogV1.rendererID,rendererVersion:AssetLabelRendererReleaseCatalogV1.legacyRendererVersion,rendererSHA256:AssetLabelRendererReleaseCatalogV1.legacyRendererSHA256,nativeTextLayoutReleaseID:AssetLabelRendererReleaseCatalogV1.legacyNativeTextLayoutReleaseID)}}
+    func validate()throws{guard rendererID==AssetLabelRendererReleaseCatalogV1.rendererID,let knownLayout=AssetLabelRendererReleaseCatalogV1.layoutID(rendererVersion:rendererVersion,rendererSHA256:rendererSHA256),nativeTextLayoutReleaseID==knownLayout else{throw AssetLabelContractFailureV1.missingRelease}}
 }
 
 struct AssetLabelNativeFontIdentityV1:Codable,Equatable,Hashable,Comparable,Sendable{
@@ -450,7 +468,7 @@ struct AssetLabelNativeTextEnvironmentV1:Codable,Equatable,Hashable,Sendable{
         try selectedFonts.forEach{_ = try AssetLabelNativeFontIdentityV1(postScriptName:$0.postScriptName,fontFileSHA256:$0.fontFileSHA256)}
         guard schemaVersion==Self.schemaVersion,
               planSHA256==expectedPlanSHA256,
-              nativeTextLayoutReleaseID==AssetLabelRendererReleaseCatalogV1.nativeTextLayoutReleaseID,
+              AssetLabelRendererReleaseCatalogV1.isKnownLayout(nativeTextLayoutReleaseID),
               coreTextVersion>0,
               !selectedFonts.isEmpty,
               selectedFonts.count<=Self.maximumSelectedFontCount,
@@ -474,7 +492,9 @@ enum AssetLabelTemplateProfileV1:String,Codable,CaseIterable,Hashable,Sendable{
 }
 
 enum AssetLabelTemplateCatalogV1{
+    /// The original revision and effective instant remain canonical history.
     static let effectiveAt=Date(timeIntervalSince1970:1_767_225_600)
+    static let glyphInsetEffectiveAt=Date(timeIntervalSince1970:1_767_312_000)
     static func pageMediaID(for profile:AssetLabelTemplateProfileV1)->String{switch profile{case .letterTwoByTwo,.letterOneByTwoAndFiveEighths,.letterOneByFour:return "NA_LETTER";case .a4SeventyByThirtySeven:return "ISO_A4";case .rollFiftyByTwentyFive:return "ROLL_50X25_MM"}}
     static func geometry(for profile:AssetLabelTemplateProfileV1)throws->AssetLabelGeometryV1{switch profile{
     case .letterTwoByTwo:return try .init(pageWidthMicrometres:215_900,pageHeightMicrometres:279_400,rows:5,columns:4,originXMicrometres:6_350,originYMicrometres:12_700,cellWidthMicrometres:50_800,cellHeightMicrometres:50_800,horizontalGapMicrometres:0,verticalGapMicrometres:0,quietZoneMicrometres:4_000,textBoundMicrometres:42_000)
@@ -483,8 +503,22 @@ enum AssetLabelTemplateCatalogV1{
     case .a4SeventyByThirtySeven:return try .init(pageWidthMicrometres:210_000,pageHeightMicrometres:297_000,rows:8,columns:3,originXMicrometres:0,originYMicrometres:500,cellWidthMicrometres:70_000,cellHeightMicrometres:37_000,horizontalGapMicrometres:0,verticalGapMicrometres:0,quietZoneMicrometres:4_000,textBoundMicrometres:56_000)
     case .rollFiftyByTwentyFive:return try .init(pageWidthMicrometres:50_000,pageHeightMicrometres:25_000,rows:1,columns:1,originXMicrometres:0,originYMicrometres:0,cellWidthMicrometres:50_000,cellHeightMicrometres:25_000,horizontalGapMicrometres:0,verticalGapMicrometres:0,quietZoneMicrometres:3_000,textBoundMicrometres:20_000)
     }}
-    static func makeRelease(_ profile:AssetLabelTemplateProfileV1)throws->AssetLabelTemplateReleaseV1{try .init(templateID:profile.rawValue,revision:1,pageMediaID:pageMediaID(for:profile),geometry:geometry(for:profile),rendererID:AssetLabelRendererReleaseCatalogV1.rendererID,rendererVersion:AssetLabelRendererReleaseCatalogV1.rendererVersion,rendererSHA256:AssetLabelRendererReleaseCatalogV1.rendererSHA256,effectiveAt:effectiveAt)}
-    static func validateRelease(templateID:String,revision:UInt64,pageMediaID:String,geometry:AssetLabelGeometryV1,rendererRelease:AssetLabelRendererReleaseReferenceV1,effectiveAt:Date,supersedes:AssetLabelTemplateReferenceV1?)throws{guard let profile=AssetLabelTemplateProfileV1(rawValue:templateID),revision==1,pageMediaID==self.pageMediaID(for:profile),geometry==(try self.geometry(for:profile)),rendererRelease==(try AssetLabelRendererReleaseReferenceV1.current),effectiveAt==self.effectiveAt,supersedes==nil else{throw AssetLabelContractFailureV1.unsupportedTemplate}}
+    static func makeLegacyRelease(_ profile:AssetLabelTemplateProfileV1)throws->AssetLabelTemplateReleaseV1{
+        try .init(templateID:profile.rawValue,revision:1,pageMediaID:pageMediaID(for:profile),geometry:geometry(for:profile),rendererID:AssetLabelRendererReleaseCatalogV1.rendererID,rendererVersion:AssetLabelRendererReleaseCatalogV1.legacyRendererVersion,rendererSHA256:AssetLabelRendererReleaseCatalogV1.legacyRendererSHA256,effectiveAt:effectiveAt)
+    }
+    static func makeRelease(_ profile:AssetLabelTemplateProfileV1)throws->AssetLabelTemplateReleaseV1{
+        try .init(templateID:profile.rawValue,revision:2,pageMediaID:pageMediaID(for:profile),geometry:geometry(for:profile),rendererID:AssetLabelRendererReleaseCatalogV1.rendererID,rendererVersion:AssetLabelRendererReleaseCatalogV1.rendererVersion,rendererSHA256:AssetLabelRendererReleaseCatalogV1.rendererSHA256,effectiveAt:glyphInsetEffectiveAt,supersedes:makeLegacyRelease(profile).reference)
+    }
+    static func validateRelease(templateID:String,revision:UInt64,pageMediaID:String,geometry:AssetLabelGeometryV1,rendererRelease:AssetLabelRendererReleaseReferenceV1,effectiveAt:Date,supersedes:AssetLabelTemplateReferenceV1?)throws{
+        guard let profile=AssetLabelTemplateProfileV1(rawValue:templateID),pageMediaID==self.pageMediaID(for:profile),geometry==(try self.geometry(for:profile))else{throw AssetLabelContractFailureV1.unsupportedTemplate}
+        switch revision {
+        case 1:
+            guard rendererRelease==(try AssetLabelRendererReleaseReferenceV1.legacy),effectiveAt==self.effectiveAt,supersedes==nil else{throw AssetLabelContractFailureV1.unsupportedTemplate}
+        case 2:
+            guard rendererRelease==(try AssetLabelRendererReleaseReferenceV1.current),effectiveAt==glyphInsetEffectiveAt,supersedes==(try makeLegacyRelease(profile).reference)else{throw AssetLabelContractFailureV1.unsupportedTemplate}
+        default:throw AssetLabelContractFailureV1.unsupportedTemplate
+        }
+    }
 }
 
 enum AssetLabelLineBreakPolicyV1:String,Codable,CaseIterable,Hashable,Sendable{case fixedGraphemeTailTruncation="FIXED_GRAPHEME_TAIL_TRUNCATION_V1"}
@@ -579,7 +613,7 @@ struct LabelProjectionResultV1:Equatable,Sendable{
         try plan.validate()
         try nativeTextEnvironment.validate(planSHA256:plan.planSHA256)
         try manifest.validate()
-        guard disposition == .scratchPreviewRequiresExplicitStart,planSHA256==plan.planSHA256,manifest.planSHA256==planSHA256,artifacts.count==LabelArtifactKindV1.allCases.count,artifacts.map(\.entry)==manifest.entries,try artifacts.allSatisfy({$0.entry.byteCount==Int64($0.bytes.count)&&$0.entry.sha256==KernelCanonicalHashV1.sha256($0.bytes)&&$0.entry.itemCount==plan.items.count})else{throw AssetLabelContractFailureV1.invalidDigest}
+        guard nativeTextEnvironment.nativeTextLayoutReleaseID==plan.template.rendererRelease.nativeTextLayoutReleaseID,disposition == .scratchPreviewRequiresExplicitStart,planSHA256==plan.planSHA256,manifest.planSHA256==planSHA256,artifacts.count==LabelArtifactKindV1.allCases.count,artifacts.map(\.entry)==manifest.entries,try artifacts.allSatisfy({$0.entry.byteCount==Int64($0.bytes.count)&&$0.entry.sha256==KernelCanonicalHashV1.sha256($0.bytes)&&$0.entry.itemCount==plan.items.count})else{throw AssetLabelContractFailureV1.invalidDigest}
     }
 }
 
@@ -642,7 +676,7 @@ struct AcceptedLabelGenerationSnapshotV1:Codable,Equatable,Sendable{
     let schemaVersion:Int;let snapshotID:UUID;let workspaceID:WorkspaceID;let plan:AssetLabelGenerationPlanV1;let manifest:LabelArtifactManifestV1;let outputReceipt:LabelOutputReceiptV1;let activationDecision:LabelOutputActivationDecisionV1;let disposition:AcceptedLabelSnapshotDispositionV1;let expectedRevision:WorkspaceExpectedRevisionV1;let mutationID:MutationIDV1;let recordedBy:ActorSnapshotV1;let recordedAt:Date;let revision:UInt64;let snapshotSHA256:String
     init(snapshotID:UUID,plan:AssetLabelGenerationPlanV1,result:LabelProjectionResultV1,outputReceipt:LabelOutputReceiptV1,activationDecision:LabelOutputActivationDecisionV1,expectedRevision:WorkspaceExpectedRevisionV1,mutationID:MutationIDV1,recordedBy:ActorSnapshotV1,recordedAt:Date)throws{try result.validate(plan:plan);try outputReceipt.validate();guard outputReceipt.nativeTextEnvironment==result.nativeTextEnvironment else{throw AssetLabelContractFailureV1.missingRelease};let digestBasis=Basis(schemaVersion:Self.schemaVersion,snapshotID:snapshotID,workspaceID:plan.workspaceID,plan:plan,manifest:result.manifest,outputReceipt:outputReceipt,activationDecision:activationDecision,disposition:.activeSourceWorkspace,expectedRevision:expectedRevision,mutationID:mutationID,recordedBy:recordedBy,recordedAt:recordedAt,revision:1);schemaVersion=Self.schemaVersion;self.snapshotID=snapshotID;workspaceID=plan.workspaceID;self.plan=plan;manifest=result.manifest;self.outputReceipt=outputReceipt;self.activationDecision=activationDecision;disposition = .activeSourceWorkspace;self.expectedRevision=expectedRevision;self.mutationID=mutationID;self.recordedBy=recordedBy;self.recordedAt=recordedAt;revision=1;snapshotSHA256=try AssetLabelCanonicalCodecV1.sha256(digestBasis);try validate()}
     private init(snapshotID:UUID,workspaceID:WorkspaceID,plan:AssetLabelGenerationPlanV1,manifest:LabelArtifactManifestV1,outputReceipt:LabelOutputReceiptV1,activationDecision:LabelOutputActivationDecisionV1,disposition:AcceptedLabelSnapshotDispositionV1,expectedRevision:WorkspaceExpectedRevisionV1,mutationID:MutationIDV1,recordedBy:ActorSnapshotV1,recordedAt:Date,revision:UInt64)throws{let digestBasis=Basis(schemaVersion:Self.schemaVersion,snapshotID:snapshotID,workspaceID:workspaceID,plan:plan,manifest:manifest,outputReceipt:outputReceipt,activationDecision:activationDecision,disposition:disposition,expectedRevision:expectedRevision,mutationID:mutationID,recordedBy:recordedBy,recordedAt:recordedAt,revision:revision);schemaVersion=Self.schemaVersion;self.snapshotID=snapshotID;self.workspaceID=workspaceID;self.plan=plan;self.manifest=manifest;self.outputReceipt=outputReceipt;self.activationDecision=activationDecision;self.disposition=disposition;self.expectedRevision=expectedRevision;self.mutationID=mutationID;self.recordedBy=recordedBy;self.recordedAt=recordedAt;self.revision=revision;snapshotSHA256=try AssetLabelCanonicalCodecV1.sha256(digestBasis);try validate()}
-    func validate()throws{try AssetLabelValidationV1.uuid(snapshotID);try plan.validate();try manifest.validate();try outputReceipt.validate();try outputReceipt.publicationBinding.validate(manifest:manifest);let validatedExpectedRevision = try WorkspaceExpectedRevisionV1(workspaceID: expectedRevision.workspaceID, generationID: expectedRevision.generationID, writerInstanceID: expectedRevision.writerInstanceID, workspaceRevision: expectedRevision.workspaceRevision, entityRevisions: expectedRevision.entityRevisions);guard expectedRevision == validatedExpectedRevision else{throw AssetLabelContractFailureV1.invalidValue};try recordedBy.validate();try AssetLabelValidationV1.instant(recordedAt);let workspaceBindingValid = disposition == .activeSourceWorkspace ? workspaceID==plan.workspaceID : workspaceID != plan.workspaceID;guard schemaVersion==Self.schemaVersion,revision==1,workspaceBindingValid,workspaceID==expectedRevision.workspaceID,recordedBy.workspaceID==workspaceID,manifest.planSHA256==plan.planSHA256,outputReceipt.workspaceID==plan.workspaceID,outputReceipt.planID==plan.planID,outputReceipt.planSHA256==plan.planSHA256,outputReceipt.manifestSHA256==manifest.manifestSHA256,outputReceipt.disposition == .generated,activationDecision == .enabledBoundedLocalOnly,snapshotSHA256==(try AssetLabelCanonicalCodecV1.sha256(basis))else{throw AssetLabelContractFailureV1.invalidValue}}
+    func validate()throws{try AssetLabelValidationV1.uuid(snapshotID);try plan.validate();try manifest.validate();try outputReceipt.validate();guard outputReceipt.nativeTextEnvironment.nativeTextLayoutReleaseID==plan.template.rendererRelease.nativeTextLayoutReleaseID else{throw AssetLabelContractFailureV1.missingRelease};try outputReceipt.publicationBinding.validate(manifest:manifest);let validatedExpectedRevision = try WorkspaceExpectedRevisionV1(workspaceID: expectedRevision.workspaceID, generationID: expectedRevision.generationID, writerInstanceID: expectedRevision.writerInstanceID, workspaceRevision: expectedRevision.workspaceRevision, entityRevisions: expectedRevision.entityRevisions);guard expectedRevision == validatedExpectedRevision else{throw AssetLabelContractFailureV1.invalidValue};try recordedBy.validate();try AssetLabelValidationV1.instant(recordedAt);let workspaceBindingValid = disposition == .activeSourceWorkspace ? workspaceID==plan.workspaceID : workspaceID != plan.workspaceID;guard schemaVersion==Self.schemaVersion,revision==1,workspaceBindingValid,workspaceID==expectedRevision.workspaceID,recordedBy.workspaceID==workspaceID,manifest.planSHA256==plan.planSHA256,outputReceipt.workspaceID==plan.workspaceID,outputReceipt.planID==plan.planID,outputReceipt.planSHA256==plan.planSHA256,outputReceipt.manifestSHA256==manifest.manifestSHA256,outputReceipt.disposition == .generated,activationDecision == .enabledBoundedLocalOnly,snapshotSHA256==(try AssetLabelCanonicalCodecV1.sha256(basis))else{throw AssetLabelContractFailureV1.invalidValue}}
     func rebound(to workspaceID:WorkspaceID,expectedRevision:WorkspaceExpectedRevisionV1,mutationID:MutationIDV1,recordedBy:ActorSnapshotV1,recordedAt:Date)throws->Self{guard workspaceID != plan.workspaceID else{throw AssetLabelContractFailureV1.wrongWorkspace};return try .init(snapshotID:snapshotID,workspaceID:workspaceID,plan:plan,manifest:manifest,outputReceipt:outputReceipt,activationDecision:activationDecision,disposition:.historicCloneOrFork,expectedRevision:expectedRevision,mutationID:mutationID,recordedBy:recordedBy,recordedAt:recordedAt,revision:revision)}
     private var basis:Basis{.init(schemaVersion:schemaVersion,snapshotID:snapshotID,workspaceID:workspaceID,plan:plan,manifest:manifest,outputReceipt:outputReceipt,activationDecision:activationDecision,disposition:disposition,expectedRevision:expectedRevision,mutationID:mutationID,recordedBy:recordedBy,recordedAt:recordedAt,revision:revision)}
     private struct Basis:Codable{let schemaVersion:Int;let snapshotID:UUID;let workspaceID:WorkspaceID;let plan:AssetLabelGenerationPlanV1;let manifest:LabelArtifactManifestV1;let outputReceipt:LabelOutputReceiptV1;let activationDecision:LabelOutputActivationDecisionV1;let disposition:AcceptedLabelSnapshotDispositionV1;let expectedRevision:WorkspaceExpectedRevisionV1;let mutationID:MutationIDV1;let recordedBy:ActorSnapshotV1;let recordedAt:Date;let revision:UInt64}

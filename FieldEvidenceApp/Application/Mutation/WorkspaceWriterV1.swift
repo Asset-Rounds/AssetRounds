@@ -1479,7 +1479,20 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
     }
 
     func execute(_ request: WorkspaceMutationRequestV1) throws -> WorkspaceMutationOutcomeV1 {
+#if DEBUG
+        do {
+            return try executeInternal(request, reversalPlan: nil, semanticReversalExecution: nil, semanticReversalReplayIdentitySHA256: nil)
+        } catch {
+            if case .applyPartyContactSiteRoleImport = request.command {
+                FileHandle.standardError.write(Data(
+                    "WorkspaceWriterV1.execute C32 failure type=\(String(reflecting: type(of: error)))\n".utf8
+                ))
+            }
+            throw error
+        }
+#else
         try executeInternal(request, reversalPlan: nil, semanticReversalExecution: nil, semanticReversalReplayIdentitySHA256: nil)
+#endif
     }
 
     func execute(
@@ -1587,6 +1600,16 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         occurredAtOverride: Date?,
         reinspectionAcknowledgementAdmission: ReinspectionAcknowledgementAdmission?
     ) throws -> WorkspaceMutationOutcomeV1 {
+#if DEBUG
+        func traceC32(_ stage: String) {
+            if case .applyPartyContactSiteRoleImport = request.command {
+                FileHandle.standardError.write(Data(
+                    "WorkspaceWriterV1.execute C32 stage=\(stage)\n".utf8
+                ))
+            }
+        }
+        traceC32("entry")
+#endif
         guard isActive else { throw WorkspaceMutationFailureV1.writerInvalidated }
         guard !isExecuting else { throw WorkspaceMutationFailureV1.persistenceFailed }
         guard reversalPlan == nil || portableReversalPlan == nil else {
@@ -1668,15 +1691,27 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             }
         case .applyPartyContactSiteRoleImport(let value):
             do {
+#if DEBUG
+                traceC32("aggregate-admission")
+#endif
                 try value.validate()
                 guard value.workspaceID == identity.workspaceID,
                       value.mutationID == request.mutationID,
                       value.expectedRevision == request.expectedRevision else {
                     throw WorkspaceMutationFailureV1.invalidCommand
                 }
+#if DEBUG
+                traceC32("aggregate-admitted")
+#endif
             } catch let failure as WorkspaceMutationFailureV1 {
+#if DEBUG
+                traceC32("aggregate-admission-failure type=\(String(reflecting: type(of: failure)))")
+#endif
                 throw failure
             } catch {
+#if DEBUG
+                traceC32("aggregate-admission-failure type=\(String(reflecting: type(of: error)))")
+#endif
                 throw WorkspaceMutationFailureV1.invalidCommand
             }
         case .applyAssetSemantics(let value):
@@ -1963,6 +1998,9 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         }
         let envelope: MutationEnvelopeV1
         let digest: String
+#if DEBUG
+        traceC32("envelope")
+#endif
         do {
             envelope = try MutationEnvelopeV1(
                 request: request,
@@ -1977,7 +2015,13 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                 semanticReversalExecution: semanticReversalExecution
             )
             digest = try envelope.canonicalSHA256()
+#if DEBUG
+            traceC32("envelope-ready")
+#endif
         } catch {
+#if DEBUG
+            traceC32("envelope-failure type=\(String(reflecting: type(of: error)))")
+#endif
             throw WorkspaceMutationFailureV1.invalidCommand
         }
 
@@ -2007,6 +2051,9 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
         } else {
             occurredAt = occurredAtOverride ?? clock.now()
         }
+#if DEBUG
+        traceC32("replay-check")
+#endif
         if let journalStore,
            let prior = try journalStore.resolveReplay(envelope: envelope, detectedAt: occurredAt) {
             return try notifyingSearchIndex(outcome(
@@ -2117,9 +2164,15 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             throw WorkspaceMutationFailureV1.idempotencyCapacityReached
         }
 
+#if DEBUG
+        traceC32("targets-and-revision")
+#endif
         let targets = try Self.affectedIdentities(for: request.command)
         let expectedRevisionTargets = try Self.expectedRevisionIdentities(for: request.command)
         try require(request.expectedRevision, targets: expectedRevisionTargets)
+#if DEBUG
+        traceC32("targets-and-revision-ready")
+#endif
         let liveRevision = try currentRevision()
         let liveByIdentity = Dictionary(uniqueKeysWithValues: liveRevision.entityRevisions.map { ($0.identity, $0.revision) })
         guard liveRevision.revision < UInt64(Int64.max),
@@ -2139,12 +2192,18 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             reportedBefore = before
         }
         let temporaryRelativePath: String
+#if DEBUG
+        traceC32("temporary-path")
+#endif
         do {
             temporaryRelativePath = try fileAuthority.temporaryRelativePath(
                 mutationID: request.mutationID,
                 component: request.command.kind.rawValue
             )
         } catch {
+#if DEBUG
+            traceC32("temporary-path-failure type=\(String(reflecting: type(of: error)))")
+#endif
             throw WorkspaceMutationFailureV1.invalidCommand
         }
         guard !temporaryRelativePath.isEmpty,
@@ -2156,6 +2215,9 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
             affectedEntities: targets,
             temporaryRelativePath: temporaryRelativePath
         )
+#if DEBUG
+        traceC32("effect-ready")
+#endif
 
         let storageReservation: OwnedStorageReservationV1?
         do {
@@ -2214,11 +2276,17 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                         mutation, proof: proof, occurredAt: occurredAt, temporaryRelativePath: temporaryRelativePath)
                 }
             } else {
+#if DEBUG
+                traceC32("adapter-entry")
+#endif
                 applied = try adapter.apply(
                     request.command,
                     occurredAt: occurredAt,
                     temporaryRelativePath: temporaryRelativePath
                 )
+#if DEBUG
+                traceC32("adapter-applied")
+#endif
             }
             guard applied == effect else {
                 #if DEBUG
@@ -2272,6 +2340,9 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                 } else {
                     basis = nil
                 }
+#if DEBUG
+                traceC32("journal-commit")
+#endif
                 let receipt = try journalStore.commit(
                     envelope: envelope,
                     writerInstanceID: writerInstanceID,
@@ -2280,6 +2351,9 @@ final class WorkspaceWriterV1: WorkspaceQueryClientV1, MeasurementIntegrityWorks
                     reversalBasis: basis,
                     semanticReversalExecution: semanticReversalExecution
                 )
+#if DEBUG
+                traceC32("journal-committed")
+#endif
                 let after = try revision(from: receipt.resultingRevision)
                 return try notifyingSearchIndex(WorkspaceMutationOutcomeV1(
                     mutationID: request.mutationID,

@@ -342,6 +342,7 @@ final class DraftPreparedRawPhotoPublicationV1: @unchecked Sendable {
     private let candidateManifest: DraftAttachmentStagingManifestV1
     private let finalName: String
     private let privateName: String?
+    private let producerActivity: OwnedStorageProducerActivityV1
     private let consumption = NSLock()
     private var consumed = false
     private var directoryVisible: Bool
@@ -351,13 +352,15 @@ final class DraftPreparedRawPhotoPublicationV1: @unchecked Sendable {
         parent: DraftStagingRootOwnerV1.Directory, directory: DraftStagingRootOwnerV1.Directory,
         base: DraftStagingRootOwnerV1.ManifestSnapshot, payloadDescriptor: Int32, payloadFacts: stat,
         witnessDescriptor: Int32, witnessFacts: stat, candidateManifest: DraftAttachmentStagingManifestV1,
-        candidateBytes: Data, finalName: String, privateName: String?) {
+        candidateBytes: Data, finalName: String, privateName: String?,
+        producerActivity: OwnedStorageProducerActivityV1) {
         self.rawReady = rawReady; self.applicationSupportURL = applicationSupportURL
         self.adapterIdentity = adapterIdentity; self.owner = owner; self.parent = parent
         self.directory = directory; self.base = base; self.payloadDescriptor = payloadDescriptor
         self.payloadFacts = payloadFacts; self.witnessDescriptor = witnessDescriptor
         self.witnessFacts = witnessFacts; self.candidateManifest = candidateManifest
         self.candidateBytes = candidateBytes; self.finalName = finalName; self.privateName = privateName
+        self.producerActivity = producerActivity
         directoryVisible = privateName == nil
     }
 
@@ -370,6 +373,7 @@ final class DraftPreparedRawPhotoPublicationV1: @unchecked Sendable {
             lock.release()
         }
         close(payloadDescriptor); close(witnessDescriptor)
+        producerActivity.close()
     }
 
     func withPublicationLock<T>(_ body: (_ publish: () throws -> Void) throws -> T) throws -> T {
@@ -443,6 +447,8 @@ final class DraftPreparedRawPhotoPublicationV1: @unchecked Sendable {
         publishedRawReady: CheckRunnerPhotoRawReadyV1?, applicationSupportURL: URL,
         adapterIdentity: ObjectIdentifier, owner: DraftStagingRootOwnerV1) throws
         -> DraftPreparedRawPhotoPublicationV1? {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
+        defer { producerActivity.close() }
         try Task.checkCancellation()
         try payload.validate()
         guard case .awaitingRawStage = payload.phase else {
@@ -630,7 +636,8 @@ final class DraftPreparedRawPhotoPublicationV1: @unchecked Sendable {
             adapterIdentity: adapterIdentity, owner: owner, parent: parent, directory: directory, base: base,
             payloadDescriptor: payloadFD, payloadFacts: initialFacts, witnessDescriptor: witnessFD,
             witnessFacts: witnessFacts, candidateManifest: candidate,
-            candidateBytes: candidateBytes, finalName: path[1], privateName: privateName)
+            candidateBytes: candidateBytes, finalName: path[1], privateName: privateName,
+            producerActivity: try producerActivity.retain())
         transferred = true
         return result
     }
@@ -740,20 +747,25 @@ fileprivate final class DraftRawPhotoReadSnapshotV1: @unchecked Sendable {
     private let payloadFacts: stat
     private let witnessDescriptor: Int32
     private let witnessFacts: stat
+    private let producerActivity: OwnedStorageProducerActivityV1
 
     private init(rawReady: CheckRunnerPhotoRawReadyV1, owner: DraftStagingRootOwnerV1,
         base: DraftStagingRootOwnerV1.ManifestSnapshot, directory: DraftStagingRootOwnerV1.Directory,
         entry: DraftAttachmentStagingEntryV1, payloadDescriptor: Int32, payloadFacts: stat,
-        witnessDescriptor: Int32, witnessFacts: stat) {
+        witnessDescriptor: Int32, witnessFacts: stat, producerActivity: OwnedStorageProducerActivityV1) {
         self.rawReady = rawReady; self.owner = owner; self.base = base; self.directory = directory
         self.entry = entry; self.payloadDescriptor = payloadDescriptor; self.payloadFacts = payloadFacts
         self.witnessDescriptor = witnessDescriptor; self.witnessFacts = witnessFacts
+        self.producerActivity = producerActivity
     }
 
-    deinit { close(payloadDescriptor); close(witnessDescriptor) }
+    deinit { close(payloadDescriptor); close(witnessDescriptor); producerActivity.close() }
 
     static func open(raw: CheckRunnerPhotoRawReadyV1, owner: DraftStagingRootOwnerV1,
+        applicationSupportURL: URL,
         committedEntry: DraftAttachmentStagingEntryV1? = nil) throws -> DraftRawPhotoReadSnapshotV1 {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
+        defer { producerActivity.close() }
         try Task.checkCancellation()
         try raw.validate()
         let ready = try DraftAttachmentStagingEntryV1(item: raw.readyItem,
@@ -797,7 +809,8 @@ fileprivate final class DraftRawPhotoReadSnapshotV1: @unchecked Sendable {
                 at: directory.url.appendingPathComponent(DraftAttachmentStagingAdapterV1.payloadName))
             let result = DraftRawPhotoReadSnapshotV1(rawReady: raw, owner: owner, base: base,
                 directory: directory, entry: entry, payloadDescriptor: payload, payloadFacts: payloadFacts,
-                witnessDescriptor: witness, witnessFacts: witnessFacts)
+                witnessDescriptor: witness, witnessFacts: witnessFacts,
+                producerActivity: try producerActivity.retain())
             transferred = true
             try result.requireCurrent()
             return result
@@ -1387,7 +1400,7 @@ final class DraftPreparedRawPhotoPromotionV1: @unchecked Sendable {
         let attempt = values.attempt, request = values.request, reference = values.contentReference
         let reservation = values.reservation, committed = values.committedStage
         let committedEntry = values.committedEntry
-        let snapshot = try DraftRawPhotoReadSnapshotV1.open(raw: raw, owner: owner, committedEntry: committedEntry)
+        let snapshot = try DraftRawPhotoReadSnapshotV1.open(raw: raw, owner: owner, applicationSupportURL: applicationSupportURL, committedEntry: committedEntry)
         try snapshot.verifyBytesAndInspection()
         let candidate = try DraftAttachmentStagingManifestV1(entries:
             snapshot.base.manifest.entries.filter { $0.item.stageID != ready.stageID } + [committedEntry])
@@ -1743,6 +1756,8 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
            workspaceID.rawValue == Self.zero {
             throw DraftAttachmentStagingFailureV1.wrongWorkspace
         }
+        let producerActivity = try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
+        defer { producerActivity.close() }
         self.fileManager = fileManager
         self.applicationSupportURL = applicationSupportURL.standardizedFileURL
         let dataRoot = applicationSupportURL.standardizedFileURL
@@ -1827,14 +1842,16 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
     /// to the application's retained generation/session authority.
     func readPhotoBackupSnapshot(raw: CheckRunnerPhotoRawReadyV1,
                                 committingCheckpoint: FieldDraftCheckpointV1?) async throws -> DraftPhotoRawBackupSnapshotV1 {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
+        defer { producerActivity.close() }
         try validateScope(workspaceID: raw.readyItem.workspaceID, draftID: raw.readyItem.draftID, stageID: raw.intent.stageID)
         try beginOperation()
         defer { operationInFlight = false }
-        let owner = rootOwner
+        let owner = rootOwner, support = applicationSupportURL
         let task = Task.detached(priority: .userInitiated) {
             let values = try committingCheckpoint.map { try DraftPhotoRawPromotionValuesV1(checkpoint: $0) }
             guard values.map({ $0.rawReady == raw }) ?? true else { throw DraftAttachmentStagingFailureV1.staleStage }
-            let snapshot = try DraftRawPhotoReadSnapshotV1.open(raw: raw, owner: owner, committedEntry: values?.committedEntry)
+            let snapshot = try DraftRawPhotoReadSnapshotV1.open(raw: raw, owner: owner, applicationSupportURL: support, committedEntry: values?.committedEntry)
             try snapshot.verifyBytesAndInspection()
             return try snapshot.backupSnapshot()
         }
@@ -1854,6 +1871,8 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
         committingCheckpoints: [UUID: FieldDraftCheckpointV1],
         canonicalStages: [AttachmentStagingItemV1], childStageIDs: [UUID: UUID]) async throws
         -> DraftPhotoBackupPreparedVerificationV1 {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
+        defer { producerActivity.close() }
         guard snapshots.count <= FieldDraftLimitsV1.maximumStageItems,
               Set(snapshots.map { $0.raw.intent.stageID }).count == snapshots.count,
               Set(snapshots.map { $0.raw.readyItem.draftID }).count == snapshots.count,
@@ -1882,7 +1901,7 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
         }
         try beginOperation()
         defer { operationInFlight = false }
-        let owner = rootOwner
+        let owner = rootOwner, support = applicationSupportURL
         let task = Task.detached(priority: .userInitiated) {
             for expected in snapshots {
                 try Task.checkCancellation()
@@ -1890,7 +1909,7 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
                     try DraftPhotoRawPromotionValuesV1(checkpoint: $0)
                 }
                 guard values.map({ $0.rawReady == expected.raw }) ?? true else { throw DraftAttachmentStagingFailureV1.staleStage }
-                let observed = try DraftRawPhotoReadSnapshotV1.open(raw: expected.raw, owner: owner,
+                let observed = try DraftRawPhotoReadSnapshotV1.open(raw: expected.raw, owner: owner, applicationSupportURL: support,
                                                                    committedEntry: values?.committedEntry)
                 try observed.verifyBytesAndInspection()
                 guard try observed.backupSnapshot() == expected else { throw DraftAttachmentStagingFailureV1.staleStage }
@@ -1920,6 +1939,8 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
 
     private func performRawPhotoPublication(sourceURL: URL?, authority: CheckRunnerPhotoRawPublicationAuthorityV1)
         async throws -> FieldDraftCommittedEvidenceV1? {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
+        defer { producerActivity.close() }
         guard authority.applicationSupportURL.standardizedFileURL == applicationSupportURL else {
             throw DraftAttachmentStagingFailureV1.invalidRoot
         }
@@ -1983,6 +2004,8 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
     /// its final G -> raw R -> media R pair-ready publication.
     func prepareRawPhotoVerification(authority: CheckRunnerPhotoRawReadAuthorityV1)
         async throws -> DraftPreparedRawPhotoVerificationV1 {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
+        defer { producerActivity.close() }
         guard authority.applicationSupportURL.standardizedFileURL == applicationSupportURL else {
             throw DraftAttachmentStagingFailureV1.invalidRoot
         }
@@ -1995,7 +2018,7 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
         try await authority.validate(adapterIdentity: identity)
         try Task.checkCancellation()
         let preparation = Task.detached(priority: .userInitiated) {
-            let snapshot = try DraftRawPhotoReadSnapshotV1.open(raw: raw, owner: owner)
+            let snapshot = try DraftRawPhotoReadSnapshotV1.open(raw: raw, owner: owner, applicationSupportURL: support)
             try snapshot.verifyBytesAndInspection()
             return DraftPreparedRawPhotoVerificationV1(rawReady: raw,
                 applicationSupportURL: support, adapterIdentity: identity, snapshot: snapshot)
@@ -2016,6 +2039,8 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
 
     private func readRawPhoto(authority: CheckRunnerPhotoRawReadAuthorityV1, normalize: Bool)
         async throws -> NormalizedMediaWithSourceFactsV1? {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
+        defer { producerActivity.close() }
         guard authority.applicationSupportURL.standardizedFileURL == applicationSupportURL else {
             throw DraftAttachmentStagingFailureV1.invalidRoot
         }
@@ -2024,11 +2049,11 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
                           stageID: raw.intent.stageID)
         try beginOperation()
         defer { operationInFlight = false }
-        let identity = ObjectIdentifier(self), owner = rootOwner
+        let identity = ObjectIdentifier(self), owner = rootOwner, support = applicationSupportURL
         try await authority.validate(adapterIdentity: identity)
         try Task.checkCancellation()
         let preparation = Task.detached(priority: .userInitiated) { () throws -> NormalizedMediaWithSourceFactsV1? in
-            let snapshot = try DraftRawPhotoReadSnapshotV1.open(raw: raw, owner: owner)
+            let snapshot = try DraftRawPhotoReadSnapshotV1.open(raw: raw, owner: owner, applicationSupportURL: support)
             if normalize { return try snapshot.normalize() }
             try snapshot.verifyBytesAndInspection()
             let lock = try owner.acquire()
@@ -2053,6 +2078,8 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
     /// taking every durable time/identity from the original COMMITTING payload.
     func promoteRawPhoto(authority: CheckRunnerPhotoRawPromotionAuthorityV1)
         async throws -> DraftContentReservationV1 {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
+        defer { producerActivity.close() }
         guard authority.applicationSupportURL.standardizedFileURL == applicationSupportURL else {
             throw DraftAttachmentStagingFailureV1.invalidRoot
         }
@@ -2113,6 +2140,8 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
         mediaType: String? = nil,
         createdAt: Date? = nil
     ) async throws -> AttachmentStagingItemV1 {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
+        defer { producerActivity.close() }
         try beginOperation()
         defer { operationInFlight = false }
         do {
@@ -2271,6 +2300,8 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
     }
 
     func item(stageID: UUID) throws -> AttachmentStagingItemV1? {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
+        defer { producerActivity.close() }
         let rootLock = try lockAndReload()
         defer { rootLock.release() }
         return manifest.entries.first(where: { $0.item.stageID == stageID })?.item
@@ -2280,6 +2311,8 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
         workspaceID: WorkspaceID? = nil,
         draftID: UUID? = nil
     ) throws -> [DraftAttachmentStagingEntryV1] {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
+        defer { producerActivity.close() }
         let rootLock = try lockAndReload()
         defer { rootLock.release() }
         if let workspaceID, workspaceID.rawValue == Self.zero {
@@ -2292,6 +2325,8 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
     }
 
     func data(stageID: UUID) throws -> Data {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
+        defer { producerActivity.close() }
         let rootLock = try lockAndReload()
         defer { rootLock.release() }
         guard let entry = manifest.entries.first(where: { $0.item.stageID == stageID }) else {
@@ -2302,6 +2337,8 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
     }
 
     func verify(stageID: UUID) throws -> AttachmentStagingItemV1 {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
+        defer { producerActivity.close() }
         let rootLock = try lockAndReload()
         defer { rootLock.release() }
         guard let entry = manifest.entries.first(where: { $0.item.stageID == stageID }) else {
@@ -2319,6 +2356,8 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
         stageID: UUID,
         expectedRevision: UInt64
     ) throws -> DraftAttachmentStagingRemovalReceiptV1 {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
+        defer { producerActivity.close() }
         let rootLock = try lockAndReload()
         defer { rootLock.release() }
         guard let entry = manifest.entries.first(where: { $0.item.stageID == stageID }) else {
@@ -2361,6 +2400,8 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
     /// ORPHAN_QUARANTINED state.  No content association is created.
     @discardableResult
     func quarantine(stageID: UUID, expectedRevision: UInt64) throws -> AttachmentStagingItemV1 {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
+        defer { producerActivity.close() }
         let rootLock = try lockAndReload()
         defer { rootLock.release() }
         return try quarantineUnderLock(stageID: stageID, expectedRevision: expectedRevision)
@@ -2427,6 +2468,8 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
         items: [AttachmentStagingItemV1],
         reservationMutationIDs: [UUID: MutationIDV1]
     ) async throws -> [DraftContentReservationV1] {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
+        defer { producerActivity.close() }
         try beginOperation()
         defer { operationInFlight = false }
         try plan.validate()
@@ -2611,6 +2654,8 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
         reservations: [DraftContentReservationV1],
         for plan: DraftDiscardPlanV1
     ) async throws {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
+        defer { producerActivity.close() }
         let rootLock = try lockAndReload()
         defer { rootLock.release() }
         try plan.validate()
@@ -2637,6 +2682,8 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
     /// retryable/final state, never READY_LOCAL.
     @discardableResult
     func reconcile() throws -> [AttachmentStagingItemV1] {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
+        defer { producerActivity.close() }
         let rootLock = try lockAndReload()
         defer { rootLock.release() }
         var updated = manifest.entries
@@ -2664,6 +2711,8 @@ actor DraftAttachmentStagingAdapterV1: DraftContentPromotionPortV1 {
     }
 
     func erase(workspaceID: WorkspaceID? = nil) throws {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
+        defer { producerActivity.close() }
         let rootLock = try lockAndReload()
         defer { rootLock.release() }
         let retained = manifest.entries.filter { entry in
@@ -4755,6 +4804,8 @@ extension DraftAttachmentStagingAdapterV1 {
     func preparePhotoRestoreRawPublication(authority: CheckRunnerPhotoRestoreRawAuthorityV1,
         currentVerification: DraftPhotoBackupPreparedVerificationV1) async throws
         -> DraftPhotoRestorePreparedPublicationV1 {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
+        defer { producerActivity.close() }
         guard authority.applicationSupportURL.standardizedFileURL == applicationSupportURL,
               authority.workspaceID == workspaceScope,
               currentVerification.owner.rootURL.standardizedFileURL == rootURL.standardizedFileURL else {
@@ -4770,12 +4821,14 @@ extension DraftAttachmentStagingAdapterV1 {
     func reopenPhotoRestoreRawPublication(ownership: DraftPhotoRestoreRawOwnershipV1,
         permit: CheckRunnerPhotoRestoreRawPublicationPermitV1, rollback: Bool) async throws
         -> DraftPhotoRestorePreparedPublicationV1 {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
+        defer { producerActivity.close() }
         guard let workspaceScope,
               ownership.transition.after.entries.allSatisfy({ $0.item.workspaceID == workspaceScope }) else {
             throw DraftAttachmentStagingFailureV1.wrongWorkspace
         }
         try beginOperation(); defer { operationInFlight = false }
-        let owner = rootOwner
+        let owner = rootOwner, support = applicationSupportURL
         let task = Task.detached(priority: .userInitiated) {
             try DraftPhotoRestorePreparedPublicationV1.reopen(owner: owner, ownership: ownership,
                 permit: permit, rollback: rollback)
@@ -5000,6 +5053,8 @@ extension DraftAttachmentStagingAdapterV1 {
         sourceManifestSHA256: String,
         restoreID: UUID
     ) throws -> DraftAttachmentRestorePublicationReceiptV1 {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquire(applicationSupportURL: applicationSupportURL)
+        defer { producerActivity.close() }
         let rootLock = try lockAndReload()
         defer { rootLock.release() }
         let kernel = publicationKernel

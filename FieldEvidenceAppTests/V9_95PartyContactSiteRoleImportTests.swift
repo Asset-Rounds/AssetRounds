@@ -3,10 +3,19 @@ import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
+// The pre-correction journal basis is retained here as an independent byte
+// vector while its production calculation moves to a shared pure helper.
+private struct C32IncumbentPersistedDigestBasis<Value: Codable>: Codable {
+    let identity: WorkspaceEntityIdentityV1
+    let revision: UInt64
+    let value: Value
+}
+
 private struct C32Corpus: Decodable {
     struct Selector: Decodable { let id: String; let selector: String; let tier: String }
     struct Expected: Decodable {
-        let atomicity: String
+        let atomicityPolicy: String
+        let externalKeyBinding: String
         let contactDefaultExportEnabled: Bool
         let fuzzyMatching: Bool
         let oneCanonicalWriter: Bool
@@ -38,6 +47,7 @@ private enum C32 {
 
 private struct C32Clock: ApplicationClock { func now() -> Date { C32.instant } }
 private struct C32IDSource: ApplicationIDSource { func makeID() -> UUID { C32.id(900) } }
+private struct C32ReopenedIDSource: ApplicationIDSource { func makeID() -> UUID { C32.id(901) } }
 private struct C32FileAuthority: ApplicationFileAuthorityV1 {
     func temporaryRelativePath(mutationID: MutationIDV1, component: String) throws -> String {
         "c32/\(mutationID.rawValue.uuidString.lowercased())/\(component)"
@@ -56,6 +66,7 @@ private final class C32ScratchRecorder: PartyContactSiteRoleImportScratchDiscard
 }
 
 @MainActor private final class C32Store {
+    let container: ModelContainer
     let context: ModelContext
     let writer: WorkspaceWriterV1
     let lifecycle: ImportBulkLifecycleAdapterV1
@@ -64,12 +75,7 @@ private final class C32ScratchRecorder: PartyContactSiteRoleImportScratchDiscard
     let siteIDs: [UUID]
 
     init() throws {
-        let models = PersistentSchemaV45.models + [
-            ImportMappingProfileRowV1.self,
-            BulkSessionRowV1.self,
-            BulkCommitReceiptRowV1.self,
-        ]
-        let schema = Schema(models, version: PersistentSchemaV45.versionIdentifier)
+        let schema = Schema(PersistentSchemaV46.models, version: PersistentSchemaV46.versionIdentifier)
         let container = try ModelContainer(
             for: schema,
             migrationPlan: nil,
@@ -81,6 +87,7 @@ private final class C32ScratchRecorder: PartyContactSiteRoleImportScratchDiscard
                 cloudKitDatabase: .none
             )]
         )
+        self.container = container
         context = container.mainContext
         context.autosaveEnabled = false
         workspaceID = WorkspaceID(rawValue: C32.id(1))
@@ -106,11 +113,9 @@ private final class C32ScratchRecorder: PartyContactSiteRoleImportScratchDiscard
             journalStore: journal
         )
         for (index, siteID) in siteIDs.enumerated() {
-            let snapshot = try writer.currentRevision()
-            _ = try writer.execute(WorkspaceMutationRequestV1(
-                mutationID: try C32.mutation(20 + index),
-                expectedRevision: .init(snapshot: snapshot),
-                command: .createFirstSign(.init(
+            let firstSignMutationID = try C32.mutation(20 + index)
+            _ = try writer.execute(
+                .createFirstSign(.init(
                     siteID: siteID,
                     newSite: .init(id: siteID, label: "C32 Site \(index + 1)", address: nil, timeZoneID: "UTC"),
                     assetID: C32.id(30 + index),
@@ -118,9 +123,15 @@ private final class C32ScratchRecorder: PartyContactSiteRoleImportScratchDiscard
                     packID: "c32.seed",
                     packSchemaVersion: 1,
                     packContentVersion: 1,
-                    createdAt: C32.instant
-                ))
-            ))
+                    createdAt: C32.instant,
+                    initialPlacementMutationID: firstSignMutationID,
+                    initialPlacementEventID: C32.id(40 + index),
+                    initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(
+                        rawValue: C32.id(50 + index)
+                    )
+                )),
+                mutationID: firstSignMutationID
+            )
         }
         lifecycle = try ImportBulkLifecycleAdapterV1(
             registrations: [try Self.registration()],
@@ -130,7 +141,9 @@ private final class C32ScratchRecorder: PartyContactSiteRoleImportScratchDiscard
 
     func coordinator(
         prepared: PartyContactSiteRoleImportPreparedV1,
-        scratch: any PartyContactSiteRoleImportScratchDiscardingV1
+        scratch: any PartyContactSiteRoleImportScratchDiscardingV1,
+        activeWriter: WorkspaceWriterV1? = nil,
+        activeLifecycle: ImportBulkLifecycleAdapterV1? = nil
     ) throws -> PartyContactSiteRoleImportCoordinatorV1 {
         let registrations = try ImportCommandKindV1.allCases.map { kind in
             if kind == .applyAtomicWorkspaceBundle {
@@ -143,12 +156,38 @@ private final class C32ScratchRecorder: PartyContactSiteRoleImportScratchDiscard
         }
         return PartyContactSiteRoleImportCoordinatorV1(
             bulk: try ImportBulkCoordinatorV1(
-                writer: writer,
-                lifecycle: lifecycle,
+                writer: activeWriter ?? writer,
+                lifecycle: activeLifecycle ?? lifecycle,
                 materializers: registrations
             ),
             scratch: scratch
         )
+    }
+
+    // A new writer instance consumes the same persisted journal after the
+    // interrupted effect. The invalidated incumbent cannot execute a replay.
+    func reopenedAfterEffect(
+        prepared: PartyContactSiteRoleImportPreparedV1,
+        scratch: any PartyContactSiteRoleImportScratchDiscardingV1
+    ) throws -> (WorkspaceWriterV1, ImportBulkLifecycleAdapterV1, PartyContactSiteRoleImportCoordinatorV1) {
+        writer.invalidate()
+        let identity = try WorkspaceReplicaIdentityV1(
+            workspaceID: workspaceID, replicaID: ReplicaID(rawValue: C32.id(3)))
+        let reopenedWriter = try WorkspaceWriterV1(
+            identity: identity,
+            generationID: C32.id(2),
+            initialRevision: try journal.currentRevision(writerInstanceID: C32.id(901)),
+            clock: C32Clock(), idSource: C32ReopenedIDSource(),
+            fileAuthority: C32FileAuthority(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: context),
+            journalStore: journal
+        )
+        let reopenedLifecycle = try ImportBulkLifecycleAdapterV1(
+            registrations: [try Self.registration()], modelContext: context)
+        let reopenedCoordinator = try coordinator(
+            prepared: prepared, scratch: scratch,
+            activeWriter: reopenedWriter, activeLifecycle: reopenedLifecycle)
+        return (reopenedWriter, reopenedLifecycle, reopenedCoordinator)
     }
 
     private static func registration() throws -> ImportAdapterRegistrationV1 {
@@ -343,18 +382,55 @@ private final class C32ScratchRecorder: PartyContactSiteRoleImportScratchDiscard
         ))
         XCTAssertThrowsError(try PartyCSVRowV1(rowIndex: 1, partyID: C32.id(502), kind: .person, displayName: "unsafe\u{202e}", provenance: .locallyRecorded, state: .effective, effectiveAt: C32.instant, revision: 1))
         XCTAssertThrowsError(try PartyCSVRowV1(rowIndex: 1, partyID: C32.id(505), kind: .person, displayName: "cafe\u{0301}", provenance: .locallyRecorded, state: .effective, effectiveAt: C32.instant, revision: 1))
+        XCTAssertNoThrow(try PartyCSVRowV1(rowIndex: 1, partyID: C32.id(507), kind: .person, displayName: "café", provenance: .locallyRecorded, state: .effective, effectiveAt: C32.instant, revision: 1))
+        XCTAssertThrowsError(try ImportBulkCanonicalCodecV1.requireText("cafe\u{0301}"))
+        XCTAssertNoThrow(try ImportBulkCanonicalCodecV1.requireText("café"))
+        XCTAssertThrowsError(try ImportMappedFieldV1(key: "formula_text", value: "cafe\u{0301}"))
+        XCTAssertNoThrow(try ImportMappedFieldV1(key: "formula_text", value: "café"))
         XCTAssertThrowsError(try PartyContactCSVRowV1(rowIndex: 1, contactPointID: C32.id(503), partyID: C32.id(504), kind: .email, label: .work, displayValue: "a\u{0000}@example.test", preferred: false, effectiveAt: C32.instant, revision: 1))
+        let formulaImportSchema = try ImportSchemaReleaseV1(
+            releaseID: "c32_formula_import", release: 1, entityKind: .asset,
+            externalKeyColumn: "source_binding_sha256",
+            columns: [
+                try .init(key: "formula_text", scalar: .text, required: false,
+                          editableOnExactUpdate: true, maximumCellBytes: 128, maximumScalars: 128),
+                try .init(key: "source_binding_sha256", scalar: .text, required: true,
+                          editableOnExactUpdate: false, maximumCellBytes: 64, maximumScalars: 64),
+            ],
+            budget: try ImportStreamingBudgetV1(
+                maximumSourceBytes: 1_024, maximumRows: 1, maximumColumns: 2,
+                maximumCellBytes: 128, maximumScalarsPerCell: 128
+            )
+        )
         let exportSchema = try ExportSchemaReleaseV1(
             releaseID: "c32_formula_safe", release: 1,
-            importSchema: prepared.preview.importPlan.schemaRelease,
+            importSchema: formulaImportSchema,
             expectedRevisionColumn: "expected_revision"
+        )
+        XCTAssertEqual(exportSchema.stableExternalKeyColumn, "source_binding_sha256")
+        XCTAssertEqual(exportSchema.editableColumns, ["formula_text"])
+        XCTAssertTrue(exportSchema.permitsUpdate(column: "formula_text"))
+        XCTAssertFalse(exportSchema.permitsUpdate(column: "source_binding_sha256"))
+        let formulaBytes = Data(
+            "source_binding_sha256,expected_revision,formula_text\n\(C32.sourceDigest),0,'=1+1\n".utf8
         )
         let formulaExport = try DeterministicCSVExportV1(
             exportID: C32.id(506), workspaceID: store.workspaceID, kind: .inventory,
             exportSchema: exportSchema, rowCount: 1,
-            bytes: Data("source_binding_sha256,expected_revision\\n'=1+1,0\\n".utf8)
+            bytes: formulaBytes
         )
         XCTAssertTrue(formulaExport.formulaAndControlPrefixesNeutralized)
+        XCTAssertNotNil(formulaExport.bytes.range(of: Data(",'=1+1\n".utf8)))
+        XCTAssertThrowsError(try DeterministicCSVExportV1(
+            exportID: C32.id(508), workspaceID: store.workspaceID, kind: .inventory,
+            exportSchema: exportSchema, rowCount: 1,
+            bytes: Data("source_binding_sha256,expected_revision,formula_text\n\(C32.sourceDigest),0,cafe\u{0301}\n".utf8)
+        ))
+        XCTAssertNoThrow(try DeterministicCSVExportV1(
+            exportID: C32.id(509), workspaceID: store.workspaceID, kind: .inventory,
+            exportSchema: exportSchema, rowCount: 1,
+            bytes: Data("source_binding_sha256,expected_revision,formula_text\n\(C32.sourceDigest),0,café\n".utf8)
+        ))
         XCTAssertThrowsError(try PartyContactSiteRoleImportPreparedV1(
             sourceManifest: prepared.sourceManifest,
             partyRows: [], contactRows: [], siteRoleRows: [], mutation: prepared.mutation,
@@ -383,30 +459,130 @@ private final class C32ScratchRecorder: PartyContactSiteRoleImportScratchDiscard
     func testV23P04C32R01ReceiptReplayBackupRestoreJournalReplicationAndPrivacyRecovery() throws {
         let corpus = try loadCorpus(); check(corpus, "R01", "RECOVERY")
         let store = try C32Store(); let prepared = try c32Prepared(store); let coordinator = try store.coordinator(prepared: prepared, scratch: C32ScratchRecorder())
+        let aggregateImages = try prepared.mutation.mutationPostImages
+        let aggregateByIdentity = Dictionary(uniqueKeysWithValues: try aggregateImages.map {
+            (try $0.identity, $0)
+        })
+        for case let .recordParty(party) in prepared.mutation.partyMutations {
+            let identity = try WorkspaceEntityIdentityV1(kind: .serviceParty, id: party.partyID)
+            let expected = try MutationJournalStoreV1.observationPostImage(party, revision: party.revision)
+            XCTAssertEqual(aggregateByIdentity[identity], expected)
+            XCTAssertEqual(expected.semanticSHA256, try WorkspaceMutationCanonicalV1.sha256(
+                C32IncumbentPersistedDigestBasis(identity: identity, revision: party.revision, value: party)
+            ))
+            XCTAssertNotEqual(expected.semanticSHA256, party.receiptSHA256)
+        }
+        for case let .appendSiteRole(role) in prepared.mutation.siteRoleMutations {
+            let identity = try WorkspaceEntityIdentityV1(kind: .sitePartyRoleEvent, id: role.eventID)
+            let expected = try MutationJournalStoreV1.observationPostImage(role, revision: role.revision)
+            XCTAssertEqual(aggregateByIdentity[identity], expected)
+            XCTAssertEqual(expected.semanticSHA256, try WorkspaceMutationCanonicalV1.sha256(
+                C32IncumbentPersistedDigestBasis(identity: identity, revision: role.revision, value: role)
+            ))
+            XCTAssertNotEqual(expected.semanticSHA256, role.receiptSHA256)
+        }
+        for image in try prepared.mutation.operationalContactMutation.mutationPostImages {
+            XCTAssertEqual(aggregateByIdentity[try image.identity], image)
+        }
+        let actor = try ActorSnapshotV1(
+            snapshotID: C32.id(991), workspaceID: store.workspaceID,
+            actor: LocalActorReferenceV1(
+                actorReferenceID: C32.id(992), workspaceID: store.workspaceID,
+                displayName: "C32 checksum witness"
+            ),
+            responsibility: .recordedBy, displayNameAtTime: "C32 checksum witness",
+            capturedAt: C32.instant
+        )
+        let actorIdentity = try WorkspaceEntityIdentityV1(kind: .actorSnapshot, id: actor.snapshotID)
+        let actorObserved = try MutationJournalStoreV1.observationPostImage(actor, revision: 1)
+        XCTAssertEqual(actorObserved.semanticSHA256, try WorkspaceMutationCanonicalV1.sha256(
+            C32IncumbentPersistedDigestBasis(identity: actorIdentity, revision: 1, value: actor)
+        ))
         let begun = try coordinator.begin(sessionID: C32.id(700), prepared: prepared, currentSourceSHA256: prepared.preview.importPlan.source.sourceSHA256, currentWorkspaceRevisionSHA256: C32.revisionDigest)
         let beforeCommit = try store.writer.currentRevision()
-        let committed = try coordinator.commitOrResume(session: begun, prepared: prepared, currentSourceSHA256: prepared.preview.importPlan.source.sourceSHA256, currentWorkspaceRevisionSHA256: C32.revisionDigest, cancellationRequested: false)
-        let afterCommit = try store.writer.currentRevision()
-        XCTAssertEqual(afterCommit.revision, beforeCommit.revision + 1)
-        let receipt = try XCTUnwrap(try store.writer.durableReceipt(mutationID: prepared.mutation.mutationID))
-        let typedReceipt = try PartyContactSiteRoleImportMutationReceiptV1(mutation: prepared.mutation, mutationReceipt: receipt)
+        let sourceHistoryBefore = try store.writer.sourceMutationHistorySnapshot()
+#if DEBUG
+        coordinator.interruptAfterNextWriterEffectBeforeChunkReceiptForTesting()
+        XCTAssertThrowsError(try coordinator.commitOrResume(session: begun, prepared: prepared, currentSourceSHA256: prepared.preview.importPlan.source.sourceSHA256, currentWorkspaceRevisionSHA256: C32.revisionDigest, cancellationRequested: false)) { error in
+            XCTAssertEqual(error as? ImportBulkFailureV1, .interruptedAfterEffectForTesting)
+        }
+#endif
+        let afterEffect = try store.writer.currentRevision()
+        XCTAssertEqual(afterEffect.revision, beforeCommit.revision + 1)
+        XCTAssertEqual(try store.lifecycle.durableSession(sessionID: begun.sessionID), begun)
+        XCTAssertNil(try store.lifecycle.durableReceipt(
+            workspaceID: prepared.preview.bulkPlan.workspaceID,
+            bulkPlan: prepared.preview.bulkPlan, chunkIndex: 0
+        ))
+        let effectHistory = try store.writer.sourceMutationHistorySnapshot()
+        XCTAssertEqual(effectHistory.receipts.count, sourceHistoryBefore.receipts.count + 1)
+        let (reopenedWriter, reopenedLifecycle, reopenedCoordinator) = try store.reopenedAfterEffect(
+            prepared: prepared, scratch: C32ScratchRecorder())
+        XCTAssertNotEqual(try reopenedWriter.currentRevision().writerInstanceID,
+                          beforeCommit.writerInstanceID)
+        let committed = try reopenedCoordinator.commitOrResume(session: begun, prepared: prepared, currentSourceSHA256: prepared.preview.importPlan.source.sourceSHA256, currentWorkspaceRevisionSHA256: C32.revisionDigest, cancellationRequested: false)
+        let afterCommit = try reopenedWriter.currentRevision()
+        XCTAssertEqual(try reopenedLifecycle.durableSession(sessionID: begun.sessionID), committed)
+        let lifecycleReceipt = try XCTUnwrap(try reopenedLifecycle.durableReceipt(
+            workspaceID: prepared.preview.bulkPlan.workspaceID,
+            bulkPlan: prepared.preview.bulkPlan, chunkIndex: 0
+        ))
+        XCTAssertEqual(lifecycleReceipt.disposition, .committed)
+        XCTAssertEqual(lifecycleReceipt.committedMutationIDs, [prepared.mutation.mutationID])
+        let receipt = try XCTUnwrap(try reopenedWriter.durableReceipt(mutationID: prepared.mutation.mutationID))
+        let committedHistory = try reopenedWriter.sourceMutationHistorySnapshot()
+        XCTAssertEqual(committedHistory.receipts.count, effectHistory.receipts.count + 2)
+        XCTAssertEqual(afterCommit.revision, afterEffect.revision + 2)
+        let lifecycleOperations = try committedHistory.receipts.suffix(2).map { record -> ImportBulkWorkspaceOperationV1 in
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+            guard case let .applyImportBulk(mutation) = envelope.command else {
+                throw ImportBulkFailureV1.changedInputQuarantined
+            }
+            return mutation.operation
+        }
+        XCTAssertEqual(lifecycleOperations, [
+            .appendReceipt(lifecycleReceipt),
+            .advanceSession(session: committed, expectedSessionSHA256: begun.sessionSHA256),
+        ])
+        let aggregateRecord = try XCTUnwrap(committedHistory.receipts.first { record in
+            (try? MutationEnvelopeV1.decodeCanonical(from: record.envelopeData).mutationID)
+                == prepared.mutation.mutationID
+        })
+        let actualEnvelope = try MutationEnvelopeV1.decodeCanonical(
+            from: aggregateRecord.envelopeData
+        )
+        guard case let .applyPartyContactSiteRoleImport(executedMutation) = actualEnvelope.command else {
+            XCTFail("Expected genuine C32 aggregate command")
+            throw ImportBulkFailureV1.changedInputQuarantined
+        }
+        XCTAssertEqual(executedMutation.mutationID, prepared.mutation.mutationID)
+        XCTAssertEqual(executedMutation.partyMutations, prepared.mutation.partyMutations)
+        XCTAssertEqual(executedMutation.operationalContactMutation.successors,
+                       prepared.mutation.operationalContactMutation.successors)
+        XCTAssertEqual(executedMutation.siteRoleMutations, prepared.mutation.siteRoleMutations)
+        let typedReceipt = try PartyContactSiteRoleImportMutationReceiptV1(
+            mutation: executedMutation, mutationReceipt: receipt
+        )
         XCTAssertEqual(typedReceipt.mutationReceipt, receipt)
-        let committedHistory = try store.writer.sourceMutationHistorySnapshot()
         XCTAssertEqual(try c32ReceiptCount(committedHistory, mutationID: prepared.mutation.mutationID), 1)
         try MutationReceiptRecoveryServiceV1(store: store.journal)
             .recoverPartyContactSiteRoleImportEffectsBeforeWriterActivation()
         try PartyContactSiteRoleImportLocalChangeJournalPolicyV1.validate(
             try c32JournalChange(committedHistory, mutationID: prepared.mutation.mutationID)
         )
-        let restoredStartingPoint = try BulkSessionV1(sessionID: begun.sessionID, workspaceID: begun.workspaceID, bulkPlan: prepared.preview.bulkPlan, sourceSHA256: begun.sourceSHA256, expectedWorkspaceRevisionSHA256: begun.expectedWorkspaceRevisionSHA256)
-        try store.lifecycle.record(session: restoredStartingPoint, replacing: committed.sessionSHA256)
-        let replayed = try coordinator.commitOrResume(session: restoredStartingPoint, prepared: prepared, currentSourceSHA256: prepared.preview.importPlan.source.sourceSHA256, currentWorkspaceRevisionSHA256: C32.revisionDigest, cancellationRequested: false)
-        XCTAssertEqual(replayed.chunkReceipts, committed.chunkReceipts)
-        XCTAssertEqual(try store.writer.durableReceipt(mutationID: prepared.mutation.mutationID), receipt)
-        XCTAssertEqual(try store.writer.currentRevision(), afterCommit)
+        XCTAssertEqual(committed.chunkReceipts, [lifecycleReceipt])
+        let replayed = try reopenedCoordinator.commitOrResume(
+            session: committed, prepared: prepared,
+            currentSourceSHA256: prepared.preview.importPlan.source.sourceSHA256,
+            currentWorkspaceRevisionSHA256: C32.revisionDigest,
+            cancellationRequested: false
+        )
+        XCTAssertEqual(replayed, committed)
+        XCTAssertEqual(try reopenedWriter.durableReceipt(mutationID: prepared.mutation.mutationID), receipt)
+        XCTAssertEqual(try reopenedWriter.currentRevision(), afterCommit)
         XCTAssertEqual(
             try c32ReceiptCount(
-                store.writer.sourceMutationHistorySnapshot(),
+                reopenedWriter.sourceMutationHistorySnapshot(),
                 mutationID: prepared.mutation.mutationID
             ),
             1
@@ -414,6 +590,43 @@ private final class C32ScratchRecorder: PartyContactSiteRoleImportScratchDiscard
         try store.journal.validateAll()
         XCTAssertFalse(PartyContactsCSVContractV1.defaultExportEnabled)
         XCTAssertFalse(OperationalContactPersistenceEnrollmentV1.importSourceBytesArePersistent)
+
+        // A genuine unrelated writer effect after begin is not an acceptable
+        // session handoff and must never produce the aggregate receipt.
+        let hostile = try C32Store()
+        let hostilePrepared = try c32Prepared(hostile)
+        let hostileCoordinator = try hostile.coordinator(
+            prepared: hostilePrepared, scratch: C32ScratchRecorder()
+        )
+        let hostileSession = try hostileCoordinator.begin(
+            sessionID: C32.id(701), prepared: hostilePrepared,
+            currentSourceSHA256: hostilePrepared.preview.importPlan.source.sourceSHA256,
+            currentWorkspaceRevisionSHA256: C32.revisionDigest
+        )
+        let unrelatedID = try C32.mutation(999)
+        _ = try hostile.writer.execute(.createFirstSign(.init(
+            siteID: C32.id(1000),
+            newSite: .init(id: C32.id(1000), label: "Unrelated Site", address: nil, timeZoneID: "UTC"),
+            assetID: C32.id(1001), assetLabel: "Unrelated asset",
+            packID: "c32.seed", packSchemaVersion: 1, packContentVersion: 1,
+            createdAt: C32.instant,
+            initialPlacementMutationID: unrelatedID,
+            initialPlacementEventID: C32.id(1002),
+            initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(
+                rawValue: C32.id(1003)
+            )
+        )), mutationID: unrelatedID)
+        XCTAssertThrowsError(try hostileCoordinator.commitOrResume(
+            session: hostileSession, prepared: hostilePrepared,
+            currentSourceSHA256: hostilePrepared.preview.importPlan.source.sourceSHA256,
+            currentWorkspaceRevisionSHA256: C32.revisionDigest,
+            cancellationRequested: false
+        )) { error in
+            XCTAssertEqual(error as? ImportBulkFailureV1, .changedInputQuarantined)
+        }
+        XCTAssertNil(try hostile.writer.durableReceipt(
+            mutationID: hostilePrepared.mutation.mutationID
+        ))
     }
 
     private func loadCorpus() throws -> C32Corpus {
@@ -426,7 +639,8 @@ private final class C32ScratchRecorder: PartyContactSiteRoleImportScratchDiscard
         XCTAssertEqual(corpus.schemaVersion, 1); XCTAssertEqual(corpus.cardID, "V23-P04-C32"); XCTAssertEqual(corpus.ordinal, 117)
         XCTAssertEqual(corpus.selectors.map(\.id), ["G01", "A01", "H01", "I01", "R01"])
         XCTAssertEqual(corpus.selectors.first { $0.id == id }?.tier, tier)
-        XCTAssertEqual(corpus.expected.atomicity, "ONE_ROOT_ALL_OR_NOTHING")
+        XCTAssertEqual(corpus.expected.atomicityPolicy, "ONE_ROOT_ALL_OR_NOTHING")
+        XCTAssertEqual(corpus.expected.externalKeyBinding, "EXACT_ONLY")
         XCTAssertEqual(corpus.expected.sourceOrder, ["PARTIES_V1", "PARTY_CONTACTS_V1", "SITE_PARTY_ROLES_V1"])
         XCTAssertTrue(corpus.expected.oneCanonicalWriter); XCTAssertFalse(corpus.expected.previewWritesCanonicalState)
         XCTAssertFalse(corpus.expected.fuzzyMatching); XCTAssertFalse(corpus.expected.contactDefaultExportEnabled)

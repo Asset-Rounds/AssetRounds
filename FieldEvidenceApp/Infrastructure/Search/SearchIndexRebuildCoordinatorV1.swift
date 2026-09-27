@@ -367,6 +367,21 @@ final class SwiftDataSearchCanonicalProjectionSourceV1: SearchContentReadGuarded
         )
     }
 
+    /// Search is disposable and encodes dates as milliseconds since 1970. Keep
+    /// canonical source dates intact; only its derived index copies use the
+    /// codec's representable precision before strict persisted readback.
+    static func canonicalDerivedIndexDate(_ date: Date) throws -> Date {
+        let seconds = date.timeIntervalSince1970
+        let milliseconds = seconds * 1_000
+        let maximumExactInteger = 9_007_199_254_740_991.0
+        guard seconds.isFinite, milliseconds.isFinite,
+              abs(milliseconds) <= maximumExactInteger else {
+            throw SearchContractFailureV1.invalidField
+        }
+        let integralMilliseconds = milliseconds.rounded(.toNearestOrAwayFromZero)
+        return Date(timeIntervalSince1970: integralMilliseconds / 1_000)
+    }
+
     func currentSearchSourceRevision() async throws -> SearchSourceRevisionV1 {
         try validatedCurrentRevision()
     }
@@ -1602,6 +1617,8 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
             fields = [("party_identifier", value.stableID), ("party_label", value.display),
                       ("party_role", value.roleSummary), ("status", value.status)]
         }
+        let derivedTimestamp = try Self.canonicalDerivedIndexDate(value.timestamp)
+        let derivedDueAt = try value.dueAt.map(Self.canonicalDerivedIndexDate)
         return try fields.map { fieldID, text in
             let searchable = text.isEmpty ? value.stableID : text
             let identity = try SearchCanonicalRecordIdentityV1(
@@ -1624,8 +1641,8 @@ private extension SwiftDataSearchCanonicalProjectionSourceV1 {
                 locationBreadcrumb: value.breadcrumb,
                 status: value.status,
                 permittedSnippet: searchable,
-                dueAt: value.dueAt,
-                sourceTimestamp: value.timestamp
+                dueAt: derivedDueAt,
+                sourceTimestamp: derivedTimestamp
             )
         }
     }

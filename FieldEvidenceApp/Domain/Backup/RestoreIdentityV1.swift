@@ -496,8 +496,22 @@ extension RestoreIdentityV1 {
     }
 
     func destinationOperationalContactMutationID(for sourceID: MutationIDV1) throws -> MutationIDV1 {
+        try Self.destinationOperationalContactMutationID(
+            for: sourceID,
+            targetWorkspaceID: targetPointer.workspaceID,
+            targetGenerationID: targetPointer.generationID
+        )
+    }
+
+    /// The same closed restore identity mapping is used when validating a
+    /// retained historical C32 aggregate against its imported successor.
+    static func destinationOperationalContactMutationID(
+        for sourceID: MutationIDV1,
+        targetWorkspaceID: UUID,
+        targetGenerationID: UUID
+    ) throws -> MutationIDV1 {
         let digest = CanonicalJSONV1.sha256(Data(
-            "operational-contact-restore\u{0}\(sourceID.rawValue.uuidString.lowercased())\u{0}\(targetPointer.workspaceID.uuidString.lowercased())\u{0}\(targetPointer.generationID.uuidString.lowercased())".utf8
+            "operational-contact-restore\u{0}\(sourceID.rawValue.uuidString.lowercased())\u{0}\(targetWorkspaceID.uuidString.lowercased())\u{0}\(targetGenerationID.uuidString.lowercased())".utf8
         ))
         var bytes = stride(from: 0, to: 32, by: 2).map {
             UInt8(digest.dropFirst($0).prefix(2), radix: 16) ?? 0

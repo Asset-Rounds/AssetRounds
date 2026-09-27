@@ -6,6 +6,9 @@ import XCTest
 @testable import FieldEvidenceApp
 
 final class V23ProductionAppAccessTests: XCTestCase {
+    @MainActor private static var retainedDeferredEraseOwners:
+        [(URL, StartupRouter, ProductionAppAccessSessionV1, AppAccessPresentationV1)] = []
+
     func testScenePreferencesPersistBoundedSnapshotsAndDiscardCorruptionAcrossReopen() throws {
         let suiteName = "V23.ProductionAppAccess.scene-state.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
@@ -384,16 +387,15 @@ final class V23ProductionAppAccessTests: XCTestCase {
         for directory in [support, caches, temporary] {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }
-        defer {
-            defaults.removePersistentDomain(forName: suiteName)
-            try? FileManager.default.removeItem(at: root)
-        }
+        // The retired operation and fresh published owner can still hold
+        // descriptors at test return. Retain their exact root and shells.
         let system = ProductionAccessNotificationSystem()
         let router = StartupRouter(applicationSupportURL: support)
         let session = try await ProductionCompositionRoot.makeAppAccessSession(
             applicationSupportURL: support, startupRouter: router, defaults: defaults,
             authenticationClient: ProductionAccessAuthentication(), notificationSystem: system)
         var serviceCount = 0
+        var completedReceipts = [CompletedEraseReceiptV1]()
         let originalScenePort = session.sceneNavigationStatePort()
         let presentation = AppAccessPresentationV1(startupRouter: router,
             eraseServiceFactory: { admission, completion, aborted, sceneState in
@@ -403,40 +405,60 @@ final class V23ProductionAppAccessTests: XCTestCase {
                     temporaryDirectoryURL: temporary, userDefaults: defaults, defaultsDomainName: suiteName,
                     sleeper: ProductionAccessImmediateSleeper(), sceneNavigationStatePort: sceneState, privateSystemDiscoveryIndex: nil,
                     notificationSystem: system, admitErase: admission,
-                    didCompleteErase: completion, didAbortEraseAdmission: aborted)
+                    didCompleteErase: { receipt in
+                        completedReceipts.append(receipt)
+                        XCTAssertNotNil(completion)
+                        completion?(receipt)
+                    }, didAbortEraseAdmission: aborted)
             }, sessionFactory: { session })
+        Self.retainedDeferredEraseOwners.append((root, router, session, presentation))
         let published = expectation(description: "Actual production startup publishes the deferred Erase owner")
         let publication = presentation.$permitsContentPresentation.filter { $0 }.prefix(1)
             .sink { _ in published.fulfill() }
         defer { publication.cancel() }
         await presentation.bootstrapIfNeeded()
         await fulfillment(of: [published], timeout: 30)
-        guard case .ready(let coordinator, let diagnostics, _) = router.route else {
+        var coordinator: StoreSessionCoordinator?
+        let diagnostics: DiagnosticsStore
+        switch router.route {
+        case let .ready(published, value, _):
+            coordinator = published
+            diagnostics = value
+        default:
             return XCTFail("Production startup did not publish its original Erase owner")
         }
-        let originalGeneration = coordinator.generationID
+        let originalGeneration = try XCTUnwrap(coordinator).generationID
         let originalScene = try XCTUnwrap(presentation.sceneNavigationAccess)
-        let sceneSnapshot = try SceneNavigationSnapshotV1(workspaceID: coordinator.workspaceID,
+        let sceneSnapshot = try SceneNavigationSnapshotV1(workspaceID: XCTUnwrap(coordinator).workspaceID,
             selectedRoot: .work, paths: AppRootV1.frozenOrder.map { .init(root: $0, targets: []) },
             snapshotID: UUID())
         try originalScene.save(sceneSnapshot)
         let originalSceneBytes = try XCTUnwrap(originalScenePort.loadSceneNavigationData())
-        var retainedOldContext: ModelContext? = coordinator.modelContext
+        var retainedOldContext: ModelContext? = try XCTUnwrap(coordinator).modelContext
+        var retainedOldContainer: ModelContainer? = retainedOldContext?.container
         weak var weakOldContext = retainedOldContext
+        weak var weakOldContainer = retainedOldContainer
 
         try await presentation.performErase(applicationSupportURL: support,
-            confirmation: "ERASE", coordinator: coordinator, diagnosticsStore: diagnostics)
+            confirmation: "ERASE", coordinator: try XCTUnwrap(coordinator), diagnosticsStore: diagnostics)
         XCTAssertEqual(serviceCount, 1)
+        XCTAssertTrue(completedReceipts.isEmpty)
         XCTAssertEqual(try originalScenePort.loadSceneNavigationData(), originalSceneBytes)
         XCTAssertThrowsError(try originalScene.load())
         XCTAssertFalse(presentation.permitsContentPresentation)
-        guard case let .eraseCleanupPending(deferredCoordinator) = router.route else {
-            return XCTFail("A live original context must retain the deferred Erase route")
+        guard case let .eraseCleanupPending(.retiring(originalOperation)) = router.route else {
+            return XCTFail("A live original context must retain the actual retirement operation")
         }
-        XCTAssertTrue(deferredCoordinator === coordinator)
-        XCTAssertNotEqual(coordinator.generationID, originalGeneration)
+        XCTAssertTrue(originalOperation.detached)
+        XCTAssertTrue(originalOperation.hasPreparedCleanup)
+        let pendingIntent = try XCTUnwrap(EraseIntentStore(applicationSupportURL: support).load())
+        let preparedGeneration = pendingIntent.newGenerationID
+        XCTAssertEqual(try XCTUnwrap(coordinator).generationID, originalGeneration)
+        XCTAssertNotEqual(preparedGeneration, originalGeneration)
         XCTAssertNotNil(weakOldContext)
-        XCTAssertNotNil(try EraseIntentStore(applicationSupportURL: support).load())
+        XCTAssertNotNil(weakOldContainer)
+        XCTAssertEqual(try EraseIntentStore(applicationSupportURL: support).load()?.newGenerationID,
+            preparedGeneration)
 
         let inactiveHandled = expectation(description: "Lifecycle handles scene inactive")
         let inactiveReceipt = presentation.$accessState.dropFirst().prefix(1)
@@ -446,10 +468,11 @@ final class V23ProductionAppAccessTests: XCTestCase {
         inactiveReceipt.cancel()
         let inactiveCover = await session.gate.privacyCoverRequired()
         XCTAssertTrue(inactiveCover)
-        guard case let .eraseCleanupPending(pausedCoordinator) = router.route else {
-            return XCTFail("Scene pause must retain the same deferred cleanup owner")
+        guard case let .eraseCleanupPending(.retiring(pausedOperation)) = router.route else {
+            return XCTFail("Scene pause must retain the same deferred retirement operation")
         }
-        XCTAssertTrue(pausedCoordinator === coordinator)
+        XCTAssertTrue(pausedOperation === originalOperation)
+        XCTAssertTrue(completedReceipts.isEmpty)
 
         let backgroundHandled = expectation(description: "Lifecycle handles scene background")
         let backgroundReceipt = presentation.$accessState.dropFirst().prefix(1)
@@ -459,10 +482,11 @@ final class V23ProductionAppAccessTests: XCTestCase {
         backgroundReceipt.cancel()
         let backgroundCover = await session.gate.privacyCoverRequired()
         XCTAssertTrue(backgroundCover)
-        guard case let .eraseCleanupPending(backgroundCoordinator) = router.route else {
-            return XCTFail("Background must retain the same deferred cleanup owner")
+        guard case let .eraseCleanupPending(.retiring(backgroundOperation)) = router.route else {
+            return XCTFail("Background must retain the same deferred retirement operation")
         }
-        XCTAssertTrue(backgroundCoordinator === coordinator)
+        XCTAssertTrue(backgroundOperation === originalOperation)
+        XCTAssertTrue(completedReceipts.isEmpty)
 
         let activeHandled = expectation(description: "Lifecycle handles scene active")
         let activeReceipt = presentation.$accessState.dropFirst().prefix(1)
@@ -472,20 +496,34 @@ final class V23ProductionAppAccessTests: XCTestCase {
         activeReceipt.cancel()
         let activeCover = await session.gate.privacyCoverRequired()
         XCTAssertTrue(activeCover)
-        guard case let .eraseCleanupPending(activeCoordinator) = router.route else {
-            return XCTFail("Active transition must retain the same deferred cleanup owner")
+        guard case let .eraseCleanupPending(.retiring(activeOperation)) = router.route else {
+            return XCTFail("Active transition must retain the same deferred retirement operation")
         }
-        XCTAssertTrue(activeCoordinator === coordinator)
+        XCTAssertTrue(activeOperation === originalOperation)
+        XCTAssertTrue(completedReceipts.isEmpty)
 
-        let oldContextReleased = expectation(for: NSPredicate { _, _ in weakOldContext == nil },
+        // Transfer invalidates this writer before returning to presentation.
+        // Observe its exact object without retaining its adapter/context.
+        weak var weakPreCleanupWriter = coordinator?.workspaceWriter
+        weak var weakPreparedCoordinator = coordinator
+        coordinator = nil
+        let oldContextReleased = expectation(for: NSPredicate { _, _ in
+            weakOldContext == nil && weakOldContainer == nil
+                && weakPreparedCoordinator == nil && weakPreCleanupWriter == nil
+        },
             evaluatedWith: NSObject())
         retainedOldContext = nil
+        retainedOldContainer = nil
         await fulfillment(of: [oldContextReleased], timeout: 30)
         XCTAssertNil(weakOldContext)
-        let preCleanupWriter = coordinator.workspaceWriter
+        XCTAssertNil(weakOldContainer)
+        XCTAssertNil(weakPreparedCoordinator)
+        XCTAssertNil(weakPreCleanupWriter)
         presentation.eraseRecoveryDiagnosticForTesting = { print("EraseProduction.retry " + $0) }
         await presentation.retryStartup()
-        XCTAssertEqual(serviceCount, 2)
+        XCTAssertEqual(serviceCount, 1)
+        XCTAssertEqual(completedReceipts.count, 1)
+        XCTAssertEqual(completedReceipts.first?.subject.newGenerationID, preparedGeneration)
         XCTAssertTrue(presentation.permitsContentPresentation)
         XCTAssertNil(presentation.failure)
         // Fresh activation must preserve the completed physical cleanup.
@@ -495,10 +533,11 @@ final class V23ProductionAppAccessTests: XCTestCase {
         guard case let .ready(recoveredCoordinator, _, _) = router.route else {
             return XCTFail("Fresh-service recovery must publish the retained ticket's Erase session")
         }
-        XCTAssertTrue(recoveredCoordinator === coordinator)
-        XCTAssertFalse(coordinator.workspaceWriter === preCleanupWriter)
-        XCTAssertThrowsError(try preCleanupWriter.currentRevision())
-        XCTAssertNoThrow(try coordinator.workspaceWriter.currentRevision())
+        XCTAssertEqual(recoveredCoordinator.generationID, preparedGeneration)
+        XCTAssertNil(weakPreparedCoordinator)
+        XCTAssertNil(weakPreCleanupWriter)
+        let freshWriterRevision = try recoveredCoordinator.workspaceWriter.currentRevision()
+        XCTAssertEqual(freshWriterRevision.generationID, preparedGeneration)
         XCTAssertNil(try originalScenePort.loadSceneNavigationData())
         let freshScenePort = session.sceneNavigationStatePort()
         XCTAssertFalse(freshScenePort === originalScenePort)

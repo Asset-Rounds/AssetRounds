@@ -2753,10 +2753,13 @@ enum C45AssetLabelBoundary_ReportProjectionRegistryV1 {
     static func validateRendererRelease(_ template: AssetLabelTemplateReleaseV1) throws {
         try template.validate()
         try template.rendererRelease.validate()
+        let currentRelease = try AssetLabelRendererReleaseReferenceV1.current
+        let legacyRelease = try AssetLabelRendererReleaseReferenceV1.legacy
         guard template.rendererID == DeterministicPDFRendererV1.assetLabelRendererID,
-              template.rendererVersion == DeterministicPDFRendererV1.assetLabelRendererVersion,
-              template.rendererSHA256 == DeterministicPDFRendererV1.assetLabelRendererSHA256,
-              template.rendererRelease.nativeTextLayoutReleaseID == DeterministicPDFRendererV1.assetLabelNativeTextLayoutReleaseID else {
+              template.rendererVersion == template.rendererRelease.rendererVersion,
+              template.rendererSHA256 == template.rendererRelease.rendererSHA256,
+              (template.rendererRelease == currentRelease
+                || template.rendererRelease == legacyRelease) else {
             throw AssetLabelContractFailureV1.missingRelease
         }
     }

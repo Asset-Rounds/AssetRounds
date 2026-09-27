@@ -11,6 +11,9 @@ enum ImportBulkFailureV1: Error, Equatable, Sendable {
     case dependencyCycle
     case unsupportedSchema
     case nonAllowlistedField
+#if DEBUG
+    case interruptedAfterEffectForTesting
+#endif
 }
 
 enum ImportBulkLimitsV1 {
@@ -68,7 +71,7 @@ enum ImportBulkCanonicalCodecV1 {
     static func requireText(_ value: String, maximumBytes: Int = ImportBulkLimitsV1.maximumTextBytes) throws {
         guard !value.isEmpty,
               value == value.trimmingCharacters(in: .whitespacesAndNewlines),
-              value == value.precomposedStringWithCanonicalMapping,
+              value.utf8.elementsEqual(value.precomposedStringWithCanonicalMapping.utf8),
               value.utf8.count <= maximumBytes else {
             throw ImportBulkFailureV1.invalidValue
         }
@@ -617,7 +620,7 @@ struct ImportMappedFieldV1: Codable, Equatable, Hashable, Comparable, Sendable {
         try ImportBulkCanonicalCodecV1.requireText(key)
         guard key == key.lowercased(),
               key.allSatisfy({ $0.isASCII && ($0.isLowercase || $0.isNumber || $0 == "_") }),
-              value == value.precomposedStringWithCanonicalMapping,
+              value.utf8.elementsEqual(value.precomposedStringWithCanonicalMapping.utf8),
               value.utf8.count <= ImportBulkLimitsV1.maximumCellBytes,
               value.unicodeScalars.count <= ImportBulkLimitsV1.maximumScalarsPerCell,
               !value.unicodeScalars.contains(where: { $0.value == 0 }) else {
@@ -1037,6 +1040,27 @@ protocol ImportWorkspaceCommandMaterializingV1: Sendable {
     func materialize(
         _ context: ImportCommandMaterializationContextV1
     ) throws -> WorkspaceMutationRequestV1
+}
+
+/// Only a materializer that knows its immutable pre-begin preview may accept
+/// the one canonical C08 session-start write as an internal CAS transition.
+/// C08 obtains `sessionStartReceipt` from its bound canonical lifecycle writer;
+/// ordinary import materializers continue to receive the full live revision.
+protocol ImportSessionTransitionMaterializingV1: ImportWorkspaceCommandMaterializingV1 {
+    func expectedRevisionAfterSessionStart(
+        session: BulkSessionV1,
+        sessionStartReceipt: MutationReceiptV1,
+        liveRevision: WorkspaceRevisionV1,
+        aggregateReceipt: MutationReceiptV1?
+    ) throws -> WorkspaceExpectedRevisionV1
+
+    /// The journal's original portable command, rather than a command
+    /// rebuilt with a later process-local writer ID, is replay authority.
+    func requireRecordedAggregateCommand(
+        _ recorded: MutationEnvelopeV1,
+        receipt: MutationReceiptV1,
+        reconstructedRequest: WorkspaceMutationRequestV1
+    ) throws
 }
 
 extension ImportWorkspaceCommandMaterializingV1 {
@@ -1794,7 +1818,7 @@ struct DeterministicCSVExportV1: Codable, Equatable, Hashable, Sendable {
               (0...ImportBulkLimitsV1.maximumRows).contains(rowCount),
               bytes.count <= Int(ImportBulkLimitsV1.maximumSourceBytes),
               let text = String(data: bytes, encoding: .utf8),
-              text == text.precomposedStringWithCanonicalMapping,
+              text.utf8.elementsEqual(text.precomposedStringWithCanonicalMapping.utf8),
               !text.contains("\r\n\r"),
               !text.unicodeScalars.contains(where: { $0.value == 0 || ($0.value < 0x20 && $0 != "\r" && $0 != "\n" && $0 != "\t") }),
               utf8NFC, localeNeutralCanonicalFields, formulaAndControlPrefixesNeutralized,

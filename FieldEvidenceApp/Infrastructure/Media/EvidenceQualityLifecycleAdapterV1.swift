@@ -190,13 +190,14 @@ struct EvidenceQualityLifecycleAdapterV1 {
         using service: EraseAllService,
         coordinator: StoreSessionCoordinator,
         diagnosticsStore: DiagnosticsStore,
+        operation: EraseRouterOperationV1,
         activate: @escaping @MainActor (StoreGenerationSession) async -> Void,
         lifecycleDependencies: WorkspacePackageLifecycleDependenciesV1
     ) async throws -> EraseAllOutcome {
         try EvidenceQualityKernelDeletionEraseEnrollmentV1.validate()
         return try await service.erase(
             confirmation: confirmation, coordinator: coordinator,
-            diagnosticsStore: diagnosticsStore, activate: activate,
+            diagnosticsStore: diagnosticsStore, operation: operation, activate: activate,
             lifecycleDependencies: lifecycleDependencies
         )
     }

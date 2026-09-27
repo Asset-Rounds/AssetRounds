@@ -341,17 +341,44 @@ final class OperationalContactRowQueryV1:
               revisionRows.allSatisfy({ row in
                 row.revision == expectedRevisions[row.stableIdentity]
                     && row.revision > 0
-                    && row.externalProjectionSHA256 != nil
-                    && (expectedContactDigests[row.stableIdentity].map {
-                        $0 == row.externalProjectionSHA256
-                    } ?? true)
+                    && (row.externalProjectionSHA256 == nil
+                        || (expectedContactDigests[row.stableIdentity].map {
+                            $0 == row.externalProjectionSHA256
+                        } ?? true))
               }) else {
             throw OperationalContactPersistenceFailureV1.corruptRow
         }
+        try validateImportJournalAuthority()
         return try OperationalContactImportCurrentStateV1(
             parties: parties,
             contacts: contacts
         )
+    }
+
+    /// Ordinary writer revisions are receipt-backed, while restored projections
+    /// carry an explicit digest. Reuse the journal's complete history and
+    /// terminal-post-image validation for both, without creating writer authority
+    /// or repairing a missing checkpoint in this read-only query.
+    private func validateImportJournalAuthority() throws {
+        guard !modelContext.hasChanges else {
+            throw OperationalContactPersistenceFailureV1.corruptRow
+        }
+        let states = try modelContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>())
+        guard states.count == 1, let state = states.first,
+              state.workspaceID == workspaceID.rawValue else {
+            throw OperationalContactPersistenceFailureV1.corruptRow
+        }
+        let identity = try WorkspaceReplicaIdentityV1(
+            workspaceID: workspaceID,
+            replicaID: ReplicaID(rawValue: state.activeReplicaID)
+        )
+        let journal = try MutationJournalStoreV1(
+            modelContext: modelContext,
+            identity: identity,
+            generationID: state.generationID,
+            allowStateBootstrap: false
+        )
+        try journal.validateAll()
     }
 
     func currentSiteDirectionsSnapshot(

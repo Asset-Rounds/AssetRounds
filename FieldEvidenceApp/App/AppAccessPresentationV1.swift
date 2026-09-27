@@ -1258,7 +1258,8 @@ final class AppAccessPresentationV1: ObservableObject {
     /// Its service hooks and receipt always belong to this original ticket.
     private final class PendingErase {
         let ticket: StartupRouter.OriginalOperationTicket
-        let coordinator: StoreSessionCoordinator
+        var coordinator: StoreSessionCoordinator?
+        let operation: EraseRouterOperationV1
         let diagnostics: DiagnosticsStore
         var makeRecoveryService: (@MainActor () -> EraseAllService)?
         var session: StoreGenerationSession?
@@ -1267,12 +1268,24 @@ final class AppAccessPresentationV1: ObservableObject {
         var reservation: AppAccessGateV1.EraseAdoptionToken?
         var adopted = false
         var cleanupActivationRefreshed = false
-        var activationFailure: Error?
+        var activationFailed = false
+#if DEBUG
+        var originalServiceForShutdown: EraseAllService?
+        var originalShutdownRequested = false
+        var completedAbortExpectedFault: EraseAllFailurePoint?
+        enum CompletedAbortShutdownState: Equatable {
+            case ordinary, poisonedPreRelease, abandoning, abandoned
+            case transferring, released, retainedUncertain
+        }
+        var completedAbortShutdownState = CompletedAbortShutdownState.ordinary
+#endif
 
         init(ticket: StartupRouter.OriginalOperationTicket,
-             coordinator: StoreSessionCoordinator, diagnostics: DiagnosticsStore) {
+             coordinator: StoreSessionCoordinator, operation: EraseRouterOperationV1,
+             diagnostics: DiagnosticsStore) {
             self.ticket = ticket
             self.coordinator = coordinator
+            self.operation = operation
             self.diagnostics = diagnostics
         }
     }
@@ -1285,6 +1298,7 @@ final class AppAccessPresentationV1: ObservableObject {
     private var bootstrapTask: Task<Void, Never>?
     private var lifecycleDrainTask: Task<Void, Never>?
     private var startupTask: Task<Void, Never>?
+    private var eraseContinuationTask: Task<Void, Never>?
 #if DEBUG
     private var terminatedForTesting = false
     private var startupActionForTesting: Action?
@@ -1300,6 +1314,8 @@ final class AppAccessPresentationV1: ObservableObject {
         receive(.termination)
         let bootstrap = bootstrapTask
         let startup = startupTask
+        let eraseContinuation = eraseContinuationTask
+        eraseContinuation?.cancel()
         bootstrap?.cancel()
         lifecycleDrainTask?.cancel()
         startup?.cancel()
@@ -1309,6 +1325,7 @@ final class AppAccessPresentationV1: ObservableObject {
         lifecycle?.cancel()
         await lifecycle?.value
         await startup?.value
+        await eraseContinuation?.value
         let trailingLifecycle = lifecycleDrainTask
         trailingLifecycle?.cancel()
         await trailingLifecycle?.value
@@ -1316,7 +1333,7 @@ final class AppAccessPresentationV1: ObservableObject {
         // frames have returned; callers never release an arbitrary writer.
         startupRouter.pauseForAppAccess(discardPrepared: true)
         return !hasUnjoinedAction && pendingErase == nil && startupActionForTesting == nil
-            && bootstrapTask == nil && lifecycleDrainTask == nil && startupTask == nil
+            && bootstrapTask == nil && lifecycleDrainTask == nil && startupTask == nil && eraseContinuationTask == nil
             && !startupRouter.hasPendingWriterCleanup && !permitsContentPresentation
     }
 #endif
@@ -1330,6 +1347,281 @@ final class AppAccessPresentationV1: ObservableObject {
     private var activeAction: Action?
     private var pendingAuthorizedStartup: PendingAuthorizedStartup?
     private var pendingErase: PendingErase?
+#if DEBUG
+    private var originalEraseFrameActive = false
+    private var expectedCompletedAbortColdFaultForTesting: EraseAllFailurePoint?
+    private final class OriginalEraseShutdownAppPin {
+        let owner: AppAccessPresentationV1
+        let pending: PendingErase
+        let session: ProductionAppAccessSessionV1
+        var gate: AppAccessGateV1 { session.gate }
+        var lifecycle: AppLockLifecycleCoordinatorV1 { session.lifecycle }
+        init(owner: AppAccessPresentationV1, pending: PendingErase,
+             session: ProductionAppAccessSessionV1) {
+            self.owner = owner; self.pending = pending; self.session = session
+        }
+    }
+    private static var retainedOriginalEraseAppShellsForTesting: [OriginalEraseShutdownAppPin] = []
+
+    func requireOriginalEraseOperationAttachmentForTesting(
+        _ operation: EraseRouterOperationV1
+    ) throws {
+        guard let pending = pendingErase, pending.operation === operation,
+              originalEraseFrameActive, activeAction != nil,
+              !pending.originalShutdownRequested else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+    }
+
+    func requirePostRetiredOriginalEraseFenceForTesting(
+        operation: EraseRouterOperationV1,
+        originalService: EraseAllService
+    ) throws {
+        guard let pending = pendingErase, pending.operation === operation,
+              pending.originalServiceForShutdown === originalService,
+              pending.originalShutdownRequested, terminatedForTesting,
+              !originalEraseFrameActive, activeAction == nil,
+              bootstrapTask == nil, startupTask == nil,
+              lifecycleDrainTask == nil, eraseContinuationTask == nil,
+              pending.receipt == nil, pending.abortedAdmission == nil,
+              pending.reservation != nil, pending.coordinator == nil,
+              pending.session == nil, pending.makeRecoveryService == nil,
+              !permitsContentPresentation,
+              publishedMyDayAccess == nil, publishedRoundAccess == nil,
+              let session,
+              Self.retainedOriginalEraseAppShellsForTesting.contains(where: {
+                  $0.owner === self && $0.pending === pending
+                    && $0.gate === session.gate
+                    && $0.lifecycle === session.lifecycle
+              }) else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+    }
+
+    func expectCompletedAbortColdRestartForTesting(
+        _ point: EraseAllFailurePoint
+    ) throws {
+        guard !originalEraseFrameActive, pendingErase == nil,
+              expectedCompletedAbortColdFaultForTesting == nil,
+              point == .afterEmptyGenerationDirectoryCreate
+                || point == .beforePreparedWrite else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        expectedCompletedAbortColdFaultForTesting = point
+    }
+
+    /// Completes only the checked old-owner process boundary after the real
+    /// abort receipt and one successful lifecycle abandonment.
+    func continueCompletedAbortColdRestartForTesting()
+        async throws -> EraseRouterOperationV1 {
+        guard !originalEraseFrameActive, activeAction == nil,
+              let pending = pendingErase,
+              pending.completedAbortShutdownState == .abandoned,
+              pending.originalShutdownRequested,
+              let receipt = pending.abortedAdmission,
+              eraseContinuationTask == nil else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        pending.completedAbortShutdownState = .transferring
+        do {
+            let bootstrap = bootstrapTask
+            let startup = startupTask
+            let lifecycle = lifecycleDrainTask
+            bootstrap?.cancel(); startup?.cancel(); lifecycle?.cancel()
+            await bootstrap?.value
+            await startup?.value
+            await lifecycle?.value
+            let trailingLifecycle = lifecycleDrainTask
+            trailingLifecycle?.cancel()
+            await trailingLifecycle?.value
+            guard pendingErase === pending, !originalEraseFrameActive,
+                  bootstrapTask == nil, startupTask == nil,
+                  lifecycleDrainTask == nil, eraseContinuationTask == nil,
+                  startupActionForTesting == nil else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+            try await startupRouter.continueCompletedAbortColdRestartForTesting(
+                pending.operation, receipt: receipt)
+            pending.coordinator = nil
+            pending.session = nil
+            pending.makeRecoveryService = nil
+            return pending.operation
+        } catch {
+            pending.completedAbortShutdownState = .retainedUncertain
+            throw error
+        }
+    }
+
+    func finishCompletedAbortColdRestartForTesting(
+        _ operation: EraseRouterOperationV1
+    ) throws {
+        guard let pending = pendingErase,
+              pending.completedAbortShutdownState == .transferring,
+              pending.operation === operation,
+              let receipt = pending.abortedAdmission,
+              pending.coordinator == nil, pending.session == nil,
+              pending.makeRecoveryService == nil else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        do {
+            try startupRouter.finishCompletedAbortColdRestartForTesting(
+                operation, receipt: receipt)
+            pending.completedAbortShutdownState = .released
+            pendingErase = nil
+        } catch {
+            pending.completedAbortShutdownState = .retainedUncertain
+            throw error
+        }
+    }
+
+    /// Exact post-retirement fault boundary. The original AppAccess task and
+    /// Service frame must have returned; this has no await across EX release.
+    func abandonInterruptedPostRetiredEraseForColdRestartForTesting()
+        throws -> EraseRouterOperationV1 {
+        guard !originalEraseFrameActive, activeAction == nil,
+              bootstrapTask == nil, lifecycleDrainTask == nil,
+              startupTask == nil, eraseContinuationTask == nil,
+              let pending = pendingErase, pending.operation.detached,
+              pending.receipt == nil, pending.abortedAdmission == nil,
+              pending.reservation != nil, pending.coordinator == nil,
+              pending.session == nil, pending.makeRecoveryService == nil,
+              let originalService = pending.originalServiceForShutdown,
+              !pending.originalShutdownRequested,
+              let session else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        Self.retainedOriginalEraseAppShellsForTesting.append(
+            OriginalEraseShutdownAppPin(owner: self, pending: pending, session: session))
+        pending.originalShutdownRequested = true
+        terminatedForTesting = true
+        permitsContentPresentation = false
+        publishedMyDayAccess = nil
+        publishedRoundAccess = nil
+        try startupRouter.abandonInterruptedPostRetiredEraseForColdRestartForTesting(
+            pending.operation, originalService: originalService)
+        return pending.operation
+    }
+
+    /// Preserve the actual detached Erase/EX while an external test-held
+    /// source context is released. No cold retry is possible until finish
+    /// validates the original source and checked-closes the original EX.
+    func beginPristinePreparedEraseColdRestartForTesting()
+        throws -> EraseRouterOperationV1 {
+        guard !originalEraseFrameActive, activeAction == nil,
+              bootstrapTask == nil, lifecycleDrainTask == nil,
+              startupTask == nil, eraseContinuationTask == nil,
+              let pending = pendingErase, pending.operation.detached,
+              pending.receipt == nil, pending.abortedAdmission == nil,
+              let reservation = pending.reservation,
+              pending.coordinator == nil, pending.session == nil,
+              pending.makeRecoveryService == nil,
+              let service = pending.originalServiceForShutdown,
+              !pending.originalShutdownRequested,
+              let session else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        try service.requirePristineOriginalPreparedColdExitForTesting(
+            operation: pending.operation,
+            subject: reservation.subject, reservation: reservation)
+        Self.retainedOriginalEraseAppShellsForTesting.append(
+            OriginalEraseShutdownAppPin(
+                owner: self, pending: pending, session: session))
+        pending.originalShutdownRequested = true
+        terminatedForTesting = true
+        permitsContentPresentation = false
+        publishedMyDayAccess = nil
+        publishedRoundAccess = nil
+        try startupRouter.beginPristinePreparedEraseColdRestartForTesting(
+            pending.operation, originalService: service)
+        return pending.operation
+    }
+
+    func finishPristinePreparedEraseColdRestartForTesting(
+        _ operation: EraseRouterOperationV1
+    ) async throws {
+        guard !originalEraseFrameActive,
+              let pending = pendingErase,
+              pending.operation === operation,
+              pending.originalShutdownRequested,
+              let reservation = pending.reservation,
+              pending.receipt == nil, pending.abortedAdmission == nil,
+              pending.coordinator == nil, pending.session == nil,
+              pending.makeRecoveryService == nil else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        try await startupRouter.finishPristinePreparedEraseColdRestartForTesting(
+            operation, subject: reservation.subject,
+            reservation: reservation)
+    }
+
+    /// The external original Erase frame must already have returned. Router
+    /// poison occurs before its first suspension; AppAccess then joins its
+    /// own continuation tasks before dropping model aliases.
+    func beginInterruptedEarlyEraseColdRestartForTesting(
+        expectedFault: EraseAllFailurePoint
+    ) async throws -> EraseRouterOperationV1 {
+        try await beginOriginalPreparingEraseColdRestartForTesting(
+            expectedFault: expectedFault)
+    }
+
+    func beginNotificationRefusalEraseColdRestartForTesting()
+        async throws -> EraseRouterOperationV1 {
+        try await beginOriginalPreparingEraseColdRestartForTesting(
+            expectedFault: nil)
+    }
+
+    private func beginOriginalPreparingEraseColdRestartForTesting(
+        expectedFault: EraseAllFailurePoint?
+    ) async throws -> EraseRouterOperationV1 {
+        guard !originalEraseFrameActive, activeAction == nil,
+              eraseContinuationTask == nil,
+              let pending = pendingErase, pending.abortedAdmission == nil,
+              let session,
+              let service = pending.originalServiceForShutdown,
+              !pending.originalShutdownRequested else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        if let expectedFault {
+            try service.requireInterruptedOriginalPreparationFaultForTesting(
+                expectedFault, operation: pending.operation)
+        }
+        pending.originalShutdownRequested = true
+        Self.retainedOriginalEraseAppShellsForTesting.append(
+            OriginalEraseShutdownAppPin(owner: self, pending: pending, session: session))
+        terminatedForTesting = true
+        if let expectedFault {
+            try await startupRouter.beginInterruptedEarlyEraseColdRestartForTesting(
+                pending.operation, originalService: service,
+                expectedFault: expectedFault)
+        } else {
+            try await startupRouter.beginNotificationRefusalEraseColdRestartForTesting(
+                pending.operation, originalService: service)
+        }
+        let bootstrap = bootstrapTask
+        let startup = startupTask
+        let continuation = eraseContinuationTask
+        bootstrap?.cancel(); startup?.cancel(); continuation?.cancel()
+        await bootstrap?.value
+        let lifecycle = lifecycleDrainTask
+        lifecycle?.cancel()
+        await lifecycle?.value
+        await startup?.value
+        await continuation?.value
+        let trailingLifecycle = lifecycleDrainTask
+        trailingLifecycle?.cancel()
+        await trailingLifecycle?.value
+        guard !originalEraseFrameActive, pendingErase === pending,
+              bootstrapTask == nil, startupTask == nil,
+              lifecycleDrainTask == nil, eraseContinuationTask == nil,
+              startupActionForTesting == nil else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        pending.coordinator = nil
+        pending.session = nil
+        pending.makeRecoveryService = nil
+        return pending.operation
+    }
+#endif
 
     /// `authenticationClient` is nil in production, which composes the system
     /// Local Authentication client. Only the DEBUG UI-test launch hook in
@@ -1562,6 +1854,13 @@ final class AppAccessPresentationV1: ObservableObject {
         coordinator: StoreSessionCoordinator,
         diagnosticsStore: DiagnosticsStore
     ) async throws {
+#if DEBUG
+        guard !originalEraseFrameActive else { throw AppAccessContractFailureV1.staleAttempt }
+        let completedAbortColdFault = expectedCompletedAbortColdFaultForTesting
+        expectedCompletedAbortColdFaultForTesting = nil
+        originalEraseFrameActive = true
+        defer { originalEraseFrameActive = false }
+#endif
         await bootstrapIfNeeded()
         guard let session, sceneIsActive, pendingErase == nil,
               confirmation == EraseAllService.requiredConfirmation,
@@ -1575,8 +1874,22 @@ final class AppAccessPresentationV1: ObservableObject {
             startupRouter.failExternalOperation(ticket)
             throw AppAccessContractFailureV1.accessDenied
         }
-        let pending = PendingErase(ticket: ticket, coordinator: coordinator, diagnostics: diagnosticsStore)
+        let retirementOperation = try startupRouter.eraseRetirementOperation(for: ticket)
+        let pending = PendingErase(ticket: ticket, coordinator: coordinator,
+            operation: retirementOperation, diagnostics: diagnosticsStore)
+#if DEBUG
+        pending.completedAbortExpectedFault = completedAbortColdFault
+#endif
         pendingErase = pending
+#if DEBUG
+        do {
+            try retirementOperation.attachAppAccessForTesting(self)
+        } catch {
+            pendingErase = nil
+            startupRouter.failExternalOperation(ticket)
+            throw error
+        }
+#endif
         permitsContentPresentation = false
         publishedMyDayAccess = nil
         publishedRoundAccess = nil
@@ -1585,6 +1898,9 @@ final class AppAccessPresentationV1: ObservableObject {
             guard let self, let pending, self.pendingErase === pending else {
                 throw AppAccessContractFailureV1.staleAttempt
             }
+#if DEBUG
+            guard !pending.originalShutdownRequested else { throw AppAccessContractFailureV1.staleAttempt }
+#endif
             let authorization = try await self.startupRouter.eraseAdmissionAuthorization(
                 pending.ticket, subject: subject)
             let reservation = try await session.lifecycle.beginExternalErase(subject: subject, authorization: authorization)
@@ -1598,12 +1914,18 @@ final class AppAccessPresentationV1: ObservableObject {
         }
         let completion: EraseCompletion = { [weak self, weak pending] receipt in
             guard let self, let pending, self.pendingErase === pending else { return }
+#if DEBUG
+            guard !pending.originalShutdownRequested else { return }
+#endif
             // Synchronous and independent of presentation epochs: physical
             // completion is retained even if the scene became inactive.
             if pending.receipt == nil { pending.receipt = receipt }
         }
         let aborted: EraseAbort = { [weak self, weak pending] receipt in
             guard let self, let pending, self.pendingErase === pending else { return }
+#if DEBUG
+            guard !pending.originalShutdownRequested else { return }
+#endif
             if pending.abortedAdmission == nil { pending.abortedAdmission = receipt }
         }
         let factory = eraseServiceFactory
@@ -1616,52 +1938,147 @@ final class AppAccessPresentationV1: ObservableObject {
                     didAbortEraseAdmission: aborted)
         }
         pending.makeRecoveryService = makeService
-        let service = makeService()
         do {
+            let service = try startupRouter.configureEraseService(makeService(), operation: retirementOperation)
+#if DEBUG
+            pending.originalServiceForShutdown = service
+            if let completedAbortColdFault {
+                try service.expectCompletedAbortColdShutdownForTesting(
+                    completedAbortColdFault, operation: retirementOperation)
+            }
+#endif
             let dependencies = try coordinator.packageLifecycleDependencies()
             let outcome = try await service.erase(confirmation: confirmation,
                 coordinator: coordinator, diagnosticsStore: diagnosticsStore,
-                prepareCleanup: { [weak self, weak pending] in
-                    guard let self, let pending, self.pendingErase === pending else {
-                        throw AppAccessContractFailureV1.staleAttempt
-                    }
-                    try self.startupRouter.prepareErasedSessionCleanup(pending.ticket)
-                },
+                operation: retirementOperation,
                 activate: { [weak self, weak pending] erased in
                     guard let self, let pending, self.pendingErase === pending else { return }
+#if DEBUG
+                    guard !pending.originalShutdownRequested else { return }
+#endif
                     pending.session = erased
                     do {
-                        try await self.startupRouter.beginErasedSessionActivation(
-                            erased, coordinator: coordinator, ticket: pending.ticket)
-                    } catch { pending.activationFailure = error }
+                        try self.startupRouter.activateErasePreparationSession(
+                            erased, coordinator: coordinator, operation: pending.operation)
+                    } catch { pending.activationFailed = true }
                 }, lifecycleDependencies: dependencies)
-            pending.session = outcome.session
-            if let activationFailure = pending.activationFailure { throw activationFailure }
-            if outcome.cleanupDeferred {
-                try startupRouter.deferErasedSessionCleanup(outcome.session,
-                    coordinator: coordinator, ticket: ticket)
-                failure = .startup
-                return
-            }
-            try await resumeErase(pending, access: session)
-            if isCurrent(action), self.pendingErase == nil, sceneIsActive {
-                await startAndPublish(session, action: action)
-            }
+            guard outcome.operation === retirementOperation, retirementOperation.detached,
+                  !pending.activationFailed else { throw AppAccessContractFailureV1.staleAttempt }
+            releaseDetachedEraseAliases(pending)
+            scheduleEraseContinuation(pending)
+            // The queued continuation observes actual weak drain after this
+            // service/callback/argument frame has returned; scheduling itself
+            // is never accepted as a drain proof.
+            return
         } catch {
+            let originalError = error
             // Keep the actual cleanup ticket and any authentic receipt for a
             // retry. A retry never starts another physical Erase operation.
             permitsContentPresentation = false
             publishedMyDayAccess = nil
             publishedRoundAccess = nil
+#if DEBUG
+            // Fixed phase labels only; each existing proof is evaluated once
+            // in its original short-circuit position.
+            func recordCompletedAbortPhase(_ phase: String) {
+                FileHandle.standardError.write(Data((
+                    "ERASE_COMPLETED_ABORT_PHASE_V1 phase=\(phase)\n"
+                ).utf8))
+            }
+            var serviceProofPassed = false
+            var resourceProofPassed = false
+            if let expectedFault = pending.completedAbortExpectedFault,
+               let receipt = pending.abortedAdmission,
+               let originalService = pending.originalServiceForShutdown,
+               pending.reservation == receipt.reservation,
+               pending.receipt == nil,
+               !pending.originalShutdownRequested,
+               ({ () -> Bool in
+                    serviceProofPassed = (try? originalService
+                        .requireCompletedAbortColdShutdownForTesting(
+                            expectedFault, operation: pending.operation,
+                            receipt: receipt)) != nil
+                    return serviceProofPassed
+               }()),
+               ({ () -> Bool in
+                    resourceProofPassed = (try? startupRouter
+                        .requireEraseAbortResourcesSettled(pending.operation)) != nil
+                    return resourceProofPassed
+               }()) {
+                recordCompletedAbortPhase("eligible")
+                // Every owner is pinned before the first new descriptor probe.
+                Self.retainedOriginalEraseAppShellsForTesting.append(
+                    OriginalEraseShutdownAppPin(owner: self, pending: pending, session: session))
+                pending.originalShutdownRequested = true
+                terminatedForTesting = true
+                pending.completedAbortShutdownState = .poisonedPreRelease
+                var shutdownPhase = "router-poison"
+                do {
+                    try startupRouter.poisonCompletedAbortColdRestartForTesting(
+                        pending.operation, service: originalService,
+                        receipt: receipt, expectedFault: expectedFault)
+                    shutdownPhase = "no-effect"
+                    try originalService.requireCompletedAbortNoEffectForTesting(
+                        operation: pending.operation, receipt: receipt)
+                    pending.completedAbortShutdownState = .abandoning
+                    shutdownPhase = "lifecycle-abandon"
+                    try await session.lifecycle.abandonEraseAdmission(receipt)
+                    shutdownPhase = "post-lifecycle-binding"
+                    guard pendingErase === pending,
+                          pending.abortedAdmission?.matchesExactOriginalAuthority(receipt) == true,
+                          pending.originalServiceForShutdown === originalService,
+                          self.session?.gate === session.gate,
+                          self.session?.lifecycle === session.lifecycle else {
+                        throw AppAccessContractFailureV1.staleAttempt
+                    }
+                    shutdownPhase = "router-lifecycle-release"
+                    try startupRouter.markCompletedAbortLifecycleReleasedForTesting(
+                        pending.operation, receipt: receipt)
+                    pending.completedAbortShutdownState = .abandoned
+                    recordCompletedAbortPhase("abandoned")
+                } catch {
+                    recordCompletedAbortPhase(shutdownPhase)
+                    pending.completedAbortShutdownState = .retainedUncertain
+                }
+                failure = .startup
+                throw originalError
+            }
+            let deniedPhase: String
+            if pending.completedAbortExpectedFault == nil {
+                deniedPhase = "no-expected-fault"
+            } else if pending.abortedAdmission == nil {
+                deniedPhase = "no-abort-receipt"
+            } else if pending.originalServiceForShutdown == nil {
+                deniedPhase = "no-original-service"
+            } else if pending.reservation != pending.abortedAdmission?.reservation {
+                deniedPhase = "reservation-mismatch"
+            } else if pending.receipt != nil {
+                deniedPhase = "completion-present"
+            } else if pending.originalShutdownRequested {
+                deniedPhase = "already-shutting-down"
+            } else if !serviceProofPassed {
+                deniedPhase = "service-proof"
+            } else if !resourceProofPassed {
+                deniedPhase = "resource-proof"
+            } else {
+                deniedPhase = "unknown"
+            }
+            recordCompletedAbortPhase(deniedPhase)
+#endif
             if let receipt = pending.abortedAdmission {
                 do {
+                    try startupRouter.requireEraseAbortResourcesSettled(pending.operation)
                     try await session.lifecycle.abandonEraseAdmission(receipt)
                     try startupRouter.cancelAbortedErase(pending.ticket, receipt: receipt)
                     if pendingErase === pending { pendingErase = nil }
                 } catch { /* An unaccepted abort proof remains owned for retry. */ }
             } else if pending.reservation == nil {
-                startupRouter.failExternalOperation(ticket)
-                if pendingErase === pending { pendingErase = nil }
+                do {
+                    try startupRouter.cancelUnadmittedErase(ticket)
+                    if pendingErase === pending { pendingErase = nil }
+                } catch {
+                    startupRouter.suspendErasedSessionCleanup(ticket)
+                }
             } else {
                 startupRouter.suspendErasedSessionCleanup(ticket)
             }
@@ -1671,79 +2088,127 @@ final class AppAccessPresentationV1: ObservableObject {
         }
     }
 
+    private func releaseDetachedEraseAliases(_ pending: PendingErase) {
+        guard pendingErase === pending, pending.operation.detached else { return }
+        pending.coordinator = nil
+        pending.session = nil
+        pending.makeRecoveryService = nil
+        pending.activationFailed = false
+    }
+
+    private func scheduleEraseContinuation(_ pending: PendingErase) {
+#if DEBUG
+        guard !pending.originalShutdownRequested else { return }
+#endif
+        guard eraseContinuationTask == nil, pendingErase === pending else { return }
+        eraseContinuationTask = Task { @MainActor [weak self, weak pending] in
+            guard let self else { return }
+            var followsCompletedDetach = false
+            defer {
+                self.eraseContinuationTask = nil
+                if followsCompletedDetach, let pending, self.pendingErase === pending {
+                    self.scheduleEraseContinuation(pending)
+                }
+            }
+            guard let pending, self.pendingErase === pending, let access = self.session,
+                  self.activeAction == nil,
+                  let action = self.beginLongAction(resumesAfterInactive: true) else { return }
+            defer { self.finishLongAction(action) }
+            let wasDetached = pending.operation.detached
+            do {
+                try await self.resumeErase(pending, access: access)
+                followsCompletedDetach = !wasDetached && pending.operation.detached
+                if self.pendingErase == nil, self.sceneIsActive, self.isCurrent(action) {
+                    await self.startAndPublish(access, action: action)
+                }
+            } catch {
+                self.permitsContentPresentation = false
+                self.publishedMyDayAccess = nil
+                self.publishedRoundAccess = nil
+                self.failure = .startup
+            }
+        }
+    }
+
     private func resumeErase(_ pending: PendingErase, access: ProductionAppAccessSessionV1) async throws {
 #if DEBUG
         var diagnosticPhase = "original-ownership"
 #endif
         do {
-            guard pendingErase === pending, let makeService = pending.makeRecoveryService else {
-                throw AppAccessContractFailureV1.staleAttempt
-            }
+            guard pendingErase === pending else { throw AppAccessContractFailureV1.staleAttempt }
 #if DEBUG
-            diagnosticPhase = "aborted-admission"
+            guard !pending.originalShutdownRequested else { throw AppAccessContractFailureV1.staleAttempt }
 #endif
             if let receipt = pending.abortedAdmission {
+                // Actual transient-reader disposal/rollback precedes this
+                // authentic no-effect receipt; no reservation is abandoned
+                // merely because a constructor threw.
+                try startupRouter.requireEraseAbortResourcesSettled(pending.operation)
                 try await access.lifecycle.abandonEraseAdmission(receipt)
                 try startupRouter.cancelAbortedErase(pending.ticket, receipt: receipt)
                 pendingErase = nil
                 _ = try await refreshState(access)
                 return
             }
+            if !pending.operation.detached {
 #if DEBUG
-            diagnosticPhase = "deferred-reconcile"
+                diagnosticPhase = "original-preparation"
+#endif
+                guard let coordinator = pending.coordinator, let makeService = pending.makeRecoveryService else {
+                    throw AppAccessContractFailureV1.staleAttempt
+                }
+                try startupRouter.resumeOriginalErasePreparation(pending.operation, coordinator: coordinator)
+                if pending.operation.hasPreparedCleanup {
+                    try await pending.operation.detach(coordinator: coordinator)
+                } else {
+                    let service = try startupRouter.configureEraseService(makeService(), operation: pending.operation)
+#if DEBUG
+                    pending.originalServiceForShutdown = service
+#endif
+                    _ = try await service.reconcileForOriginalErase(diagnosticsStore: pending.diagnostics,
+                        coordinator: coordinator, operation: pending.operation) { [weak self, weak pending] recovered in
+                        guard let self, let pending, self.pendingErase === pending else { return }
+#if DEBUG
+                        guard !pending.originalShutdownRequested else { return }
+#endif
+                        do {
+                            try self.startupRouter.activateErasePreparationSession(recovered,
+                                coordinator: coordinator, operation: pending.operation)
+                        } catch { pending.activationFailed = true }
+                    }
+                }
+                guard pending.operation.detached, !pending.activationFailed else {
+                    throw AppAccessContractFailureV1.staleAttempt
+                }
+                releaseDetachedEraseAliases(pending)
+                scheduleEraseContinuation(pending)
+                return
+            }
+#if DEBUG
+            diagnosticPhase = "actual-retirement"
 #endif
             if pending.receipt == nil {
-                // Recovery constructs fresh service-local admission state while
-                // reusing the original hooks, subject and lifecycle reservation.
-                let service = makeService()
-                let recovered = try await startupRouter.resumeDeferredErase(pending.ticket) {
-                    try await service.reconcileAtStartup(diagnosticsStore: pending.diagnostics)
-                }
-                if let recovered {
-                    pending.session = recovered
-                }
+                guard try await pending.operation.advanceCleanup() else { return }
+                let (_, _, receipt) = try pending.operation.completedRetirement()
+                guard let receipt else { throw AppAccessContractFailureV1.configurationUnknown }
+                pending.receipt = receipt
             }
-#if DEBUG
-            diagnosticPhase = "receipt-and-session"
-#endif
-            guard let receipt = pending.receipt, let erasedSession = pending.session else {
-                throw AppAccessContractFailureV1.configurationUnknown
-            }
-#if DEBUG
-            diagnosticPhase = "fresh-binding"
-#endif
-            if !pending.cleanupActivationRefreshed {
-                try await startupRouter.beginErasedSessionActivation(erasedSession,
-                    coordinator: pending.coordinator, ticket: pending.ticket)
-                pending.cleanupActivationRefreshed = true
-            }
+            guard let receipt = pending.receipt else { throw AppAccessContractFailureV1.configurationUnknown }
             if !pending.adopted {
 #if DEBUG
-            diagnosticPhase = "replacement-factory"
+                diagnosticPhase = "lifecycle-adoption"
 #endif
                 guard let makeReplacement = access.completedEraseReplacement else {
                     throw AppAccessContractFailureV1.configurationUnknown
                 }
-#if DEBUG
-            diagnosticPhase = "replacement-construction"
-#endif
                 let replacement = try makeReplacement(receipt.subject)
-#if DEBUG
-            diagnosticPhase = "lifecycle-adoption"
-#endif
                 try await access.lifecycle.adoptCompletedErase(receipt, replacement: replacement)
                 pending.adopted = true
             }
-            // The router's fresh active startup token controls publication. An
-            // inactive/protected-data failure retains adopted completion for retry.
 #if DEBUG
-            diagnosticPhase = "router-publication"
+            diagnosticPhase = "fresh-construction-and-publication"
 #endif
-            try await startupRouter.finishErasedSessionActivation(erasedSession,
-                coordinator: pending.coordinator, ticket: pending.ticket, accessGate: access.gate)
-#if DEBUG
-            diagnosticPhase = "completion-ownership"
-#endif
+            try await startupRouter.finishRetiredEraseActivation(pending.operation, accessGate: access.gate)
             guard pendingErase === pending else { throw AppAccessContractFailureV1.staleAttempt }
             pendingErase = nil
             failure = nil

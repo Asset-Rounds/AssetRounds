@@ -503,6 +503,7 @@ final class BackupExportService {
     private var recoveryRetiredEraseValidation: EraseRecoveryRetiredSourceValidationV1?
     private var retainedEraseValidation: EraseRetainedSourceValidationV1?
     private var preexistingRetiredEraseValidation: ErasePreexistingRetiredSourceValidationV1?
+    private var temporalNormalizationReadAuthority: TemporalNormalizationSourceReadAuthorityV1?
     /// Set only for the synchronous body of `validateFrozenCanonical`.
     private var lockedPublicationStore: StoreSessionCoordinator?
 #if DEBUG
@@ -622,6 +623,57 @@ final class BackupExportService {
             fileManager: fileManager,
             generationLeaseValidation: generationLeaseValidation
         )
+    }
+
+    /// Fixed canonical read for temporal normalization. The purpose-specific
+    /// capability owns the accepted current/retired context; this cannot
+    /// bootstrap state, stage an archive or grant deletion authority.
+    static func readTemporalNormalizationCanonicalSnapshot(
+        modelContext: ModelContext,
+        authority: TemporalNormalizationSourceReadAuthorityV1
+    ) throws -> TemporalNormalizationCanonicalSnapshotV1 {
+        try authority.revalidate(modelContext: modelContext)
+        let exporter = BackupExportService(modelContext: modelContext,
+            generationRootURL: authority.generationRootURL,
+            compatibilityPosture: .frozenLegacyCallersOnly)
+        exporter.temporalNormalizationReadAuthority = authority
+        defer { exporter.temporalNormalizationReadAuthority = nil }
+        try exporter.validateGenerationLease()
+        guard !modelContext.hasChanges else { throw BackupExportServiceError.contextHasChanges }
+        let rows = try exporter.fetchRows()
+        // The temporal branch uses the incumbent adapter's actual read query
+        // under the genuine source capability. It never takes the legacy
+        // writer-free early return below.
+        try exporter.validateLifecycleScope(rows, operation: .backup)
+        try exporter.validateLifecycleScope(rows, operation: .archive)
+        let ledger = try DeletionLedgerStore(context: modelContext).snapshot()
+        try exporter.validateDeletionLedger(ledger, rows: rows)
+        try exporter.validateGraph(rows, deletionLedger: ledger)
+        let journal = try MutationJournalStoreV1(modelContext: modelContext,
+            identity: authority.workspaceIdentity, generationID: authority.generationID,
+            allowStateBootstrap: false)
+        let history = try journal.exportSnapshot()
+        // Non-nil arguments are mandatory: nil would omit entire families.
+        let records = try exporter.makeRecords(rows, deletionLedger: ledger,
+            mutationHistory: history)
+        let data = try BackupCanonicalEncoderV1().encodeRecords(records).data
+        let semantic = try BackupCanonicalEncoderV1().encodeSemanticRecords(records).data
+        guard Int64(data.count) <= exporter.archiveLimits.maximumUncompressedEntryByteCount,
+              Int64(semantic.count) <= exporter.archiveLimits.maximumUncompressedEntryByteCount,
+              !modelContext.hasChanges else { throw BackupExportServiceError.invalidAuthority }
+        let source = V4BackupSourceV1(
+            appBuild: exporter.appBuild(), appVersion: exporter.appVersion(),
+            persistentSchemaVersion: authority.persistentSchemaRelease.versionIdentifier.major,
+            replicaID: authority.workspaceIdentity.replicaID.rawValue,
+            recordsSchemaVersion: records.recordsSchemaVersion,
+            sourceGenerationID: authority.generationID,
+            workspaceID: authority.workspaceIdentity.workspaceID.rawValue)
+        try authority.revalidate(modelContext: modelContext)
+        return try TemporalNormalizationCanonicalSnapshotV1(
+            source: source, records: records, recordsData: data, semanticRecordsData: semantic,
+            history: history, workspaceIdentity: authority.workspaceIdentity,
+            generationID: authority.generationID,
+            revision: authority.revision(for: history))
     }
 
     static func preparePreexistingRetiredEraseSummary(
@@ -1943,6 +1995,13 @@ private extension BackupExportService {
     /// lock), the identity is resolved through that coordinator's retained
     /// registry. A fresh factory there self-deadlocks on the lock's flock.
     func currentStreamingWorkspaceIdentity() throws -> WorkspaceReplicaIdentityV1 {
+        if let authority = temporalNormalizationReadAuthority {
+            try authority.revalidate(modelContext: modelContext)
+            guard generationRootURL == authority.generationRootURL else {
+                throw BackupExportServiceError.invalidGeneration
+            }
+            return authority.workspaceIdentity
+        }
         if let validation = recoveryRetiredEraseValidation {
             try validation.revalidate(modelContext: modelContext)
             guard generationRootURL == validation.generationRootURL else {
@@ -3028,6 +3087,26 @@ private extension BackupExportService {
         operation: WorkspacePackageLifecycleOperationV1
     ) throws {
         try IntegrationProjectionBackupExportExclusionV1.validate()
+        if let authority = temporalNormalizationReadAuthority {
+            let pairs: [(WorkspaceEntityKindV1, UUID)] =
+                rows.sites.map { (.site, $0.id) }
+                + rows.assets.map { (.asset, $0.id) }
+                + rows.records.map { (.workflowRecord, $0.id) }
+                + rows.evidence.map { (.evidenceFile, $0.id) }
+                + rows.issues.map { (.issue, $0.id) }
+                + rows.packets.map { (.packet, $0.id) }
+                + rows.reports.map { (.report, $0.id) }
+                + rows.savedSmartViews.map { (.savedSmartView, $0.id) }
+            let identities = try pairs.map { try WorkspaceEntityIdentityV1(kind: $0.0, id: $0.1) }
+            let bindings = rows.assets.map {
+                WorkspacePackageBindingV1(assetID: $0.id, packageID: $0.packID,
+                    packageSchemaVersion: $0.packSchemaVersion,
+                    packageContentVersion: $0.packContentVersion)
+            }.sorted { $0.assetID.uuidString < $1.assetID.uuidString }
+            try authority.validateLifecycleQuery(modelContext: modelContext,
+                operation: operation, identities: identities, expectedBindings: bindings)
+            return
+        }
         guard case let .live(lifecycleDependencies) = lifecycleRoute else {
             guard case let .expiringCompatibility(posture) = lifecycleRoute,
                   posture == .frozenLegacyCallersOnly else {
@@ -3103,6 +3182,10 @@ private extension BackupExportService {
         _ release: PackageReleaseIdentityV1
     ) throws -> WorkspacePackageLifecycleProfileV1 {
         do {
+            if let authority = temporalNormalizationReadAuthority {
+                try authority.revalidate(modelContext: modelContext)
+                return try authority.profileRegistry.resolve(release)
+            }
             switch lifecycleRoute {
             case let .live(dependencies):
                 return try dependencies.profileRegistry.resolve(release)
@@ -4940,6 +5023,10 @@ private extension BackupExportService {
     }
 
     func validateGenerationLease() throws {
+        if let authority = temporalNormalizationReadAuthority {
+            try authority.revalidate(modelContext: modelContext)
+            return
+        }
         do {
             try generationLeaseValidation()
         } catch {

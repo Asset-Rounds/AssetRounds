@@ -1,9 +1,266 @@
 import Darwin
+import Combine
 import Foundation
 import SwiftData
 import XCTest
 
 @testable import FieldEvidenceApp
+
+actor V906EraseAuthentication: LocalAuthenticationClient {
+    func availability() -> LocalAuthenticationAvailabilityV1 {
+        .systemValue(status: .available, biometry: .faceID)
+    }
+    func authenticate(_ attempt: LocalAuthenticationAttemptV1) -> LocalAuthenticationOutcomeV1 {
+        .authenticated
+    }
+    func cancel(attemptID: UUID) {}
+}
+
+@MainActor
+final class V906WeakEraseSourceAliases {
+    weak var session: StoreGenerationSession?
+    weak var context: ModelContext?
+    weak var container: ModelContainer?
+    weak var coordinator: StoreSessionCoordinator?
+    weak var writer: WorkspaceWriterV1?
+
+    init(session: StoreGenerationSession, coordinator: StoreSessionCoordinator) {
+        self.session = session
+        context = session.modelContext
+        container = session.modelContext.container
+        self.coordinator = coordinator
+        writer = coordinator.workspaceWriter
+    }
+
+    var drained: Bool {
+        session == nil && context == nil && container == nil
+            && coordinator == nil && writer == nil
+    }
+}
+
+@MainActor
+final class V906RouterEraseFixture {
+    private static var hostPins: [V906RouterEraseFixture] = []
+    let root: URL
+    let support: URL
+    let caches: URL
+    let temporary: URL
+    let defaults: UserDefaults
+    let defaultsName: String
+    let router: StartupRouter
+    let appSession: ProductionAppAccessSessionV1
+    let presentation: AppAccessPresentationV1
+    private(set) var originalServices: [EraseAllService]
+    private(set) var aborts: [AbortedEraseAdmissionReceiptV1]
+    private(set) var completions: [CompletedEraseReceiptV1]
+    private var freshRouter: StartupRouter?
+    private var freshGate: AppAccessGateV1?
+    private var freshService: EraseAllService?
+
+    struct Interrupted {
+        let oldGenerationID: UUID
+        let tombstone: DeletionLedgerEntryV2
+        let oldPointer: RestorePointerIdentityV1
+        let oldPointerBytes: Data
+        let operationsDevice: dev_t
+        let operationsInode: ino_t
+        let aliases: V906WeakEraseSourceAliases
+        let operation: EraseRouterOperationV1
+    }
+
+    private init(root: URL, support: URL, caches: URL, temporary: URL,
+        defaults: UserDefaults, defaultsName: String, router: StartupRouter,
+        appSession: ProductionAppAccessSessionV1,
+        presentation: AppAccessPresentationV1) {
+        self.root = root; self.support = support; self.caches = caches
+        self.temporary = temporary; self.defaults = defaults
+        self.defaultsName = defaultsName; self.router = router
+        self.appSession = appSession; self.presentation = presentation
+        originalServices = []; aborts = []; completions = []
+    }
+
+    static func start(_ test: XCTestCase, name: String,
+        point: EraseAllFailurePoint, fixedIDs: [UUID]) async throws
+        -> V906RouterEraseFixture {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "V906-router-\(name)-\(UUID().uuidString)", isDirectory: true)
+        let support = root.appendingPathComponent(
+            "Library/Application Support", isDirectory: true)
+        let caches = root.appendingPathComponent("Library/Caches", isDirectory: true)
+        let temporary = root.appendingPathComponent("tmp", isDirectory: true)
+        for directory in [support, caches, temporary] {
+            try FileManager.default.createDirectory(at: directory,
+                withIntermediateDirectories: true)
+        }
+        let defaultsName = "V906-router-\(name)-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsName))
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let profiles = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        let router = StartupRouter(applicationSupportURL: support,
+            entitlementRuntime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            lifecycleProfileRegistry: profiles)
+        let appSession = try await ProductionCompositionRoot.makeAppAccessSession(
+            applicationSupportURL: support, startupRouter: router,
+            defaults: defaults, authenticationClient: V906EraseAuthentication())
+        var owner: V906RouterEraseFixture?
+        let presentation = AppAccessPresentationV1(startupRouter: router,
+            eraseServiceFactory: { admission, completion, aborted, sceneState in
+                let service = EraseAllService(applicationSupportURL: support,
+                    cachesDirectoryURL: caches, temporaryDirectoryURL: temporary,
+                    userDefaults: defaults,
+                    bundleIdentifier: "com.palatis3.fieldrecord",
+                    defaultsDomainName: defaultsName,
+                    makeUUID: V906Integration.sequence(fixedIDs),
+                    failureInjection: EraseAllFailureInjection(failOnceAt: point),
+                    sceneNavigationStatePort: sceneState,
+                    privateSystemDiscoveryIndex: nil,
+                    admitErase: admission,
+                    didCompleteErase: { receipt in
+                        owner?.completions.append(receipt)
+                        XCTAssertNotNil(completion)
+                        completion?(receipt)
+                    },
+                    didAbortEraseAdmission: { receipt in
+                        owner?.aborts.append(receipt)
+                        XCTAssertNotNil(aborted)
+                        aborted?(receipt)
+                    })
+                owner?.originalServices.append(service)
+                return service
+            }, sessionFactory: { appSession })
+        let actual = V906RouterEraseFixture(root: root, support: support,
+            caches: caches, temporary: temporary, defaults: defaults,
+            defaultsName: defaultsName, router: router,
+            appSession: appSession, presentation: presentation)
+        owner = actual
+        hostPins.append(actual)
+        let published = test.expectation(description: "V906 original Router ready")
+        let subscription = presentation.$permitsContentPresentation
+            .filter { $0 }.prefix(1).sink { _ in published.fulfill() }
+        defer { subscription.cancel() }
+        await presentation.bootstrapIfNeeded()
+        await test.fulfillment(of: [published], timeout: 30)
+        guard case .ready = router.route else {
+            throw V23EraseOperationHarnessV1.Failure.admission
+        }
+        return actual
+    }
+
+    func readyOwner() throws -> (StoreSessionCoordinator, DiagnosticsStore) {
+        guard case let .ready(coordinator, diagnostics, _) = router.route else {
+            throw V23EraseOperationHarnessV1.Failure.admission
+        }
+        return (coordinator, diagnostics)
+    }
+
+    func interrupt(point: EraseAllFailurePoint,
+        tombstone: DeletionLedgerEntryV2) async throws -> Interrupted {
+        let (coordinator, diagnostics) = try readyOwner()
+        let session = try coordinator.sourceSessionForV949EraseFixture(router: router)
+        try V906Integration.seedRouterOwnedAsset(session)
+        try DeletionLedgerStore(context: session.modelContext).stageUnion([tombstone])
+        try V906Integration.adoptSeededDeletionBaseline(session)
+        let oldPointer = try StoreGenerationFactory(applicationSupportURL: support)
+            .currentGenerationPointerV3(expectedGenerationID: session.generationID)
+        let oldPointerIdentity = RestorePointerIdentityV1(
+            generationID: try XCTUnwrap(UUID(uuidString: oldPointer.generationID)),
+            generationManifestSHA256: oldPointer.generationManifestSHA256,
+            knownReplicaIDs: Set(try oldPointer.knownReplicaIDs.map {
+                try XCTUnwrap(UUID(uuidString: $0))
+            }),
+            workspaceID: try XCTUnwrap(UUID(uuidString: oldPointer.workspaceID)),
+            replicaID: try XCTUnwrap(UUID(uuidString: oldPointer.replicaID)))
+        let oldPointerBytes = try Data(contentsOf: support
+            .appendingPathComponent("FieldEvidenceData/current.json"))
+        var operations = stat()
+        let operationsPath = support.appendingPathComponent(
+            "FieldEvidenceOperations", isDirectory: true).path
+        guard lstat(operationsPath, &operations) == 0,
+              (operations.st_mode & S_IFMT) == S_IFDIR else {
+            throw V23EraseOperationHarnessV1.Failure.admission
+        }
+        let aliases = V906WeakEraseSourceAliases(session: session,
+            coordinator: coordinator)
+        if point == .beforePreparedWrite {
+            try presentation.expectCompletedAbortColdRestartForTesting(point)
+        }
+        do {
+            try await presentation.performErase(applicationSupportURL: support,
+                confirmation: "ERASE", coordinator: coordinator,
+                diagnosticsStore: diagnostics)
+            XCTFail("Expected original Erase interruption at \(point)")
+            throw V23EraseOperationHarnessV1.Failure.admission
+        } catch EraseAllServiceError.injectedFailure {
+            // The exact AppAccess/Router pending operation remains the owner.
+        }
+        let operation: EraseRouterOperationV1
+        if point == .beforePreparedWrite {
+            operation = try await presentation.continueCompletedAbortColdRestartForTesting()
+        } else {
+            operation = try await presentation.beginInterruptedEarlyEraseColdRestartForTesting(
+                expectedFault: point)
+        }
+        return Interrupted(oldGenerationID: session.generationID,
+            tombstone: tombstone, oldPointer: oldPointerIdentity,
+            oldPointerBytes: oldPointerBytes,
+            operationsDevice: operations.st_dev,
+            operationsInode: operations.st_ino,
+            aliases: aliases,
+            operation: operation)
+    }
+
+    func finishCheckedOriginal(_ interrupted: Interrupted,
+        point: EraseAllFailurePoint) throws {
+        guard interrupted.aliases.drained else {
+            throw V23EraseOperationHarnessV1.Failure.drainPending
+        }
+        if point == .beforePreparedWrite {
+            try presentation.finishCompletedAbortColdRestartForTesting(
+                interrupted.operation)
+        } else {
+            try router.finishInterruptedEarlyEraseColdRestartForTesting(
+                interrupted.operation)
+        }
+    }
+
+    func startFreshColdOwner() async throws -> StoreSessionCoordinator {
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let profiles = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        let gate = AppAccessGateV1(setting: .value(.init(isEnabled: true)),
+            authentication: V906EraseAuthentication(),
+            clock: SystemApplicationClock(), identifiers: SystemApplicationIDSource())
+        guard await gate.authenticate(trigger: .unlock) == .authenticated else {
+            throw V23EraseOperationHarnessV1.Failure.admission
+        }
+        let router = StartupRouter(applicationSupportURL: support,
+            entitlementRuntime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            lifecycleProfileRegistry: profiles)
+        let service = EraseAllService(applicationSupportURL: support,
+            cachesDirectoryURL: caches, temporaryDirectoryURL: temporary,
+            userDefaults: defaults,
+            bundleIdentifier: "com.palatis3.fieldrecord",
+            defaultsDomainName: defaultsName)
+        freshRouter = router; freshGate = gate; freshService = service
+        try router.bindStartupAccessGate(gate)
+        try await router.retryColdEraseForTesting(service: service, accessGate: gate)
+        guard case let .ready(coordinator, _, _) = router.route else {
+            throw V23EraseOperationHarnessV1.Failure.admission
+        }
+        return coordinator
+    }
+
+    func freshSession(_ coordinator: StoreSessionCoordinator)
+        throws -> StoreGenerationSession {
+        guard let freshRouter else {
+            throw V23EraseOperationHarnessV1.Failure.admission
+        }
+        return try coordinator.sourceSessionForV949EraseFixture(router: freshRouter)
+    }
+}
 
 private enum C52ServiceRequestBoundary_V9_06DeletionArchiveIntegrationTests {
     static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
@@ -138,186 +395,155 @@ final class V9_06DeletionArchiveIntegrationTests: XCTestCase {
             EraseAllFailurePoint.beforePreparedWrite,
             EraseAllFailurePoint.afterPointerSwitch,
         ].enumerated() {
-            weak var priorSession: StoreGenerationSession?
-            weak var priorContext: ModelContext?
-            weak var priorCoordinator: StoreSessionCoordinator?
-            let recoveryState = try await { @MainActor () async throws -> (
-                root: URL, support: URL, caches: URL, temporary: URL,
-                oldGenerationID: UUID, tombstone: DeletionLedgerEntryV2,
-                defaultsSuiteName: String
-            ) in
-                let harness = try V906Integration.makeHarness("i-erase-\(offset)", withAsset: true)
-                priorSession = harness.session
-                let context = harness.session.modelContext
-                priorContext = context
-                let tombstone = try DeletionLedgerEntryV2(
-                    identity: DeletionIdentityV2(kind: .asset, id: V906Integration.id(800 + offset)),
-                    deletedAt: V906Integration.deletedAt
-                )
-                try DeletionLedgerStore(context: context).stageUnion([tombstone])
-                try V906Integration.adoptSeededDeletionBaseline(harness.session)
-                let oldGenerationID = harness.session.generationID
-                var coordinator: StoreSessionCoordinator? = StoreSessionCoordinator(session: harness.session)
-                priorCoordinator = coordinator
-                let diagnostics = DiagnosticsStore(applicationSupportURL: harness.support)
-                await diagnostics.prepare()
-                let defaultsSuiteName = "V9_06-I01-\(UUID())"
-                let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsSuiteName))
-                let service = EraseAllService(
-                    applicationSupportURL: harness.support,
-                    cachesDirectoryURL: harness.caches,
-                    temporaryDirectoryURL: harness.temporary,
-                    userDefaults: defaults,
+            let owner = try await V906RouterEraseFixture.start(self,
+                name: "i-erase-\(offset)", point: point,
+                fixedIDs: [V906Integration.id(820 + offset * 10),
+                    V906Integration.id(821 + offset * 10),
+                    V906Integration.id(822 + offset * 10),
+                    V906Integration.id(823 + offset * 10)])
+            let tombstone = try DeletionLedgerEntryV2(
+                identity: DeletionIdentityV2(kind: .asset,
+                    id: V906Integration.id(800 + offset)),
+                deletedAt: V906Integration.deletedAt)
+            let interrupted = try await owner.interrupt(point: point,
+                tombstone: tombstone)
+            XCTAssertTrue(owner.completions.isEmpty)
+            if point == .beforePreparedWrite {
+                XCTAssertEqual(owner.aborts.count, 1)
+                let abort = try XCTUnwrap(owner.aborts.first)
+                XCTAssertEqual(abort.originalGenerationID,
+                    interrupted.oldGenerationID)
+                XCTAssertEqual(try Data(contentsOf: owner.support
+                    .appendingPathComponent("FieldEvidenceData/current.json")),
+                    interrupted.oldPointerBytes)
+                XCTAssertNil(try EraseIntentStore(
+                    applicationSupportURL: owner.support).load())
+            } else {
+                XCTAssertTrue(owner.aborts.isEmpty)
+                XCTAssertNotNil(try EraseIntentStore(
+                    applicationSupportURL: owner.support).load())
+            }
+            let drained = expectation(for: NSPredicate { _, _ in
+                interrupted.aliases.drained
+            }, evaluatedWith: NSObject())
+            await fulfillment(of: [drained], timeout: 30)
+            XCTAssertTrue(interrupted.aliases.drained,
+                "Original Router model, writer and reader aliases must drain")
+            try owner.finishCheckedOriginal(interrupted, point: point)
+            do {
+                try await owner.router.startIfNeeded(accessGate: owner.appSession.gate)
+                XCTFail("The retired original Router re-entered")
+            } catch { }
+            let recoveryFactory = StoreGenerationFactory(
+                applicationSupportURL: owner.support)
+            let originalEpochs = try recoveryFactory
+                .makeGenerationLeaseRegistry().activeEpochs()
+            XCTAssertFalse(originalEpochs.contains {
+                $0.generationID == interrupted.oldGenerationID
+            }, "The original writer/reader leases must close before cold startup")
+            _ = try XCTUnwrap(!originalEpochs.contains {
+                $0.generationID == interrupted.oldGenerationID
+            } ? true : nil,
+                "Retaining original Erase owners: old durable leases remain active")
+            let operationsPath = owner.support.appendingPathComponent(
+                "FieldEvidenceOperations", isDirectory: true).path
+            var preRecoveryOperations = stat()
+            _ = try XCTUnwrap(lstat(operationsPath, &preRecoveryOperations) == 0
+                && (preRecoveryOperations.st_mode & S_IFMT) == S_IFDIR
+                ? true : nil,
+                "The original registry namespace must remain before cold recovery")
+            XCTAssertEqual(preRecoveryOperations.st_dev,
+                interrupted.operationsDevice)
+            XCTAssertEqual(preRecoveryOperations.st_ino,
+                interrupted.operationsInode)
+            _ = try XCTUnwrap(preRecoveryOperations.st_dev == interrupted.operationsDevice
+                && preRecoveryOperations.st_ino == interrupted.operationsInode ? true : nil,
+                "Retaining original Erase owners: registry namespace identity changed")
+            if point == .beforePreparedWrite {
+                let noEffectService = EraseAllService(
+                    applicationSupportURL: owner.support,
+                    cachesDirectoryURL: owner.caches,
+                    temporaryDirectoryURL: owner.temporary,
+                    userDefaults: owner.defaults,
                     bundleIdentifier: "com.palatis3.fieldrecord",
-                    makeUUID: V906Integration.sequence([
-                        V906Integration.id(820 + offset * 10),
-                        V906Integration.id(821 + offset * 10),
-                        V906Integration.id(822 + offset * 10),
-                        V906Integration.id(823 + offset * 10),
-                    ]),
-                    failureInjection: EraseAllFailureInjection(failOnceAt: point)
-                )
-                do {
-                    _ = try await service.erase(
-                        confirmation: "ERASE",
-                        coordinator: try XCTUnwrap(coordinator),
-                        diagnosticsStore: diagnostics,
-                        activate: { _ in }
-                    )
-                    XCTFail("Expected erase interruption at \(point)")
-                } catch {
-                    XCTAssertEqual(error as? EraseAllServiceError, .injectedFailure)
-                }
-                if point == .beforePreparedWrite {
-                    XCTAssertEqual(try harness.factory.currentGenerationID(), oldGenerationID)
-                    XCTAssertEqual(try DeletionLedgerStore(context: context).snapshot().entries, [tombstone])
-                }
-                // Recovery simulates a dead owner; ARC plus one yield does not
-                // prove that its retained writer lease has actually been released.
-                try XCTUnwrap(coordinator).invalidateAndReleaseWriter()
-                coordinator = nil
-                await Task.yield()
-                return (
-                    harness.root, harness.support, harness.caches, harness.temporary,
-                    oldGenerationID, tombstone, defaultsSuiteName
-                )
-            }()
-            // Process-death recovery must not retain the old SwiftData reader.
-            XCTAssertNil(priorSession, "old session must drain before startup recovery")
-            XCTAssertNil(priorContext, "old context must drain before startup recovery")
-            XCTAssertNil(priorCoordinator, "old writer owner must drain before recovery")
-            // A failed assertion must never permit recovery or unlink live storage.
-            _ = try XCTUnwrap(
-                priorSession == nil && priorContext == nil && priorCoordinator == nil ? true : nil,
-                "Retaining erase fixture: prior SwiftData owners have not drained"
-            )
-            let recoveryFactory = StoreGenerationFactory(applicationSupportURL: recoveryState.support)
-            let diagnostics = DiagnosticsStore(applicationSupportURL: recoveryState.support)
-            await diagnostics.prepare()
-            let defaults = try XCTUnwrap(UserDefaults(suiteName: recoveryState.defaultsSuiteName))
-            defer { defaults.removePersistentDomain(forName: recoveryState.defaultsSuiteName) }
-            let activeEpochs = try recoveryFactory.makeGenerationLeaseRegistry().activeEpochs()
-            XCTAssertFalse(activeEpochs.contains { $0.generationID == recoveryState.oldGenerationID },
-                           "old durable leases must drain before startup recovery")
-            _ = try XCTUnwrap(
-                !activeEpochs.contains { $0.generationID == recoveryState.oldGenerationID } ? true : nil,
-                "Retaining erase fixture: old durable leases have not drained"
-            )
-            let operationsPath = recoveryState.support
-                .appendingPathComponent("FieldEvidenceOperations", isDirectory: true).path
-            var originalOperations = stat()
-            _ = try XCTUnwrap(
-                lstat(operationsPath, &originalOperations) == 0
-                    && (originalOperations.st_mode & S_IFMT) == S_IFDIR ? true : nil,
-                "Retaining erase fixture: original registry namespace identity unavailable"
-            )
-            var recoveredGenerationID: UUID?
-            weak var recoverySession: StoreGenerationSession?
-            weak var recoveryContext: ModelContext?
-            var recovered = try await EraseAllService(
-                applicationSupportURL: recoveryState.support,
-                cachesDirectoryURL: recoveryState.caches,
-                temporaryDirectoryURL: recoveryState.temporary,
-                userDefaults: defaults,
-                bundleIdentifier: "com.palatis3.fieldrecord"
-            ).reconcileAtStartup(diagnosticsStore: diagnostics)
-            if point == .beforePreparedWrite {
-                XCTAssertNil(recovered)
-                XCTAssertEqual(try recoveryFactory.currentGenerationID(), recoveryState.oldGenerationID)
-                let reopened = try recoveryFactory.openOrBootstrapCurrent()
-                recoverySession = reopened
-                recoveryContext = reopened.modelContext
-                XCTAssertEqual(try DeletionLedgerStore(context: reopened.modelContext).snapshot().entries,
-                               [recoveryState.tombstone])
-                _ = try XCTUnwrap(
-                    recovered == nil && (try recoveryFactory.currentGenerationID()) == recoveryState.oldGenerationID
-                        ? true : nil,
-                    "Retaining erase fixture: pre-commit recovery postconditions failed"
-                )
-            } else {
-                let session = try XCTUnwrap(recovered)
-                recoverySession = session
-                recoveryContext = session.modelContext
-                XCTAssertNotEqual(session.generationID, recoveryState.oldGenerationID)
-                XCTAssertEqual(try DeletionLedgerStore(context: session.modelContext).snapshot(), .empty)
-                XCTAssertEqual(try session.modelContext.fetchCount(FetchDescriptor<Asset>()), 0)
-                let emptyLedger = try DeletionLedgerStore(context: session.modelContext).snapshot() == .empty
-                let emptyAssets = try session.modelContext.fetchCount(FetchDescriptor<Asset>()) == 0
-                recoveredGenerationID = session.generationID
-                _ = try XCTUnwrap(
-                    session.generationID != recoveryState.oldGenerationID
-                        && emptyLedger && emptyAssets ? true : nil,
-                    "Retaining erase fixture: completed recovery postconditions failed"
-                )
+                    defaultsDomainName: owner.defaultsName)
+                let noEffectDiagnostics = DiagnosticsStore(
+                    applicationSupportURL: owner.support)
+                await noEffectDiagnostics.prepare()
+                let noEffectOutcome = try await noEffectService.reconcileAtStartup(
+                    diagnosticsStore: noEffectDiagnostics)
+                XCTAssertNil(noEffectOutcome)
+                let noEffectGenerationID = try recoveryFactory.currentGenerationID()
+                XCTAssertEqual(noEffectGenerationID, interrupted.oldGenerationID)
+                let noEffectPointerBytes = try Data(contentsOf: owner.support
+                    .appendingPathComponent("FieldEvidenceData/current.json"))
+                XCTAssertEqual(noEffectPointerBytes, interrupted.oldPointerBytes)
+                _ = try XCTUnwrap(noEffectOutcome == nil
+                    && noEffectGenerationID == interrupted.oldGenerationID
+                    && noEffectPointerBytes == interrupted.oldPointerBytes ? true : nil,
+                    "Retaining original Erase owners: pre-intent abort changed durable state")
             }
-            recovered = nil
-            XCTAssertNil(recoverySession, "recovery session must drain before fixture removal")
-            XCTAssertNil(recoveryContext, "recovery context must drain before fixture removal")
-            _ = try XCTUnwrap(
-                recoverySession == nil && recoveryContext == nil ? true : nil,
-                "Retaining erase fixture: recovery SwiftData owners have not drained"
-            )
-            let remainingEpochs: Set<GenerationEpochV1>
-            var currentOperations = stat()
-            let namespaceResult = lstat(operationsPath, &currentOperations)
-            let namespaceError = errno
+            let recoveredCoordinator = try await owner.startFreshColdOwner()
+            let recoveredSession = try owner.freshSession(recoveredCoordinator)
             if point == .beforePreparedWrite {
-                _ = try XCTUnwrap(
-                    namespaceResult == 0 && (currentOperations.st_mode & S_IFMT) == S_IFDIR
-                        && currentOperations.st_dev == originalOperations.st_dev
-                        && currentOperations.st_ino == originalOperations.st_ino ? true : nil,
-                    "Retaining erase fixture: pre-commit registry namespace changed"
-                )
-                remainingEpochs = try recoveryFactory.makeGenerationLeaseRegistry().activeEpochs()
+                XCTAssertEqual(recoveredSession.generationID,
+                    interrupted.oldGenerationID)
+                XCTAssertEqual(try DeletionLedgerStore(
+                    context: recoveredSession.modelContext).snapshot().entries,
+                    [interrupted.tombstone])
+                XCTAssertEqual(try recoveredSession.modelContext.fetchCount(
+                    FetchDescriptor<Asset>()), 1)
+                weak var weakReopened: StoreGenerationSession?
+                let exit = try { () -> V949RestoredSourceReaderExitV1 in
+                    let reopened = try recoveryFactory.openOrBootstrapCurrent()
+                    weakReopened = reopened
+                    let observed = try recoveryFactory
+                        .captureV949RestoredSourceReaderExit(session: reopened)
+                    XCTAssertEqual(try DeletionLedgerStore(
+                        context: reopened.modelContext).snapshot().entries,
+                        [interrupted.tombstone])
+                    return observed
+                }()
+                XCTAssertNil(weakReopened)
+                try exit.closeAfterCheckedAliasDrain()
             } else {
-                // Completed Erase deliberately retires Operations. Prove absence
-                // before constructing any current registry; replacement is refused.
-                _ = try XCTUnwrap(
-                    namespaceResult == -1 && namespaceError == ENOENT ? true : nil,
-                    "Retaining erase fixture: completed Erase did not retire its registry namespace"
-                )
-                let cleanupFactory = StoreGenerationFactory(applicationSupportURL: recoveryState.support)
-                // Pointer validation opens schema-migration control directories.
-                // Run it only after the noncreating retirement witness above.
-                let expectedCurrentID = try XCTUnwrap(recoveredGenerationID)
-                let currentID = try cleanupFactory.currentGenerationID()
-                _ = try XCTUnwrap(
-                    currentID == expectedCurrentID ? true : nil,
-                    "Retaining erase fixture: completed recovery pointer changed"
-                )
-                // This census covers only the newly current namespace. Weak-owner
-                // drain and verified retirement above authorize private fixture cleanup;
-                // they do not prove successful close of a retired production reader.
-                remainingEpochs = try cleanupFactory.makeGenerationLeaseRegistry().activeEpochs()
+                XCTAssertNotEqual(recoveredSession.generationID,
+                    interrupted.oldGenerationID)
+                XCTAssertEqual(try DeletionLedgerStore(
+                    context: recoveredSession.modelContext).snapshot(),
+                    .empty)
+                XCTAssertEqual(try recoveredSession.modelContext.fetchCount(
+                    FetchDescriptor<Asset>()), 0)
+                XCTAssertEqual(try recoveryFactory.currentGenerationID(),
+                    recoveredSession.generationID)
+                var afterCleanupOperations = stat()
+                let result = lstat(operationsPath, &afterCleanupOperations)
+                let missingError = errno
+                XCTAssertEqual(result, -1)
+                XCTAssertEqual(missingError, ENOENT,
+                    "Completed Erase must remove the old Operations namespace")
             }
-            XCTAssertTrue(remainingEpochs.isEmpty, "current durable leases must drain before fixture removal")
-            _ = try XCTUnwrap(
-                remainingEpochs.isEmpty ? true : nil,
-                "Retaining erase fixture: durable leases have not drained"
-            )
-            // Cleanup is reached only after both original and recovery owners drain.
-            // Any thrown error above deliberately retains this private fixture root.
-            try FileManager.default.removeItem(at: recoveryState.root)
+            let noRepeat = EraseAllService(
+                applicationSupportURL: owner.support,
+                cachesDirectoryURL: owner.caches,
+                temporaryDirectoryURL: owner.temporary,
+                userDefaults: owner.defaults,
+                bundleIdentifier: "com.palatis3.fieldrecord",
+                defaultsDomainName: owner.defaultsName)
+            let noRepeatDiagnostics = DiagnosticsStore(
+                applicationSupportURL: owner.support)
+            await noRepeatDiagnostics.prepare()
+            let repeatedOutcome = try await noRepeat.reconcileAtStartup(
+                diagnosticsStore: noRepeatDiagnostics)
+            XCTAssertNil(repeatedOutcome)
+            XCTAssertTrue(owner.completions.isEmpty)
+            try recoveredCoordinator.invalidateAndReleaseWriter()
+            let remainingEpochs = try recoveryFactory
+                .makeGenerationLeaseRegistry().activeEpochs()
+            XCTAssertTrue(remainingEpochs.isEmpty,
+                "The fresh writer lease must close before fixture return")
+            // Fresh Router/registry/model FDs remain live; the exact root and
+            // owner graph are retained by V906RouterEraseFixture.hostPins.
         }
 
         // A preparation is durable before an Erase intent exists. These cases

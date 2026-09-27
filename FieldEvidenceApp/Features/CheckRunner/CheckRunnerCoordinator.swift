@@ -786,10 +786,27 @@ final class CheckRunnerCoordinator {
         )
     }
 
-    func importCandidate(
+    func importCandidate(assetID: UUID, sourceData: Data, createdAt: Date) async throws -> CaptureCandidate {
+        switch mutationRoute {
+        case let .live(dependencies, _):
+            guard let owner = StoreSessionCoordinator.temporalOwner(for: dependencies.writer) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            return try await owner.withTemporalProducer {
+                try await importCandidateWhileOwned(assetID: assetID, sourceData: sourceData,
+                    createdAt: createdAt, sessionLifetime: .current(try owner.retainTemporalProducerResource()))
+            }
+        case .expiringCompatibility:
+            return try await importCandidateWhileOwned(assetID: assetID, sourceData: sourceData,
+                createdAt: createdAt, sessionLifetime: .frozenCompatibility)
+        }
+    }
+
+    private func importCandidateWhileOwned(
         assetID: UUID,
         sourceData: Data,
-        createdAt: Date
+        createdAt: Date,
+        sessionLifetime: CaptureCandidateProducerLifetimeV1.SessionLifetime
     ) async throws -> CaptureCandidate {
         let preparation = try prepareCapture(assetID: assetID)
         guard let purpose = preparation.purpose else {
@@ -800,6 +817,8 @@ final class CheckRunnerCoordinator {
             throw CheckRunnerCoordinatorError.captureNotConfigured
         }
 
+        let producerLifetime = try CaptureCandidateProducerLifetimeV1(
+            generationRootURL: generationRootURL, session: sessionLifetime)
         do {
             try storagePreflight.checkEvidenceAcceptance(
                 onVolumeContaining: generationRootURL
@@ -831,11 +850,27 @@ final class CheckRunnerCoordinator {
             purposeKey: purpose.key,
             createdAt: createdAt,
             previewJPEG: normalized.originalJPEG,
-            stagedBundle: staged
+            stagedBundle: staged,
+            producerLifetime: producerLifetime
         )
     }
 
     func retake(candidate: CaptureCandidate) async throws {
+        switch mutationRoute {
+        case let .live(dependencies, _):
+            guard let owner = StoreSessionCoordinator.temporalOwner(for: dependencies.writer) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try await candidate.producerLifetime.withCurrentProducer(for: owner) {
+                try await retakeWhileOwned(candidate: candidate)
+            }
+        case .expiringCompatibility:
+            try await retakeWhileOwned(candidate: candidate)
+        }
+        candidate.producerLifetime.finish()
+    }
+
+    private func retakeWhileOwned(candidate: CaptureCandidate) async throws {
         guard let evidenceBundleStore else {
             throw CheckRunnerCoordinatorError.captureNotConfigured
         }
@@ -862,7 +897,29 @@ final class CheckRunnerCoordinator {
     }
 
     @discardableResult
-    func accept(
+    func accept(candidate: CaptureCandidate, assetID: UUID) async throws -> EvidenceFile {
+        let result: EvidenceFile
+        switch mutationRoute {
+        case let .live(dependencies, _):
+            guard let owner = StoreSessionCoordinator.temporalOwner(for: dependencies.writer) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            // The model never leaves MainActor. Only Void crosses the generic
+            // lifetime wrapper; preserve the exact returned incumbent model.
+            var accepted: EvidenceFile?
+            try await candidate.producerLifetime.withCurrentProducer(for: owner) {
+                accepted = try await acceptWhileOwned(candidate: candidate, assetID: assetID)
+            }
+            guard let accepted else { throw CheckRunnerCoordinatorError.saveFailed }
+            result = accepted
+        case .expiringCompatibility:
+            result = try await acceptWhileOwned(candidate: candidate, assetID: assetID)
+        }
+        candidate.producerLifetime.finish()
+        return result
+    }
+
+    private func acceptWhileOwned(
         candidate: CaptureCandidate,
         assetID: UUID
     ) async throws -> EvidenceFile {

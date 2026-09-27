@@ -161,16 +161,6 @@ final class V9_53OperationalContactTests: XCTestCase {
         let importParties = try [130, 132].map {
             try C46OperationalContactTestSupport.party(slot: $0, workspaceID: session.workspaceID)
         }
-        for party in importParties {
-            session.modelContext.insert(try ServicePartyRow(party))
-            session.modelContext.insert(EntityMutationRevisionRow(
-                identity: try WorkspaceEntityIdentityV1(kind: .serviceParty, id: party.partyID),
-                revision: party.revision,
-                externalProjectionSHA256: party.receiptSHA256
-            ))
-        }
-        try session.modelContext.save()
-
         let contactIDs = [
             C46OperationalContactTestSupport.id(134),
             C46OperationalContactTestSupport.id(135),
@@ -210,6 +200,22 @@ final class V9_53OperationalContactTests: XCTestCase {
             generationID: session.generationID
         )
         let current = try journal.currentRevision(writerInstanceID: writerInstanceID)
+        let writer = try WorkspaceWriterV1(
+            identity: session.workspaceIdentity,
+            generationID: session.generationID,
+            initialRevision: current,
+            clock: C46OperationalContactClock(value: C46OperationalContactTestSupport.date(138)),
+            idSource: C46OperationalContactIDSource(value: writerInstanceID),
+            fileAuthority: C46OperationalContactFileAuthority(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: session.modelContext),
+            journalStore: journal
+        )
+        for party in importParties {
+            _ = try writer.execute(.applyPartyAccountability(.recordParty(party)),
+                mutationID: party.mutationID)
+            XCTAssertNotNil(try writer.durableReceipt(mutationID: party.mutationID))
+        }
+        let partySeedRevision = try writer.currentRevision()
         let importMutationID = try C46OperationalContactTestSupport.mutation(137)
         let importedContactRevisions = try contactIDs.map {
             WorkspaceEntityRevisionV1(
@@ -221,21 +227,11 @@ final class V9_53OperationalContactTests: XCTestCase {
             )
         }
         let expected = try WorkspaceExpectedRevisionV1(
-            workspaceID: current.workspaceID,
-            generationID: current.generationID,
-            writerInstanceID: current.writerInstanceID,
-            workspaceRevision: current.revision,
-            entityRevisions: current.entityRevisions + importedContactRevisions
-        )
-        let writer = try WorkspaceWriterV1(
-            identity: session.workspaceIdentity,
-            generationID: session.generationID,
-            initialRevision: current,
-            clock: C46OperationalContactClock(value: C46OperationalContactTestSupport.date(138)),
-            idSource: C46OperationalContactIDSource(value: writerInstanceID),
-            fileAuthority: C46OperationalContactFileAuthority(),
-            adapter: WorkspaceWriterAdapterV1(modelContext: session.modelContext),
-            journalStore: journal
+            workspaceID: partySeedRevision.workspaceID,
+            generationID: partySeedRevision.generationID,
+            writerInstanceID: partySeedRevision.writerInstanceID,
+            workspaceRevision: partySeedRevision.revision,
+            entityRevisions: partySeedRevision.entityRevisions + importedContactRevisions
         )
         let query = OperationalContactRowQueryV1(
             modelContext: session.modelContext,
@@ -299,7 +295,7 @@ final class V9_53OperationalContactTests: XCTestCase {
                 .count,
             1
         )
-        XCTAssertEqual(try writer.currentRevision().revision, current.revision + 1)
+        XCTAssertEqual(try writer.currentRevision().revision, partySeedRevision.revision + 1)
         try journal.validateAll()
     }
 
@@ -665,14 +661,27 @@ final class V9_53OperationalContactTests: XCTestCase {
             slot: 330,
             workspaceID: session.workspaceID
         )
-        session.modelContext.insert(try ServicePartyRow(durableParty))
-        session.modelContext.insert(EntityMutationRevisionRow(
-            identity: try WorkspaceEntityIdentityV1(kind: .serviceParty, id: durableParty.partyID),
-            revision: durableParty.revision
-        ))
-        try session.modelContext.save()
-
         let writerInstanceID = C46OperationalContactTestSupport.id(331)
+        do {
+            let seedJournal = try MutationJournalStoreV1(
+                modelContext: session.modelContext,
+                identity: session.workspaceIdentity,
+                generationID: session.generationID
+            )
+            let seedWriter = try WorkspaceWriterV1(
+                identity: session.workspaceIdentity,
+                generationID: session.generationID,
+                initialRevision: seedJournal.currentRevision(writerInstanceID: writerInstanceID),
+                clock: C46OperationalContactClock(value: C46OperationalContactTestSupport.date(331)),
+                idSource: C46OperationalContactIDSource(value: writerInstanceID),
+                fileAuthority: C46OperationalContactFileAuthority(),
+                adapter: WorkspaceWriterAdapterV1(modelContext: session.modelContext),
+                journalStore: seedJournal
+            )
+            _ = try seedWriter.execute(.applyPartyAccountability(.recordParty(durableParty)),
+                mutationID: durableParty.mutationID)
+            XCTAssertNotNil(try seedWriter.durableReceipt(mutationID: durableParty.mutationID))
+        }
         let failure = MutationJournalFailureInjectionV1(failOnceAt: .afterEffectBeforeReceipt)
         let failingJournal = try MutationJournalStoreV1(
             modelContext: session.modelContext,
@@ -789,37 +798,24 @@ final class V9_53OperationalContactTests: XCTestCase {
 
     func testV23P03C46R01BackupRestoreCloneForkDeleteEraseExportSearchAndReplayRemainExact() async throws {
         let root = try C46OperationalContactTestSupport.temporaryDirectory("lifecycle")
-        defer { try? FileManager.default.removeItem(at: root) }
+        // Preserve the root on all failures; the actual Erase owner retains it.
+        weak var seededSession: StoreGenerationSession?
+        weak var seededContext: ModelContext?
+        weak var seededContainer: ModelContainer?
+        weak var restoredSession: StoreGenerationSession?
+        weak var restoredContext: ModelContext?
+        weak var restoredContainer: ModelContainer?
+        let target = try await { () async throws -> (support: URL, generationID: UUID) in
         let sourceSupport = root.appendingPathComponent("source", isDirectory: true)
         try FileManager.default.createDirectory(at: sourceSupport, withIntermediateDirectories: true)
         let source = try StoreGenerationFactory(applicationSupportURL: sourceSupport)
             .openOrBootstrapCurrent()
+        seededSession = source
+        seededContext = source.modelContext
+        seededContainer = source.modelContext.container
         let party = try C46OperationalContactTestSupport.party(slot: 400, workspaceID: source.workspaceID)
         let unrelatedSiteID = C46OperationalContactTestSupport.id(408)
         let unrelatedAssetID = C46OperationalContactTestSupport.id(409)
-        source.modelContext.insert(try ServicePartyRow(party))
-        source.modelContext.insert(Site(
-            id: unrelatedSiteID,
-            label: "C46 unrelated deletion site",
-            address: "12 Broadway, New York, NY",
-            timeZoneID: "America/New_York",
-            createdAt: C46OperationalContactTestSupport.date(408)
-        ))
-        source.modelContext.insert(Asset(
-            id: unrelatedAssetID,
-            siteID: unrelatedSiteID,
-            packID: "c46.unrelated.asset",
-            packSchemaVersion: 1,
-            packContentVersion: 1,
-            label: "C46 unrelated asset",
-            createdAt: C46OperationalContactTestSupport.date(409)
-        ))
-        source.modelContext.insert(EntityMutationRevisionRow(
-            identity: try WorkspaceEntityIdentityV1(kind: .serviceParty, id: party.partyID),
-            revision: party.revision
-        ))
-        try source.modelContext.save()
-
         let writerInstanceID = C46OperationalContactTestSupport.id(401)
         let journal = try MutationJournalStoreV1(
             modelContext: source.modelContext,
@@ -827,6 +823,37 @@ final class V9_53OperationalContactTests: XCTestCase {
             generationID: source.generationID
         )
         let current = try journal.currentRevision(writerInstanceID: writerInstanceID)
+        let writer = try WorkspaceWriterV1(
+            identity: source.workspaceIdentity,
+            generationID: source.generationID,
+            initialRevision: current,
+            clock: C46OperationalContactClock(value: C46OperationalContactTestSupport.date(405)),
+            idSource: C46OperationalContactIDSource(value: writerInstanceID),
+            fileAuthority: C46OperationalContactFileAuthority(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: source.modelContext),
+            journalStore: journal
+        )
+        _ = try writer.execute(.applyPartyAccountability(.recordParty(party)),
+            mutationID: party.mutationID)
+        let unrelatedAssetMutationID = try C46OperationalContactTestSupport.mutation(411)
+        _ = try writer.execute(.createFirstSign(.init(
+            siteID: unrelatedSiteID,
+            newSite: .init(id: unrelatedSiteID, label: "C46 unrelated deletion site",
+                address: "12 Broadway, New York, NY", timeZoneID: "America/New_York"),
+            assetID: unrelatedAssetID,
+            assetLabel: "C46 unrelated asset",
+            packID: SignPack.illuminatedSignV1.packID,
+            packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
+            packContentVersion: SignPack.illuminatedSignV1.contentVersion,
+            createdAt: C46OperationalContactTestSupport.date(409),
+            initialPlacementMutationID: unrelatedAssetMutationID,
+            initialPlacementEventID: C46OperationalContactTestSupport.id(412),
+            initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(
+                rawValue: C46OperationalContactTestSupport.id(413))
+        )), mutationID: unrelatedAssetMutationID)
+        XCTAssertNotNil(try writer.durableReceipt(mutationID: party.mutationID))
+        XCTAssertNotNil(try writer.durableReceipt(mutationID: unrelatedAssetMutationID))
+        let contactCurrent = try writer.currentRevision()
         let mutationID = try C46OperationalContactTestSupport.mutation(402)
         let contact = try ServiceContactPointV1(
             contactPointID: C46OperationalContactTestSupport.id(403),
@@ -844,11 +871,11 @@ final class V9_53OperationalContactTests: XCTestCase {
         )
         let intent = try C46OperationalContactTestSupport.intent(slot: 404, kind: .email, contact: contact)
         let expected = try WorkspaceExpectedRevisionV1(
-            workspaceID: current.workspaceID,
-            generationID: current.generationID,
-            writerInstanceID: current.writerInstanceID,
-            workspaceRevision: current.revision,
-            entityRevisions: current.entityRevisions + [
+            workspaceID: contactCurrent.workspaceID,
+            generationID: contactCurrent.generationID,
+            writerInstanceID: contactCurrent.writerInstanceID,
+            workspaceRevision: contactCurrent.revision,
+            entityRevisions: contactCurrent.entityRevisions + [
                 WorkspaceEntityRevisionV1(
                     identity: try WorkspaceEntityIdentityV1(
                         kind: .serviceContactPoint,
@@ -879,16 +906,6 @@ final class V9_53OperationalContactTests: XCTestCase {
                 )
             ],
             handoffIntents: [intent]
-        )
-        let writer = try WorkspaceWriterV1(
-            identity: source.workspaceIdentity,
-            generationID: source.generationID,
-            initialRevision: current,
-            clock: C46OperationalContactClock(value: C46OperationalContactTestSupport.date(405)),
-            idSource: C46OperationalContactIDSource(value: writerInstanceID),
-            fileAuthority: C46OperationalContactFileAuthority(),
-            adapter: WorkspaceWriterAdapterV1(modelContext: source.modelContext),
-            journalStore: journal
         )
         let receipt = try await writer.commitOperationalContact(mutation)
         let receiptReplay = try await writer.commitOperationalContact(mutation)
@@ -946,7 +963,7 @@ final class V9_53OperationalContactTests: XCTestCase {
               case let .applyOperationalContact(sourceSuccessorMutation) =
                 sourceSuccessorEnvelope.command else {
             XCTFail("Expected both source C46 receipts to carry operational contact mutations")
-            return
+            throw V23EraseOperationHarnessV1.Failure.admission
         }
         XCTAssertEqual(sourceCreateMutation.mutationID, mutationID)
         XCTAssertEqual(sourceCreateMutation.predecessors, [])
@@ -1028,10 +1045,94 @@ final class V9_53OperationalContactTests: XCTestCase {
             let packageValues = try validated.records.validateC46OperationalContacts()
             XCTAssertEqual(packageValues.contacts, [successor])
             XCTAssertEqual(packageValues.intents, [intent])
-            let restored = try await BackupRestoreService(
+            if index == 0 {
+                // Hostiles begin with the genuinely exported R01 package. Do
+                // not mint or reseal a receipt to make altered history appear
+                // authorized: removal and duplication must fail closed.
+                let history = try XCTUnwrap(validated.records.mutationHistory)
+                func withHistory(_ replacement: MutationHistorySnapshotV1) throws
+                    -> V4BackupRecordsV1 {
+                    let encoder = JSONEncoder()
+                    encoder.dateEncodingStrategy = .millisecondsSince1970
+                    encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+                    var object = try XCTUnwrap(JSONSerialization.jsonObject(
+                        with: encoder.encode(validated.records)) as? [String: Any])
+                    object["mutationHistory"] = try JSONSerialization.jsonObject(
+                        with: encoder.encode(replacement))
+                    let decoder = JSONDecoder()
+                    decoder.dateDecodingStrategy = .millisecondsSince1970
+                    return try decoder.decode(V4BackupRecordsV1.self,
+                        from: JSONSerialization.data(withJSONObject: object,
+                            options: [.sortedKeys, .fragmentsAllowed]))
+                }
+                var removedOriginal = false
+                let missingOriginal = try history.receipts.filter { record in
+                    let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+                    if envelope.mutationID == mutationID {
+                        removedOriginal = true
+                        return false
+                    }
+                    return true
+                }
+                XCTAssertTrue(removedOriginal)
+                let missingHistory = MutationHistorySnapshotV1(
+                    workspaceRevision: history.workspaceRevision,
+                    lastLocalSequence: history.lastLocalSequence,
+                    receipts: missingOriginal,
+                    quarantines: history.quarantines,
+                    entityRevisions: history.entityRevisions)
+                let missingRecords = try withHistory(missingHistory)
+                XCTAssertThrowsError(try missingRecords.validateC46OperationalContacts())
+
+                let duplicatedHistory = MutationHistorySnapshotV1(
+                    workspaceRevision: history.workspaceRevision,
+                    lastLocalSequence: history.lastLocalSequence,
+                    receipts: history.receipts + [try XCTUnwrap(history.receipts.first {
+                        record in
+                        let envelope = try? MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+                        return envelope?.mutationID == successorMutationID
+                    })],
+                    quarantines: history.quarantines,
+                    entityRevisions: history.entityRevisions)
+                let duplicatedRecords = try withHistory(duplicatedHistory)
+                XCTAssertThrowsError(try duplicatedRecords.validateC46OperationalContacts())
+
+                let wrongTarget = try SystemHandoffTargetReferenceV1(
+                    workspaceID: intent.workspaceID, kind: .serviceContactPoint,
+                    targetID: contact.contactPointID, expectedRevision: contact.revision,
+                    expectedSHA256: String(repeating: "f", count: 64))
+                let retargeted = try SystemHandoffIntentV1(
+                    intentID: intent.intentID, workspaceID: intent.workspaceID,
+                    kind: intent.kind, target: wrongTarget,
+                    reviewedAt: intent.reviewedAt, revision: intent.revision,
+                    mutationID: intent.mutationID, disposition: intent.disposition)
+                let changedRows = try validated.records.operationalContacts.map { row in
+                    row.kind == .systemHandoffIntent && row.id == intent.intentID
+                        ? try V35BackupOperationalContactRecordV1(retargeted) : row
+                }
+                let changedRecords = validated.records.replacingOperationalContacts(changedRows)
+                XCTAssertThrowsError(try changedRecords.validateC46OperationalContacts())
+            }
+            let restoreService = try BackupRestoreService(
                 applicationSupportURL: support,
                 storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })
-            ).restore(
+            )
+#if DEBUG
+            restoreService.restorePhaseDiagnosticForTesting = { phase in
+                // The service hook has some dynamic recovery messages. Only
+                // these five fixed restore-stage labels may reach this trace.
+                switch phase {
+                case "records-for-materialization", "parts-stock-lifecycle",
+                     "accessible-documents", "photo-and-clone-plan", "materialize":
+                    FileHandle.standardError.write(Data(
+                        "C46_R01_RESTORE_DIAGNOSTIC_V1 modeIndex=\(index) phase=\(phase)\n".utf8
+                    ))
+                default:
+                    break
+                }
+            }
+#endif
+            let restored = try await restoreService.restore(
                 validatedPackage: validated,
                 currentModelContext: currentSession.modelContext,
                 currentGenerationID: currentSession.generationID,
@@ -1078,6 +1179,56 @@ final class V9_53OperationalContactTests: XCTestCase {
                 allowStateBootstrap: false
             )
             try restoredJournal.validateAll()
+            if mode == .clone || mode == .fork {
+                let sourceHistory = try XCTUnwrap(validated.records.mutationHistory)
+                let restoredHistory = try restoredJournal.exportSnapshot()
+                let originalC46 = try sourceHistory.receipts.filter { record in
+                    let envelope = try MutationEnvelopeV1.decodeCanonical(
+                        from: record.envelopeData
+                    )
+                    return envelope.workspaceID == source.workspaceIdentity.workspaceID
+                        && envelope.command.kind == .applyOperationalContact
+                }
+                let retainedOriginalC46 = try restoredHistory.receipts.filter { record in
+                    let envelope = try MutationEnvelopeV1.decodeCanonical(
+                        from: record.envelopeData
+                    )
+                    return envelope.workspaceID == source.workspaceIdentity.workspaceID
+                        && envelope.command.kind == .applyOperationalContact
+                }
+                XCTAssertEqual(retainedOriginalC46, originalC46)
+                let projectedC46 = try restoredHistory.receipts.compactMap {
+                    record -> OperationalContactMutationV1? in
+                    let envelope = try MutationEnvelopeV1.decodeCanonical(
+                        from: record.envelopeData
+                    )
+                    guard envelope.workspaceID == restored.workspaceIdentity.workspaceID,
+                          case let .applyOperationalContact(mutation) = envelope.command else {
+                        return nil
+                    }
+                    let receipt = try MutationReceiptV1.decodeCanonical(
+                        from: record.receiptData
+                    )
+                    _ = try OperationalContactMutationReceiptV1(
+                        mutation: mutation, mutationReceipt: receipt
+                    )
+                    XCTAssertEqual(envelope.sourceKind, .importedHistory)
+                    XCTAssertNotEqual(receipt.identity.replicaID,
+                        restored.workspaceIdentity.replicaID)
+                    return mutation
+                }
+                XCTAssertEqual(projectedC46.count, originalC46.count)
+                XCTAssertTrue(projectedC46.contains {
+                    $0.successors.contains(restoredContact)
+                })
+                XCTAssertTrue(projectedC46.contains {
+                    $0.handoffIntents.contains(restoredIntent)
+                })
+                XCTAssertTrue(projectedC46.flatMap(\.handoffIntents).allSatisfy {
+                    $0.disposition == .historicReferenceOnly
+                        && $0.target == intent.target
+                })
+            }
         }
 
         let distinctTargetSupport = root.appendingPathComponent(
@@ -1098,16 +1249,6 @@ final class V9_53OperationalContactTests: XCTestCase {
             slot: 442,
             workspaceID: distinctTargetWorkspaceID
         )
-        distinctTarget.modelContext.insert(try ServicePartyRow(targetOriginalParty))
-        distinctTarget.modelContext.insert(EntityMutationRevisionRow(
-            identity: try WorkspaceEntityIdentityV1(
-                kind: .serviceParty,
-                id: targetOriginalParty.partyID
-            ),
-            revision: targetOriginalParty.revision,
-            externalProjectionSHA256: targetOriginalParty.receiptSHA256
-        ))
-        try distinctTarget.modelContext.save()
         let targetOriginalWriterInstanceID = C46OperationalContactTestSupport.id(443)
         let targetOriginalJournal = try MutationJournalStoreV1(
             modelContext: distinctTarget.modelContext,
@@ -1117,6 +1258,24 @@ final class V9_53OperationalContactTests: XCTestCase {
         let targetOriginalRevision = try targetOriginalJournal.currentRevision(
             writerInstanceID: targetOriginalWriterInstanceID
         )
+        let targetOriginalWriter = try WorkspaceWriterV1(
+            identity: distinctTarget.workspaceIdentity,
+            generationID: distinctTarget.generationID,
+            initialRevision: targetOriginalRevision,
+            clock: C46OperationalContactClock(value: C46OperationalContactTestSupport.date(446)),
+            idSource: C46OperationalContactIDSource(value: targetOriginalWriterInstanceID),
+            fileAuthority: C46OperationalContactFileAuthority(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: distinctTarget.modelContext),
+            journalStore: targetOriginalJournal
+        )
+        _ = try targetOriginalWriter.execute(
+            .applyPartyAccountability(.recordParty(targetOriginalParty)),
+            mutationID: targetOriginalParty.mutationID
+        )
+        XCTAssertNotNil(try targetOriginalWriter.durableReceipt(
+            mutationID: targetOriginalParty.mutationID
+        ))
+        let targetContactCurrent = try targetOriginalWriter.currentRevision()
         let targetOriginalMutationID = try C46OperationalContactTestSupport.mutation(444)
         let targetOriginalContact = try ServiceContactPointV1(
             contactPointID: C46OperationalContactTestSupport.id(445),
@@ -1133,11 +1292,11 @@ final class V9_53OperationalContactTests: XCTestCase {
             mutationID: targetOriginalMutationID
         )
         let targetOriginalExpected = try WorkspaceExpectedRevisionV1(
-            workspaceID: targetOriginalRevision.workspaceID,
-            generationID: targetOriginalRevision.generationID,
-            writerInstanceID: targetOriginalRevision.writerInstanceID,
-            workspaceRevision: targetOriginalRevision.revision,
-            entityRevisions: targetOriginalRevision.entityRevisions + [
+            workspaceID: targetContactCurrent.workspaceID,
+            generationID: targetContactCurrent.generationID,
+            writerInstanceID: targetContactCurrent.writerInstanceID,
+            workspaceRevision: targetContactCurrent.revision,
+            entityRevisions: targetContactCurrent.entityRevisions + [
                 WorkspaceEntityRevisionV1(
                     identity: try WorkspaceEntityIdentityV1(
                         kind: .serviceContactPoint,
@@ -1160,16 +1319,6 @@ final class V9_53OperationalContactTests: XCTestCase {
                     preferredContactPointID: targetOriginalContact.contactPointID
                 )
             ]
-        )
-        let targetOriginalWriter = try WorkspaceWriterV1(
-            identity: distinctTarget.workspaceIdentity,
-            generationID: distinctTarget.generationID,
-            initialRevision: targetOriginalRevision,
-            clock: C46OperationalContactClock(value: C46OperationalContactTestSupport.date(446)),
-            idSource: C46OperationalContactIDSource(value: targetOriginalWriterInstanceID),
-            fileAuthority: C46OperationalContactFileAuthority(),
-            adapter: WorkspaceWriterAdapterV1(modelContext: distinctTarget.modelContext),
-            journalStore: targetOriginalJournal
         )
         let targetOriginalReceipt = try await targetOriginalWriter.commitOperationalContact(
             targetOriginalMutation
@@ -1262,7 +1411,7 @@ final class V9_53OperationalContactTests: XCTestCase {
         for (_, envelope) in importedDecodedRows {
             guard case let .applyOperationalContact(value) = envelope.command else {
                 XCTFail("Expected an imported operational contact mutation")
-                return
+                throw V23EraseOperationHarnessV1.Failure.admission
             }
             XCTAssertEqual(envelope.workspaceID, distinctTargetWorkspaceID)
             XCTAssertEqual(value.workspaceID, distinctTargetWorkspaceID)
@@ -1438,6 +1587,9 @@ final class V9_53OperationalContactTests: XCTestCase {
             currentGenerationRootURL: source.generationRootURL,
             mode: .replaceExisting
         )
+        restoredSession = replaced
+        restoredContext = replaced.modelContext
+        restoredContainer = replaced.modelContext.container
         let replacedContactRow = try XCTUnwrap(
             replaced.modelContext.fetch(FetchDescriptor<ServiceContactPointRow>()).first
         )
@@ -1486,56 +1638,694 @@ final class V9_53OperationalContactTests: XCTestCase {
         )
         XCTAssertTrue(try replaced.modelContext.fetch(FetchDescriptor<Asset>()).isEmpty)
 
+        return (sourceSupport, replaced.generationID)
+        }()
+        guard seededSession == nil, seededContext == nil, seededContainer == nil,
+              restoredSession == nil, restoredContext == nil, restoredContainer == nil else {
+            XCTFail("Restore and seed store aliases must drain before genuine Router startup")
+            throw V23EraseOperationHarnessV1.Failure.drainPending
+        }
+        let owner = V23EraseOperationHarnessV1(retainingRoot: root, applicationSupportURL: target.support,
+            runtime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            profileRegistry: try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
         let caches = root.appendingPathComponent("caches", isDirectory: true)
         let temporary = root.appendingPathComponent("temporary", isDirectory: true)
         try FileManager.default.createDirectory(at: caches, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true)
-        let coordinator = StoreSessionCoordinator(session: replaced)
-        let diagnostics = DiagnosticsStore(applicationSupportURL: sourceSupport)
-        await diagnostics.prepare()
+        defer { owner.router.entitlementProcessor?.stop() }
         let suiteName = "C46-R01-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let erase = EraseAllService(
-            applicationSupportURL: sourceSupport,
+        var admittedReservation: AppAccessGateV1.EraseAdoptionToken?
+        var completedReceipts: [CompletedEraseReceiptV1] = []
+        weak var originalCoordinator: StoreSessionCoordinator?
+        weak var originalContext: ModelContext?
+        weak var originalContainer: ModelContainer?
+        let erase = try await { () async throws -> EraseAllService in
+            let (coordinator, diagnostics) = try await owner.startOriginalOwner()
+            originalCoordinator = coordinator
+            originalContext = coordinator.modelContext
+            originalContainer = coordinator.modelContext.container
+            XCTAssertEqual(coordinator.generationID, target.generationID)
+            guard coordinator.generationID == target.generationID else {
+                throw V23EraseOperationHarnessV1.Failure.admission
+            }
+            try await owner.admit(coordinator: coordinator)
+        let erase = try owner.configure(EraseAllService(
+            applicationSupportURL: target.support,
             cachesDirectoryURL: caches,
             temporaryDirectoryURL: temporary,
             userDefaults: defaults,
-            bundleIdentifier: suiteName
-        )
-        let erased = try await erase.erase(
-            confirmation: EraseAllService.requiredConfirmation,
-            coordinator: coordinator,
-            diagnosticsStore: diagnostics
-        ) { replacement in
-            coordinator.activate(session: replacement)
+            bundleIdentifier: "com.palatis3.fieldrecord",
+            defaultsDomainName: suiteName,
+            admitErase: { subject in
+                let reservation = try await owner.admitSubject(subject)
+                admittedReservation = reservation
+                return reservation
+            },
+            didCompleteErase: { completedReceipts.append($0) }
+        ))
+        try await owner.prepareCompatibility(service: erase,
+            confirmation: EraseAllService.requiredConfirmation, coordinator: coordinator, diagnostics: diagnostics)
+        return erase
+        }()
+        guard originalCoordinator == nil, originalContext == nil, originalContainer == nil else {
+            XCTFail("Original contact Erase readers must drain before cleanup")
+            throw V23EraseOperationHarnessV1.Failure.drainPending
         }
-        try erase.validateOperationalContactEraseClosure(session: erased.session)
+        XCTAssertTrue(completedReceipts.isEmpty)
+        try await owner.completeCleanup()
+        XCTAssertEqual(completedReceipts.count, 1)
+        let deliveredReceipt = try XCTUnwrap(completedReceipts.first)
+        let reservation = try XCTUnwrap(admittedReservation)
+        XCTAssertEqual(deliveredReceipt.reservation, reservation)
+        XCTAssertEqual(deliveredReceipt.subject, reservation.subject)
+        try await owner.adoptCompletedReceipt()
+        let token = try await owner.accessGate.beginContentRead(for: .startupRecovery)
+        try token.withContentRead(for: .startupRecovery) {
+        let erasedSession = try StoreGenerationFactory(applicationSupportURL: target.support).openOrBootstrapCurrent()
+        try erase.validateOperationalContactEraseClosure(session: erasedSession)
         XCTAssertTrue(
-            try erased.session.modelContext.fetch(FetchDescriptor<ServiceContactPointRow>()).isEmpty
+            try erasedSession.modelContext.fetch(FetchDescriptor<ServiceContactPointRow>()).isEmpty
         )
         XCTAssertTrue(
-            try erased.session.modelContext.fetch(FetchDescriptor<SystemHandoffIntentRow>()).isEmpty
+            try erasedSession.modelContext.fetch(FetchDescriptor<SystemHandoffIntentRow>()).isEmpty
         )
+        }
     }
 }
 
 final class C32OperationalContactRestoreBoundaryTests: XCTestCase {
     @MainActor
+    func testV23P03C46HistoricalIntentAcceptsGenuineC32SuccessorAndRejectsMissingReceipt() async throws {
+        let root = try C46OperationalContactTestSupport.temporaryDirectory("c46-c32-history")
+        let lifetime = C32RestoreFixtureRetentionV1(root: root)
+        let sourceSupport = root.appendingPathComponent("source", isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceSupport, withIntermediateDirectories: true)
+        let source = try StoreGenerationFactory(applicationSupportURL: sourceSupport)
+            .openOrBootstrapCurrent()
+        lifetime.retain(source)
+        let writerID = C46OperationalContactTestSupport.id(33_001)
+        let journal = try MutationJournalStoreV1(
+            modelContext: source.modelContext, identity: source.workspaceIdentity,
+            generationID: source.generationID)
+        lifetime.retain(journal)
+        let writer = try WorkspaceWriterV1(
+            identity: source.workspaceIdentity, generationID: source.generationID,
+            initialRevision: try journal.currentRevision(writerInstanceID: writerID),
+            clock: C46OperationalContactClock(value: C46OperationalContactTestSupport.date(33_001)),
+            idSource: C46OperationalContactIDSource(value: writerID),
+            fileAuthority: C46OperationalContactFileAuthority(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: source.modelContext),
+            journalStore: journal)
+        lifetime.retain(writer)
+        let siteID = C46OperationalContactTestSupport.id(33_002)
+        let firstSignID = try C46OperationalContactTestSupport.mutation(33_003)
+        _ = try writer.execute(.createFirstSign(.init(
+            siteID: siteID,
+            newSite: .init(id: siteID, label: "Historical C32 site",
+                           address: nil, timeZoneID: "UTC"),
+            assetID: C46OperationalContactTestSupport.id(33_004),
+            assetLabel: "Historical C32 asset",
+            packID: SignPack.illuminatedSignV1.packID,
+            packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
+            packContentVersion: SignPack.illuminatedSignV1.contentVersion,
+            createdAt: C46OperationalContactTestSupport.date(33_004),
+            initialPlacementMutationID: firstSignID,
+            initialPlacementEventID: C46OperationalContactTestSupport.id(33_005),
+            initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(
+                rawValue: C46OperationalContactTestSupport.id(33_006))
+        )), mutationID: firstSignID)
+
+        let party = try C46OperationalContactTestSupport.party(
+            slot: 33_010, workspaceID: source.workspaceID)
+        _ = try writer.execute(.applyPartyAccountability(.recordParty(party)),
+                               mutationID: party.mutationID)
+        let contactMutationID = try C46OperationalContactTestSupport.mutation(33_020)
+        let contactID = C46OperationalContactTestSupport.id(33_022)
+        let contact = try ServiceContactPointV1(
+            contactPointID: contactID, workspaceID: source.workspaceID,
+            party: party, kind: .email, label: .office,
+            displayValue: "historical.c32@example.test", preferred: true,
+            provenance: .manual, lifecycle: .effective,
+            effectiveAt: C46OperationalContactTestSupport.date(33_020),
+            revision: 1, mutationID: contactMutationID)
+        let intent = try C46OperationalContactTestSupport.intent(
+            slot: 33_021, kind: .email, contact: contact)
+        let beforeContact = try writer.currentRevision()
+        let contactExpected = try WorkspaceExpectedRevisionV1(
+            workspaceID: beforeContact.workspaceID,
+            generationID: beforeContact.generationID,
+            writerInstanceID: beforeContact.writerInstanceID,
+            workspaceRevision: beforeContact.revision,
+            entityRevisions: beforeContact.entityRevisions + [
+                .init(identity: try .init(kind: .serviceContactPoint, id: contactID), revision: 0),
+                .init(identity: try .init(kind: .systemHandoffIntent, id: intent.intentID), revision: 0),
+            ])
+        let direct = try OperationalContactMutationV1(
+            workspaceID: source.workspaceID, mutationID: contactMutationID,
+            expectedRevision: contactExpected, successors: [contact],
+            preferredScopes: [try .init(
+                partyID: party.partyID, kind: .email,
+                activeContactPointIDs: [contactID], preferredContactPointID: contactID)],
+            handoffIntents: [intent])
+        _ = try await writer.commitOperationalContact(direct)
+
+        let aggregateID = try C46OperationalContactTestSupport.mutation(33_030)
+        let partySuccessor = try ServicePartyReferenceV1(
+            partyID: party.partyID, workspaceID: party.workspaceID,
+            kind: party.kind, displayName: "Historical C32 successor party",
+            profileDescriptor: party.profileDescriptor,
+            provenance: .importedExternalEvidence, state: .effective,
+            effectiveAt: party.effectiveAt, revision: 2, mutationID: aggregateID)
+        try partySuccessor.validateSuccessor(of: party)
+        let importedSet = try ImportSourceSetV1(
+            workspaceID: source.workspaceID, files: [try .init(
+                schemaID: PartyContactCSVRowV1.schemaID,
+                schemaVersion: PartyContactCSVRowV1.schemaVersion,
+                fileName: "party-contacts.csv", orderIndex: 0,
+                byteCount: 1, sha256: String(repeating: "a", count: 64))])
+        let successor = try ServiceContactPointV1(
+            contactPointID: contactID, workspaceID: source.workspaceID,
+            party: partySuccessor, kind: contact.kind, label: .work,
+            displayValue: contact.displayValue, preferred: true,
+            provenance: .importedExternalEvidence,
+            importSourceSetSHA256: importedSet.sourceSetSHA256,
+            lifecycle: .effective, effectiveAt: contact.effectiveAt,
+            revision: 2, supersedes: contact.revisionReference,
+            mutationID: aggregateID)
+        let roleID = C46OperationalContactTestSupport.id(33_031)
+        let role = try SitePartyRoleEventV1(
+            eventID: roleID, workspaceID: source.workspaceID,
+            siteID: siteID, partyID: party.partyID,
+            role: .serviceProvider,
+            effectiveFrom: C46OperationalContactTestSupport.date(33_030),
+            source: .importedExternalEvidence, revision: 1,
+            mutationID: aggregateID,
+            recordedAt: C46OperationalContactTestSupport.date(33_030))
+        let beforeAggregate = try writer.currentRevision()
+        let aggregateExpected = try WorkspaceExpectedRevisionV1(
+            workspaceID: beforeAggregate.workspaceID,
+            generationID: beforeAggregate.generationID,
+            writerInstanceID: beforeAggregate.writerInstanceID,
+            workspaceRevision: beforeAggregate.revision,
+            entityRevisions: beforeAggregate.entityRevisions + [
+                .init(identity: try .init(kind: .sitePartyRoleEvent, id: roleID), revision: 0),
+            ])
+        let contactSuccessorMutation = try OperationalContactMutationV1(
+            workspaceID: source.workspaceID, mutationID: aggregateID,
+            expectedRevision: aggregateExpected,
+            predecessors: [contact], successors: [successor],
+            preferredScopes: [try .init(
+                partyID: party.partyID, kind: .email,
+                activeContactPointIDs: [contactID], preferredContactPointID: contactID)],
+            importSourceSet: importedSet)
+        let aggregate = try PartyContactSiteRoleImportMutationV1(
+            workspaceID: source.workspaceID, mutationID: aggregateID,
+            expectedRevision: aggregateExpected,
+            partyMutations: [.recordParty(partySuccessor)],
+            operationalContactMutation: contactSuccessorMutation,
+            siteRoleMutations: [.appendSiteRole(role)])
+        _ = try writer.execute(aggregate.canonicalWorkspaceMutationRequest())
+        let aggregateReceipt = try XCTUnwrap(try writer.durableReceipt(mutationID: aggregateID))
+        _ = try PartyContactSiteRoleImportMutationReceiptV1(
+            mutation: aggregate, mutationReceipt: aggregateReceipt)
+        try journal.validateAll()
+        let sourceHistory = try journal.exportSnapshot()
+        let sourceContactBytes = try XCTUnwrap(source.modelContext.fetch(
+            FetchDescriptor<ServiceContactPointRow>()).first).canonicalData
+        let sourceIntentBytes = try XCTUnwrap(source.modelContext.fetch(
+            FetchDescriptor<SystemHandoffIntentRow>()).first).canonicalData
+
+        let exportRoot = root.appendingPathComponent("export", isDirectory: true)
+        try FileManager.default.createDirectory(at: exportRoot, withIntermediateDirectories: true)
+        let exporter = BackupExportService(
+            modelContext: source.modelContext,
+            generationRootURL: source.generationRootURL,
+            now: { C46OperationalContactTestSupport.date(33_040) })
+        lifetime.retain(exporter)
+        let package = try exporter.export(previewID: exporter.prepare().id, to: exportRoot)
+        let targetSupport = root.appendingPathComponent("target", isDirectory: true)
+        try FileManager.default.createDirectory(at: targetSupport, withIntermediateDirectories: true)
+        let target = try StoreGenerationFactory(applicationSupportURL: targetSupport)
+            .openOrBootstrapCurrent()
+        lifetime.retain(target)
+        let validated = try BackupImportService(
+            generationRootURL: target.generationRootURL,
+            makeUUID: { C46OperationalContactTestSupport.id(33_041) },
+            scopedAccess: .alreadyAuthorized
+        ).stageAndValidate(selectedPackageURL: package)
+        lifetime.retain(validated)
+        let values = try validated.records.validateC46OperationalContacts()
+        XCTAssertEqual(values.contacts, [successor])
+        XCTAssertEqual(values.intents, [intent])
+        XCTAssertEqual(try validated.records.validateC32PartyContactSiteRoleImportClosure(),
+                       [aggregate])
+        XCTAssertEqual(intent.target.expectedRevision, 1)
+        XCTAssertEqual(successor.revision, 2)
+
+        let history = try XCTUnwrap(validated.records.mutationHistory)
+        let withoutAggregate = MutationHistorySnapshotV1(
+            workspaceRevision: history.workspaceRevision,
+            lastLocalSequence: history.lastLocalSequence,
+            receipts: try history.receipts.filter { record in
+                let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+                return envelope.mutationID != aggregateID
+            },
+            quarantines: history.quarantines,
+            entityRevisions: history.entityRevisions)
+        XCTAssertEqual(withoutAggregate.receipts.count + 1, history.receipts.count)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .millisecondsSince1970
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        var hostileObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: encoder.encode(validated.records)) as? [String: Any])
+        hostileObject["mutationHistory"] = try JSONSerialization.jsonObject(
+            with: encoder.encode(withoutAggregate))
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        let hostile = try decoder.decode(V4BackupRecordsV1.self,
+            from: JSONSerialization.data(withJSONObject: hostileObject,
+                options: [.sortedKeys, .fragmentsAllowed]))
+        XCTAssertEqual(hostile.mutationHistory, withoutAggregate)
+        XCTAssertThrowsError(try hostile.validateC46OperationalContacts())
+
+        let restore = try BackupRestoreService(
+            applicationSupportURL: targetSupport,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+        lifetime.retain(restore)
+        let restored = try await restore.restore(
+            validatedPackage: validated,
+            currentModelContext: target.modelContext,
+            currentGenerationID: target.generationID,
+            currentGenerationRootURL: target.generationRootURL,
+            mode: .emptyInstall)
+        lifetime.retain(restored)
+        let restoredContact = try XCTUnwrap(restored.modelContext.fetch(
+            FetchDescriptor<ServiceContactPointRow>()).first)
+        let restoredIntent = try XCTUnwrap(restored.modelContext.fetch(
+            FetchDescriptor<SystemHandoffIntentRow>()).first)
+        XCTAssertEqual(restoredContact.canonicalData, sourceContactBytes)
+        XCTAssertEqual(restoredIntent.canonicalData, sourceIntentBytes)
+        XCTAssertEqual(try restoredContact.value(), successor)
+        XCTAssertEqual(try restoredIntent.value(), intent)
+        let restoredJournal = try MutationJournalStoreV1(
+            modelContext: restored.modelContext,
+            identity: restored.workspaceIdentity,
+            generationID: restored.generationID,
+            allowStateBootstrap: false)
+        lifetime.retain(restoredJournal)
+        let restoredHistory = try restoredJournal.exportSnapshot()
+        XCTAssertGreaterThan(sourceHistory.lastLocalSequence, 0)
+        XCTAssertEqual(restoredHistory.schemaVersion, sourceHistory.schemaVersion)
+        XCTAssertEqual(restoredHistory.workspaceRevision, sourceHistory.workspaceRevision)
+        XCTAssertEqual(restoredHistory.lastLocalSequence, 0)
+        XCTAssertEqual(restoredHistory.receipts, sourceHistory.receipts)
+        XCTAssertEqual(restoredHistory.quarantines, sourceHistory.quarantines)
+        XCTAssertEqual(restoredHistory.entityRevisions, sourceHistory.entityRevisions)
+
+        // The same authentic direct rev1 -> C32 aggregate rev2 history must
+        // close over destination rows on clone while the source receipts stay
+        // byte-identical historical provenance. Removing the source aggregate
+        // above remains a fail-closed hostile input for either restore mode.
+        let cloneSupport = root.appendingPathComponent("clone", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: cloneSupport, withIntermediateDirectories: true
+        )
+        let cloneCurrent = try StoreGenerationFactory(
+            applicationSupportURL: cloneSupport
+        ).openOrBootstrapCurrent()
+        lifetime.retain(cloneCurrent)
+        let clonePackage = try BackupImportService(
+            generationRootURL: cloneCurrent.generationRootURL,
+            makeUUID: { C46OperationalContactTestSupport.id(33_042) },
+            scopedAccess: .alreadyAuthorized
+        ).stageAndValidate(selectedPackageURL: package)
+        lifetime.retain(clonePackage)
+        let cloneService = try BackupRestoreService(
+            applicationSupportURL: cloneSupport,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })
+        )
+        lifetime.retain(cloneService)
+        let clone = try await cloneService.restore(
+            validatedPackage: clonePackage,
+            currentModelContext: cloneCurrent.modelContext,
+            currentGenerationID: cloneCurrent.generationID,
+            currentGenerationRootURL: cloneCurrent.generationRootURL,
+            mode: .clone
+        )
+        lifetime.retain(clone)
+        let clonedContact = try XCTUnwrap(clone.modelContext.fetch(
+            FetchDescriptor<ServiceContactPointRow>()).first).value()
+        let clonedIntent = try XCTUnwrap(clone.modelContext.fetch(
+            FetchDescriptor<SystemHandoffIntentRow>()).first).value()
+        XCTAssertEqual(clonedContact.workspaceID, clone.workspaceID)
+        XCTAssertEqual(clonedContact.revision, successor.revision)
+        XCTAssertEqual(clonedContact.displayValue, successor.displayValue)
+        XCTAssertNotEqual(clonedContact.contactPointSHA256, successor.contactPointSHA256)
+        XCTAssertEqual(clonedIntent.workspaceID, clone.workspaceID)
+        XCTAssertEqual(clonedIntent.disposition, .historicReferenceOnly)
+        XCTAssertEqual(clonedIntent.target, intent.target)
+        let cloneQuery = OperationalContactRowQueryV1(
+            modelContext: clone.modelContext, workspaceID: clone.workspaceID
+        )
+        let cloneHandoff = await cloneQuery.resolveForHandoff(clonedIntent)
+        XCTAssertEqual(cloneHandoff, .targetInvalid)
+        let cloneJournal = try MutationJournalStoreV1(
+            modelContext: clone.modelContext,
+            identity: clone.workspaceIdentity,
+            generationID: clone.generationID,
+            allowStateBootstrap: false
+        )
+        lifetime.retain(cloneJournal)
+        try cloneJournal.validateAll()
+        var cloneHistory = try cloneJournal.exportSnapshot()
+        let retainedSource = try cloneHistory.receipts.filter { record in
+            let envelope = try MutationEnvelopeV1.decodeCanonical(
+                from: record.envelopeData
+            )
+            return envelope.workspaceID == source.workspaceIdentity.workspaceID
+        }
+        XCTAssertEqual(retainedSource, sourceHistory.receipts)
+        let targetContactReceipts = try cloneHistory.receipts.compactMap {
+            record -> MutationReceiptV1? in
+            let envelope = try MutationEnvelopeV1.decodeCanonical(
+                from: record.envelopeData
+            )
+            guard envelope.workspaceID == clone.workspaceIdentity.workspaceID else {
+                return nil
+            }
+            switch envelope.command {
+            case let .applyOperationalContact(mutation):
+                let receipt = try MutationReceiptV1.decodeCanonical(
+                    from: record.receiptData
+                )
+                _ = try OperationalContactMutationReceiptV1(
+                    mutation: mutation, mutationReceipt: receipt
+                )
+                return receipt
+            case let .applyPartyContactSiteRoleImport(mutation):
+                let receipt = try MutationReceiptV1.decodeCanonical(
+                    from: record.receiptData
+                )
+                _ = try PartyContactSiteRoleImportMutationReceiptV1(
+                    mutation: mutation, mutationReceipt: receipt
+                )
+                XCTAssertEqual(mutation.operationalContactMutation.successors,
+                    [clonedContact])
+                return receipt
+            default:
+                return nil
+            }
+        }
+        XCTAssertEqual(targetContactReceipts.count, 2)
+        XCTAssertTrue(targetContactReceipts.allSatisfy {
+            $0.sourceKind == .importedHistory
+                && $0.identity.replicaID != clone.workspaceIdentity.replicaID
+        })
+        // A genuine imported aggregate from a foreign workspace is not row
+        // authority in the original source workspace. It has no projection
+        // successor leading back to those current rows and must be refused.
+        hostileObject["mutationHistory"] = try JSONSerialization.jsonObject(
+            with: encoder.encode(cloneHistory)
+        )
+        let foreignAggregate = try decoder.decode(V4BackupRecordsV1.self,
+            from: JSONSerialization.data(withJSONObject: hostileObject,
+                options: [.sortedKeys, .fragmentsAllowed]))
+        XCTAssertThrowsError(try foreignAggregate.validateC32PartyContactSiteRoleImportClosure())
+
+        // A genuine direct command after the C32 aggregate retains the
+        // aggregate-produced Party. The next clone must map that Party's
+        // mutation provenance to the next imported aggregate, rather than
+        // restoring a stale source-workspace Party ID.
+        let cloneWriterID = C46OperationalContactTestSupport.id(33_060)
+        let cloneWriter = try WorkspaceWriterV1(
+            identity: clone.workspaceIdentity,
+            generationID: clone.generationID,
+            initialRevision: try cloneJournal.currentRevision(
+                writerInstanceID: cloneWriterID),
+            clock: C46OperationalContactClock(
+                value: C46OperationalContactTestSupport.date(33_060)),
+            idSource: C46OperationalContactIDSource(value: cloneWriterID),
+            fileAuthority: C46OperationalContactFileAuthority(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: clone.modelContext),
+            journalStore: cloneJournal)
+        lifetime.retain(cloneWriter)
+        let afterAggregateMutationID = try C46OperationalContactTestSupport.mutation(33_061)
+        let afterAggregateContact = try ServiceContactPointV1(
+            contactPointID: clonedContact.contactPointID,
+            workspaceID: clone.workspaceID,
+            party: clonedContact.party,
+            kind: clonedContact.kind,
+            label: .office,
+            displayValue: "after.c32@example.test",
+            preferred: true,
+            provenance: .manual,
+            lifecycle: .effective,
+            effectiveAt: C46OperationalContactTestSupport.date(33_061),
+            revision: clonedContact.revision + 1,
+            supersedes: clonedContact.revisionReference,
+            mutationID: afterAggregateMutationID)
+        let beforeAfterAggregate = try cloneWriter.currentRevision()
+        let afterAggregateExpected = try WorkspaceExpectedRevisionV1(
+            workspaceID: beforeAfterAggregate.workspaceID,
+            generationID: beforeAfterAggregate.generationID,
+            writerInstanceID: beforeAfterAggregate.writerInstanceID,
+            workspaceRevision: beforeAfterAggregate.revision,
+            entityRevisions: beforeAfterAggregate.entityRevisions)
+        let afterAggregateCommand = try OperationalContactMutationV1(
+            workspaceID: clone.workspaceID,
+            mutationID: afterAggregateMutationID,
+            expectedRevision: afterAggregateExpected,
+            predecessors: [clonedContact],
+            successors: [afterAggregateContact],
+            preferredScopes: [try .init(
+                partyID: clonedContact.party.partyID,
+                kind: clonedContact.kind,
+                activeContactPointIDs: [clonedContact.contactPointID],
+                preferredContactPointID: clonedContact.contactPointID)])
+        _ = try await cloneWriter.commitOperationalContact(afterAggregateCommand)
+        try cloneJournal.validateAll()
+        cloneHistory = try cloneJournal.exportSnapshot()
+
+        // A second real clone makes the first imported C32 projection a
+        // historical source. It must remain valid through an exact second
+        // projection rather than gaining row authority by workspace alone.
+        let secondExportRoot = root.appendingPathComponent(
+            "second-export", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: secondExportRoot, withIntermediateDirectories: true)
+        let secondExporter = BackupExportService(
+            modelContext: clone.modelContext,
+            generationRootURL: clone.generationRootURL,
+            now: { C46OperationalContactTestSupport.date(33_050) })
+        lifetime.retain(secondExporter)
+        let secondPackage = try secondExporter.export(
+            previewID: secondExporter.prepare().id, to: secondExportRoot)
+        let secondCloneSupport = root.appendingPathComponent(
+            "second-clone", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: secondCloneSupport, withIntermediateDirectories: true)
+        let secondCurrent = try StoreGenerationFactory(
+            applicationSupportURL: secondCloneSupport).openOrBootstrapCurrent()
+        lifetime.retain(secondCurrent)
+        let secondValidated = try BackupImportService(
+            generationRootURL: secondCurrent.generationRootURL,
+            makeUUID: { C46OperationalContactTestSupport.id(33_051) },
+            scopedAccess: .alreadyAuthorized
+        ).stageAndValidate(selectedPackageURL: secondPackage)
+        lifetime.retain(secondValidated)
+        let secondService = try BackupRestoreService(
+            applicationSupportURL: secondCloneSupport,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+        lifetime.retain(secondService)
+        let secondClone = try await secondService.restore(
+            validatedPackage: secondValidated,
+            currentModelContext: secondCurrent.modelContext,
+            currentGenerationID: secondCurrent.generationID,
+            currentGenerationRootURL: secondCurrent.generationRootURL,
+            mode: .clone)
+        lifetime.retain(secondClone)
+        let secondCloneJournal = try MutationJournalStoreV1(
+            modelContext: secondClone.modelContext,
+            identity: secondClone.workspaceIdentity,
+            generationID: secondClone.generationID,
+            allowStateBootstrap: false)
+        lifetime.retain(secondCloneJournal)
+        try secondCloneJournal.validateAll()
+        let secondCloneHistory = try secondCloneJournal.exportSnapshot()
+        let secondClonedContact = try XCTUnwrap(secondClone.modelContext.fetch(
+            FetchDescriptor<ServiceContactPointRow>()).first).value()
+        XCTAssertEqual(secondClonedContact.revision, afterAggregateContact.revision)
+        XCTAssertEqual(secondClonedContact.displayValue,
+                       afterAggregateContact.displayValue)
+        XCTAssertNotEqual(secondClonedContact.party.mutationID,
+                          afterAggregateContact.party.mutationID)
+        let retainedFirstCloneReceipts = try secondCloneHistory.receipts.filter { record in
+            try MutationEnvelopeV1.decodeCanonical(
+                from: record.envelopeData).workspaceID == clone.workspaceID
+        }
+        let firstCloneReceipts = try cloneHistory.receipts.filter { record in
+            try MutationEnvelopeV1.decodeCanonical(
+                from: record.envelopeData).workspaceID == clone.workspaceID
+        }
+        XCTAssertEqual(retainedFirstCloneReceipts, firstCloneReceipts)
+        let secondClonedIntent = try XCTUnwrap(secondClone.modelContext.fetch(
+            FetchDescriptor<SystemHandoffIntentRow>()).first).value()
+        XCTAssertEqual(secondClonedIntent.disposition, .historicReferenceOnly)
+        XCTAssertEqual(secondClonedIntent.target, intent.target)
+        let secondCloneHandoff = await OperationalContactRowQueryV1(
+            modelContext: secondClone.modelContext,
+            workspaceID: secondClone.workspaceID
+        ).resolveForHandoff(secondClonedIntent)
+        XCTAssertEqual(secondCloneHandoff, .targetInvalid)
+
+        // Reissue one internally typed, canonical *historical* imported C32
+        // receipt with a successor Party mutation ID unrelated to its Party
+        // child. Its bytes and receipt digest are self-consistent; the exact
+        // source-to-target Party producer chain must still refuse it.
+        let secondArchiveRoot = root.appendingPathComponent(
+            "second-archive", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: secondArchiveRoot, withIntermediateDirectories: true)
+        let secondArchiveExporter = BackupExportService(
+            modelContext: secondClone.modelContext,
+            generationRootURL: secondClone.generationRootURL,
+            now: { C46OperationalContactTestSupport.date(33_052) })
+        lifetime.retain(secondArchiveExporter)
+        let secondArchive = try secondArchiveExporter.export(
+            previewID: secondArchiveExporter.prepare().id, to: secondArchiveRoot)
+        let archiveStaging = try BackupImportService(
+            generationRootURL: secondClone.generationRootURL,
+            makeUUID: { C46OperationalContactTestSupport.id(33_053) },
+            scopedAccess: .alreadyAuthorized
+        ).stageAndValidate(selectedPackageURL: secondArchive)
+        lifetime.retain(archiveStaging)
+        let historicalIndex = try XCTUnwrap(secondCloneHistory.receipts.firstIndex {
+            let envelope = try MutationEnvelopeV1.decodeCanonical(
+                from: $0.envelopeData)
+            return envelope.workspaceID == clone.workspaceID
+                && envelope.sourceKind == .importedHistory
+                && envelope.command.kind == .applyPartyContactSiteRoleImport
+        })
+        let historicalRecord = secondCloneHistory.receipts[historicalIndex]
+        let historicalEnvelope = try MutationEnvelopeV1.decodeCanonical(
+            from: historicalRecord.envelopeData)
+        let historicalReceipt = try MutationReceiptV1.decodeCanonical(
+            from: historicalRecord.receiptData)
+        guard case let .applyPartyContactSiteRoleImport(historicalMutation)
+                = historicalEnvelope.command else {
+            throw OperationalContactFailureV1.digestMismatch
+        }
+        let historicalContact = historicalMutation.operationalContactMutation
+        let priorSuccessor = try XCTUnwrap(historicalContact.successors.first)
+        let priorParty = priorSuccessor.party
+        let falseParty = try ServicePartyReferenceV1(
+            partyID: priorParty.partyID,
+            workspaceID: priorParty.workspaceID,
+            kind: priorParty.kind,
+            displayName: priorParty.displayName,
+            profileDescriptor: priorParty.profileDescriptor,
+            provenance: priorParty.provenance,
+            privacyClass: priorParty.privacyClass,
+            state: priorParty.state,
+            effectiveAt: priorParty.effectiveAt,
+            retiredAt: priorParty.retiredAt,
+            revision: priorParty.revision,
+            mutationID: C46OperationalContactTestSupport.mutation(33_054))
+        let falseSuccessor = try ServiceContactPointV1(
+            contactPointID: priorSuccessor.contactPointID,
+            workspaceID: priorSuccessor.workspaceID,
+            party: falseParty,
+            kind: priorSuccessor.kind,
+            label: priorSuccessor.label,
+            displayValue: priorSuccessor.displayValue,
+            preferred: priorSuccessor.preferred,
+            provenance: priorSuccessor.provenance,
+            importSourceSetSHA256: priorSuccessor.importSourceSetSHA256,
+            privacyClass: priorSuccessor.privacyClass,
+            lifecycle: priorSuccessor.lifecycle,
+            effectiveAt: priorSuccessor.effectiveAt,
+            retiredAt: priorSuccessor.retiredAt,
+            revision: priorSuccessor.revision,
+            supersedes: priorSuccessor.supersedes,
+            mutationID: priorSuccessor.mutationID)
+        let falseContactMutation = try OperationalContactMutationV1(
+            workspaceID: historicalContact.workspaceID,
+            mutationID: historicalContact.mutationID,
+            expectedRevision: historicalContact.expectedRevision,
+            predecessors: historicalContact.predecessors,
+            successors: [falseSuccessor],
+            preferredScopes: historicalContact.preferredScopes,
+            handoffIntents: historicalContact.handoffIntents,
+            importSourceSet: historicalContact.importSourceSet)
+        let falseAggregate = try PartyContactSiteRoleImportMutationV1(
+            workspaceID: historicalMutation.workspaceID,
+            mutationID: historicalMutation.mutationID,
+            expectedRevision: historicalMutation.expectedRevision,
+            partyMutations: historicalMutation.partyMutations,
+            operationalContactMutation: falseContactMutation,
+            siteRoleMutations: historicalMutation.siteRoleMutations)
+        let falseEnvelope = try MutationEnvelopeV1(
+            request: falseAggregate.canonicalWorkspaceMutationRequest(),
+            identity: WorkspaceReplicaIdentityV1(
+                workspaceID: historicalEnvelope.workspaceID,
+                replicaID: historicalEnvelope.replicaID),
+            sourceKind: historicalEnvelope.sourceKind,
+            contentDependencyIDs: historicalEnvelope.contentDependencyIDs,
+            causationMutationID: historicalEnvelope.causationMutationID,
+            correlationID: historicalEnvelope.correlationID)
+        let falseReceipt = try MutationReceiptV1(
+            identity: historicalReceipt.identity,
+            envelope: falseEnvelope,
+            resultingRevision: historicalReceipt.resultingRevision,
+            postImages: falseAggregate.mutationPostImages,
+            committedAt: historicalReceipt.committedAt)
+        _ = try PartyContactSiteRoleImportMutationReceiptV1(
+            mutation: falseAggregate, mutationReceipt: falseReceipt)
+        var falseReceipts = secondCloneHistory.receipts
+        falseReceipts[historicalIndex] = .init(
+            envelopeData: try falseEnvelope.canonicalData(),
+            receiptData: try falseReceipt.canonicalData(),
+            reversalBasisData: nil,
+            semanticReversalData: nil)
+        let falseHistory = MutationHistorySnapshotV1(
+            workspaceRevision: secondCloneHistory.workspaceRevision,
+            lastLocalSequence: secondCloneHistory.lastLocalSequence,
+            receipts: falseReceipts,
+            quarantines: secondCloneHistory.quarantines,
+            entityRevisions: secondCloneHistory.entityRevisions)
+        var falseObject = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: encoder.encode(archiveStaging.records)) as? [String: Any])
+        falseObject["mutationHistory"] = try JSONSerialization.jsonObject(
+            with: encoder.encode(falseHistory))
+        let falseArchive = try decoder.decode(V4BackupRecordsV1.self,
+            from: JSONSerialization.data(withJSONObject: falseObject,
+                options: [.sortedKeys, .fragmentsAllowed]))
+        XCTAssertThrowsError(try falseArchive.validateC32PartyContactSiteRoleImportClosure())
+    }
+
+    @MainActor
     func testV23P04C32RestoreRebindsOneAggregateReceiptWithoutContactFanout() async throws {
         let root = try C46OperationalContactTestSupport.temporaryDirectory("c32-restore")
-        defer { try? FileManager.default.removeItem(at: root) }
+        // The interrupted restore and its sessions may retain pinned controls.
+        // Preserve their real owners and root until the test host terminates.
+        let fixtureLifetime = C32RestoreFixtureRetentionV1(root: root)
 
         let sourceSupport = root.appendingPathComponent("source", isDirectory: true)
         try FileManager.default.createDirectory(at: sourceSupport, withIntermediateDirectories: true)
         let source = try StoreGenerationFactory(applicationSupportURL: sourceSupport)
             .openOrBootstrapCurrent()
+        fixtureLifetime.retain(source)
         let sourceWriterInstanceID = C46OperationalContactTestSupport.id(32_001)
         let sourceJournal = try MutationJournalStoreV1(
             modelContext: source.modelContext,
             identity: source.workspaceIdentity,
             generationID: source.generationID
         )
+        fixtureLifetime.retain(sourceJournal)
         let sourceWriter = try WorkspaceWriterV1(
             identity: source.workspaceIdentity,
             generationID: source.generationID,
@@ -1546,11 +2336,10 @@ final class C32OperationalContactRestoreBoundaryTests: XCTestCase {
             adapter: WorkspaceWriterAdapterV1(modelContext: source.modelContext),
             journalStore: sourceJournal
         )
+        fixtureLifetime.retain(sourceWriter)
         let siteID = C46OperationalContactTestSupport.id(32_002)
-        _ = try sourceWriter.execute(WorkspaceMutationRequestV1(
-            mutationID: try C46OperationalContactTestSupport.mutation(32_003),
-            expectedRevision: .init(snapshot: try sourceWriter.currentRevision()),
-            command: .createFirstSign(.init(
+        let firstSignMutationID = try C46OperationalContactTestSupport.mutation(32_003)
+        _ = try sourceWriter.execute(.createFirstSign(.init(
                 siteID: siteID,
                 newSite: .init(
                     id: siteID,
@@ -1560,12 +2349,15 @@ final class C32OperationalContactRestoreBoundaryTests: XCTestCase {
                 ),
                 assetID: C46OperationalContactTestSupport.id(32_004),
                 assetLabel: "C32 restore seed",
-                packID: "c32.restore.seed",
-                packSchemaVersion: 1,
-                packContentVersion: 1,
-                createdAt: C46OperationalContactTestSupport.date(32_004)
-            ))
-        ))
+                packID: SignPack.illuminatedSignV1.packID,
+                packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
+                packContentVersion: SignPack.illuminatedSignV1.contentVersion,
+                createdAt: C46OperationalContactTestSupport.date(32_004),
+                initialPlacementMutationID: firstSignMutationID,
+                initialPlacementEventID: C46OperationalContactTestSupport.id(32_005),
+                initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(
+                    rawValue: C46OperationalContactTestSupport.id(32_006))
+            )), mutationID: firstSignMutationID)
 
         let sourceSnapshot = try sourceWriter.currentRevision()
         let mutationID = try C46OperationalContactTestSupport.mutation(32_010)
@@ -1680,27 +2472,37 @@ final class C32OperationalContactRestoreBoundaryTests: XCTestCase {
         try FileManager.default.createDirectory(at: targetSupport, withIntermediateDirectories: true)
         let target = try StoreGenerationFactory(applicationSupportURL: targetSupport)
             .openOrBootstrapCurrent()
+        fixtureLifetime.retain(target)
         XCTAssertNotEqual(target.workspaceID, source.workspaceID)
         let retainedParty = try C46OperationalContactTestSupport.party(
             slot: 32_030,
             workspaceID: target.workspaceID
         )
-        target.modelContext.insert(try ServicePartyRow(retainedParty))
-        target.modelContext.insert(EntityMutationRevisionRow(
-            identity: try .init(kind: .serviceParty, id: retainedParty.partyID),
-            revision: retainedParty.revision,
-            externalProjectionSHA256: retainedParty.receiptSHA256
-        ))
-        try target.modelContext.save()
         let retainedWriterInstanceID = C46OperationalContactTestSupport.id(32_031)
         let retainedJournal = try MutationJournalStoreV1(
             modelContext: target.modelContext,
             identity: target.workspaceIdentity,
             generationID: target.generationID
         )
+        fixtureLifetime.retain(retainedJournal)
         let retainedRevision = try retainedJournal.currentRevision(
             writerInstanceID: retainedWriterInstanceID
         )
+        let retainedWriter = try WorkspaceWriterV1(
+            identity: target.workspaceIdentity,
+            generationID: target.generationID,
+            initialRevision: retainedRevision,
+            clock: C46OperationalContactClock(value: C46OperationalContactTestSupport.date(32_034)),
+            idSource: C46OperationalContactIDSource(value: retainedWriterInstanceID),
+            fileAuthority: C46OperationalContactFileAuthority(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: target.modelContext),
+            journalStore: retainedJournal
+        )
+        fixtureLifetime.retain(retainedWriter)
+        _ = try retainedWriter.execute(.applyPartyAccountability(.recordParty(retainedParty)),
+            mutationID: retainedParty.mutationID)
+        XCTAssertNotNil(try retainedWriter.durableReceipt(mutationID: retainedParty.mutationID))
+        let retainedContactRevision = try retainedWriter.currentRevision()
         let retainedMutationID = try C46OperationalContactTestSupport.mutation(32_032)
         let retainedContact = try ServiceContactPointV1(
             contactPointID: C46OperationalContactTestSupport.id(32_033),
@@ -1717,11 +2519,11 @@ final class C32OperationalContactRestoreBoundaryTests: XCTestCase {
             mutationID: retainedMutationID
         )
         let retainedExpected = try WorkspaceExpectedRevisionV1(
-            workspaceID: retainedRevision.workspaceID,
-            generationID: retainedRevision.generationID,
-            writerInstanceID: retainedRevision.writerInstanceID,
-            workspaceRevision: retainedRevision.revision,
-            entityRevisions: retainedRevision.entityRevisions + [
+            workspaceID: retainedContactRevision.workspaceID,
+            generationID: retainedContactRevision.generationID,
+            writerInstanceID: retainedContactRevision.writerInstanceID,
+            workspaceRevision: retainedContactRevision.revision,
+            entityRevisions: retainedContactRevision.entityRevisions + [
                 .init(
                     identity: try .init(kind: .serviceContactPoint, id: retainedContact.contactPointID),
                     revision: 0
@@ -1740,17 +2542,34 @@ final class C32OperationalContactRestoreBoundaryTests: XCTestCase {
                 preferredContactPointID: retainedContact.contactPointID
             )]
         )
-        let retainedWriter = try WorkspaceWriterV1(
-            identity: target.workspaceIdentity,
-            generationID: target.generationID,
-            initialRevision: retainedRevision,
-            clock: C46OperationalContactClock(value: C46OperationalContactTestSupport.date(32_034)),
-            idSource: C46OperationalContactIDSource(value: retainedWriterInstanceID),
-            fileAuthority: C46OperationalContactFileAuthority(),
-            adapter: WorkspaceWriterAdapterV1(modelContext: target.modelContext),
-            journalStore: retainedJournal
-        )
         _ = try await retainedWriter.commitOperationalContact(retainedMutation)
+        let originalTargetHistory = try retainedJournal.exportSnapshot()
+        try MutationJournalStoreV1.validateImportedSnapshot(originalTargetHistory)
+        let originalTargetParties = try target.modelContext
+            .fetch(FetchDescriptor<ServicePartyRow>()).map { try $0.value() }
+        let originalTargetContacts = try target.modelContext
+            .fetch(FetchDescriptor<ServiceContactPointRow>()).map { try $0.value() }
+        let pointerURL = targetSupport.appendingPathComponent("FieldEvidenceData/current.json")
+        let originalPointerBytes = try Data(contentsOf: pointerURL)
+        XCTAssertEqual(try CurrentPointerCodecV1.decode(originalPointerBytes).generationID,
+                       target.generationID.uuidString.lowercased())
+        let intentStore = try RestoreIntentStore(applicationSupportURL: targetSupport)
+        fixtureLifetime.retain(intentStore)
+        XCTAssertNil(try intentStore.load())
+        let originalRetainedPartyRecord = try XCTUnwrap(originalTargetHistory.receipts.first {
+            guard let envelope = try? MutationEnvelopeV1.decodeCanonical(
+                from: $0.envelopeData
+            ) else { return false }
+            return envelope.workspaceID == target.workspaceID
+                && envelope.command.kind == .applyPartyAccountability
+        })
+        let originalRetainedContactRecord = try XCTUnwrap(originalTargetHistory.receipts.first {
+            guard let envelope = try? MutationEnvelopeV1.decodeCanonical(
+                from: $0.envelopeData
+            ) else { return false }
+            return envelope.workspaceID == target.workspaceID
+                && envelope.command.kind == .applyOperationalContact
+        })
 
         let validated = try BackupImportService(
             generationRootURL: target.generationRootURL,
@@ -1761,11 +2580,26 @@ final class C32OperationalContactRestoreBoundaryTests: XCTestCase {
             try validated.records.validateC32PartyContactSiteRoleImportClosure(),
             [sourceMutation]
         )
+        fixtureLifetime.retain(validated)
+        let firstGenerationID = C46OperationalContactTestSupport.id(32_050)
+        let firstRestoreID = C46OperationalContactTestSupport.id(32_051)
+        var firstRestoreIDs = [firstGenerationID, firstRestoreID]
         let interruptedRestore = try BackupRestoreService(
             applicationSupportURL: targetSupport,
             storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+            makeUUID: {
+                guard !firstRestoreIDs.isEmpty else {
+                    XCTFail("The first restore requested an unexpected additional identity")
+                    return UUID()
+                }
+                return firstRestoreIDs.removeFirst()
+            },
             failureInjection: BackupRestoreFailureInjection(failOnceAt: .beforePointerSwitch)
         )
+        fixtureLifetime.retain(interruptedRestore)
+        interruptedRestore.restorePhaseDiagnosticForTesting = { phase in
+            FileHandle.standardError.write(Data("C32_RESTORE_PHASE_V1 \(phase)\n".utf8))
+        }
         do {
             _ = try await interruptedRestore.restore(
                 validatedPackage: validated,
@@ -1778,18 +2612,276 @@ final class C32OperationalContactRestoreBoundaryTests: XCTestCase {
         } catch {
             XCTAssertEqual(error as? BackupRestoreServiceError, .injectedFailure)
         }
-        let restored = try XCTUnwrap(
-            try BackupRestoreService(
-                applicationSupportURL: targetSupport,
-                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })
-            ).reconcileAtStartup()
+        let firstIntent = try XCTUnwrap(try intentStore.load())
+        XCTAssertEqual(firstIntent.phase, .generationInstalled)
+        XCTAssertEqual(firstIntent.oldGenerationID, target.generationID)
+        XCTAssertEqual(firstIntent.newGenerationID, firstGenerationID)
+        XCTAssertEqual(firstIntent.restoreID, firstRestoreID)
+        XCTAssertEqual(try Data(contentsOf: pointerURL), originalPointerBytes)
+        let discardedGenerationURL = targetSupport
+            .appendingPathComponent(firstIntent.newGenerationRelativePath)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: discardedGenerationURL.path))
+        let firstRecovery = try BackupRestoreService(
+            applicationSupportURL: targetSupport,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })
         )
+        fixtureLifetime.retain(firstRecovery)
+        XCTAssertNil(try firstRecovery.reconcileAtStartup(),
+                     "Pre-publication recovery discards the replacement and keeps the old canonical store")
+        XCTAssertNil(try intentStore.load())
+        XCTAssertEqual(try Data(contentsOf: pointerURL), originalPointerBytes)
+        XCTAssertEqual(try retainedJournal.exportSnapshot(), originalTargetHistory)
+        XCTAssertEqual(try target.modelContext.fetch(FetchDescriptor<ServicePartyRow>())
+            .map { try $0.value() }, originalTargetParties)
+        XCTAssertEqual(try target.modelContext.fetch(FetchDescriptor<ServiceContactPointRow>())
+            .map { try $0.value() }, originalTargetContacts)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: discardedGenerationURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: targetSupport
+            .appendingPathComponent(firstIntent.stagingGenerationRelativePath).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: targetSupport
+            .appendingPathComponent("FieldEvidenceRestore/portable-exchange-restore.json").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: targetSupport
+            .appendingPathComponent("FieldEvidenceRestore/draft-publication-\(firstRestoreID.uuidString.lowercased()).json").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: validated.stagedPackageURL.path))
+
+        // The first import staging package was consumed by the interrupted
+        // operation. Revalidate the same exported package as a new operation.
+        let secondValidated = try BackupImportService(
+            generationRootURL: target.generationRootURL,
+            makeUUID: { C46OperationalContactTestSupport.id(32_041) },
+            scopedAccess: .alreadyAuthorized
+        ).stageAndValidate(selectedPackageURL: package)
+        fixtureLifetime.retain(secondValidated)
+        XCTAssertNotEqual(secondValidated.stagedPackageURL, validated.stagedPackageURL)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: secondValidated.stagedPackageURL.path))
+        XCTAssertEqual(try secondValidated.records.validateC32PartyContactSiteRoleImportClosure(),
+                       [sourceMutation])
+        let secondGenerationID = C46OperationalContactTestSupport.id(32_052)
+        let secondRestoreID = C46OperationalContactTestSupport.id(32_053)
+        var secondRestoreIDs = [secondGenerationID, secondRestoreID]
+        let publishedRestore = try BackupRestoreService(
+            applicationSupportURL: targetSupport,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+            makeUUID: {
+                guard !secondRestoreIDs.isEmpty else {
+                    XCTFail("The second restore requested an unexpected additional identity")
+                    return UUID()
+                }
+                return secondRestoreIDs.removeFirst()
+            },
+            failureInjection: BackupRestoreFailureInjection(failOnceAt: .afterPointerSwitch)
+        )
+        fixtureLifetime.retain(publishedRestore)
+        do {
+            _ = try await publishedRestore.restore(
+                validatedPackage: secondValidated,
+                currentModelContext: target.modelContext,
+                currentGenerationID: target.generationID,
+                currentGenerationRootURL: target.generationRootURL,
+                mode: .replaceExisting
+            )
+            XCTFail("Post-publication injected interruption must not report success")
+        } catch {
+            XCTAssertEqual(error as? BackupRestoreServiceError, .injectedFailure)
+        }
+        let secondIntent = try XCTUnwrap(try intentStore.load())
+        XCTAssertEqual(secondIntent.phase, .pointerSwitched)
+        XCTAssertEqual(secondIntent.oldGenerationID, target.generationID)
+        XCTAssertEqual(secondIntent.newGenerationID, secondGenerationID)
+        XCTAssertEqual(secondIntent.restoreID, secondRestoreID)
+        XCTAssertNotEqual(secondIntent.restoreID, firstIntent.restoreID)
+        XCTAssertNotEqual(secondIntent.newGenerationID, firstIntent.newGenerationID)
+        XCTAssertEqual(try CurrentPointerCodecV1.decode(Data(contentsOf: pointerURL)).generationID,
+                       secondGenerationID.uuidString.lowercased())
+        let publishedRecovery = try BackupRestoreService(
+            applicationSupportURL: targetSupport,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })
+        )
+        fixtureLifetime.retain(publishedRecovery)
+        let recoveredSession = try await publishedRecovery
+            .reconcileRestoreAndPrivateSystemDiscoveryAtStartup()
+        let restored = try XCTUnwrap(recoveredSession)
+        fixtureLifetime.retain(restored)
+        XCTAssertNil(try intentStore.load())
+        XCTAssertEqual(try CurrentPointerCodecV1.decode(Data(contentsOf: pointerURL)).generationID,
+                       restored.generationID.uuidString.lowercased())
+        XCTAssertFalse(FileManager.default.fileExists(atPath: targetSupport
+            .appendingPathComponent("FieldEvidenceRestore/portable-exchange-restore.json").path))
         XCTAssertEqual(restored.workspaceID, target.workspaceID)
 
         let restoredRows = try restored.modelContext.fetch(FetchDescriptor<MutationReceiptRow>())
         let decodedRows = try restoredRows.map { row in
             (row, try MutationEnvelopeV1.decodeCanonical(from: row.envelopeData))
         }
+        let destinationChronology = try decodedRows
+            .filter { $0.1.workspaceID == target.workspaceID }
+            .map { row, envelope in
+                (envelope, try MutationReceiptV1.decodeCanonical(from: row.receiptData))
+            }
+            .sorted {
+                $0.1.expectedRevision.workspaceRevision
+                    < $1.1.expectedRevision.workspaceRevision
+            }
+        XCTAssertEqual(destinationChronology.map { $0.0.sourceKind },
+                       [.localUser, .localUser, .importedHistory])
+        XCTAssertEqual(destinationChronology.count, 3)
+        if destinationChronology.count == 3 {
+            XCTAssertEqual(
+                destinationChronology[2].1.expectedRevision.workspaceRevision,
+                destinationChronology[1].1.resultingRevision.workspaceRevision
+            )
+        }
+        let restoredJournal = try MutationJournalStoreV1(
+            modelContext: restored.modelContext,
+            identity: restored.workspaceIdentity,
+            generationID: restored.generationID
+        )
+        let authenticatedHistory = try restoredJournal.exportSnapshot()
+        try MutationJournalStoreV1.validateImportedSnapshot(authenticatedHistory)
+        // Real exported mixed history is the oracle; ordering preserves every
+        // envelope, receipt and optional reversal-sidecar byte.
+        XCTAssertEqual(
+            try MutationJournalStoreV1.canonicalArchiveReceiptOrder(
+                Array(authenticatedHistory.receipts.reversed())),
+            authenticatedHistory.receipts
+        )
+        let receiptToDuplicate = try XCTUnwrap(authenticatedHistory.receipts.first)
+        XCTAssertThrowsError(try MutationJournalStoreV1.canonicalArchiveReceiptOrder(
+            authenticatedHistory.receipts + [receiptToDuplicate]
+        ))
+        let retainedPartyRecord = try XCTUnwrap(authenticatedHistory.receipts.first {
+            guard let envelope = try? MutationEnvelopeV1.decodeCanonical(
+                from: $0.envelopeData
+            ) else { return false }
+            return envelope.command.kind == .applyPartyAccountability
+                && envelope.workspaceID == target.workspaceID
+        })
+        XCTAssertEqual(retainedPartyRecord, originalRetainedPartyRecord,
+                       "Replacement must retain the incumbent party envelope, receipt, and sidecars byte-for-byte")
+        let retainedPartyIdentity = try WorkspaceEntityIdentityV1(
+            kind: .serviceParty, id: retainedParty.partyID
+        )
+        let retainedContactIdentity = try WorkspaceEntityIdentityV1(
+            kind: .serviceContactPoint, id: retainedContact.contactPointID
+        )
+        let retainedPartyTerminal = try XCTUnwrap(authenticatedHistory.entityRevisions.first {
+            $0.identity == retainedPartyIdentity
+        })
+        let retainedContactTerminal = try XCTUnwrap(authenticatedHistory.entityRevisions.first {
+            $0.identity == retainedContactIdentity
+        })
+        XCTAssertEqual(retainedPartyTerminal.revision, retainedParty.revision)
+        XCTAssertEqual(retainedContactTerminal.revision, retainedContact.revision)
+        XCTAssertEqual(retainedPartyTerminal.externalProjectionSHA256,
+                       try MutationJournalStoreV1.restoreTombstoneSHA256(
+                           identity: retainedPartyIdentity, revision: retainedParty.revision
+                       ))
+        XCTAssertEqual(retainedContactTerminal.externalProjectionSHA256,
+                       try MutationJournalStoreV1.restoreTombstoneSHA256(
+                           identity: retainedContactIdentity, revision: retainedContact.revision
+                       ))
+        let retainedPartyEnvelope = try MutationEnvelopeV1.decodeCanonical(
+            from: retainedPartyRecord.envelopeData
+        )
+        let retainedPartyReceipt = try MutationReceiptV1.decodeCanonical(
+            from: retainedPartyRecord.receiptData
+        )
+        func reissuedPartyHistory(
+            expectedWorkspaceRevision: UInt64,
+            resultingWorkspaceRevision: UInt64
+        ) throws -> MutationHistorySnapshotV1 {
+            let expected = try WorkspaceExpectedRevisionV1(
+                workspaceID: retainedPartyEnvelope.workspaceID,
+                generationID: retainedPartyEnvelope.generationID,
+                writerInstanceID: retainedWriterInstanceID,
+                workspaceRevision: expectedWorkspaceRevision,
+                entityRevisions: retainedPartyEnvelope.expectedRevision.entityRevisions
+            )
+            let request = WorkspaceMutationRequestV1(
+                mutationID: retainedPartyEnvelope.mutationID,
+                expectedRevision: expected,
+                command: retainedPartyEnvelope.command
+            )
+            let envelope = try MutationEnvelopeV1(
+                request: request,
+                identity: WorkspaceReplicaIdentityV1(
+                    workspaceID: retainedPartyEnvelope.workspaceID,
+                    replicaID: retainedPartyEnvelope.replicaID
+                ),
+                sourceKind: retainedPartyEnvelope.sourceKind,
+                contentDependencyIDs: retainedPartyEnvelope.contentDependencyIDs,
+                causationMutationID: retainedPartyEnvelope.causationMutationID,
+                correlationID: retainedPartyEnvelope.correlationID
+            )
+            let resulting = try MutationPortableExpectedRevisionV1(
+                WorkspaceExpectedRevisionV1(
+                    workspaceID: retainedPartyReceipt.resultingRevision.workspaceID,
+                    generationID: retainedPartyReceipt.resultingRevision.generationID,
+                    writerInstanceID: retainedWriterInstanceID,
+                    workspaceRevision: resultingWorkspaceRevision,
+                    entityRevisions: retainedPartyReceipt.resultingRevision.entityRevisions
+                )
+            )
+            let receipt = try MutationReceiptV1(
+                identity: retainedPartyReceipt.identity,
+                envelope: envelope,
+                resultingRevision: resulting,
+                postImages: retainedPartyReceipt.postImages,
+                committedAt: retainedPartyReceipt.committedAt
+            )
+            let record = MutationHistoryReceiptRecordV1(
+                envelopeData: try envelope.canonicalData(),
+                receiptData: try receipt.canonicalData(),
+                reversalBasisData: retainedPartyRecord.reversalBasisData,
+                semanticReversalData: retainedPartyRecord.semanticReversalData
+            )
+            return MutationHistorySnapshotV1(
+                workspaceRevision: max(
+                    authenticatedHistory.workspaceRevision,
+                    resultingWorkspaceRevision
+                ),
+                lastLocalSequence: authenticatedHistory.lastLocalSequence,
+                receipts: authenticatedHistory.receipts.map {
+                    $0 == retainedPartyRecord ? record : $0
+                },
+                quarantines: authenticatedHistory.quarantines,
+                entityRevisions: authenticatedHistory.entityRevisions
+            )
+        }
+        let rehashedDuplicate = try reissuedPartyHistory(
+            expectedWorkspaceRevision: 1, resultingWorkspaceRevision: 2
+        )
+        let rehashedGap = try reissuedPartyHistory(
+            expectedWorkspaceRevision: 4, resultingWorkspaceRevision: 5
+        )
+        XCTAssertThrowsError(try MutationJournalStoreV1.validateImportedSnapshot(rehashedDuplicate))
+        XCTAssertThrowsError(try MutationJournalStoreV1.validateImportedSnapshot(rehashedGap))
+        let duplicateHistory = MutationHistorySnapshotV1(
+            workspaceRevision: authenticatedHistory.workspaceRevision,
+            lastLocalSequence: authenticatedHistory.lastLocalSequence,
+            receipts: authenticatedHistory.receipts
+                + [try XCTUnwrap(authenticatedHistory.receipts.last)],
+            quarantines: authenticatedHistory.quarantines,
+            entityRevisions: authenticatedHistory.entityRevisions
+        )
+        XCTAssertThrowsError(try MutationJournalStoreV1.validateImportedSnapshot(duplicateHistory))
+        let retainedContactRecord = try XCTUnwrap(authenticatedHistory.receipts.first {
+            guard let envelope = try? MutationEnvelopeV1.decodeCanonical(
+                from: $0.envelopeData
+            ) else { return false }
+            return envelope.command.kind == .applyOperationalContact
+                && envelope.workspaceID == target.workspaceID
+        })
+        XCTAssertEqual(retainedContactRecord, originalRetainedContactRecord,
+                       "Replacement must retain the incumbent contact envelope, receipt, and sidecars byte-for-byte")
+        let gappedHistory = MutationHistorySnapshotV1(
+            workspaceRevision: authenticatedHistory.workspaceRevision,
+            lastLocalSequence: authenticatedHistory.lastLocalSequence,
+            receipts: authenticatedHistory.receipts.filter { $0 != retainedContactRecord },
+            quarantines: authenticatedHistory.quarantines,
+            entityRevisions: authenticatedHistory.entityRevisions
+        )
+        XCTAssertThrowsError(try MutationJournalStoreV1.validateImportedSnapshot(gappedHistory))
         let importedCompounds = decodedRows.filter { row, envelope in
             envelope.sourceKind == .importedHistory
                 && envelope.command.kind == .applyPartyContactSiteRoleImport
@@ -1861,6 +2953,39 @@ final class C32OperationalContactRestoreBoundaryTests: XCTestCase {
         XCTAssertEqual(reboundContact.party, reboundParty)
         XCTAssertEqual(reboundContact.mutationID, rebound.mutationID)
         XCTAssertEqual(reboundContact.displayValue, "restore.operator@example.test")
+        XCTAssertTrue(try restored.modelContext.fetch(FetchDescriptor<ServicePartyRow>())
+            .filter { $0.partyID == retainedParty.partyID }.isEmpty)
+        XCTAssertTrue(try restored.modelContext.fetch(FetchDescriptor<ServiceContactPointRow>())
+            .filter { $0.contactPointID == retainedContact.contactPointID }.isEmpty)
+        let restoredReceiptImages = try MutationJournalStoreV1.receiptTerminalImages(
+            in: authenticatedHistory, workspaceID: target.workspaceID
+        )
+        let reboundPartyIdentity = try WorkspaceEntityIdentityV1(
+            kind: .serviceParty, id: reboundParty.partyID
+        )
+        let reboundContactIdentity = try WorkspaceEntityIdentityV1(
+            kind: .serviceContactPoint, id: reboundContact.contactPointID
+        )
+        let reboundPartyTerminal = try XCTUnwrap(authenticatedHistory.entityRevisions.first {
+            $0.identity == reboundPartyIdentity
+        })
+        let reboundContactTerminal = try XCTUnwrap(authenticatedHistory.entityRevisions.first {
+            $0.identity == reboundContactIdentity
+        })
+        let reboundPartyDigest = try PersistedMutationPostImageDigestV1.sha256(
+            identity: reboundPartyIdentity, revision: reboundParty.revision,
+            value: reboundParty
+        )
+        XCTAssertEqual(
+            reboundPartyTerminal.externalProjectionSHA256
+                ?? restoredReceiptImages[reboundPartyIdentity]?.semanticSHA256,
+            reboundPartyDigest
+        )
+        XCTAssertEqual(
+            reboundContactTerminal.externalProjectionSHA256
+                ?? restoredReceiptImages[reboundContactIdentity]?.semanticSHA256,
+            reboundContact.contactPointSHA256
+        )
         XCTAssertEqual(reboundRole.workspaceID, target.workspaceID)
         XCTAssertEqual(reboundRole.siteID, siteID)
         XCTAssertEqual(reboundRole.partyID, reboundParty.partyID)
@@ -1873,6 +2998,24 @@ final class C32OperationalContactRestoreBoundaryTests: XCTestCase {
             generationID: restored.generationID,
             allowStateBootstrap: false
         ).validateAll()
+    }
+}
+
+/// Retains actual interrupted restore owners and their private root; a
+/// pre-publication discard proves canonical state, not descriptor closure.
+@MainActor
+private final class C32RestoreFixtureRetentionV1 {
+    private static var retainedUntilHostTermination: [C32RestoreFixtureRetentionV1] = []
+    let root: URL
+    private var owners: [Any] = []
+
+    init(root: URL) {
+        self.root = root
+        Self.retainedUntilHostTermination.append(self)
+    }
+
+    func retain(_ owner: Any) {
+        owners.append(owner)
     }
 }
 

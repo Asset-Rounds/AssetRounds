@@ -776,6 +776,8 @@ final class WholeSignDeletionService {
     private let ledgerStore: DeletionLedgerStore
     private let writerLeaseHandle: GenerationLeaseHandleV1?
     private let staleWriterFence: StaleWriterFenceV1?
+    private weak var sharedWriterOwner: StoreSessionCoordinator?
+    private let requiresSharedWriterOwner: Bool
     private let allowsLegacyXCTestFallback: Bool
     private let now: () -> Date
     private let makeUUID: () -> UUID
@@ -818,6 +820,14 @@ final class WholeSignDeletionService {
         failureInjection: WholeSignDeletionFailureInjection? = nil,
         assetLabelPublishedOutputRemoval: AssetLabelPublishedOutputRemovalV1? = nil
     ) {
+        // Historical callers can use only the exact coordinator that minted
+        // dependencies.writer. A missing/foreign owner stays fail-closed; it
+        // must never cause this initializer to acquire a second writer lease.
+        let owner = StoreSessionCoordinator.temporalOwner(for: dependencies.writer)
+        let fence = owner.flatMap {
+            try? $0.wholeSignDeletionSharedFence(
+                expectedContext: modelContext, dependencies: dependencies)
+        }
         self.init(
             modelContext: modelContext,
             generationRootURL: dependencies.generationRootURL,
@@ -826,7 +836,36 @@ final class WholeSignDeletionService {
             makeUUID: dependencies.idSource.makeID,
             failureInjection: failureInjection,
             assetLabelPublishedOutputRemoval: assetLabelPublishedOutputRemoval,
-            lifecycleRoute: .live(dependencies: dependencies)
+            lifecycleRoute: .live(dependencies: dependencies),
+            sharedWriterOwner: fence == nil ? nil : owner,
+            sharedWriterFence: fence
+        )
+    }
+
+    /// Production composition supplies its actual Router-published owner.
+    /// This throws before constructing a service if context, writer, epoch or
+    /// root is stale or foreign.
+    convenience init(
+        modelContext: ModelContext,
+        lifecycleDependencies dependencies: WorkspacePackageLifecycleDependenciesV1,
+        storeSession: StoreSessionCoordinator,
+        fileManager: FileManager = .default,
+        failureInjection: WholeSignDeletionFailureInjection? = nil,
+        assetLabelPublishedOutputRemoval: AssetLabelPublishedOutputRemovalV1? = nil
+    ) throws {
+        let fence = try storeSession.wholeSignDeletionSharedFence(
+            expectedContext: modelContext, dependencies: dependencies)
+        self.init(
+            modelContext: modelContext,
+            generationRootURL: dependencies.generationRootURL,
+            fileManager: fileManager,
+            now: dependencies.clock.now,
+            makeUUID: dependencies.idSource.makeID,
+            failureInjection: failureInjection,
+            assetLabelPublishedOutputRemoval: assetLabelPublishedOutputRemoval,
+            lifecycleRoute: .live(dependencies: dependencies),
+            sharedWriterOwner: storeSession,
+            sharedWriterFence: fence
         )
     }
 
@@ -838,7 +877,9 @@ final class WholeSignDeletionService {
         makeUUID: @escaping () -> UUID = UUID.init,
         failureInjection: WholeSignDeletionFailureInjection? = nil,
         assetLabelPublishedOutputRemoval: AssetLabelPublishedOutputRemovalV1?,
-        lifecycleRoute: WholeSignDeletionLifecycleRouteV1
+        lifecycleRoute: WholeSignDeletionLifecycleRouteV1,
+        sharedWriterOwner: StoreSessionCoordinator? = nil,
+        sharedWriterFence: StaleWriterFenceV1? = nil
     ) {
         self.modelContext = modelContext
         ledgerStore = DeletionLedgerStore(context: modelContext)
@@ -847,6 +888,12 @@ final class WholeSignDeletionService {
         self.makeUUID = makeUUID
         self.failureInjection = failureInjection
         self.lifecycleRoute = lifecycleRoute
+        self.sharedWriterOwner = sharedWriterOwner
+        if case .live = lifecycleRoute {
+            requiresSharedWriterOwner = true
+        } else {
+            requiresSharedWriterOwner = false
+        }
         self.fileManager = fileManager
 
         let root = generationRootURL.standardizedFileURL
@@ -928,39 +975,47 @@ final class WholeSignDeletionService {
             generationID = parsed
             files = fileAuthority
             journal = journalAuthority
-            do {
-                let generationFactory = StoreGenerationFactory(
-                    applicationSupportURL: applicationSupport
-                )
-                let registry = try generationFactory
-                    .makeGenerationLeaseRegistry()
-                let epoch = try generationFactory.currentGenerationEpoch()
-                guard epoch.generationID == parsed else {
-                    throw GenerationLeaseRegistryFailureV1.staleGeneration
-                }
-                let leaseHandle = try registry.acquireHandle(
-                    epoch: epoch,
-                    role: .writer
-                )
+            if requiresSharedWriterOwner {
+                // The live path uses only its exact coordinator's fence. A
+                // missing binding is rejected by requireAuthority; it cannot
+                // fall through to an independent lease or XCTest fallback.
+                derivedWriterLeaseHandle = nil
+                derivedStaleWriterFence = sharedWriterFence
+            } else {
                 do {
-                    derivedStaleWriterFence = try generationFactory
-                        .makeWriterFence(
-                            expectedGenerationEpoch: epoch,
-                            writerLeaseToken: leaseHandle.token,
-                            registry: registry
-                        )
-                    derivedWriterLeaseHandle = leaseHandle
+                    let generationFactory = StoreGenerationFactory(
+                        applicationSupportURL: applicationSupport
+                    )
+                    let registry = try generationFactory
+                        .makeGenerationLeaseRegistry()
+                    let epoch = try generationFactory.currentGenerationEpoch()
+                    guard epoch.generationID == parsed else {
+                        throw GenerationLeaseRegistryFailureV1.staleGeneration
+                    }
+                    let leaseHandle = try registry.acquireHandle(
+                        epoch: epoch,
+                        role: .writer
+                    )
+                    do {
+                        derivedStaleWriterFence = try generationFactory
+                            .makeWriterFence(
+                                expectedGenerationEpoch: epoch,
+                                writerLeaseToken: leaseHandle.token,
+                                registry: registry
+                            )
+                        derivedWriterLeaseHandle = leaseHandle
+                    } catch {
+                        // Retain a lease whose fence could not be constructed.
+                        // Releasing it here could fail ambiguously; keeping it is
+                        // fail-closed and prevents this service from authorizing
+                        // deletion or making the generation prune-eligible.
+                        derivedWriterLeaseHandle = leaseHandle
+                        derivedStaleWriterFence = nil
+                    }
                 } catch {
-                    // Retain a lease whose fence could not be constructed.
-                    // Releasing it here could fail ambiguously; keeping it is
-                    // fail-closed and prevents this service from authorizing
-                    // deletion or making the generation prune-eligible.
-                    derivedWriterLeaseHandle = leaseHandle
+                    derivedWriterLeaseHandle = nil
                     derivedStaleWriterFence = nil
                 }
-            } catch {
-                derivedWriterLeaseHandle = nil
-                derivedStaleWriterFence = nil
             }
         } else {
             generationID = UUID()
@@ -972,6 +1027,18 @@ final class WholeSignDeletionService {
     }
 
     func delete(assetID: UUID) async throws -> WholeSignDeletionOutcome {
+        if requiresSharedWriterOwner {
+            guard let sharedWriterOwner else {
+                throw WholeSignDeletionServiceError.invalidGeneration
+            }
+            return try await sharedWriterOwner.withTemporalProducer {
+                try await self.deleteAdmittedAsset(assetID: assetID)
+            }
+        }
+        return try await deleteAdmittedAsset(assetID: assetID)
+    }
+
+    private func deleteAdmittedAsset(assetID: UUID) async throws -> WholeSignDeletionOutcome {
         try IntegrationProjectionOrdinaryDeletionPolicyV1.validate()
         try EvidenceQualityWholeSignDeletionPolicyV1.validate()
         try FastSurveyInboxWholeSignDeletionPolicyV1.validate()
@@ -1089,10 +1156,22 @@ final class WholeSignDeletionService {
         do {
             try inject(.committedPhase)
             try journal.replace(plan.intent.withPhase(.databaseCommitted))
+#if DEBUG
+            debugDeletionPhase("asset.cleanup.enter")
+#endif
             try await cleanup(plan.intent.withPhase(.databaseCommitted))
+#if DEBUG
+            debugDeletionPhase("asset.cleanup.complete")
+#endif
         } catch let error as WholeSignDeletionServiceError {
+#if DEBUG
+            debugDeletionPhase("asset.postcommit.failure", error: error)
+#endif
             throw error
         } catch {
+#if DEBUG
+            debugDeletionPhase("asset.postcommit.failure", error: error)
+#endif
             throw WholeSignDeletionServiceError.cleanupFailed
         }
         guard mutationHistoryAuthorityMatches(
@@ -1101,22 +1180,46 @@ final class WholeSignDeletionService {
         ) else {
             throw WholeSignDeletionServiceError.journalInvalid
         }
+#if DEBUG
+        debugDeletionPhase("asset.discovery.enter")
+#endif
         try await removePrivateSystemDiscovery(
             deletionID: plan.intent.deletionID,
             subjectKind: "ASSET",
             subjectID: plan.intent.assetID,
             generationID: plan.intent.generationID
         )
+#if DEBUG
+        debugDeletionPhase("asset.discovery.complete")
+        debugDeletionPhase("asset.search.enter")
+#endif
         try await purgeSearchProjectionAfterDeletion()
+#if DEBUG
+        debugDeletionPhase("asset.search.complete")
+        debugDeletionPhase("asset.integration.enter")
+#endif
         try await purgeIntegrationProjectionAfterDeletion()
+#if DEBUG
+        debugDeletionPhase("asset.integration.complete")
+        debugDeletionPhase("asset.journal-removal.enter")
+#endif
         do {
             try inject(.journalRemoval)
             try journal.remove(plan.intent.withPhase(.databaseCommitted))
         } catch let error as WholeSignDeletionServiceError {
+#if DEBUG
+            debugDeletionPhase("asset.journal-removal.failure", error: error)
+#endif
             throw error
         } catch {
+#if DEBUG
+            debugDeletionPhase("asset.journal-removal.failure", error: error)
+#endif
             throw WholeSignDeletionServiceError.cleanupFailed
         }
+#if DEBUG
+        debugDeletionPhase("asset.journal-removal.complete")
+#endif
         return WholeSignDeletionOutcome(
             assetID: assetID,
             deletionID: deletionID,
@@ -1163,6 +1266,20 @@ final class WholeSignDeletionService {
     }
 
     func deleteSite(
+        preview: ExplicitSiteDeletionPreviewV1
+    ) async throws -> ExplicitSiteDeletionOutcomeV1 {
+        if requiresSharedWriterOwner {
+            guard let sharedWriterOwner else {
+                throw WholeSignDeletionServiceError.invalidGeneration
+            }
+            return try await sharedWriterOwner.withTemporalProducer {
+                try await self.deleteAdmittedSite(preview: preview)
+            }
+        }
+        return try await deleteAdmittedSite(preview: preview)
+    }
+
+    private func deleteAdmittedSite(
         preview: ExplicitSiteDeletionPreviewV1
     ) async throws -> ExplicitSiteDeletionOutcomeV1 {
         try IntegrationProjectionOrdinaryDeletionPolicyV1.validate()
@@ -1358,6 +1475,9 @@ final class WholeSignDeletionService {
             }
             try await searchIndexStore.purgeWorkspace(workspaceID)
         } catch {
+#if DEBUG
+            debugDeletionPhase("search.purge.failure", error: error)
+#endif
             throw WholeSignDeletionServiceError.cleanupFailed
         }
     }
@@ -1399,7 +1519,12 @@ final class WholeSignDeletionService {
             priorStateSHA256: inputSHA256, requestedAt: now()
         )
         do { try await ledgerStore.removePrivateSystemDiscovery(request: request) }
-        catch { throw WholeSignDeletionServiceError.cleanupFailed }
+        catch {
+#if DEBUG
+            debugDeletionPhase("discovery.remove.failure", error: error)
+#endif
+            throw WholeSignDeletionServiceError.cleanupFailed
+        }
     }
 
     private func purgeIntegrationProjectionAfterDeletion() async throws {
@@ -1427,11 +1552,26 @@ final class WholeSignDeletionService {
                 workspaceID: workspaceID
             )
         } catch {
+#if DEBUG
+            debugDeletionPhase("integration.purge.failure", error: error)
+#endif
             throw WholeSignDeletionServiceError.cleanupFailed
         }
     }
 
     func reconcile() async throws -> WholeSignDeletionRecoverySummary {
+        if requiresSharedWriterOwner {
+            guard let sharedWriterOwner else {
+                throw WholeSignDeletionServiceError.invalidGeneration
+            }
+            return try await sharedWriterOwner.withTemporalProducer {
+                try await self.reconcileAdmittedDeletion()
+            }
+        }
+        return try await reconcileAdmittedDeletion()
+    }
+
+    private func reconcileAdmittedDeletion() async throws -> WholeSignDeletionRecoverySummary {
         try requireAuthority()
         guard !modelContext.hasChanges else {
             throw WholeSignDeletionServiceError.contextHasChanges
@@ -1590,6 +1730,24 @@ final class WholeSignDeletionService {
               files.generationID == generationID else {
             throw WholeSignDeletionServiceError.invalidGeneration
         }
+        if requiresSharedWriterOwner {
+            guard writerLeaseHandle == nil,
+                  let sharedWriterOwner,
+                  let staleWriterFence,
+                  case let .live(dependencies) = lifecycleRoute else {
+                throw WholeSignDeletionServiceError.invalidGeneration
+            }
+            do {
+                guard try sharedWriterOwner.wholeSignDeletionSharedFence(
+                    expectedContext: modelContext,
+                    dependencies: dependencies) === staleWriterFence else {
+                    throw WholeSignDeletionServiceError.invalidGeneration
+                }
+            } catch {
+                throw WholeSignDeletionServiceError.invalidGeneration
+            }
+            return
+        }
         if let writerLeaseHandle, let staleWriterFence {
             guard writerLeaseHandle.token
                     == staleWriterFence.writerLeaseToken,
@@ -1620,6 +1778,35 @@ final class WholeSignDeletionService {
     /// SwiftData commit. Journal phase publication and file cleanup remain
     /// outside it, and no suspension is possible while it is held.
     private func saveStagedMutationWithAuthority() throws {
+        if requiresSharedWriterOwner {
+            guard let sharedWriterOwner,
+                  let staleWriterFence,
+                  case let .live(dependencies) = lifecycleRoute else {
+                throw WholeSignDeletionServiceError.invalidGeneration
+            }
+            do {
+                try sharedWriterOwner.withWholeSignDeletionCommit(
+                    expectedContext: modelContext,
+                    dependencies: dependencies,
+                    expectedFence: staleWriterFence
+                ) { [self] in
+                    try stageMutationSemanticState()
+                    try inject(.databaseSave)
+                    try modelContext.save()
+                }
+            } catch let failure as GenerationLeaseRegistryFailureV1 {
+                switch failure {
+                case .staleGeneration, .leaseNotActive, .wrongLeaseRole:
+                    throw WholeSignDeletionServiceError.invalidGeneration
+                case .invalidContract, .invalidPath, .invalidIdentity,
+                        .corruptRegistry, .registryLimitExceeded,
+                        .duplicateLease, .uncertainOwner,
+                        .protectedDataUnavailable:
+                    throw WholeSignDeletionServiceError.saveFailed
+                }
+            }
+            return
+        }
         if let staleWriterFence {
             do {
                 try staleWriterFence.withAuthorizedCommit { [self] in
@@ -1669,7 +1856,22 @@ final class WholeSignDeletionService {
         }
     }
 
+#if DEBUG
+    /// Fixed stage labels and error metadata only: never log paths, identifiers,
+    /// records, or error descriptions from a protected deletion operation.
+    private func debugDeletionPhase(_ stage: StaticString, error: Error? = nil) {
+        if let error {
+            print("V23_WHOLE_SIGN_DELETE_PHASE_V1 stage=\(stage) failureType=\(String(reflecting: type(of: error))) code=\((error as NSError).code)")
+        } else {
+            print("V23_WHOLE_SIGN_DELETE_PHASE_V1 stage=\(stage)")
+        }
+    }
+#endif
+
     private func cleanup(_ intent: DeletionIntentV1) async throws {
+#if DEBUG
+        debugDeletionPhase("cleanup.accepted-label.enter")
+#endif
         if !intent.acceptedLabelOutputCleanups.isEmpty {
             let snapshotIdentities = try Set(intent.acceptedLabelOutputCleanups.map {
                 try DeletionIdentityV2(
@@ -1704,6 +1906,9 @@ final class WholeSignDeletionService {
                 }
             }
         }
+#if DEBUG
+        debugDeletionPhase("cleanup.paths.enter")
+#endif
         for path in intent.relativePaths {
             try inject(.fileCleanup)
             do {
@@ -1712,6 +1917,9 @@ final class WholeSignDeletionService {
                 throw WholeSignDeletionServiceError.cleanupFailed
             }
         }
+#if DEBUG
+        debugDeletionPhase("cleanup.evidence-bundles.enter")
+#endif
         let evidenceIDs = Set(intent.relativePaths.compactMap { path -> UUID? in
             let components = path.split(separator: "/").map(String.init)
             guard components.count == 3, components[0] == "evidence" else { return nil }
@@ -1721,6 +1929,9 @@ final class WholeSignDeletionService {
             do { try files.removeEvidenceBundleIfEmpty(id: id) }
             catch { throw WholeSignDeletionServiceError.cleanupFailed }
         }
+#if DEBUG
+        debugDeletionPhase("cleanup.scratch.enter")
+#endif
         do {
             try AssetLabelDerivedScratchCleanupV1(
                 generationRootURL: generationRootURL,
@@ -1729,6 +1940,9 @@ final class WholeSignDeletionService {
         } catch {
             throw WholeSignDeletionServiceError.cleanupFailed
         }
+#if DEBUG
+        debugDeletionPhase("cleanup.portable-exchange.enter")
+#endif
         do {
             let workspaceID: WorkspaceID?
             switch lifecycleRoute {
@@ -1761,10 +1975,19 @@ final class WholeSignDeletionService {
                 }
             }
         } catch let error as WholeSignDeletionServiceError {
+#if DEBUG
+            debugDeletionPhase("cleanup.portable-exchange.failure", error: error)
+#endif
             throw error
         } catch {
+#if DEBUG
+            debugDeletionPhase("cleanup.portable-exchange.failure", error: error)
+#endif
             throw WholeSignDeletionServiceError.cleanupFailed
         }
+#if DEBUG
+        debugDeletionPhase("cleanup.portable-exchange.complete")
+#endif
     }
 }
 

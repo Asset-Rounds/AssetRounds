@@ -429,14 +429,506 @@ enum EraseAllServiceError: Error, Equatable {
     case injectedFailure
 }
 
+/// Retains actual exclusions and exact unclosed resources while every strong
+/// SwiftData alias leaves its owning scope. No arbitrary Error is retained.
+@MainActor
+final class EraseSessionRetirementV1 {
+    enum Phase: Equatable { case waitingForAliases, closingLeases, closeFailed, retired }
+    enum FailureBoundary: String { case readerAllocation, readerLease, writerLease, emptyCensus }
+    private(set) var phase: Phase = .waitingForAliases
+    private(set) var failureBoundary: FailureBoundary?
+    let binding: EraseRetirementBindingV1
+    private let exclusion: EraseRetirementExclusionV1
+    private let drain: EraseSessionDrainWitnessV1
+    private let frozenIntent: EraseIntentV1
+    private var pendingAllocations: [GenerationLeaseAllocationAttemptV1]
+    private var pendingReaders: [GenerationLeaseHandleV1]
+    private var proof: ErasedRegistryRetirementProofV1?
+
+    fileprivate init(exclusion: EraseRetirementExclusionV1, drain: EraseSessionDrainWitnessV1,
+                     intent: EraseIntentV1, intentStore: EraseIntentStore,
+                     observation: EraseIntentStore.RetirementObservation) throws {
+        guard EraseIntentCodecV1.valid(intent),
+              intent.phase == .sessionActivated || intent.phase == .cleanupComplete,
+              intent.eraseID == drain.binding.subject.eraseID,
+              intent.newGenerationID == drain.binding.subject.newGenerationID,
+              observation.intent == intent else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try exclusion.requireSupport(binding: drain.binding)
+        try intentStore.requireRetirementObservation(observation)
+        frozenIntent = intent
+        binding = drain.binding
+        self.exclusion = exclusion
+        self.drain = drain
+        pendingAllocations = drain.capturedAllocations
+        let allocated = drain.capturedAllocations.compactMap { $0.allocatedHandle }
+        pendingReaders = drain.capturedReaders.filter { reader in
+            !allocated.contains(where: { $0 === reader })
+        }
+    }
+
+    func ownsProof(_ value: ErasedRegistryRetirementProofV1) -> Bool {
+        phase == .retired && proof === value
+    }
+
+    /// This is called only after the context-bearing producer/service frames
+    /// have returned. A retained original or private reader remains pending.
+    func validateAndAdvance(factory: StoreGenerationFactory,
+        authority: StoreRestoreGenerationAuthority, targetReader: GenerationLeaseHandleV1,
+        manifestScope: EraseCurrentManifestScopeV1) async throws -> ErasedRegistryRetirementProofV1? {
+        if let proof { return proof }
+        guard drain.isActuallyDrained else { return nil }
+        guard try await factory.validateOrResumeEraseTargetAfterOriginalDrain(binding: binding,
+            reader: targetReader, drain: drain, exclusion: exclusion, authority: authority,
+            intent: frozenIntent, manifestScope: manifestScope) else { return nil }
+        return try advanceAfterActualDrain()
+    }
+
+    /// Nil means actual aliases still exist, not a timeout or retry success.
+    /// The same owner must remain reachable across cancellation and failure.
+    func advanceAfterActualDrain() throws -> ErasedRegistryRetirementProofV1? {
+        if let proof { return proof }
+        try exclusion.requireSupport(binding: binding)
+        guard drain.isActuallyDrained else { return nil }
+        phase = .closingLeases
+        do {
+            while let allocation = pendingAllocations.first {
+                failureBoundary = .readerAllocation
+                try exclusion.closeAllocationAfterDrain(allocation: allocation, proof: drain)
+                pendingAllocations.removeFirst()
+            }
+            while let reader = pendingReaders.first {
+                failureBoundary = .readerLease
+                try exclusion.closeReaderAfterDrain(handle: reader, proof: drain)
+                pendingReaders.removeFirst()
+            }
+            failureBoundary = .writerLease
+            try exclusion.closeWriterAfterDrain(proof: drain)
+            failureBoundary = .emptyCensus
+            try exclusion.requireNoLeasesAfterDrain(proof: drain)
+            let value = ErasedRegistryRetirementProofV1(binding: binding,
+                exclusion: exclusion, drain: drain, frozenIntent: frozenIntent)
+            proof = value
+            failureBoundary = nil
+            phase = .retired
+            return value
+        } catch {
+            // Exact remaining handles/attempts and exclusion stay in this owner.
+            // Error values from arbitrary adapters cannot retain old contexts.
+            phase = .closeFailed
+            throw EraseAllServiceError.recoveryRequired
+        }
+    }
+}
+
+/// A consuming, operation-bound physical retirement capability. Metadata
+/// alone cannot create it. Removal retry retains the same capability and EX.
+@MainActor
+final class ErasedRegistryRetirementProofV1 {
+    private enum Phase: Equatable {
+        case ready, manifestPreparing, readyWithOriginalManifest, manifestMoving, manifestPreserved
+        case removingNamespace, namespaceRemoved, releasingManifestResources, released
+        case abandonmentPending, abandoned, closeUncertain
+        case preDeletionAbandonPending, preDeletionAbandoned
+    }
+    let binding: EraseRetirementBindingV1
+    private let exclusion: EraseRetirementExclusionV1
+    private let drain: EraseSessionDrainWitnessV1
+    private let frozenIntent: EraseIntentV1
+    private var phase: Phase = .ready
+    private var manifestAttempt: EraseManifestRetirementAttemptV1?
+    private var manifestStore: StoreMigrationJournalStoreV1?
+    private var freshFactoryClaimed = false
+#if DEBUG
+    // The checked close still calls the real manifest witness, which requires
+    // the physically accurate `.namespaceRemoved` phase. This separate latch
+    // makes the abandon entry one-way before that synchronous close begins.
+    private var abandonmentReleaseEntered = false
+#endif
+
+    fileprivate init(binding: EraseRetirementBindingV1,
+                     exclusion: EraseRetirementExclusionV1,
+                     drain: EraseSessionDrainWitnessV1, frozenIntent: EraseIntentV1) {
+        self.binding = binding
+        self.exclusion = exclusion
+        self.drain = drain
+        self.frozenIntent = frozenIntent
+    }
+
+    func prepareManifestRetirement(using store: StoreMigrationJournalStoreV1) throws
+        -> EraseManifestRetirementAttemptV1 {
+        if phase == .readyWithOriginalManifest || phase == .manifestMoving || phase == .manifestPreserved {
+            guard manifestStore === store, let attempt = manifestAttempt,
+                  attempt.matches(binding: binding, exclusion: exclusion, retirement: self) else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            return attempt // exact retained retry owner, never another constructor
+        }
+        if phase == .ready {
+            try requireCurrentGenerationValidation()
+            let attempt = try store.makeEraseManifestRetirementAttempt(binding: binding,
+                exclusion: exclusion, retirement: self)
+            manifestAttempt = attempt
+            manifestStore = store
+            phase = .manifestPreparing // retained before any descriptor acquisition
+        }
+        guard phase == .manifestPreparing, manifestStore === store,
+              let attempt = manifestAttempt else { throw EraseAllServiceError.invalidAuthority }
+        try attempt.observeOriginalAfterRegistration(retirement: self)
+        try drain.registerManifestRetirement(attempt, retirement: self,
+            exclusion: exclusion, store: store)
+        phase = .readyWithOriginalManifest
+        return attempt
+    }
+
+    func requireManifestAttemptCreation(exclusion expected: EraseRetirementExclusionV1,
+        binding expectedBinding: EraseRetirementBindingV1) throws {
+        guard expected === exclusion, binding == expectedBinding, phase == .ready,
+              manifestAttempt == nil, manifestStore == nil else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try requireCurrentGenerationValidation()
+    }
+
+    func requireManifestPreparation(exclusion expected: EraseRetirementExclusionV1,
+        attempt: EraseManifestRetirementAttemptV1) throws {
+        guard expected === exclusion, phase == .manifestPreparing,
+              manifestAttempt === attempt,
+              attempt.matches(binding: binding, exclusion: exclusion, retirement: self) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        // The witness still uses its original immutable manifest observation
+        // here. Attachment happens only after exact original capture succeeds.
+        try exclusion.requireNoLeasesAfterDrain(proof: drain)
+    }
+
+    func requireManifestRegistration(witness expectedWitness: EraseSessionDrainWitnessV1,
+        attempt: EraseManifestRetirementAttemptV1, store: StoreMigrationJournalStoreV1,
+        exclusion expectedExclusion: EraseRetirementExclusionV1) throws {
+        guard drain === expectedWitness, manifestStore === store else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try requireManifestPreparation(exclusion: expectedExclusion, attempt: attempt)
+    }
+
+    func requireInitialManifestTransfer(exclusion expected: EraseRetirementExclusionV1,
+        attempt: EraseManifestRetirementAttemptV1) throws {
+        guard expected === exclusion, phase == .readyWithOriginalManifest,
+              manifestAttempt === attempt,
+              drain.observesManifestRetirement(attempt),
+              attempt.matches(binding: binding, exclusion: exclusion, retirement: self) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+
+    func requireManifestTransferOwnership(exclusion expected: EraseRetirementExclusionV1,
+        attempt: EraseManifestRetirementAttemptV1) throws {
+        guard expected === exclusion,
+              phase == .manifestMoving || phase == .manifestPreserved,
+              manifestAttempt === attempt,
+              drain.observesManifestRetirement(attempt),
+              attempt.matches(binding: binding, exclusion: exclusion, retirement: self) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        // Deliberately no generic witness call in this retained moving phase.
+    }
+
+    func beginManifestTransfer(attempt: EraseManifestRetirementAttemptV1) throws {
+        try requireInitialManifestTransfer(exclusion: exclusion, attempt: attempt)
+        try exclusion.beginManifestTransfer(retirement: self, attempt: attempt)
+        phase = .manifestMoving // no throwing operation after core registration
+    }
+
+    func recordManifestPreserved(attempt: EraseManifestRetirementAttemptV1) throws {
+        guard phase == .manifestMoving || phase == .manifestPreserved else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try requireManifestTransferOwnership(exclusion: exclusion, attempt: attempt)
+        try exclusion.requireManifestTransferRetry(retirement: self, attempt: attempt)
+        try attempt.requirePreserved(binding: binding, exclusion: exclusion, retirement: self)
+        phase = .manifestPreserved
+    }
+
+    func requireManifestNamespaceRemovalAdmission(exclusion expected: EraseRetirementExclusionV1,
+        attempt: EraseManifestRetirementAttemptV1) throws {
+        guard expected === exclusion, phase == .manifestPreserved,
+              manifestAttempt === attempt, drain.observesManifestRetirement(attempt),
+              attempt.matches(binding: binding, exclusion: exclusion, retirement: self) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        // The complete original control set is still required at this edge.
+        try exclusion.requireNoLeasesAfterDrain(proof: drain)
+    }
+
+    func requireManifestNamespaceRetirementOwnership(exclusion expected: EraseRetirementExclusionV1,
+        attempt: EraseManifestRetirementAttemptV1) throws {
+        guard expected === exclusion,
+              phase == .removingNamespace || phase == .namespaceRemoved,
+              manifestAttempt === attempt, drain.observesManifestRetirement(attempt),
+              attempt.matches(binding: binding, exclusion: exclusion, retirement: self) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        // This is exact consumed removal ownership, not proof that arbitrary
+        // missing controls were valid or that the current manifest is absent.
+    }
+
+    func requireManifestResourceRelease(exclusion expected: EraseRetirementExclusionV1,
+        attempt: EraseManifestRetirementAttemptV1) throws {
+        guard expected === exclusion, phase == .releasingManifestResources,
+              manifestAttempt === attempt, drain.observesManifestRetirement(attempt),
+              attempt.matches(binding: binding, exclusion: exclusion, retirement: self) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        // Actual EX release has already succeeded. No read/access is granted.
+    }
+
+    fileprivate func beginFrozenTargetRemoval(using auxiliary: EraseAuxiliaryAuthority) throws {
+        let support = auxiliary.applicationSupportRootIdentity
+        guard phase == .manifestPreserved,
+              Int64(support.device) == binding.subject.applicationSupportDevice,
+              UInt64(support.inode) == binding.subject.applicationSupportInode,
+              let attempt = manifestAttempt else { throw EraseAllServiceError.invalidAuthority }
+        try exclusion.requireSupport(binding: binding)
+        try drain.requireDrained(binding: binding)
+        try attempt.sealOriginalNamespaceForRemoval(retirement: self)
+        phase = .removingNamespace // no throwing/await gap after consuming seal
+    }
+
+    fileprivate func removeFrozenTargets(using auxiliary: EraseAuxiliaryAuthority) throws {
+        let support = auxiliary.applicationSupportRootIdentity
+        guard Int64(support.device) == binding.subject.applicationSupportDevice,
+              UInt64(support.inode) == binding.subject.applicationSupportInode else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        if phase == .manifestPreserved { try beginFrozenTargetRemoval(using: auxiliary) }
+        guard phase == .removingNamespace else { throw EraseAllServiceError.invalidAuthority }
+        try exclusion.requireSupport(binding: binding)
+        try drain.requireDrained(binding: binding)
+        try auxiliary.removeFrozenTargets(expectedOperationsIdentity: binding.registryIdentity)
+        try requireOperationsAbsent()
+        phase = .namespaceRemoved
+    }
+
+    func requireCurrentGenerationValidation() throws {
+        guard phase == .ready || phase == .readyWithOriginalManifest || phase == .manifestPreserved else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try exclusion.requireNoLeasesAfterDrain(proof: drain)
+    }
+
+    func readPointer(using authority: StoreRestoreGenerationAuthority, name: String) throws -> Data {
+        try requireCurrentGenerationValidation()
+        let data = try authority.readPointerForEraseRetirement(name: name,
+            binding: binding, exclusion: exclusion)
+        try requireCurrentGenerationValidation()
+        return data
+    }
+
+    func readCurrentManifest(using store: StoreMigrationJournalStoreV1,
+        generationID: UUID, expectedDigest: String) throws -> StoreGenerationManifestV1 {
+        try requireCurrentGenerationValidation()
+        guard generationID == binding.subject.newGenerationID,
+              expectedDigest == binding.generationEpoch.generationManifestSHA256 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let manifest: StoreGenerationManifestV1
+        if let attempt = manifestAttempt {
+            guard manifestStore === store else { throw EraseAllServiceError.invalidAuthority }
+            manifest = try attempt.requireCurrentManifest(binding: binding, exclusion: exclusion)
+        } else {
+            manifest = try store.readManifestForEraseRetirement(
+                targetGenerationID: generationID, expectedDigest: expectedDigest,
+                binding: binding, exclusion: exclusion)
+        }
+        try requireCurrentGenerationValidation()
+        return manifest
+    }
+
+    func requireGenerationDeletion(id: UUID, keeping currentID: UUID) throws {
+        try requireCurrentGenerationValidation()
+        guard currentID == frozenIntent.newGenerationID, id != currentID,
+              frozenIntent.generationIDsToDelete.contains(id) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+
+    func requireRetiredPointerClear(expected: [UUID], currentID: UUID) throws {
+        try requireCurrentGenerationValidation()
+        guard currentID == frozenIntent.newGenerationID,
+              expected == frozenIntent.generationIDsToDelete else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+
+    /// The only journal bypass of ordinary registry acquisition is this fixed
+    /// sessionActivated -> cleanupComplete CAS after actual namespace removal.
+    func requireCleanupPhaseWrite(expected: EraseIntentV1,
+                                  replacement: EraseIntentV1) throws {
+#if DEBUG
+        guard !abandonmentReleaseEntered else { throw EraseAllServiceError.invalidAuthority }
+#endif
+        guard phase == .namespaceRemoved,
+              expected.eraseID == binding.subject.eraseID,
+              expected.newGenerationID == binding.subject.newGenerationID,
+              expected == frozenIntent.advancing(to: .sessionActivated),
+              expected.phase == .sessionActivated,
+              replacement == expected.advancing(to: .cleanupComplete) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try drain.requireDrained(binding: binding)
+        try requireOperationsAbsent()
+    }
+
+    func requireCompletionControlRemoval(expected: EraseIntentV1) throws {
+#if DEBUG
+        guard !abandonmentReleaseEntered else { throw EraseAllServiceError.invalidAuthority }
+#endif
+        guard phase == .namespaceRemoved,
+              expected == frozenIntent.advancing(to: .cleanupComplete) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try requireNamespaceAbsent()
+    }
+
+    func requireAlreadyAbsentPreparation(expected: EraseIntentV1) throws {
+        try requireCompletionControlRemoval(expected: expected)
+        guard frozenIntent.phase == .cleanupComplete else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+
+    func requireNamespaceAbsent() throws {
+        guard phase == .namespaceRemoved else { throw EraseAllServiceError.invalidAuthority }
+        try drain.requireDrained(binding: binding)
+        try requireOperationsAbsent()
+    }
+
+    fileprivate func releaseAfterCompletion() throws {
+#if DEBUG
+        guard !abandonmentReleaseEntered else { throw EraseAllServiceError.invalidAuthority }
+#endif
+        if phase == .namespaceRemoved {
+            try requireNamespaceAbsent()
+            let eraseRoot = binding.subject.applicationSupportURL
+                .appendingPathComponent("FieldEvidenceErase", isDirectory: true)
+            var information = stat()
+            guard Darwin.lstat(eraseRoot.path, &information) != 0, errno == ENOENT else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            // Strong drain still observes the actual held manifest descriptors
+            // through this final support-EX release. Closing them comes after.
+            try exclusion.releaseAfterNamespaceRemoval(binding: binding)
+            phase = .releasingManifestResources
+        }
+        guard phase == .releasingManifestResources, let attempt = manifestAttempt else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try attempt.closeAfterExclusionRelease(retirement: self)
+        phase = .released
+    }
+
+#if DEBUG
+    /// This point is after genuine semantic validation/lease retirement,
+    /// before any old-generation unlink or manifest namespace transfer.
+    func requireReadyForPreDeletionAbandonmentForTesting(
+        registry: GenerationLeaseRegistryV1
+    ) throws {
+        guard phase == .ready, manifestAttempt == nil,
+              manifestStore == nil, !freshFactoryClaimed,
+              !abandonmentReleaseEntered else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try exclusion.requirePostRetiredReadyForTesting(
+            proof: self, registry: registry)
+    }
+
+    func requirePreDeletionAbandonmentPendingForTesting(
+        registry: GenerationLeaseRegistryV1
+    ) throws {
+        guard phase == .preDeletionAbandonPending else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+
+    func requirePreDeletionExclusionClosedForTesting(
+        registry: GenerationLeaseRegistryV1
+    ) throws {
+        try requirePreDeletionAbandonmentPendingForTesting(registry: registry)
+        try exclusion.requirePostRetiredColdClosedForTesting(
+            proof: self, registry: registry)
+    }
+
+    func abandonBeforeDeletionForTesting(
+        registry: GenerationLeaseRegistryV1
+    ) throws {
+        // The exact witness/empty census was checked before the Registry
+        // installed its selective fence; it cannot be reentered outside scope.
+        guard phase == .ready, manifestAttempt == nil,
+              manifestStore == nil, !freshFactoryClaimed else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        phase = .preDeletionAbandonPending
+        do {
+            try exclusion.closeBeforeNamespaceRemovalForTesting(proof: self)
+            try registry.unlinkPostRetiredEraseOwnerGuard(proof: self)
+            phase = .preDeletionAbandoned
+        } catch {
+            phase = .closeUncertain
+            throw error
+        }
+    }
+
+    /// A test-host cold restart boundary after real lease retirement and
+    /// namespace removal. It does not remove the Erase root or finish Erase.
+    fileprivate func requireReadyForLateAbandonmentForTesting() throws {
+        guard phase == .namespaceRemoved, !abandonmentReleaseEntered else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try requireNamespaceAbsent()
+    }
+
+    fileprivate func abandonAfterNamespaceRemovalForTesting() throws {
+        try requireReadyForLateAbandonmentForTesting()
+        // Keep the physical phase at `.namespaceRemoved` until the actual
+        // existing release returns: the retained validation attempt calls
+        // requireManifestNamespaceRetirementOwnership during its final drain
+        // and must still see this exact consumed namespace phase. Router,
+        // operation and outer cleanup have already been terminal-poisoned.
+        abandonmentReleaseEntered = true
+        do {
+            try exclusion.abandonAfterNamespaceRemovalForTesting(binding: binding)
+            phase = .abandoned
+        } catch {
+            phase = .closeUncertain
+            throw error
+        }
+    }
+#endif
+
+    func consumeFreshFactoryCreation() throws {
+        guard phase == .released, !freshFactoryClaimed else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        freshFactoryClaimed = true
+    }
+
+    private func requireOperationsAbsent() throws {
+        try exclusion.requireSupport(binding: binding)
+        let root = binding.subject.applicationSupportURL
+            .appendingPathComponent("FieldEvidenceOperations", isDirectory: true)
+        var information = stat()
+        guard Darwin.lstat(root.path, &information) != 0, errno == ENOENT else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try exclusion.requireSupport(binding: binding)
+    }
+}
+
 struct EraseAllOutcome {
-    /// Cleanup retires the pre-cleanup writer before removing its registry.
-    /// After nondeferred completion, install this session through the original
-    /// router ticket or, for a standalone owner, activateAfterErasedCleanup(session:)
-    /// before using the coordinator's writer. Deferred recovery keeps its own
-    /// original drain and cleanup authority.
-    let session: StoreGenerationSession
-    let cleanupDeferred: Bool
+    /// The original Router retains actual retirement ownership. No session
+    /// whose reader namespace is being retired can escape as a usable result.
+    let operation: EraseRouterOperationV1
 }
 
 struct EraseAllOperationSubjectV1: Equatable, Sendable {
@@ -488,6 +980,16 @@ struct AbortedEraseAdmissionReceiptV1: Sendable {
         self.reservation = reservation
         self.originalGenerationID = originalGenerationID
     }
+
+#if DEBUG
+    /// Compares only the original synchronous callback's concrete authority.
+    /// The reservation's equality includes its unforgeable gate owner, mint,
+    /// and configuration revision; this receipt is not a general Equatable.
+    func matchesExactOriginalAuthority(_ other: Self) -> Bool {
+        subject == other.subject && reservation == other.reservation
+            && originalGenerationID == other.originalGenerationID
+    }
+#endif
 }
 
 enum EraseAllFailurePoint: CaseIterable, Equatable, Sendable {
@@ -503,6 +1005,7 @@ enum EraseAllFailurePoint: CaseIterable, Equatable, Sendable {
     case beforeSessionPhaseWrite
     case afterSessionPhaseWrite
     case beforeCleanup
+    case afterSessionRetirementBeforeCleanup
     case afterCleanup
     case beforeCleanupPhaseWrite
     case afterCleanupPhaseWrite
@@ -543,6 +1046,10 @@ final class EraseAllFailureInjection {
     init(failOnceAt point: EraseAllFailurePoint) {
         pending = point
     }
+
+#if DEBUG
+    func isPending(_ point: EraseAllFailurePoint) -> Bool { pending == point }
+#endif
 
     func consume(_ point: EraseAllFailurePoint) -> Bool {
         guard pending == point else { return false }
@@ -594,7 +1101,378 @@ final class EraseAllService {
 
 #if DEBUG
     var erasePhaseDiagnosticForTesting: (@MainActor (String) -> Void)?
+    /// The genuine cold Service's fresh retained-source context supplies a
+    /// value-only before/after refusal readback. Test code never receives its
+    /// ModelContext or retains a reader across the failed cold attempt.
+    var v949RetainedSourceReadbackForTesting:
+        (@MainActor (V949ColdSourceReadbackV1,
+            V949ColdSourceReadbackV1) -> Void)?
+    /// Opt-in only for the two genuine S6 original-owner cold-exit fixtures.
+    /// The witness is captured before the first effect-capable await and
+    /// remains retained if any later control or descriptor close is uncertain.
+    var enableOriginalColdExitWitnessForTesting = false
+    /// Set before the first opt-in observation. A throwing observer may own an
+    /// ambiguously closed descriptor, so this exact original frame remains
+    /// host-retained even when no completed witness can be installed.
+    private var originalColdExitAttempt: (
+        operation: EraseRouterOperationV1,
+        auxiliary: EraseAuxiliaryAuthority,
+        authority: StoreRestoreGenerationAuthority
+    )?
+    private var originalColdExitFrame: EraseOriginalColdExitFrameV1?
     private var eraseDiagnosticPhase = "not-entered"
+    private var interruptedOriginalPreparationFault: EraseAllFailurePoint?
+    private var originalFrameIntentStore: EraseIntentStore?
+    private var originalFrameExpectedIntent: EraseIntentV1?
+    private var originalFrameEmittedAbort = false
+    private weak var originalFrameOperation: EraseRouterOperationV1?
+    private var originalEraseFrameActive = false
+    private weak var originalPreparedForPostRetired: EraseCleanupAfterRetirementV1?
+    private var postRetiredServiceAbandoned = false
+
+    func requirePostRetiredOriginalServiceForTesting(
+        operation: EraseRouterOperationV1
+    ) throws {
+        guard !originalEraseFrameActive, !postRetiredServiceAbandoned,
+              originalFrameOperation === operation,
+              let prepared = originalPreparedForPostRetired,
+              operation.ownsPostRetiredPreparedForTesting(prepared) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+
+    func poisonPostRetiredOriginalServiceForTesting(
+        operation: EraseRouterOperationV1
+    ) throws {
+        try requirePostRetiredOriginalServiceForTesting(operation: operation)
+        postRetiredServiceAbandoned = true
+    }
+
+    func requirePristineOriginalPreparedColdExitForTesting(
+        operation: EraseRouterOperationV1,
+        subject: EraseAllOperationSubjectV1,
+        reservation: AppAccessGateV1.EraseAdoptionToken
+    ) throws {
+        guard !originalEraseFrameActive, !postRetiredServiceAbandoned,
+              !originalFrameEmittedAbort,
+              originalFrameOperation === operation,
+              let prepared = originalPreparedForPostRetired,
+              operation.ownsPostRetiredPreparedForTesting(prepared),
+              originalColdExitFrame != nil,
+              let store = originalFrameIntentStore,
+              let expectedIntent = originalFrameExpectedIntent,
+              expectedIntent.eraseID == subject.eraseID,
+              expectedIntent.newGenerationID == subject.newGenerationID else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try store.requireLiveOriginalColdShutdownIntent(
+            sameOperationAs: expectedIntent)
+        try prepared.requirePristineOriginalPreparedColdExitForTesting(
+            subject: subject, expectedReservation: reservation)
+    }
+
+    func poisonPristineOriginalPreparedColdExitForTesting(
+        operation: EraseRouterOperationV1,
+        subject: EraseAllOperationSubjectV1,
+        reservation: AppAccessGateV1.EraseAdoptionToken
+    ) throws {
+        try requirePristineOriginalPreparedColdExitForTesting(
+            operation: operation, subject: subject,
+            reservation: reservation)
+        guard let prepared = originalPreparedForPostRetired else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try prepared.beginPristineOriginalPreparedColdExitForTesting(
+            subject: subject, expectedReservation: reservation)
+        postRetiredServiceAbandoned = true
+    }
+    private var expectedCompletedAbortFault: EraseAllFailurePoint?
+    private weak var expectedCompletedAbortOperation: EraseRouterOperationV1?
+    private var completedAbortFrame: CompletedAbortFrame?
+
+    private final class CompletedAbortFrame {
+        let nonce = UUID()
+        let expectedFault: EraseAllFailurePoint
+        let operation: EraseRouterOperationV1
+        let auxiliary: EraseAuxiliaryAuthority
+        let generationAuthority: StoreRestoreGenerationAuthority
+        var oldPointer: RestorePointerIdentityV1?
+        var sourceLedger: DeletionLedgerProofV2?
+        var sourceManifestMigrationID: UUID?
+        var sourceManifestRelease: PersistentSchemaReleaseV1?
+        var priorRetired: [UUID] = []
+        var targetID: UUID?
+        var sourceBytes: EraseCompletedAbortSourceBytesV1?
+        var deliveredAbort: AbortedEraseAdmissionReceiptV1?
+        var deliveredAbortCount = 0
+        var uncertain = false
+
+        init(expectedFault: EraseAllFailurePoint,
+             operation: EraseRouterOperationV1,
+             auxiliary: EraseAuxiliaryAuthority,
+             generationAuthority: StoreRestoreGenerationAuthority) {
+            self.expectedFault = expectedFault
+            self.operation = operation
+            self.auxiliary = auxiliary
+            self.generationAuthority = generationAuthority
+        }
+
+        func bindSource(oldPointer: RestorePointerIdentityV1,
+                        sourceLedger: DeletionLedgerProofV2,
+                        priorRetired: [UUID],
+                        before: EraseCompletedAbortSourceBytesV1?,
+                        after: EraseCompletedAbortSourceBytesV1?) {
+            self.oldPointer = oldPointer
+            self.sourceLedger = sourceLedger
+            self.priorRetired = priorRetired
+            guard let before, let after, before == after else {
+                uncertain = true
+                return
+            }
+            sourceBytes = before
+        }
+
+        func observeSourceManifest(_ manifest: StoreGenerationManifestV1) {
+            guard sourceManifestMigrationID == nil,
+                  sourceManifestRelease == nil else {
+                uncertain = true
+                return
+            }
+            sourceManifestMigrationID = manifest.migrationID
+            sourceManifestRelease = manifest.storeSchemaRelease
+        }
+
+        func bindTarget(_ targetID: UUID) {
+            self.targetID = targetID
+            do { try generationAuthority.requireCompletedAbortTargetAbsent(targetID) }
+            catch { uncertain = true }
+        }
+
+        func recordAbort(_ receipt: AbortedEraseAdmissionReceiptV1) {
+            deliveredAbortCount += 1
+            if deliveredAbortCount == 1 { deliveredAbort = receipt }
+            else { uncertain = true }
+        }
+
+        func requireReceipt(_ receipt: AbortedEraseAdmissionReceiptV1,
+                            operation expected: EraseRouterOperationV1) throws {
+            guard operation === expected, deliveredAbortCount == 1,
+                  deliveredAbort?.matchesExactOriginalAuthority(receipt) == true,
+                  receipt.originalGenerationID == oldPointer?.generationID,
+                  receipt.subject.newGenerationID == targetID else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        }
+
+        func requireNoEffect(_ receipt: AbortedEraseAdmissionReceiptV1,
+                             operation expected: EraseRouterOperationV1) throws {
+            try requireReceipt(receipt, operation: expected)
+            guard !uncertain, let oldPointer, let sourceBytes, let targetID else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try auxiliary.requireEraseRootAbsentForCompletedAbort()
+            try generationAuthority.requireCompletedAbortTargetAbsent(targetID)
+            guard try generationAuthority.snapshotCompletedAbortSource(
+                id: oldPointer.generationID, oldPointer: oldPointer,
+                priorRetired: priorRetired) == sourceBytes else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try auxiliary.requireEraseRootAbsentForCompletedAbort()
+            try generationAuthority.requireCompletedAbortTargetAbsent(targetID)
+        }
+    }
+
+    func expectCompletedAbortColdShutdownForTesting(
+        _ point: EraseAllFailurePoint, operation: EraseRouterOperationV1
+    ) throws {
+        guard !originalEraseFrameActive,
+              point == .afterEmptyGenerationDirectoryCreate
+                || point == .beforePreparedWrite else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        expectedCompletedAbortFault = point
+        expectedCompletedAbortOperation = operation
+    }
+
+    func requireCompletedAbortColdShutdownForTesting(
+        _ point: EraseAllFailurePoint, operation: EraseRouterOperationV1,
+        receipt: AbortedEraseAdmissionReceiptV1
+    ) throws {
+        guard !originalEraseFrameActive,
+              interruptedOriginalPreparationFault == point,
+              originalFrameOperation === operation,
+              originalFrameEmittedAbort,
+              let frame = completedAbortFrame,
+              frame.expectedFault == point else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try frame.requireReceipt(receipt, operation: operation)
+    }
+
+    func requireCompletedAbortNoEffectForTesting(
+        operation: EraseRouterOperationV1,
+        receipt: AbortedEraseAdmissionReceiptV1
+    ) throws {
+        guard !originalEraseFrameActive,
+              let frame = completedAbortFrame,
+              originalFrameOperation === operation else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try frame.requireNoEffect(receipt, operation: operation)
+    }
+
+    func requireCompletedAbortFreshLedgerForTesting(
+        operation: EraseRouterOperationV1,
+        receipt: AbortedEraseAdmissionReceiptV1,
+        coordinator: StoreSessionCoordinator,
+        witness: EraseOriginalShutdownWitnessV1,
+        registry: GenerationLeaseRegistryV1
+    ) throws {
+        try requireCompletedAbortNoEffectForTesting(
+            operation: operation, receipt: receipt)
+        guard let frame = completedAbortFrame,
+              let expected = frame.sourceLedger,
+              let sourceBytes = frame.sourceBytes,
+              let manifestMigrationID = frame.sourceManifestMigrationID,
+              let manifestRelease = frame.sourceManifestRelease,
+              coordinator.generationID == receipt.originalGenerationID else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try generationFactory.requireFreshCompletedAbortSourceLedger(
+            coordinator: coordinator, witness: witness,
+            registry: registry, sourceAuthority: frame.generationAuthority,
+            sourceBytes: sourceBytes,
+            manifestMigrationID: manifestMigrationID,
+            manifestRelease: manifestRelease,
+            expected: expected,
+            reproveOriginal: {
+                try frame.requireNoEffect(receipt, operation: operation)
+            })
+        try requireCompletedAbortNoEffectForTesting(
+            operation: operation, receipt: receipt)
+    }
+
+    /// The configured original service records the consumed injection, after
+    /// its entire synchronous/async frame has returned. A caller's enum alone
+    /// cannot attest that the original Erase stopped at that fault boundary.
+    func requireInterruptedOriginalPreparationFaultForTesting(
+        _ expected: EraseAllFailurePoint,
+        operation: EraseRouterOperationV1
+    ) throws {
+        guard !originalEraseFrameActive,
+              originalFrameOperation === operation,
+              interruptedOriginalPreparationFault == expected,
+              !originalFrameEmittedAbort,
+              let store = originalFrameIntentStore,
+              let expectedIntent = originalFrameExpectedIntent else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try store.requireLiveOriginalColdShutdownIntent(
+            sameOperationAs: expectedIntent)
+    }
+
+    /// The retired-authority fixture returns the authenticated durable value
+    /// from this exact original frame. It never constructs a reparative Store.
+    func interruptedRetiredAuthorityIntentForTesting(
+        _ expected: EraseAllFailurePoint,
+        operation: EraseRouterOperationV1
+    ) throws -> EraseIntentV1 {
+        let phase: EraseIntentPhaseV1
+        switch expected {
+        case .afterPreparedWrite, .afterPointerSwitch:
+            phase = .emptyGenerationPrepared
+        case .afterPointerPhaseWrite:
+            phase = .pointerSwitched
+        case .afterSessionPhaseWrite:
+            phase = .sessionActivated
+        default:
+            throw EraseAllServiceError.invalidAuthority
+        }
+        guard !originalEraseFrameActive,
+              originalFrameOperation === operation,
+              interruptedOriginalPreparationFault == expected,
+              !originalFrameEmittedAbort,
+              let store = originalFrameIntentStore,
+              let expectedIntent = originalFrameExpectedIntent else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        return try store.readLiveOriginalColdShutdownIntent(
+            sameOperationAs: expectedIntent, requiringPhase: phase)
+    }
+
+    /// Capture the actual original frame before its Router releases the old
+    /// guard/EX. The later test owner may reprove this immutable binding, but
+    /// it may never mint a baseline from bytes observed after handoff.
+    func capturePostHandoffHostileSourceForTesting(
+        operation: EraseRouterOperationV1
+    ) throws -> V949OriginalEraseSourceBindingV1 {
+        try requireInterruptedOriginalPreparationFaultForTesting(
+            .afterPointerSwitch, operation: operation)
+        guard enableOriginalColdExitWitnessForTesting,
+              let frame = originalColdExitFrame,
+              let expected = originalFrameExpectedIntent,
+              expected.oldGenerationID != expected.newGenerationID else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        return try frame.capturePostHandoffHostileSource(
+            operation: operation, intent: expected)
+    }
+
+    func requireV949PostHandoffOriginalSourceUnchanged(
+        _ binding: V949OriginalEraseSourceBindingV1,
+        operation: EraseRouterOperationV1
+    ) throws {
+        guard originalFrameOperation === operation,
+              let frame = originalColdExitFrame else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try frame.requireV949OriginalSourceUnchanged(binding,
+            operation: operation)
+    }
+
+    func requireV949PostHandoffControlsUnchanged(
+        _ binding: V949OriginalEraseSourceBindingV1,
+        operation: EraseRouterOperationV1
+    ) throws {
+        guard originalFrameOperation === operation,
+              let frame = originalColdExitFrame else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try frame.requireV949ControlsUnchanged(binding,
+            operation: operation)
+    }
+
+    func requireOriginalNotificationReadbackRefusalForColdExitForTesting(
+        operation: EraseRouterOperationV1,
+        subject: EraseAllOperationSubjectV1
+    ) throws {
+        guard !originalEraseFrameActive,
+              originalFrameOperation === operation,
+              !originalFrameEmittedAbort,
+              let frame = originalColdExitFrame,
+              let store = originalFrameIntentStore,
+              let expectedIntent = originalFrameExpectedIntent,
+              expectedIntent.eraseID == subject.eraseID,
+              expectedIntent.newGenerationID == subject.newGenerationID else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try store.requireLiveOriginalColdShutdownIntent(
+            sameOperationAs: expectedIntent)
+        try frame.requireOriginalNotificationRefusal(
+            operation: operation, subject: subject)
+    }
+
+    func poisonOriginalNotificationReadbackRefusalForColdExitForTesting(
+        operation: EraseRouterOperationV1,
+        subject: EraseAllOperationSubjectV1
+    ) throws {
+        guard !postRetiredServiceAbandoned else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try requireOriginalNotificationReadbackRefusalForColdExitForTesting(
+            operation: operation, subject: subject)
+        postRetiredServiceAbandoned = true
+    }
 #endif
 
     private func traceErasePhase(_ phase: String) {
@@ -676,11 +1554,59 @@ final class EraseAllService {
         self.didAbortEraseAdmission = didAbortEraseAdmission
     }
 
+    /// Configuration only. The Router supplies its actual provider/inventory
+    /// before execution; no ticket, lease or cleanup authority is minted here.
+    /// Copying preserves injected service behavior until its original scopes
+    /// and callbacks can be released at the explicit detach boundary.
+    func configuredForRetirement(factory: StoreGenerationFactory,
+        inventory: EraseReaderRetirementInventoryV1) throws -> EraseAllService {
+        guard admittedSubject == nil, admittedReservation == nil,
+              factory.restoreApplicationSupportURL.standardizedFileURL == applicationSupportURL else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        return EraseAllService(copying: self,
+            generationFactory: try factory.capturingEraseReaders(in: inventory))
+    }
+
+    func configuredForColdRetirement(factory: StoreGenerationFactory,
+        inventory: EraseReaderRetirementInventoryV1) throws -> EraseAllService {
+        guard admittedSubject == nil, admittedReservation == nil,
+              factory.restoreApplicationSupportURL.standardizedFileURL == applicationSupportURL else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try factory.requireEraseReaderInventory(inventory)
+        return EraseAllService(copying: self, generationFactory: factory)
+    }
+
+    private init(copying service: EraseAllService, generationFactory: StoreGenerationFactory) {
+        applicationSupportURL = service.applicationSupportURL
+        cachesDirectoryURL = service.cachesDirectoryURL
+        temporaryDirectoryURL = service.temporaryDirectoryURL
+        self.generationFactory = generationFactory
+        fileManager = service.fileManager
+        userDefaults = service.userDefaults
+        bundleIdentifier = service.bundleIdentifier
+        defaultsDomainName = service.defaultsDomainName
+        makeUUID = service.makeUUID
+        sleeper = service.sleeper
+        failureInjection = service.failureInjection
+        sceneNavigationStatePort = service.sceneNavigationStatePort
+        privateSystemDiscoveryIndex = service.privateSystemDiscoveryIndex
+        notificationSystem = service.notificationSystem
+        admitErase = service.admitErase
+        didCompleteErase = service.didCompleteErase
+        didAbortEraseAdmission = service.didAbortEraseAdmission
+#if DEBUG
+        enableOriginalColdExitWitnessForTesting =
+            service.enableOriginalColdExitWitnessForTesting
+#endif
+    }
+
     func erase(
         confirmation: String,
         coordinator: StoreSessionCoordinator,
         diagnosticsStore: DiagnosticsStore,
-        prepareCleanup: (@MainActor () throws -> Void)? = nil,
+        operation: EraseRouterOperationV1,
         activate: @escaping @MainActor (StoreGenerationSession) async -> Void
     ) async throws -> EraseAllOutcome {
         try await erase(
@@ -688,7 +1614,7 @@ final class EraseAllService {
             coordinator: coordinator,
             diagnosticsStore: diagnosticsStore,
             activate: activate,
-            prepareCleanup: prepareCleanup,
+            operation: operation,
             lifecycleRoute: .expiringCompatibility(
                 posture: WorkspacePackageLifecycleCompatibilityV1.expiration
             )
@@ -699,7 +1625,7 @@ final class EraseAllService {
         confirmation: String,
         coordinator: StoreSessionCoordinator,
         diagnosticsStore: DiagnosticsStore,
-        prepareCleanup: (@MainActor () throws -> Void)? = nil,
+        operation: EraseRouterOperationV1,
         activate: @escaping @MainActor (StoreGenerationSession) async -> Void,
         lifecycleDependencies dependencies: WorkspacePackageLifecycleDependenciesV1
     ) async throws -> EraseAllOutcome {
@@ -708,7 +1634,7 @@ final class EraseAllService {
             coordinator: coordinator,
             diagnosticsStore: diagnosticsStore,
             activate: activate,
-            prepareCleanup: prepareCleanup,
+            operation: operation,
             lifecycleRoute: .live(dependencies: dependencies)
         )
     }
@@ -718,9 +1644,31 @@ final class EraseAllService {
         coordinator: StoreSessionCoordinator,
         diagnosticsStore: DiagnosticsStore,
         activate: @escaping @MainActor (StoreGenerationSession) async -> Void,
-        prepareCleanup: (@MainActor () throws -> Void)?,
+        operation: EraseRouterOperationV1,
         lifecycleRoute: EraseAllLifecycleRouteV1
     ) async throws -> EraseAllOutcome {
+#if DEBUG
+        guard !originalEraseFrameActive, !postRetiredServiceAbandoned,
+              originalColdExitAttempt == nil else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let completedAbortPoint = expectedCompletedAbortOperation === operation
+            ? expectedCompletedAbortFault : nil
+        expectedCompletedAbortFault = nil
+        expectedCompletedAbortOperation = nil
+        completedAbortFrame = nil
+        originalEraseFrameActive = true
+        originalFrameOperation = operation
+        interruptedOriginalPreparationFault = nil
+        originalFrameIntentStore = nil
+        originalFrameExpectedIntent = nil
+        originalFrameEmittedAbort = false
+        defer { originalEraseFrameActive = false }
+#endif
+        try operation.requireLiveExecution(coordinator: coordinator)
+        try generationFactory.requireEraseReaderInventory(operation.inventory)
+        try operation.beginPreparationServiceFrame(coordinator: coordinator)
+        defer { operation.endPreparationServiceFrame() }
         traceErasePhase("entry.integration-projections")
         try IntegrationProjectionEraseAllPolicyV1.validate()
         traceErasePhase("entry.scene-navigation")
@@ -747,9 +1695,17 @@ final class EraseAllService {
             .makeRestoreGenerationAuthority(
                 expectedApplicationSupportIdentity: applicationSupportIdentity
             )
-        let drainProof = EraseGenerationDrainProof(
-            priorContext: coordinator.modelContext
-        )
+#if DEBUG
+        if enableOriginalColdExitWitnessForTesting {
+            originalColdExitAttempt = (
+                operation, auxiliary, generationAuthority)
+        }
+        if let completedAbortPoint {
+            completedAbortFrame = CompletedAbortFrame(
+                expectedFault: completedAbortPoint, operation: operation,
+                auxiliary: auxiliary, generationAuthority: generationAuthority)
+        }
+#endif
         let oldGenerationID = coordinator.generationID
         let oldGenerationRootURL = coordinator.generationRootURL
         traceErasePhase("entry.retired-inventory")
@@ -787,13 +1743,94 @@ final class EraseAllService {
             expectedGenerationID: oldGenerationID,
             authority: generationAuthority
         )
+#if DEBUG
+        if enableOriginalColdExitWitnessForTesting {
+            guard sceneNavigationStatePort == nil,
+                  let discovery = privateSystemDiscoveryIndex
+                    as? PrivateSystemDiscoveryIndexStoreV1,
+                  discovery === PrivateSystemDiscoveryIndexRuntimeV1.shared else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let frame = try EraseOriginalColdExitFrameV1(
+                operation: operation, authority: generationAuthority,
+                auxiliary: auxiliary, oldGenerationID: oldGenerationID,
+                userDefaults: userDefaults,
+                defaultsDomainName: defaultsDomainName)
+            originalColdExitFrame = frame
+            guard let physicalOwner = discovery
+                    .originalErasePhysicalOwnerForTesting else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let discoveryBeforeFirstAwait = try physicalOwner
+                .originalErasePhysicalSnapshotForTesting()
+            let discoveryAfterActorHop = try await discovery
+                .originalErasePhysicalSnapshotForTesting()
+            guard discoveryAfterActorHop == discoveryBeforeFirstAwait else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try frame.bindOriginalDiscoveryOwner(
+                discovery, snapshot: discoveryBeforeFirstAwait)
+        }
+#endif
+#if DEBUG
+        let completedAbortBefore: EraseCompletedAbortSourceBytesV1?
+        if completedAbortFrame != nil {
+            completedAbortBefore = try? generationAuthority.snapshotCompletedAbortSource(
+                id: oldGenerationID, oldPointer: oldPointer,
+                priorRetired: priorRetired)
+        } else { completedAbortBefore = nil }
+#endif
         traceErasePhase("entry.source-ledger")
-        let sourceLedger = try generationFactory
+#if DEBUG
+        let completedObservation = completedAbortFrame
+        let originalColdObservation = originalColdExitFrame
+        let sourceManifestObservation: ((StoreGenerationManifestV1) -> Void)?
+        if completedObservation != nil || originalColdObservation != nil {
+            sourceManifestObservation = { manifest in
+                completedObservation?.observeSourceManifest(manifest)
+                originalColdObservation?.observeSourceManifest(manifest)
+            }
+        } else {
+            sourceManifestObservation = nil
+        }
+#else
+        let sourceManifestObservation: ((StoreGenerationManifestV1) -> Void)? = nil
+#endif
+        // DEBUG traces the actual captured factory's read stages when a test
+        // has requested Erase diagnostics. The value copy retains the same
+        // registry provider and reader inventory; no authority is replaced.
+#if DEBUG
+        var sourceLedgerFactory = generationFactory
+        sourceLedgerFactory.coldOpenDiagnosticForTesting = erasePhaseDiagnosticForTesting != nil
+#else
+        let sourceLedgerFactory = generationFactory
+#endif
+        let sourceLedger = try sourceLedgerFactory
             .currentGenerationDeletionLedgerProof(
                 expectedPointer: oldPointer,
-                authority: generationAuthority
+                authority: generationAuthority,
+                observeManifest: sourceManifestObservation
             )
+#if DEBUG
+        try originalColdExitFrame?.bindOriginalSourceSemantics(
+            pointer: oldPointer, ledger: sourceLedger)
+#endif
+#if DEBUG
+        if let completedAbortFrame {
+            let after = try? generationAuthority.snapshotCompletedAbortSource(
+                id: oldGenerationID, oldPointer: oldPointer,
+                priorRetired: priorRetired)
+            completedAbortFrame.bindSource(
+                oldPointer: oldPointer, sourceLedger: sourceLedger,
+                priorRetired: priorRetired,
+                before: completedAbortBefore, after: after)
+        }
+#endif
         let newGenerationID = makeUUID()
+#if DEBUG
+        completedAbortFrame?.bindTarget(newGenerationID)
+        try originalColdExitFrame?.bindTargetAbsence(newGenerationID)
+#endif
         let eraseID = makeUUID()
         let generationIDsToDelete = (priorRetired + [oldGenerationID]).sorted(
             by: Self.idOrder
@@ -852,7 +1889,8 @@ final class EraseAllService {
             )
         } catch {
             traceEraseOriginalFailure(error)
-            emitAbortedAdmissionIfProven(
+            let originalFailure = error
+            let aborted = abortedAdmissionIfProven(
                 subject: subject,
                 reservation: admittedReservation,
                 originalGenerationID: oldGenerationID,
@@ -862,7 +1900,11 @@ final class EraseAllService {
                 sourceLedger: sourceLedger,
                 targetGenerationID: newGenerationID
             )
-            throw error
+            operation.endPreparationServiceFrame()
+            try operation.disposeFailedPreparationAllocations()
+            try operation.requireFailedPreparationDisposed()
+            if let aborted { deliverProvenAbortedAdmission(aborted) }
+            throw originalFailure
         }
 
         var createdIntent = false
@@ -883,6 +1925,9 @@ final class EraseAllService {
             traceErasePhase("prepare.create")
             try store.createPreparation(initialPreparation)
             intentStore = store
+#if DEBUG
+            originalFrameIntentStore = store
+#endif
             traceErasePhase("prepare.empty-generation")
             let created = try generationFactory.createEmptyEraseGeneration(
                 id: newGenerationID,
@@ -890,6 +1935,9 @@ final class EraseAllService {
                 identity: targetIdentity,
                 authority: generationAuthority
             )
+#if DEBUG
+            try originalColdExitFrame?.bindCreatedTargetManifest(created.pointer)
+#endif
             let boundPreparation = initialPreparation.binding(
                 targetPointer: created.pointer
             )
@@ -939,6 +1987,9 @@ final class EraseAllService {
                 targetPointer: created.pointer
             )
             frozenIntent = intent
+#if DEBUG
+            originalFrameExpectedIntent = intent
+#endif
             guard EraseIntentCodecV1.valid(intent) else {
                 traceErasePhase("authority.failure.line.\(#line)"); throw EraseAllServiceError.invalidAuthority
             }
@@ -994,53 +2045,110 @@ final class EraseAllService {
                 searchStore: coordinator.searchIndexStore,
                 searchRebuildCoordinator: coordinator.searchServices.rebuildCoordinator
             )
+            traceErasePhase("projection.local-purge.begin")
+#if DEBUG
+            if let originalColdExitFrame {
+                let expected = try await coordinator.searchIndexStore
+                    .purgeWorkspaceForOriginalEraseColdExitForTesting(
+                        oldPointer.workspaceID,
+                        validateOriginalPreimage: {
+                            try originalColdExitFrame.beforeSearchReplacement()
+                        },
+                        validatePublishedEmpty: { expected in
+                            try originalColdExitFrame.afterSearchReplacement(
+                                expectedBytes: expected)
+                        })
+                guard expected != nil else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                try originalColdExitFrame.requireSearchPublished()
+            } else {
+                try await activityContractProjections.purgeActivityContractProjections(.init(
+                    workspaceID: WorkspaceID(rawValue: oldPointer.workspaceID),
+                    activityID: nil,
+                    axes: [.shared, .installation, .punch],
+                    event: .erase
+                ))
+            }
+#else
             try await activityContractProjections.purgeActivityContractProjections(.init(
                 workspaceID: WorkspaceID(rawValue: oldPointer.workspaceID),
                 activityID: nil,
                 axes: [.shared, .installation, .punch],
                 event: .erase
             ))
+#endif
+            traceErasePhase("projection.local-purge.end")
             if let privateSystemDiscoveryIndex {
                 let operationID = try privateSystemDiscoveryOperationID(intent)
+                traceErasePhase("projection.private-discovery.begin")
+#if DEBUG
+                if let originalColdExitFrame {
+                    guard let originalDiscovery = privateSystemDiscoveryIndex
+                            as? PrivateSystemDiscoveryIndexStoreV1,
+                          originalDiscovery === PrivateSystemDiscoveryIndexRuntimeV1.shared
+                    else { throw EraseAllServiceError.invalidAuthority }
+                    try await originalDiscovery
+                        .eraseAllForOriginalColdExitForTesting(
+                            operationID: operationID,
+                            now: Date(),
+                            beforeEffect: { snapshot in
+                                try originalColdExitFrame.beforeDiscoveryEffect(
+                                    snapshot)
+                            },
+                            afterEffect: { snapshot in
+                                try originalColdExitFrame.afterDiscoveryEffect(
+                                    snapshot)
+                            })
+                } else {
+                    try await privateSystemDiscoveryIndex.eraseAll(
+                        operationID: operationID, now: Date())
+                }
+#else
                 try await privateSystemDiscoveryIndex.eraseAll(
                     operationID: operationID,
                     now: Date()
                 )
-            }
-            guard try await waitForDrain(drainProof) else {
-                return EraseAllOutcome(
-                    session: session,
-                    cleanupDeferred: true
-                )
+#endif
+                traceErasePhase("projection.private-discovery.end")
             }
             let activated = intent.advancing(to: .sessionActivated)
-            // Cleanup removes the registry namespace used by the activated
-            // writer. A failed release must stop before any auxiliary deletion.
-            // Router callers retain the exact ticket for recovery; standalone
-            // callers explicitly install the returned completed session.
-            if let prepareCleanup {
-                try prepareCleanup()
-            } else {
-                try coordinator.invalidateAndReleaseWriter()
-            }
-            let completed = try await completeCleanup(
-                activated,
-                session: session,
-                authority: generationAuthority,
-                auxiliary: auxiliary,
-                diagnosticsStore: diagnosticsStore,
-                intentStore: intentStore,
-                subject: subject,
-                reservation: reservation
-            )
-            return EraseAllOutcome(
-                session: completed,
-                cleanupDeferred: false
-            )
+            #if DEBUG
+            traceErasePhase("retirement.binding.enter")
+            #endif
+            let binding = try operation.requirePreparing(coordinator: coordinator)
+            #if DEBUG
+            traceErasePhase("retirement.binding.complete")
+            #endif
+            #if DEBUG
+            traceErasePhase("cleanup.prepare.enter")
+            #endif
+            let prepared = try await prepareCleanupForRetirement(activated, session: session,
+                authority: generationAuthority, auxiliary: auxiliary, diagnosticsStore: diagnosticsStore,
+                intentStore: intentStore, binding: binding, inventory: operation.inventory,
+                reservation: reservation)
+    #if DEBUG
+        originalPreparedForPostRetired = prepared
+#endif
+        try operation.retainPrepared(prepared)
+            #if DEBUG
+            traceErasePhase("cleanup.prepare.complete")
+            #endif
+            #if DEBUG
+            traceErasePhase("retirement.detach.enter")
+            #endif
+            try await operation.detach(coordinator: coordinator)
+            #if DEBUG
+            traceErasePhase("retirement.detach.complete")
+            #endif
+            return EraseAllOutcome(operation: operation)
         } catch {
             traceEraseOriginalFailure(error)
             if !createdIntent {
+                let originalFailure = error
+                try operation.requirePreparationRollback()
                 var ownsUnjournaledGeneration = true
+                var aborted: AbortedEraseAdmissionReceiptV1?
                 if let intentStore {
                     do {
                         if let stored = try intentStore.load() {
@@ -1071,7 +2179,7 @@ final class EraseAllService {
                     }
                     if ownsUnjournaledGeneration {
                         try auxiliary.removeEraseRootIfEmpty()
-                        emitAbortedAdmissionIfProven(
+                        aborted = abortedAdmissionIfProven(
                             subject: subject,
                             reservation: reservation,
                             originalGenerationID: oldGenerationID,
@@ -1086,6 +2194,11 @@ final class EraseAllService {
                     traceEraseOriginalFailure(error)
                     throw EraseAllServiceError.recoveryRequired
                 }
+                operation.endPreparationServiceFrame()
+                try operation.disposeFailedPreparationAllocations()
+                try operation.requireFailedPreparationDisposed()
+                if let aborted { deliverProvenAbortedAdmission(aborted) }
+                throw originalFailure
             }
             throw error
         }
@@ -1093,9 +2206,184 @@ final class EraseAllService {
 
     /// Runs before Restore and ordinary pointer maintenance. A nonnil result
     /// is the one reopened empty generation that startup must activate.
+    func reconcileForOriginalErase(diagnosticsStore: DiagnosticsStore,
+        coordinator: StoreSessionCoordinator, operation: EraseRouterOperationV1,
+        activate: @escaping @MainActor (StoreGenerationSession) async -> Void) async throws -> EraseAllOutcome? {
+#if DEBUG
+        guard !originalEraseFrameActive, !postRetiredServiceAbandoned,
+              originalColdExitAttempt == nil else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        expectedCompletedAbortFault = nil
+        expectedCompletedAbortOperation = nil
+        completedAbortFrame = nil
+        originalEraseFrameActive = true
+        originalFrameOperation = operation
+        interruptedOriginalPreparationFault = nil
+        originalFrameIntentStore = nil
+        originalFrameExpectedIntent = nil
+        originalFrameEmittedAbort = false
+        defer { originalEraseFrameActive = false }
+#endif
+        try operation.requireRecoveryExecution(coordinator: coordinator)
+        try generationFactory.requireEraseReaderInventory(operation.inventory)
+        try operation.beginPreparationServiceFrame(coordinator: coordinator)
+        defer { operation.endPreparationServiceFrame() }
+        traceErasePhase("recovery.support")
+        var supportStatus = stat()
+        let supportResult = applicationSupportURL.path.withCString {
+            lstat($0, &supportStatus)
+        }
+        if supportResult != 0 {
+            guard errno == ENOENT else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            return nil
+        }
+        guard (supportStatus.st_mode & S_IFMT) == S_IFDIR else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        traceErasePhase("recovery.auxiliary")
+        let auxiliary = try makeAuxiliaryAuthority()
+        let intentStore = try EraseIntentStore(
+            applicationSupportURL: applicationSupportURL,
+            fileManager: fileManager,
+            expectedApplicationSupportIdentity:
+                auxiliary.applicationSupportRootIdentity
+        )
+        traceErasePhase("recovery.intent")
+        let intent = try intentStore.load()
+        let preparation = try intentStore.loadPreparation()
+#if DEBUG
+        originalFrameIntentStore = intentStore
+        originalFrameExpectedIntent = intent
+#endif
+        guard let intent else {
+            try operation.requirePreparationRollback()
+            if let preparation {
+                let authority = try generationFactory
+                    .makeRestoreGenerationAuthority(
+                        expectedApplicationSupportIdentity:
+                            auxiliary.applicationSupportRootIdentity
+                    )
+                try auxiliary.verifyTargets()
+                try auxiliary.requireNoRestoreIntent()
+                try discardPreparation(preparation, authority: authority)
+                try intentStore.removePreparation(expected: preparation)
+            }
+            try auxiliary.removeEraseRootIfEmpty()
+            return nil
+        }
+        traceErasePhase("recovery.intent-contract")
+        guard EraseIntentCodecV1.valid(intent) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        if intent.schemaVersion == 2 {
+            if let preparation {
+                guard preparation.matches(intent) else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+            } else if intent.phase != .cleanupComplete {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        } else if preparation != nil {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        traceErasePhase("recovery.authority")
+        let authority = try generationFactory.makeRestoreGenerationAuthority(
+            expectedApplicationSupportIdentity:
+                auxiliary.applicationSupportRootIdentity
+        )
+        traceErasePhase("recovery.targets")
+        try auxiliary.verifyTargets()
+        try requireRecoveryPresence(intent, authority: authority)
+        let subject = makeOperationSubject(
+            eraseID: intent.eraseID,
+            newGenerationID: intent.newGenerationID,
+            auxiliary: auxiliary
+        )
+        traceErasePhase("recovery.admission")
+        let reservation = try await admit(subject)
+        traceErasePhase("recovery.admission-revalidation")
+        try revalidateRecoveryAdmission(
+            subject: subject,
+            intent: intent,
+            preparation: preparation,
+            auxiliary: auxiliary,
+            intentStore: intentStore
+        )
+
+        let session: StoreGenerationSession
+        switch intent.phase {
+        case .emptyGenerationPrepared:
+            session = try await advanceToActivatedSession(
+                intent,
+                authority: authority,
+                intentStore: intentStore,
+                activate: activate
+            )
+        case .pointerSwitched:
+            session = try await advancePointerPhaseToActivatedSession(
+                intent,
+                authority: authority,
+                intentStore: intentStore,
+                activate: activate
+            )
+        case .sessionActivated:
+            traceErasePhase("recovery.activated-current")
+            try requireActivatedCurrent(intent, authority: authority)
+            session = try validatedEmptySession(
+                id: intent.newGenerationID,
+                authority: authority
+            )
+        case .cleanupComplete:
+            traceErasePhase("recovery.cleanup-presence")
+            try requireCleanupPresence(intent, authority: authority)
+            session = try validatedEmptySession(
+                id: intent.newGenerationID,
+                authority: authority
+            )
+        }
+
+        if intent.phase == .sessionActivated || intent.phase == .cleanupComplete {
+            await activate(session)
+        }
+        guard coordinator.generationID == session.generationID,
+              coordinator.modelContext === session.modelContext,
+              coordinator.generationRootURL.standardizedFileURL == session.generationRootURL.standardizedFileURL else {
+            throw EraseAllServiceError.recoveryRequired
+        }
+        let activated = intent.phase == .cleanupComplete
+            ? intent
+            : intent.advancing(to: .sessionActivated)
+        if let privateSystemDiscoveryIndex {
+            try await privateSystemDiscoveryIndex.eraseAll(
+                operationID: try privateSystemDiscoveryOperationID(intent),
+                now: Date()
+            )
+        }
+        let binding = try operation.requirePreparing(coordinator: coordinator)
+        let prepared = try await prepareCleanupForRetirement(activated, session: session,
+            authority: authority, auxiliary: auxiliary, diagnosticsStore: diagnosticsStore,
+            intentStore: intentStore, binding: binding, inventory: operation.inventory,
+            reservation: reservation)
+#if DEBUG
+        originalPreparedForPostRetired = prepared
+#endif
+        try operation.retainPrepared(prepared)
+        try await operation.detach(coordinator: coordinator)
+        return EraseAllOutcome(operation: operation)
+    }
+
     func reconcileAtStartup(
         diagnosticsStore: DiagnosticsStore
     ) async throws -> StoreGenerationSession? {
+#if DEBUG
+        guard !postRetiredServiceAbandoned,
+              originalColdExitAttempt == nil else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+#endif
         traceErasePhase("recovery.support")
         var supportStatus = stat()
         let supportResult = applicationSupportURL.path.withCString {
@@ -1228,6 +2516,145 @@ final class EraseAllService {
         )
     }
 
+    // Genuine startup operation only. It retains all readers for retirement
+    // and routes preparation rollback through its own drain witnesses.
+    func prepareColdRetirement(
+        diagnosticsStore: DiagnosticsStore, operation: EraseColdPreparationOperationV1
+    ) async throws -> Bool {
+        try await operation.beginServiceFrame()
+        defer { operation.endServiceFrame() }
+        traceErasePhase("recovery.support")
+        var supportStatus = stat()
+        let supportResult = applicationSupportURL.path.withCString {
+            lstat($0, &supportStatus)
+        }
+        if supportResult != 0 {
+            guard errno == ENOENT else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            return false
+        }
+        guard (supportStatus.st_mode & S_IFMT) == S_IFDIR else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        traceErasePhase("recovery.auxiliary")
+        let auxiliary = try makeAuxiliaryAuthority()
+        let intentStore = try EraseIntentStore(
+            applicationSupportURL: applicationSupportURL,
+            fileManager: fileManager,
+            expectedApplicationSupportIdentity:
+                auxiliary.applicationSupportRootIdentity
+        )
+        traceErasePhase("recovery.intent")
+        let intent = try intentStore.load()
+        let preparation = try intentStore.loadPreparation()
+        guard let intent else {
+            if let preparation {
+                let authority = try generationFactory
+                    .makeRestoreGenerationAuthority(
+                        expectedApplicationSupportIdentity:
+                            auxiliary.applicationSupportRootIdentity
+                    )
+                try auxiliary.verifyTargets()
+                try auxiliary.requireNoRestoreIntent()
+                let identity = try WorkspaceReplicaIdentityV1(
+                    workspaceID: WorkspaceID(rawValue: preparation.targetWorkspaceID),
+                    replicaID: ReplicaID(rawValue: preparation.targetReplicaID))
+                let rollback = EraseColdPreparationRollbackV1(preparation: preparation,
+                    targetIdentity: identity, emptyLedger: try emptyLedgerProof(),
+                    authority: authority, auxiliary: auxiliary, intentStore: intentStore)
+                try operation.retainRollback(rollback)
+                return false
+            }
+            try auxiliary.removeEraseRootIfEmpty()
+            return false
+        }
+        traceErasePhase("recovery.intent-contract")
+        guard EraseIntentCodecV1.valid(intent) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        if intent.schemaVersion == 2 {
+            if let preparation {
+                guard preparation.matches(intent) else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+            } else if intent.phase != .cleanupComplete {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        } else if preparation != nil {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        traceErasePhase("recovery.authority")
+        let authority = try generationFactory.makeRestoreGenerationAuthority(
+            expectedApplicationSupportIdentity:
+                auxiliary.applicationSupportRootIdentity
+        )
+        traceErasePhase("recovery.targets")
+        try auxiliary.verifyTargets()
+        try requireRecoveryPresence(intent, authority: authority)
+        let subject = makeOperationSubject(
+            eraseID: intent.eraseID,
+            newGenerationID: intent.newGenerationID,
+            auxiliary: auxiliary
+        )
+        // Genuine cold startup owns access; no old original-operation
+        // reservation or receipt is minted for an on-disk intent.
+        try revalidateRecoveryAdmission(subject: subject, intent: intent,
+            preparation: preparation, auxiliary: auxiliary, intentStore: intentStore)
+
+        let session: StoreGenerationSession
+        switch intent.phase {
+        case .emptyGenerationPrepared:
+            session = try await advanceColdToActivatedSession(
+                intent,
+                authority: authority,
+                intentStore: intentStore,
+                operation: operation
+            )
+        case .pointerSwitched:
+            session = try await advanceColdPointerPhaseToActivatedSession(
+                intent,
+                authority: authority,
+                intentStore: intentStore,
+                operation: operation
+            )
+        case .sessionActivated:
+            traceErasePhase("recovery.activated-current")
+            try requireActivatedCurrent(intent, authority: authority)
+            session = try validatedEmptySession(
+                id: intent.newGenerationID,
+                authority: authority
+            )
+        case .cleanupComplete:
+            traceErasePhase("recovery.cleanup-presence")
+            try requireCleanupPresence(intent, authority: authority)
+            session = try validatedEmptySession(
+                id: intent.newGenerationID,
+                authority: authority
+            )
+        }
+
+        let activated = intent.phase == .cleanupComplete
+            ? intent
+            : intent.advancing(to: .sessionActivated)
+        try operation.requireServiceAccess()
+        if let privateSystemDiscoveryIndex {
+            try await privateSystemDiscoveryIndex.eraseAll(
+                operationID: try privateSystemDiscoveryOperationID(intent),
+                now: Date()
+            )
+        }
+        try operation.requireServiceAccess()
+        let binding = try operation.bindValidatedTarget(subject: subject, session: session)
+        let prepared = try await prepareColdCleanupForRetirement(activated, session: session,
+            authority: authority, auxiliary: auxiliary, diagnosticsStore: diagnosticsStore,
+            intentStore: intentStore, binding: binding, inventory: operation.inventory,
+            reservation: nil, operation: operation)
+        try operation.requireServiceAccess()
+        try operation.retainPrepared(prepared, intentStore: intentStore, intent: activated)
+        return true
+    }
+
     /// Called only by the factory's fixed, leased, synchronous retired read.
     /// The opaque capability rejects any other context or an expired scope.
     func validatePreexistingRetiredGeneration(
@@ -1328,7 +2755,7 @@ private extension EraseAllService {
         )
     }
 
-    func emitAbortedAdmissionIfProven(
+    func abortedAdmissionIfProven(
         subject: EraseAllOperationSubjectV1,
         reservation: AppAccessGateV1.EraseAdoptionToken?,
         originalGenerationID: UUID,
@@ -1337,25 +2764,25 @@ private extension EraseAllService {
         oldPointer: RestorePointerIdentityV1,
         sourceLedger: DeletionLedgerProofV2,
         targetGenerationID: UUID
-    ) {
+    ) -> AbortedEraseAdmissionReceiptV1? {
         guard let reservation,
               didAbortEraseAdmission != nil,
               admittedSubject == subject,
               admittedReservation == reservation,
-              reservation.subject == subject else { return }
+              reservation.subject == subject else { return nil }
         do {
             guard makeOperationSubject(
                 eraseID: subject.eraseID,
                 newGenerationID: subject.newGenerationID,
                 auxiliary: auxiliary
-            ) == subject else { return }
+            ) == subject else { return nil }
             let store = try EraseIntentStore(
                 applicationSupportURL: applicationSupportURL,
                 fileManager: fileManager,
                 expectedApplicationSupportIdentity: auxiliary.applicationSupportRootIdentity
             )
             guard try store.load() == nil,
-                  try store.loadPreparation() == nil else { return }
+                  try store.loadPreparation() == nil else { return nil }
             try auxiliary.verifyTargets()
             try auxiliary.requireNoEraseIntent()
             try auxiliary.requireNoRestoreIntent()
@@ -1373,15 +2800,23 @@ private extension EraseAllService {
             try authority.retiredGenerationIDs() == priorRetired,
             !(try authority.installedGenerationNames()).contains(
                 Self.canonical(targetGenerationID)
-            ) else { return }
-            didAbortEraseAdmission?(AbortedEraseAdmissionReceiptV1(
+            ) else { return nil }
+            return AbortedEraseAdmissionReceiptV1(
                 subject: subject,
                 reservation: reservation,
                 originalGenerationID: originalGenerationID
-            ))
+            )
         } catch {
-            return
+            return nil
         }
+    }
+
+    private func deliverProvenAbortedAdmission(_ receipt: AbortedEraseAdmissionReceiptV1) {
+#if DEBUG
+        originalFrameEmittedAbort = true
+        completedAbortFrame?.recordAbort(receipt)
+#endif
+        didAbortEraseAdmission?(receipt)
     }
 
     func revalidateAdmission(
@@ -1759,12 +3194,30 @@ private extension EraseAllService {
                 let session = try generationFactory.openInstalledGeneration(
                     id: id, identity: validation.workspaceIdentity, authority: authority
                 )
-                try validateFrozenGeneration(
-                    id: id, modelContext: session.modelContext,
-                    generationRootURL: session.generationRootURL,
-                    workspaceIdentity: session.workspaceIdentity,
-                    authority: authority, retainedEraseValidation: validation
-                )
+                #if DEBUG
+                let v949Before = try v949RetainedSourceReadbackForTesting.map {
+                    _ in try V949ColdSourceReadbackV1.capture(
+                        session.modelContext)
+                }
+                #endif
+                do {
+                    try validateFrozenGeneration(
+                        id: id, modelContext: session.modelContext,
+                        generationRootURL: session.generationRootURL,
+                        workspaceIdentity: session.workspaceIdentity,
+                        authority: authority, retainedEraseValidation: validation
+                    )
+                } catch {
+                    #if DEBUG
+                    if let v949Before,
+                       let callback = v949RetainedSourceReadbackForTesting {
+                        let after = try V949ColdSourceReadbackV1.capture(
+                            session.modelContext)
+                        callback(v949Before, after)
+                    }
+                    #endif
+                    throw error
+                }
                 continue
             }
             let session = try generationFactory.openInstalledGeneration(
@@ -1837,10 +3290,71 @@ private extension EraseAllService {
         return session
     }
 
+    func advanceColdToActivatedSession(
+        _ intent: EraseIntentV1,
+        authority: StoreRestoreGenerationAuthority,
+        intentStore: EraseIntentStore,
+        operation: EraseColdPreparationOperationV1
+    ) async throws -> StoreGenerationSession {
+        try operation.requireServiceAccess()
+        try inject(.beforePointerSwitch)
+        try normalizePointerAndRetired(intent, authority: authority)
+        try inject(.afterPointerSwitch)
+
+        let switched = intent.advancing(to: .pointerSwitched)
+        try inject(.beforePointerPhaseWrite)
+        if intent.phase == .emptyGenerationPrepared {
+            try intentStore.replace(expected: intent, with: switched)
+        }
+        try inject(.afterPointerPhaseWrite)
+        return try await advanceColdPointerPhaseToActivatedSession(
+            switched,
+            authority: authority,
+            intentStore: intentStore,
+            operation: operation
+        )
+    }
+
+    func advanceColdPointerPhaseToActivatedSession(
+        _ switched: EraseIntentV1,
+        authority: StoreRestoreGenerationAuthority,
+        intentStore: EraseIntentStore,
+        operation: EraseColdPreparationOperationV1
+    ) async throws -> StoreGenerationSession {
+        try operation.requireServiceAccess()
+        try normalizePointerAndRetired(switched, authority: authority)
+        try requireNewCurrent(switched, authority: authority)
+        let session: StoreGenerationSession
+        if switched.schemaVersion == 2 {
+            session = try requirePublishedEmptySession(
+                switched,
+                authority: authority
+            )
+        } else {
+            session = try validatedEmptySession(
+                id: switched.newGenerationID,
+                authority: authority
+            )
+        }
+        try inject(.beforeSessionActivation)
+        await Task.yield()
+        try operation.requireServiceAccess()
+        try inject(.afterSessionActivation)
+
+        let activated = switched.advancing(to: .sessionActivated)
+        try inject(.beforeSessionPhaseWrite)
+        try intentStore.replace(expected: switched, with: activated)
+        try inject(.afterSessionPhaseWrite)
+        return session
+    }
+
     func normalizePointerAndRetired(
         _ intent: EraseIntentV1,
         authority: StoreRestoreGenerationAuthority
     ) throws {
+#if DEBUG
+        try originalColdExitFrame?.beforePointerPublication(intent)
+#endif
         let current = try generationFactory.currentGenerationID(authority: authority)
         if current == intent.oldGenerationID {
             if intent.schemaVersion == 2 {
@@ -1879,6 +3393,9 @@ private extension EraseAllService {
         } else if retired != intent.generationIDsToDelete {
             throw EraseAllServiceError.invalidAuthority
         }
+#if DEBUG
+        try originalColdExitFrame?.afterPointerPublication(intent)
+#endif
     }
 
     func requireNewCurrent(
@@ -1914,6 +3431,94 @@ private extension EraseAllService {
         }
     }
 
+    /// The incumbent complete empty-graph and schema2 ledger predicates,
+    /// shared by preparation and the fixed private post-drain validator. This
+    /// does not create a lease, writer, session or authority from a context.
+    static func requireEmptyEraseContent(context: ModelContext,
+        generationID: UUID, activated: EraseIntentV1) throws {
+        guard activated.phase == .sessionActivated,
+              generationID == activated.newGenerationID,
+              BackupRestoreService.isEmptyCurrent(context) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        if activated.schemaVersion == 2 {
+            let ledger = try DeletionLedgerStore(context: context).snapshot()
+            guard ledger.entries.isEmpty else { throw EraseAllServiceError.invalidAuthority }
+            let proof = try DeletionLedgerProofV2(entryCount: ledger.entries.count,
+                canonicalSHA256: SHA256.hash(data: try ledger.canonicalData())
+                    .map { String(format: "%02x", $0) }.joined())
+            guard activated.targetEmptyProof == EraseEmptyGenerationProofV2(
+                contentRecordCount: 0, deletionLedgerEntryCount: 0) else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let empty = DeletionLedgerV2.empty
+            let expected = try DeletionLedgerProofV2(entryCount: empty.entries.count,
+                canonicalSHA256: SHA256.hash(data: try empty.canonicalData())
+                    .map { String(format: "%02x", $0) }.joined())
+            guard proof == expected else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        }
+    }
+
+    /// The post-drain private-copy route cannot repair or mutate rows. Repeat
+    /// every incumbent published-empty policy plus its zero mutation history.
+    internal static func requireEmptyErasePublishedGraph(context: ModelContext,
+        generationID: UUID, identity: WorkspaceReplicaIdentityV1,
+        activated: EraseIntentV1) throws {
+        try requireEmptyEraseContent(context: context, generationID: generationID, activated: activated)
+        try EvidenceAssuranceEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try InspectionReviewEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try WorkPacketEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try FieldDraftEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try PackageEvolutionEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try ClientCapabilityEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try PrivacyTransformEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try MeasurementIntegrityEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try FieldReferenceEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try AccessibleDocumentEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try SurveyDefinitionEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try SurveySessionEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try AssetLocatorEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try ScheduleEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try C57MyDayEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try EvidenceMetadataEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try C04ShopReportProfileEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try C05RoundSessionEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try EvidenceQualityEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try FastSurveyInboxEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try ReinspectionExceptionEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try EntityIdentityResolutionEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try PracticeWorkspaceProvenanceEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try LightingDayInventoryEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try LightingNightWorkflowEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try ServiceRequestEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try AssetServiceReliabilityEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try PlanEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        try PlacementPoseEraseAllPolicyV1.validatePublishedEmptyGeneration(context)
+        guard try context.fetchCount(FetchDescriptor<ActivitySessionEnvelopeRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<ActivityStateTransitionRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<InstallationTaskResultRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<InstallationAsBuiltSnapshotRow>()) == 0,
+              try context.fetchCount(FetchDescriptor<PunchReviewBasisSnapshotRow>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try C47ActivityContractKernelDeletionEnrollmentV2.validate()
+        guard try context.fetchCount(FetchDescriptor<ImportMappingProfileRowV1>()) == 0,
+              try context.fetchCount(FetchDescriptor<BulkSessionRowV1>()) == 0,
+              try context.fetchCount(FetchDescriptor<BulkCommitReceiptRowV1>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try C08ImportBulkKernelDeletionEraseEnrollmentV1.validate()
+        let history = try MutationJournalStoreV1(modelContext: context,
+            identity: identity, generationID: generationID, allowStateBootstrap: false).exportSnapshot()
+        guard history.workspaceRevision == 0, history.lastLocalSequence == 0,
+              history.receipts.isEmpty, history.quarantines.isEmpty,
+              history.entityRevisions.isEmpty, !context.hasChanges else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+
     func completeCleanup(
         _ value: EraseIntentV1,
         session: StoreGenerationSession,
@@ -1931,21 +3536,9 @@ private extension EraseAllService {
         } else {
             activated = value
         }
-        guard activated.phase == .sessionActivated,
-              session.generationID == activated.newGenerationID,
-              BackupRestoreService.isEmptyCurrent(session.modelContext) else {
-            throw EraseAllServiceError.invalidAuthority
-        }
-        if activated.schemaVersion == 2 {
-            traceErasePhase("cleanup.empty-ledger")
-            let ledger = try DeletionLedgerStore(
-                context: session.modelContext
-            ).snapshot()
-            guard ledger.entries.isEmpty,
-                  try ledgerProof(ledger) == expectedEmptyLedger(activated) else {
-                throw EraseAllServiceError.invalidAuthority
-            }
-        }
+        if activated.schemaVersion == 2 { traceErasePhase("cleanup.empty-ledger") }
+        try Self.requireEmptyEraseContent(context: session.modelContext,
+            generationID: session.generationID, activated: activated)
 
         if value.phase != .cleanupComplete {
             try inject(.beforeCleanup)
@@ -2795,6 +4388,17 @@ private extension EraseAllService {
 
     func inject(_ point: EraseAllFailurePoint) throws {
         if failureInjection?.consume(point) == true {
+#if DEBUG
+            switch point {
+            case .afterEmptyGenerationDirectoryCreate, .beforePreparedWrite,
+                 .afterPreparedWrite, .beforePointerSwitch, .afterPointerSwitch,
+                 .beforePointerPhaseWrite, .afterPointerPhaseWrite,
+                 .beforeSessionActivation, .afterSessionActivation,
+                 .beforeSessionPhaseWrite, .afterSessionPhaseWrite, .beforeCleanup:
+                interruptedOriginalPreparationFault = point
+            default: break
+            }
+#endif
             throw EraseAllServiceError.injectedFailure
         }
     }
@@ -2821,6 +4425,1095 @@ private extension EraseAllService {
     }
 }
 
+#if DEBUG
+private struct ErasePostRetiredAuxiliarySnapshotV1: Equatable {
+    let supportNames: [String]
+    let roots: [String: String]
+    let operationsBeforeRelease: String?
+}
+
+private struct EraseOriginalSearchPhysicalStateV1: Equatable {
+    let rootDevice: dev_t?
+    let rootInode: ino_t?
+    let projectionBytes: Data?
+    let projectionIdentity: String?
+}
+
+private struct EraseOriginalScratchPhysicalStateV1: Equatable {
+    let operationsDevice: dev_t
+    let operationsInode: ino_t
+    let scratchDevice: dev_t?
+    let scratchInode: ino_t?
+}
+
+private struct EraseOriginalExchangePhysicalStateV1: Equatable {
+    let rootDevice: dev_t?
+    let rootInode: ino_t?
+    let envelopeBytes: Data?
+    let names: [String]
+}
+
+#if DEBUG
+/// Immutable facts read from the genuine original Erase frame before the
+/// checked owner transfer. No caller can recreate these from later disk bytes.
+struct V949OriginalEraseSourceBindingV1 {
+    let oldGenerationID: UUID
+    let newGenerationID: UUID
+    let eraseID: UUID
+    let sourceTreeDigest: String
+    let sourcePointer: RestorePointerIdentityV1
+    let publishedControls: EraseOriginalColdExitControlsV1
+    let sourceManifestSHA256: String
+    let targetManifestSHA256: String
+}
+
+/// Raw value observations used only by the V9_49 hostile cold-refusal tests.
+/// These preserve the original clip, receipt, and kernel assertions without
+/// letting test code retain a fresh cold ModelContext or reader wrapper.
+struct V949ColdSourceReadbackV1: Equatable {
+    let rawClipRows: [[String]]
+    let clipCanonicalBytes: [Data]
+    let receiptByIdentity: [[Data]]
+    let receiptBySequence: [[Data]]
+    let kernel: [[[String]]]
+
+    @MainActor
+    static func capture(_ context: ModelContext) throws
+        -> V949ColdSourceReadbackV1 {
+        guard !context.hasChanges else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let clipRows = try context.fetch(
+            FetchDescriptor<TemporalEvidenceClipRow>())
+        guard Set(clipRows.map(\.clipID)).count == clipRows.count else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let clipsByIdentity = clipRows.sorted {
+            $0.clipID.uuidString < $1.clipID.uuidString
+        }
+        let receiptRows = try context.fetch(
+            FetchDescriptor<MutationReceiptRow>())
+        let states = try context.fetch(
+            FetchDescriptor<WorkspaceMutationStateRow>())
+        let revisions = try context.fetch(
+            FetchDescriptor<EntityMutationRevisionRow>())
+        let quarantines = try context.fetch(
+            FetchDescriptor<MutationQuarantineRow>())
+        func receiptBytes(_ row: MutationReceiptRow) -> [Data] {
+            [row.envelopeData, row.receiptData,
+             row.reversalBasisData ?? Data(),
+             row.semanticReversalData ?? Data()]
+        }
+        return V949ColdSourceReadbackV1(
+            rawClipRows: clipsByIdentity.map {
+                [$0.clipID.uuidString, $0.workspaceID.uuidString,
+                 $0.sessionID.uuidString, String($0.revision),
+                 $0.mutationID.uuidString, $0.originalContentID,
+                 $0.originalSHA256, $0.clipSHA256,
+                 $0.canonicalData.base64EncodedString()]
+            },
+            clipCanonicalBytes: clipRows.map(\.canonicalData)
+                .sorted { $0.lexicographicallyPrecedes($1) },
+            receiptByIdentity: receiptRows.sorted {
+                $0.receiptIdentity < $1.receiptIdentity
+            }.map(receiptBytes),
+            receiptBySequence: receiptRows.sorted {
+                $0.localSequence < $1.localSequence
+            }.map(receiptBytes),
+            kernel: [
+                states.sorted {
+                    $0.workspaceID.uuidString < $1.workspaceID.uuidString
+                }.map {
+                    [$0.workspaceID.uuidString, $0.generationID.uuidString,
+                     $0.activeReplicaID.uuidString,
+                     String($0.workspaceRevision),
+                     String($0.lastLocalSequence),
+                     $0.mutableSemanticSHA256 ?? "nil"]
+                },
+                revisions.sorted {
+                    $0.stableIdentity < $1.stableIdentity
+                }.map {
+                    [$0.stableIdentity, $0.kind,
+                     $0.entityID.uuidString, String($0.revision),
+                     $0.externalProjectionSHA256 ?? "nil"]
+                },
+                quarantines.sorted {
+                    $0.workspaceMutationKey < $1.workspaceMutationKey
+                }.map {
+                    [$0.workspaceID.uuidString, $0.mutationID.uuidString,
+                     $0.workspaceMutationKey, $0.identityDomain,
+                     $0.acceptedIdentitySHA256,
+                     $0.conflictingIdentitySHA256,
+                     String($0.detectedAt.timeIntervalSinceReferenceDate.bitPattern)]
+                },
+            ])
+    }
+}
+#endif
+
+/// DEBUG-only source-bound observation for the two S6 checked cold exits.
+/// The callback is invoked by the original Search actor immediately before
+/// its real replacement. This owner remains retained through an uncertain
+/// handoff; its first source digest is never updated by a later read.
+private final class EraseOriginalColdExitFrameV1: @unchecked Sendable {
+    enum Stage: Equatable {
+        case sourceBound, searchPublished, notificationRefused,
+             scratchConstructed, scratchErased, exchangePublished,
+             uncertain
+    }
+    private let operation: EraseRouterOperationV1
+    private let authority: StoreRestoreGenerationAuthority
+    private let auxiliary: EraseAuxiliaryAuthority
+    private let oldGenerationID: UUID
+    private let sourceTree: String
+    private let controlsOrigin: EraseOriginalColdExitControlsV1
+    private var controlsPublished: EraseOriginalColdExitControlsV1?
+    private let userDefaults: UserDefaults
+    private let defaultsDomainName: String
+    private let defaultsOrigin: NSDictionary?
+    private var oldPointer: RestorePointerIdentityV1?
+    private var sourceLedger: DeletionLedgerProofV2?
+    private var sourceManifest: StoreGenerationManifestV1?
+    private var manifestObservationCount = 0
+    private var targetGenerationID: UUID?
+    private let schemaMigrationOrigin: String
+    private var targetManifestPointer: RestorePointerIdentityV1?
+    private var targetManifestIdentity: String?
+    private let auxiliaryOrigin: ErasePostRetiredAuxiliarySnapshotV1
+    private let searchOrigin: EraseOriginalSearchPhysicalStateV1
+    private let scratchOrigin: EraseOriginalScratchPhysicalStateV1
+    private let notificationOrigin:
+        EraseOriginalNotificationPhysicalSnapshotV1
+    private let exchangeOrigin: EraseOriginalExchangePhysicalStateV1
+    private let unrelatedOperationsDigest: String
+    private let lock = NSRecursiveLock()
+    private var stage: Stage = .sourceBound
+    private var searchExpectedBytes: Data?
+    private var constructedScratch: EraseOriginalScratchPhysicalStateV1?
+    private var scratchOwner: ScratchDataLeaseStoreV1?
+    private var notificationControl: AppLockNotificationControlStoreV1?
+    private var notificationBeforeEffect:
+        EraseOriginalNotificationPhysicalSnapshotV1?
+    private var notificationAfterRevocation:
+        EraseOriginalNotificationPhysicalSnapshotV1?
+    private var notificationAfterSuccess:
+        EraseOriginalNotificationPhysicalSnapshotV1?
+    private var notificationRefusal: (
+        revocation: NotificationEraseRevocationV1,
+        owned: Set<String>, observedOwned: Set<String>)?
+    private var exchangeLayout: EraseOriginalExchangePhysicalStateV1?
+    private var exchangeExpectedBytes: Data?
+    private var exchangeOwner: PortableExchangeSessionStoreV2?
+    private var discoveryOwner: PrivateSystemDiscoveryIndexStoreV1?
+    private var discoveryOrigin: PrivateSystemDiscoveryFileStateStoreV1
+        .OriginalErasePhysicalSnapshot?
+    private var discoveryAfter: PrivateSystemDiscoveryFileStateStoreV1
+        .OriginalErasePhysicalSnapshot?
+    private var sourceReadObservation:
+        EraseOriginalColdExitContextObservationV1?
+
+    func capturePostHandoffHostileSource(
+        operation expected: EraseRouterOperationV1,
+        intent: EraseIntentV1
+    ) throws -> V949OriginalEraseSourceBindingV1 {
+        try lock.withLock {
+            try requirePreparedTransition()
+            guard operation === expected,
+                  intent.oldGenerationID == oldGenerationID,
+                  intent.newGenerationID == targetGenerationID,
+                  let publishedControls = controlsPublished,
+                  let sourceManifest,
+                  let oldPointer,
+                  let targetManifestPointer,
+                  sourceManifest.generationID == oldGenerationID else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            return V949OriginalEraseSourceBindingV1(
+                oldGenerationID: oldGenerationID,
+                newGenerationID: intent.newGenerationID,
+                eraseID: intent.eraseID,
+                sourceTreeDigest: sourceTree,
+                sourcePointer: oldPointer,
+                publishedControls: publishedControls,
+                sourceManifestSHA256: try sourceManifest.canonicalSHA256(),
+                targetManifestSHA256:
+                    targetManifestPointer.generationManifestSHA256)
+        }
+    }
+
+    func requireV949OriginalSourceUnchanged(
+        _ binding: V949OriginalEraseSourceBindingV1,
+        operation expected: EraseRouterOperationV1
+    ) throws {
+        try lock.withLock {
+            guard operation === expected,
+                  binding.oldGenerationID == oldGenerationID,
+                  binding.newGenerationID == targetGenerationID,
+                  binding.sourceTreeDigest == sourceTree,
+                  controlsPublished == binding.publishedControls,
+                  try sourceManifest?.canonicalSHA256()
+                    == binding.sourceManifestSHA256,
+                  targetManifestPointer?.generationManifestSHA256
+                    == binding.targetManifestSHA256 else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireSourceUnchanged()
+        }
+    }
+
+    func requireV949ControlsUnchanged(
+        _ binding: V949OriginalEraseSourceBindingV1,
+        operation expected: EraseRouterOperationV1
+    ) throws {
+        try lock.withLock {
+            guard operation === expected,
+                  binding.oldGenerationID == oldGenerationID,
+                  binding.newGenerationID == targetGenerationID,
+                  controlsPublished == binding.publishedControls,
+                  try sourceManifest?.canonicalSHA256()
+                    == binding.sourceManifestSHA256,
+                  targetManifestPointer?.generationManifestSHA256
+                    == binding.targetManifestSHA256 else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requirePublishedControlsUnchanged()
+        }
+    }
+
+    init(operation: EraseRouterOperationV1,
+         authority: StoreRestoreGenerationAuthority,
+         auxiliary: EraseAuxiliaryAuthority,
+         oldGenerationID: UUID,
+         userDefaults: UserDefaults,
+         defaultsDomainName: String) throws {
+        self.operation = operation
+        self.authority = authority
+        self.auxiliary = auxiliary
+        self.oldGenerationID = oldGenerationID
+        self.userDefaults = userDefaults
+        self.defaultsDomainName = defaultsDomainName
+        defaultsOrigin = try Self.snapshotDefaults(
+            userDefaults, domain: defaultsDomainName)
+        controlsOrigin = try authority
+            .originalEraseControlsForColdExitForTesting()
+        sourceTree = try authority.originalEraseSourceTreeForColdExitForTesting(
+            id: oldGenerationID)
+        auxiliaryOrigin = try auxiliary.postRetiredSnapshot()
+        searchOrigin = try auxiliary.originalEraseSearchStateForTesting()
+        scratchOrigin = try auxiliary.originalEraseEmptyScratchStateForTesting()
+        notificationOrigin = try auxiliary
+            .originalEraseNotificationStateForTesting()
+        exchangeOrigin = try auxiliary.originalEraseExchangeStateForTesting()
+        unrelatedOperationsDigest = try auxiliary
+            .originalEraseUnrelatedOperationsDigestForTesting()
+        schemaMigrationOrigin = try auxiliary
+            .originalEraseSchemaMigrationDigestForTesting()
+        try requireSourceUnchanged()
+        try auxiliary.requireOriginalEraseOtherAuxiliaryUnchangedForTesting(
+            auxiliaryOrigin, allowing: [])
+        guard try auxiliary.originalEraseSearchStateForTesting() == searchOrigin else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        guard try auxiliary.originalEraseNotificationStateForTesting()
+                == notificationOrigin else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try requireDefaultsUnchanged()
+    }
+
+    private static func snapshotDefaults(
+        _ defaults: UserDefaults, domain: String
+    ) throws -> NSDictionary? {
+        guard let value = defaults.persistentDomain(forName: domain) else {
+            return nil
+        }
+        let bytes = try PropertyListSerialization.data(
+            fromPropertyList: value, format: .binary, options: 0)
+        guard let copy = try PropertyListSerialization.propertyList(
+            from: bytes, options: [], format: nil) as? NSDictionary else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        return copy
+    }
+
+    func requireDefaultsUnchanged() throws {
+        let after = try Self.snapshotDefaults(
+            userDefaults, domain: defaultsDomainName)
+        guard (defaultsOrigin == nil && after == nil)
+                || (defaultsOrigin?.isEqual(after) == true) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+
+    func requireSourceUnchanged() throws {
+        guard try authority.originalEraseSourceTreeForColdExitForTesting(
+            id: oldGenerationID) == sourceTree else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        if controlsPublished != nil {
+            try requirePublishedControlsUnchanged()
+        }
+    }
+
+    func observeSourceManifest(_ manifest: StoreGenerationManifestV1) {
+        lock.withLock {
+            manifestObservationCount += 1
+            if manifestObservationCount == 1 { sourceManifest = manifest }
+        }
+    }
+
+    func bindOriginalSourceSemantics(
+        pointer: RestorePointerIdentityV1,
+        ledger: DeletionLedgerProofV2
+    ) throws {
+        // RestorePointerIdentityV1 intentionally omits the pointer's schema
+        // version. Reconstruct the exact canonical V3 control with the active
+        // release, then compare its bytes and the source manifest digest.
+        let currentPointer = try CurrentGenerationPointerV3(
+            generationID: pointer.generationID,
+            generationManifestSHA256: pointer.generationManifestSHA256,
+            workspaceID: WorkspaceID(rawValue: pointer.workspaceID),
+            replicaID: ReplicaID(rawValue: pointer.replicaID),
+            knownReplicaIDs: Set(pointer.knownReplicaIDs.map { ReplicaID(rawValue: $0) }),
+            storeSchemaVersion: PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major)
+        try lock.withLock {
+            guard manifestObservationCount == 1,
+                  let sourceManifest,
+                  sourceManifest.generationID == oldGenerationID,
+                  pointer.generationID == oldGenerationID,
+                  sourceManifest.storeSchemaRelease
+                    == PersistentSchemaReleaseRegistryV1.activeRelease,
+                  try sourceManifest.canonicalSHA256()
+                    == pointer.generationManifestSHA256,
+                  oldPointer == nil, sourceLedger == nil else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try ledger.validate()
+            try requireSourceUnchanged()
+            guard controlsOrigin.current == (try currentPointer.canonicalData()),
+                  try authority.originalEraseControlsForColdExitForTesting()
+                    == controlsOrigin else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            oldPointer = pointer
+            sourceLedger = ledger
+        }
+    }
+
+    func beforePointerPublication(_ intent: EraseIntentV1) throws {
+        try lock.withLock {
+            if controlsPublished != nil {
+                try requirePublishedControlsUnchanged()
+                return
+            }
+            guard stage == .sourceBound,
+                  let oldPointer,
+                  intent.oldPointer == oldPointer,
+                  intent.targetPointer != nil,
+                  targetGenerationID == intent.newGenerationID else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireSourceUnchanged()
+            try requireUnrelatedOperationsUnchanged()
+            try requireDefaultsUnchanged()
+            try auxiliary.requireOriginalEraseOtherAuxiliaryUnchangedForTesting(
+                auxiliaryOrigin, allowing: [])
+            guard try authority.originalEraseControlsForColdExitForTesting()
+                    == controlsOrigin else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        }
+    }
+
+    func afterPointerPublication(_ intent: EraseIntentV1) throws {
+        try lock.withLock {
+            if controlsPublished != nil {
+                try requirePublishedControlsUnchanged()
+                return
+            }
+            guard stage == .sourceBound,
+                  let target = intent.targetPointer else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireSourceUnchanged()
+            controlsPublished = try authority
+                .requireOriginalErasePublishedControlsForColdExitForTesting(
+                    target: target,
+                    retiredIDs: intent.generationIDsToDelete)
+        }
+    }
+
+    private func requirePublishedControlsUnchanged() throws {
+        guard let controlsPublished,
+              try authority.originalEraseControlsForColdExitForTesting()
+                == controlsPublished else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+
+    func bindTargetAbsence(_ id: UUID) throws {
+        try lock.withLock {
+            guard oldPointer != nil, sourceLedger != nil,
+                  targetGenerationID == nil, id != oldGenerationID else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try authority.requireCompletedAbortTargetAbsent(id)
+            try requireSourceUnchanged()
+            guard try auxiliary.originalEraseSchemaMigrationDigestForTesting()
+                    == schemaMigrationOrigin else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try auxiliary.requireOriginalEraseTargetManifestAbsentForTesting(id)
+            targetGenerationID = id
+        }
+    }
+
+    func bindCreatedTargetManifest(_ pointer: RestorePointerIdentityV1) throws {
+        try lock.withLock {
+            guard targetGenerationID == pointer.generationID,
+                  targetManifestPointer == nil,
+                  targetManifestIdentity == nil,
+                  try auxiliary.originalEraseSchemaMigrationDigestForTesting(
+                    excludingTarget: pointer.generationID)
+                    == schemaMigrationOrigin else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            targetManifestIdentity = try auxiliary
+                .originalEraseTargetManifestForTesting(pointer)
+            targetManifestPointer = pointer
+            try requireUnrelatedOperationsUnchanged()
+        }
+    }
+
+    func requireUnrelatedOperationsUnchanged() throws {
+        guard try auxiliary.originalEraseUnrelatedOperationsDigestForTesting()
+                == unrelatedOperationsDigest else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        if let targetManifestPointer, let targetManifestIdentity {
+            guard try auxiliary.originalEraseSchemaMigrationDigestForTesting(
+                excludingTarget: targetManifestPointer.generationID)
+                    == schemaMigrationOrigin,
+                  try auxiliary.originalEraseTargetManifestForTesting(
+                    targetManifestPointer) == targetManifestIdentity else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        } else {
+            guard try auxiliary.originalEraseSchemaMigrationDigestForTesting()
+                    == schemaMigrationOrigin else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        }
+    }
+
+    func beforeSearchReplacement() throws {
+        try lock.withLock {
+            guard stage == .sourceBound else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireSourceUnchanged()
+            try requireUnrelatedOperationsUnchanged()
+            try requireDefaultsUnchanged()
+            try auxiliary.requireOriginalEraseOtherAuxiliaryUnchangedForTesting(
+                auxiliaryOrigin, allowing: [])
+            guard try auxiliary.originalEraseSearchStateForTesting()
+                    == searchOrigin else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        }
+    }
+
+    func afterSearchReplacement(expectedBytes: Data) throws {
+        try lock.withLock {
+            guard stage == .sourceBound else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            do {
+                try requireSourceUnchanged()
+                try requireUnrelatedOperationsUnchanged()
+                try auxiliary.requireOriginalEraseOtherAuxiliaryUnchangedForTesting(
+                    auxiliaryOrigin,
+                    allowing: [LocalSearchIndexStoreV1.directoryName])
+                let after = try auxiliary.originalEraseSearchStateForTesting()
+                guard after.projectionBytes == expectedBytes,
+                      after.projectionIdentity != searchOrigin.projectionIdentity,
+                      searchOrigin.rootDevice == nil
+                        || (after.rootDevice == searchOrigin.rootDevice
+                            && after.rootInode == searchOrigin.rootInode) else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                searchExpectedBytes = expectedBytes
+                stage = .searchPublished
+            } catch {
+                stage = .uncertain
+                throw error
+            }
+        }
+    }
+
+    func requireSearchPublished() throws {
+        try lock.withLock {
+            guard stage == .searchPublished,
+                  let searchExpectedBytes else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireSourceUnchanged()
+            try requireUnrelatedOperationsUnchanged()
+            try auxiliary.requireOriginalEraseOtherAuxiliaryUnchangedForTesting(
+                auxiliaryOrigin,
+                allowing: [LocalSearchIndexStoreV1.directoryName])
+            guard try auxiliary.originalEraseSearchStateForTesting()
+                    .projectionBytes == searchExpectedBytes else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        }
+    }
+
+    func bindOriginalDiscoveryOwner(
+        _ owner: PrivateSystemDiscoveryIndexStoreV1,
+        snapshot: PrivateSystemDiscoveryFileStateStoreV1
+            .OriginalErasePhysicalSnapshot
+    ) throws {
+        try lock.withLock {
+            guard stage == .sourceBound,
+                  discoveryOwner == nil, discoveryOrigin == nil else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireSourceUnchanged()
+            try requireUnrelatedOperationsUnchanged()
+            try auxiliary.requireOriginalEraseOtherAuxiliaryUnchangedForTesting(
+                auxiliaryOrigin, allowing: [])
+            discoveryOwner = owner
+            discoveryOrigin = snapshot
+        }
+    }
+
+    func beforeDiscoveryEffect(
+        _ snapshot: PrivateSystemDiscoveryFileStateStoreV1
+            .OriginalErasePhysicalSnapshot
+    ) throws {
+        try lock.withLock {
+            guard stage == .searchPublished,
+                  discoveryOrigin == snapshot,
+                  discoveryAfter == nil else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireSearchPublished()
+        }
+    }
+
+    func afterDiscoveryEffect(
+        _ snapshot: PrivateSystemDiscoveryFileStateStoreV1
+            .OriginalErasePhysicalSnapshot
+    ) throws {
+        try lock.withLock {
+            guard stage == .searchPublished,
+                  discoveryOrigin != nil,
+                  discoveryAfter == nil,
+                  snapshot.rootDevice == discoveryOrigin?.rootDevice,
+                  snapshot.rootInode == discoveryOrigin?.rootInode,
+                  snapshot.data != nil else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireSearchPublished()
+            discoveryAfter = snapshot
+        }
+    }
+
+    /// Called again at checked host transfer. The actor's original held
+    /// durable root is read without recovery, and the same original source
+    /// witness is rechecked after the actor hop. No later state is a baseline.
+    func requireOriginalDiscoveryAfterUnchanged() async throws {
+        let (owner, after) = try lock.withLock { () throws -> (
+            PrivateSystemDiscoveryIndexStoreV1,
+            PrivateSystemDiscoveryFileStateStoreV1.OriginalErasePhysicalSnapshot
+        ) in
+            guard stage == .searchPublished || stage == .notificationRefused
+                    || stage == .scratchConstructed || stage == .scratchErased
+                    || stage == .exchangePublished,
+                  let discoveryOwner, let discoveryAfter else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            return (discoveryOwner, discoveryAfter)
+        }
+        guard try await owner.originalErasePhysicalSnapshotForTesting()
+                == after else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try requireSourceUnchanged()
+        try requireUnrelatedOperationsUnchanged()
+    }
+
+    private func requireEffectPostimageForSourceRead() throws {
+        try lock.withLock {
+            guard stage == .notificationRefused
+                    || stage == .exchangePublished,
+                  sourceManifest != nil, sourceLedger != nil,
+                  targetGenerationID != nil,
+                  discoveryAfter != nil,
+                  let searchExpectedBytes,
+                  controlsPublished != nil else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireSourceUnchanged()
+            try requireUnrelatedOperationsUnchanged()
+            try requireDefaultsUnchanged()
+            try requirePublishedControlsUnchanged()
+            let changed: Set<String> = stage == .exchangePublished
+                ? [LocalSearchIndexStoreV1.directoryName,
+                    PortableExchangeSessionStoreLayoutV2.directoryName]
+                : [LocalSearchIndexStoreV1.directoryName]
+            try auxiliary.requireOriginalEraseOtherAuxiliaryUnchangedForTesting(
+                auxiliaryOrigin, allowing: changed)
+            guard try auxiliary.originalEraseSearchStateForTesting()
+                    .projectionBytes == searchExpectedBytes else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            if stage == .notificationRefused {
+                guard let notificationControl,
+                      let notificationAfterRevocation,
+                      try notificationControl
+                        .originalErasePhysicalSnapshotForTesting()
+                        == notificationAfterRevocation else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+            }
+            if stage == .exchangePublished {
+                guard let notificationControl,
+                      let notificationAfterSuccess,
+                      try notificationControl
+                        .originalErasePhysicalSnapshotForTesting()
+                        == notificationAfterSuccess else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                guard let exchangeExpectedBytes, let exchangeLayout,
+                      try auxiliary.originalEraseEmptyScratchStateForTesting()
+                        .scratchInode == nil else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                let actual = try auxiliary.originalEraseExchangeStateForTesting()
+                guard actual.rootDevice == exchangeLayout.rootDevice,
+                      actual.rootInode == exchangeLayout.rootInode,
+                      actual.envelopeBytes == exchangeExpectedBytes,
+                      actual.names == (exchangeLayout.names + [
+                        PortableExchangeSessionStoreLayoutV2.envelopeFileName
+                      ]).sorted() else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+            }
+        }
+    }
+
+    @MainActor
+    func requireFreshOriginalSourceLedger(
+        factory: StoreGenerationFactory
+    ) throws {
+        let (manifest, ledger) = try lock.withLock { () throws -> (
+            StoreGenerationManifestV1, DeletionLedgerProofV2
+        ) in
+            guard sourceReadObservation == nil,
+                  let sourceManifest, let sourceLedger else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            return (sourceManifest, sourceLedger)
+        }
+        try requireEffectPostimageForSourceRead()
+        try factory.requireFreshRetiredOriginalSourceLedgerForColdExit(
+            sourceGenerationID: oldGenerationID,
+            manifestMigrationID: manifest.migrationID,
+            manifestRelease: manifest.storeSchemaRelease,
+            expected: ledger, sourceAuthority: authority,
+            retainObservation: { observation in
+                try self.lock.withLock {
+                    guard self.sourceReadObservation == nil else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                    self.sourceReadObservation = observation
+                }
+            },
+            reproveOriginal: { try self.requireEffectPostimageForSourceRead() })
+    }
+
+    func requireFreshOriginalSourceReaderDrained() throws {
+        try lock.withLock {
+            guard let sourceReadObservation else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try sourceReadObservation.requireDrained()
+        }
+        try requireEffectPostimageForSourceRead()
+    }
+
+    func beforeScratchConstruction() throws {
+        try lock.withLock {
+            guard stage == .searchPublished else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireSearchPublished()
+            guard try auxiliary.originalEraseEmptyScratchStateForTesting()
+                    == scratchOrigin else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        }
+    }
+
+    func retainOriginalNotificationControl(
+        _ control: AppLockNotificationControlStoreV1
+    ) throws {
+        try lock.withLock {
+            guard stage == .searchPublished, notificationControl == nil,
+                  discoveryAfter != nil else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            notificationControl = control
+            do {
+                try requireSearchPublished()
+                let afterConstruction = try control
+                    .originalErasePhysicalSnapshotForTesting()
+                if notificationOrigin.rootDevice == nil {
+                    guard afterConstruction.rootDevice != nil,
+                          afterConstruction.rootInode != nil,
+                          afterConstruction.names.isEmpty,
+                          afterConstruction.eraseBytes == nil else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                } else {
+                    guard afterConstruction.rootDevice
+                            == notificationOrigin.rootDevice,
+                          afterConstruction.rootInode
+                            == notificationOrigin.rootInode,
+                          afterConstruction.names == notificationOrigin.names,
+                          afterConstruction.unchangedLeavesDigest
+                            == notificationOrigin.unchangedLeavesDigest,
+                          afterConstruction.eraseBytes
+                            == notificationOrigin.eraseBytes,
+                          afterConstruction.eraseIdentity
+                            == notificationOrigin.eraseIdentity else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                }
+                guard afterConstruction.eraseBytes == nil else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                notificationBeforeEffect = afterConstruction
+            } catch {
+                stage = .uncertain
+                throw error
+            }
+        }
+    }
+
+    func beforeOriginalNotificationRevocation() throws {
+        try lock.withLock {
+            guard stage == .searchPublished,
+                  let notificationControl, let notificationBeforeEffect,
+                  notificationAfterRevocation == nil else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireSearchPublished()
+            guard try notificationControl
+                    .originalErasePhysicalSnapshotForTesting()
+                    == notificationBeforeEffect else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        }
+    }
+
+    func afterOriginalNotificationRevocation(
+        _ revocation: NotificationEraseRevocationV1
+    ) throws {
+        try lock.withLock {
+            guard stage == .searchPublished,
+                  let notificationControl,
+                  let notificationBeforeEffect,
+                  notificationAfterRevocation == nil,
+                  notificationBeforeEffect.eraseBytes == nil,
+                  revocation.rootIdentity
+                    == notificationControl.notificationRootIdentity else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let expected = try CompatibilityCanonicalV1.encode(revocation)
+            let actual = try notificationControl
+                .originalErasePhysicalSnapshotForTesting()
+            guard actual.rootDevice == notificationBeforeEffect.rootDevice,
+                  actual.rootInode == notificationBeforeEffect.rootInode,
+                  actual.unchangedLeavesDigest
+                    == notificationBeforeEffect.unchangedLeavesDigest,
+                  actual.eraseBytes == expected,
+                  actual.eraseIdentity != nil,
+                  actual.names == (notificationBeforeEffect.names
+                    + [AppLockNotificationControlStoreV1.eraseName]).sorted()
+            else { throw EraseAllServiceError.invalidAuthority }
+            try requireSearchPublished()
+            notificationAfterRevocation = actual
+        }
+    }
+
+    func recordOriginalNotificationRefusal(
+        revocation: NotificationEraseRevocationV1,
+        owned: Set<String>, observedOwned: Set<String>,
+        subject: EraseAllOperationSubjectV1
+    ) throws {
+        try lock.withLock {
+            guard stage == .searchPublished,
+                  let notificationControl,
+                  revocation.operationID == subject.eraseID,
+                  revocation.rootIdentity
+                    == notificationControl.notificationRootIdentity,
+                  !owned.isEmpty, !observedOwned.isEmpty,
+                  observedOwned.isSubset(of: owned),
+                  notificationRefusal == nil,
+                  let notificationAfterRevocation else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let actual = try notificationControl
+                .originalErasePhysicalSnapshotForTesting()
+            guard actual == notificationAfterRevocation else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireSearchPublished()
+            self.notificationRefusal = (revocation, owned, observedOwned)
+            stage = .notificationRefused
+        }
+    }
+
+    func afterOriginalNotificationSuccess(
+        _ revocation: NotificationEraseRevocationV1
+    ) throws {
+        try lock.withLock {
+            guard stage == .searchPublished,
+                  let notificationControl,
+                  notificationAfterRevocation != nil,
+                  notificationAfterSuccess == nil,
+                  revocation.rootIdentity
+                    == notificationControl.notificationRootIdentity else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let actual = try notificationControl
+                .originalErasePhysicalSnapshotForTesting()
+            guard actual.rootDevice == notificationAfterRevocation?.rootDevice,
+                  actual.rootInode == notificationAfterRevocation?.rootInode,
+                  actual.names == [AppLockNotificationControlStoreV1.eraseName],
+                  actual.eraseBytes
+                    == (try CompatibilityCanonicalV1.encode(revocation)) else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireSearchPublished()
+            notificationAfterSuccess = actual
+        }
+    }
+
+    func requireOriginalNotificationRefusal(
+        operation: EraseRouterOperationV1,
+        subject: EraseAllOperationSubjectV1
+    ) throws {
+        try lock.withLock {
+            guard self.operation === operation, stage == .notificationRefused,
+                  let notificationRefusal,
+                  oldPointer != nil, sourceLedger != nil,
+                  sourceManifest != nil,
+                  targetGenerationID == subject.newGenerationID,
+                  notificationRefusal.revocation.operationID == subject.eraseID,
+                  let notificationControl,
+                  let notificationAfterRevocation,
+                  notificationRefusal.revocation.rootIdentity
+                    == notificationControl.notificationRootIdentity else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireSourceUnchanged()
+            try requireUnrelatedOperationsUnchanged()
+            try requireDefaultsUnchanged()
+            try requirePublishedControlsUnchanged()
+            try auxiliary.requireOriginalEraseOtherAuxiliaryUnchangedForTesting(
+                auxiliaryOrigin,
+                allowing: [LocalSearchIndexStoreV1.directoryName])
+            guard try auxiliary.originalEraseSearchStateForTesting()
+                    .projectionBytes == searchExpectedBytes else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            guard try notificationControl
+                    .originalErasePhysicalSnapshotForTesting()
+                    == notificationAfterRevocation else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        }
+    }
+
+    func afterScratchConstruction(_ owner: ScratchDataLeaseStoreV1) throws {
+        try lock.withLock {
+            guard stage == .searchPublished, scratchOwner == nil else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            // Retain the real descriptor owner before any later proof can
+            // throw; an uncertain constructor/close never drops its aliases.
+            scratchOwner = owner
+            do {
+                try requireSearchPublished()
+                let now = try auxiliary.originalEraseEmptyScratchStateForTesting()
+                guard now.operationsDevice == scratchOrigin.operationsDevice,
+                      now.operationsInode == scratchOrigin.operationsInode,
+                      now.scratchDevice != nil,
+                      now.scratchInode != nil,
+                      scratchOrigin.scratchInode == nil
+                        || now.scratchInode == scratchOrigin.scratchInode else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                constructedScratch = now
+                stage = .scratchConstructed
+            } catch {
+                stage = .uncertain
+                throw error
+            }
+        }
+    }
+
+    func afterScratchErase(_ owner: ScratchDataLeaseStoreV1) throws {
+        try lock.withLock {
+            guard stage == .scratchConstructed,
+                  scratchOwner === owner,
+                  constructedScratch != nil else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            do {
+                try requireSourceUnchanged()
+                try requireUnrelatedOperationsUnchanged()
+                try auxiliary.requireOriginalEraseOtherAuxiliaryUnchangedForTesting(
+                    auxiliaryOrigin,
+                    allowing: [LocalSearchIndexStoreV1.directoryName])
+                let now = try auxiliary.originalEraseEmptyScratchStateForTesting()
+                guard now.operationsDevice == scratchOrigin.operationsDevice,
+                      now.operationsInode == scratchOrigin.operationsInode,
+                      now.scratchDevice == nil,
+                      now.scratchInode == nil else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                stage = .scratchErased
+            } catch {
+                stage = .uncertain
+                throw error
+            }
+        }
+    }
+
+    func retainAndCheckExchangeBeforeLoad(
+        _ owner: PortableExchangeSessionStoreV2
+    ) throws {
+        try lock.withLock {
+            guard stage == .scratchErased, exchangeOwner == nil,
+                  exchangeOrigin.rootDevice == nil,
+                  exchangeOrigin.rootInode == nil,
+                  exchangeOrigin.envelopeBytes == nil else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            exchangeOwner = owner
+            try requireSourceUnchanged()
+            try requireUnrelatedOperationsUnchanged()
+            try auxiliary.requireOriginalEraseOtherAuxiliaryUnchangedForTesting(
+                auxiliaryOrigin,
+                allowing: [LocalSearchIndexStoreV1.directoryName])
+            guard try auxiliary.originalEraseExchangeStateForTesting()
+                    == exchangeOrigin else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        }
+    }
+
+    func checkExchangeBeforePublish(
+        predecessor: Data, successor: Data
+    ) throws {
+        try lock.withLock {
+            guard stage == .scratchErased,
+                  exchangeOwner != nil,
+                  exchangeLayout == nil,
+                  exchangeExpectedBytes == nil else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireSourceUnchanged()
+            try requireUnrelatedOperationsUnchanged()
+            try auxiliary.requireOriginalEraseOtherAuxiliaryUnchangedForTesting(
+                auxiliaryOrigin,
+                allowing: [LocalSearchIndexStoreV1.directoryName,
+                    PortableExchangeSessionStoreLayoutV2.directoryName])
+            let prior = try StoreMigrationCanonicalJSONV1.decodeCanonical(
+                PortableExchangeSessionEnvelopeV2.self, from: predecessor)
+            let next = try StoreMigrationCanonicalJSONV1.decodeCanonical(
+                PortableExchangeSessionEnvelopeV2.self, from: successor)
+            guard prior.sessions.isEmpty, prior.quarantine.isEmpty,
+                  next.sessions.isEmpty, next.quarantine.isEmpty else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let actual = try auxiliary.originalEraseExchangeStateForTesting()
+            let expectedNames = [
+                PortableExchangeSessionStoreLayoutV2.payloadDirectoryName,
+                PortableExchangeSessionStoreLayoutV2.capabilityDirectoryName,
+                PortableExchangeSessionStoreLayoutV2.quarantineDirectoryName
+            ].sorted()
+            guard actual.rootDevice != nil, actual.rootInode != nil,
+                  actual.envelopeBytes == nil,
+                  actual.names == expectedNames else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            exchangeLayout = actual
+            exchangeExpectedBytes = successor
+        }
+    }
+
+    func checkExchangeAfterPublish(successor: Data) throws {
+        try lock.withLock {
+            guard stage == .scratchErased,
+                  let exchangeLayout,
+                  exchangeExpectedBytes == successor else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            do {
+                try requireSourceUnchanged()
+                try requireUnrelatedOperationsUnchanged()
+                try auxiliary.requireOriginalEraseOtherAuxiliaryUnchangedForTesting(
+                    auxiliaryOrigin,
+                    allowing: [LocalSearchIndexStoreV1.directoryName,
+                        PortableExchangeSessionStoreLayoutV2.directoryName])
+                let actual = try auxiliary.originalEraseExchangeStateForTesting()
+                guard actual.rootDevice == exchangeLayout.rootDevice,
+                      actual.rootInode == exchangeLayout.rootInode,
+                      actual.envelopeBytes == successor,
+                      actual.names == (exchangeLayout.names + [
+                        PortableExchangeSessionStoreLayoutV2.envelopeFileName
+                      ]).sorted() else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                stage = .exchangePublished
+            } catch {
+                stage = .uncertain
+                throw error
+            }
+        }
+    }
+
+    func requirePreparedTransition() throws {
+        try lock.withLock {
+            guard stage == .exchangePublished,
+                  exchangeOwner != nil,
+                  scratchOwner != nil,
+                  exchangeExpectedBytes != nil,
+                  notificationAfterSuccess != nil,
+                  oldPointer != nil, sourceLedger != nil,
+                  sourceManifest != nil, controlsPublished != nil,
+                  targetGenerationID != nil else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireSourceUnchanged()
+            try requireUnrelatedOperationsUnchanged()
+            try requireDefaultsUnchanged()
+            try requirePublishedControlsUnchanged()
+            try auxiliary.requireOriginalEraseOtherAuxiliaryUnchangedForTesting(
+                auxiliaryOrigin,
+                allowing: [LocalSearchIndexStoreV1.directoryName,
+                    PortableExchangeSessionStoreLayoutV2.directoryName])
+        }
+    }
+}
+#endif
+
 private final class EraseAuxiliaryAuthority {
     private struct Identity: Equatable {
         let device: dev_t
@@ -2841,6 +5534,365 @@ private final class EraseAuxiliaryAuthority {
     private let applicationSupportIdentity: Identity
     private let cachesIdentity: Identity
     private let temporaryIdentity: Identity
+
+#if DEBUG
+    private let postRetiredIO = EraseAbortCheckedSnapshotIOV1()
+
+    /// The Search actor is the sole effect owner; this observation is only a
+    /// held-support-root physical check. Unknown siblings are never adopted
+    /// as part of the actor's expected empty-envelope transition.
+    func originalEraseSearchStateForTesting() throws -> EraseOriginalSearchPhysicalStateV1 {
+        try verify()
+        let name = LocalSearchIndexStoreV1.directoryName
+        var named = stat()
+        let present = Darwin.fstatat(
+            applicationSupportDescriptor, name, &named, AT_SYMLINK_NOFOLLOW)
+        if present != 0, errno == ENOENT {
+            return EraseOriginalSearchPhysicalStateV1(
+                rootDevice: nil, rootInode: nil,
+                projectionBytes: nil, projectionIdentity: nil)
+        }
+        guard present == 0, named.st_mode & S_IFMT == S_IFDIR else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        return try postRetiredIO.withOpen(
+            parent: applicationSupportDescriptor, name: name,
+            flags: O_RDONLY | O_DIRECTORY
+        ) { directory in
+            var held = stat(), namedAfter = stat()
+            guard Darwin.fstat(directory, &held) == 0,
+                  held.st_dev == named.st_dev, held.st_ino == named.st_ino,
+                  Darwin.fstatat(applicationSupportDescriptor, name,
+                                 &namedAfter, AT_SYMLINK_NOFOLLOW) == 0,
+                  namedAfter.st_dev == held.st_dev,
+                  namedAfter.st_ino == held.st_ino else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let names = try postRetiredIO.names(in: directory)
+            guard names.isEmpty || names == [LocalSearchIndexStoreV1.fileName] else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let value = names.isEmpty ? nil : try postRetiredIO.control(
+                parent: directory, name: LocalSearchIndexStoreV1.fileName)
+            guard try postRetiredIO.names(in: directory) == names else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            return EraseOriginalSearchPhysicalStateV1(
+                rootDevice: held.st_dev, rootInode: held.st_ino,
+                projectionBytes: value?.0, projectionIdentity: value?.1)
+        }
+    }
+
+    func requireOriginalEraseOtherAuxiliaryUnchangedForTesting(
+        _ origin: ErasePostRetiredAuxiliarySnapshotV1,
+        allowing changed: Set<String>
+    ) throws {
+        let current = try postRetiredSnapshot()
+        let controlRoots: Set<String> = [
+            "FieldEvidenceData", "FieldEvidenceErase", "FieldEvidenceOperations"
+        ]
+        guard Set(origin.supportNames).subtracting(controlRoots).subtracting(changed)
+                == Set(current.supportNames).subtracting(controlRoots).subtracting(changed),
+              origin.roots.filter({ !changed.contains($0.key) })
+                == current.roots.filter({ !changed.contains($0.key) }) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+
+    /// Registry proves generation-leases, notification owner proves its own
+    /// control root, Scratch proves its one create/remove edge, and the
+    /// original frame separately proves the one schema-migration manifest
+    /// created by the genuine empty-generation factory.
+    /// Every other Operations child remains bound to the original frame.
+    func originalEraseUnrelatedOperationsDigestForTesting() throws -> String {
+        try verify()
+        let value = try postRetiredIO.postRetiredTree(
+            parent: applicationSupportDescriptor,
+            name: "FieldEvidenceOperations",
+            excluding: [
+                "generation-leases", "AppLockNotificationControlV1",
+                "ScratchDataV1", "schema-migration"
+            ],
+            ignoringDirectoryMetadata: [""])
+        try verify()
+        return value
+    }
+
+    func originalEraseSchemaMigrationDigestForTesting(
+        excludingTarget targetID: UUID? = nil
+    ) throws -> String {
+        try verify()
+        let value = try postRetiredIO.withOpen(
+            parent: applicationSupportDescriptor,
+            name: "FieldEvidenceOperations",
+            flags: O_RDONLY | O_DIRECTORY
+        ) { operations in
+            let excluded = Set(targetID.map {
+                ["manifest-\($0.uuidString.lowercased()).json"]
+            } ?? [])
+            return try postRetiredIO.postRetiredTree(
+                parent: operations, name: "schema-migration",
+                excluding: excluded,
+                ignoringDirectoryMetadata: [""])
+        }
+        try verify()
+        return value
+    }
+
+    func originalEraseTargetManifestForTesting(
+        _ pointer: RestorePointerIdentityV1
+    ) throws -> String {
+        try verify()
+        let identity = try postRetiredIO.withOpen(
+            parent: applicationSupportDescriptor,
+            name: "FieldEvidenceOperations",
+            flags: O_RDONLY | O_DIRECTORY
+        ) { operations in
+            try postRetiredIO.withOpen(
+                parent: operations, name: "schema-migration",
+                flags: O_RDONLY | O_DIRECTORY
+            ) { migration in
+                let name = "manifest-\(pointer.generationID.uuidString.lowercased()).json"
+                let (data, identity) = try postRetiredIO.control(
+                    parent: migration, name: name, maximum: 32 * 1024 * 1024)
+                let manifest = try StoreGenerationManifestV1.decodeCanonical(
+                    from: data)
+                guard manifest.generationID == pointer.generationID,
+                      manifest.storeSchemaRelease
+                        == PersistentSchemaReleaseRegistryV1.activeRelease,
+                      StoreMigrationCanonicalJSONV1.sha256(data)
+                        == pointer.generationManifestSHA256 else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                return identity
+            }
+        }
+        try verify()
+        return identity
+    }
+
+    func requireOriginalEraseTargetManifestAbsentForTesting(_ id: UUID) throws {
+        try verify()
+        try postRetiredIO.withOpen(
+            parent: applicationSupportDescriptor,
+            name: "FieldEvidenceOperations",
+            flags: O_RDONLY | O_DIRECTORY
+        ) { operations in
+            try postRetiredIO.withOpen(
+                parent: operations, name: "schema-migration",
+                flags: O_RDONLY | O_DIRECTORY
+            ) { migration in
+                let name = "manifest-\(id.uuidString.lowercased()).json"
+                var value = stat()
+                guard Darwin.fstatat(migration, name, &value,
+                                     AT_SYMLINK_NOFOLLOW) != 0,
+                      errno == ENOENT else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+            }
+        }
+        try verify()
+    }
+
+    func originalEraseNotificationStateForTesting() throws
+        -> EraseOriginalNotificationPhysicalSnapshotV1 {
+        try verify()
+        return try postRetiredIO.withOpen(
+            parent: applicationSupportDescriptor,
+            name: "FieldEvidenceOperations",
+            flags: O_RDONLY | O_DIRECTORY
+        ) { operations in
+            try AppLockNotificationControlStoreV1
+                .originalErasePhysicalSnapshotForTesting(
+                    operationsDescriptor: operations, io: postRetiredIO)
+        }
+    }
+
+    /// Only an absent or exactly empty ScratchDataV1 root is admitted by the
+    /// two S6 fixtures. A live lease/tombstone is genuine work and refuses
+    /// this narrow host-boundary seam rather than being silently discarded.
+    func originalEraseEmptyScratchStateForTesting() throws
+        -> EraseOriginalScratchPhysicalStateV1 {
+        try verify()
+        return try postRetiredIO.withOpen(
+            parent: applicationSupportDescriptor,
+            name: "FieldEvidenceOperations",
+            flags: O_RDONLY | O_DIRECTORY
+        ) { operations in
+            var parent = stat(), namedParent = stat()
+            guard Darwin.fstat(operations, &parent) == 0,
+                  Darwin.fstatat(applicationSupportDescriptor,
+                                 "FieldEvidenceOperations", &namedParent,
+                                 AT_SYMLINK_NOFOLLOW) == 0,
+                  parent.st_mode & S_IFMT == S_IFDIR,
+                  parent.st_dev == namedParent.st_dev,
+                  parent.st_ino == namedParent.st_ino else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            var scratch = stat()
+            let found = Darwin.fstatat(
+                operations, "ScratchDataV1", &scratch, AT_SYMLINK_NOFOLLOW)
+            if found != 0, errno == ENOENT {
+                return EraseOriginalScratchPhysicalStateV1(
+                    operationsDevice: parent.st_dev,
+                    operationsInode: parent.st_ino,
+                    scratchDevice: nil, scratchInode: nil)
+            }
+            guard found == 0, scratch.st_mode & S_IFMT == S_IFDIR else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            return try postRetiredIO.withOpen(
+                parent: operations, name: "ScratchDataV1",
+                flags: O_RDONLY | O_DIRECTORY
+            ) { root in
+                var held = stat(), named = stat()
+                guard Darwin.fstat(root, &held) == 0,
+                      Darwin.fstatat(operations, "ScratchDataV1",
+                                     &named, AT_SYMLINK_NOFOLLOW) == 0,
+                      held.st_dev == scratch.st_dev,
+                      held.st_ino == scratch.st_ino,
+                      named.st_dev == held.st_dev,
+                      named.st_ino == held.st_ino,
+                      try postRetiredIO.names(in: root).isEmpty else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                return EraseOriginalScratchPhysicalStateV1(
+                    operationsDevice: parent.st_dev,
+                    operationsInode: parent.st_ino,
+                    scratchDevice: held.st_dev,
+                    scratchInode: held.st_ino)
+            }
+        }
+    }
+
+    /// The two S6 fixtures admit only an absent original Exchange root and
+    /// its exact owned empty-layout successor. No journal, migration receipt,
+    /// payload, capability, quarantine child or foreign name is accepted.
+    func originalEraseExchangeStateForTesting() throws
+        -> EraseOriginalExchangePhysicalStateV1 {
+        try verify()
+        let rootName = PortableExchangeSessionStoreLayoutV2.directoryName
+        var named = stat()
+        let found = Darwin.fstatat(
+            applicationSupportDescriptor, rootName, &named, AT_SYMLINK_NOFOLLOW)
+        if found != 0, errno == ENOENT {
+            return EraseOriginalExchangePhysicalStateV1(
+                rootDevice: nil, rootInode: nil,
+                envelopeBytes: nil, names: [])
+        }
+        guard found == 0, named.st_mode & S_IFMT == S_IFDIR else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        return try postRetiredIO.withOpen(
+            parent: applicationSupportDescriptor, name: rootName,
+            flags: O_RDONLY | O_DIRECTORY
+        ) { root in
+            var held = stat()
+            guard Darwin.fstat(root, &held) == 0,
+                  held.st_dev == named.st_dev,
+                  held.st_ino == named.st_ino else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let names = try postRetiredIO.names(in: root)
+            let ownedDirectories = [
+                PortableExchangeSessionStoreLayoutV2.payloadDirectoryName,
+                PortableExchangeSessionStoreLayoutV2.capabilityDirectoryName,
+                PortableExchangeSessionStoreLayoutV2.quarantineDirectoryName
+            ]
+            let allowed = Set(ownedDirectories + [
+                PortableExchangeSessionStoreLayoutV2.envelopeFileName])
+            guard Set(names).isSubset(of: allowed) else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            for child in ownedDirectories where names.contains(child) {
+                try postRetiredIO.withOpen(
+                    parent: root, name: child,
+                    flags: O_RDONLY | O_DIRECTORY
+                ) { directory in
+                    guard try postRetiredIO.names(in: directory).isEmpty else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                }
+            }
+            let envelopeName = PortableExchangeSessionStoreLayoutV2.envelopeFileName
+            let envelope = names.contains(envelopeName)
+                ? try postRetiredIO.control(parent: root, name: envelopeName).0
+                : nil
+            guard try postRetiredIO.names(in: root) == names else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            return EraseOriginalExchangePhysicalStateV1(
+                rootDevice: held.st_dev, rootInode: held.st_ino,
+                envelopeBytes: envelope, names: names)
+        }
+    }
+
+    /// Observes only original-held auxiliary roots. Operations is checked
+    /// before control release; its authorized guard transition is proved by
+    /// the Registry and is not called equal after unlink.
+    func postRetiredSnapshot() throws -> ErasePostRetiredAuxiliarySnapshotV1 {
+        try verify()
+        func optionalTree(_ parent: Int32, _ name: String) throws -> String? {
+            var value = stat()
+            let result = Darwin.fstatat(parent, name, &value, AT_SYMLINK_NOFOLLOW)
+            if result != 0, errno == ENOENT { return nil }
+            guard result == 0, value.st_mode & S_IFMT == S_IFDIR else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            return try postRetiredIO.postRetiredTree(parent: parent, name: name)
+        }
+        let supportNames = try postRetiredIO.names(in: applicationSupportDescriptor)
+        let targets = [
+            "FieldEvidenceRestore", "FieldEvidenceCommerce",
+            "FieldEvidenceDiagnostics", LocalSearchIndexStoreV1.directoryName,
+            PortableExchangeSessionStoreLayoutV2.directoryName,
+            LocalJobStoreSchemaV1.directoryName
+        ]
+        // Every Application Support entry must have one original held-root
+        // owner in this witness. Data belongs to generation authority, Erase
+        // to the original IntentStore, Operations to the partitioned
+        // auxiliary/Registry/notification owners, and these six to auxiliary.
+        // An unfamiliar root cannot be accepted as an opaque unchanged name.
+        let assignedSupportNames = Set(targets).union([
+            "FieldEvidenceData", "FieldEvidenceErase",
+            "FieldEvidenceOperations"
+        ])
+        guard Set(supportNames).isSubset(of: assignedSupportNames) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        var roots: [String: String] = [:]
+        for name in targets {
+            roots[name] = try optionalTree(applicationSupportDescriptor, name)
+        }
+        roots["Caches/FieldEvidenceApp"] = try optionalTree(
+            cachesDescriptor, "FieldEvidenceApp")
+        roots["Temporary/FieldEvidenceApp"] = try optionalTree(
+            temporaryDescriptor, "FieldEvidenceApp")
+        let operations = try optionalTree(
+            applicationSupportDescriptor, "FieldEvidenceOperations")
+        guard try postRetiredIO.names(in: applicationSupportDescriptor) == supportNames,
+              try optionalTree(applicationSupportDescriptor,
+                  "FieldEvidenceOperations") == operations else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        for name in targets {
+            guard try optionalTree(applicationSupportDescriptor, name)
+                    == roots[name] else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        }
+        guard try optionalTree(cachesDescriptor, "FieldEvidenceApp")
+                  == roots["Caches/FieldEvidenceApp"],
+              try optionalTree(temporaryDescriptor, "FieldEvidenceApp")
+                  == roots["Temporary/FieldEvidenceApp"] else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try verify()
+        return ErasePostRetiredAuxiliarySnapshotV1(
+            supportNames: supportNames, roots: roots,
+            operationsBeforeRelease: operations)
+    }
+#endif
 
     var applicationSupportRootIdentity: StoreApplicationSupportIdentity {
         StoreApplicationSupportIdentity(
@@ -2910,6 +5962,36 @@ private final class EraseAuxiliaryAuthority {
         _ = Darwin.close(cachesDescriptor)
         _ = Darwin.close(applicationSupportDescriptor)
     }
+
+#if DEBUG
+    func requireEraseRootAbsentForCompletedAbort() throws {
+        func requireHeldAndNamed(_ descriptor: Int32, _ url: URL,
+                                 _ expected: Identity) throws {
+            try Self.require(descriptor, expected)
+            var named = stat()
+            guard Darwin.lstat(url.path, &named) == 0,
+                  named.st_mode & S_IFMT == S_IFDIR,
+                  named.st_dev == expected.device,
+                  named.st_ino == expected.inode else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        }
+        try requireHeldAndNamed(applicationSupportDescriptor,
+                                applicationSupportURL, applicationSupportIdentity)
+        try requireHeldAndNamed(cachesDescriptor, cachesDirectoryURL, cachesIdentity)
+        try requireHeldAndNamed(temporaryDescriptor, temporaryDirectoryURL, temporaryIdentity)
+        var named = stat()
+        let result = Darwin.fstatat(applicationSupportDescriptor,
+                                    "FieldEvidenceErase", &named,
+                                    AT_SYMLINK_NOFOLLOW)
+        let lookupError = errno
+        guard result != 0, lookupError == ENOENT else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try requireHeldAndNamed(applicationSupportDescriptor,
+                                applicationSupportURL, applicationSupportIdentity)
+    }
+#endif
 
     func verifyTargets() throws {
         try verify()
@@ -2981,7 +6063,7 @@ private final class EraseAuxiliaryAuthority {
         try verify()
     }
 
-    func removeFrozenTargets() throws {
+    func removeFrozenTargets(expectedOperationsIdentity: StreamingArchiveRootIdentityV1? = nil) throws {
         try verifyTargets()
         for name in [
             "FieldEvidenceRestore",
@@ -2993,7 +6075,8 @@ private final class EraseAuxiliaryAuthority {
         ] {
             try Self.removeDirectoryIfPresent(
                 parent: applicationSupportDescriptor,
-                name: name
+                name: name,
+                expectedRootIdentity: name == "FieldEvidenceOperations" ? expectedOperationsIdentity : nil
             )
         }
         try Self.removeDirectoryIfPresent(
@@ -3313,7 +6396,8 @@ private final class EraseAuxiliaryAuthority {
 
     private static func removeDirectoryIfPresent(
         parent: Int32,
-        name: String
+        name: String,
+        expectedRootIdentity: StreamingArchiveRootIdentityV1? = nil
     ) throws {
         let descriptor = Darwin.openat(
             parent,
@@ -3327,6 +6411,12 @@ private final class EraseAuxiliaryAuthority {
         let expected: Identity
         do {
             expected = try identity(descriptor)
+            if let expectedRootIdentity {
+                guard UInt64(bitPattern: Int64(expected.device)) == expectedRootIdentity.device,
+                      UInt64(expected.inode) == expectedRootIdentity.inode else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+            }
             try removeContents(descriptor)
         } catch {
             _ = Darwin.close(descriptor)
@@ -3832,3 +6922,935 @@ enum PracticeWorkspaceProvenanceEraseAllPolicyV1 {
     }
 }
 // C52_BOUNDARY_ANCHOR: canonical-service-request-erase
+
+#if DEBUG
+/// Captured on the genuine post-retirement Service frame *before* injecting
+/// the fault. Every component belongs to the original retained owner.
+private final class ErasePostRetiredFaultWitnessV1 {
+    let proof: ErasedRegistryRetirementProofV1
+    let generation: ErasePostRetiredGenerationSnapshotV1
+    let auxiliary: ErasePostRetiredAuxiliarySnapshotV1
+    let intent: ErasePostRetiredIntentSnapshotV1
+    let notification: ErasePostRetiredNotificationSnapshotV1
+    let defaults: NSDictionary?
+    init(proof: ErasedRegistryRetirementProofV1,
+         generation: ErasePostRetiredGenerationSnapshotV1,
+         auxiliary: ErasePostRetiredAuxiliarySnapshotV1,
+         intent: ErasePostRetiredIntentSnapshotV1,
+         notification: ErasePostRetiredNotificationSnapshotV1,
+         defaults: NSDictionary?) {
+        self.proof = proof; self.generation = generation
+        self.auxiliary = auxiliary; self.intent = intent
+        self.notification = notification; self.defaults = defaults
+    }
+}
+
+/// The pristine prepared owner has no injected failure. This binds the exact
+/// post-effect controls only after the original source frame and the fresh
+/// read-only source semantic proof have both succeeded under its real EX.
+private final class EraseOriginalColdExitPreDeletionWitnessV1 {
+    let proof: ErasedRegistryRetirementProofV1
+    let generation: ErasePostRetiredGenerationSnapshotV1
+    let auxiliary: ErasePostRetiredAuxiliarySnapshotV1
+    let intent: ErasePostRetiredIntentSnapshotV1
+    let defaults: NSDictionary?
+
+    init(proof: ErasedRegistryRetirementProofV1,
+         generation: ErasePostRetiredGenerationSnapshotV1,
+         auxiliary: ErasePostRetiredAuxiliarySnapshotV1,
+         intent: ErasePostRetiredIntentSnapshotV1,
+         defaults: NSDictionary?) {
+        self.proof = proof
+        self.generation = generation
+        self.auxiliary = auxiliary
+        self.intent = intent
+        self.defaults = defaults
+    }
+}
+#endif
+
+/// The post-detach cleanup owns filesystem/configuration resources only.
+/// Scene, discovery, notification-system and lifecycle callbacks finish before
+/// this object is formed; it retains no service, session or ModelContext.
+@MainActor
+final class EraseCleanupAfterRetirementV1 {
+    private enum Phase: Equatable { case prepared, generationsRemoved, manifestPreserved, removingNamespace, namespaceRemoved,
+        preferencesPrepared, diagnosticsVerified, phaseWritten, preparationRemoved,
+        intentRemoved, eraseRootRemoved, released, abandonmentPending, abandoned, closeUncertain }
+    let binding: EraseRetirementBindingV1
+    private let intent: EraseIntentV1
+    private let factory: StoreGenerationFactory
+    private let authority: StoreRestoreGenerationAuthority
+    private let auxiliary: EraseAuxiliaryAuthority
+    private let intentStore: EraseIntentStore
+    private let observation: EraseIntentStore.RetirementObservation
+    private let manifestScope: EraseCurrentManifestScopeV1
+    private let targetReader: GenerationLeaseHandleV1
+    private let diagnosticsStore: DiagnosticsStore
+    private let notificationControl: AppLockNotificationControlStoreV1
+    private let userDefaults: UserDefaults
+    private let defaultsDomainName: String
+    private let fileManager: FileManager
+    private let failureInjection: EraseAllFailureInjection?
+    private let reservation: AppAccessGateV1.EraseAdoptionToken?
+    private var exclusion: EraseRetirementExclusionV1?
+    private(set) var retirement: EraseSessionRetirementV1?
+    private(set) var proof: ErasedRegistryRetirementProofV1?
+    private var receipt: CompletedEraseReceiptV1?
+    // Captured aliases remain subject to the actual weak drain before delivery.
+    private var completion: (@MainActor (CompletedEraseReceiptV1) -> Void)?
+    private var diagnosticsZero: Data?
+    private var phase: Phase = .prepared
+    private var running = false
+#if DEBUG
+    private var interruptedLateFault: EraseAllFailurePoint?
+    private var interruptedPostRetiredFault = false
+    private var postRetiredWitness: ErasePostRetiredFaultWitnessV1?
+    private var originalColdExitFrame: EraseOriginalColdExitFrameV1?
+    private var originalColdExitPreDeletionWitness:
+        EraseOriginalColdExitPreDeletionWitnessV1?
+    private var pristineColdExitRequested = false
+
+    fileprivate func retainOriginalColdExitFrameForTesting(
+        _ frame: EraseOriginalColdExitFrameV1
+    ) throws {
+        guard phase == .prepared, originalColdExitFrame == nil else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try frame.requirePreparedTransition()
+        originalColdExitFrame = frame
+    }
+
+    fileprivate func requireOriginalColdExitFrameForTesting() throws
+        -> EraseOriginalColdExitFrameV1 {
+        guard phase == .prepared, let originalColdExitFrame else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try originalColdExitFrame.requirePreparedTransition()
+        return originalColdExitFrame
+    }
+
+    /// Observe the published target through this prepared cleanup's original
+    /// held generation authority. A fresh Factory would contend with the
+    /// transferred Erase EX and would not prove the same physical owner.
+    func requirePublishedTargetForV949Fixture() throws -> UUID {
+        guard !running, phase == .prepared, retirement != nil,
+              exclusion != nil, proof == nil, receipt == nil,
+              intent.phase == .sessionActivated,
+              binding.subject.eraseID == intent.eraseID,
+              binding.subject.newGenerationID == intent.newGenerationID,
+              let target = intent.targetPointer,
+              target.generationID == intent.newGenerationID else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        _ = try authority.requireOriginalErasePublishedControlsForColdExitForTesting(
+            target: target, retiredIDs: intent.generationIDsToDelete)
+        return target.generationID
+    }
+
+    func requirePristineOriginalPreparedColdExitForTesting(
+        subject: EraseAllOperationSubjectV1,
+        expectedReservation: AppAccessGateV1.EraseAdoptionToken
+    ) throws {
+        guard !running, phase == .prepared, proof == nil,
+              originalColdExitPreDeletionWitness == nil,
+              interruptedLateFault == nil,
+              !interruptedPostRetiredFault,
+              retirement != nil, exclusion != nil,
+              binding.subject == subject,
+              reservation == expectedReservation,
+              expectedReservation.subject == subject,
+              intent.phase == .sessionActivated,
+              receipt == nil else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        _ = try requireOriginalColdExitFrameForTesting()
+        try intentStore.requireRetirementObservation(observation)
+    }
+
+    func beginPristineOriginalPreparedColdExitForTesting(
+        subject: EraseAllOperationSubjectV1,
+        expectedReservation: AppAccessGateV1.EraseAdoptionToken
+    ) throws {
+        guard !pristineColdExitRequested else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try requirePristineOriginalPreparedColdExitForTesting(
+            subject: subject, expectedReservation: expectedReservation)
+        pristineColdExitRequested = true
+    }
+
+    func retirePristineOriginalForColdExitForTesting(
+        subject: EraseAllOperationSubjectV1,
+        expectedReservation: AppAccessGateV1.EraseAdoptionToken,
+        registry: GenerationLeaseRegistryV1
+    ) async throws -> (ErasedRegistryRetirementProofV1, String) {
+        guard pristineColdExitRequested else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try requirePristineOriginalPreparedColdExitForTesting(
+            subject: subject, expectedReservation: expectedReservation)
+        guard let retirement,
+              let frame = originalColdExitFrame else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        running = true
+        defer { running = false }
+        do {
+            try await frame.requireOriginalDiscoveryAfterUnchanged()
+            try frame.requireFreshOriginalSourceLedger(factory: factory)
+            try frame.requireFreshOriginalSourceReaderDrained()
+            guard let actual = try await retirement.validateAndAdvance(
+                factory: factory, authority: authority,
+                targetReader: targetReader,
+                manifestScope: manifestScope) else {
+                throw EraseAllServiceError.recoveryRequired
+            }
+            proof = actual
+            try frame.requireFreshOriginalSourceReaderDrained()
+            try await frame.requireOriginalDiscoveryAfterUnchanged()
+            try actual.requireReadyForPreDeletionAbandonmentForTesting(
+                registry: registry)
+            let generation = try authority.snapshotPostRetiredEraseGenerations(
+                newID: intent.newGenerationID,
+                deleting: intent.generationIDsToDelete)
+            let auxiliarySnapshot = try auxiliary.postRetiredSnapshot()
+            guard let operationsDigest = auxiliarySnapshot.operationsBeforeRelease else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let intentSnapshot = try intentStore.postRetiredSnapshot(
+                observation: observation)
+            originalColdExitPreDeletionWitness =
+                EraseOriginalColdExitPreDeletionWitnessV1(
+                    proof: actual, generation: generation,
+                    auxiliary: auxiliarySnapshot, intent: intentSnapshot,
+                    defaults: try defaultsSnapshotForPostRetiredFault())
+            return (actual, operationsDigest)
+        } catch {
+            phase = .closeUncertain
+            throw error
+        }
+    }
+
+    func abandonPristineOriginalForColdExitForTesting(
+        subject: EraseAllOperationSubjectV1,
+        expectedReservation: AppAccessGateV1.EraseAdoptionToken,
+        registry: GenerationLeaseRegistryV1
+    ) throws {
+        guard !running, phase == .prepared,
+              binding.subject == subject,
+              reservation == expectedReservation,
+              let originalColdExitPreDeletionWitness,
+              let proof,
+              proof === originalColdExitPreDeletionWitness.proof,
+              let retirement, retirement.ownsProof(proof),
+              let frame = originalColdExitFrame else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        phase = .abandonmentPending
+        do {
+            try frame.requireFreshOriginalSourceReaderDrained()
+            try proof.abandonBeforeDeletionForTesting(registry: registry)
+            try frame.requireFreshOriginalSourceReaderDrained()
+            let witness = originalColdExitPreDeletionWitness
+            let generation = try authority.snapshotPostRetiredEraseGenerations(
+                newID: intent.newGenerationID,
+                deleting: intent.generationIDsToDelete)
+            let auxiliaryAfter = try auxiliary.postRetiredSnapshot()
+            let intentAfter = try intentStore.postRetiredSnapshot(
+                observation: observation)
+            let defaultsAfter = try defaultsSnapshotForPostRetiredFault()
+            guard generation == witness.generation,
+                  auxiliaryAfter.supportNames == witness.auxiliary.supportNames,
+                  auxiliaryAfter.roots == witness.auxiliary.roots,
+                  intentAfter == witness.intent,
+                  ((defaultsAfter == nil && witness.defaults == nil)
+                    || defaultsAfter?.isEqual(witness.defaults) == true) else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            phase = .abandoned
+        } catch {
+            phase = .closeUncertain
+            throw error
+        }
+    }
+#endif
+
+    fileprivate init(binding: EraseRetirementBindingV1, intent: EraseIntentV1,
+        factory: StoreGenerationFactory, authority: StoreRestoreGenerationAuthority,
+        auxiliary: EraseAuxiliaryAuthority, intentStore: EraseIntentStore,
+        observation: EraseIntentStore.RetirementObservation,
+        manifestScope: EraseCurrentManifestScopeV1, targetReader: GenerationLeaseHandleV1,
+        diagnosticsStore: DiagnosticsStore, notificationControl: AppLockNotificationControlStoreV1,
+        userDefaults: UserDefaults, defaultsDomainName: String, fileManager: FileManager,
+        failureInjection: EraseAllFailureInjection?, reservation: AppAccessGateV1.EraseAdoptionToken?,
+        completion: (@MainActor (CompletedEraseReceiptV1) -> Void)?) {
+        self.binding = binding; self.intent = intent; self.factory = factory
+        self.authority = authority; self.auxiliary = auxiliary; self.intentStore = intentStore
+        self.observation = observation; self.manifestScope = manifestScope; self.targetReader = targetReader
+        self.diagnosticsStore = diagnosticsStore; self.notificationControl = notificationControl
+        self.userDefaults = userDefaults; self.defaultsDomainName = defaultsDomainName
+        self.fileManager = fileManager; self.failureInjection = failureInjection; self.reservation = reservation
+        self.completion = completion
+    }
+
+    /// Register the actual consuming transfer before a subsequent check can
+    /// throw. A failed constructor leaves this exact EX retained for retry.
+    func retainTransferredExclusion(_ value: EraseRetirementExclusionV1,
+        drain: EraseSessionDrainWitnessV1) throws -> EraseSessionRetirementV1 {
+        guard drain.binding == binding, phase == .prepared,
+              exclusion == nil || exclusion === value else { throw EraseAllServiceError.invalidAuthority }
+        exclusion = value
+        if let retirement { return retirement }
+        let actual = try EraseSessionRetirementV1(exclusion: value, drain: drain,
+            intent: intent, intentStore: intentStore, observation: observation)
+        retirement = actual
+        return actual
+    }
+
+#if DEBUG
+    private func defaultsSnapshotForPostRetiredFault() throws -> NSDictionary? {
+        guard let domain = userDefaults.persistentDomain(forName: defaultsDomainName) else {
+            return nil
+        }
+        let bytes = try PropertyListSerialization.data(
+            fromPropertyList: domain, format: .binary, options: 0)
+        guard let copy = try PropertyListSerialization.propertyList(
+            from: bytes, options: [], format: nil) as? NSDictionary else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        return copy
+    }
+
+    private func capturePostRetiredFaultWitness(
+        proof: ErasedRegistryRetirementProofV1
+    ) throws -> ErasePostRetiredFaultWitnessV1 {
+        guard phase == .prepared, postRetiredWitness == nil,
+              !interruptedPostRetiredFault,
+              intent.phase == .sessionActivated, reservation != nil,
+              let retirement, retirement.ownsProof(proof) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try proof.requireCurrentGenerationValidation()
+        try intentStore.requireRetirementObservation(observation)
+        try auxiliary.verifyTargets()
+        let generation = try authority.snapshotPostRetiredEraseGenerations(
+            newID: intent.newGenerationID, deleting: intent.generationIDsToDelete)
+        let auxiliarySnapshot = try auxiliary.postRetiredSnapshot()
+        let intentSnapshot = try intentStore.postRetiredSnapshot(observation: observation)
+        let notification = try notificationControl.postRetiredSnapshot(
+            subject: binding.subject)
+        let defaults = try defaultsSnapshotForPostRetiredFault()
+        try proof.requireCurrentGenerationValidation()
+        try intentStore.requireRetirementObservation(observation)
+        return ErasePostRetiredFaultWitnessV1(
+            proof: proof, generation: generation,
+            auxiliary: auxiliarySnapshot, intent: intentSnapshot,
+            notification: notification, defaults: defaults)
+    }
+
+    private func requirePostRetiredFaultWitness(
+        _ witness: ErasePostRetiredFaultWitnessV1,
+        operationsMustMatch: Bool
+    ) throws {
+        guard postRetiredWitness === witness, proof === witness.proof,
+              let retirement, retirement.ownsProof(witness.proof) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let generation = try authority.snapshotPostRetiredEraseGenerations(
+            newID: intent.newGenerationID, deleting: intent.generationIDsToDelete)
+        let auxiliarySnapshot = try auxiliary.postRetiredSnapshot()
+        let intentSnapshot = try intentStore.postRetiredSnapshot(observation: observation)
+        let notification = try notificationControl.postRetiredSnapshot(
+            subject: binding.subject)
+        let defaults = try defaultsSnapshotForPostRetiredFault()
+        guard generation == witness.generation,
+              auxiliarySnapshot.supportNames == witness.auxiliary.supportNames,
+              auxiliarySnapshot.roots == witness.auxiliary.roots,
+              (!operationsMustMatch || auxiliarySnapshot.operationsBeforeRelease
+                  == witness.auxiliary.operationsBeforeRelease),
+              intentSnapshot == witness.intent,
+              notification == witness.notification,
+              ((defaults == nil && witness.defaults == nil)
+                  || defaults?.isEqual(witness.defaults) == true) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+#endif
+
+    private func inject(_ point: EraseAllFailurePoint) throws {
+        if failureInjection?.consume(point) == true {
+#if DEBUG
+            switch point {
+            case .afterSessionRetirementBeforeCleanup:
+                interruptedPostRetiredFault = true
+            case .afterCleanup, .beforeCleanupPhaseWrite, .afterCleanupPhaseWrite, .beforeJournalRemoval:
+                interruptedLateFault = point
+            default: break
+            }
+#endif
+            throw EraseAllServiceError.injectedFailure
+        }
+    }
+
+#if DEBUG
+    func postRetiredOperationsDigestForTesting() throws -> String {
+        guard interruptedPostRetiredFault,
+              let digest = postRetiredWitness?.auxiliary.operationsBeforeRelease else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        return digest
+    }
+
+    func requireInterruptedPostRetiredFaultForAbandonmentForTesting(
+        subject: EraseAllOperationSubjectV1,
+        reservation expectedReservation: AppAccessGateV1.EraseAdoptionToken,
+        registry: GenerationLeaseRegistryV1
+    ) throws {
+        guard !running, phase == .prepared,
+              interruptedPostRetiredFault,
+              let witness = postRetiredWitness,
+              let proof, proof === witness.proof,
+              let retirement, retirement.ownsProof(proof),
+              binding.subject == subject,
+              reservation == expectedReservation,
+              expectedReservation.subject == subject,
+              receipt == nil else { throw EraseAllServiceError.invalidAuthority }
+        try proof.requireReadyForPreDeletionAbandonmentForTesting(registry: registry)
+        try requirePostRetiredFaultWitness(witness, operationsMustMatch: true)
+    }
+
+    func abandonInterruptedPostRetiredFaultForTesting(
+        subject: EraseAllOperationSubjectV1,
+        reservation expectedReservation: AppAccessGateV1.EraseAdoptionToken,
+        registry: GenerationLeaseRegistryV1
+    ) throws {
+        guard phase == .prepared, interruptedPostRetiredFault,
+              let witness = postRetiredWitness,
+              let proof, proof === witness.proof,
+              binding.subject == subject,
+              reservation == expectedReservation,
+              receipt == nil else { throw EraseAllServiceError.invalidAuthority }
+        phase = .abandonmentPending
+        do {
+            try proof.abandonBeforeDeletionForTesting(registry: registry)
+            // The original callback closure remains retained and inert so
+            // dropping captures cannot masquerade as a checked alias drain.
+            try requirePostRetiredFaultWitness(
+                witness, operationsMustMatch: false)
+            phase = .abandoned
+        } catch {
+            phase = .closeUncertain
+            throw error
+        }
+    }
+
+    /// Poison callback and receipt before releasing the genuine EX. A failed
+    /// close remains terminal and keeps every actual owner reachable.
+    func requireInterruptedLateFaultForAbandonmentForTesting(_ expected: EraseAllFailurePoint,
+        subject: EraseAllOperationSubjectV1,
+        reservation expectedReservation: AppAccessGateV1.EraseAdoptionToken) throws {
+        guard !running, interruptedLateFault == expected,
+              binding.subject == subject, reservation == expectedReservation,
+              let retirement, let proof, retirement.ownsProof(proof) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let expectedPhase: Phase
+        switch expected {
+        case .afterCleanup, .beforeCleanupPhaseWrite: expectedPhase = .diagnosticsVerified
+        case .afterCleanupPhaseWrite: expectedPhase = .phaseWritten
+        case .beforeJournalRemoval: expectedPhase = .preparationRemoved
+        default: throw EraseAllServiceError.invalidAuthority
+        }
+        guard phase == expectedPhase else { throw EraseAllServiceError.invalidAuthority }
+        try proof.requireReadyForLateAbandonmentForTesting()
+    }
+
+    func abandonInterruptedLateFaultForTesting(_ expected: EraseAllFailurePoint,
+        subject: EraseAllOperationSubjectV1,
+        reservation expectedReservation: AppAccessGateV1.EraseAdoptionToken) throws {
+        try requireInterruptedLateFaultForAbandonmentForTesting(expected,
+            subject: subject, reservation: expectedReservation)
+        guard let proof else { throw EraseAllServiceError.invalidAuthority }
+        phase = .abandonmentPending
+        completion = nil
+        receipt = nil
+        do {
+            try proof.abandonAfterNamespaceRemovalForTesting()
+            phase = .abandoned
+        } catch {
+            phase = .closeUncertain
+            throw error
+        }
+    }
+#endif
+
+    /// Returns false only for still-live observed model aliases. No timer,
+    /// yield count, cancellation or deinit is accepted as successful drain.
+    func advance() async throws -> Bool {
+        guard !running, let retirement else { throw EraseAllServiceError.invalidAuthority }
+#if DEBUG
+        guard phase != .abandonmentPending, phase != .abandoned,
+              phase != .closeUncertain,
+              !pristineColdExitRequested else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+#endif
+        if phase == .released { return true }
+        running = true
+        defer { running = false }
+        if proof == nil {
+            guard let actual = try await retirement.validateAndAdvance(factory: factory,
+                authority: authority, targetReader: targetReader, manifestScope: manifestScope) else { return false }
+            proof = actual
+        }
+        guard let proof, retirement.ownsProof(proof) else { throw EraseAllServiceError.invalidAuthority }
+        let completed = intent.advancing(to: .cleanupComplete)
+        if phase == .prepared {
+            // The original protected semantic read and actual lease retirement
+            // are complete. Bind all unchanged bytes before the fault escapes.
+#if DEBUG
+            if failureInjection?.isPending(.afterSessionRetirementBeforeCleanup) == true {
+                do {
+                    postRetiredWitness = try capturePostRetiredFaultWitness(proof: proof)
+                } catch {
+                    phase = .closeUncertain
+                    throw error
+                }
+            }
+#endif
+            try inject(.afterSessionRetirementBeforeCleanup)
+            guard try factory.currentGenerationIDForEraseRetirement(authority: authority,
+                retirement: proof, manifestScope: manifestScope) == intent.newGenerationID else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let retired = try factory.retiredGenerationIDsForEraseRetirement(authority: authority, retirement: proof)
+            guard retired == intent.generationIDsToDelete || retired.isEmpty else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let allowed = Set((intent.generationIDsToDelete + [intent.newGenerationID]).map { $0.uuidString.lowercased() })
+            let actual = Set(try authority.installedGenerationNames())
+            guard actual.isSubset(of: allowed), actual.contains(intent.newGenerationID.uuidString.lowercased()) else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            for id in intent.generationIDsToDelete {
+                if try authority.installedGenerationNames().contains(id.uuidString.lowercased()) {
+                    try authority.removeInstalledGenerationForEraseRetirement(id: id,
+                        keeping: intent.newGenerationID, retirement: proof)
+                }
+            }
+            guard Set(try authority.installedGenerationNames()) == [intent.newGenerationID.uuidString.lowercased()] else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            if !retired.isEmpty {
+                try authority.clearRetiredGenerationsForEraseRetirement(expected: retired,
+                    currentID: intent.newGenerationID, retirement: proof)
+            }
+            guard try factory.retiredGenerationIDsForEraseRetirement(authority: authority, retirement: proof).isEmpty else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            phase = .generationsRemoved
+        }
+        if phase == .generationsRemoved {
+            try factory.preserveEraseManifest(scope: manifestScope, retirement: proof)
+            phase = .manifestPreserved
+        }
+        let ratingStore = PreferencesAdapterV1(defaults: userDefaults)
+        if phase == .manifestPreserved {
+            try AppLockNotificationTransactionFenceV1.perform {
+                try notificationControl.verifyNotificationStorage()
+                guard try notificationControl.loadControl() == nil,
+                      try notificationControl.loadPrivateNotificationMapping() == nil else {
+                    throw EraseAllServiceError.recoveryRequired
+                }
+                try proof.beginFrozenTargetRemoval(using: auxiliary)
+                phase = .removingNamespace
+            }
+        }
+        if phase == .removingNamespace {
+            try AppLockNotificationTransactionFenceV1.perform {
+                try proof.removeFrozenTargets(using: auxiliary)
+            }
+            phase = .namespaceRemoved
+        }
+        if phase == .namespaceRemoved {
+            try proof.requireNamespaceAbsent()
+            try AppLockNotificationTransactionFenceV1.perform {
+                try ratingStore.preparePreferencesForCompletedErase(operationID: intent.eraseID,
+                    persistentDomainName: defaultsDomainName)
+            }
+            phase = .preferencesPrepared
+        }
+        if phase == .preferencesPrepared {
+            try proof.requireNamespaceAbsent()
+            let rating = try RatingEligibilityCoordinatorV1(store: ratingStore,
+                nativeRequest: AppStoreRatingRequestAdapterV1(), clock: SystemApplicationClock())
+            let result = try await rating.applyCompletedErase(eraseOperationID: intent.eraseID, erasedAt: Date())
+            guard case .current(let ledger) = try await ratingStore.load(), ledger.attempts.isEmpty,
+                  case .erasedCooldown(_, let suppressUntil) = ledger.origin,
+                  suppressUntil == result.suppressUntil, result.receipt.operationID == intent.eraseID,
+                  result.receipt.resultingRevision == ledger.revision,
+                  result.receipt.stateSHA256 == ledger.stateSHA256 else { throw EraseAllServiceError.invalidAuthority }
+            let replacement = DiagnosticsStore(applicationSupportURL: binding.subject.applicationSupportURL,
+                fileManager: fileManager)
+            try await replacement.resetOperationalSupport()
+            let zero = try await replacement.operationalSupportSnapshot()
+            guard zero.schemaVersion == DeviceOperationalSupportStoreSchemaV2.version,
+                  zero.counters == .zero, zero.health.failures.isEmpty else { throw EraseAllServiceError.invalidAuthority }
+            let feedback = try await replacement.supportFeedbackDraftSnapshot()
+            guard feedback.state == .empty, feedback.draft == nil, !feedback.safeCopyAvailable else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let bytes = try await replacement.canonicalOperationalSupportEnvelopeDataV3()
+            await diagnosticsStore.acceptDescriptorErasedZero()
+            guard await diagnosticsStore.isExactlyZero() else { throw EraseAllServiceError.invalidAuthority }
+            try proof.requireNamespaceAbsent()
+            try auxiliary.verifyTargetsRemovedExceptDiagnostics()
+            try auxiliary.verifyDiagnostics(expectedData: bytes)
+            diagnosticsZero = bytes
+            phase = .diagnosticsVerified
+            if intent.phase != .cleanupComplete { try inject(.afterCleanup) }
+        }
+        if phase == .diagnosticsVerified {
+            if intent.phase != .cleanupComplete {
+                try inject(.beforeCleanupPhaseWrite)
+                try intentStore.replaceAfterRegistryRetirement(expected: intent,
+                    with: completed, retirement: proof)
+            }
+            phase = .phaseWritten
+            if intent.phase != .cleanupComplete { try inject(.afterCleanupPhaseWrite) }
+        }
+        if phase == .phaseWritten {
+            try proof.requireNamespaceAbsent()
+            guard let diagnosticsZero else { throw EraseAllServiceError.invalidAuthority }
+            try auxiliary.verifyTargetsRemovedExceptDiagnostics()
+            try auxiliary.verifyDiagnostics(expectedData: diagnosticsZero)
+            if completed.schemaVersion == 2 {
+                try intentStore.removePreparationAfterRegistryRetirement(expectedIntent: completed, retirement: proof)
+            }
+            phase = .preparationRemoved
+        }
+        if phase == .preparationRemoved {
+            // Retain the real same-process completion authority before removing
+            // its durable intent. Publication still requires the released proof.
+            if let reservation {
+                guard reservation.subject == binding.subject else { throw EraseAllServiceError.invalidAuthority }
+                receipt = CompletedEraseReceiptV1(subject: binding.subject, reservation: reservation)
+            }
+            try inject(.beforeJournalRemoval)
+            try intentStore.removeAfterRegistryRetirement(expected: completed, retirement: proof)
+            phase = .intentRemoved
+        }
+        if phase == .intentRemoved {
+            try auxiliary.removeEraseRootIfEmpty()
+            try auxiliary.verifyTargetsRemovedExceptDiagnostics()
+            try proof.requireNamespaceAbsent()
+            phase = .eraseRootRemoved
+        }
+        if phase == .eraseRootRemoved {
+            try proof.releaseAfterCompletion()
+            phase = .released
+            // Clear before the synchronous call, so reentry cannot repeat it.
+            if let receipt, let callback = completion {
+                completion = nil
+                callback(receipt)
+            } else { completion = nil }
+        }
+        return phase == .released
+    }
+
+    func completedReceipt() throws -> CompletedEraseReceiptV1? {
+        guard phase == .released else { throw EraseAllServiceError.invalidAuthority }
+        return receipt
+    }
+}
+
+private extension EraseAllService {
+    /// Complete callback-bearing cleanup work before the Router transfers EX
+    /// and returns from every original service/lifecycle frame.
+    func prepareCleanupForRetirement(_ value: EraseIntentV1, session: StoreGenerationSession,
+        authority: StoreRestoreGenerationAuthority, auxiliary: EraseAuxiliaryAuthority,
+        diagnosticsStore: DiagnosticsStore, intentStore: EraseIntentStore,
+        binding: EraseRetirementBindingV1, inventory: EraseReaderRetirementInventoryV1,
+        reservation: AppAccessGateV1.EraseAdoptionToken?) async throws -> EraseCleanupAfterRetirementV1 {
+        guard value.eraseID == binding.subject.eraseID,
+              value.newGenerationID == binding.subject.newGenerationID,
+              value.phase == .sessionActivated || value.phase == .cleanupComplete,
+              reservation == nil || reservation?.subject == binding.subject else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try Self.requireEmptyErasePublishedGraph(context: session.modelContext,
+            generationID: session.generationID, identity: session.workspaceIdentity,
+            activated: value.advancing(to: .sessionActivated))
+        if value.phase != .cleanupComplete { try inject(.beforeCleanup) }
+        let preferences = PreferencesAdapterV1(defaults: userDefaults)
+        let notifications = try AppLockNotificationControlStoreV1(
+            applicationSupportURL: applicationSupportURL, preferences: preferences)
+#if DEBUG
+        if let originalColdExitFrame {
+            try originalColdExitFrame.retainOriginalNotificationControl(notifications)
+            try await DeviceLocalNotificationOwnerV1
+                .eraseForOriginalColdExitForTesting(
+                    control: notifications, system: notificationSystem,
+                    operationID: value.eraseID,
+                    beforeBegin: {
+                        try originalColdExitFrame
+                            .beforeOriginalNotificationRevocation()
+                    },
+                    afterBegin: { revocation in
+                        try originalColdExitFrame
+                            .afterOriginalNotificationRevocation(revocation)
+                    },
+                    observedOwnedRefusal: { revocation, owned, observedOwned in
+                        try originalColdExitFrame.recordOriginalNotificationRefusal(
+                            revocation: revocation, owned: owned,
+                            observedOwned: observedOwned,
+                            subject: binding.subject)
+                    },
+                    afterSuccess: { revocation in
+                        try originalColdExitFrame
+                            .afterOriginalNotificationSuccess(revocation)
+                    })
+        } else {
+            try await DeviceLocalNotificationOwnerV1.erase(
+                control: notifications, system: notificationSystem,
+                operationID: value.eraseID)
+        }
+#else
+        try await DeviceLocalNotificationOwnerV1.erase(control: notifications,
+            system: notificationSystem, operationID: value.eraseID)
+#endif
+        #if DEBUG
+        try originalColdExitFrame?.beforeScratchConstruction()
+        #endif
+        let scratch = try ScratchDataLeaseStoreV1(applicationSupportURL: applicationSupportURL,
+            fileManager: fileManager, clock: Date.init)
+        #if DEBUG
+        try originalColdExitFrame?.afterScratchConstruction(scratch)
+        #endif
+        try await scratch.eraseScratchData()
+        #if DEBUG
+        try originalColdExitFrame?.afterScratchErase(scratch)
+        #endif
+        try sceneNavigationStatePort?.eraseSceneNavigationData()
+        try PortableExchangeProtectedFilePolicyV2.validate()
+        let exchange = try PortableExchangeSessionStoreV2(applicationSupportURL: applicationSupportURL,
+            fileManager: fileManager)
+        let exchangeReceipt: PortableExchangeEraseReceiptV2
+#if DEBUG
+        if let originalColdExitFrame {
+            let result = try await exchange.eraseForOriginalColdExitForTesting(
+                operationID: value.eraseID,
+                beforeLoad: {
+                    try originalColdExitFrame
+                        .retainAndCheckExchangeBeforeLoad(exchange)
+                },
+                beforePublish: { predecessor, successor in
+                    try originalColdExitFrame.checkExchangeBeforePublish(
+                        predecessor: predecessor, successor: successor)
+                },
+                afterPublish: { successor in
+                    try originalColdExitFrame.checkExchangeAfterPublish(
+                        successor: successor)
+                })
+            exchangeReceipt = result.receipt
+        } else {
+            exchangeReceipt = try await exchange.erase(operationID: value.eraseID)
+        }
+#else
+        exchangeReceipt = try await exchange.erase(operationID: value.eraseID)
+#endif
+        try exchangeReceipt.validate()
+        guard try await exchange.sessions(in: nil).isEmpty else { throw EraseAllServiceError.invalidAuthority }
+        #if DEBUG
+        traceErasePhase("cleanup.target-reader.enter")
+        #endif
+        let reader = try generationFactory.captureEraseTargetReader(session: session,
+            inventory: inventory, binding: binding)
+        #if DEBUG
+        traceErasePhase("cleanup.target-reader.complete")
+        #endif
+        #if DEBUG
+        traceErasePhase("cleanup.manifest.enter")
+        #endif
+        let scope = try generationFactory.captureEraseCurrentManifest(binding: binding, authority: authority)
+        #if DEBUG
+        traceErasePhase("cleanup.manifest.complete")
+        #endif
+        #if DEBUG
+        traceErasePhase("cleanup.intent-observation.enter")
+        #endif
+        let observation = try intentStore.captureRetirementObservation(expected: value)
+        #if DEBUG
+        traceErasePhase("cleanup.intent-observation.complete")
+        #endif
+        let prepared = EraseCleanupAfterRetirementV1(binding: binding, intent: value, factory: generationFactory,
+            authority: authority, auxiliary: auxiliary, intentStore: intentStore, observation: observation,
+            manifestScope: scope, targetReader: reader, diagnosticsStore: diagnosticsStore,
+            notificationControl: notifications, userDefaults: userDefaults, defaultsDomainName: defaultsDomainName,
+            fileManager: fileManager, failureInjection: failureInjection, reservation: reservation,
+            completion: didCompleteErase)
+#if DEBUG
+        if let originalColdExitFrame {
+            try prepared.retainOriginalColdExitFrameForTesting(originalColdExitFrame)
+        }
+#endif
+        return prepared
+    }
+}
+
+private extension EraseAllService {
+    func prepareColdCleanupForRetirement(_ value: EraseIntentV1, session: StoreGenerationSession,
+        authority: StoreRestoreGenerationAuthority, auxiliary: EraseAuxiliaryAuthority,
+        diagnosticsStore: DiagnosticsStore, intentStore: EraseIntentStore,
+        binding: EraseRetirementBindingV1, inventory: EraseReaderRetirementInventoryV1,
+        reservation: AppAccessGateV1.EraseAdoptionToken?, operation: EraseColdPreparationOperationV1) async throws -> EraseCleanupAfterRetirementV1 {
+        try operation.requireServiceAccess()
+        guard reservation == nil else { throw EraseAllServiceError.invalidAuthority }
+        guard value.eraseID == binding.subject.eraseID,
+              value.newGenerationID == binding.subject.newGenerationID,
+              value.phase == .sessionActivated || value.phase == .cleanupComplete,
+              reservation == nil || reservation?.subject == binding.subject else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try Self.requireEmptyErasePublishedGraph(context: session.modelContext,
+            generationID: session.generationID, identity: session.workspaceIdentity,
+            activated: value.advancing(to: .sessionActivated))
+        if value.phase != .cleanupComplete { try inject(.beforeCleanup) }
+        let preferences = PreferencesAdapterV1(defaults: userDefaults)
+        let notifications = try AppLockNotificationControlStoreV1(
+            applicationSupportURL: applicationSupportURL, preferences: preferences)
+        try await DeviceLocalNotificationOwnerV1.erase(control: notifications,
+            system: notificationSystem, operationID: value.eraseID)
+        try operation.requireServiceAccess()
+        let scratch = try ScratchDataLeaseStoreV1(applicationSupportURL: applicationSupportURL,
+            fileManager: fileManager, clock: Date.init)
+        try await scratch.eraseScratchData()
+        try operation.requireServiceAccess()
+        try sceneNavigationStatePort?.eraseSceneNavigationData()
+        try PortableExchangeProtectedFilePolicyV2.validate()
+        let exchange = try PortableExchangeSessionStoreV2(applicationSupportURL: applicationSupportURL,
+            fileManager: fileManager)
+        let exchangeReceipt = try await exchange.erase(operationID: value.eraseID)
+        try operation.requireServiceAccess()
+        try exchangeReceipt.validate()
+        guard try await exchange.sessions(in: nil).isEmpty else { throw EraseAllServiceError.invalidAuthority }
+        try operation.requireServiceAccess()
+        let reader = try generationFactory.captureEraseTargetReader(session: session,
+            inventory: inventory, binding: binding)
+        let scope = try generationFactory.captureEraseCurrentManifest(binding: binding, authority: authority)
+        let observation = try intentStore.captureRetirementObservation(expected: value)
+        return EraseCleanupAfterRetirementV1(binding: binding, intent: value, factory: generationFactory,
+            authority: authority, auxiliary: auxiliary, intentStore: intentStore, observation: observation,
+            manifestScope: scope, targetReader: reader, diagnosticsStore: diagnosticsStore,
+            notificationControl: notifications, userDefaults: userDefaults, defaultsDomainName: defaultsDomainName,
+            fileManager: fileManager, failureInjection: failureInjection, reservation: reservation,
+            completion: nil)
+    }
+}
+
+/// Retains actual cold rollback authority, never a session or callback. Target
+/// validation and fresh source-under-G validation use distinct drained cohorts.
+@MainActor
+final class EraseColdPreparationRollbackV1 {
+    private enum Phase { case targetValidation, targetReaders, sourceRemoval, sourceReaders, controls, eraseRoot, complete }
+    private var phase: Phase = .targetValidation
+    private let preparation: ErasePreparationV2
+    private let targetIdentity: WorkspaceReplicaIdentityV1
+    private let emptyLedger: DeletionLedgerProofV2
+    private let authority: StoreRestoreGenerationAuthority
+    private let auxiliary: EraseAuxiliaryAuthority
+    private let intentStore: EraseIntentStore
+    private var validation: ErasePreparedGenerationDiscardV1?
+    private var removalCompleted = false
+    private var preparationRemovalStarted = false
+    private var preparationRemoved = false
+
+    fileprivate init(preparation: ErasePreparationV2, targetIdentity: WorkspaceReplicaIdentityV1,
+        emptyLedger: DeletionLedgerProofV2, authority: StoreRestoreGenerationAuthority,
+        auxiliary: EraseAuxiliaryAuthority, intentStore: EraseIntentStore) {
+        self.preparation = preparation; self.targetIdentity = targetIdentity
+        self.emptyLedger = emptyLedger; self.authority = authority
+        self.auxiliary = auxiliary; self.intentStore = intentStore
+    }
+
+    func requireSourceRemoval(_ expected: ErasePreparedGenerationDiscardV1) throws {
+        guard phase == .sourceReaders, validation === expected, !removalCompleted else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        guard try intentStore.load() == nil,
+              try intentStore.loadPreparation() == preparation else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try auxiliary.verifyTargets()
+        try auxiliary.requireNoRestoreIntent()
+    }
+
+    func advance(operation: EraseColdPreparationOperationV1) async throws -> Bool {
+        if phase == .complete { return true }
+        if phase == .targetValidation {
+            let factory = try operation.configuredFactory()
+            try await operation.beginRollbackFrame()
+            phase = .targetReaders
+            do {
+                defer { operation.endServiceFrame() }
+                guard try intentStore.load() == nil,
+                      try intentStore.loadPreparation() == preparation,
+                      try factory.currentGenerationDeletionLedgerProof(
+                        expectedPointer: preparation.oldPointer, authority: authority) == preparation.sourceLedger else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                validation = try factory.prepareErasePreparationDiscard(
+                    expectedOldPointer: preparation.oldPointer,
+                    targetGenerationID: preparation.targetGenerationID,
+                    targetIdentity: targetIdentity, expectedEmptyLedger: emptyLedger,
+                    authority: authority, coldOperation: operation)
+            }
+        }
+        if phase == .targetReaders {
+            try operation.disposeFailedReaders()
+            try operation.restartAfterDisposedReaders()
+            guard validation != nil else { phase = .targetValidation; return false }
+            phase = .sourceRemoval
+        }
+        if phase == .sourceRemoval {
+            guard let validation else { throw EraseAllServiceError.invalidAuthority }
+            let factory = try operation.configuredFactory()
+            try await operation.beginRollbackFrame()
+            phase = .sourceReaders
+            do {
+                defer { operation.endServiceFrame() }
+                try factory.completeColdErasePreparationDiscard(validation,
+                    sourceLedger: preparation.sourceLedger, operation: operation)
+                removalCompleted = true
+            }
+        }
+        if phase == .sourceReaders {
+            try operation.disposeFailedReaders()
+            try operation.restartAfterDisposedReaders()
+            guard removalCompleted else { phase = .sourceRemoval; return false }
+            phase = .controls
+        }
+        if phase == .controls {
+            guard try intentStore.load() == nil else { throw EraseAllServiceError.invalidAuthority }
+            if !preparationRemoved {
+                if let current = try intentStore.loadPreparation() {
+                    guard current == preparation else { throw EraseAllServiceError.invalidAuthority }
+                    preparationRemovalStarted = true
+                    try intentStore.removePreparation(expected: preparation)
+                } else if !preparationRemovalStarted {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                preparationRemoved = true
+            }
+            let presence = try authority.presence(id: preparation.targetGenerationID)
+            guard !presence.installed, !presence.staging else { throw EraseAllServiceError.invalidAuthority }
+            phase = .eraseRoot
+        }
+        if phase == .eraseRoot {
+            try auxiliary.removeEraseRootIfEmpty()
+            phase = .complete
+        }
+        return phase == .complete
+    }
+}

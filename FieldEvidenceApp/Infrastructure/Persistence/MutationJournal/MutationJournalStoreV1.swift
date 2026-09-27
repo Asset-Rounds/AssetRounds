@@ -1047,6 +1047,13 @@ final class MutationJournalStoreV1 {
         semanticReversal: SemanticReversalReceiptV1? = nil,
         semanticReversalExecution: SemanticReversalExecutionV1? = nil
     ) throws -> MutationReceiptV1 {
+#if DEBUG
+        if case .applyPartyContactSiteRoleImport = envelope.command {
+            FileHandle.standardError.write(Data(
+                "MutationJournalStoreV1 C32 stage=journal-entry\n".utf8
+            ))
+        }
+#endif
         guard envelope.workspaceID == identity.workspaceID,
               envelope.replicaID == identity.replicaID,
               envelope.generationID == generationID else {
@@ -1439,57 +1446,22 @@ final class MutationJournalStoreV1 {
                 }
             }
         }
-        if case let .applyAuthorityCriterion(mutation) = envelope.command {
-            guard postImages == [try mutation.postImage.mutationPostImage] else {
-                throw WorkspaceMutationFailureV1.invalidCommand
-            }
+#if DEBUG
+        if case .applyPartyContactSiteRoleImport = envelope.command {
+            FileHandle.standardError.write(Data(
+                "MutationJournalStoreV1 C32 stage=post-images-check\n".utf8
+            ))
         }
-        if case let .applyFunctionalRelationship(mutation) = envelope.command {
-            guard postImages == [try mutation.postImage.mutationPostImage] else {
-                throw WorkspaceMutationFailureV1.invalidCommand
-            }
+#endif
+        try Self.validateAppendCommandPostImages(command: envelope.command,
+            postImages: postImages, expectedByIdentity: expectedByIdentity)
+#if DEBUG
+        if case .applyPartyContactSiteRoleImport = envelope.command {
+            FileHandle.standardError.write(Data(
+                "MutationJournalStoreV1 C32 stage=post-images-valid\n".utf8
+            ))
         }
-        if case let .applyEvidenceAssurance(mutation)=envelope.command{guard postImages==[try mutation.postImage.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyInspectionReview(mutation)=envelope.command{guard postImages==(try mutation.postImage.mutationPostImages) else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyWorkPacket(mutation)=envelope.command{guard postImages==[try mutation.postImage.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyFieldDraft(mutation)=envelope.command{guard postImages==(try mutation.postImage.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyPackagePromotion(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyMeasurementIntegrity(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyPrivacyTransform(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyEvidenceMetadata(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyClientCapability(mutation)=envelope.command{guard postImages==[try mutation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyFieldReference(mutation)=envelope.command{guard postImages==[try mutation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyAccessibleDocumentAssessment(mutation)=envelope.command{guard postImages==[try mutation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applySurveyDefinition(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applySurveySession(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyAssetLocator(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applySchedule(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyPlan(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyPlacementPose(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyEvidenceContext(operation)=envelope.command{guard postImages==[try operation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyLighting(operation)=envelope.command{guard postImages==[try operation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyLightingDayInventory(operation)=envelope.command{guard postImages==[try operation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyLightingNightWorkflow(operation)=envelope.command{guard postImages==[try operation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyTemporalEvidence(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyAssetLabel(mutation)=envelope.command{guard postImages==[try mutation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyOperationalContact(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyPartyContactSiteRoleImport(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyActivityContract(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyPortableReview(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyWorkResource(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyPartsStock(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyMyDay(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyServiceRequest(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyServiceReliability(mutation)=envelope.command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyShopReportProfile(mutation)=envelope.command{guard postImages==[try mutation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyRoundSession(mutation)=envelope.command{guard postImages==[try mutation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyImportBulk(mutation)=envelope.command{guard postImages.count == 1, (try postImages[0].identity) == (try mutation.affectedIdentity), postImages[0].revision == mutation.expectedRevision + 1 else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyEvidenceQuality(mutation)=envelope.command{let identity=try mutation.affectedIdentityForCanonicalWriter();guard postImages.count == 1,(try postImages[0].identity) == identity,postImages[0].revision == (expectedByIdentity[identity,default:0] + 1)else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyFastSurveyInbox(mutation)=envelope.command{let identities=try mutation.affectedIdentitiesForCanonicalWriter();guard postImages.count == identities.count,(try postImages.map({try $0.identity})) == identities,Set(postImages.map(\.semanticSHA256)) == Set(mutation.payload.semanticSHA256s)else{throw WorkspaceMutationFailureV1.invalidCommand};for image in postImages{let identity=try image.identity;guard image.revision == (expectedByIdentity[identity,default:0] + 1)else{throw WorkspaceMutationFailureV1.invalidCommand}}}
-        if case let .applyReinspectionException(mutation)=envelope.command{let identities=try mutation.affectedIdentitiesForCanonicalWriter();guard postImages.count == identities.count,(try postImages.map({try $0.identity})) == identities,postImages.map(\.semanticSHA256).sorted() == mutation.payload.semanticSHA256s.sorted() else{throw WorkspaceMutationFailureV1.invalidCommand};for image in postImages{let identity=try image.identity;guard image.revision == (expectedByIdentity[identity,default:0] + 1)else{throw WorkspaceMutationFailureV1.invalidCommand}}}
-        if case let .applyWorkspaceExperience(mutation)=envelope.command{guard postImages == (try mutation.mutationPostImages) else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyAssetPlacementChange(plan)=envelope.command,let mutation=try plan.placementPoseMutation{let poseImages=try mutation.mutationPostImages;guard poseImages.allSatisfy({postImages.contains($0)})else{throw WorkspaceMutationFailureV1.invalidCommand}}
-        if case let .applyLocationHierarchyChange(change)=envelope.command,let mutation=try change.placementPoseMutation{let poseImages=try mutation.mutationPostImages;guard poseImages.allSatisfy({postImages.contains($0)})else{throw WorkspaceMutationFailureV1.invalidCommand}}
+#endif
         let after = try currentRevision(writerInstanceID: writerInstanceID)
         let receiptIdentity = MutationReceiptIdentityV1(
             workspaceID: identity.workspaceID,
@@ -6338,25 +6310,41 @@ final class MutationJournalStoreV1 {
         }
     }
 
+    /// Orders already-authenticated complete records exactly as archive export.
+    /// This does not replace history validation or rewrite any receipt bytes.
+    nonisolated static func canonicalArchiveReceiptOrder(
+        _ records: [MutationHistoryReceiptRecordV1]
+    ) throws -> [MutationHistoryReceiptRecordV1] {
+        var identities = Set<String>()
+        let decoded = try records.map { record in
+            let identity = try MutationReceiptV1.decodeCanonical(from: record.receiptData).identity
+            let key = "\(identity.workspaceID.rawValue.uuidString)|\(identity.replicaID.rawValue.uuidString)|\(identity.localSequence)"
+            guard identities.insert(key).inserted else {
+                throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+            }
+            return (record, identity)
+        }
+        return decoded.sorted {
+            let lhs = $0.1
+            let rhs = $1.1
+            return (lhs.workspaceID.rawValue.uuidString, lhs.replicaID.rawValue.uuidString, lhs.localSequence)
+                < (rhs.workspaceID.rawValue.uuidString, rhs.replicaID.rawValue.uuidString, rhs.localSequence)
+        }.map { $0.0 }
+    }
+
     func exportSnapshot() throws -> MutationHistorySnapshotV1 {
         try validateAll()
         let state = try requireState()
-        let decoded = try modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).map { row in
-            (row, try MutationReceiptV1.decodeCanonical(from: row.receiptData))
-        }.sorted {
-            let lhs = $0.1.identity
-            let rhs = $1.1.identity
-            return (lhs.workspaceID.rawValue.uuidString, lhs.replicaID.rawValue.uuidString, lhs.localSequence)
-                < (rhs.workspaceID.rawValue.uuidString, rhs.replicaID.rawValue.uuidString, rhs.localSequence)
-        }
-        let receipts = decoded.map {
-            MutationHistoryReceiptRecordV1(
-                envelopeData: $0.0.envelopeData,
-                receiptData: $0.0.receiptData,
-                reversalBasisData: $0.0.reversalBasisData,
-                semanticReversalData: $0.0.semanticReversalData
-            )
-        }
+        let receipts = try Self.canonicalArchiveReceiptOrder(
+            modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).map { row in
+                MutationHistoryReceiptRecordV1(
+                    envelopeData: row.envelopeData,
+                    receiptData: row.receiptData,
+                    reversalBasisData: row.reversalBasisData,
+                    semanticReversalData: row.semanticReversalData
+                )
+            }
+        )
         let quarantines = try modelContext.fetch(FetchDescriptor<MutationQuarantineRow>()).sorted {
             $0.workspaceMutationKey < $1.workspaceMutationKey
         }.map {
@@ -8795,14 +8783,39 @@ final class MutationJournalStoreV1 {
     private func surveyPackageRelease(_ packageReleaseID:String)throws->InspectionPackageReleaseV1{let rows=try modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>()),matches=try rows.map{try $0.value().packageRelease}.filter{$0.packageReleaseID==packageReleaseID};guard matches.count==1,let release=matches.first else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return release}
     private func clientCapabilityDecision(_ row:ClientCapabilityAdmissionDecisionRow)throws->ClientCapabilityAdmissionDecisionV1{let release=try clientCapabilityRelease(row.packageReleaseID),profileID=row.profileID,policyID=row.policyID,dispositionID=row.dispositionID;let profiles=try modelContext.fetch(FetchDescriptor<ClientCapabilityProfileRow>(predicate:#Predicate{$0.profileID==profileID})),policies=try modelContext.fetch(FetchDescriptor<PackageLifecyclePolicyRow>(predicate:#Predicate{$0.policyID==policyID})),dispositions=try modelContext.fetch(FetchDescriptor<PackageLifecycleDispositionRow>(predicate:#Predicate{$0.dispositionID==dispositionID}));guard profiles.count==1,policies.count==1,dispositions.count==1,let profile=try profiles.first?.value(),let policyRow=policies.first,let dispositionRow=dispositions.first else{throw WorkspaceMutationFailureV1.receiptHistoryCorrupt};return try row.value(profile:profile,policy:policyRow.value(release:release),disposition:dispositionRow.value(release:release),release:release)}
 
+    /// Exact checksum reuse for typed history observation; no writer authority.
+    nonisolated static func observationPostImage(_ value: ActorSnapshotV1,
+                                     revision: UInt64) throws -> MutationPostImageV1 {
+        try value.validate()
+        let identity = try WorkspaceEntityIdentityV1(kind: .actorSnapshot, id: value.snapshotID)
+        return .actorSnapshot(id: value.snapshotID, revision: revision,
+            semanticSHA256: try persistedPostImageDigest(identity, revision, value))
+    }
+
+    nonisolated static func observationPostImage(_ value: QualificationSnapshotV1,
+                                     revision: UInt64) throws -> MutationPostImageV1 {
+        try value.validate()
+        let identity = try WorkspaceEntityIdentityV1(kind: .qualificationSnapshot, id: value.snapshotID)
+        return .qualificationSnapshot(id: value.snapshotID, revision: revision,
+            semanticSHA256: try persistedPostImageDigest(identity, revision, value))
+    }
+
+    nonisolated private static func persistedPostImageDigest<Value: Codable>(
+        _ identity: WorkspaceEntityIdentityV1,
+        _ revision: UInt64,
+        _ value: Value
+    ) throws -> String {
+        try PersistedMutationPostImageDigestV1.sha256(
+            identity: identity, revision: revision, value: value
+        )
+    }
+
     private func semanticPostImage<Value: Codable>(
         _ identity: WorkspaceEntityIdentityV1,
         _ revision: UInt64,
         _ value: Value
     ) throws -> MutationPostImageV1 {
-        let digest = try WorkspaceMutationCanonicalV1.sha256(
-            PersistedPostImageDigestBasis(identity: identity, revision: revision, value: value)
-        )
+        let digest = try Self.persistedPostImageDigest(identity, revision, value)
         return try Self.postImage(identity: identity, revision: revision, digest: digest)
     }
 
@@ -9626,7 +9639,7 @@ final class MutationJournalStoreV1 {
         try WorkspaceEntityIdentityV1(kind: identity.kind, id: predecessorID ?? identity.id)
     }
 
-    private static func postImage(identity: WorkspaceEntityIdentityV1, revision: UInt64, digest: String) throws -> MutationPostImageV1 {
+    nonisolated private static func postImage(identity: WorkspaceEntityIdentityV1, revision: UInt64, digest: String) throws -> MutationPostImageV1 {
         switch identity.kind {
         case .importMappingProfile: return .importMappingProfile(id: identity.id, revision: revision, semanticSHA256: digest)
         case .bulkSession: return .bulkSession(id: identity.id, revision: revision, semanticSHA256: digest)
@@ -10012,3 +10025,109 @@ private extension MutationJournalStoreV1{
 }
 
 enum C53AssetServiceReliabilityJournalBoundaryV1{static let commandKind:WorkspaceCommandKindV1 = .applyServiceReliability;static let durableFamilies=AssetServiceReliabilityPersistenceEnrollmentV1.durableFamilies;static let derivedProjectionRebuildable=true}
+
+extension MutationJournalStoreV1 {
+    /// Exact pure postimage predicates shared with the canonical append path.
+    /// Caller retains envelope/receipt/source admission and revision bounds.
+    /// Some commands intentionally have no predicate in this incumbent block;
+    /// returning does not establish all-command equivalence or any authority.
+    nonisolated static func validateAppendCommandPostImages(
+        command: WorkspaceCommandV1, postImages: [MutationPostImageV1],
+        expectedByIdentity: [WorkspaceEntityIdentityV1: UInt64]
+    ) throws {
+        if case let .applyAuthorityCriterion(mutation) = command {
+            guard postImages == [try mutation.postImage.mutationPostImage] else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        }
+        if case let .applyFunctionalRelationship(mutation) = command {
+            guard postImages == [try mutation.postImage.mutationPostImage] else {
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        }
+        if case let .applyEvidenceAssurance(mutation)=command{guard postImages==[try mutation.postImage.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyInspectionReview(mutation)=command{guard postImages==(try mutation.postImage.mutationPostImages) else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyWorkPacket(mutation)=command{guard postImages==[try mutation.postImage.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyFieldDraft(mutation)=command{guard postImages==(try mutation.postImage.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyPackagePromotion(mutation)=command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyMeasurementIntegrity(mutation)=command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyPrivacyTransform(mutation)=command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyEvidenceMetadata(mutation)=command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyClientCapability(mutation)=command{guard postImages==[try mutation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyFieldReference(mutation)=command{guard postImages==[try mutation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyAccessibleDocumentAssessment(mutation)=command{guard postImages==[try mutation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applySurveyDefinition(mutation)=command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applySurveySession(mutation)=command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyAssetLocator(mutation)=command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applySchedule(mutation)=command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyPlan(mutation)=command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyPlacementPose(mutation)=command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyEvidenceContext(operation)=command{guard postImages==[try operation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyLighting(operation)=command{guard postImages==[try operation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyLightingDayInventory(operation)=command{guard postImages==[try operation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyLightingNightWorkflow(operation)=command{guard postImages==[try operation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyTemporalEvidence(mutation)=command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyAssetLabel(mutation)=command{guard postImages==[try mutation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyOperationalContact(mutation)=command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyPartyContactSiteRoleImport(mutation) = command {
+            let expected = try mutation.mutationPostImages
+            guard postImages == expected else {
+#if DEBUG
+                FileHandle.standardError.write(Data(
+                    "MutationJournalStoreV1 C32 failure predicate=aggregate-post-images\n".utf8
+                ))
+#endif
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+        }
+        if case let .applyActivityContract(mutation)=command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyPortableReview(mutation)=command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyWorkResource(mutation)=command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyPartsStock(mutation)=command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyMyDay(mutation)=command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyServiceRequest(mutation)=command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyServiceReliability(mutation)=command{guard postImages==(try mutation.mutationPostImages)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyShopReportProfile(mutation)=command{guard postImages==[try mutation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyRoundSession(mutation)=command{guard postImages==[try mutation.mutationPostImage]else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyImportBulk(mutation)=command{guard postImages.count == 1, (try postImages[0].identity) == (try mutation.affectedIdentity), postImages[0].revision == mutation.expectedRevision + 1 else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyEvidenceQuality(mutation)=command{let identity=try mutation.affectedIdentityForCanonicalWriter();guard postImages.count == 1,(try postImages[0].identity) == identity,postImages[0].revision == (expectedByIdentity[identity,default:0] + 1)else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyFastSurveyInbox(mutation)=command{let identities=try mutation.affectedIdentitiesForCanonicalWriter();guard postImages.count == identities.count,(try postImages.map({try $0.identity})) == identities,Set(postImages.map(\.semanticSHA256)) == Set(mutation.payload.semanticSHA256s)else{throw WorkspaceMutationFailureV1.invalidCommand};for image in postImages{let identity=try image.identity;guard image.revision == (expectedByIdentity[identity,default:0] + 1)else{throw WorkspaceMutationFailureV1.invalidCommand}}}
+        if case let .applyReinspectionException(mutation)=command{let identities=try mutation.affectedIdentitiesForCanonicalWriter();guard postImages.count == identities.count,(try postImages.map({try $0.identity})) == identities,postImages.map(\.semanticSHA256).sorted() == mutation.payload.semanticSHA256s.sorted() else{throw WorkspaceMutationFailureV1.invalidCommand};for image in postImages{let identity=try image.identity;guard image.revision == (expectedByIdentity[identity,default:0] + 1)else{throw WorkspaceMutationFailureV1.invalidCommand}}}
+        if case let .applyWorkspaceExperience(mutation)=command{guard postImages == (try mutation.mutationPostImages) else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyAssetPlacementChange(plan)=command,let mutation=try plan.placementPoseMutation{let poseImages=try mutation.mutationPostImages;guard poseImages.allSatisfy({postImages.contains($0)})else{throw WorkspaceMutationFailureV1.invalidCommand}}
+        if case let .applyLocationHierarchyChange(change)=command,let mutation=try change.placementPoseMutation{let poseImages=try mutation.mutationPostImages;guard poseImages.allSatisfy({postImages.contains($0)})else{throw WorkspaceMutationFailureV1.invalidCommand}}
+    }
+}
+
+extension MutationJournalStoreV1 {
+    // Typed observations reuse the exact incumbent persisted checksum and
+    // enum mapping. These values authenticate neither source nor writer.
+    nonisolated static func observationPostImage(_ value: ServicePartyReferenceV1,
+        revision: UInt64) throws -> MutationPostImageV1 {
+        try value.validate()
+        let identity = try WorkspaceEntityIdentityV1(kind: .serviceParty, id: value.partyID)
+        return try postImage(identity: identity, revision: revision,
+            digest: persistedPostImageDigest(identity, revision, value))
+    }
+    nonisolated static func observationPostImage(_ value: SitePartyRoleEventV1,
+        revision: UInt64) throws -> MutationPostImageV1 {
+        try value.validate()
+        let identity = try WorkspaceEntityIdentityV1(kind: .sitePartyRoleEvent, id: value.eventID)
+        return try postImage(identity: identity, revision: revision,
+            digest: persistedPostImageDigest(identity, revision, value))
+    }
+    nonisolated static func observationPostImage(_ value: SignoffSnapshotV1,
+        revision: UInt64) throws -> MutationPostImageV1 {
+        try value.validate()
+        let identity = try WorkspaceEntityIdentityV1(kind: .signoffSnapshot, id: value.snapshotID)
+        return try postImage(identity: identity, revision: revision,
+            digest: persistedPostImageDigest(identity, revision, value))
+    }
+    nonisolated static func observationPostImage(_ value: SavedSmartViewDescriptorV1,
+        revision: UInt64) throws -> MutationPostImageV1 {
+        try value.validate()
+        let identity = try WorkspaceEntityIdentityV1(kind: .savedSmartView, id: value.id)
+        return try postImage(identity: identity, revision: revision,
+            digest: persistedPostImageDigest(identity, revision, value))
+    }
+}

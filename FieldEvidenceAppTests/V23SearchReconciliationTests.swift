@@ -1,8 +1,103 @@
+import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
 
 @MainActor
 final class V23SearchReconciliationTests: XCTestCase {
+    func testDerivedSearchDatesRoundTripAtMillisecondPrecisionWithoutChangingCanonicalRows() async throws {
+        let cases: [(Date, Date)] = [
+            (Date(timeIntervalSince1970: 1_700_000_000.123456),
+             Date(timeIntervalSince1970: 1_700_000_000.123)),
+            (Date(timeIntervalSince1970: -1.234567),
+             Date(timeIntervalSince1970: -1.235)),
+            (Date(timeIntervalSince1970: 0.000499),
+             Date(timeIntervalSince1970: 0)),
+            (Date(timeIntervalSince1970: 0.000501),
+             Date(timeIntervalSince1970: 0.001)),
+            (Date(timeIntervalSince1970: -0.000499),
+             Date(timeIntervalSince1970: 0)),
+            (Date(timeIntervalSince1970: -0.000501),
+             Date(timeIntervalSince1970: -0.001)),
+            (Date(timeIntervalSince1970: 1_700_000_000.123),
+             Date(timeIntervalSince1970: 1_700_000_000.123)),
+        ]
+        for (source, expected) in cases {
+            let derived = try SwiftDataSearchCanonicalProjectionSourceV1.canonicalDerivedIndexDate(source)
+            XCTAssertEqual(derived, expected)
+            let encoded = try SearchPersistenceCodecV1.encode(derived)
+            XCTAssertEqual(try SearchPersistenceCodecV1.decodeCanonical(Date.self, from: encoded), derived)
+        }
+        for invalid in [Double.infinity, -Double.infinity, Double.nan,
+                        9_007_199_254_741.0] {
+            XCTAssertThrowsError(try SwiftDataSearchCanonicalProjectionSourceV1.canonicalDerivedIndexDate(
+                Date(timeIntervalSince1970: invalid))) {
+                XCTAssertEqual($0 as? SearchContractFailureV1, .invalidField)
+            }
+        }
+
+        let schema = try PersistentSchemaReleaseRegistryV1.activeSchema()
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(
+            "derived-search-date", schema: schema, isStoredInMemoryOnly: true,
+            allowsSave: true, cloudKitDatabase: .none
+        )])
+        let context = container.mainContext
+        let assetID = UUID()
+        let issueID = UUID()
+        let assetDate = cases[0].0
+        let dueDate = Date(timeIntervalSince1970: 1_700_000_000.987654)
+        let asset = Asset(id: assetID, siteID: UUID(), packID: "date.pack",
+                          packSchemaVersion: 1, packContentVersion: 1,
+                          label: "Date asset", createdAt: assetDate)
+        let issue = Issue(id: issueID, assetID: assetID, openedByRecordID: UUID(),
+                          labelKey: "date.issue", labelDisplaySnapshot: "Date issue",
+                          status: .open, resolvedByRecordID: nil,
+                          createdAt: dueDate, updatedAt: dueDate)
+        context.insert(asset)
+        context.insert(issue)
+        try context.save()
+        let revision = try SearchSourceRevisionV1(
+            workspaceID: UUID(), generationID: UUID(), commitRevision: 1)
+        let source = try SwiftDataSearchCanonicalProjectionSourceV1(
+            modelContext: context, workspaceID: revision.workspaceID,
+            generationID: revision.generationID, revisionProvider: { revision })
+        let page = try await source.searchProjectionPage(at: revision, canonicalOffset: 0, limit: 250)
+        XCTAssertEqual(page.nextCanonicalOffset, 2)
+        XCTAssertTrue(page.isComplete)
+        let assetStableID = try WorkspaceEntityIdentityV1(kind: .asset, id: assetID).stableKey
+        let issueStableID = try WorkspaceEntityIdentityV1(kind: .issue, id: issueID).stableKey
+        let assetRecords = page.records.filter { $0.sourceStableID == assetStableID }
+        let issueRecords = page.records.filter { $0.sourceStableID == issueStableID }
+        XCTAssertFalse(assetRecords.isEmpty)
+        XCTAssertFalse(issueRecords.isEmpty)
+        XCTAssertTrue(assetRecords.allSatisfy { $0.sourceTimestamp == cases[0].1 && $0.dueAt == nil })
+        XCTAssertTrue(issueRecords.allSatisfy {
+            $0.sourceTimestamp == Date(timeIntervalSince1970: 1_700_000_000.988)
+                && $0.dueAt == Date(timeIntervalSince1970: 1_700_000_000.988)
+        })
+        XCTAssertEqual(asset.updatedAt, assetDate)
+        XCTAssertEqual(issue.updatedAt, dueDate)
+
+        let root = V23Fixture.root("fractional-derived-search-date")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let registry = try SwiftDataSearchCanonicalProjectionSourceV1.makeRegistry()
+        let store = try LocalSearchIndexStoreV1(applicationSupportURL: root)
+        let checkpoint = try SearchIndexRebuildCheckpointV1(
+            operationID: UUID(), source: revision,
+            nextCanonicalOffset: page.nextCanonicalOffset,
+            projectedRecordCount: page.records.count, state: .building)
+        try await store.saveRebuildStaging(
+            checkpoint: checkpoint, records: page.records, registry: registry)
+        let staged = try LocalSearchIndexStoreV1(applicationSupportURL: root)
+        let loadedStaging = try await staged.rebuildStaging()
+        let persistedStaging = try XCTUnwrap(loadedStaging)
+        XCTAssertEqual(persistedStaging.checkpoint, checkpoint)
+        XCTAssertEqual(persistedStaging.records, page.records)
+        try await store.replaceProjection(source: revision, records: page.records, registry: registry)
+        let reopened = try LocalSearchIndexStoreV1(applicationSupportURL: root)
+        let persisted = try await reopened.projection(for: revision, registry: registry)
+        XCTAssertEqual(persisted.records, page.records)
+    }
+
     func testGuardedProjectionDropRejectsRevokedAndWrongConsumerTokensWithoutChangingBytes() async throws {
         let gate = AppAccessGateV1(
             setting: .value(.init(isEnabled: true)),

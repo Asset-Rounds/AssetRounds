@@ -1,5 +1,6 @@
 import CoreSpotlight
 import CryptoKit
+import Darwin
 import Foundation
 import UniformTypeIdentifiers
 
@@ -7,6 +8,79 @@ final class PrivateSystemDiscoveryFileStateStoreV1: PrivateSystemDiscoveryClient
     PrivateSystemDiscoveryGlobalJournalStoreV1, @unchecked Sendable {
     private let fileURL: URL
     private let fileManager: FileManager
+#if DEBUG
+    private final class UncertainRootDescriptorPin: @unchecked Sendable {
+        private let lock = NSLock()
+        private var descriptors: [Int32] = []
+
+        func retain(_ descriptor: Int32) {
+            lock.withLock { descriptors.append(descriptor) }
+        }
+    }
+    private static let uncertainRootDescriptorPin = UncertainRootDescriptorPin()
+    private let originalEraseRootDescriptor: Int32
+    private let originalEraseRootDevice: dev_t
+    private let originalEraseRootInode: ino_t
+    private let originalEraseIO = EraseAbortCheckedSnapshotIOV1()
+
+    struct OriginalErasePhysicalSnapshot: Equatable, Sendable {
+        let rootDevice: UInt64
+        let rootInode: UInt64
+        let rootIdentity: String
+        let data: Data?
+        let fileIdentity: String?
+    }
+
+    /// Never calls load/recover or creates an empty journal. The original
+    /// store holds the root for its lifetime; transient leaf/directory closes
+    /// are checked and an ambiguous descriptor remains on originalEraseIO.
+    func originalErasePhysicalSnapshotForTesting() throws
+        -> OriginalErasePhysicalSnapshot {
+        var held = stat(), named = stat()
+        let directory = fileURL.deletingLastPathComponent()
+        guard Darwin.fstat(originalEraseRootDescriptor, &held) == 0,
+              held.st_mode & S_IFMT == S_IFDIR,
+              held.st_dev == originalEraseRootDevice,
+              held.st_ino == originalEraseRootInode,
+              Darwin.lstat(directory.path, &named) == 0,
+              named.st_dev == held.st_dev, named.st_ino == held.st_ino else {
+            throw PrivateSystemDiscoveryFailureV1.unavailable
+        }
+        let names = try originalEraseIO.names(in: originalEraseRootDescriptor)
+        guard names.isEmpty || names == [fileURL.lastPathComponent] else {
+            throw PrivateSystemDiscoveryFailureV1.unavailable
+        }
+        let leaf = names.isEmpty ? nil : try originalEraseIO.control(
+            parent: originalEraseRootDescriptor,
+            name: fileURL.lastPathComponent)
+        guard try originalEraseIO.names(in: originalEraseRootDescriptor)
+                == names else {
+            throw PrivateSystemDiscoveryFailureV1.unavailable
+        }
+        var after = stat(), renamed = stat()
+        guard Darwin.fstat(originalEraseRootDescriptor, &after) == 0,
+              Darwin.lstat(directory.path, &renamed) == 0,
+              renamed.st_dev == held.st_dev,
+              renamed.st_ino == held.st_ino,
+              after.st_dev == held.st_dev,
+              after.st_ino == held.st_ino,
+              after.st_mode == held.st_mode,
+              after.st_nlink == held.st_nlink,
+              after.st_size == held.st_size,
+              after.st_mtimespec.tv_sec == held.st_mtimespec.tv_sec,
+              after.st_mtimespec.tv_nsec == held.st_mtimespec.tv_nsec,
+              after.st_ctimespec.tv_sec == held.st_ctimespec.tv_sec,
+              after.st_ctimespec.tv_nsec == held.st_ctimespec.tv_nsec else {
+            throw PrivateSystemDiscoveryFailureV1.unavailable
+        }
+        let rootIdentity = "\(held.st_dev)|\(held.st_ino)|\(held.st_mode)|\(held.st_nlink)|\(held.st_size)|\(held.st_mtimespec.tv_sec)|\(held.st_mtimespec.tv_nsec)|\(held.st_ctimespec.tv_sec)|\(held.st_ctimespec.tv_nsec)"
+        return OriginalErasePhysicalSnapshot(
+            rootDevice: UInt64(held.st_dev),
+            rootInode: UInt64(held.st_ino),
+            rootIdentity: rootIdentity,
+            data: leaf?.0, fileIdentity: leaf?.1)
+    }
+#endif
 
     init(fileURL: URL, fileManager: FileManager = .default) throws {
         self.fileURL = fileURL.standardizedFileURL
@@ -15,6 +89,34 @@ final class PrivateSystemDiscoveryFileStateStoreV1: PrivateSystemDiscoveryClient
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         var values = URLResourceValues(); values.isExcludedFromBackup = true
         var mutableDirectory = directory; try mutableDirectory.setResourceValues(values)
+#if DEBUG
+        let descriptor = Darwin.open(directory.path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else {
+            throw PrivateSystemDiscoveryFailureV1.unavailable
+        }
+        var information = stat()
+        guard Darwin.fstat(descriptor, &information) == 0,
+              information.st_mode & S_IFMT == S_IFDIR else {
+            if Darwin.close(descriptor) != 0 {
+                Self.uncertainRootDescriptorPin.retain(descriptor)
+            }
+            throw PrivateSystemDiscoveryFailureV1.unavailable
+        }
+        originalEraseRootDescriptor = descriptor
+        originalEraseRootDevice = information.st_dev
+        originalEraseRootInode = information.st_ino
+#endif
+    }
+
+    deinit {
+#if DEBUG
+        // The shared production runtime is process-retained. This destructor
+        // is not used as proof of a same-process cold Erase boundary.
+        if Darwin.close(originalEraseRootDescriptor) != 0 {
+            Self.uncertainRootDescriptorPin.retain(originalEraseRootDescriptor)
+        }
+#endif
     }
 
     static func applicationSupport(fileManager: FileManager = .default) throws -> Self {
@@ -143,6 +245,17 @@ final class PrivateSystemDiscoveryCoreSpotlightClientV1: PrivateSystemDiscoveryC
     static let indexName = PrivateSystemDiscoveryLifecycleV1.namedIndex
     private let index = CSSearchableIndex(name: PrivateSystemDiscoveryCoreSpotlightClientV1.indexName, protectionClass: .complete)
 
+#if DEBUG
+    private static func traceIndexCompletion(operation: String, error: Error?) {
+        if let error {
+            let diagnostic = error as NSError
+            print("V23_SPOTLIGHT_CALLBACK_V1 operation=\(operation) success=false domain=\(diagnostic.domain) code=\(diagnostic.code)")
+        } else {
+            print("V23_SPOTLIGHT_CALLBACK_V1 operation=\(operation) success=true")
+        }
+    }
+#endif
+
     func replaceItems(deleting identifiers: [String], with items: [PrivateSystemDiscoveryIndexItemV1]) async throws {
         try await deleteItems(withIdentifiers: identifiers)
         let values = items.map { item -> CSSearchableItem in
@@ -153,6 +266,9 @@ final class PrivateSystemDiscoveryCoreSpotlightClientV1: PrivateSystemDiscoveryC
         }
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             index.indexSearchableItems(values) { error in
+#if DEBUG
+                Self.traceIndexCompletion(operation: "index", error: error)
+#endif
                 if let error { continuation.resume(throwing: error) } else { continuation.resume() }
             }
         }
@@ -173,6 +289,9 @@ final class PrivateSystemDiscoveryCoreSpotlightClientV1: PrivateSystemDiscoveryC
             do {
                 try contentReadToken.withContentRead(for: .searchRebuild) {
                     index.indexSearchableItems(values) { error in
+#if DEBUG
+                Self.traceIndexCompletion(operation: "index", error: error)
+#endif
                         if let error { continuation.resume(throwing: error) }
                         else { continuation.resume() }
                     }
@@ -184,6 +303,9 @@ final class PrivateSystemDiscoveryCoreSpotlightClientV1: PrivateSystemDiscoveryC
     func deleteItems(withIdentifiers identifiers: [String]) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             index.deleteSearchableItems(withIdentifiers: identifiers) { error in
+#if DEBUG
+                Self.traceIndexCompletion(operation: "deleteIDs", error: error)
+#endif
                 if let error { continuation.resume(throwing: error) } else { continuation.resume() }
             }
         }
@@ -192,6 +314,9 @@ final class PrivateSystemDiscoveryCoreSpotlightClientV1: PrivateSystemDiscoveryC
     func deleteAllItems() async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             index.deleteAllSearchableItems { error in
+#if DEBUG
+                Self.traceIndexCompletion(operation: "deleteAll", error: error)
+#endif
                 if let error { continuation.resume(throwing: error) } else { continuation.resume() }
             }
         }
@@ -210,6 +335,12 @@ actor PrivateSystemDiscoveryIndexStoreV1: PrivateSystemDiscoveryIndexLifecyclePo
     private let index: any PrivateSystemDiscoveryProtectedIndexClientV1
     private let store: any PrivateSystemDiscoveryClientStateStoreV1
     private let globalStore: any PrivateSystemDiscoveryGlobalJournalStoreV1
+#if DEBUG
+    // The Service captures physical bytes before its first suspension. The
+    // actor later proves this is the same held owner as both durable stores.
+    nonisolated let originalErasePhysicalOwnerForTesting:
+        PrivateSystemDiscoveryFileStateStoreV1?
+#endif
     private var value: PrivateSystemDiscoveryClientStateV1
     private var globalJournal: PrivateSystemDiscoveryGlobalJournalV1
     private var mutating = false
@@ -220,6 +351,10 @@ actor PrivateSystemDiscoveryIndexStoreV1: PrivateSystemDiscoveryIndexLifecyclePo
             throw PrivateSystemDiscoveryFailureV1.unavailable
         }
         index = indexClient; store = clientStateStore; globalStore = globalJournalStore
+#if DEBUG
+        originalErasePhysicalOwnerForTesting = clientStateStore
+            as? PrivateSystemDiscoveryFileStateStoreV1
+#endif
         value = try clientStateStore.load() ?? .empty
         globalJournal = try globalJournalStore.loadGlobal() ?? .empty
         try value.validate(); try globalJournal.validate()
@@ -230,6 +365,10 @@ actor PrivateSystemDiscoveryIndexStoreV1: PrivateSystemDiscoveryIndexLifecyclePo
          globalJournalStore: any PrivateSystemDiscoveryGlobalJournalStoreV1) throws {
         index = indexClient; store = clientStateStore
         globalStore = globalJournalStore
+#if DEBUG
+        originalErasePhysicalOwnerForTesting = clientStateStore
+            as? PrivateSystemDiscoveryFileStateStoreV1
+#endif
         value = try clientStateStore.load() ?? .empty
         globalJournal = try globalJournalStore.loadGlobal() ?? .empty
         try value.validate(); try globalJournal.validate()
@@ -240,6 +379,9 @@ actor PrivateSystemDiscoveryIndexStoreV1: PrivateSystemDiscoveryIndexLifecyclePo
         let durableStore = try PrivateSystemDiscoveryFileStateStoreV1.applicationSupport()
         store = durableStore
         globalStore = durableStore
+#if DEBUG
+        originalErasePhysicalOwnerForTesting = durableStore
+#endif
         value = try store.load() ?? .empty
         globalJournal = try globalStore.loadGlobal() ?? .empty
         try value.validate(); try globalJournal.validate()
@@ -431,6 +573,104 @@ actor PrivateSystemDiscoveryIndexStoreV1: PrivateSystemDiscoveryIndexLifecyclePo
         }
     }
 
+#if DEBUG
+    func originalErasePhysicalSnapshotForTesting() throws
+        -> PrivateSystemDiscoveryFileStateStoreV1.OriginalErasePhysicalSnapshot {
+        guard !mutating,
+              value.pendingOperation == nil,
+              globalJournal.entries.last?.state == .committed
+                || globalJournal.entries.isEmpty,
+              let owner = store as? PrivateSystemDiscoveryFileStateStoreV1,
+              let globalOwner = globalStore as?
+                PrivateSystemDiscoveryFileStateStoreV1,
+              owner === globalOwner,
+              owner === originalErasePhysicalOwnerForTesting else {
+            throw PrivateSystemDiscoveryFailureV1.unavailable
+        }
+        let physical = try owner.originalErasePhysicalSnapshotForTesting()
+        let expected = PrivateSystemDiscoveryDurableEnvelopeV1(
+            schemaVersion: 1, clientState: value,
+            globalJournal: globalJournal)
+        try expected.validate()
+        if let bytes = physical.data {
+            guard bytes == (try CompatibilityCanonicalV1.encode(expected)) else {
+                throw PrivateSystemDiscoveryFailureV1.corruptDigest
+            }
+        } else {
+            guard value == .empty, globalJournal == .empty else {
+                throw PrivateSystemDiscoveryFailureV1.corruptDigest
+            }
+        }
+        return physical
+    }
+
+    /// Original Erase effect over the actual process-wide actor and its held
+    /// durable store. This route rejects old pending work instead of repairing
+    /// it before the caller's pre-effect witness. `recoverGlobal` below awaits
+    /// the real CoreSpotlight delete-all completion before the after callback.
+    func eraseAllForOriginalColdExitForTesting(
+        operationID: PrivateSystemDiscoveryOperationIDV1,
+        now: Date,
+        beforeEffect: @Sendable (
+            PrivateSystemDiscoveryFileStateStoreV1.OriginalErasePhysicalSnapshot
+        ) throws -> Void,
+        afterEffect: @Sendable (
+            PrivateSystemDiscoveryFileStateStoreV1.OriginalErasePhysicalSnapshot
+        ) throws -> Void
+    ) async throws {
+        try await serialized {
+            guard let owner = store as? PrivateSystemDiscoveryFileStateStoreV1,
+                  let globalOwner = globalStore as?
+                    PrivateSystemDiscoveryFileStateStoreV1,
+                  owner === globalOwner,
+                  owner === originalErasePhysicalOwnerForTesting,
+                  value.pendingOperation == nil,
+                  globalJournal.entries.last?.state == .committed
+                    || globalJournal.entries.isEmpty else {
+                throw PrivateSystemDiscoveryFailureV1.unavailable
+            }
+            try operationID.validate()
+            guard operationID.operation == .removal,
+                  try !globalCommitted(operationID) else {
+                throw PrivateSystemDiscoveryFailureV1.invalidValue
+            }
+            let before = try owner.originalErasePhysicalSnapshotForTesting()
+            let expectedBefore = PrivateSystemDiscoveryDurableEnvelopeV1(
+                schemaVersion: 1, clientState: value,
+                globalJournal: globalJournal)
+            try expectedBefore.validate()
+            if let bytes = before.data {
+                guard bytes == (try CompatibilityCanonicalV1.encode(expectedBefore))
+                else { throw PrivateSystemDiscoveryFailureV1.corruptDigest }
+            } else {
+                guard value == .empty, globalJournal == .empty else {
+                    throw PrivateSystemDiscoveryFailureV1.corruptDigest
+                }
+            }
+            try beforeEffect(before)
+            try beginGlobal(operationID, at: now)
+            try await recoverGlobal()
+            guard try globalCommitted(operationID),
+                  value == .empty,
+                  value.pendingOperation == nil else {
+                throw PrivateSystemDiscoveryFailureV1.unavailable
+            }
+            let after = try owner.originalErasePhysicalSnapshotForTesting()
+            let expectedAfter = PrivateSystemDiscoveryDurableEnvelopeV1(
+                schemaVersion: 1, clientState: value,
+                globalJournal: globalJournal)
+            try expectedAfter.validate()
+            guard after.rootDevice == before.rootDevice,
+                  after.rootInode == before.rootInode,
+                  after.data == (try CompatibilityCanonicalV1.encode(expectedAfter)),
+                  after.fileIdentity != before.fileIdentity else {
+                throw PrivateSystemDiscoveryFailureV1.corruptDigest
+            }
+            try afterEffect(after)
+        }
+    }
+#endif
+
     func dropAndRebuild() async throws {
         try await serialized {
             guard value.pendingOperation?.requiresContentAuthority != true else {
@@ -578,6 +818,9 @@ actor PrivateSystemDiscoveryIndexStoreV1: PrivateSystemDiscoveryIndexLifecyclePo
     private func recoverGlobal() async throws {
         guard let pending = globalJournal.entries.last,
               pending.state != .committed else { return }
+#if DEBUG
+        print("V23_SPOTLIGHT_RECOVER_GLOBAL_V1 state=\(pending.state) entries=\(globalJournal.entries.count) workspaces=\(value.knownWorkspaceIDs.count)")
+#endif
         let operationID = pending.operationID
         try operationID.validate()
         if pending.state == .prepared {

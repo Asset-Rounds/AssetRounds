@@ -1943,6 +1943,44 @@ final class KernelConformanceProductionHarnessV1 {
     private(set) var session: StoreGenerationSession!
     private(set) var coordinator: StoreSessionCoordinator!
     private var lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1?
+    // Root-owned retention is established before Erase can acquire resources.
+    // Error lifetimes and caller defer ordering cannot bypass this inventory.
+    private let eraseCleanupOwners = KernelConformanceEraseCleanupOwnersV1()
+    private final class FaultEraseLifetime {
+        let root: URL
+        let originalRouter: StartupRouter
+        let discovery = PrivateSystemDiscoveryIndexRuntimeV1.shared
+        var appAccess: ProductionAppAccessSessionV1?
+        var services: [EraseAllService] = []
+        var operations: [EraseRouterOperationV1] = []
+        var coldOwners: [(StartupRouter, AppAccessGateV1)] = []
+
+        init(root: URL, originalRouter: StartupRouter) {
+            self.root = root
+            self.originalRouter = originalRouter
+        }
+    }
+    private final class FaultEraseWeakSource {
+        weak var context: ModelContext?
+        weak var container: ModelContainer?
+        init(_ context: ModelContext) {
+            self.context = context
+            container = context.container
+        }
+        var drained: Bool { context == nil && container == nil }
+    }
+    private var faultEraseOwners: [FaultEraseLifetime] = []
+    private static var retainedFaultEraseHarnesses: [KernelConformanceProductionHarnessV1] = []
+
+    private func awaitFaultEraseSourceDrain(_ source: FaultEraseWeakSource,
+        boundary: String) async throws {
+        for _ in 0..<1_500 {
+            if source.drained { return }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        throw KernelConformanceFixtureFailureV1.incompleteCoverage(
+            "\(boundary)-old-reader-drain")
+    }
 
     init(label: String) throws {
         let harnessRoot = FileManager.default.temporaryDirectory.appendingPathComponent(
@@ -3874,12 +3912,15 @@ final class KernelConformanceProductionHarnessV1 {
         _ boundary: String
     ) async throws -> KernelConformanceFaultBoundaryReceiptV1 {
         let base = isolatedFaultRoot(boundary)
-        defer { try? FileManager.default.removeItem(at: base) }
-        let support = base.appendingPathComponent("ApplicationSupport", isDirectory: true)
-        let caches = base.appendingPathComponent("Caches", isDirectory: true)
-        let temporary = base.appendingPathComponent("Temporary", isDirectory: true)
-        try FileManager.default.createDirectory(at: caches, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true)
+        if !Self.retainedFaultEraseHarnesses.contains(where: { $0 === self }) {
+            Self.retainedFaultEraseHarnesses.append(self)
+        }
+        let support = base.appendingPathComponent("Library/Application Support", isDirectory: true)
+        let caches = base.appendingPathComponent("Library/Caches", isDirectory: true)
+        let temporary = base.appendingPathComponent("tmp", isDirectory: true)
+        for directory in [support, caches, temporary] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
         let point: EraseAllFailurePoint
         switch boundary {
         case "ERASE_AFTER_EMPTY_GENERATION_DIRECTORY_CREATE": point = .afterEmptyGenerationDirectoryCreate
@@ -3900,95 +3941,245 @@ final class KernelConformanceProductionHarnessV1 {
         case "ERASE_BEFORE_JOURNAL_REMOVAL": point = .beforeJournalRemoval
         default: throw KernelConformanceFixtureFailureV1.incompleteCoverage(boundary)
         }
+        let expectedOld = point == .afterEmptyGenerationDirectoryCreate
+            || point == .beforePreparedWrite
+        let late = point == .afterCleanup || point == .beforeCleanupPhaseWrite
+            || point == .afterCleanupPhaseWrite || point == .beforeJournalRemoval
         let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
-        let registry = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
-        let factory = StoreGenerationFactory(applicationSupportURL: support)
-        var activeSession: StoreGenerationSession? = try factory.openOrBootstrapCurrent()
-        var activeCoordinator: StoreSessionCoordinator? = try StoreSessionCoordinator(
-            validatingSession: requireValue(activeSession, "\(boundary)-session")
-        )
-        _ = try await createBoundaryAsset(
-            coordinator: requireValue(activeCoordinator, "\(boundary)-coordinator"),
-            profile: profile, label: "Erase Boundary Asset"
-        )
-        let oldID = try requireValue(activeSession, "\(boundary)-old-session").generationID
-        let newID = UUID(), eraseID = UUID()
-        let erasedWorkspaceID = UUID(), erasedReplicaID = UUID()
-        let diagnostics = DiagnosticsStore(applicationSupportURL: support)
-        await diagnostics.prepare()
+        let profiles = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
+        let runtime = StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+            transactionUpdates: { AsyncStream { $0.finish() } },
+            statusUpdates: { AsyncStream { $0.finish() } })
+        let router = StartupRouter(applicationSupportURL: support,
+            entitlementRuntime: runtime, lifecycleProfileRegistry: profiles)
+        let owner = FaultEraseLifetime(root: base, originalRouter: router)
+        faultEraseOwners.append(owner)
         let defaultsName = "V9_20-A01-\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: defaultsName) else {
             throw KernelConformanceFixtureFailureV1.incompleteCoverage("\(boundary)-defaults")
         }
         defer { defaults.removePersistentDomain(forName: defaultsName) }
-        var visibleFailure = ""
-        do {
-            let coordinator = try requireValue(activeCoordinator, "\(boundary)-active-coordinator")
-            let dependencies = try coordinator.packageLifecycleDependencies(profileRegistry: registry)
-            let service = EraseAllService(
-                applicationSupportURL: support,
-                cachesDirectoryURL: caches,
-                temporaryDirectoryURL: temporary,
-                userDefaults: defaults,
-                makeUUID: uuidSequence([
-                    newID, eraseID, erasedWorkspaceID, erasedReplicaID,
-                ]),
-                failureInjection: EraseAllFailureInjection(failOnceAt: point)
-            )
-            do {
-                _ = try await service.erase(
-                    confirmation: EraseAllService.requiredConfirmation,
-                    coordinator: coordinator,
-                    diagnosticsStore: diagnostics,
-                    activate: { replacement in coordinator.activate(session: replacement) },
-                    lifecycleDependencies: dependencies
-                )
-            } catch {
-                guard error as? EraseAllServiceError == .injectedFailure else { throw error }
-                visibleFailure = String(describing: error)
-            }
-        }
-        guard !visibleFailure.isEmpty else {
-            throw KernelConformanceFixtureFailureV1.incompleteCoverage(boundary)
-        }
-        activeCoordinator = nil
-        activeSession = nil
-        await Task.yield()
+        let access = try await ProductionCompositionRoot.makeAppAccessSession(
+            applicationSupportURL: support, startupRouter: router, defaults: defaults,
+            authenticationClient: KernelConformanceEraseAuthenticationV1())
+        owner.appAccess = access
+        // The root and both access/Router owners are retained before the first
+        // lease or Erase effect. An uncertain close cannot trigger cleanup.
+        // The isolated device-local setting is genuinely disabled. Startup
+        // obtains its content permit from that current gate state rather than
+        // fabricating an authentication result or a standalone writer.
+        try router.bindStartupAccessGate(access.gate)
+        try await router.startIfNeeded(accessGate: access.gate)
 
-        let recovery = EraseAllService(
-            applicationSupportURL: support,
-            cachesDirectoryURL: caches,
-            temporaryDirectoryURL: temporary,
-            userDefaults: defaults
-        )
-        let recovered = try await recovery.reconcileAtStartup(diagnosticsStore: diagnostics)
-        let second = try await recovery.reconcileAtStartup(diagnosticsStore: diagnostics)
-        let canonical = try recovered ?? factory.openOrBootstrapCurrent()
-        let expectedOld = point == .afterEmptyGenerationDirectoryCreate || point == .beforePreparedWrite
-        let expectedID = expectedOld ? oldID : newID
-        let assetCount = try canonical.modelContext.fetchCount(FetchDescriptor<Asset>())
-        let canonicalRows = try canonicalDomainRowCount(canonical.modelContext)
-        let residualIntent = fileExists(
-            support.appendingPathComponent("FieldEvidenceErase/erase.json")
-        ) ? 1 : 0
+        let newID = UUID(), eraseID = UUID()
+        let erasedWorkspaceID = UUID(), erasedReplicaID = UUID()
+        var aborts: [AbortedEraseAdmissionReceiptV1] = []
+        var originalCompletions = 0
+        var reservation: AppAccessGateV1.EraseAdoptionToken?
+        var activationFailure: Error?
+        var visibleFailure = ""
+        let frame: (oldID: UUID, operation: EraseRouterOperationV1,
+            service: EraseAllService, aliases: FaultEraseWeakSource,
+            pointerBefore: Data, serviceReturned: Bool) = try await {
+            () async throws -> (UUID, EraseRouterOperationV1, EraseAllService,
+                FaultEraseWeakSource, Data, Bool) in
+            guard case let .ready(coordinator, diagnostics, _) = router.route else {
+                throw KernelConformanceFixtureFailureV1.incompleteCoverage("\(boundary)-original-owner")
+            }
+            _ = try await createBoundaryAsset(coordinator: coordinator, profile: profile,
+                label: "Erase Boundary Asset")
+            let oldID = coordinator.generationID
+            let aliases = FaultEraseWeakSource(coordinator.modelContext)
+            let pointerBefore = try Data(contentsOf: support
+                .appendingPathComponent("FieldEvidenceData/current.json"))
+            let dependencies = try coordinator.packageLifecycleDependencies(
+                profileRegistry: profiles)
+            let ticket = try await router.beginEraseOperation(coordinator: coordinator,
+                accessGate: access.gate)
+            let operation = try router.eraseRetirementOperation(for: ticket)
+            owner.operations.append(operation)
+            let service = try router.configureEraseService(EraseAllService(
+                applicationSupportURL: support, cachesDirectoryURL: caches,
+                temporaryDirectoryURL: temporary, userDefaults: defaults,
+                bundleIdentifier: "com.palatis3.fieldrecord",
+                defaultsDomainName: defaultsName,
+                makeUUID: uuidSequence([newID, eraseID, erasedWorkspaceID, erasedReplicaID]),
+                failureInjection: EraseAllFailureInjection(failOnceAt: point),
+                privateSystemDiscoveryIndex: owner.discovery,
+                admitErase: { subject in
+                    let authorization = try await router.eraseAdmissionAuthorization(
+                        ticket, subject: subject)
+                    let accepted = try await access.lifecycle.beginExternalErase(
+                        subject: subject, authorization: authorization)
+                    try router.recordEraseReservation(ticket, reservation: accepted)
+                    reservation = accepted
+                    return accepted
+                }, didCompleteErase: { _ in originalCompletions += 1 },
+                didAbortEraseAdmission: { aborts.append($0) }), operation: operation)
+            owner.services.append(service)
+            if expectedOld {
+                try service.expectCompletedAbortColdShutdownForTesting(point,
+                    operation: operation)
+            }
+            do {
+                let outcome = try await service.erase(
+                    confirmation: EraseAllService.requiredConfirmation,
+                    coordinator: coordinator, diagnosticsStore: diagnostics,
+                    operation: operation,
+                    activate: { [weak coordinator] replacement in
+                        do {
+                            guard let coordinator else {
+                                throw KernelConformanceFixtureFailureV1.incompleteCoverage(
+                                    "\(boundary)-activation-owner")
+                            }
+                            try router.activateErasePreparationSession(replacement,
+                                coordinator: coordinator, operation: operation)
+                        } catch { activationFailure = error }
+                    }, lifecycleDependencies: dependencies)
+                if let activationFailure { throw activationFailure }
+                guard late, outcome.operation === operation else {
+                    throw KernelConformanceFixtureFailureV1.incompleteCoverage(
+                        "\(boundary)-unexpected-service-return")
+                }
+                return (oldID, operation, service, aliases, pointerBefore, true)
+            } catch {
+                if let activationFailure { throw activationFailure }
+                guard !late, error as? EraseAllServiceError == .injectedFailure else {
+                    throw error
+                }
+                visibleFailure = String(describing: error)
+                return (oldID, operation, service, aliases, pointerBefore, false)
+            }
+        }()
+        guard originalCompletions == 0, reservation != nil else {
+            throw KernelConformanceFixtureFailureV1.incompleteCoverage("\(boundary)-original-receipt")
+        }
+
+        if expectedOld {
+            guard aborts.count == 1, let abort = aborts.first,
+                  abort.originalGenerationID == frame.oldID,
+                  abort.subject.newGenerationID == newID,
+                  abort.subject.eraseID == eraseID,
+                  abort.reservation == reservation,
+                  !frame.serviceReturned else {
+                throw KernelConformanceFixtureFailureV1.incompleteCoverage("\(boundary)-abort-authority")
+            }
+            try router.poisonCompletedAbortColdRestartForTesting(frame.operation,
+                service: frame.service, receipt: abort, expectedFault: point)
+            try await access.lifecycle.abandonEraseAdmission(abort)
+            try router.markCompletedAbortLifecycleReleasedForTesting(frame.operation,
+                receipt: abort)
+            try await router.continueCompletedAbortColdRestartForTesting(frame.operation,
+                receipt: abort)
+            try await awaitFaultEraseSourceDrain(frame.aliases, boundary: boundary)
+            try router.finishCompletedAbortColdRestartForTesting(frame.operation,
+                receipt: abort)
+            guard try Data(contentsOf: support
+                .appendingPathComponent("FieldEvidenceData/current.json")) == frame.pointerBefore else {
+                throw KernelConformanceFixtureFailureV1.incompleteCoverage("\(boundary)-abort-pointer")
+            }
+        } else if late {
+            guard frame.serviceReturned, aborts.isEmpty else {
+                throw KernelConformanceFixtureFailureV1.incompleteCoverage("\(boundary)-late-frame")
+            }
+            try await awaitFaultEraseSourceDrain(frame.aliases, boundary: boundary)
+            do {
+                _ = try await frame.operation.advanceCleanup()
+                throw KernelConformanceFixtureFailureV1.incompleteCoverage("\(boundary)-late-fault-missing")
+            } catch EraseAllServiceError.injectedFailure {
+                visibleFailure = String(describing: EraseAllServiceError.injectedFailure)
+            }
+            try router.abandonInterruptedLateEraseForColdRestartForTesting(
+                frame.operation, expectedFault: point)
+        } else {
+            guard !frame.serviceReturned, aborts.isEmpty else {
+                throw KernelConformanceFixtureFailureV1.incompleteCoverage("\(boundary)-durable-frame")
+            }
+            try await router.beginInterruptedEarlyEraseColdRestartForTesting(
+                frame.operation, originalService: frame.service, expectedFault: point)
+            try await awaitFaultEraseSourceDrain(frame.aliases, boundary: boundary)
+            try router.finishInterruptedEarlyEraseColdRestartForTesting(frame.operation)
+        }
+        guard !visibleFailure.isEmpty, originalCompletions == 0 else {
+            throw KernelConformanceFixtureFailureV1.incompleteCoverage("\(boundary)-fault")
+        }
+        do {
+            try await router.startIfNeeded(accessGate: access.gate)
+            throw KernelConformanceFixtureFailureV1.incompleteCoverage("\(boundary)-old-router-reentered")
+        } catch AppAccessContractFailureV1.staleAttempt { }
+
+        let coldGate = AppAccessGateV1(setting: .value(.init(isEnabled: true)),
+            authentication: KernelConformanceEraseAuthenticationV1(),
+            clock: SystemApplicationClock(), identifiers: SystemApplicationIDSource())
+        guard await coldGate.authenticate(trigger: .unlock) == .authenticated else {
+            throw KernelConformanceFixtureFailureV1.incompleteCoverage("\(boundary)-cold-authentication")
+        }
+        let coldRouter = StartupRouter(applicationSupportURL: support,
+            entitlementRuntime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            lifecycleProfileRegistry: profiles)
+        owner.coldOwners.append((coldRouter, coldGate))
+        let coldService = EraseAllService(applicationSupportURL: support,
+            cachesDirectoryURL: caches, temporaryDirectoryURL: temporary,
+            userDefaults: defaults, bundleIdentifier: "com.palatis3.fieldrecord",
+            defaultsDomainName: defaultsName, privateSystemDiscoveryIndex: owner.discovery)
+        owner.services.append(coldService)
+        try coldRouter.bindStartupAccessGate(coldGate)
+        try await coldRouter.retryColdEraseForTesting(service: coldService,
+            accessGate: coldGate)
+        let expectedID = expectedOld ? frame.oldID : newID
+        let first: (generationID: UUID, assetCount: Int, canonicalRows: Int) = try {
+            guard case let .ready(coordinator, _, _) = coldRouter.route else {
+                throw KernelConformanceFixtureFailureV1.incompleteCoverage("\(boundary)-cold-ready")
+            }
+            return (coordinator.generationID,
+                try coordinator.modelContext.fetchCount(FetchDescriptor<Asset>()),
+                try canonicalDomainRowCount(coordinator.modelContext))
+        }()
+        let pointerAfterFirst = try Data(contentsOf: support
+            .appendingPathComponent("FieldEvidenceData/current.json"))
+        let intentAfterFirst = fileExists(support
+            .appendingPathComponent("FieldEvidenceErase/erase.json"))
+        // The original method repeated recovery on one Service in one process.
+        // The Router's real retry path is the corresponding idempotence check;
+        // no second unowned Registry or synthetic process boundary is opened.
+        try await coldRouter.retryChecks(accessGate: coldGate)
+        let second: (generationID: UUID, assetCount: Int, canonicalRows: Int) = try {
+            guard case let .ready(coordinator, _, _) = coldRouter.route else {
+                throw KernelConformanceFixtureFailureV1.incompleteCoverage("\(boundary)-retry-ready")
+            }
+            return (coordinator.generationID,
+                try coordinator.modelContext.fetchCount(FetchDescriptor<Asset>()),
+                try canonicalDomainRowCount(coordinator.modelContext))
+        }()
+        let pointerAfterSecond = try Data(contentsOf: support
+            .appendingPathComponent("FieldEvidenceData/current.json"))
+        let canonicalRows = second.canonicalRows
+        let residualIntent = fileExists(support
+            .appendingPathComponent("FieldEvidenceErase/erase.json")) ? 1 : 0
         let orphanCount = temporaryFileCount(under: base)
-            + directoryEntryCount(support.appendingPathComponent("FieldEvidenceErase", isDirectory: true))
-        let coldRecovered = try factory.currentGenerationID() == expectedID
-            && assetCount == (expectedOld ? 1 : 0)
-            && (!expectedOld ? canonicalRows == 0 : canonicalRows > 0)
-        let noPartial = coldRecovered && second == nil
-            && residualIntent == 0 && orphanCount == 0
+            + directoryEntryCount(support
+                .appendingPathComponent("FieldEvidenceErase", isDirectory: true))
+        let coldRecovered = first.generationID == expectedID
+            && first.assetCount == (expectedOld ? 1 : 0)
+            && (expectedOld ? first.canonicalRows > 0 : first.canonicalRows == 0)
+        let noPartial = coldRecovered
+            && first.generationID == second.generationID
+            && first.assetCount == second.assetCount
+            && first.canonicalRows == second.canonicalRows
+            && pointerAfterFirst == pointerAfterSecond
+            && !intentAfterFirst && residualIntent == 0 && orphanCount == 0
         guard coldRecovered, noPartial else {
             throw KernelConformanceFixtureFailureV1.incompleteCoverage("\(boundary)-recovery")
         }
-        return .init(
-            boundary: boundary, family: "ERASE", visibleFailure: visibleFailure,
-            operationAttempted: "EraseAllService.erase",
-            recoveryOperation: "cold-EraseAllService.reconcileAtStartup-twice",
+        return .init(boundary: boundary, family: "ERASE",
+            visibleFailure: visibleFailure,
+            operationAttempted: "Router-ticketed-EraseAllService.erase",
+            recoveryOperation: "checked-original-handoff+fresh-Router-cold-replay+same-Router-retry",
             coldRecoverySucceeded: coldRecovered, noPartialAuthority: noPartial,
             canonicalRowCount: canonicalRows, residualIntentCount: residualIntent,
-            orphanPathCount: orphanCount
-        )
+            orphanPathCount: orphanCount)
     }
 
     private func exerciseJournalFaultBoundary(
@@ -4559,7 +4750,7 @@ final class KernelConformanceProductionHarnessV1 {
                 throw KernelConformanceFixtureFailureV1.incompleteCoverage("post-convergence")
             }
             post = try await Self.exercisePostConvergenceLifecycle(
-                primary, profile: profile
+                primary, profile: profile, cleanupOwners: eraseCleanupOwners
             )
         } else {
             post = nil
@@ -4591,7 +4782,8 @@ final class KernelConformanceProductionHarnessV1 {
 
     private static func exercisePostConvergenceLifecycle(
         _ node: KernelConformanceReplicaNodeV1,
-        profile: WorkspacePackageLifecycleProfileV1
+        profile: WorkspacePackageLifecycleProfileV1,
+        cleanupOwners: KernelConformanceEraseCleanupOwnersV1
     ) async throws -> KernelConformancePostConvergenceReceiptV1 {
         try node.journal.recoverInterruptedWork()
         _ = try node.journal.resumeStagedBatches()
@@ -4614,12 +4806,12 @@ final class KernelConformanceProductionHarnessV1 {
         let restoreSupport = node.applicationSupportURL.appendingPathComponent(
             "restore-proof", isDirectory: true
         )
-        let chain: (
+        let prepared: (
             restoreActivated: Bool, searchRebuilt: Bool,
-            deletionCommitted: Bool, eraseActivated: Bool
+            deletionCommitted: Bool, eraseOwner: KernelConformanceEraseOwnerV1
         ) = try await { () async throws -> (
             restoreActivated: Bool, searchRebuilt: Bool,
-            deletionCommitted: Bool, eraseActivated: Bool
+            deletionCommitted: Bool, eraseOwner: KernelConformanceEraseOwnerV1
         ) in
             let restoreTarget = try StoreGenerationFactory(applicationSupportURL: restoreSupport)
                 .openOrBootstrapCurrent()
@@ -4658,26 +4850,23 @@ final class KernelConformanceProductionHarnessV1 {
                 modelContext: restored.modelContext,
                 lifecycleDependencies: restoredDependencies
             ).delete(assetID: assetID)
-            let diagnostics = DiagnosticsStore(applicationSupportURL: restoreSupport)
-            let erase = try await EraseAllService(
-                applicationSupportURL: restoreSupport
-            ).erase(
-                confirmation: EraseAllService.requiredConfirmation,
-                coordinator: restoredCoordinator,
-                diagnosticsStore: diagnostics,
-                activate: { [weak coordinator = restoredCoordinator] replacement in
-                    coordinator?.activate(session: replacement)
-                },
-                lifecycleDependencies: restoredDependencies
-            )
+            let eraseOwner = KernelConformanceEraseOwnerV1(support: restoreSupport, registry: registry)
+            cleanupOwners.retain(eraseOwner, support: restoreSupport)
+            try await eraseOwner.prepare(coordinator: restoredCoordinator,
+                dependencies: restoredDependencies)
             return (
                 restoreActivated,
                 search.indexedRecordCount > 0,
                 deletion.assetID == assetID,
-                try erase.session.modelContext.fetchCount(FetchDescriptor<Asset>()) == 0
+                eraseOwner
             )
         }()
-        await Task.yield()
+        // All restored session/coordinator/dependency aliases above have exited.
+        // The operation's real drain witness, not the end of this scope, decides.
+        try await prepared.eraseOwner.finishAndReleaseFreshOwner()
+        let chain = (restoreActivated: prepared.restoreActivated,
+            searchRebuilt: prepared.searchRebuilt, deletionCommitted: prepared.deletionCommitted,
+            eraseActivated: true)
         let reopenedAfterErase = try StoreGenerationFactory(
             applicationSupportURL: restoreSupport
         ).openOrBootstrapCurrent()
@@ -4841,19 +5030,21 @@ final class KernelConformanceProductionHarnessV1 {
                 "production-profile-registry"
             )
         }
-        let dependencies = try coordinator.packageLifecycleDependencies(profileRegistry: registry)
-        let diagnostics = DiagnosticsStore(applicationSupportURL: activeApplicationSupportURL)
-        return try await EraseAllService(
-            applicationSupportURL: activeApplicationSupportURL
-        ).erase(
-            confirmation: EraseAllService.requiredConfirmation,
-            coordinator: coordinator,
-            diagnosticsStore: diagnostics,
-            activate: { [weak activeCoordinator = coordinator] replacement in
-                activeCoordinator?.activate(session: replacement)
-            },
-            lifecycleDependencies: dependencies
-        )
+        let owner = KernelConformanceEraseOwnerV1(support: activeApplicationSupportURL, registry: registry)
+        eraseCleanupOwners.retain(owner, support: activeApplicationSupportURL)
+        try await owner.prepare(coordinator: coordinator,
+            dependencies: coordinator.packageLifecycleDependencies(profileRegistry: registry))
+        coordinator = nil
+        session = nil
+        // Clearing our aliases is necessary, but only the actual owner witness
+        // in advanceCleanup proves that every captured reader has drained.
+        try await owner.finishAndReleaseFreshOwner()
+        let reopened = try StoreGenerationFactory(applicationSupportURL: activeApplicationSupportURL)
+            .openOrBootstrapCurrent()
+        session = reopened
+        coordinator = try StoreSessionCoordinator(validatingSession: reopened,
+            lifecycleProfileRegistry: registry)
+        return try owner.outcome()
     }
 
     private func createFirstSign(
@@ -5172,6 +5363,11 @@ final class KernelConformanceProductionHarnessV1 {
     }
 
     func cleanup() {
+        // The fresh Router's reader registry has no general checked shutdown
+        // seam. Retain both physical roots and their exact owners until host
+        // termination rather than unlinking a still-owned namespace.
+        if Self.retainedFaultEraseHarnesses.contains(where: { $0 === self }) { return }
+        if eraseCleanupOwners.retainForHostTerminationIfNeeded(root: root, harness: self) { return }
         try? coordinator?.invalidateAndReleaseWriter()
         coordinator = nil
         session = nil
@@ -7217,5 +7413,161 @@ extension KernelConformanceFixtureHarnessV1 {
             )
         }
         return receipt.routeIDs.count
+    }
+}
+
+/// Genuine test admission and lifecycle forwarding. No ticket, reservation,
+/// receipt or drain proof is constructed by this fixture.
+@MainActor
+private final class KernelConformanceEraseOwnerV1 {
+    private let support: URL
+    private let router: StartupRouter
+    private let gate: AppAccessGateV1
+    private var operation: EraseRouterOperationV1?
+    private var reservation: AppAccessGateV1.EraseAdoptionToken?
+    private var serviceOutcome: EraseAllOutcome?
+    private var activationFailure: Error?
+    private weak var freshContext: ModelContext?
+    private weak var freshContainer: ModelContainer?
+
+    init(support: URL, registry: WorkspacePackageLifecycleProfileRegistryV1) {
+        self.support = support
+        gate = AppAccessGateV1(setting: .value(.init(isEnabled: true)),
+            authentication: KernelConformanceEraseAuthenticationV1(),
+            clock: SystemApplicationClock(), identifiers: SystemApplicationIDSource())
+        router = StartupRouter(applicationSupportURL: support,
+            entitlementRuntime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            lifecycleProfileRegistry: registry)
+    }
+
+    func prepare(coordinator: StoreSessionCoordinator,
+        dependencies: WorkspacePackageLifecycleDependenciesV1) async throws {
+        do {
+            guard await gate.authenticate(trigger: .unlock) == .authenticated else {
+                throw KernelConformanceFixtureFailureV1.incompleteCoverage("erase-authentication")
+            }
+            try router.bindStartupAccessGate(gate)
+            let ticket = try await router.beginEraseOperation(coordinator: coordinator, accessGate: gate)
+            let actualOperation = try router.eraseRetirementOperation(for: ticket)
+            operation = actualOperation
+            let service = try router.configureEraseService(EraseAllService(
+                applicationSupportURL: support,
+                admitErase: { [self] subject in
+                    if let authorization = try await router.eraseAdmissionAuthorization(ticket, subject: subject) {
+                        let token = try await gate.reserveEraseAdoption(subject: subject, authorization: authorization)
+                        try router.recordEraseReservation(ticket, reservation: token)
+                        reservation = token
+                        return token
+                    }
+                    guard let reservation else {
+                        throw KernelConformanceFixtureFailureV1.incompleteCoverage("erase-reservation")
+                    }
+                    return reservation
+                }), operation: actualOperation)
+            serviceOutcome = try await service.erase(confirmation: EraseAllService.requiredConfirmation,
+                coordinator: coordinator, diagnosticsStore: DiagnosticsStore(applicationSupportURL: support),
+                operation: actualOperation,
+                activate: { [self, weak coordinator] replacement in
+                    do {
+                        guard let coordinator else {
+                            throw KernelConformanceFixtureFailureV1.incompleteCoverage("erase-preparation-owner")
+                        }
+                        try router.activateErasePreparationSession(replacement,
+                            coordinator: coordinator, operation: actualOperation)
+                    } catch { activationFailure = error }
+                }, lifecycleDependencies: dependencies)
+            if let activationFailure { throw activationFailure }
+        } catch { throw RetainedFailure(owner: self, underlying: error) }
+    }
+
+    /// Must run only after every caller source reader scope has ended.
+    func finishAndReleaseFreshOwner() async throws {
+        do {
+            guard let operation, let reservation,
+                  try await operation.advanceCleanup() else {
+                throw KernelConformanceFixtureFailureV1.incompleteCoverage("erase-actual-reader-drain-pending")
+            }
+            let (_, _, completed) = try operation.completedRetirement()
+            guard let completed else {
+                throw KernelConformanceFixtureFailureV1.incompleteCoverage("erase-completed-receipt")
+            }
+            try await gate.adoptCompletedErase(completed, token: reservation)
+            try await router.finishRetiredEraseActivation(operation, accessGate: gate)
+            try releaseFreshPublishedOwner()
+            guard freshContext == nil, freshContainer == nil else {
+                throw KernelConformanceFixtureFailureV1.incompleteCoverage("erase-fresh-owner-release-pending")
+            }
+        } catch { throw RetainedFailure(owner: self, underlying: error) }
+    }
+
+    private func releaseFreshPublishedOwner() throws {
+        guard case let .ready(coordinator, _, _) = router.route,
+              try coordinator.modelContext.fetchCount(FetchDescriptor<Asset>()) == 0 else {
+            throw KernelConformanceFixtureFailureV1.incompleteCoverage("erase-fresh-publication")
+        }
+        freshContext = coordinator.modelContext
+        freshContainer = coordinator.modelContext.container
+        try coordinator.invalidateAndReleaseWriter()
+        router.failClosedPDFRecovery()
+    }
+
+    func outcome() throws -> EraseAllOutcome {
+        guard let serviceOutcome else {
+            throw KernelConformanceFixtureFailureV1.incompleteCoverage("erase-service-outcome")
+        }
+        return serviceOutcome
+    }
+
+    /// Keep the real pending owner reachable with its failure; never reopen a
+    /// replacement operation to turn uncertain cleanup into success.
+    private final class RetainedFailure: Error {
+        let owner: KernelConformanceEraseOwnerV1
+        let underlying: Error
+        init(owner: KernelConformanceEraseOwnerV1, underlying: Error) {
+            self.owner = owner; self.underlying = underlying
+        }
+    }
+}
+
+private actor KernelConformanceEraseAuthenticationV1: LocalAuthenticationClient {
+    func availability() -> LocalAuthenticationAvailabilityV1 {
+        .systemValue(status: .available, biometry: .faceID)
+    }
+    func authenticate(_ attempt: LocalAuthenticationAttemptV1) -> LocalAuthenticationOutcomeV1 { .authenticated }
+    func cancel(attemptID: UUID) {}
+}
+
+
+/// A root-owned inventory, never a synthesized filesystem authority. Both the
+/// primary root and nested restore-proof owner are retained before prepare.
+@MainActor
+private final class KernelConformanceEraseCleanupOwnersV1 {
+    private var owners: [(support: URL, owner: KernelConformanceEraseOwnerV1)] = []
+    func retain(_ owner: KernelConformanceEraseOwnerV1, support: URL) {
+        owners.append((support, owner))
+    }
+    private static var retainedUntilHostTermination:
+        [(root: URL, owners: KernelConformanceEraseCleanupOwnersV1,
+          harness: KernelConformanceProductionHarnessV1)] = []
+
+    func retainForHostTerminationIfNeeded(root: URL,
+        harness: KernelConformanceProductionHarnessV1) -> Bool {
+        guard !owners.isEmpty else { return false }
+        // Actual retirement proves the old generation was safely retired, not
+        // that the freshly adopted registry and every later reader are closed.
+        // Optional fixture removal has no checked proof here. Keep the actual
+        // inventory alive for the host lifetime; never use error deallocation,
+        // a new empty registry or nil assignments as namespace-close evidence.
+        if !Self.retainedUntilHostTermination.contains(where: { $0.owners === self }) {
+            Self.retainedUntilHostTermination.append((root, self, harness))
+            let paths = owners.map { $0.support.path }.joined(separator: ",")
+            FileHandle.standardError.write(Data((
+                "KERNEL_ERASE_FIXTURE_RETAINED_V1 root=\(root.path) owners=\(paths) " +
+                "reason=checked-fresh-registry-closure-unavailable " +
+                "retention=until-host-termination\n").utf8))
+        }
+        return true
     }
 }

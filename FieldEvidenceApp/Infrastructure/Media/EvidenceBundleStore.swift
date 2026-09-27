@@ -261,17 +261,21 @@ fileprivate final class CheckRunnerPhotoPreparedPairFilesV1: @unchecked Sendable
     let identity: EvidenceBundleStore.FileIdentity
     let leaves: [String: Leaf]
     let directoryPolicy: OwnedFileKindV1
+    private let producerActivity: OwnedStorageProducerActivityV1
     let consumption = NSLock()
     var consumed = false // Only accessed while consumption is held.
 
     init(url: URL, descriptor: Int32, identity: EvidenceBundleStore.FileIdentity,
-         leaves: [String: Leaf], directoryPolicy: OwnedFileKindV1) {
+         leaves: [String: Leaf], directoryPolicy: OwnedFileKindV1,
+         producerActivity: OwnedStorageProducerActivityV1) {
         self.url = url; self.descriptor = descriptor; self.identity = identity
         self.leaves = leaves; self.directoryPolicy = directoryPolicy
+        self.producerActivity = producerActivity
     }
     deinit {
         for leaf in leaves.values { _ = Darwin.close(leaf.descriptor) }
         _ = Darwin.close(descriptor)
+        producerActivity.close()
     }
 }
 
@@ -327,6 +331,8 @@ extension EvidenceBundleStore {
         workspaceID: WorkspaceID,
         mutationID: MutationIDV1
     ) async throws -> DraftImmutableContentWriteReceiptV1 {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        defer { producerActivity.close() }
         guard item.reference.workspaceID == workspaceID.rawValue.uuidString.lowercased(),
               let digest = item.reference.digests.digest(for: .sha256) else {
             throw ContentIntegrityFailureV1.wrongWorkspace
@@ -930,6 +936,7 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         fileprivate let descriptor: Int32
         fileprivate let rootDescriptor: Int32
         fileprivate let rootIdentity: FileIdentity
+        private let producerActivity: OwnedStorageProducerActivityV1
         fileprivate let facts: stat
         fileprivate let consumption = NSLock()
         fileprivate var consumed = false
@@ -937,16 +944,18 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         fileprivate init(store: EvidenceBundleStore, owner: ObjectIdentifier,
             request: DraftImmutableContentWriteRequestV1, receipt: DraftImmutableContentWriteReceiptV1,
             sourceURL: URL, descriptor: Int32, rootDescriptor: Int32,
-            rootIdentity: FileIdentity, facts: stat) {
+            rootIdentity: FileIdentity, facts: stat, producerActivity: OwnedStorageProducerActivityV1) {
             self.store = store; self.owner = owner; self.request = request; self.receipt = receipt
             self.sourceURL = sourceURL; self.descriptor = descriptor
             self.rootDescriptor = rootDescriptor; self.rootIdentity = rootIdentity; self.facts = facts
+            self.producerActivity = producerActivity
         }
 
         deinit {
             store.discardPrivateImmutablePreparation(self)
             _ = Darwin.close(descriptor)
             _ = Darwin.close(rootDescriptor)
+            producerActivity.close()
         }
 
         /// Synchronous metadata/rename only. The live caller must already hold
@@ -1108,6 +1117,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         plan: AssetLabelGenerationPlanV1,
         projection: LabelProjectionResultV1
     ) throws -> AssetLabelPublishedContentReadbackV1 {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        defer { producerActivity.close() }
         try requireProducerAuthority()
         return try assetLabelPublications.publishOrAdopt(job: job, plan: plan, projection: projection)
     }
@@ -1117,6 +1128,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         planSHA256: String,
         outputSHA256: String
     ) throws -> AssetLabelPublishedContentReadbackV1? {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        defer { producerActivity.close() }
         try requireProducerAuthority()
         return try assetLabelPublications.adoptOnly(jobID: jobID, planSHA256: planSHA256, outputSHA256: outputSHA256)
     }
@@ -1126,6 +1139,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     }
 
     nonisolated func removeAssetLabelPublishedOutput(_ binding: AssetLabelRenderPublicationBindingV1) throws {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        defer { producerActivity.close() }
         try requireProducerAuthority()
         try assetLabelPublications.remove(binding: binding)
     }
@@ -1135,16 +1150,22 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         plan: AssetLabelGenerationPlanV1,
         projection: LabelProjectionResultV1
     ) throws {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        defer { producerActivity.close() }
         try requireProducerAuthority()
         try assetLabelPublications.discardUncommitted(job: job, plan: plan, projection: projection)
     }
 
     nonisolated func removeAssetLabelPublishedWorkspace(_ workspaceID: WorkspaceID) throws {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        defer { producerActivity.close() }
         try requireProducerAuthority()
         try assetLabelPublications.removeWorkspace(workspaceID)
     }
 
     nonisolated func eraseAllAssetLabelPublishedArtifacts() throws {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        defer { producerActivity.close() }
         try requireProducerAuthority()
         try assetLabelPublications.eraseAll()
     }
@@ -1158,6 +1179,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         bytes: Data,
         request: DraftImmutableContentWriteRequestV1
     ) async throws -> DraftImmutableContentWriteReceiptV1 {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        defer { producerActivity.close() }
         try requireProducerAuthority()
         try request.validate()
         guard Int64(bytes.count) == request.byteLength else {
@@ -1252,6 +1275,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     /// Existing bytes are read and hashed here, rather than inside the UI fence.
     func prepareImmutableOriginal(bytes: Data, request: DraftImmutableContentWriteRequestV1,
         owner: ObjectIdentifier) throws -> PreparedImmutableOriginal {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        defer { producerActivity.close() }
         try Task.checkCancellation()
         try requireProducerAuthority()
         let probe = try DraftImmutableContentWriteReceiptV1(request: request,
@@ -1294,7 +1319,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
             relativePath: request.relativePath, reusedExistingBytes: exists)
         let prepared = PreparedImmutableOriginal(store: self, owner: owner, request: request,
             receipt: receipt, sourceURL: source, descriptor: descriptor,
-            rootDescriptor: rootDescriptor, rootIdentity: rootIdentity, facts: facts)
+            rootDescriptor: rootDescriptor, rootIdentity: rootIdentity, facts: facts,
+            producerActivity: try producerActivity.retain())
         transferred = true
         try validateImmutablePreparation(prepared)
         let readback = try withParentDescriptor(of: source) { parent, leaf in
@@ -1340,6 +1366,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
 
     nonisolated private func publishImmutableOriginal(_ prepared: PreparedImmutableOriginal,
         owner: ObjectIdentifier) throws -> DraftImmutableContentWriteReceiptV1 {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        defer { producerActivity.close() }
         try Task.checkCancellation()
         try requireProducerAuthority()
         guard prepared.owner == owner, prepared.store === self,
@@ -1479,6 +1507,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         _ package: EvidenceDerivativeStorePackageV1,
         cancellation: EvidenceDerivativeCancellationV1
     ) throws -> EvidenceDerivativeContentPublicationReceiptV1 {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        defer { producerActivity.close() }
         try requireProducerAuthority()
         let workspace = package.workspaceID.rawValue.uuidString.lowercased()
         let derivative = package.result.derivative
@@ -1727,6 +1757,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         raw: CheckRunnerPhotoRawReadyV1,
         expectedGenerationRootIdentity: (device: dev_t, inode: ino_t)
     ) throws -> CheckRunnerPhotoStagedPairReadbackV1? {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        defer { producerActivity.close() }
         Self.legacyBundleLock.lock()
         defer { Self.legacyBundleLock.unlock() }
         try requireProducerAuthority()
@@ -1798,6 +1830,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         expectedGenerationRootIdentity: (device: dev_t, inode: ino_t),
         authority applicationAuthority: CheckRunnerPhotoPairPublicationAuthorityV1?
     ) throws -> CheckRunnerPhotoPreparedPairPublicationV1 {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        defer { producerActivity.close() }
         Self.legacyBundleLock.lock()
         defer { Self.legacyBundleLock.unlock() }
         try requireProducerAuthority()
@@ -1914,6 +1948,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         _ prepared: CheckRunnerPhotoPreparedPairPublicationV1,
         _ body: (_ publish: () throws -> CheckRunnerPhotoStagedPairReadbackV1) throws -> T
     ) throws -> T {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        defer { producerActivity.close() }
         guard prepared.files.consumption.try() else { throw EvidenceBundleStoreError.bundleFactsMismatch }
         defer { prepared.files.consumption.unlock() }
         guard !prepared.files.consumed else { throw EvidenceBundleStoreError.bundleFactsMismatch }
@@ -1994,6 +2030,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         expectedGenerationRootIdentity: (device: dev_t, inode: ino_t),
         authority applicationAuthority: CheckRunnerPhotoPairPromotionAuthorityV1?
     ) throws -> CheckRunnerPhotoPreparedPairPromotionV1 {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        defer { producerActivity.close() }
         Self.legacyBundleLock.lock()
         defer { Self.legacyBundleLock.unlock() }
         try requireProducerAuthority()
@@ -2050,6 +2088,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         _ prepared: CheckRunnerPhotoPreparedPairPromotionV1,
         _ body: (_ promote: () throws -> PromotedEvidenceBundle) throws -> T
     ) throws -> T {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        defer { producerActivity.close() }
         guard prepared.files.consumption.try() else { throw EvidenceBundleStoreError.bundleFactsMismatch }
         defer { prepared.files.consumption.unlock() }
         guard !prepared.files.consumed else { throw EvidenceBundleStoreError.bundleFactsMismatch }
@@ -2141,6 +2181,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     nonisolated private func prepareCheckRunnerPhotoFiles(at url: URL,
         pair: CheckRunnerPhotoNormalizedPairV1, markerBytes: Data?, promoted: Bool
     ) throws -> CheckRunnerPhotoPreparedPairFilesV1 {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        defer { producerActivity.close() }
         let descriptor = try withParentDescriptor(of: url) { parent, name in
             let fd = Darwin.openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
             guard fd >= 0 else { throw EvidenceBundleStoreError.bundleShapeInvalid }
@@ -2186,7 +2228,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
             } catch { _ = Darwin.close(fd); throw error }
         }
         let files = CheckRunnerPhotoPreparedPairFilesV1(url: url, descriptor: descriptor,
-            identity: identity, leaves: leaves, directoryPolicy: directoryPolicy)
+            identity: identity, leaves: leaves, directoryPolicy: directoryPolicy,
+            producerActivity: try producerActivity.retain())
         transferred = true
         try verifyPreparedCheckRunnerPhotoFiles(files, pair: pair, markerBytes: markerBytes)
         return files
@@ -2361,6 +2404,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         evidenceID: UUID,
         input: EvidenceBundleInput
     ) throws -> StagedEvidenceBundle {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        defer { producerActivity.close() }
         Self.legacyBundleLock.lock()
         defer { Self.legacyBundleLock.unlock() }
         try requireProducerAuthority()
@@ -2446,6 +2491,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     }
 
     func promote(_ staged: StagedEvidenceBundle) throws -> PromotedEvidenceBundle {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        defer { producerActivity.close() }
         Self.legacyBundleLock.lock()
         defer { Self.legacyBundleLock.unlock() }
         try requireProducerAuthority()
@@ -2535,6 +2582,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     }
 
     func discardStaging(evidenceID: UUID) throws {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        defer { producerActivity.close() }
         Self.legacyBundleLock.lock()
         defer { Self.legacyBundleLock.unlock() }
         try requireProducerAuthority()
@@ -2557,6 +2606,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     nonisolated func discardStagedBundleIfOwnedSynchronously(
         _ staged: StagedEvidenceBundle
     ) throws {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        defer { producerActivity.close() }
         Self.legacyBundleLock.lock()
         defer { Self.legacyBundleLock.unlock() }
         try requireProducerAuthority()
@@ -2587,6 +2638,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     nonisolated func removePromotedBundleIfOwnedSynchronously(
         _ promoted: PromotedEvidenceBundle
     ) throws {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        defer { producerActivity.close() }
         Self.legacyBundleLock.lock()
         defer { Self.legacyBundleLock.unlock() }
         try requireProducerAuthority()
@@ -3213,6 +3266,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
         authority applicationAuthority: StartupMediaRecoveryAuthorityV1,
         rootIdentity: ReportPDFAnchoredFile.RootIdentity
     ) throws -> StartupMediaPreparedRecoveryV1 {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        defer { producerActivity.close() }
 #if DEBUG
         print("STARTUP_MEDIA_TIMING_V1 step=preparation.lock-request uptimeNs=\(DispatchTime.now().uptimeNanoseconds)")
         let lockRequested = DispatchTime.now().uptimeNanoseconds
@@ -3366,6 +3421,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
 
     nonisolated private func prepareStartupGenericBundle(at url: URL, staging: Bool,
         cleanup: Bool) throws -> StartupMediaPreparedBundleV1 {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        defer { producerActivity.close() }
         let fd = try withParentDescriptor(of: url) { parent, name in
             let value = Darwin.openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
             guard value >= 0 else { throw EvidenceBundleStoreError.bundleShapeInvalid }
@@ -3405,7 +3462,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
             } catch { _ = Darwin.close(descriptor); throw error }
         }
         let files = CheckRunnerPhotoPreparedPairFilesV1(url: url, descriptor: fd, identity: identity,
-            leaves: leaves, directoryPolicy: staging ? .stagingDirectory : .durableDirectory)
+            leaves: leaves, directoryPolicy: staging ? .stagingDirectory : .durableDirectory,
+            producerActivity: try producerActivity.retain())
         transferred = true
         let bundle = StartupMediaPreparedBundleV1(files: files, digests: digests, cleanup: cleanup)
         try verifyStartupBundle(bundle)
@@ -3463,6 +3521,8 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
 
     nonisolated fileprivate func finishStartupRecovery(_ prepared: StartupMediaPreparedRecoveryV1,
         revalidate: () throws -> Void) throws {
+        let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+        defer { producerActivity.close() }
 #if DEBUG
         let timingStarted = DispatchTime.now().uptimeNanoseconds
         print("STARTUP_MEDIA_TIMING_V1 step=publication.enter uptimeNs=\(timingStarted)")
@@ -3583,13 +3643,18 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
     }
 
     func reconcile(authorities: [EvidenceBundleAuthority]) throws {
-        Self.legacyBundleLock.lock()
-        defer { Self.legacyBundleLock.unlock() }
         if let sourceMutationGuard {
+            // The original source-recovery authority keeps its separate law.
+            Self.legacyBundleLock.lock()
+            defer { Self.legacyBundleLock.unlock() }
             try sourceMutationGuard.withAuthorizedMutation {
                 try reconcileUnprotected(authorities: authorities)
             }
         } else {
+            let producerActivity = try OwnedStorageProducerActivityV1.acquireInstalledGeneration(generationRootURL: generationRootURL)
+            defer { producerActivity.close() }
+            Self.legacyBundleLock.lock()
+            defer { Self.legacyBundleLock.unlock() }
             try reconcileUnprotected(authorities: authorities)
         }
     }

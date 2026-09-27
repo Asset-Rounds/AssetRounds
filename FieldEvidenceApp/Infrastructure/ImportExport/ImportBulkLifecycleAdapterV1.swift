@@ -134,6 +134,77 @@ final class ImportBulkLifecycleAdapterV1 {
         ))
     }
 
+    /// Read the genuine first session command's durable writer receipt. This
+    /// cannot be minted by a caller from a guessed workspace revision.
+    func authenticatedInitialSessionReceipt(_ session: BulkSessionV1) throws -> MutationReceiptV1 {
+        try session.validate()
+        guard let writer,
+              let durable = try durableSession(sessionID: session.sessionID),
+              durable == session else { throw ImportBulkFailureV1.changedInputQuarantined }
+        let identity = try WorkspaceEntityIdentityV1(kind: .bulkSession, id: session.sessionID)
+        let mutationID = try MutationIDV1(rawValue: ImportBulkCanonicalCodecV1.deterministicUUID(
+            namespace: "c08-workspace-lifecycle-v1",
+            basis: C08ImportBulkMutationIDBasis(
+                workspaceID: session.workspaceID,
+                kind: identity.kind.rawValue,
+                id: identity.id,
+                expectedRevision: 0
+            )
+        ))
+        guard let receipt = try writer.durableReceipt(mutationID: mutationID) else {
+            throw ImportBulkFailureV1.changedInputQuarantined
+        }
+        try receipt.validate()
+        let expected = try WorkspaceExpectedRevisionV1(
+            workspaceID: receipt.expectedRevision.workspaceID,
+            generationID: receipt.expectedRevision.generationID,
+            writerInstanceID: (try writer.currentRevision()).writerInstanceID,
+            workspaceRevision: receipt.expectedRevision.workspaceRevision,
+            entityRevisions: receipt.expectedRevision.entityRevisions
+        )
+        let operation = ImportBulkWorkspaceOperationV1.advanceSession(
+            session: session, expectedSessionSHA256: nil
+        )
+        let mutation = try ImportBulkWorkspaceMutationV1(
+            workspaceID: session.workspaceID, expectedRevision: 0,
+            mutationID: mutationID, operation: operation
+        )
+        let request = WorkspaceMutationRequestV1(
+            mutationID: mutationID, expectedRevision: expected,
+            command: .applyImportBulk(mutation)
+        )
+        let envelope = try MutationEnvelopeV1(
+            request: request,
+            identity: WorkspaceReplicaIdentityV1(
+                workspaceID: receipt.identity.workspaceID,
+                replicaID: receipt.identity.replicaID
+            )
+        )
+        let (resultingRevision, overflow) =
+            receipt.expectedRevision.workspaceRevision.addingReportingOverflow(1)
+        guard receipt.identity.workspaceID == session.workspaceID,
+              receipt.mutationID == mutationID,
+              receipt.expectedRevision == envelope.expectedRevision,
+              receipt.commandBodySHA256 == envelope.commandBodySHA256,
+              receipt.envelopeSHA256 == (try envelope.canonicalSHA256()),
+              receipt.sourceKind == envelope.sourceKind,
+              receipt.contentDependencyIDs == envelope.contentDependencyIDs,
+              receipt.causationMutationID == envelope.causationMutationID,
+              receipt.correlationID == envelope.correlationID,
+              receipt.expectedRevision.entityRevisions == [
+                  WorkspaceEntityRevisionV1(identity: identity, revision: 0)
+              ],
+              !overflow, receipt.resultingRevision.workspaceRevision == resultingRevision,
+              receipt.resultingRevision.entityRevisions.contains(
+                  WorkspaceEntityRevisionV1(identity: identity, revision: 1)
+              ),
+              receipt.postImages == [
+                  .bulkSession(id: session.sessionID, revision: 1,
+                               semanticSHA256: session.sessionSHA256)
+              ] else { throw ImportBulkFailureV1.changedInputQuarantined }
+        return receipt
+    }
+
     func record(profile: ImportMappingProfileV1) throws {
         try profile.validate()
         let rows = try modelContext.fetch(FetchDescriptor<ImportMappingProfileRowV1>(
@@ -199,7 +270,7 @@ final class ImportBulkLifecycleAdapterV1 {
     }
 }
 
-private struct C08ImportBulkMutationIDBasis: Codable {
+struct C08ImportBulkMutationIDBasis: Codable {
     let workspaceID: WorkspaceID
     let kind: String
     let id: UUID

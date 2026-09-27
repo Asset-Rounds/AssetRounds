@@ -61,6 +61,7 @@ struct AssetLabelPreparedExportV1: Equatable, Sendable {
               plan.template.rendererSHA256 == DeterministicPDFRendererV1.assetLabelRendererSHA256,
               plan.template.rendererRelease.nativeTextLayoutReleaseID == DeterministicPDFRendererV1.assetLabelNativeTextLayoutReleaseID,
               plan.template.rendererRelease == (try AssetLabelRendererReleaseReferenceV1.current),
+              plan.template.revision == 2,
               !plan.template.interpolationEnabled,
               !plan.template.overlaidLogoEnabled else {
             throw AssetLabelContractFailureV1.unsupportedTemplate
@@ -135,7 +136,8 @@ struct AssetLabelArtifactOperationsV1: Sendable {
     /// three derivative content identities and an atomic store marker.
     static func production(
         jobStagingRootURL: URL,
-        contentStore: EvidenceBundleStore
+        contentStore: EvidenceBundleStore,
+        readBackClock: @escaping @Sendable () -> Date = { Date() }
     ) throws -> Self {
         let scratch = try AssetLabelArtifactScratchStoreV1(
             rootURL: jobStagingRootURL.appendingPathComponent("asset-label-render", isDirectory: true)
@@ -151,18 +153,22 @@ struct AssetLabelArtifactOperationsV1: Sendable {
                 _ = try contentStore.publishOrAdoptAssetLabelArtifacts(
                     job: job, plan: staged.0, projection: staged.1
                 )
+                let readBackAt = try Self.canonicalPublicationReadBackAt(readBackClock())
                 return .completed(try LocalJobPublicationReceiptV1(
                     jobID: job.id, attemptCount: job.attemptCount, kind: .render,
-                    outputSHA256: outputSHA256, disposition: .published, readBackAt: Date()
+                    outputSHA256: outputSHA256, disposition: .published,
+                    readBackAt: readBackAt
                 ))
             },
             adoptOnly: { job, planSHA256, outputSHA256 in
                 guard try contentStore.adoptAssetLabelArtifacts(
                     jobID: job.id, planSHA256: planSHA256, outputSHA256: outputSHA256
                 ) != nil else { return .absent }
+                let readBackAt = try Self.canonicalPublicationReadBackAt(readBackClock())
                 return .completed(try LocalJobPublicationReceiptV1(
                     jobID: job.id, attemptCount: job.attemptCount, kind: .render,
-                    outputSHA256: outputSHA256, disposition: .adopted, readBackAt: Date()
+                    outputSHA256: outputSHA256, disposition: .adopted,
+                    readBackAt: readBackAt
                 ))
             },
             publishedReadback: { id, planSHA256, outputSHA256 in
@@ -189,6 +195,31 @@ struct AssetLabelArtifactOperationsV1: Sendable {
             },
             discard: { id in try scratch.discard(id: id) }
         )
+    }
+
+    /// Normalize only a newly observed C45 readback instant. The resulting
+    /// Date is the one persisted by C05 and bound into the accepted snapshot.
+    private static func canonicalPublicationReadBackAt(_ sampled: Date) throws -> Date {
+        let rawMilliseconds = sampled.timeIntervalSince1970 * 1_000
+        // Every integer millisecond in this range is exactly representable as
+        // Double and safely convertible to Int64, including one adjustment.
+        guard rawMilliseconds.isFinite,
+              abs(rawMilliseconds) < 9_007_199_254_740_990 else {
+            throw AssetLabelLifecycleFailureV1.publicationMismatch
+        }
+        var milliseconds = Int64(rawMilliseconds.rounded(.up))
+        for _ in 0..<2 {
+            let canonical = Date(timeIntervalSince1970: Double(milliseconds) / 1_000)
+            if canonical >= sampled,
+               try AssetLabelCanonicalCodecV1.decode(
+                   Date.self,
+                   from: AssetLabelCanonicalCodecV1.encode(canonical)
+               ) == canonical {
+                return canonical
+            }
+            milliseconds += 1
+        }
+        throw AssetLabelLifecycleFailureV1.publicationMismatch
     }
 }
 

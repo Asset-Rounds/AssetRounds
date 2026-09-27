@@ -1500,7 +1500,6 @@ extension S2PersistenceLedgerTests {
             add(attachment)
         }
         let sandbox = try makeTemporaryApplicationSupportURL()
-        defer { try? fileManager.removeItem(at: sandbox) }
         let root = try makeEraseApplicationSupportURL(in: sandbox)
         var observedSteps: [StartupStep] = []
         let authentication = S2StartupAuthentication(outcomes: [.authenticated, .authenticated])
@@ -1522,11 +1521,13 @@ extension S2PersistenceLedgerTests {
             print("EraseStartup.failure " + observation)
         }
         try router.bindStartupAccessGate(gate)
-        defer { router.failClosedPDFRecovery() }
+        // Register the actual Router/root before any admission or preparation.
+        // Optional fixture deletion cannot outlive an uncertain retirement owner.
+        let retainedOwner = S2EraseRootRetentionV1(root: sandbox, router: router)
 
         trace("router-start")
         try await router.startIfNeeded(accessGate: gate)
-        guard case let .ready(coordinator, _, _) = router.route else {
+        guard case .ready = router.route else {
                 let phase = router.runtimeObservation?.phase.rawValue ?? "unobserved"
                 let reason: String
                 if case .maintenance(let maintenance) = router.route { reason = maintenance.rawValue }
@@ -1534,23 +1535,31 @@ extension S2PersistenceLedgerTests {
                 print("EraseStartup.notReady phase=\(phase) reason=\(reason)")
             return XCTFail("Initial startup must publish the erase owner")
         }
+        if case let .ready(coordinator, _, _) = router.route {
+            retainedOwner.coordinator = coordinator
+        }
         trace("router-ready")
-        let oldGenerationID = coordinator.generationID
-        var retainedOldContext: ModelContext? = coordinator.modelContext
-        var retainedOldContainer: ModelContainer? = coordinator.modelContext.container
+        let oldGenerationID = try XCTUnwrap(retainedOwner.coordinator).generationID
+        let oldWriterInstanceID = try XCTUnwrap(retainedOwner.coordinator)
+            .workspaceWriter.currentRevision().writerInstanceID
+        weak var oldCoordinator = retainedOwner.coordinator
+        weak var oldWriter = retainedOwner.coordinator?.workspaceWriter
+        var retainedOldContext: ModelContext? = try XCTUnwrap(retainedOwner.coordinator).modelContext
+        var retainedOldContainer: ModelContainer? = retainedOldContext?.container
         let oldStateIsReleased: () -> Bool = {
             [weak observedContext = retainedOldContext,
              weak observedContainer = retainedOldContainer] in
             observedContext == nil && observedContainer == nil
         }
-        XCTAssertEqual(try coordinator.modelContext.fetchCount(FetchDescriptor<Site>()), 0)
+        XCTAssertEqual(try XCTUnwrap(retainedOldContext).fetchCount(FetchDescriptor<Site>()), 0)
         let startupStepCount = observedSteps.count
         XCTAssertEqual(startupStepCount, StartupStep.allCases.count)
         XCTAssertTrue(router.entitlementProcessor?.isStarted == true)
 
         let eraseTicket = try await router.beginEraseOperation(
-            coordinator: coordinator, accessGate: gate
+            coordinator: try XCTUnwrap(retainedOwner.coordinator), accessGate: gate
         )
+        let operation = try router.eraseRetirementOperation(for: eraseTicket)
         let erasedGenerationID = UUID()
         let eraseOperationID = UUID()
         let erasedWorkspaceID = UUID()
@@ -1564,8 +1573,9 @@ extension S2PersistenceLedgerTests {
         let admissionPause = S2StartupPublicationPause()
         var eraseReservation: AppAccessGateV1.EraseAdoptionToken?
         var completedEraseReceipt: CompletedEraseReceiptV1?
+        var completionCount = 0
         var callbackFailure: Error?
-        let service = EraseAllService(
+        let service = try router.configureEraseService(EraseAllService(
             applicationSupportURL: root,
             makeUUID: { eraseIdentifiers.removeFirst() },
             admitErase: { subject in
@@ -1590,24 +1600,28 @@ extension S2PersistenceLedgerTests {
                 }
                 return reservation
             },
-            didCompleteErase: { completedEraseReceipt = $0 }
-        )
+            didCompleteErase: {
+                completionCount += 1
+                if completedEraseReceipt == nil { completedEraseReceipt = $0 }
+            }
+        ), operation: operation)
         let eraseTask = Task {
+            let coordinator = try XCTUnwrap(retainedOwner.coordinator)
             let lifecycleDependencies = try coordinator.packageLifecycleDependencies()
             trace("erase-entry")
             return try await service.erase(
                 confirmation: "ERASE",
                 coordinator: coordinator,
                 diagnosticsStore: DiagnosticsStore(applicationSupportURL: root),
-                prepareCleanup: { try router.prepareErasedSessionCleanup(eraseTicket) },
+                operation: operation,
                 activate: { session in
                 do {
-                    try await router.beginErasedSessionActivation(
-                        session, coordinator: coordinator, ticket: eraseTicket
+                    try router.activateErasePreparationSession(
+                        session, coordinator: coordinator, operation: operation
                     )
-                    try router.deferErasedSessionCleanup(
-                        session, coordinator: coordinator, ticket: eraseTicket
-                    )
+                    // Keep the genuine target only for the hostile alternate-
+                    // activation checks below; release it before real drain.
+                    retainedOwner.preparedSession = session
                 } catch {
                     callbackFailure = error
                 }
@@ -1630,8 +1644,10 @@ extension S2PersistenceLedgerTests {
         trace("erase-returned")
         XCTAssertNil(callbackFailure)
 
-        XCTAssertTrue(eraseOutcome.cleanupDeferred)
-        XCTAssertEqual(eraseOutcome.session.generationID, erasedGenerationID)
+        XCTAssertTrue(eraseOutcome.operation === operation)
+        let pendingWhileRetained = try await operation.advanceCleanup()
+        XCTAssertFalse(pendingWhileRetained, "A live old context must delay physical cleanup")
+        XCTAssertEqual(retainedOwner.preparedSession?.generationID, erasedGenerationID)
         XCTAssertNotNil(retainedOldContext)
         XCTAssertTrue(fileManager.fileExists(
             atPath: generationURL(oldGenerationID, in: root)
@@ -1641,20 +1657,20 @@ extension S2PersistenceLedgerTests {
             try EraseIntentStore(applicationSupportURL: root).load()
         )
         XCTAssertEqual(deferredIntent.phase, .sessionActivated)
-        guard case let .eraseCleanupPending(pendingCoordinator) = router.route else {
+        guard case let .eraseCleanupPending(.retiring(pendingCoordinator)) = router.route else {
             return XCTFail("Deferred erase must remain visibly pending")
         }
-        XCTAssertTrue(pendingCoordinator === coordinator)
+        XCTAssertTrue(pendingCoordinator === operation)
         XCTAssertNil(router.entitlementProcessor)
         XCTAssertEqual(observedSteps.count, startupStepCount)
 
         await gate.sceneBecameInactive()
         router.pauseForAppAccess()
         await gate.sceneBecameActive()
-        guard case let .eraseCleanupPending(heldCoordinator) = router.route else {
+        guard case let .eraseCleanupPending(.retiring(heldCoordinator)) = router.route else {
             return XCTFail("App-access resume must not turn a live old context into cold cleanup")
         }
-        XCTAssertTrue(heldCoordinator === coordinator)
+        XCTAssertTrue(heldCoordinator === operation)
         XCTAssertNil(router.entitlementProcessor)
         XCTAssertEqual(observedSteps.count, startupStepCount)
         XCTAssertTrue(fileManager.fileExists(
@@ -1666,20 +1682,22 @@ extension S2PersistenceLedgerTests {
 
         do {
             try await router.beginErasedSessionActivation(
-                eraseOutcome.session, coordinator: coordinator, ticket: eraseTicket
+                try XCTUnwrap(retainedOwner.preparedSession),
+                coordinator: try XCTUnwrap(retainedOwner.coordinator), ticket: eraseTicket
             )
             XCTFail("A deferred erase must reject a second activation")
         } catch { }
         do {
             try await router.activateRestoredSession(
-                eraseOutcome.session, coordinator: coordinator, ticket: eraseTicket
+                try XCTUnwrap(retainedOwner.preparedSession),
+                coordinator: try XCTUnwrap(retainedOwner.coordinator), ticket: eraseTicket
             )
             XCTFail("A pending erase drain proof must reject restore activation")
         } catch { }
-        guard case let .eraseCleanupPending(recoveredHeldCoordinator) = router.route else {
+        guard case let .eraseCleanupPending(.retiring(recoveredHeldCoordinator)) = router.route else {
             return XCTFail("Rejected alternate activation must retain the deferred cleanup hold")
         }
-        XCTAssertTrue(recoveredHeldCoordinator === coordinator)
+        XCTAssertTrue(recoveredHeldCoordinator === operation)
         XCTAssertNil(router.entitlementProcessor)
         XCTAssertEqual(observedSteps.count, startupStepCount)
         XCTAssertTrue(fileManager.fileExists(
@@ -1703,6 +1721,11 @@ extension S2PersistenceLedgerTests {
             }
             trace("old-context-read-complete")
         }
+        // Detachment revoked the actual preparation writer. Test it while
+        // held, then release every owner alias before testing reader drain.
+        XCTAssertThrowsError(try XCTUnwrap(retainedOwner.coordinator).workspaceWriter.currentRevision())
+        retainedOwner.preparedSession = nil
+        retainedOwner.coordinator = nil
         trace("old-context-release")
         retainedOldContext = nil
         retainedOldContainer = nil
@@ -1714,54 +1737,52 @@ extension S2PersistenceLedgerTests {
             trace("old-state-still-retained")
             return
         }
+        XCTAssertNil(oldCoordinator, "The retired coordinator must not survive reader drain")
+        XCTAssertNil(oldWriter, "The retired writer must not survive reader drain")
         trace("old-state-drained")
-        // Recovery gets a new service instance, while its admission hook
-        // continues the exact retained subject/reservation without reminting.
-        let recoveryService = EraseAllService(
-            applicationSupportURL: root,
-            admitErase: { subject in
-                _ = try await router.eraseAdmissionAuthorization(
-                    eraseTicket, subject: subject
-                )
-                guard let reservation = eraseReservation,
-                      reservation.subject == subject else {
-                    throw AppAccessContractFailureV1.staleAttempt
-                }
-                return reservation
-            },
-            didCompleteErase: { completedEraseReceipt = $0 }
-        )
+        // Detached cleanup resumes the exact original operation, without
+        // constructing another service or minting a new reservation.
         trace("recovery-entry")
-        let resumed = try await router.resumeDeferredErase(eraseTicket) {
-            try await recoveryService.reconcileAtStartup(
-                diagnosticsStore: DiagnosticsStore(applicationSupportURL: root)
-            )
-        }
+        let completed = try await operation.advanceCleanup()
+        XCTAssertTrue(completed)
+        guard completed else { throw AppAccessContractFailureV1.staleAttempt }
         trace("recovery-returned")
-        let resumedSession = try XCTUnwrap(resumed)
-        try await router.beginErasedSessionActivation(
-            resumedSession, coordinator: coordinator, ticket: eraseTicket
-        )
-        let receipt = try XCTUnwrap(completedEraseReceipt)
+        let (_, _, actualReceipt) = try operation.completedRetirement()
+        let receipt = try XCTUnwrap(actualReceipt)
+        let callbackReceipt = try XCTUnwrap(completedEraseReceipt,
+            "The actual cleanup callback must deliver the completed receipt")
+        XCTAssertEqual(callbackReceipt.subject, receipt.subject)
+        XCTAssertEqual(callbackReceipt.reservation, receipt.reservation)
+        XCTAssertEqual(completionCount, 1)
+        let repeatedCleanup = try await operation.advanceCleanup()
+        XCTAssertTrue(repeatedCleanup)
+        XCTAssertEqual(completionCount, 1, "A completed cleanup retry must not repeat the callback")
+        let repeatedReceipt = try XCTUnwrap(operation.completedRetirement().2)
+        XCTAssertEqual(repeatedReceipt.subject, receipt.subject)
+        XCTAssertEqual(repeatedReceipt.reservation, receipt.reservation)
         let reservation = try XCTUnwrap(eraseReservation)
         trace("adoption-entry")
         try await gate.adoptCompletedErase(receipt, token: reservation)
         await gate.sceneBecameInactive()
         do {
-            try await router.finishErasedSessionActivation(
-                resumedSession, coordinator: coordinator, ticket: eraseTicket, accessGate: gate
+            try await router.finishRetiredEraseActivation(
+                operation, accessGate: gate
             )
             XCTFail("Inactive post-adoption finish must retain its ticket for retry")
         } catch { }
         await gate.sceneBecameActive()
-        try await router.finishErasedSessionActivation(
-            resumedSession, coordinator: coordinator, ticket: eraseTicket, accessGate: gate
+        try await router.finishRetiredEraseActivation(
+            operation, accessGate: gate
         )
         trace("finish-ready")
         guard case let .ready(recoveredCoordinator, _, _) = router.route else {
             return XCTFail("A drained deferred erase must recover through its original ticket")
         }
+        XCTAssertNotEqual(recoveredCoordinator.generationID, oldGenerationID)
+        XCTAssertNotEqual(try recoveredCoordinator.workspaceWriter.currentRevision().writerInstanceID,
+            oldWriterInstanceID)
         XCTAssertEqual(recoveredCoordinator.generationID, erasedGenerationID)
+        XCTAssertNoThrow(try recoveredCoordinator.workspaceWriter.currentRevision())
         XCTAssertTrue(router.entitlementProcessor?.isStarted == true)
         XCTAssertFalse(fileManager.fileExists(
             atPath: generationURL(oldGenerationID, in: root).path
@@ -1814,9 +1835,8 @@ extension S2PersistenceLedgerTests {
 
         await fixture.gate.sceneBecameInactive()
         do {
-            try await fixture.router.finishErasedSessionActivation(
-                fixture.session, coordinator: fixture.coordinator,
-                ticket: fixture.ticket, accessGate: fixture.gate
+            try await fixture.router.finishRetiredEraseActivation(
+                fixture.operation, accessGate: fixture.gate
             )
             XCTFail("Inactive post-adoption recovery must remain covered")
         } catch { }
@@ -1824,20 +1844,24 @@ extension S2PersistenceLedgerTests {
         await fixture.gate.lock(reason: .returnedFromBackground)
         fixture.router.pauseForAppAccess()
         XCTAssertNil(fixture.router.entitlementProcessor)
-        XCTAssertEqual(try writerLeaseIDs(in: fixture.root).count, 1)
+        XCTAssertEqual(try writerLeaseIDs(in: fixture.root).count, 0,
+            "Inactive or revoked pre-read execution must not construct a fresh writer")
         guard case .checking = fixture.router.route else {
             return XCTFail("Repeated inactive/background pauses must retain the private activation")
         }
 
         await fixture.gate.sceneBecameActive()
-        try await fixture.router.finishErasedSessionActivation(
-            fixture.session, coordinator: fixture.coordinator,
-            ticket: fixture.ticket, accessGate: fixture.gate
+        try await fixture.router.finishRetiredEraseActivation(
+                fixture.operation, accessGate: fixture.gate
         )
         guard case let .ready(ready, _, _) = fixture.router.route else {
             return XCTFail("The exact retained ticket must publish after a fresh active-scene token")
         }
-        XCTAssertTrue(ready === fixture.coordinator)
+        XCTAssertNotEqual(ready.generationID, fixture.oldGenerationID)
+        XCTAssertEqual(ready.generationID, fixture.expectedGenerationID)
+        XCTAssertNotEqual(try ready.workspaceWriter.currentRevision().writerInstanceID,
+            fixture.oldWriterInstanceID)
+        XCTAssertNoThrow(try ready.workspaceWriter.currentRevision())
         XCTAssertTrue(fixture.router.entitlementProcessor?.isStarted == true)
         XCTAssertEqual(try writerLeaseIDs(in: fixture.root).count, 1)
     }
@@ -1858,9 +1882,8 @@ extension S2PersistenceLedgerTests {
 
         let stale = Task<Error?, Never> { @MainActor in
             do {
-                try await fixture.router.finishErasedSessionActivation(
-                    fixture.session, coordinator: fixture.coordinator,
-                    ticket: fixture.ticket, accessGate: fixture.gate
+                try await fixture.router.finishRetiredEraseActivation(
+                fixture.operation, accessGate: fixture.gate
                 )
                 return nil
             } catch {
@@ -1880,21 +1903,25 @@ extension S2PersistenceLedgerTests {
         XCTAssertNotNil(staleFailure)
         XCTAssertEqual(canonicalReadCount, 0)
         XCTAssertNil(fixture.router.entitlementProcessor)
-        XCTAssertEqual(try writerLeaseIDs(in: fixture.root).count, 1)
+        XCTAssertEqual(try writerLeaseIDs(in: fixture.root).count, 0,
+            "Inactive or revoked pre-read execution must not construct a fresh writer")
         guard case .checking = fixture.router.route else {
             return XCTFail("The revoked pre-read execution must leave the activation unpublished")
         }
 
-        try await fixture.router.finishErasedSessionActivation(
-            fixture.session, coordinator: fixture.coordinator,
-            ticket: fixture.ticket, accessGate: fixture.gate
+        try await fixture.router.finishRetiredEraseActivation(
+                fixture.operation, accessGate: fixture.gate
         )
         XCTAssertEqual(claimedExecutions, 2)
         XCTAssertGreaterThan(canonicalReadCount, 0)
         guard case let .ready(ready, _, _) = fixture.router.route else {
             return XCTFail("Only a newly claimed execution may recover and publish")
         }
-        XCTAssertTrue(ready === fixture.coordinator)
+        XCTAssertNotEqual(ready.generationID, fixture.oldGenerationID)
+        XCTAssertEqual(ready.generationID, fixture.expectedGenerationID)
+        XCTAssertNotEqual(try ready.workspaceWriter.currentRevision().writerInstanceID,
+            fixture.oldWriterInstanceID)
+        XCTAssertNoThrow(try ready.workspaceWriter.currentRevision())
         XCTAssertTrue(fixture.router.entitlementProcessor?.isStarted == true)
     }
 
@@ -1912,9 +1939,8 @@ extension S2PersistenceLedgerTests {
 
         let stale = Task<Error?, Never> { @MainActor in
             do {
-                try await fixture.router.finishErasedSessionActivation(
-                    fixture.session, coordinator: fixture.coordinator,
-                    ticket: fixture.ticket, accessGate: fixture.gate
+                try await fixture.router.finishRetiredEraseActivation(
+                fixture.operation, accessGate: fixture.gate
                 )
                 return nil
             } catch {
@@ -1927,9 +1953,8 @@ extension S2PersistenceLedgerTests {
         await fixture.gate.sceneBecameInactive()
         fixture.router.pauseForAppAccess()
         await fixture.gate.sceneBecameActive()
-        try await fixture.router.finishErasedSessionActivation(
-            fixture.session, coordinator: fixture.coordinator,
-            ticket: fixture.ticket, accessGate: fixture.gate
+        try await fixture.router.finishRetiredEraseActivation(
+                fixture.operation, accessGate: fixture.gate
         )
         guard case let .ready(fresh, _, _) = fixture.router.route else {
             firstCommerce.resume()
@@ -1958,9 +1983,16 @@ extension S2PersistenceLedgerTests {
         for failure in [EraseCleanupCase.releaseFailure, .rebindFailure] {
             let fixture = try await makePostAdoptionEraseFixture(cleanupCase: failure)
             defer { cleanupPostAdoptionEraseFixture(fixture) }
-            try await fixture.router.finishErasedSessionActivation(fixture.session,
-                coordinator: fixture.coordinator, ticket: fixture.ticket, accessGate: fixture.gate)
-            XCTAssertNoThrow(try fixture.coordinator.workspaceWriter.currentRevision())
+            try await fixture.router.finishRetiredEraseActivation(
+                fixture.operation, accessGate: fixture.gate)
+            guard case let .ready(ready, _, _) = fixture.router.route else {
+                return XCTFail("Actual post-adoption startup must publish the fresh owner")
+            }
+            XCTAssertNotEqual(ready.generationID, fixture.oldGenerationID)
+            XCTAssertEqual(ready.generationID, fixture.expectedGenerationID)
+            XCTAssertNotEqual(try ready.workspaceWriter.currentRevision().writerInstanceID,
+            fixture.oldWriterInstanceID)
+            XCTAssertNoThrow(try ready.workspaceWriter.currentRevision())
             XCTAssertEqual(try writerLeaseIDs(in: fixture.root).count, 1)
         }
     }
@@ -1969,9 +2001,16 @@ extension S2PersistenceLedgerTests {
     func testEraseCleanupInterruptionAfterRetirementResumesOriginalTicket() async throws {
         let fixture = try await makePostAdoptionEraseFixture(cleanupCase: .afterRetirement)
         defer { cleanupPostAdoptionEraseFixture(fixture) }
-        try await fixture.router.finishErasedSessionActivation(fixture.session,
-            coordinator: fixture.coordinator, ticket: fixture.ticket, accessGate: fixture.gate)
-        XCTAssertNoThrow(try fixture.coordinator.workspaceWriter.currentRevision())
+        try await fixture.router.finishRetiredEraseActivation(
+                fixture.operation, accessGate: fixture.gate)
+        guard case let .ready(ready, _, _) = fixture.router.route else {
+                return XCTFail("Actual post-adoption startup must publish the fresh owner")
+            }
+            XCTAssertNotEqual(ready.generationID, fixture.oldGenerationID)
+            XCTAssertEqual(ready.generationID, fixture.expectedGenerationID)
+            XCTAssertNotEqual(try ready.workspaceWriter.currentRevision().writerInstanceID,
+            fixture.oldWriterInstanceID)
+            XCTAssertNoThrow(try ready.workspaceWriter.currentRevision())
         XCTAssertEqual(try writerLeaseIDs(in: fixture.root).count, 1)
     }
 
@@ -1979,9 +2018,16 @@ extension S2PersistenceLedgerTests {
     func testImmediateEraseCleanupReplacesRetiredWriterBeforePublication() async throws {
         let fixture = try await makePostAdoptionEraseFixture(cleanupCase: .immediate)
         defer { cleanupPostAdoptionEraseFixture(fixture) }
-        try await fixture.router.finishErasedSessionActivation(fixture.session,
-            coordinator: fixture.coordinator, ticket: fixture.ticket, accessGate: fixture.gate)
-        XCTAssertNoThrow(try fixture.coordinator.workspaceWriter.currentRevision())
+        try await fixture.router.finishRetiredEraseActivation(
+                fixture.operation, accessGate: fixture.gate)
+        guard case let .ready(ready, _, _) = fixture.router.route else {
+                return XCTFail("Actual post-adoption startup must publish the fresh owner")
+            }
+            XCTAssertNotEqual(ready.generationID, fixture.oldGenerationID)
+            XCTAssertEqual(ready.generationID, fixture.expectedGenerationID)
+            XCTAssertNotEqual(try ready.workspaceWriter.currentRevision().writerInstanceID,
+            fixture.oldWriterInstanceID)
+            XCTAssertNoThrow(try ready.workspaceWriter.currentRevision())
         XCTAssertEqual(try writerLeaseIDs(in: fixture.root).count, 1)
     }
 
@@ -1996,10 +2042,6 @@ extension S2PersistenceLedgerTests {
     ) async throws -> S2PostAdoptionEraseFixture {
         var cleanupDiagnosticPhase = "fixture.setup"
         let sandbox = try makeTemporaryApplicationSupportURL()
-        var fixtureCreated = false
-        defer {
-            if !fixtureCreated { try? fileManager.removeItem(at: sandbox) }
-        }
         let root = try makeEraseApplicationSupportURL(in: sandbox)
         let caches = root.deletingLastPathComponent().appendingPathComponent(
             "Caches", isDirectory: true
@@ -2030,6 +2072,7 @@ extension S2PersistenceLedgerTests {
                 await beforeCommerceActivation(writerID)
             }
         )
+        let retainedOwner = S2EraseRootRetentionV1(root: sandbox, router: router)
         var firstStartupFailure: String?
         router.startupFailureDiagnosticForTesting = { observation in
             guard firstStartupFailure == nil else { return }
@@ -2040,7 +2083,7 @@ extension S2PersistenceLedgerTests {
         do {
             try await router.startIfNeeded(accessGate: gate)
             forwardsPostAdoptionHooks = true
-            guard case let .ready(coordinator, _, _) = router.route else {
+            guard case .ready = router.route else {
                 let phase = router.runtimeObservation?.phase.rawValue ?? "unobserved"
                 let reason: String
                 if case .maintenance(let maintenance) = router.route { reason = maintenance.rawValue }
@@ -2048,20 +2091,32 @@ extension S2PersistenceLedgerTests {
                 print("EraseStartup.notReady phase=\(phase) reason=\(reason)")
                 throw AppAccessContractFailureV1.staleAttempt
             }
+            if case let .ready(coordinator, _, _) = router.route {
+                retainedOwner.coordinator = coordinator
+            }
+            let oldGenerationID = try XCTUnwrap(retainedOwner.coordinator).generationID
+            let oldWriterInstanceID = try XCTUnwrap(retainedOwner.coordinator)
+                .workspaceWriter.currentRevision().writerInstanceID
+            weak var oldCoordinator = retainedOwner.coordinator
+            weak var oldWriter = retainedOwner.coordinator?.workspaceWriter
             let ticket = try await router.beginEraseOperation(
-                coordinator: coordinator, accessGate: gate
+                coordinator: try XCTUnwrap(retainedOwner.coordinator), accessGate: gate
             )
+            let operation = try router.eraseRetirementOperation(for: ticket)
             var reservation: AppAccessGateV1.EraseAdoptionToken?
             var receipt: CompletedEraseReceiptV1?
             var completionCount = 0
             var activationFailure: Error?
             var retainedOldContext: ModelContext? = (cleanupCase == .releaseFailure || cleanupCase == .afterRetirement)
-                ? coordinator.modelContext : nil
+                ? try XCTUnwrap(retainedOwner.coordinator).modelContext : nil
             let oldContextIsReleased: () -> Bool = { [weak observedContext = retainedOldContext] in
                 observedContext == nil
             }
+            // This distinct production point is after the genuine retirement
+            // proof and before deletion. The older .beforeCleanup point remains
+            // a preparation fault and cannot witness this boundary.
             let cleanupFailure = cleanupCase == .afterRetirement
-                ? EraseAllFailureInjection(failOnceAt: .beforeCleanup) : nil
+                ? EraseAllFailureInjection(failOnceAt: .afterSessionRetirementBeforeCleanup) : nil
             let makeService: @MainActor () -> EraseAllService = {
                 EraseAllService(
                     applicationSupportURL: root,
@@ -2095,133 +2150,126 @@ extension S2PersistenceLedgerTests {
                     }
                 )
             }
-            let activate: @MainActor (StoreGenerationSession) async -> Void = { session in
-                do {
-                    try await router.beginErasedSessionActivation(
-                        session, coordinator: coordinator, ticket: ticket)
-                } catch { activationFailure = error }
-            }
-            let prepare: @MainActor () throws -> Void = {
-                try router.prepareErasedSessionCleanup(ticket)
-            }
             cleanupDiagnosticPhase = "erase.initial"
-            let outcome: EraseAllOutcome
-            if cleanupCase == .immediate {
-                // Exercise the real compatibility entry without retaining live
-                // lifecycle dependencies; this must complete in the first call.
-                outcome = try await makeService().erase(confirmation: "ERASE",
-                    coordinator: coordinator, diagnosticsStore: DiagnosticsStore(applicationSupportURL: root),
-                    prepareCleanup: prepare, activate: activate)
-                XCTAssertFalse(outcome.cleanupDeferred)
-            } else {
-                // End the source-dependency lifetime before deferred recovery.
-                let start: @MainActor () async throws -> EraseAllOutcome = {
-                    let dependencies = try coordinator.packageLifecycleDependencies()
-                    return try await makeService().erase(confirmation: "ERASE",
-                        coordinator: coordinator, diagnosticsStore: DiagnosticsStore(applicationSupportURL: root),
-                        prepareCleanup: prepare, activate: activate, lifecycleDependencies: dependencies)
-                }
-                outcome = try await start()
-            }
-            if let activationFailure { throw activationFailure }
-            var session = outcome.session
-            if outcome.cleanupDeferred {
-                try router.deferErasedSessionCleanup(
-                    session, coordinator: coordinator, ticket: ticket
-                )
-                await Task.yield()
-                if cleanupCase == .releaseFailure || cleanupCase == .afterRetirement {
-                    XCTAssertNotNil(retainedOldContext)
-                    retainedOldContext = nil
-                    let drained = expectation(for: NSPredicate { _, _ in oldContextIsReleased() }, evaluatedWith: NSObject())
-                    await fulfillment(of: [drained], timeout: 30)
-                    XCTAssertTrue(oldContextIsReleased())
-                    cleanupDiagnosticPhase = "cleanup.intent-and-registry-read"
-                    let intentBefore = try EraseIntentStore(applicationSupportURL: root).load()
-                    let retiredWriter = coordinator.workspaceWriter
-                    let registryURL = root.appendingPathComponent("FieldEvidenceOperations/generation-leases/registry.json")
-                    let registryBytes = try Data(contentsOf: registryURL)
-                    if cleanupCase == .releaseFailure {
-                        // Preserve the real inode and owner lock; corrupt only
-                        // registry content so the actual close must fail.
-                        try Data("invalid-registry".utf8).write(to: registryURL)
-                    }
-                    cleanupDiagnosticPhase = "cleanup.injected-resume"
+            let start: @MainActor () async throws -> EraseAllOutcome = {
+                let coordinator = try XCTUnwrap(retainedOwner.coordinator)
+                let service = try router.configureEraseService(makeService(), operation: operation)
+                let activate: @MainActor (StoreGenerationSession) async -> Void = { [weak coordinator] session in
                     do {
-                        _ = try await router.resumeDeferredErase(ticket) {
-                            try await makeService().reconcileAtStartup(
-                                diagnosticsStore: DiagnosticsStore(applicationSupportURL: root))
-                        }
-                        XCTFail("The injected cleanup failure must not complete")
-                    } catch { }
-                    cleanupDiagnosticPhase = "cleanup.retained-owner-check"
-                    XCTAssertEqual(try EraseIntentStore(applicationSupportURL: root).load(), intentBefore)
-                    XCTAssertNil(receipt)
-                    XCTAssertTrue(coordinator.workspaceWriter === retiredWriter)
-                    XCTAssertThrowsError(try retiredWriter.currentRevision())
-                    if cleanupCase == .releaseFailure {
-                        XCTAssertEqual(try Data(contentsOf: registryURL), Data("invalid-registry".utf8))
-                        cleanupDiagnosticPhase = "cleanup.registry-restore"
-                        try registryBytes.write(to: registryURL)
-                        cleanupDiagnosticPhase = "cleanup.registry-restored-readback"
-                        XCTAssertEqual(try writerLeaseIDs(in: root).count, 1)
-                    } else {
-                        XCTAssertEqual(try writerLeaseIDs(in: root).count, 0)
-                    }
-                    guard case let .eraseCleanupPending(held) = router.route, held === coordinator else {
-                        throw AppAccessContractFailureV1.staleAttempt
-                    }
+                        try router.activateErasePreparationSession(session,
+                            coordinator: try XCTUnwrap(coordinator), operation: operation)
+                    } catch { activationFailure = error }
                 }
-                cleanupDiagnosticPhase = "cleanup.final-resume"
-                let resumed = try await router.resumeDeferredErase(ticket) {
-                    try await makeService().reconcileAtStartup(
-                        diagnosticsStore: DiagnosticsStore(applicationSupportURL: root)
-                    )
+                if cleanupCase == .immediate {
+                    // Real compatibility entry, followed by the same authentic
+                    // retirement after this source-owning frame has returned.
+                    return try await service.erase(confirmation: "ERASE", coordinator: coordinator,
+                        diagnosticsStore: DiagnosticsStore(applicationSupportURL: root),
+                        operation: operation, activate: activate)
                 }
-                session = try XCTUnwrap(resumed)
+                let dependencies = try coordinator.packageLifecycleDependencies()
+                return try await service.erase(confirmation: "ERASE", coordinator: coordinator,
+                    diagnosticsStore: DiagnosticsStore(applicationSupportURL: root),
+                    operation: operation, activate: activate, lifecycleDependencies: dependencies)
+            }
+            let outcome = try await start()
+            if let activationFailure { throw activationFailure }
+            XCTAssertTrue(outcome.operation === operation)
+            let expectedGenerationID = try XCTUnwrap(reservation).subject.newGenerationID
+            // Prove revocation while the genuine old writer is still held.
+            // Its model alias must then disappear before retirement can pass.
+            XCTAssertThrowsError(try XCTUnwrap(retainedOwner.coordinator).workspaceWriter.currentRevision())
+            retainedOwner.coordinator = nil
+            // Retirement must release its source owner, independently of any
+            // context alias that these two fault cases deliberately retain.
+            let sourceOwnerReleased = expectation(for: NSPredicate { _, _ in
+                oldCoordinator == nil && oldWriter == nil
+            }, evaluatedWith: NSObject())
+            await fulfillment(of: [sourceOwnerReleased], timeout: 30)
+            XCTAssertNil(oldCoordinator)
+            XCTAssertNil(oldWriter)
+            guard oldCoordinator == nil, oldWriter == nil else {
+                throw AppAccessContractFailureV1.staleAttempt
             }
             if cleanupCase == .releaseFailure || cleanupCase == .afterRetirement {
-                XCTAssertTrue(outcome.cleanupDeferred, "The recovery regression must exercise deferred cleanup")
+                XCTAssertNotNil(retainedOldContext)
+                let pending = try await operation.advanceCleanup()
+                XCTAssertFalse(pending, "The recovery regression must exercise deferred cleanup")
+                retainedOldContext = nil
+                let drained = expectation(for: NSPredicate { _, _ in oldContextIsReleased() }, evaluatedWith: NSObject())
+                await fulfillment(of: [drained], timeout: 30)
+                XCTAssertTrue(oldContextIsReleased())
+                guard oldContextIsReleased() else { throw AppAccessContractFailureV1.staleAttempt }
+                cleanupDiagnosticPhase = "cleanup.intent-and-registry-read"
+                let intentBefore = try EraseIntentStore(applicationSupportURL: root).load()
+                let registryURL = root.appendingPathComponent("FieldEvidenceOperations/generation-leases/registry.json")
+                let registryBytes = try Data(contentsOf: registryURL)
+                if cleanupCase == .releaseFailure {
+                    // Corrupt only the original held registry inode, preserving
+                    // the real owner/lock for the checked close retry.
+                    try Data("invalid-registry".utf8).write(to: registryURL)
+                }
+                cleanupDiagnosticPhase = "cleanup.injected-resume"
+                do {
+                    _ = try await operation.advanceCleanup()
+                    XCTFail("The injected cleanup failure must not complete")
+                } catch { }
+                cleanupDiagnosticPhase = "cleanup.retained-owner-check"
+                XCTAssertEqual(try EraseIntentStore(applicationSupportURL: root).load(), intentBefore)
+                XCTAssertNil(receipt)
+                XCTAssertThrowsError(try operation.completedRetirement())
+                if cleanupCase == .releaseFailure {
+                    XCTAssertEqual(try Data(contentsOf: registryURL), Data("invalid-registry".utf8))
+                    cleanupDiagnosticPhase = "cleanup.registry-restore"
+                    try registryBytes.write(to: registryURL)
+                    cleanupDiagnosticPhase = "cleanup.registry-restored-readback"
+                    XCTAssertEqual(try writerLeaseIDs(in: root).count, 1)
+                } else {
+                    XCTAssertEqual(try writerLeaseIDs(in: root).count, 0)
+                }
+                guard case let .eraseCleanupPending(.retiring(held)) = router.route else {
+                    throw AppAccessContractFailureV1.staleAttempt
+                }
+                XCTAssertTrue(held === operation)
             }
-            let retiredWriter = coordinator.workspaceWriter
-            XCTAssertThrowsError(try retiredWriter.currentRevision())
+            cleanupDiagnosticPhase = "cleanup.final-resume"
+            let completedCleanup = try await operation.advanceCleanup()
+            XCTAssertTrue(completedCleanup)
+            guard completedCleanup else { throw AppAccessContractFailureV1.staleAttempt }
             cleanupDiagnosticPhase = "cleanup.completed-receipt"
-            let completed = try XCTUnwrap(receipt)
+            let (_, _, actualReceipt) = try operation.completedRetirement()
+            let completed = try XCTUnwrap(actualReceipt)
+            let callbackReceipt = try XCTUnwrap(receipt,
+                "The actual completion callback must deliver this exact receipt")
+            XCTAssertEqual(callbackReceipt.subject, completed.subject)
+            XCTAssertEqual(callbackReceipt.reservation, completed.reservation)
+            XCTAssertTrue(try EraseIntentStore.completedCleanupRootIsAbsent(applicationSupportURL: root))
+            XCTAssertEqual(completionCount, 1, "Cleanup retry must not repeat physical completion")
+            let adopted = try XCTUnwrap(reservation)
+            cleanupDiagnosticPhase = "cleanup.gate-adoption"
+            try await gate.adoptCompletedErase(completed, token: adopted)
             if cleanupCase == .rebindFailure {
-                // Fail the real fresh-binding entry after its authentic receipt,
-                // retaining the exact retired owner for a binding-only retry.
+                // Fail actual fresh construction after receipt adoption. Keep
+                // the genuine retirement owner for a binding-only retry.
                 let operationsRoot = root.appendingPathComponent("FieldEvidenceOperations")
                 XCTAssertFalse(fileManager.fileExists(atPath: operationsRoot.path))
                 let blocker = Data("not-an-operations-directory".utf8)
                 try blocker.write(to: operationsRoot)
                 do {
-                    try await router.beginErasedSessionActivation(
-                        session, coordinator: coordinator, ticket: ticket)
+                    try await router.finishRetiredEraseActivation(operation, accessGate: gate)
                     XCTFail("Fresh activation must reject a file in place of its operations directory")
                 } catch { }
                 XCTAssertEqual(try Data(contentsOf: operationsRoot), blocker)
-                XCTAssertTrue(coordinator.workspaceWriter === retiredWriter)
-                XCTAssertThrowsError(try retiredWriter.currentRevision())
+                XCTAssertTrue(try router.eraseRetirementOperation(for: ticket) === operation)
                 XCTAssertTrue(try EraseIntentStore.completedCleanupRootIsAbsent(applicationSupportURL: root))
                 XCTAssertEqual(completionCount, 1)
                 try fileManager.removeItem(at: operationsRoot)
             }
-            cleanupDiagnosticPhase = "cleanup.fresh-activation"
-            try await router.beginErasedSessionActivation(
-                session, coordinator: coordinator, ticket: ticket
-            )
-            XCTAssertFalse(coordinator.workspaceWriter === retiredWriter)
-            XCTAssertNoThrow(try coordinator.workspaceWriter.currentRevision())
-            XCTAssertTrue(try EraseIntentStore.completedCleanupRootIsAbsent(applicationSupportURL: root))
-            XCTAssertEqual(completionCount, 1, "Activation retry must not repeat physical completion")
-            let adopted = try XCTUnwrap(reservation)
-            cleanupDiagnosticPhase = "cleanup.gate-adoption"
-            try await gate.adoptCompletedErase(completed, token: adopted)
-            fixtureCreated = true
             return S2PostAdoptionEraseFixture(
                 root: root, caches: caches, temporary: temporary,
                 defaultsSuiteName: defaultsSuiteName, gate: gate, router: router,
-                coordinator: coordinator, session: session, ticket: ticket
+                operation: operation, expectedGenerationID: expectedGenerationID,
+                oldGenerationID: oldGenerationID, oldWriterInstanceID: oldWriterInstanceID
             )
         } catch {
             let originalError = error
@@ -2235,21 +2283,19 @@ extension S2PersistenceLedgerTests {
                 activity.add(attachment)
             }
             XCTFail(failureRecord)
-            router.failClosedPDFRecovery()
+            // The registered actual Router/root retains any uncertain owner.
+            // Failure does not authorize optional physical fixture removal.
             defaults.removePersistentDomain(forName: defaultsSuiteName)
-            try? fileManager.removeItem(at: root)
-            try? fileManager.removeItem(at: caches)
-            try? fileManager.removeItem(at: temporary)
             throw originalError
         }
     }
 
     @MainActor
     private func cleanupPostAdoptionEraseFixture(_ fixture: S2PostAdoptionEraseFixture) {
-        fixture.router.failClosedPDFRecovery()
         UserDefaults(suiteName: fixture.defaultsSuiteName)?
             .removePersistentDomain(forName: fixture.defaultsSuiteName)
-        try? fileManager.removeItem(at: fixture.root.deletingLastPathComponent())
+        // S2EraseRootRetentionV1 retains the actual fresh/failed owner and root
+        // until host termination; no unproved close or root deletion occurs.
     }
 
     private var isolatedStartupRuntime: StoreKitEntitlementRuntimeV1 {
@@ -2372,9 +2418,10 @@ private struct S2PostAdoptionEraseFixture {
     let defaultsSuiteName: String
     let gate: AppAccessGateV1
     let router: StartupRouter
-    let coordinator: StoreSessionCoordinator
-    let session: StoreGenerationSession
-    let ticket: StartupRouter.OriginalOperationTicket
+    let operation: EraseRouterOperationV1
+    let expectedGenerationID: UUID
+    let oldGenerationID: UUID
+    let oldWriterInstanceID: UUID
 }
 
 @MainActor
@@ -2418,4 +2465,23 @@ private func s2NotificationSubject(operationID: UUID) throws -> NotificationOper
         disposition: .enablingPrepared
     )
     return try NotificationOperationSubjectV1(journal: journal, settingWriteSHA256: digest)
+}
+
+// Conservative fixture retention is not operation success. Required cleanup,
+// weak-drain and receipt assertions still execute; optional physical root removal
+// is withheld because the test has no checked close proof for the fresh owner.
+@MainActor
+private final class S2EraseRootRetentionV1 {
+    private static var retained: [S2EraseRootRetentionV1] = []
+    let root: URL
+    let router: StartupRouter
+    var coordinator: StoreSessionCoordinator?
+    var preparedSession: StoreGenerationSession?
+
+    init(root: URL, router: StartupRouter) {
+        self.root = root
+        self.router = router
+        Self.retained.append(self)
+        FileHandle.standardError.write(Data(("S2Erase.fixtureRootRetained " + root.path + "\n").utf8))
+    }
 }

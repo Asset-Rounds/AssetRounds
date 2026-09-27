@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import XCTest
 
 @testable import FieldEvidenceApp
@@ -744,7 +745,12 @@ final class V9_78PrivateSystemDiscoveryTests: XCTestCase {
         XCTAssertEqual(indexClient.items().count, PrivateSystemDiscoveryActionV1.allCases.count)
         XCTAssertNotNil(try stateStore.load(), "a committed derived state blob is durable across actor recreation")
         let firstJournal = try await index.journalEntries()
-        XCTAssertEqual(firstJournal.last?.operationID, C14TestSupport.id(510))
+        XCTAssertEqual(
+            firstJournal.last?.operationID,
+            try C14TestSupport.initialDiscoveryRebuildID(source: firstSourceRevision)
+        )
+        XCTAssertEqual(firstJournal.last?.workspaceID, workspace)
+        XCTAssertEqual(firstJournal.last?.state, .committed)
         XCTAssertEqual(firstJournal.last?.operation, .rebuild)
         let firstReport = try await PrivateSystemDiscoveryReportProjectionRegistryV1.projection(from: index)
         XCTAssertEqual(firstReport.indexedRealWorkspaceCount, 1)
@@ -779,12 +785,16 @@ final class V9_78PrivateSystemDiscoveryTests: XCTestCase {
         XCTAssertEqual(indexClient.items().count, PrivateSystemDiscoveryActionV1.allCases.count * 2)
         XCTAssertEqual(try stateStore.load()?.knownWorkspaceIDs.count, 2)
         let secondJournal = try await index.journalEntries()
-        XCTAssertEqual(secondJournal.last?.operationID, C14TestSupport.id(511))
+        XCTAssertEqual(
+            secondJournal.last?.operationID,
+            try C14TestSupport.initialDiscoveryRebuildID(source: secondSourceRevision)
+        )
+        XCTAssertEqual(secondJournal.last?.workspaceID, otherWorkspace)
+        XCTAssertEqual(secondJournal.last?.state, .committed)
         XCTAssertEqual(secondJournal.last?.operation, .rebuild)
 
         let eraseRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("C14-private-system-erase-\(C14TestSupport.id(593).uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: eraseRoot) }
+            .appendingPathComponent("C14-private-system-erase-\(C14TestSupport.id(593).uuidString)-\(UUID().uuidString)", isDirectory: true)
         let eraseLibrary = eraseRoot.appendingPathComponent("Library", isDirectory: true)
         let eraseSupport = eraseLibrary.appendingPathComponent("Application Support", isDirectory: true)
         let eraseCaches = eraseLibrary.appendingPathComponent("Caches", isDirectory: true)
@@ -792,12 +802,23 @@ final class V9_78PrivateSystemDiscoveryTests: XCTestCase {
         try FileManager.default.createDirectory(at: eraseSupport, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: eraseCaches, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: eraseTemporary, withIntermediateDirectories: true)
-        let eraseFactory = StoreGenerationFactory(applicationSupportURL: eraseSupport)
-        let eraseSession = try eraseFactory.openOrBootstrapCurrent()
-        let eraseCoordinator = StoreSessionCoordinator(session: eraseSession)
-        let eraseWorkspace = eraseCoordinator.workspaceID
-        let diagnostics = DiagnosticsStore(applicationSupportURL: eraseSupport)
-        await diagnostics.prepare()
+        let eraseOwner = V23EraseOperationHarnessV1(retainingRoot: eraseRoot,
+            applicationSupportURL: eraseSupport,
+            runtime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            profileRegistry: try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        defer { eraseOwner.router.entitlementProcessor?.stop() }
+        var eraseCoordinator: StoreSessionCoordinator?
+        let diagnostics = try await { () async throws -> DiagnosticsStore in
+            let (coordinator, diagnostics) = try await eraseOwner.startOriginalOwner()
+            eraseCoordinator = coordinator
+            return diagnostics
+        }()
+        weak var originalCoordinator: StoreSessionCoordinator? = eraseCoordinator
+        weak var originalContext: ModelContext? = eraseCoordinator?.modelContext
+        weak var originalContainer: ModelContainer? = eraseCoordinator?.modelContext.container
+        let eraseWorkspace = try XCTUnwrap(eraseCoordinator).workspaceID
         let defaults = try XCTUnwrap(
             UserDefaults(suiteName: "C14-\(C14TestSupport.id(594).uuidString)")
         )
@@ -809,8 +830,8 @@ final class V9_78PrivateSystemDiscoveryTests: XCTestCase {
             slot: 512, operation: .removal, workspaceID: workspace,
             inputSHA256: try C14TestSupport.stateDigest(bothState)
         )
-        let deletionLedgerStore = DeletionLedgerStore(
-            context: eraseCoordinator.modelContext,
+        var deletionLedgerStore: DeletionLedgerStore? = DeletionLedgerStore(
+            context: try XCTUnwrap(eraseCoordinator).modelContext,
             privateSystemDiscoveryIndex: index
         )
         let removalRequest = try PrivateSystemDiscoveryRemovalRequestV1(
@@ -819,9 +840,9 @@ final class V9_78PrivateSystemDiscoveryTests: XCTestCase {
             priorStateSHA256: removeOperation.inputSHA256,
             requestedAt: C14TestSupport.now.addingTimeInterval(2)
         )
-        try await deletionLedgerStore.removePrivateSystemDiscovery(request: removalRequest)
+        try await XCTUnwrap(deletionLedgerStore).removePrivateSystemDiscovery(request: removalRequest)
         let deletionAfterFirstRequest = indexClient.deletionCallCount
-        try await deletionLedgerStore.removePrivateSystemDiscovery(request: removalRequest)
+        try await XCTUnwrap(deletionLedgerStore).removePrivateSystemDiscovery(request: removalRequest)
         XCTAssertEqual(indexClient.deletionCallCount, deletionAfterFirstRequest, "same removal request is an explicit production-ledger replay")
         let afterOne = try await PrivateSystemDiscoverySearchLifecycleV1(index: index).reportState()
         XCTAssertEqual(afterOne.workspaces, [otherState])
@@ -835,9 +856,13 @@ final class V9_78PrivateSystemDiscoveryTests: XCTestCase {
         XCTAssertEqual(afterOneReport.indexedRealWorkspaceCount, 1)
         XCTAssertEqual(afterOneReport.deletionDisposition, "REMOVAL_JOURNALED")
 
+        deletionLedgerStore = nil // Release its actual old ModelContext before retirement.
         var generatedEraseIDs: [UUID] = []
         let eraseIndexSpy = C14IndexLifecycleSpy(index: index)
-        let eraseService = EraseAllService(
+        var admittedReservation: AppAccessGateV1.EraseAdoptionToken?
+        var completedReceipts: [CompletedEraseReceiptV1] = []
+        try await eraseOwner.admit(coordinator: XCTUnwrap(eraseCoordinator))
+        let eraseService = try eraseOwner.configure(EraseAllService(
             applicationSupportURL: eraseSupport,
             cachesDirectoryURL: eraseCaches,
             temporaryDirectoryURL: eraseTemporary,
@@ -848,17 +873,36 @@ final class V9_78PrivateSystemDiscoveryTests: XCTestCase {
                 generatedEraseIDs.append(value)
                 return value
             },
-            privateSystemDiscoveryIndex: eraseIndexSpy
-        )
-        let erased = try await eraseService.erase(
+            privateSystemDiscoveryIndex: eraseIndexSpy,
+            admitErase: { subject in
+                let reservation = try await eraseOwner.admitSubject(subject)
+                admittedReservation = reservation
+                return reservation
+            },
+            didCompleteErase: { completedReceipts.append($0) }
+        ))
+        try await eraseOwner.prepareCompatibility(service: eraseService,
             confirmation: EraseAllService.requiredConfirmation,
-            coordinator: eraseCoordinator,
-            diagnosticsStore: diagnostics
-        ) { session in
-            eraseCoordinator.activate(session: session)
+            coordinator: XCTUnwrap(eraseCoordinator), diagnostics: diagnostics)
+        eraseCoordinator = nil
+        guard originalCoordinator == nil, originalContext == nil, originalContainer == nil else {
+            XCTFail("Original discovery Erase readers must drain before cleanup")
+            throw V23EraseOperationHarnessV1.Failure.drainPending
         }
-        XCTAssertFalse(erased.cleanupDeferred)
-        XCTAssertEqual(generatedEraseIDs, [C14TestSupport.id(513), C14TestSupport.id(514)])
+        XCTAssertTrue(completedReceipts.isEmpty)
+        try await eraseOwner.completeCleanup() // Pending cleanup is still a test failure.
+        XCTAssertEqual(completedReceipts.count, 1)
+        let deliveredReceipt = try XCTUnwrap(completedReceipts.first)
+        let reservation = try XCTUnwrap(admittedReservation)
+        XCTAssertEqual(deliveredReceipt.reservation, reservation)
+        XCTAssertEqual(deliveredReceipt.subject, reservation.subject)
+        try await eraseOwner.adoptCompletedReceipt()
+        // Erase allocates the target generation and operation, then the new
+        // empty workspace and replica during genuine completion.
+        XCTAssertEqual(generatedEraseIDs, [
+            C14TestSupport.id(513), C14TestSupport.id(514),
+            C14TestSupport.id(515), C14TestSupport.id(516)
+        ])
         let eraseParentOperation = try XCTUnwrap(eraseIndexSpy.lastEraseOperationID)
         XCTAssertEqual(eraseParentOperation.rawValue, C14TestSupport.id(514))
         XCTAssertEqual(eraseParentOperation.operation, .removal)
@@ -879,11 +923,13 @@ final class V9_78PrivateSystemDiscoveryTests: XCTestCase {
             deleteAllBeforeRestoreReplay,
             "restore/replay with the exact committed parent binding must not repeat the protected global effect"
         )
+        let changedInputDigest = C14TestSupport.digest("a")
+        XCTAssertNotEqual(changedInputDigest, eraseParentOperation.inputSHA256)
         let changedParentBinding = try PrivateSystemDiscoveryOperationIDV1(
             rawValue: eraseParentOperation.rawValue,
             operation: .removal,
             workspaceID: eraseParentOperation.workspaceID,
-            inputSHA256: C14TestSupport.digest("z")
+            inputSHA256: changedInputDigest
         )
         do {
             try await PrivateSystemDiscoveryEraseAllServiceBoundaryV1.dropAfterRestoreOrReplay(
@@ -928,6 +974,12 @@ final class V9_78PrivateSystemDiscoveryTests: XCTestCase {
         XCTAssertTrue(PrivateSystemDiscoveryLifecycleV1.removalIsJournaled)
         XCTAssertFalse(PrivateSystemDiscoveryLifecycleV1.canonicalPersistence)
         try PrivateSystemDiscoverySearchPersistenceBoundaryV1.validate()
+        // The genuine receipt was adopted once immediately after cleanup.
+        try await eraseOwner.activateFreshOrdinarySession()
+        guard case .ready = eraseOwner.router.route else {
+            return XCTFail("Genuine completed Erase must permit fresh ordinary startup")
+        }
+        eraseOwner.router.entitlementProcessor?.stop()
 
         let share = try C14TestSupport.shareFixture()
         let safeShare = try PrivateSystemDiscoveryShareDescriptorV1(
@@ -1191,6 +1243,20 @@ private enum C14TestSupport {
 
     static func stateDigest(_ state: PrivateSystemDiscoveryStateMapV1) throws -> String {
         CompatibilityCanonicalV1.sha256(try CompatibilityCanonicalV1.encode(state))
+    }
+
+    // Discovery retries bind to canonical source identity, independently of the
+    // local search checkpoint UUID injected into makeOperationID.
+    static func initialDiscoveryRebuildID(source: SearchSourceRevisionV1) throws -> UUID {
+        let sourceDigest = CompatibilityCanonicalV1.sha256(
+            try CompatibilityCanonicalV1.encode(source)
+        )
+        let digest = CompatibilityCanonicalV1.sha256(
+            Data(("PRIVATE_SYSTEM_DISCOVERY_REBUILD_V1|" + sourceDigest + "|INITIAL_ENROLLMENT").utf8)
+        )
+        let compact = String(digest.prefix(32))
+        let text = "\(compact.prefix(8))-\(compact.dropFirst(8).prefix(4))-\(compact.dropFirst(12).prefix(4))-\(compact.dropFirst(16).prefix(4))-\(compact.dropFirst(20).prefix(12))"
+        return try XCTUnwrap(UUID(uuidString: text))
     }
 
     static func operationID(

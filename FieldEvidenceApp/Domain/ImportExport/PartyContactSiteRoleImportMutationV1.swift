@@ -125,7 +125,11 @@ struct PartyContactSiteRoleImportMutationV1: Codable, Equatable, Sendable {
                 MutationPostImageV1.serviceParty(
                     id: $0.partyID,
                     revision: $0.revision,
-                    semanticSHA256: $0.receiptSHA256
+                    semanticSHA256: try PersistedMutationPostImageDigestV1.sha256(
+                        identity: WorkspaceEntityIdentityV1(kind: .serviceParty, id: $0.partyID),
+                        revision: $0.revision,
+                        value: $0
+                    )
                 )
             }
                 + (try operationalContactMutation.mutationPostImages)
@@ -133,7 +137,11 @@ struct PartyContactSiteRoleImportMutationV1: Codable, Equatable, Sendable {
                     MutationPostImageV1.sitePartyRoleEvent(
                         id: $0.eventID,
                         revision: $0.revision,
-                        semanticSHA256: $0.receiptSHA256
+                        semanticSHA256: try PersistedMutationPostImageDigestV1.sha256(
+                            identity: WorkspaceEntityIdentityV1(kind: .sitePartyRoleEvent, id: $0.eventID),
+                            revision: $0.revision,
+                            value: $0
+                        )
                     )
                 })
             let ordered = try values.sorted { try $0.identity.stableKey < $1.identity.stableKey }
@@ -150,6 +158,30 @@ struct PartyContactSiteRoleImportMutationV1: Codable, Equatable, Sendable {
             mutationID: mutationID,
             expectedRevision: expectedRevision,
             command: .applyPartyContactSiteRoleImport(self)
+        )
+    }
+
+    /// The only allowed post-preview rewrite is the CAS basis after C08's
+    /// authenticated session-start command. Post-images and deterministic
+    /// mutation ID remain byte-identical to the approved preview.
+    func withAuthenticatedSessionExpectedRevision(
+        _ revision: WorkspaceExpectedRevisionV1
+    ) throws -> PartyContactSiteRoleImportMutationV1 {
+        let contact = try OperationalContactMutationV1(
+            workspaceID: operationalContactMutation.workspaceID,
+            mutationID: operationalContactMutation.mutationID,
+            expectedRevision: revision,
+            predecessors: operationalContactMutation.predecessors,
+            successors: operationalContactMutation.successors,
+            preferredScopes: operationalContactMutation.preferredScopes,
+            handoffIntents: operationalContactMutation.handoffIntents,
+            importSourceSet: operationalContactMutation.importSourceSet
+        )
+        return try PartyContactSiteRoleImportMutationV1(
+            workspaceID: workspaceID, mutationID: mutationID,
+            expectedRevision: revision, partyMutations: partyMutations,
+            operationalContactMutation: contact,
+            siteRoleMutations: siteRoleMutations
         )
     }
 

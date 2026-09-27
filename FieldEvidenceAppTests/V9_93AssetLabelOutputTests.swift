@@ -642,7 +642,10 @@ private enum C30AssetLabelTestSupport {
             "C30-real-label-recovery-\(UUID().uuidString)",
             isDirectory: true
         )
-        let generationRoot = root.appendingPathComponent("generation", isDirectory: true)
+        // Actual physical installed-layout ownership does not authenticate the
+        // independent synthetic logical epoch used by this recovery fixture.
+        let generationRoot = root.appendingPathComponent("FieldEvidenceData/generations", isDirectory: true)
+            .appendingPathComponent(id(801).uuidString.lowercased(), isDirectory: true)
         let ledgerRoot = root.appendingPathComponent("ledger", isDirectory: true)
         let stagingRoot = root.appendingPathComponent("staging", isDirectory: true)
         try fileManager.createDirectory(at: generationRoot, withIntermediateDirectories: true)
@@ -813,14 +816,9 @@ private enum C30AssetLabelTestSupport {
             profileRegistry: profileRegistry
         )
         let epoch = try factory.currentGenerationEpoch()
-        let publication = GenerationLocalJobPublicationAdapterV1(
-            currentGenerationEpoch: { epoch },
-            withAuthorizedCommit: { _, effect in try effect() }
-        )
         do {
             _ = try await composition.makeAssetLabelWorkflow(
                 generationEpoch: epoch,
-                generationPublicationAdapter: publication,
                 accessGate: C30AccessGate()
             )
             XCTFail("Locked production label composition must remain access gated")

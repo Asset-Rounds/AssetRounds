@@ -2218,6 +2218,45 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
     func erase(
         operationID: UUID = UUID()
     ) throws -> PortableExchangeEraseReceiptV2 {
+        try eraseBoundToOriginalPreimage(
+            operationID: operationID,
+            beforeLoad: nil,
+            beforePublish: nil,
+            afterPublish: nil
+        ).receipt
+    }
+
+#if DEBUG
+    /// DEBUG original-Erase seam. The owner exposes its locally minted typed
+    /// successor before any journal or envelope publication. The callbacks
+    /// verify the original held filesystem authority without repairing it.
+    /// Normal Erase keeps the same private body and does not use this seam.
+    func eraseForOriginalColdExitForTesting(
+        operationID: UUID,
+        beforeLoad: @escaping @Sendable () throws -> Void,
+        beforePublish: @escaping @Sendable (_ predecessor: Data, _ successor: Data) throws -> Void,
+        afterPublish: @escaping @Sendable (_ successor: Data) throws -> Void
+    ) throws -> (receipt: PortableExchangeEraseReceiptV2, successor: Data) {
+        let result = try eraseBoundToOriginalPreimage(
+            operationID: operationID,
+            beforeLoad: beforeLoad,
+            beforePublish: beforePublish,
+            afterPublish: afterPublish
+        )
+        guard let successor = result.successor else {
+            throw PortableExchangePersistenceFailureV2.invalidJournal
+        }
+        return (result.receipt, successor)
+    }
+#endif
+
+    private func eraseBoundToOriginalPreimage(
+        operationID: UUID,
+        beforeLoad: (@Sendable () throws -> Void)?,
+        beforePublish: (@Sendable (_ predecessor: Data, _ successor: Data) throws -> Void)?,
+        afterPublish: (@Sendable (_ successor: Data) throws -> Void)?
+    ) throws -> (receipt: PortableExchangeEraseReceiptV2, successor: Data?) {
+        try beforeLoad?()
         try ensureLoaded()
         let current = try envelope ?? emptyEnvelope()
         let sessionCount = current.sessions.count
@@ -2233,6 +2272,9 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
             sessions: [],
             quarantine: []
         )
+        let predecessorBytes = try canonicalData(current.canonicalSorted().validated())
+        let successorBytes = try canonicalData(empty.canonicalSorted().validated())
+        try beforePublish?(predecessorBytes, successorBytes)
         let cleanupHold = try prepareCleanupHold(
             predecessor: current,
             successor: empty,
@@ -2250,6 +2292,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
         )
         try completePublishedCleanup(cleanupHold)
         envelope = empty
+        try afterPublish?(successorBytes)
         let receipt = try PortableExchangeEraseReceiptV2(
             operationID: operationID,
             erasedSessionCount: sessionCount,
@@ -2259,7 +2302,7 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
             appOwnedBytesRemoved: removedBytes,
             completedAt: clock.now()
         )
-        return receipt
+        return (receipt, beforePublish == nil ? nil : successorBytes)
     }
 
     // MARK: - Recovery and diagnostics

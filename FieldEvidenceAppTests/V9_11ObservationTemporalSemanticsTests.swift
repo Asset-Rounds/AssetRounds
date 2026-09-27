@@ -624,69 +624,123 @@ final class V9_11ObservationTemporalSemanticsTests: XCTestCase {
                 }
         )
 
-        let erase = try V906Integration.makeHarness("v9-11-erase", withAsset: true)
-        addTeardownBlock { [root = erase.root] in
-            try? FileManager.default.removeItem(at: root)
+        // Finish every seed assertion before the Router takes the original
+        // Erase writer. The fixture's source session must not outlive admission.
+        weak var seededSession: StoreGenerationSession?
+        weak var seededContext: ModelContext?
+        weak var seededContainer: ModelContainer?
+        let eraseFixture = try autoreleasepool { () throws -> (
+            root: URL, support: URL, caches: URL, temporary: URL, oldGenerationID: UUID
+        ) in
+            let erase = try V906Integration.makeHarness("v9-11-erase", withAsset: true)
+            seededSession = erase.session
+            seededContext = erase.session.modelContext
+            seededContainer = erase.session.modelContext.container
+            let eraseAssetID = try XCTUnwrap(
+                erase.session.modelContext.fetch(FetchDescriptor<Asset>()).first?.id
+            )
+            let eraseRecordID = Self.id(122)
+            try Self.insertObservationRecord(
+                id: eraseRecordID,
+                assetID: eraseAssetID,
+                basisData: basisBytes,
+                temporalData: temporalBytes,
+                in: erase.session.modelContext
+            )
+            try V906Integration.adoptSeededDeletionBaseline(erase.session)
+            let eraseAssurances = try erase.session.modelContext.fetch(
+                FetchDescriptor<RequirementAssuranceRow>()
+            )
+            XCTAssertEqual(eraseAssurances.count, 1)
+            XCTAssertEqual(eraseAssurances.map(\.workflowRecordID), [eraseRecordID])
+            let eraseAssurance = try XCTUnwrap(eraseAssurances.first)
+            XCTAssertEqual(try eraseAssurance.snapshot().workflowRecordID, eraseRecordID)
+            XCTAssertEqual(
+                try erase.session.modelContext.fetchCount(FetchDescriptor<ObservationAndTimeRow>()),
+                1
+            )
+            return (erase.root, erase.support, erase.caches, erase.temporary,
+                erase.session.generationID)
         }
-        let eraseAssetID = try XCTUnwrap(
-            erase.session.modelContext.fetch(FetchDescriptor<Asset>()).first?.id
-        )
-        let eraseRecordID = Self.id(122)
-        try Self.insertObservationRecord(
-            id: eraseRecordID,
-            assetID: eraseAssetID,
-            basisData: basisBytes,
-            temporalData: temporalBytes,
-            in: erase.session.modelContext
-        )
-        try V906Integration.adoptSeededDeletionBaseline(erase.session)
-        let eraseAssurances = try erase.session.modelContext.fetch(
-            FetchDescriptor<RequirementAssuranceRow>()
-        )
-        XCTAssertEqual(eraseAssurances.count, 1)
-        XCTAssertEqual(eraseAssurances.map(\.workflowRecordID), [eraseRecordID])
-        let eraseAssurance = try XCTUnwrap(eraseAssurances.first)
-        XCTAssertEqual(try eraseAssurance.snapshot().workflowRecordID, eraseRecordID)
-        XCTAssertEqual(
-            try erase.session.modelContext.fetchCount(FetchDescriptor<ObservationAndTimeRow>()),
-            1
-        )
-        let oldGenerationID = erase.session.generationID
-        let coordinator = StoreSessionCoordinator(session: erase.session)
-        let diagnostics = DiagnosticsStore(applicationSupportURL: erase.support)
-        await diagnostics.prepare()
+        guard seededSession == nil, seededContext == nil, seededContainer == nil else {
+            XCTFail("Seed fixture readers must drain before the Router starts")
+            throw V23EraseOperationHarnessV1.Failure.drainPending
+        }
+        let eraseOwner = V23EraseOperationHarnessV1(retainingRoot: eraseFixture.root,
+            applicationSupportURL: eraseFixture.support,
+            runtime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            profileRegistry: try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        defer { eraseOwner.router.entitlementProcessor?.stop() }
         let defaultsName = "V9_11-R01-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsName))
         defer { defaults.removePersistentDomain(forName: "com.palatis3.fieldrecord") }
         let newGenerationID = Self.id(123)
-        let erased = try await EraseAllService(
-            applicationSupportURL: erase.support,
-            cachesDirectoryURL: erase.caches,
-            temporaryDirectoryURL: erase.temporary,
-            userDefaults: defaults,
-            bundleIdentifier: "com.palatis3.fieldrecord",
-            makeUUID: V906Integration.sequence([
-                newGenerationID,
-                Self.id(124),
-                Self.id(125),
-                Self.id(126),
-            ])
-        ).erase(
-            confirmation: "ERASE",
-            coordinator: coordinator,
-            diagnosticsStore: diagnostics
-        ) { session in
-            coordinator.activate(session: session)
+        weak var sourceContext: ModelContext?
+        weak var sourceContainer: ModelContainer?
+        weak var sourceCoordinator: StoreSessionCoordinator?
+        var admittedReservation: AppAccessGateV1.EraseAdoptionToken?
+        var completedReceipts: [CompletedEraseReceiptV1] = []
+        try await { @MainActor () async throws -> Void in
+            let (coordinator, diagnostics) = try await eraseOwner.startOriginalOwner()
+            sourceContext = coordinator.modelContext
+            sourceContainer = coordinator.modelContext.container
+            sourceCoordinator = coordinator
+            XCTAssertEqual(coordinator.generationID, eraseFixture.oldGenerationID)
+            guard coordinator.generationID == eraseFixture.oldGenerationID else {
+                throw V23EraseOperationHarnessV1.Failure.admission
+            }
+            try await eraseOwner.admit(coordinator: coordinator)
+            let service = try eraseOwner.configure(EraseAllService(
+                applicationSupportURL: eraseFixture.support,
+                cachesDirectoryURL: eraseFixture.caches,
+                temporaryDirectoryURL: eraseFixture.temporary,
+                userDefaults: defaults,
+                bundleIdentifier: "com.palatis3.fieldrecord",
+                makeUUID: V906Integration.sequence([
+                    newGenerationID,
+                    Self.id(124),
+                    Self.id(125),
+                    Self.id(126),
+                ]),
+                admitErase: { subject in
+                    let reservation = try await eraseOwner.admitSubject(subject)
+                    admittedReservation = reservation
+                    return reservation
+                },
+                didCompleteErase: { completedReceipts.append($0) }
+            ))
+            try await eraseOwner.prepareCompatibility(service: service,
+                confirmation: EraseAllService.requiredConfirmation,
+                coordinator: coordinator, diagnostics: diagnostics)
+        }()
+        guard sourceContext == nil, sourceContainer == nil, sourceCoordinator == nil else {
+            XCTFail("Original Erase owners must drain before cleanup")
+            throw V23EraseOperationHarnessV1.Failure.drainPending
         }
-        XCTAssertNotEqual(erased.session.generationID, oldGenerationID)
-        XCTAssertEqual(erased.session.generationID, newGenerationID)
-        XCTAssertEqual(try erase.factory.currentGenerationID(), newGenerationID)
+        XCTAssertTrue(completedReceipts.isEmpty)
+        try await eraseOwner.completeCleanup()
+        XCTAssertEqual(completedReceipts.count, 1)
+        let deliveredReceipt = try XCTUnwrap(completedReceipts.first)
+        let reservation = try XCTUnwrap(admittedReservation)
+        XCTAssertEqual(deliveredReceipt.reservation, reservation)
+        XCTAssertEqual(deliveredReceipt.subject, reservation.subject)
+        try await eraseOwner.adoptCompletedReceipt()
+        try await eraseOwner.activateFreshOrdinarySession()
+        guard case let .ready(erased, _, _) = eraseOwner.router.route else {
+            return XCTFail("Completed Erase must publish a fresh ordinary owner")
+        }
+        XCTAssertNotEqual(erased.generationID, eraseFixture.oldGenerationID)
+        XCTAssertEqual(erased.generationID, newGenerationID)
+        XCTAssertEqual(try StoreGenerationFactory(
+            applicationSupportURL: eraseFixture.support).currentGenerationID(), newGenerationID)
         XCTAssertEqual(
-            try erased.session.modelContext.fetchCount(FetchDescriptor<WorkflowRecord>()),
+            try erased.modelContext.fetchCount(FetchDescriptor<WorkflowRecord>()),
             0
         )
         XCTAssertEqual(
-            try erased.session.modelContext.fetchCount(FetchDescriptor<ObservationAndTimeRow>()),
+            try erased.modelContext.fetchCount(FetchDescriptor<ObservationAndTimeRow>()),
             0
         )
 

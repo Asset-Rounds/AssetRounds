@@ -581,17 +581,29 @@ enum C33TemporalEvidenceTestSupport {
     @MainActor
     static func commitPersistentClip(
         in session: StoreGenerationSession,
-        slot: Int
+        slot: Int,
+        suppliedWriter: WorkspaceWriterV1? = nil
     ) async throws -> (clip: TemporalEvidenceClipV1, receipt: TemporalEvidenceMutationReceiptV1) {
         var phase = "construct-authority"
         do {
             let fixture = try clip(slot: slot, workspaceID: session.workspaceID,
                 reportProjection: .typedLinkOnly, requiresTranscript: true)
             phase = "acquire-canonical-writer"
-            let coordinator = try StoreSessionCoordinator(validatingSession: session,
-                clock: C33TemporalEvidenceClock(value: fixture.clip.acceptedAt))
-            defer { XCTAssertNoThrow(try coordinator.invalidateAndReleaseWriter()) }
-            let writer = coordinator.workspaceWriter
+            let temporaryCoordinator: StoreSessionCoordinator?
+            if suppliedWriter == nil {
+                temporaryCoordinator = try StoreSessionCoordinator(
+                    validatingSession: session,
+                    clock: C33TemporalEvidenceClock(value: fixture.clip.acceptedAt))
+            } else {
+                temporaryCoordinator = nil
+            }
+            defer {
+                if let temporaryCoordinator {
+                    XCTAssertNoThrow(try temporaryCoordinator.invalidateAndReleaseWriter())
+                }
+            }
+            let writer = try XCTUnwrap(
+                suppliedWriter ?? temporaryCoordinator?.workspaceWriter)
             let store = try MutationJournalStoreV1(modelContext: session.modelContext,
                 identity: session.workspaceIdentity, generationID: session.generationID)
             phase = "resolve-accepted-package"
@@ -807,7 +819,7 @@ enum C33TemporalEvidenceTestSupport {
             isDirectory: true
         )
         try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? fileManager.removeItem(at: root) }
+        // The genuine Erase harness retains this root until checked owner closure.
 
         let sourceSupport = root.appendingPathComponent("source-support", isDirectory: true)
         try fileManager.createDirectory(at: sourceSupport, withIntermediateDirectories: true)
@@ -1116,52 +1128,110 @@ enum C33TemporalEvidenceTestSupport {
         try fileManager.createDirectory(at: eraseSupport, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: eraseCaches, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: eraseTemporary, withIntermediateDirectories: true)
-        let eraseSession = try StoreGenerationFactory(
+        var eraseSession: StoreGenerationSession? = try StoreGenerationFactory(
             applicationSupportURL: eraseSupport
         ).openOrBootstrapCurrent()
-        _ = try await commitPersistentClip(in: eraseSession, slot: slot + 40)
-        let coordinator = StoreSessionCoordinator(session: eraseSession)
-        let diagnostics = DiagnosticsStore(applicationSupportURL: eraseSupport)
-        await diagnostics.prepare()
+        _ = try await commitPersistentClip(in: XCTUnwrap(eraseSession), slot: slot + 40)
         let defaultsName = "C33-R01-\(UUID())"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsName))
         defer { defaults.removePersistentDomain(forName: defaultsName) }
         // Erase allocates generation, operation, workspace and replica identities.
         let eraseIDs = (0..<4).map { id(9_700 + slot + $0) }
         XCTAssertEqual(Set(eraseIDs).count, 4)
-        XCTAssertTrue(Set(eraseIDs).isDisjoint(with: [eraseSession.generationID,
-            eraseSession.workspaceID.rawValue, eraseSession.workspaceIdentity.replicaID.rawValue]))
+        XCTAssertTrue(Set(eraseIDs).isDisjoint(with: [try XCTUnwrap(eraseSession).generationID,
+            try XCTUnwrap(eraseSession).workspaceID.rawValue, try XCTUnwrap(eraseSession).workspaceIdentity.replicaID.rawValue]))
         var remainingEraseIDs = eraseIDs
-        let erase = EraseAllService(
+        let eraseOwner = V23EraseOperationHarnessV1(retainingRoot: root,
             applicationSupportURL: eraseSupport,
-            cachesDirectoryURL: eraseCaches,
-            temporaryDirectoryURL: eraseTemporary,
-            userDefaults: defaults,
-            bundleIdentifier: "com.palatis3.fieldrecord",
-            defaultsDomainName: defaultsName,
-            makeUUID: { remainingEraseIDs.removeFirst() }
-        )
-        #if DEBUG
-        erase.erasePhaseDiagnosticForTesting = { phase in
-            print("C33R01[\(slot)] erase phase=\(phase)")
+            runtime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            profileRegistry: try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        weak var seededSession: StoreGenerationSession? = eraseSession
+        weak var seededContext: ModelContext? = eraseSession?.modelContext
+        weak var seededContainer: ModelContainer? = eraseSession?.modelContext.container
+        eraseSession = nil
+        guard seededSession == nil, seededContext == nil, seededContainer == nil else {
+            XCTFail("Seeded clip aliases must drain before authentic Router startup")
+            throw V23EraseOperationHarnessV1.Failure.drainPending
         }
-        #endif
-        let outcome = try await erase.erase(
-            confirmation: "ERASE",
-            coordinator: coordinator,
-            diagnosticsStore: diagnostics
-        ) { session in
-            coordinator.activate(session: session)
+        var admittedReservation: AppAccessGateV1.EraseAdoptionToken?
+        var completedReceipts: [CompletedEraseReceiptV1] = []
+        var configuredErase: EraseAllService?
+        weak var originalCoordinator: StoreSessionCoordinator?
+        weak var originalContext: ModelContext?
+        weak var originalContainer: ModelContainer?
+        try await { @MainActor () async throws -> Void in
+            let (coordinator, diagnostics) = try await eraseOwner.startOriginalOwner()
+            await diagnostics.prepare()
+            try await eraseOwner.admit(coordinator: coordinator)
+            let erase = try eraseOwner.configure(EraseAllService(
+                applicationSupportURL: eraseSupport,
+                cachesDirectoryURL: eraseCaches,
+                temporaryDirectoryURL: eraseTemporary,
+                userDefaults: defaults,
+                bundleIdentifier: "com.palatis3.fieldrecord",
+                defaultsDomainName: defaultsName,
+                makeUUID: { remainingEraseIDs.removeFirst() },
+                admitErase: { subject in
+                    let reservation = try await eraseOwner.admitSubject(subject)
+                    admittedReservation = reservation
+                    return reservation
+                },
+                didCompleteErase: { completedReceipts.append($0) }
+            ))
+            configuredErase = erase
+            #if DEBUG
+            erase.erasePhaseDiagnosticForTesting = { phase in
+                print("C33R01[\(slot)] erase phase=\(phase)")
+            }
+            #endif
+            originalCoordinator = coordinator
+            originalContext = coordinator.modelContext
+            originalContainer = coordinator.modelContext.container
+            try await eraseOwner.prepareCompatibility(service: erase, confirmation: "ERASE",
+                coordinator: coordinator, diagnostics: diagnostics)
+        }()
+        guard originalCoordinator == nil, originalContext == nil, originalContainer == nil else {
+            XCTFail("Original clip owners must drain before cleanup")
+            throw V23EraseOperationHarnessV1.Failure.drainPending
         }
+        XCTAssertTrue(completedReceipts.isEmpty)
+        try await eraseOwner.completeCleanup()
+        XCTAssertEqual(completedReceipts.count, 1)
+        let deliveredReceipt = try XCTUnwrap(completedReceipts.first)
+        let reservation = try XCTUnwrap(admittedReservation)
+        XCTAssertEqual(deliveredReceipt.reservation, reservation)
+        XCTAssertEqual(deliveredReceipt.subject, reservation.subject)
+        let erase = try XCTUnwrap(configuredErase)
         XCTAssertTrue(remainingEraseIDs.isEmpty)
-        XCTAssertEqual(outcome.session.generationID, eraseIDs[0])
-        XCTAssertEqual(outcome.session.workspaceID.rawValue, eraseIDs[2])
-        XCTAssertEqual(outcome.session.workspaceIdentity.replicaID.rawValue, eraseIDs[3])
-        try erase.validateTemporalEvidenceEraseClosure(session: outcome.session)
-        XCTAssertEqual(
-            try outcome.session.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()),
-            0
-        )
+        try await eraseOwner.adoptCompletedReceipt()
+        let token = try await eraseOwner.accessGate.beginContentRead(for: .startupRecovery)
+        weak var observedSession: StoreGenerationSession?
+        weak var observedContext: ModelContext?
+        weak var observedContainer: ModelContainer?
+        try token.withContentRead(for: .startupRecovery) {
+            try autoreleasepool {
+                let session = try StoreGenerationFactory(applicationSupportURL: eraseSupport).openOrBootstrapCurrent()
+                observedSession = session; observedContext = session.modelContext
+                observedContainer = session.modelContext.container
+                XCTAssertEqual(session.generationID, eraseIDs[0])
+                XCTAssertEqual(session.workspaceID.rawValue, eraseIDs[2])
+                XCTAssertEqual(session.workspaceIdentity.replicaID.rawValue, eraseIDs[3])
+                try erase.validateTemporalEvidenceEraseClosure(session: session)
+                XCTAssertEqual(try session.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), 0)
+            }
+        }
+        guard observedSession == nil, observedContext == nil, observedContainer == nil else {
+            XCTFail("Completed-generation aliases must drain before fresh startup")
+            throw V23EraseOperationHarnessV1.Failure.drainPending
+        }
+        try await eraseOwner.activateFreshOrdinarySession()
+        guard case let .ready(reopened, _, _) = eraseOwner.router.route else {
+            return XCTFail("Completed Erase must publish a fresh ordinary owner")
+        }
+        XCTAssertEqual(reopened.generationID, eraseIDs[0])
+        eraseOwner.router.entitlementProcessor?.stop()
     }
 
     static func ownerClip(
@@ -1908,7 +1978,8 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
     private func appendEraseDerivative(
         session: StoreGenerationSession, predecessor: TemporalEvidenceClipV1,
         slot: Int, sharing: TemporalEvidenceDerivativeV1? = nil,
-        conflictingCreatedAt: Bool = false
+        conflictingCreatedAt: Bool = false,
+        suppliedWriter: WorkspaceWriterV1? = nil
     ) async throws -> (clip: TemporalEvidenceClipV1, derivative: TemporalEvidenceDerivativeV1) {
         let basis = try sharing ?? C33TemporalEvidenceTestSupport.derivative(clip: predecessor, slot: slot)
         let content: ContentReferenceV1
@@ -1935,13 +2006,19 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
         let successor = try predecessor.successor(clipID: C33TemporalEvidenceTestSupport.id(slot + 2),
             profile: predecessor.limitProfile, derivativeReferences: [try derivative.reference],
             mutationID: C33TemporalEvidenceTestSupport.mutation(slot + 3))
-        let owner = try StoreSessionCoordinator(validatingSession: session)
-        defer { XCTAssertNoThrow(try owner.invalidateAndReleaseWriter()) }
-        let current = try owner.workspaceWriter.currentRevision()
+        let temporaryOwner = try suppliedWriter == nil
+            ? StoreSessionCoordinator(validatingSession: session) : nil
+        defer {
+            if let temporaryOwner {
+                XCTAssertNoThrow(try temporaryOwner.invalidateAndReleaseWriter())
+            }
+        }
+        let writer = try XCTUnwrap(suppliedWriter ?? temporaryOwner?.workspaceWriter)
+        let current = try writer.currentRevision()
         let expected = try C33TemporalEvidenceTestSupport.expectedRevision(for: predecessor,
             generationID: current.generationID, writerInstanceID: current.writerInstanceID,
             workspaceRevision: current.revision, entityRevision: predecessor.revision)
-        _ = try owner.workspaceWriter.commitTemporalEvidence(.init(workspaceID: session.workspaceID,
+        _ = try writer.commitTemporalEvidence(.init(workspaceID: session.workspaceID,
             expectedRevision: expected, mutationID: successor.mutationID,
             payload: .registerDerivative(successor, derivative: derivative,
                 predecessorClip: predecessor, predecessorDerivative: nil)))
@@ -1949,7 +2026,9 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
     }
 
     @MainActor
-    private func retireEraseDerivatives(session: StoreGenerationSession, predecessor: TemporalEvidenceClipV1) throws -> TemporalEvidenceClipV1 {
+    private func retireEraseDerivatives(session: StoreGenerationSession,
+        predecessor: TemporalEvidenceClipV1,
+        suppliedWriter: WorkspaceWriterV1? = nil) throws -> TemporalEvidenceClipV1 {
         let event = try TemporalEvidenceRetentionEventV1(eventID: C33TemporalEvidenceTestSupport.id(5_001),
             clip: predecessor, disposition: .removeRegenerableDerivatives,
             policySHA256: String(repeating: "d", count: 64), actor: predecessor.recordedBy,
@@ -1958,13 +2037,19 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
         let successor = try predecessor.successor(clipID: C33TemporalEvidenceTestSupport.id(5_003),
             profile: predecessor.limitProfile, derivativeReferences: [], retentionReference: event.reference,
             mutationID: event.mutationID)
-        let owner = try StoreSessionCoordinator(validatingSession: session)
-        defer { XCTAssertNoThrow(try owner.invalidateAndReleaseWriter()) }
-        let current = try owner.workspaceWriter.currentRevision()
+        let temporaryOwner = try suppliedWriter == nil
+            ? StoreSessionCoordinator(validatingSession: session) : nil
+        defer {
+            if let temporaryOwner {
+                XCTAssertNoThrow(try temporaryOwner.invalidateAndReleaseWriter())
+            }
+        }
+        let writer = try XCTUnwrap(suppliedWriter ?? temporaryOwner?.workspaceWriter)
+        let current = try writer.currentRevision()
         let expected = try C33TemporalEvidenceTestSupport.expectedRevision(for: predecessor,
             generationID: current.generationID, writerInstanceID: current.writerInstanceID,
             workspaceRevision: current.revision, entityRevision: predecessor.revision)
-        _ = try owner.workspaceWriter.commitTemporalEvidence(.init(workspaceID: session.workspaceID,
+        _ = try writer.commitTemporalEvidence(.init(workspaceID: session.workspaceID,
             expectedRevision: expected, mutationID: successor.mutationID,
             payload: .applyRetention(successor, event: event, predecessorClip: predecessor, predecessorEvent: nil)))
         return successor
@@ -1990,22 +2075,68 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
         var permitsCleanup: Bool { completedColdRecovery && owners.allSatisfy(\.isReleased) }
     }
 
+#if DEBUG
+    /// Fixed DEBUG labels only; the Service hook can also carry physical-file
+    /// diagnostics, which are deliberately excluded from this test log.
+    @MainActor
+    private static func traceC33DirectErasePhase(_ phase: String) {
+        let allowed: Set<String> = [
+            "entry.integration-projections", "entry.scene-navigation",
+            "entry.lifecycle-route", "entry.auxiliary",
+            "entry.generation-authority", "entry.retired-inventory",
+            "entry.current-authority", "entry.kernel-mappings",
+            "entry.package-lifecycle", "entry.auxiliary-reverify",
+            "entry.frozen-pointer", "entry.source-ledger",
+            "entry.fresh-identity", "entry.admit",
+            "entry.revalidate-admission", "prepare.intent-store",
+            "prepare.create", "prepare.empty-generation", "prepare.bind",
+            "prepare.empty-ledger", "prepare.validate-empty",
+            "prepare.revalidate-empty", "projection.local-purge.begin",
+            "projection.local-purge.end", "projection.private-discovery.begin",
+            "projection.private-discovery.end", "retirement.binding.enter",
+            "retirement.binding.complete", "cleanup.prepare.enter",
+            "cleanup.prepare.complete", "retirement.detach.enter",
+            "retirement.detach.complete"
+        ]
+        let failurePrefix = "authority.failure.line."
+        let safe: String?
+        if allowed.contains(phase) {
+            safe = phase
+        } else if phase.hasPrefix(failurePrefix),
+                  let line = Int(phase.dropFirst(failurePrefix.count)), line > 0 {
+            safe = "authority.failure.line.\(line)"
+        } else {
+            safe = nil
+        }
+        if let safe {
+            FileHandle.standardError.write(Data((
+                "V949_DIRECT_ERASE_PHASE_V1 phase=" + safe + "\n"
+            ).utf8))
+        }
+    }
+
+#endif
+
     @MainActor
     private struct C33PreparedColdErase {
+        let root: URL
         let support: URL
         let oldGenerationID: UUID
         let oldGenerationRoot: URL
         let newGenerationID: UUID
+        let owner: V23EraseOperationHarnessV1
+        let interruptedOperation: EraseRouterOperationV1?
         let diagnostics: DiagnosticsStore
         let makeService: @MainActor () -> EraseAllService
     }
 
-    /// Retain the source deliberately through pointer activation, then let its
-    /// actual session, container, context and reader lease leave scope before
-    /// exercising cold cleanup. Value snapshots never extend store ownership.
+    /// The original Router owns the sole seeded writer. A real Service either
+    /// prepares its replacement or injects after pointer publication. No
+    /// source session/context/container escapes the preparation frame.
     @MainActor
     private func eraseRegisteredFixture(
         interrupted: Bool,
+        originalExpected: Bool = true,
         makeFixture: @escaping @MainActor (C33EraseCleanupPermission) async throws -> EraseOriginalFixture
     ) async throws {
         let cleanupPermission = C33EraseCleanupPermission()
@@ -2017,146 +2148,233 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
         func prepare() async throws -> C33PreparedColdErase {
             let fixture = try await makeFixture(cleanupPermission)
             let session = fixture.session
+            let owner = try XCTUnwrap(fixture.originalOwner)
+            guard case let .ready(coordinator, diagnostics, _) = owner.router.route,
+                  coordinator.modelContext === session.modelContext else {
+                throw V23EraseOperationHarnessV1.Failure.admission
+            }
             oldSession = session
             oldContext = session.modelContext
             oldContainer = session.modelContext.container
             XCTAssertNotNil(session.readerLeaseToken)
             let journal = try MutationJournalStoreV1(modelContext: session.modelContext,
-                identity: session.workspaceIdentity, generationID: session.generationID, allowStateBootstrap: false)
+                identity: session.workspaceIdentity, generationID: session.generationID,
+                allowStateBootstrap: false)
             try journal.validateAll()
             let history = try journal.exportSnapshot()
             let original = session.generationRootURL.appendingPathComponent(
                 try TemporalEvidenceBackupMemberV1.original(for: fixture.clip))
-            let originalBytes = try Data(contentsOf: original)
-            let diagnostics = DiagnosticsStore(applicationSupportURL: fixture.support)
+            let originalBytes = originalExpected ? try Data(contentsOf: original) : nil
+            if !originalExpected {
+                XCTAssertFalse(FileManager.default.fileExists(atPath: original.path))
+            }
             await diagnostics.prepare()
-            let coordinator = try StoreSessionCoordinator(validatingSession: session)
-            defer { XCTAssertNoThrow(try coordinator.invalidateAndReleaseWriter()) }
+            try await owner.admit(coordinator: coordinator)
+            let operation = try owner.originalOperationForInterruption()
+            var completedReceipts: [CompletedEraseReceiptV1] = []
+            let serviceSeed = EraseAllService(
+                applicationSupportURL: fixture.support,
+                cachesDirectoryURL: fixture.caches,
+                temporaryDirectoryURL: fixture.temporary,
+                userDefaults: fixture.defaults,
+                bundleIdentifier: "com.palatis3.fieldrecord",
+                defaultsDomainName: fixture.defaultsName,
+                failureInjection: interrupted
+                    ? EraseAllFailureInjection(failOnceAt: .afterPointerSwitch) : nil,
+                admitErase: { try await owner.admitSubject($0) },
+                didCompleteErase: { completedReceipts.append($0) })
+            // The interrupted original Service must retain its actual
+            // pre-effect physical owner for a no-repair pointer observation.
+            serviceSeed.enableOriginalColdExitWitnessForTesting = interrupted
+            let service = try owner.configure(serviceSeed)
+            Self.retainedC33InterruptedServices.append((fixture.root, service))
             if interrupted {
+#if DEBUG
+                service.erasePhaseDiagnosticForTesting = { phase in
+                    Self.traceC33DirectErasePhase(phase)
+                }
+#endif
                 do {
-                    _ = try await fixture.service(failure: .afterPointerSwitch).erase(confirmation: "ERASE",
+                    _ = try await service.erase(confirmation: "ERASE",
                         coordinator: coordinator, diagnosticsStore: diagnostics,
+                        operation: operation,
                         activate: { _ in XCTFail("afterPointerSwitch must precede activation") })
                     XCTFail("Expected authentic interruption after publishing the empty target")
-                } catch { XCTAssertEqual(error as? EraseAllServiceError, .injectedFailure) }
+                    throw V23EraseOperationHarnessV1.Failure.admission
+                } catch {
+                    guard error as? EraseAllServiceError == .injectedFailure else { throw error }
+                }
+                XCTAssertTrue(completedReceipts.isEmpty)
             } else {
-                let outcome = try await fixture.service().erase(confirmation: "ERASE",
-                    coordinator: coordinator, diagnosticsStore: diagnostics,
-                    activate: { coordinator.activate(session: $0) })
-                cleanupPermission.observe(outcome.session)
-                XCTAssertTrue(outcome.cleanupDeferred)
-                XCTAssertNotEqual(outcome.session.generationID, session.generationID)
-                XCTAssertEqual(coordinator.generationID, outcome.session.generationID)
-                XCTAssertTrue(coordinator.modelContext === outcome.session.modelContext)
-                try fixture.service().validateTemporalEvidenceEraseClosure(session: outcome.session)
-                XCTAssertEqual(try outcome.session.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), 0)
+                try await owner.prepareCompatibility(service: service,
+                    confirmation: "ERASE", coordinator: coordinator,
+                    diagnostics: diagnostics)
+                XCTAssertEqual(owner.activationCallbackEntryCount, 1)
+                // The original coordinator remains bound to the source. Its
+                // replacement is proved by the operation's prepared owner
+                // and the fresh post-cleanup session assertions below.
+                XCTAssertTrue(operation.detached)
+                XCTAssertTrue(operation.hasPreparedCleanup)
+                XCTAssertNotEqual(coordinator.generationID, session.generationID)
+                XCTAssertFalse(coordinator.modelContext === session.modelContext)
+                XCTAssertEqual(try coordinator.modelContext.fetchCount(
+                    FetchDescriptor<MutationReceiptRow>()), 0)
             }
-            let current = try StoreGenerationFactory(applicationSupportURL: fixture.support).currentGenerationID()
+            let current: UUID
+            if interrupted {
+                let binding = try service.capturePostHandoffHostileSourceForTesting(
+                    operation: operation)
+                try service.requireV949PostHandoffControlsUnchanged(
+                    binding, operation: operation)
+                current = binding.newGenerationID
+            } else {
+                current = try operation.requirePublishedTargetForV949Fixture()
+            }
             XCTAssertNotEqual(current, session.generationID)
             XCTAssertTrue(FileManager.default.fileExists(atPath: session.generationRootURL.path))
             XCTAssertNotNil(oldContext)
             XCTAssertNotNil(oldContainer)
             XCTAssertEqual(try journal.exportSnapshot(), history)
-            XCTAssertEqual(try Data(contentsOf: original), originalBytes)
-            XCTAssertEqual(originalBytes, C33TemporalEvidenceTestSupport.bytes(for: fixture.clip.facts.kind))
-            XCTAssertTrue(try StoreGenerationFactory(applicationSupportURL: fixture.support)
-                .makeGenerationLeaseRegistry().activeEpochs().contains { $0.generationID == session.generationID })
-
-            // Capture configuration values individually: capturing fixture here
-            // would retain its source session across the cold-recovery boundary.
-            let support = fixture.support, caches = fixture.caches, temporary = fixture.temporary
-            let defaults = fixture.defaults, defaultsName = fixture.defaultsName
-            return C33PreparedColdErase(support: support, oldGenerationID: session.generationID,
-                oldGenerationRoot: session.generationRootURL, newGenerationID: current,
-                diagnostics: diagnostics, makeService: {
-                    EraseAllService(applicationSupportURL: support, cachesDirectoryURL: caches,
-                        temporaryDirectoryURL: temporary, userDefaults: defaults,
-                        bundleIdentifier: "com.palatis3.fieldrecord", defaultsDomainName: defaultsName)
+            XCTAssertEqual(try? Data(contentsOf: original), originalBytes)
+            if originalExpected {
+                XCTAssertEqual(originalBytes,
+                    C33TemporalEvidenceTestSupport.bytes(for: fixture.clip.facts.kind))
+            }
+            try operation.requireCapturedOriginalReaderActiveForV949Fixture(
+                session: session)
+            if interrupted {
+                try await owner.router.beginInterruptedEarlyEraseColdRestartForTesting(
+                    operation, originalService: service,
+                    expectedFault: .afterPointerSwitch)
+            }
+            let support = fixture.support, caches = fixture.caches
+            let temporary = fixture.temporary, defaults = fixture.defaults
+            let defaultsName = fixture.defaultsName
+            return C33PreparedColdErase(root: fixture.root, support: support,
+                oldGenerationID: session.generationID,
+                oldGenerationRoot: session.generationRootURL,
+                newGenerationID: current, owner: owner,
+                interruptedOperation: interrupted ? operation : nil,
+                diagnostics: diagnostics,
+                makeService: {
+                    EraseAllService(applicationSupportURL: support,
+                        cachesDirectoryURL: caches, temporaryDirectoryURL: temporary,
+                        userDefaults: defaults,
+                        bundleIdentifier: "com.palatis3.fieldrecord",
+                        defaultsDomainName: defaultsName)
                 })
         }
 
         let prepared = try await prepare()
-        for _ in 0..<200 {
-            if oldSession == nil, oldContext == nil, oldContainer == nil { break }
-            await Task.yield()
+        guard oldSession == nil, oldContext == nil, oldContainer == nil else {
+            XCTFail("Original Router source aliases must drain before cleanup")
+            throw V23EraseOperationHarnessV1.Failure.drainPending
         }
-        XCTAssertNil(oldSession)
-        XCTAssertNil(oldContext)
-        XCTAssertNil(oldContainer)
-        let active = try StoreGenerationFactory(applicationSupportURL: prepared.support)
-            .makeGenerationLeaseRegistry().activeEpochs()
-        XCTAssertFalse(active.contains { $0.generationID == prepared.oldGenerationID })
-        guard oldSession == nil, oldContext == nil, oldContainer == nil,
-              !active.contains(where: { $0.generationID == prepared.oldGenerationID }) else {
-            return XCTFail("Cold Erase recovery requires actual source reader/context/container release")
+        let readyRouter: StartupRouter
+        if let interruptedOperation = prepared.interruptedOperation {
+            try prepared.owner.router
+                .finishInterruptedEarlyEraseColdRestartForTesting(interruptedOperation)
+            let fresh = V23EraseOperationHarnessV1(retainingRoot: prepared.root,
+                applicationSupportURL: prepared.support,
+                runtime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                    transactionUpdates: { AsyncStream { $0.finish() } },
+                    statusUpdates: { AsyncStream { $0.finish() } }),
+                profileRegistry: try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+            guard await fresh.accessGate.authenticate(trigger: .unlock) == .authenticated else {
+                throw V23EraseOperationHarnessV1.Failure.admission
+            }
+            try fresh.router.bindStartupAccessGate(fresh.accessGate)
+            let recovery = prepared.makeService()
+            Self.retainedC33InterruptedServices.append((prepared.root, recovery))
+            var phases: [String] = []
+            #if DEBUG
+            recovery.erasePhaseDiagnosticForTesting = { phase in
+                if !phase.hasPrefix("ERASE_FILE_SNAPSHOT_V1 ") { phases.append(phase) }
+            }
+            #endif
+            try await fresh.router.retryColdEraseForTesting(
+                service: recovery, accessGate: fresh.accessGate)
+            #if DEBUG
+            XCTAssertTrue(phases.contains("recovery.presence.retained-source"))
+            #endif
+            readyRouter = fresh.router
+        } else {
+            try await prepared.owner.completeCleanup()
+            try await prepared.owner.adoptCompletedReceipt()
+            try await prepared.owner.activateFreshOrdinarySession()
+            readyRouter = prepared.owner.router
         }
-        let recovery = prepared.makeService()
-        var phases: [String] = []
-        #if DEBUG
-        recovery.erasePhaseDiagnosticForTesting = { phases.append($0) }
-        #endif
-        let recovered = try await recovery.reconcileAtStartup(diagnosticsStore: prepared.diagnostics)
-        let erased = try XCTUnwrap(recovered)
+        guard case let .ready(coordinator, _, _) = readyRouter.route else {
+            throw V23EraseOperationHarnessV1.Failure.admission
+        }
+        let erased = try coordinator.sourceSessionForV949EraseFixture(router: readyRouter)
         cleanupPermission.observe(erased)
-        #if DEBUG
-        XCTAssertTrue(phases.contains("recovery.presence.retained-source"))
-        #endif
         XCTAssertEqual(erased.generationID, prepared.newGenerationID)
         XCTAssertNotEqual(erased.generationID, prepared.oldGenerationID)
         try prepared.makeService().validateTemporalEvidenceEraseClosure(session: erased)
-        XCTAssertEqual(try erased.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), 0)
+        XCTAssertEqual(try erased.modelContext.fetchCount(
+            FetchDescriptor<MutationReceiptRow>()), 0)
         XCTAssertFalse(FileManager.default.fileExists(atPath: prepared.oldGenerationRoot.path))
-        let second = try await prepared.makeService().reconcileAtStartup(diagnosticsStore: prepared.diagnostics)
-        if let second { cleanupPermission.observe(second) }
+        let repeated = prepared.makeService()
+        Self.retainedC33InterruptedServices.append((prepared.root, repeated))
+        let second = try await repeated.reconcileAtStartup(
+            diagnosticsStore: prepared.diagnostics)
         XCTAssertNil(second)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: prepared.oldGenerationRoot.path))
         cleanupPermission.completedColdRecovery = true
     }
 
     @MainActor
-    private func eraseRegisteredFixture(_ fixture: EraseOriginalFixture, interrupted: Bool, originalExpected: Bool = true) async throws {
-        let session = fixture.session
-        let journal = try MutationJournalStoreV1(modelContext: session.modelContext,
-            identity: session.workspaceIdentity, generationID: session.generationID, allowStateBootstrap: false)
-        let history = try journal.exportSnapshot()
-        let original = session.generationRootURL.appendingPathComponent(
-            try TemporalEvidenceBackupMemberV1.original(for: fixture.clip))
-        let originalBytes = originalExpected ? try Data(contentsOf: original) : nil
-        if !originalExpected { XCTAssertFalse(FileManager.default.fileExists(atPath: original.path)) }
-        let diagnostics = DiagnosticsStore(applicationSupportURL: fixture.support)
-        await diagnostics.prepare()
-        var coordinator: StoreSessionCoordinator? = StoreSessionCoordinator(session: session)
-        let erased: StoreGenerationSession
-        if interrupted {
-            do {
-                _ = try await fixture.service(failure: .afterPointerSwitch).erase(confirmation: "ERASE",
-                    coordinator: try XCTUnwrap(coordinator), diagnosticsStore: diagnostics, activate: { _ in XCTFail("afterPointerSwitch must precede activation") })
-                XCTFail("Expected post-publication interruption with registered derivatives")
-            } catch { XCTAssertEqual(error as? EraseAllServiceError, .injectedFailure) }
-            XCTAssertEqual(try journal.exportSnapshot(), history)
-            XCTAssertEqual(try? Data(contentsOf: original), originalBytes)
-            coordinator = nil
-            await Task.yield()
-            let recovery = fixture.service()
-            var phases: [String] = []
-            #if DEBUG
-            recovery.erasePhaseDiagnosticForTesting = { phases.append($0) }
-            #endif
-            let recovered = try await recovery.reconcileAtStartup(diagnosticsStore: diagnostics)
-            erased = try XCTUnwrap(recovered)
-            #if DEBUG
-            XCTAssertTrue(phases.contains("recovery.presence.retained-source"))
-            #endif
-        } else {
-            let activeCoordinator = try XCTUnwrap(coordinator)
-            erased = try await fixture.service().erase(confirmation: "ERASE",
-                coordinator: activeCoordinator, diagnosticsStore: diagnostics,
-                activate: { activeCoordinator.activate(session: $0) }).session
+    private struct C33RestoredEraseSeed {
+        let root: URL
+        let support: URL
+        let caches: URL
+        let temporary: URL
+        let defaults: UserDefaults
+        let defaultsName: String
+        let generationID: UUID
+        let workspaceID: WorkspaceID
+        let clip: TemporalEvidenceClipV1
+        let history: MutationHistorySnapshotV1
+        let currentReaderExit: V949RestoredSourceReaderExitV1
+        let restoredReaderExit: V949RestoredSourceReaderExitV1
+    }
+
+    /// Both restore-opened readers are captured while their sessions exist;
+    /// their exact wrappers close only after every original SwiftData alias
+    /// leaves the caller's lexical scope. Router then authenticates the
+    /// already-restored current generation as its sole original writer.
+    @MainActor
+    private func eraseRegisteredFixture(_ seed: C33RestoredEraseSeed,
+        interrupted: Bool) async throws {
+        try seed.currentReaderExit.closeAfterCheckedAliasDrain()
+        try seed.restoredReaderExit.closeAfterCheckedAliasDrain()
+        try await eraseRegisteredFixture(interrupted: interrupted) { cleanupPermission in
+            let owner = V23EraseOperationHarnessV1(retainingRoot: seed.root,
+                applicationSupportURL: seed.support,
+                runtime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                    transactionUpdates: { AsyncStream { $0.finish() } },
+                    statusUpdates: { AsyncStream { $0.finish() } }),
+                profileRegistry: try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+            let (coordinator, _) = try await owner.startOriginalOwner()
+            let session = try coordinator.sourceSessionForV949EraseFixture(
+                router: owner.router)
+            cleanupPermission.observe(session)
+            XCTAssertEqual(session.generationID, seed.generationID)
+            XCTAssertEqual(session.workspaceID, seed.workspaceID)
+            let journal = try MutationJournalStoreV1(modelContext: session.modelContext,
+                identity: session.workspaceIdentity,
+                generationID: session.generationID, allowStateBootstrap: false)
+            XCTAssertEqual(try journal.exportSnapshot(), seed.history)
+            let clips = try session.modelContext.fetch(
+                FetchDescriptor<TemporalEvidenceClipRow>()).map { try $0.value() }
+            XCTAssertTrue(clips.contains(seed.clip))
+            return EraseOriginalFixture(root: seed.root, support: seed.support,
+                caches: seed.caches, temporary: seed.temporary,
+                session: session, clip: seed.clip,
+                defaults: seed.defaults, defaultsName: seed.defaultsName,
+                originalOwner: owner)
         }
-        try fixture.service().validateTemporalEvidenceEraseClosure(session: erased)
-        XCTAssertEqual(try erased.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), 0)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: session.generationRootURL.path))
-        let second = try await fixture.service().reconcileAtStartup(diagnosticsStore: diagnostics)
-        XCTAssertNil(second)
     }
 
     @MainActor
@@ -2164,12 +2382,22 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
         for interrupted in [false, true] {
             for absent in [false, true] {
                 try await eraseRegisteredFixture(interrupted: interrupted) { cleanupPermission in
-                    let fixture = try await self.makeEraseOriginalFixture(cleanupPermission: cleanupPermission)
-                    let first = try await self.appendEraseDerivative(session: fixture.session, predecessor: fixture.clip, slot: 3_000)
+                    let fixture = try await self.makeEraseOriginalFixture(
+                        retainForEraseOwner: true,
+                        cleanupPermission: cleanupPermission, routerOwned: true)
+                    let originalOwner = try XCTUnwrap(fixture.originalOwner)
+                    guard case let .ready(coordinator, _, _) = originalOwner.router.route else {
+                        throw V23EraseOperationHarnessV1.Failure.admission
+                    }
+                    let writer = coordinator.workspaceWriter
+                    let first = try await self.appendEraseDerivative(session: fixture.session,
+                        predecessor: fixture.clip, slot: 3_000, suppliedWriter: writer)
                     let shared = try await self.appendEraseDerivative(session: fixture.session, predecessor: first.clip,
-                        slot: 3_100, sharing: first.derivative)
-                    let replacement = try await self.appendEraseDerivative(session: fixture.session, predecessor: shared.clip, slot: 3_200)
-                    let retired = try self.retireEraseDerivatives(session: fixture.session, predecessor: replacement.clip)
+                        slot: 3_100, sharing: first.derivative, suppliedWriter: writer)
+                    let replacement = try await self.appendEraseDerivative(session: fixture.session,
+                        predecessor: shared.clip, slot: 3_200, suppliedWriter: writer)
+                    let retired = try self.retireEraseDerivatives(session: fixture.session,
+                        predecessor: replacement.clip, suppliedWriter: writer)
                     XCTAssertTrue(retired.derivativeReferences.isEmpty)
                     let journal = try MutationJournalStoreV1(modelContext: fixture.session.modelContext,
                         identity: fixture.session.workspaceIdentity, generationID: fixture.session.generationID, allowStateBootstrap: false)
@@ -2198,7 +2426,7 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
 
     @MainActor
     func testC33EraseRestoredForeignDerivativeReferencesRequireGenuineDestinationRegistration() async throws {
-        let source = try await makeEraseOriginalFixture()
+        let source = try await makeEraseOriginalFixture(retainForEraseOwner: true)
         let registered = try await appendEraseDerivative(session: source.session, predecessor: source.clip, slot: 3_300)
         let sourceJournal = try MutationJournalStoreV1(modelContext: source.session.modelContext,
             identity: source.session.workspaceIdentity, generationID: source.session.generationID, allowStateBootstrap: false)
@@ -2209,6 +2437,7 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
         try FileManager.default.createDirectory(at: exportRoot, withIntermediateDirectories: true)
         let archive = try exporter.export(previewID: preview.id, to: exportRoot)
         for regenerate in [false, true] {
+            let seed = try await { @MainActor () async throws -> C33RestoredEraseSeed in
             let library = source.root.appendingPathComponent("restored-\(regenerate)/Library", isDirectory: true)
             let support = library.appendingPathComponent("Application Support", isDirectory: true)
             let caches = library.appendingPathComponent("Caches", isDirectory: true)
@@ -2216,7 +2445,10 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
             for directory in [support, caches, temporary] {
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             }
-            let current = try StoreGenerationFactory(applicationSupportURL: support).openOrBootstrapCurrent()
+            let destinationFactory = StoreGenerationFactory(applicationSupportURL: support)
+            let current = try destinationFactory.openOrBootstrapCurrent()
+            let currentReaderExit = try destinationFactory
+                .captureV949RestoredSourceReaderExit(session: current)
             // Replacement must start from a genuine nonempty destination; the
             // incoming temporal history remains distinct from this setup history.
             let destinationJournal = try MutationJournalStoreV1(modelContext: current.modelContext,
@@ -2257,6 +2489,8 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
             let restored = try await restorer.restore(validatedPackage: validated,
                 currentModelContext: current.modelContext, currentGenerationID: current.generationID,
                 currentGenerationRootURL: current.generationRootURL, mode: .replaceExisting)
+            let restoredReaderExit = try destinationFactory
+                .captureV949RestoredSourceReaderExit(session: restored)
             let journal = try MutationJournalStoreV1(modelContext: restored.modelContext,
                 identity: restored.workspaceIdentity, generationID: restored.generationID, allowStateBootstrap: false)
             let history = try journal.exportSnapshot()
@@ -2280,10 +2514,15 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
                 XCTAssertEqual(try TemporalEvidenceWholeGenerationEraseV1.registeredDerivatives(
                     history: after, workspaceID: restored.workspaceID), [fresh.derivative])
             }
-            let fixture = EraseOriginalFixture(root: source.root, support: support, caches: caches,
-                temporary: temporary, session: restored, clip: clip,
-                defaults: source.defaults, defaultsName: source.defaultsName)
-            try await eraseRegisteredFixture(fixture, interrupted: regenerate)
+            return C33RestoredEraseSeed(root: source.root, support: support,
+                caches: caches, temporary: temporary,
+                defaults: source.defaults, defaultsName: source.defaultsName,
+                generationID: restored.generationID, workspaceID: restored.workspaceID,
+                clip: clip, history: try journal.exportSnapshot(),
+                currentReaderExit: currentReaderExit,
+                restoredReaderExit: restoredReaderExit)
+            }()
+            try await eraseRegisteredFixture(seed, interrupted: regenerate)
         }
     }
 
@@ -2296,205 +2535,475 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
     }
 
     @MainActor
+    private struct C33HostileDerivativeObservation {
+        let raw: V949ColdSourceReadbackV1
+        let pointer: UUID
+        let generationRootURL: URL
+        let originalURL: URL
+        let originalBytes: Data
+        let derivativeURL: URL
+        let derivativeBytes: Data?
+        let derivativeLinkCount: NSNumber?
+        let siblings: [String]
+        let externalURL: URL
+        let originalDerivativeBytes: Data
+        let contextHadChanges: Bool
+    }
+
+    @MainActor
+    private func applyC33HostileDerivative(
+        _ hostile: String, session: StoreGenerationSession,
+        clip: TemporalEvidenceClipV1,
+        registered: (clip: TemporalEvidenceClipV1,
+            derivative: TemporalEvidenceDerivativeV1),
+        fixtureRoot: URL, support: URL
+    ) throws -> C33HostileDerivativeObservation {
+        let content = registered.derivative.content
+        let directory = session.generationRootURL.appendingPathComponent(
+            "content/\(content.workspaceID)/\(content.contentID)")
+        let path = directory.appendingPathComponent("original.bin")
+        let bytes = try Data(contentsOf: path)
+        let original = session.generationRootURL.appendingPathComponent(
+            try TemporalEvidenceBackupMemberV1.original(for: clip))
+        let originalBytes = try Data(contentsOf: original)
+        let external = fixtureRoot.appendingPathComponent(
+            "external-derivative.bin")
+        let rows = try session.modelContext.fetch(
+            FetchDescriptor<MutationReceiptRow>())
+        let registration = try XCTUnwrap(rows.first {
+            $0.mutationID == registered.clip.mutationID.rawValue
+        })
+        switch hostile {
+        case "digest":
+            var changed = bytes; changed[changed.startIndex] ^= 1
+            try changed.write(to: path)
+        case "length": try Data(bytes.dropLast()).write(to: path)
+        case "partial-object": try FileManager.default.removeItem(at: path)
+        case "unknown-sibling":
+            try Data("unknown".utf8).write(to:
+                directory.appendingPathComponent("extra.bin"))
+        case "fake-marker":
+            try Data("{}".utf8).write(to: directory.appendingPathComponent(
+                "derivative-publication.json"))
+        case "symlink":
+            try bytes.write(to: external)
+            try FileManager.default.removeItem(at: path)
+            try FileManager.default.createSymbolicLink(
+                at: path, withDestinationURL: external)
+        case "hardlink": try FileManager.default.linkItem(at: path, to: external)
+        case "foreign-path":
+            let foreign = session.generationRootURL.appendingPathComponent(
+                "content/\(UUID().uuidString.lowercased())/\(content.contentID)")
+            try FileManager.default.createDirectory(
+                at: foreign, withIntermediateDirectories: true)
+            try bytes.write(to: foreign.appendingPathComponent("original.bin"))
+        case "unregistered-bytes":
+            let unowned = session.generationRootURL.appendingPathComponent(
+                "content/\(content.workspaceID)/unregistered-derivative")
+            try FileManager.default.createDirectory(
+                at: unowned, withIntermediateDirectories: true)
+            try bytes.write(to: unowned.appendingPathComponent("original.bin"))
+        case "bare-reference":
+            let unregistered = try C33TemporalEvidenceTestSupport.derivative(
+                clip: registered.clip, slot: 3_990)
+            let forged = try registered.clip.successor(
+                clipID: C33TemporalEvidenceTestSupport.id(3_991),
+                profile: registered.clip.limitProfile,
+                derivativeReferences: [try unregistered.reference],
+                mutationID: C33TemporalEvidenceTestSupport.mutation(3_992))
+            session.modelContext.insert(try TemporalEvidenceClipRow(forged))
+            try session.modelContext.save()
+        case "missing-receipt":
+            session.modelContext.delete(registration)
+            try session.modelContext.save()
+        case "receipt-bytes":
+            registration.receiptData = Data("{}".utf8)
+            try session.modelContext.save()
+        case "byte-race": break
+        default: XCTFail("Unknown derivative hostile case: \(hostile)")
+        }
+        return try C33HostileDerivativeObservation(
+            raw: V949ColdSourceReadbackV1.capture(session.modelContext),
+            pointer: StoreGenerationFactory(
+                applicationSupportURL: support).currentGenerationID(),
+            generationRootURL: session.generationRootURL,
+            originalURL: original, originalBytes: originalBytes,
+            derivativeURL: path,
+            derivativeBytes: try? Data(contentsOf: path),
+            derivativeLinkCount: (try? FileManager.default.attributesOfItem(
+                atPath: path.path))?[.referenceCount] as? NSNumber,
+            siblings: FileManager.default.contentsOfDirectory(
+                atPath: directory.path).sorted(),
+            externalURL: external, originalDerivativeBytes: bytes,
+            contextHadChanges: session.modelContext.hasChanges)
+    }
+
+    @MainActor
+    private func assertC33HostileDerivativeAfterColdHandoff(
+        _ hostile: String
+    ) async throws {
+        let prepared = try await prepareC33InterruptedHostileSource {
+            fixture, writer in
+            let registered = try await self.appendEraseDerivative(
+                session: fixture.session, predecessor: fixture.clip,
+                slot: 3_500, suppliedWriter: writer)
+            return (clip: fixture.clip, registered: registered)
+        }
+        let hostileOwner = try checkedC33HostileOwner(prepared)
+        let observation = try hostileOwner.withRetiredRowMutation {
+            session in
+            try self.applyC33HostileDerivative(hostile,
+                session: session, clip: prepared.value.clip,
+                registered: prepared.value.registered,
+                fixtureRoot: prepared.fixtureRoot,
+                support: prepared.support)
+        }
+        try hostileOwner.closeAfterCheckedDrain()
+        XCTAssertFalse(observation.contextHadChanges)
+
+        let fresh = V23EraseOperationHarnessV1(
+            retainingRoot: prepared.fixtureRoot,
+            applicationSupportURL: prepared.support,
+            runtime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            profileRegistry:
+                try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        let authentication = await fresh.accessGate.authenticate(
+            trigger: .unlock)
+        XCTAssertEqual(authentication, .authenticated)
+        let recovery = EraseAllService(
+            applicationSupportURL: prepared.support,
+            cachesDirectoryURL: prepared.caches,
+            temporaryDirectoryURL: prepared.temporary,
+            userDefaults: prepared.defaults,
+            bundleIdentifier: "com.palatis3.fieldrecord",
+            defaultsDomainName: prepared.defaultsName)
+        Self.retainedC33InterruptedServices.append(
+            (prepared.fixtureRoot, recovery))
+        var phases = [String]()
+        var readbacks = [(V949ColdSourceReadbackV1,
+            V949ColdSourceReadbackV1)]()
+        var expectedBytes = observation.derivativeBytes
+        var replaced = false
+        recovery.erasePhaseDiagnosticForTesting = { phase in
+            phases.append(phase)
+            if hostile == "byte-race",
+               phase == "frozen.inventory-predicate", !replaced {
+                replaced = true
+                var changed = observation.originalDerivativeBytes
+                changed[changed.startIndex] ^= 1
+                do {
+                    try changed.write(to: observation.derivativeURL)
+                    expectedBytes = changed
+                } catch {
+                    XCTFail("Failed deterministic byte race: \(error)")
+                }
+            }
+        }
+        recovery.v949RetainedSourceReadbackForTesting = {
+            before, after in readbacks.append((before, after))
+        }
+        do {
+            try await fresh.router.retryColdEraseForTesting(
+                service: recovery, accessGate: fresh.accessGate)
+            XCTFail("Admitted hostile derivative: \(hostile)")
+        } catch {
+            XCTAssertFalse(error is CancellationError)
+        }
+        guard case .maintenance(.eraseInconsistent) = fresh.router.route else {
+            return XCTFail("Hostile derivative must keep cold Erase in maintenance")
+        }
+        XCTAssertTrue(phases.contains("recovery.presence.retained-source"),
+            "\(hostile): \(phases)")
+        XCTAssertEqual(readbacks.count, 1, hostile)
+        if let pair = readbacks.first {
+            XCTAssertEqual(pair.0, observation.raw, hostile)
+            XCTAssertEqual(pair.1, observation.raw, hostile)
+        }
+        if hostile == "byte-race" { XCTAssertTrue(replaced) }
+        XCTAssertEqual(try StoreGenerationFactory(
+            applicationSupportURL: prepared.support).currentGenerationID(),
+            observation.pointer, hostile)
+        XCTAssertTrue(FileManager.default.fileExists(atPath:
+            observation.generationRootURL.path), hostile)
+        XCTAssertEqual(try Data(contentsOf: observation.originalURL),
+            observation.originalBytes, hostile)
+        XCTAssertEqual(try? Data(contentsOf: observation.derivativeURL),
+            expectedBytes, hostile)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(
+            atPath: observation.derivativeURL.deletingLastPathComponent().path)
+            .sorted(), observation.siblings, hostile)
+        XCTAssertEqual((try? FileManager.default.attributesOfItem(
+            atPath: observation.derivativeURL.path))?[.referenceCount]
+            as? NSNumber, observation.derivativeLinkCount, hostile)
+        if hostile == "symlink" {
+            XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(
+                atPath: observation.derivativeURL.path),
+                observation.externalURL.path)
+        }
+        if hostile == "symlink" || hostile == "hardlink" {
+            XCTAssertEqual(try Data(contentsOf: observation.externalURL),
+                observation.originalDerivativeBytes, hostile)
+        }
+    }
+
+    @MainActor
     func testC33EraseRegisteredDerivativeHostilesPreserveCurrentAndRetainedSources() async throws {
-        let cases = ["digest", "length", "partial-object", "unknown-sibling", "fake-marker",
-                     "symlink", "hardlink", "foreign-path", "unregistered-bytes", "bare-reference",
-                     "missing-receipt", "receipt-bytes", "byte-race"]
+        let cases = ["digest", "length", "partial-object", "unknown-sibling",
+                     "fake-marker", "symlink", "hardlink", "foreign-path",
+                     "unregistered-bytes", "bare-reference", "missing-receipt",
+                     "receipt-bytes", "byte-race"]
         for recovering in [false, true] {
             for hostile in cases {
-                let fixture = try await makeEraseOriginalFixture()
-                let session = fixture.session
-                let registered = try await appendEraseDerivative(session: session, predecessor: fixture.clip, slot: 3_500)
-                let content = registered.derivative.content
-                let directory = session.generationRootURL.appendingPathComponent("content/\(content.workspaceID)/\(content.contentID)")
-                let path = directory.appendingPathComponent("original.bin")
-                let bytes = try Data(contentsOf: path)
-                let original = session.generationRootURL.appendingPathComponent(
-                    try TemporalEvidenceBackupMemberV1.original(for: fixture.clip))
-                let originalBytes = try Data(contentsOf: original)
-                let diagnostics = DiagnosticsStore(applicationSupportURL: fixture.support)
-                await diagnostics.prepare()
-                var coordinator: StoreSessionCoordinator? = StoreSessionCoordinator(session: session)
                 if recovering {
-                    do {
-                        _ = try await fixture.service(failure: .afterPointerSwitch).erase(confirmation: "ERASE",
-                            coordinator: try XCTUnwrap(coordinator), diagnosticsStore: diagnostics, activate: { _ in XCTFail("afterPointerSwitch must precede activation") })
-                        XCTFail("Expected registered-derivative interruption")
-                    } catch { XCTAssertEqual(error as? EraseAllServiceError, .injectedFailure) }
-                    coordinator = nil
-                    await Task.yield()
+                    try await assertC33HostileDerivativeAfterColdHandoff(hostile)
+                    continue
                 }
-                let external = fixture.root.appendingPathComponent("external-derivative.bin")
-                let rows = try session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>())
-                let registration = try XCTUnwrap(rows.first { $0.mutationID == registered.clip.mutationID.rawValue })
-                switch hostile {
-                case "digest":
-                    var changed = bytes; changed[changed.startIndex] ^= 1; try changed.write(to: path)
-                case "length": try Data(bytes.dropLast()).write(to: path)
-                case "partial-object": try FileManager.default.removeItem(at: path)
-                case "unknown-sibling": try Data("unknown".utf8).write(to: directory.appendingPathComponent("extra.bin"))
-                case "fake-marker": try Data("{}".utf8).write(to: directory.appendingPathComponent("derivative-publication.json"))
-                case "symlink":
-                    try bytes.write(to: external); try FileManager.default.removeItem(at: path)
-                    try FileManager.default.createSymbolicLink(at: path, withDestinationURL: external)
-                case "hardlink": try FileManager.default.linkItem(at: path, to: external)
-                case "foreign-path":
-                    let foreign = session.generationRootURL.appendingPathComponent("content/\(UUID().uuidString.lowercased())/\(content.contentID)")
-                    try FileManager.default.createDirectory(at: foreign, withIntermediateDirectories: true)
-                    try bytes.write(to: foreign.appendingPathComponent("original.bin"))
-                case "unregistered-bytes":
-                    let unowned = session.generationRootURL.appendingPathComponent("content/\(content.workspaceID)/unregistered-derivative")
-                    try FileManager.default.createDirectory(at: unowned, withIntermediateDirectories: true)
-                    try bytes.write(to: unowned.appendingPathComponent("original.bin"))
-                case "bare-reference":
-                    let unregistered = try C33TemporalEvidenceTestSupport.derivative(clip: registered.clip, slot: 3_990)
-                    let forged = try registered.clip.successor(clipID: C33TemporalEvidenceTestSupport.id(3_991),
-                        profile: registered.clip.limitProfile, derivativeReferences: [try unregistered.reference],
-                        mutationID: C33TemporalEvidenceTestSupport.mutation(3_992))
-                    session.modelContext.insert(try TemporalEvidenceClipRow(forged))
-                    try session.modelContext.save()
-                case "missing-receipt": session.modelContext.delete(registration); try session.modelContext.save()
-                case "receipt-bytes": registration.receiptData = Data("{}".utf8); try session.modelContext.save()
-                case "byte-race": break
-                default: XCTFail("Unknown derivative hostile case")
+                let fixture = try await makeEraseOriginalFixture(
+                    retainForEraseOwner: true, routerOwned: true)
+                let owner = try XCTUnwrap(fixture.originalOwner)
+                guard case let .ready(coordinator, diagnostics, _) = owner.router.route,
+                      coordinator.modelContext === fixture.session.modelContext else {
+                    throw V23EraseOperationHarnessV1.Failure.admission
                 }
-                let kernel = try rawEraseKernelState(session.modelContext)
-                let receipts = try rawEraseReceipts(session.modelContext)
-                let clips = try session.modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>()).map(\.canonicalData)
-                    .sorted { $0.lexicographicallyPrecedes($1) }
-                let factory = StoreGenerationFactory(applicationSupportURL: fixture.support)
-                let pointer = try factory.currentGenerationID()
-                let names = try FileManager.default.contentsOfDirectory(atPath: directory.path).sorted()
-                let links = (try? FileManager.default.attributesOfItem(atPath: path.path))?[.referenceCount] as? NSNumber
-                var expectedBytes = try? Data(contentsOf: path)
-                var phases: [String] = [], replaced = false, activated = false
-                let service = fixture.service()
-                #if DEBUG
+                await diagnostics.prepare()
+                let registered = try await appendEraseDerivative(
+                    session: fixture.session, predecessor: fixture.clip,
+                    slot: 3_500, suppliedWriter: coordinator.workspaceWriter)
+                let observation = try applyC33HostileDerivative(hostile,
+                    session: fixture.session, clip: fixture.clip,
+                    registered: registered, fixtureRoot: fixture.root,
+                    support: fixture.support)
+                try await owner.admit(coordinator: coordinator)
+                let operation = try owner.originalOperationForInterruption()
+                let service = try owner.configure(EraseAllService(
+                    applicationSupportURL: fixture.support,
+                    cachesDirectoryURL: fixture.caches,
+                    temporaryDirectoryURL: fixture.temporary,
+                    userDefaults: fixture.defaults,
+                    bundleIdentifier: "com.palatis3.fieldrecord",
+                    defaultsDomainName: fixture.defaultsName,
+                    admitErase: { try await owner.admitSubject($0) }))
+                Self.retainedC33InterruptedServices.append((fixture.root, service))
+                var phases = [String]()
+                var activated = false
+                var replaced = false
+                var expectedBytes = observation.derivativeBytes
                 service.erasePhaseDiagnosticForTesting = { phase in
                     phases.append(phase)
-                    if hostile == "byte-race", phase == "frozen.inventory-predicate", !replaced {
+                    if hostile == "byte-race",
+                       phase == "frozen.inventory-predicate", !replaced {
                         replaced = true
-                        var changed = bytes; changed[changed.startIndex] ^= 1
-                        do { try changed.write(to: path); expectedBytes = changed }
-                        catch { XCTFail("Failed deterministic race setup: \(error)") }
+                        var changed = observation.originalDerivativeBytes
+                        changed[changed.startIndex] ^= 1
+                        do {
+                            try changed.write(to: observation.derivativeURL)
+                            expectedBytes = changed
+                        } catch {
+                            XCTFail("Failed deterministic byte race: \(error)")
+                        }
                     }
                 }
-                #endif
                 do {
-                    if recovering {
-                        _ = try await service.reconcileAtStartup(diagnosticsStore: diagnostics)
-                    } else {
-                        _ = try await service.erase(confirmation: "ERASE", coordinator: try XCTUnwrap(coordinator),
-                            diagnosticsStore: diagnostics, activate: { _ in activated = true })
-                    }
-                    XCTFail("Admitted hostile derivative: \(hostile), retained=\(recovering)")
-                } catch { XCTAssertFalse(error is CancellationError) }
-                #if DEBUG
-                if hostile == "byte-race" { XCTAssertTrue(replaced) }
-                if recovering { XCTAssertTrue(phases.contains("recovery.presence.retained-source"), "\(phases)") }
-                #endif
-                XCTAssertFalse(activated)
-                XCTAssertEqual(try factory.currentGenerationID(), pointer, hostile)
-                XCTAssertEqual(try rawEraseKernelState(session.modelContext), kernel, hostile)
-                XCTAssertEqual(try rawEraseReceipts(session.modelContext), receipts, hostile)
-                XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>()).map(\.canonicalData)
-                    .sorted { $0.lexicographicallyPrecedes($1) }, clips, hostile)
-                XCTAssertEqual(try Data(contentsOf: original), originalBytes, hostile)
-                XCTAssertEqual(try? Data(contentsOf: path), expectedBytes, hostile)
-                XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path).sorted(), names, hostile)
-                XCTAssertEqual((try? FileManager.default.attributesOfItem(atPath: path.path))?[.referenceCount] as? NSNumber, links, hostile)
-                if hostile == "symlink" {
-                    XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: path.path), external.path)
+                    _ = try await service.erase(confirmation: "ERASE",
+                        coordinator: coordinator, diagnosticsStore: diagnostics,
+                        operation: operation,
+                        activate: { _ in activated = true })
+                    XCTFail("Admitted hostile derivative: \(hostile)")
+                } catch {
+                    XCTAssertFalse(error is CancellationError)
                 }
-                if hostile == "symlink" || hostile == "hardlink" { XCTAssertEqual(try Data(contentsOf: external), bytes) }
-                XCTAssertFalse(session.modelContext.hasChanges)
+                XCTAssertFalse(activated, hostile)
+                if hostile == "byte-race" { XCTAssertTrue(replaced) }
+                XCTAssertEqual(try StoreGenerationFactory(
+                    applicationSupportURL: fixture.support).currentGenerationID(),
+                    observation.pointer, hostile)
+                XCTAssertEqual(try V949ColdSourceReadbackV1.capture(
+                    fixture.session.modelContext), observation.raw, hostile)
+                XCTAssertEqual(try Data(contentsOf: observation.originalURL),
+                    observation.originalBytes, hostile)
+                XCTAssertEqual(try? Data(contentsOf: observation.derivativeURL),
+                    expectedBytes, hostile)
+                XCTAssertEqual(try FileManager.default.contentsOfDirectory(
+                    atPath: observation.derivativeURL.deletingLastPathComponent().path)
+                    .sorted(), observation.siblings, hostile)
+                XCTAssertEqual((try? FileManager.default.attributesOfItem(
+                    atPath: observation.derivativeURL.path))?[.referenceCount]
+                    as? NSNumber, observation.derivativeLinkCount, hostile)
+                if hostile == "symlink" {
+                    XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(
+                        atPath: observation.derivativeURL.path),
+                        observation.externalURL.path)
+                }
+                if hostile == "symlink" || hostile == "hardlink" {
+                    XCTAssertEqual(try Data(contentsOf: observation.externalURL),
+                        observation.originalDerivativeBytes, hostile)
+                }
+                XCTAssertFalse(fixture.session.modelContext.hasChanges)
+                XCTAssertFalse(phases.contains("recovery.presence.retained-source"))
             }
         }
     }
 
     @MainActor
     func testC33EraseRejectsContradictorySharedDerivativeDescriptors() async throws {
-        let fixture = try await makeEraseOriginalFixture()
-        let first = try await appendEraseDerivative(session: fixture.session, predecessor: fixture.clip, slot: 3_600)
-        _ = try await appendEraseDerivative(session: fixture.session, predecessor: first.clip,
-            slot: 3_700, sharing: first.derivative, conflictingCreatedAt: true)
-        let journal = try MutationJournalStoreV1(modelContext: fixture.session.modelContext,
-            identity: fixture.session.workspaceIdentity, generationID: fixture.session.generationID, allowStateBootstrap: false)
-        let history = try journal.exportSnapshot()
-        XCTAssertThrowsError(try TemporalEvidenceWholeGenerationEraseV1.registeredDerivatives(
-            history: history, workspaceID: fixture.session.workspaceID))
-        let diagnostics = DiagnosticsStore(applicationSupportURL: fixture.support)
+        weak var seededSession: StoreGenerationSession?
+        weak var seededContext: ModelContext?
+        weak var seededContainer: ModelContainer?
+        let prepared = try await { @MainActor () async throws in
+            let fixture = try await makeEraseOriginalFixture(retainForEraseOwner: true)
+            seededSession = fixture.session
+            seededContext = fixture.session.modelContext
+            seededContainer = fixture.session.modelContext.container
+            let first = try await appendEraseDerivative(session: fixture.session,
+                predecessor: fixture.clip, slot: 3_600)
+            _ = try await appendEraseDerivative(session: fixture.session, predecessor: first.clip,
+                slot: 3_700, sharing: first.derivative, conflictingCreatedAt: true)
+            let journal = try MutationJournalStoreV1(modelContext: fixture.session.modelContext,
+                identity: fixture.session.workspaceIdentity,
+                generationID: fixture.session.generationID, allowStateBootstrap: false)
+            let history = try journal.exportSnapshot()
+            XCTAssertThrowsError(try TemporalEvidenceWholeGenerationEraseV1.registeredDerivatives(
+                history: history, workspaceID: fixture.session.workspaceID))
+            let kernel = try rawEraseKernelState(fixture.session.modelContext)
+            let original = fixture.session.generationRootURL.appendingPathComponent(
+                try TemporalEvidenceBackupMemberV1.original(for: fixture.clip))
+            let originalBytes = try Data(contentsOf: original)
+            let path = fixture.session.generationRootURL.appendingPathComponent(
+                "content/\(first.derivative.content.workspaceID)/\(first.derivative.content.contentID)/original.bin")
+            return (root: fixture.root, support: fixture.support, caches: fixture.caches,
+                temporary: fixture.temporary, defaults: fixture.defaults,
+                defaultsName: fixture.defaultsName, generationID: fixture.session.generationID,
+                workspaceID: fixture.session.workspaceID, workspaceIdentity: fixture.session.workspaceIdentity,
+                history: history, kernel: kernel, original: original, originalBytes: originalBytes,
+                path: path, bytes: try Data(contentsOf: path))
+        }()
+        guard seededSession == nil, seededContext == nil, seededContainer == nil else {
+            XCTFail("Hostile fixture aliases must drain before authentic Router startup")
+            throw V23EraseOperationHarnessV1.Failure.drainPending
+        }
+        let eraseOwner = V23EraseOperationHarnessV1(retainingRoot: prepared.root,
+            applicationSupportURL: prepared.support,
+            runtime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            profileRegistry: try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        let (coordinator, diagnostics) = try await eraseOwner.startOriginalOwner()
         await diagnostics.prepare()
-        let coordinator = StoreSessionCoordinator(session: fixture.session)
-        let kernel = try rawEraseKernelState(fixture.session.modelContext)
-        let original = fixture.session.generationRootURL.appendingPathComponent(
-            try TemporalEvidenceBackupMemberV1.original(for: fixture.clip))
-        let originalBytes = try Data(contentsOf: original)
-        let path = fixture.session.generationRootURL.appendingPathComponent(
-            "content/\(first.derivative.content.workspaceID)/\(first.derivative.content.contentID)/original.bin")
-        let bytes = try Data(contentsOf: path)
-        var activated = false
+        XCTAssertEqual(coordinator.generationID, prepared.generationID)
+        try await eraseOwner.admit(coordinator: coordinator)
+        var completedReceipts: [CompletedEraseReceiptV1] = []
+        var phases: [String] = []
+        let service = try eraseOwner.configure(EraseAllService(
+            applicationSupportURL: prepared.support, cachesDirectoryURL: prepared.caches,
+            temporaryDirectoryURL: prepared.temporary, userDefaults: prepared.defaults,
+            bundleIdentifier: "com.palatis3.fieldrecord", defaultsDomainName: prepared.defaultsName,
+            admitErase: { subject in try await eraseOwner.admitSubject(subject) },
+            didCompleteErase: { completedReceipts.append($0) }))
+        #if DEBUG
+        service.erasePhaseDiagnosticForTesting = { phases.append($0) }
+        #endif
+        let originalContext = coordinator.modelContext
+        let originalWriter = coordinator.workspaceWriter
+        let originalGenerationToken = coordinator.uiGenerationToken
         do {
-            _ = try await fixture.service().erase(confirmation: "ERASE", coordinator: coordinator,
-                diagnosticsStore: diagnostics, activate: { _ in activated = true })
+            try await eraseOwner.prepareCompatibility(service: service, confirmation: "ERASE",
+                coordinator: coordinator, diagnostics: diagnostics)
             XCTFail("Conflicting historical descriptors must not authorize shared bytes")
         } catch { XCTAssertFalse(error is CancellationError) }
-        XCTAssertFalse(activated)
-        XCTAssertEqual(try StoreGenerationFactory(applicationSupportURL: fixture.support).currentGenerationID(), fixture.session.generationID)
-        XCTAssertEqual(try journal.exportSnapshot(), history)
-        XCTAssertEqual(try rawEraseKernelState(fixture.session.modelContext), kernel)
-        XCTAssertEqual(try Data(contentsOf: original), originalBytes)
-        XCTAssertEqual(try Data(contentsOf: path), bytes)
+        #if DEBUG
+        XCTAssertTrue(phases.contains("frozen.summary"), "\(phases)")
+        XCTAssertTrue(phases.contains { $0.hasPrefix("frozen.summary.failure.") }, "\(phases)")
+        #endif
+        XCTAssertTrue(coordinator.modelContext === originalContext)
+        XCTAssertTrue(coordinator.workspaceWriter === originalWriter)
+        XCTAssertEqual(coordinator.uiGenerationToken, originalGenerationToken)
+        XCTAssertEqual(eraseOwner.activationCallbackEntryCount, 0)
+        XCTAssertTrue(completedReceipts.isEmpty)
+        XCTAssertEqual(try StoreGenerationFactory(applicationSupportURL: prepared.support)
+            .currentGenerationID(), prepared.generationID)
+        let journal = try MutationJournalStoreV1(modelContext: coordinator.modelContext,
+            identity: prepared.workspaceIdentity, generationID: prepared.generationID,
+            allowStateBootstrap: false)
+        XCTAssertEqual(try journal.exportSnapshot(), prepared.history)
+        XCTAssertEqual(try rawEraseKernelState(coordinator.modelContext), prepared.kernel)
+        XCTAssertEqual(try Data(contentsOf: prepared.original), prepared.originalBytes)
+        XCTAssertEqual(try Data(contentsOf: prepared.path), prepared.bytes)
     }
 
     @MainActor
     func testC33EraseAcceptsOnlyExactAncestorsLeftByAuthenticatedDerivativeCleanup() async throws {
         for interrupted in [false, true] {
-            let fixture = try await makeEraseOriginalFixture()
-            let session = fixture.session
-            let registered = try await appendEraseDerivative(session: session, predecessor: fixture.clip, slot: 3_800)
-            let clips = try session.modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>()).map { try $0.value() }
-            let journal = try MutationJournalStoreV1(modelContext: session.modelContext,
-                identity: session.workspaceIdentity, generationID: session.generationID, allowStateBootstrap: false)
-            do {
-                let owner = try StoreSessionCoordinator(validatingSession: session)
-                defer { XCTAssertNoThrow(try owner.invalidateAndReleaseWriter()) }
-                let current = try owner.workspaceWriter.currentRevision()
+            try await eraseRegisteredFixture(interrupted: interrupted,
+                originalExpected: false) { cleanupPermission in
+                let fixture = try await self.makeEraseOriginalFixture(
+                    retainForEraseOwner: true,
+                    cleanupPermission: cleanupPermission, routerOwned: true)
+                let session = fixture.session
+                let originalOwner = try XCTUnwrap(fixture.originalOwner)
+                guard case let .ready(coordinator, _, _) = originalOwner.router.route else {
+                    throw V23EraseOperationHarnessV1.Failure.admission
+                }
+                let writer = coordinator.workspaceWriter
+                let registered = try await self.appendEraseDerivative(session: session,
+                    predecessor: fixture.clip, slot: 3_800, suppliedWriter: writer)
+                let clips = try session.modelContext.fetch(
+                    FetchDescriptor<TemporalEvidenceClipRow>()).map { try $0.value() }
+                let journal = try MutationJournalStoreV1(modelContext: session.modelContext,
+                    identity: session.workspaceIdentity,
+                    generationID: session.generationID, allowStateBootstrap: false)
+                let current = try writer.currentRevision()
                 let expected = try WorkspaceExpectedRevisionV1(workspaceID: session.workspaceID,
-                    generationID: current.generationID, writerInstanceID: current.writerInstanceID,
+                    generationID: current.generationID,
+                    writerInstanceID: current.writerInstanceID,
                     workspaceRevision: current.revision, entityRevisions: clips.map {
-                        try WorkspaceEntityRevisionV1(identity: .init(kind: .temporalEvidenceClip, id: $0.clipID), revision: $0.revision)
+                        try WorkspaceEntityRevisionV1(identity: .init(kind: .temporalEvidenceClip,
+                            id: $0.clipID), revision: $0.revision)
                     })
-                let event = try TemporalEvidenceRetentionEventV1(eventID: C33TemporalEvidenceTestSupport.id(3_900),
-                    clip: registered.clip, disposition: .deleteClip, policySHA256: String(repeating: "e", count: 64),
-                    actor: registered.clip.recordedBy, occurredAt: registered.clip.acceptedAt.addingTimeInterval(2),
+                let event = try TemporalEvidenceRetentionEventV1(
+                    eventID: C33TemporalEvidenceTestSupport.id(3_900),
+                    clip: registered.clip, disposition: .deleteClip,
+                    policySHA256: String(repeating: "e", count: 64),
+                    actor: registered.clip.recordedBy,
+                    occurredAt: registered.clip.acceptedAt.addingTimeInterval(2),
                     revision: 1, mutationID: C33TemporalEvidenceTestSupport.mutation(3_901))
-                _ = try owner.workspaceWriter.commitTemporalEvidence(.init(workspaceID: session.workspaceID,
+                _ = try writer.commitTemporalEvidence(.init(workspaceID: session.workspaceID,
                     expectedRevision: expected, mutationID: event.mutationID,
                     payload: .removeClip(event: event, clips: clips, anchors: [],
                         derivatives: [registered.derivative], predecessorEvent: nil)))
                 let recovery = try TemporalEvidencePromotionRecoveryFileAdapterV1(
-                    generationRootURL: session.generationRootURL, workspaceID: session.workspaceID,
+                    generationRootURL: session.generationRootURL,
+                    workspaceID: session.workspaceID,
                     verify: { _, _, _ in throw TemporalEvidenceContractFailureV1.invalidTransition },
                     remove: { _, _, _ in throw TemporalEvidenceContractFailureV1.invalidTransition })
-                let references = try await C33TemporalEvidenceTestSupport.cleanupReferences(context: session.modelContext,
+                let references = try await C33TemporalEvidenceTestSupport.cleanupReferences(
+                    context: session.modelContext,
                     generationRootURL: session.generationRootURL, journal: journal,
                     writerInstanceID: current.writerInstanceID, recovery: recovery)
                 XCTAssertTrue(references.liveClipContentIDs.isEmpty)
-                XCTAssertFalse(references.liveJournalContentIDs.contains(registered.derivative.content.contentID))
-                let cleanup = try OrphanFileCleanupService(generationRootURL: session.generationRootURL)
-                XCTAssertEqual(try cleanup.removeCanonicalContentIfUnreferenced(reference: fixture.clip.original,
-                    locator: fixture.clip.locator, authoritySnapshot: references).removedDirectoryCount, 1)
-                XCTAssertEqual(try cleanup.removeCanonicalContentIfUnreferenced(reference: registered.derivative.content,
-                    locator: registered.derivative.locator, authoritySnapshot: references).removedDirectoryCount, 1)
+                XCTAssertFalse(references.liveJournalContentIDs.contains(
+                    registered.derivative.content.contentID))
+                let cleanup = try OrphanFileCleanupService(
+                    generationRootURL: session.generationRootURL)
+                XCTAssertEqual(try cleanup.removeCanonicalContentIfUnreferenced(
+                    reference: fixture.clip.original, locator: fixture.clip.locator,
+                    authoritySnapshot: references).removedDirectoryCount, 1)
+                XCTAssertEqual(try cleanup.removeCanonicalContentIfUnreferenced(
+                    reference: registered.derivative.content,
+                    locator: registered.derivative.locator,
+                    authoritySnapshot: references).removedDirectoryCount, 1)
+                XCTAssertEqual(try session.modelContext.fetchCount(
+                    FetchDescriptor<TemporalEvidenceClipRow>()), 0)
+                let workspaceRoot = session.generationRootURL.appendingPathComponent(
+                    "content/\(session.workspaceID.rawValue.uuidString.lowercased())")
+                XCTAssertEqual(try FileManager.default.contentsOfDirectory(
+                    atPath: workspaceRoot.path), [])
+                XCTAssertEqual(try TemporalEvidenceWholeGenerationEraseV1.registeredDerivatives(
+                    history: journal.exportSnapshot(), workspaceID: session.workspaceID),
+                    [registered.derivative])
+                return fixture
             }
-            XCTAssertEqual(try session.modelContext.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()), 0)
-            let workspaceRoot = session.generationRootURL.appendingPathComponent(
-                "content/\(session.workspaceID.rawValue.uuidString.lowercased())")
-            XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: workspaceRoot.path), [])
-            XCTAssertEqual(try TemporalEvidenceWholeGenerationEraseV1.registeredDerivatives(
-                history: journal.exportSnapshot(), workspaceID: session.workspaceID), [registered.derivative])
-            try await eraseRegisteredFixture(fixture, interrupted: interrupted, originalExpected: false)
         }
     }
 
@@ -2508,6 +3017,18 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
         let clip: TemporalEvidenceClipV1
         let defaults: UserDefaults
         let defaultsName: String
+        let originalOwner: V23EraseOperationHarnessV1?
+
+        init(root: URL, support: URL, caches: URL, temporary: URL,
+            session: StoreGenerationSession, clip: TemporalEvidenceClipV1,
+            defaults: UserDefaults, defaultsName: String,
+            originalOwner: V23EraseOperationHarnessV1? = nil) {
+            self.root = root; self.support = support
+            self.caches = caches; self.temporary = temporary
+            self.session = session; self.clip = clip
+            self.defaults = defaults; self.defaultsName = defaultsName
+            self.originalOwner = originalOwner
+        }
 
         func service(failure: EraseAllFailurePoint? = nil) -> EraseAllService {
             let service = EraseAllService(applicationSupportURL: support, cachesDirectoryURL: caches,
@@ -2524,10 +3045,112 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
     }
 
     @MainActor
+    private static var retainedC33InterruptedServices: [(URL, EraseAllService)] = []
+
+    @MainActor
+    private struct C33InterruptedHostileSource<Value> {
+        let fixtureRoot: URL
+        let support: URL
+        let caches: URL
+        let temporary: URL
+        let defaults: UserDefaults
+        let defaultsName: String
+        let owner: V23EraseOperationHarnessV1
+        let service: EraseAllService
+        let operation: EraseRouterOperationV1
+        let diagnostics: DiagnosticsStore
+        let value: Value
+    }
+
+    /// The seeding closure receives only the exact Router-published session
+    /// and writer. It must return values, never a model object or a session.
+    /// Its lexical aliases disappear before the caller checks the old owner's
+    /// reader/EX/guard exit and constructs a separate hostile fixture owner.
+    @MainActor
+    private func prepareC33InterruptedHostileSource<Value>(
+        _ seed: @MainActor (EraseOriginalFixture,
+            WorkspaceWriterV1) async throws -> Value
+    ) async throws -> C33InterruptedHostileSource<Value> {
+        let fixture = try await makeEraseOriginalFixture(
+            retainForEraseOwner: true, routerOwned: true)
+        let owner = try XCTUnwrap(fixture.originalOwner)
+        guard case let .ready(coordinator, diagnostics, _) = owner.router.route,
+              coordinator.modelContext === fixture.session.modelContext else {
+            throw V23EraseOperationHarnessV1.Failure.admission
+        }
+        await diagnostics.prepare()
+        let value = try await seed(fixture, coordinator.workspaceWriter)
+        try await owner.admit(coordinator: coordinator)
+        let operation = try owner.originalOperationForInterruption()
+        var completedReceipts = [CompletedEraseReceiptV1]()
+        let service = try owner.configure(EraseAllService(
+            applicationSupportURL: fixture.support,
+            cachesDirectoryURL: fixture.caches,
+            temporaryDirectoryURL: fixture.temporary,
+            userDefaults: fixture.defaults,
+            bundleIdentifier: "com.palatis3.fieldrecord",
+            defaultsDomainName: fixture.defaultsName,
+            failureInjection: EraseAllFailureInjection(
+                failOnceAt: .afterPointerSwitch),
+            admitErase: { try await owner.admitSubject($0) },
+            didCompleteErase: { completedReceipts.append($0) }))
+        service.enableOriginalColdExitWitnessForTesting = true
+        Self.retainedC33InterruptedServices.append((fixture.root, service))
+#if DEBUG
+        service.erasePhaseDiagnosticForTesting = { phase in
+            Self.traceC33DirectErasePhase(phase)
+        }
+#endif
+        do {
+            _ = try await service.erase(confirmation: "ERASE",
+                coordinator: coordinator, diagnosticsStore: diagnostics,
+                operation: operation,
+                activate: { _ in
+                    XCTFail("afterPointerSwitch must precede activation")
+                })
+            XCTFail("Expected authentic post-pointer interruption")
+            throw V23EraseOperationHarnessV1.Failure.admission
+        } catch {
+            guard error as? EraseAllServiceError == .injectedFailure else {
+                throw error
+            }
+        }
+        XCTAssertTrue(completedReceipts.isEmpty)
+        try owner.router.armPostHandoffHostileFixtureForTesting(
+            operation, originalService: service)
+        try await owner.router.beginInterruptedEarlyEraseColdRestartForTesting(
+            operation, originalService: service,
+            expectedFault: .afterPointerSwitch)
+        return C33InterruptedHostileSource(
+            fixtureRoot: fixture.root, support: fixture.support,
+            caches: fixture.caches, temporary: fixture.temporary,
+            defaults: fixture.defaults, defaultsName: fixture.defaultsName,
+            owner: owner, service: service, operation: operation,
+            diagnostics: diagnostics, value: value)
+    }
+
+    @MainActor
+    private func checkedC33HostileOwner<Value>(
+        _ prepared: C33InterruptedHostileSource<Value>
+    ) throws -> V949RetiredSourceFixtureOwnerV1 {
+        try prepared.owner.router
+            .finishInterruptedEarlyEraseColdRestartForTesting(
+                prepared.operation)
+        let witness = try prepared.owner.router
+            .takePostHandoffHostileFixtureWitnessForTesting(
+                prepared.operation)
+        return try StoreGenerationFactory(
+            applicationSupportURL: prepared.support)
+            .makeV949RetiredSourceFixtureOwner(witness: witness)
+    }
+
+    @MainActor
     private func makeEraseOriginalFixture(
         seedAuthority: Bool = true,
+        retainForEraseOwner: Bool = false,
         cleanupPermission: C33EraseCleanupPermission? = nil,
-        beforeOrphanInsertion: (@MainActor (StoreGenerationSession) throws -> Void)? = nil
+        beforeOrphanInsertion: (@MainActor (StoreGenerationSession) throws -> Void)? = nil,
+        routerOwned: Bool = false
     ) async throws -> EraseOriginalFixture {
         let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
             .appendingPathComponent("C33-erase-original-\(UUID())", isDirectory: true)
@@ -2540,18 +3163,49 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
         }
         let defaultsName = "C33-erase-original-\(UUID())"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsName))
-        addTeardownBlock { [root, defaultsName, cleanupPermission] in
+        addTeardownBlock { [root, defaultsName, cleanupPermission,
+            retainForEraseOwner, routerOwned] in
             // The lifetime witnesses retain their files on any incomplete
             // recovery or still-live observed store. No model owner is captured.
+            if retainForEraseOwner || routerOwned { return }
             if let cleanupPermission, !(await cleanupPermission.permitsCleanup) { return }
             UserDefaults(suiteName: defaultsName)?.removePersistentDomain(forName: defaultsName)
             try? FileManager.default.removeItem(at: root)
         }
-        let session = try StoreGenerationFactory(applicationSupportURL: support).openOrBootstrapCurrent()
+        let originalOwner: V23EraseOperationHarnessV1?
+        let session: StoreGenerationSession
+        if routerOwned {
+            let owner = V23EraseOperationHarnessV1(retainingRoot: root,
+                applicationSupportURL: support,
+                runtime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                    transactionUpdates: { AsyncStream { $0.finish() } },
+                    statusUpdates: { AsyncStream { $0.finish() } }),
+                profileRegistry: try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+            let (coordinator, _) = try await owner.startOriginalOwner()
+            session = try coordinator.sourceSessionForV949EraseFixture(
+                router: owner.router)
+            originalOwner = owner
+        } else {
+            session = try StoreGenerationFactory(
+                applicationSupportURL: support).openOrBootstrapCurrent()
+            originalOwner = nil
+        }
         cleanupPermission?.observe(session)
+        let seededWriter: WorkspaceWriterV1?
+        if let originalOwner {
+            guard case let .ready(coordinator, _, _) = originalOwner.router.route,
+                  coordinator.modelContext === session.modelContext else {
+                throw V23EraseOperationHarnessV1.Failure.admission
+            }
+            seededWriter = coordinator.workspaceWriter
+        } else {
+            seededWriter = nil
+        }
         let clip: TemporalEvidenceClipV1
         if seedAuthority {
-            clip = try await C33TemporalEvidenceTestSupport.commitPersistentClip(in: session, slot: 1_100).clip
+            clip = try await C33TemporalEvidenceTestSupport.commitPersistentClip(
+                in: session, slot: 1_100,
+                suppliedWriter: seededWriter).clip
         } else {
             try beforeOrphanInsertion?(session)
             // Hostile orphan: intrinsically valid row and genuine immutable bytes,
@@ -2569,7 +3223,8 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
         }
         return EraseOriginalFixture(root: root, support: support, caches: caches,
             temporary: temporary, session: session, clip: clip,
-            defaults: defaults, defaultsName: defaultsName)
+            defaults: defaults, defaultsName: defaultsName,
+            originalOwner: originalOwner)
     }
 
     @MainActor
@@ -2595,36 +3250,77 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
 
     @MainActor
     func testC33EraseRejectsOtherwiseEmptyOrphanTemporalOriginalBeforeEffects() async throws {
-        var pristineCoordinator: StoreSessionCoordinator?
-        let fixture = try await makeEraseOriginalFixture(seedAuthority: false) { cleanSession in
-            XCTAssertTrue(BackupRestoreService.isEmptyCurrent(cleanSession.modelContext))
-            XCTAssertEqual(try cleanSession.modelContext.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()), 0)
-            XCTAssertEqual(try cleanSession.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), 0)
-            pristineCoordinator = try StoreSessionCoordinator(validatingSession: cleanSession)
+        weak var seededSession: StoreGenerationSession?
+        weak var seededContext: ModelContext?
+        weak var seededContainer: ModelContainer?
+        let prepared = try await { @MainActor () async throws in
+            var pristineCoordinator: StoreSessionCoordinator?
+            let fixture = try await makeEraseOriginalFixture(seedAuthority: false,
+                retainForEraseOwner: true) { cleanSession in
+                XCTAssertTrue(BackupRestoreService.isEmptyCurrent(cleanSession.modelContext))
+                XCTAssertEqual(try cleanSession.modelContext.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()), 0)
+                XCTAssertEqual(try cleanSession.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), 0)
+                pristineCoordinator = try StoreSessionCoordinator(validatingSession: cleanSession)
+            }
+            let session = fixture.session
+            seededSession = session
+            seededContext = session.modelContext
+            seededContainer = session.modelContext.container
+            let seedWriter = try XCTUnwrap(pristineCoordinator)
+            XCTAssertTrue(seedWriter.modelContext === session.modelContext)
+            let row = try XCTUnwrap(session.modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>()).first)
+            XCTAssertEqual(try row.value(), fixture.clip)
+            XCTAssertTrue(BackupRestoreService.isEmptyCurrent(session.modelContext),
+                "Reproduce the generic empty predicate's temporal-row blind spot")
+            XCTAssertEqual(try session.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), 0)
+            let original = session.generationRootURL.appendingPathComponent(
+                try TemporalEvidenceBackupMemberV1.original(for: fixture.clip))
+            let values = (root: fixture.root, support: fixture.support, caches: fixture.caches,
+                temporary: fixture.temporary, defaults: fixture.defaults,
+                defaultsName: fixture.defaultsName, generationID: session.generationID,
+                clip: fixture.clip, original: original,
+                bytes: try Data(contentsOf: original), canonical: row.canonicalData,
+                kernel: try rawEraseKernelState(session.modelContext))
+            try seedWriter.invalidateAndReleaseWriter()
+            pristineCoordinator = nil
+            return values
+        }()
+        guard seededSession == nil, seededContext == nil, seededContainer == nil else {
+            XCTFail("Orphan fixture aliases must drain before authentic Router startup")
+            throw V23EraseOperationHarnessV1.Failure.drainPending
         }
-        let session = fixture.session
-        let coordinator = try XCTUnwrap(pristineCoordinator)
-        XCTAssertTrue(coordinator.modelContext === session.modelContext)
-        let row = try XCTUnwrap(session.modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>()).first)
-        XCTAssertEqual(try row.value(), fixture.clip)
-        XCTAssertTrue(BackupRestoreService.isEmptyCurrent(session.modelContext),
-                      "Reproduce the generic empty predicate's temporal-row blind spot")
-        XCTAssertEqual(try session.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), 0)
-        let original = session.generationRootURL.appendingPathComponent(
-            try TemporalEvidenceBackupMemberV1.original(for: fixture.clip))
-        let bytes = try Data(contentsOf: original), canonical = row.canonicalData
-        let kernelBefore = try rawEraseKernelState(session.modelContext)
-        let diagnostics = DiagnosticsStore(applicationSupportURL: fixture.support)
+        let eraseOwner = V23EraseOperationHarnessV1(retainingRoot: prepared.root,
+            applicationSupportURL: prepared.support,
+            runtime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            profileRegistry: try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        let (coordinator, diagnostics) = try await eraseOwner.startOriginalOwner()
         await diagnostics.prepare()
-        let service = fixture.service()
+        XCTAssertEqual(coordinator.generationID, prepared.generationID)
+        let row = try XCTUnwrap(coordinator.modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>()).first)
+        XCTAssertEqual(try row.value(), prepared.clip)
+        XCTAssertTrue(BackupRestoreService.isEmptyCurrent(coordinator.modelContext),
+            "Reproduce the generic empty predicate's temporal-row blind spot")
+        XCTAssertEqual(try coordinator.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), 0)
+        try await eraseOwner.admit(coordinator: coordinator)
+        var completedReceipts: [CompletedEraseReceiptV1] = []
+        let service = try eraseOwner.configure(EraseAllService(
+            applicationSupportURL: prepared.support, cachesDirectoryURL: prepared.caches,
+            temporaryDirectoryURL: prepared.temporary, userDefaults: prepared.defaults,
+            bundleIdentifier: "com.palatis3.fieldrecord", defaultsDomainName: prepared.defaultsName,
+            admitErase: { subject in try await eraseOwner.admitSubject(subject) },
+            didCompleteErase: { completedReceipts.append($0) }))
+        let originalContext = coordinator.modelContext
+        let originalWriter = coordinator.workspaceWriter
+        let originalGenerationToken = coordinator.uiGenerationToken
         var phases: [String] = []
         #if DEBUG
         service.erasePhaseDiagnosticForTesting = { phases.append($0) }
         #endif
-        var activated = false
         do {
-            _ = try await service.erase(confirmation: "ERASE", coordinator: coordinator,
-                diagnosticsStore: diagnostics, activate: { _ in activated = true })
+            try await eraseOwner.prepareCompatibility(service: service, confirmation: "ERASE",
+                coordinator: coordinator, diagnostics: diagnostics)
             XCTFail("Orphan typed row and original must not create Erase authority")
         } catch { XCTAssertFalse(error is CancellationError) }
         #if DEBUG
@@ -2632,23 +3328,34 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
         XCTAssertTrue(phases.contains { $0.hasPrefix("frozen.summary.failure.") }, "\(phases)")
         XCTAssertFalse(phases.contains("frozen.inventory-predicate"), "\(phases)")
         #endif
-        XCTAssertFalse(activated)
-        XCTAssertEqual(try StoreGenerationFactory(applicationSupportURL: fixture.support).currentGenerationID(), session.generationID)
-        XCTAssertEqual(try Data(contentsOf: original), bytes)
-        XCTAssertEqual(row.canonicalData, canonical)
-        XCTAssertEqual(try rawEraseKernelState(session.modelContext), kernelBefore)
-        XCTAssertEqual(try row.value(), fixture.clip)
-        XCTAssertEqual(try session.modelContext.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()), 1)
-        XCTAssertEqual(try session.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), 0)
-        XCTAssertFalse(session.modelContext.hasChanges)
+        XCTAssertTrue(coordinator.modelContext === originalContext)
+        XCTAssertTrue(coordinator.workspaceWriter === originalWriter)
+        XCTAssertEqual(coordinator.uiGenerationToken, originalGenerationToken)
+        XCTAssertEqual(eraseOwner.activationCallbackEntryCount, 0)
+        XCTAssertTrue(completedReceipts.isEmpty)
+        XCTAssertEqual(try StoreGenerationFactory(applicationSupportURL: prepared.support)
+            .currentGenerationID(), prepared.generationID)
+        XCTAssertEqual(try Data(contentsOf: prepared.original), prepared.bytes)
+        XCTAssertEqual(row.canonicalData, prepared.canonical)
+        XCTAssertEqual(try rawEraseKernelState(coordinator.modelContext), prepared.kernel)
+        XCTAssertEqual(try row.value(), prepared.clip)
+        XCTAssertEqual(try coordinator.modelContext.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()), 1)
+        XCTAssertEqual(try coordinator.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), 0)
+        XCTAssertFalse(coordinator.modelContext.hasChanges)
     }
 
     @MainActor
     func testC33EraseAuthenticatesSharedOriginalAndRecoversAfterPointerPublication() async throws {
         for interrupted in [false, true] {
             try await eraseRegisteredFixture(interrupted: interrupted) { cleanupPermission in
-                let fixture = try await self.makeEraseOriginalFixture(cleanupPermission: cleanupPermission)
+                let fixture = try await self.makeEraseOriginalFixture(
+                    retainForEraseOwner: true,
+                    cleanupPermission: cleanupPermission, routerOwned: true)
                 let session = fixture.session
+                let originalOwner = try XCTUnwrap(fixture.originalOwner)
+                guard case let .ready(coordinator, _, _) = originalOwner.router.route else {
+                    throw V23EraseOperationHarnessV1.Failure.admission
+                }
                 let prior = fixture.clip
                 // An authentic accepted successor retains the predecessor's original.
                 // Both immutable clip rows must therefore enroll one physical member.
@@ -2661,13 +3368,11 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
                     supersedesClipID: prior.clipID, revision: prior.revision + 1,
                     mutationID: C33TemporalEvidenceTestSupport.mutation(1_902))
                 do {
-                    let writerOwner = try StoreSessionCoordinator(validatingSession: session)
-                    defer { XCTAssertNoThrow(try writerOwner.invalidateAndReleaseWriter()) }
-                    let current = try writerOwner.workspaceWriter.currentRevision()
+                    let current = try coordinator.workspaceWriter.currentRevision()
                     let expected = try C33TemporalEvidenceTestSupport.expectedRevision(for: prior,
                         generationID: current.generationID, writerInstanceID: current.writerInstanceID,
                         workspaceRevision: current.revision, entityRevision: prior.revision)
-                    _ = try writerOwner.workspaceWriter.commitTemporalEvidence(.init(
+                    _ = try coordinator.workspaceWriter.commitTemporalEvidence(.init(
                         workspaceID: session.workspaceID, expectedRevision: expected,
                         mutationID: successor.mutationID, payload: .acceptClip(successor,
                             review: C33TemporalEvidenceTestSupport.review(for: successor), predecessor: prior)))
@@ -2698,108 +3403,248 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
     }
 
     @MainActor
-    private func assertHostileEraseOriginals(recovering: Bool) async throws {
-        let cases = ["raw-row", "wrong-workspace", "missing", "wrong-digest", "wrong-length",
-                     "extra-sibling", "unowned-derivative", "symlink", "hardlink"]
-        for hostile in cases {
-            let fixture = try await makeEraseOriginalFixture()
-            let session = fixture.session
-            let original = session.generationRootURL.appendingPathComponent(
-                try TemporalEvidenceBackupMemberV1.original(for: fixture.clip))
-            let bytes = try Data(contentsOf: original)
-            let diagnostics = DiagnosticsStore(applicationSupportURL: fixture.support)
-            await diagnostics.prepare()
-            var coordinator: StoreSessionCoordinator? = StoreSessionCoordinator(session: session)
-            if recovering {
+    private struct C33HostileOriginalObservation {
+        let raw: V949ColdSourceReadbackV1
+        let pointer: UUID
+        let generationRootURL: URL
+        let originalURL: URL
+        let originalBytes: Data?
+        let originalLinkCount: NSNumber?
+        let siblings: [String]
+        let externalURL: URL
+        let externalBytes: Data
+        let contextHadChanges: Bool
+    }
+
+    /// This exact mutation runs either on the Router-published source writer
+    /// before an original Erase, or inside the new checked post-handoff owner.
+    /// It returns values only; no row/context/session escapes the closure.
+    @MainActor
+    private func applyC33HostileOriginal(
+        _ hostile: String, session: StoreGenerationSession,
+        clip: TemporalEvidenceClipV1, fixtureRoot: URL,
+        support: URL
+    ) throws -> C33HostileOriginalObservation {
+        let original = session.generationRootURL.appendingPathComponent(
+            try TemporalEvidenceBackupMemberV1.original(for: clip))
+        let bytes = try Data(contentsOf: original)
+        let row = try XCTUnwrap(session.modelContext.fetch(
+            FetchDescriptor<TemporalEvidenceClipRow>()).first)
+        let sibling = original.deletingLastPathComponent()
+            .appendingPathComponent("unowned.bin")
+        let external = fixtureRoot.appendingPathComponent(
+            "external-original.bin")
+        switch hostile {
+        case "raw-row":
+            row.originalSHA256 = String(repeating: "0", count: 64)
+            try session.modelContext.save()
+        case "wrong-workspace":
+            row.workspaceID = UUID()
+            try session.modelContext.save()
+        case "missing": try FileManager.default.removeItem(at: original)
+        case "wrong-digest":
+            var changed = bytes; changed[changed.startIndex] ^= 1
+            try changed.write(to: original)
+        case "wrong-length": try Data(bytes.dropLast()).write(to: original)
+        case "extra-sibling": try Data("unowned".utf8).write(to: sibling)
+        case "unowned-derivative":
+            try Data("{}".utf8).write(to: original.deletingLastPathComponent()
+                .appendingPathComponent("derivative-publication.json"))
+        case "symlink":
+            try bytes.write(to: external)
+            try FileManager.default.removeItem(at: original)
+            try FileManager.default.createSymbolicLink(
+                at: original, withDestinationURL: external)
+        case "hardlink":
+            try FileManager.default.linkItem(at: original, to: external)
+        default: XCTFail("Unknown hostile original case: \(hostile)")
+        }
+        return try C33HostileOriginalObservation(
+            raw: V949ColdSourceReadbackV1.capture(session.modelContext),
+            pointer: StoreGenerationFactory(
+                applicationSupportURL: support).currentGenerationID(),
+            generationRootURL: session.generationRootURL,
+            originalURL: original,
+            originalBytes: try? Data(contentsOf: original),
+            originalLinkCount: (try? FileManager.default.attributesOfItem(
+                atPath: original.path))?[.referenceCount] as? NSNumber,
+            siblings: FileManager.default.contentsOfDirectory(
+                atPath: original.deletingLastPathComponent().path).sorted(),
+            externalURL: external, externalBytes: bytes,
+            contextHadChanges: session.modelContext.hasChanges)
+    }
+
+    @MainActor
+    private func assertC33HostileOriginalAfterColdHandoff(
+        _ hostile: String
+    ) async throws {
+        let prepared = try await prepareC33InterruptedHostileSource {
+            fixture, _ in fixture.clip
+        }
+        let hostileOwner = try checkedC33HostileOwner(prepared)
+        let observation = try hostileOwner.withRetiredRowMutation {
+            session in
+            try self.applyC33HostileOriginal(hostile,
+                session: session, clip: prepared.value,
+                fixtureRoot: prepared.fixtureRoot,
+                support: prepared.support)
+        }
+        try hostileOwner.closeAfterCheckedDrain()
+        XCTAssertFalse(observation.contextHadChanges)
+
+        let fresh = V23EraseOperationHarnessV1(
+            retainingRoot: prepared.fixtureRoot,
+            applicationSupportURL: prepared.support,
+            runtime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            profileRegistry:
+                try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        let authentication = await fresh.accessGate.authenticate(
+            trigger: .unlock)
+        XCTAssertEqual(authentication, .authenticated)
+        let recovery = EraseAllService(
+            applicationSupportURL: prepared.support,
+            cachesDirectoryURL: prepared.caches,
+            temporaryDirectoryURL: prepared.temporary,
+            userDefaults: prepared.defaults,
+            bundleIdentifier: "com.palatis3.fieldrecord",
+            defaultsDomainName: prepared.defaultsName)
+        Self.retainedC33InterruptedServices.append(
+            (prepared.fixtureRoot, recovery))
+        var phases = [String]()
+        var readbacks = [(V949ColdSourceReadbackV1,
+            V949ColdSourceReadbackV1)]()
+        var expectedBytes = observation.originalBytes
+        var replaced = false
+        recovery.erasePhaseDiagnosticForTesting = { phase in
+            phases.append(phase)
+            if hostile == "byte-race",
+               phase == "frozen.inventory-predicate", !replaced {
+                replaced = true
+                var changed = observation.externalBytes
+                changed[changed.startIndex] ^= 1
                 do {
-                    _ = try await fixture.service(failure: .afterPointerSwitch).erase(confirmation: "ERASE",
-                        coordinator: try XCTUnwrap(coordinator), diagnosticsStore: diagnostics, activate: { _ in XCTFail("afterPointerSwitch must precede activation") })
-                    XCTFail("Expected pointer-publication interruption")
-                } catch { XCTAssertEqual(error as? EraseAllServiceError, .injectedFailure) }
-                coordinator = nil
-                await Task.yield()
-            }
-            let row = try XCTUnwrap(session.modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>()).first)
-            let sibling = original.deletingLastPathComponent().appendingPathComponent("unowned.bin")
-            let external = fixture.root.appendingPathComponent("external-original.bin")
-            switch hostile {
-            case "raw-row": row.originalSHA256 = String(repeating: "0", count: 64); try session.modelContext.save()
-            case "wrong-workspace": row.workspaceID = UUID(); try session.modelContext.save()
-            case "missing": try FileManager.default.removeItem(at: original)
-            case "wrong-digest":
-                var changed = bytes; changed[changed.startIndex] ^= 1
-                try changed.write(to: original)
-            case "wrong-length": try Data(bytes.dropLast()).write(to: original)
-            case "extra-sibling": try Data("unowned".utf8).write(to: sibling)
-            case "unowned-derivative":
-                // Neither a bare derivative name nor a publication marker is original ownership.
-                try Data("{}".utf8).write(to: original.deletingLastPathComponent()
-                    .appendingPathComponent("derivative-publication.json"))
-            case "symlink":
-                try bytes.write(to: external)
-                try FileManager.default.removeItem(at: original)
-                try FileManager.default.createSymbolicLink(at: original, withDestinationURL: external)
-            case "hardlink": try FileManager.default.linkItem(at: original, to: external)
-            default: XCTFail("Unknown hostile case")
-            }
-            @MainActor func rawRows() throws -> [[String]] {
-                try session.modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>()).map {
-                    [$0.clipID.uuidString, $0.workspaceID.uuidString, $0.sessionID.uuidString,
-                     String($0.revision), $0.mutationID.uuidString, $0.originalContentID,
-                     $0.originalSHA256, $0.clipSHA256, $0.canonicalData.base64EncodedString()]
+                    try changed.write(to: observation.originalURL)
+                    expectedBytes = changed
+                } catch {
+                    XCTFail("Failed deterministic byte race: \(error)")
                 }
             }
-            @MainActor func rawReceipts() throws -> [[Data]] {
-                try session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>())
-                    .sorted { $0.localSequence < $1.localSequence }
-                    .map { [$0.envelopeData, $0.receiptData, $0.reversalBasisData ?? Data(),
-                            $0.semanticReversalData ?? Data()] }
+        }
+        recovery.v949RetainedSourceReadbackForTesting = {
+            before, after in readbacks.append((before, after))
+        }
+        do {
+            try await fresh.router.retryColdEraseForTesting(
+                service: recovery, accessGate: fresh.accessGate)
+            XCTFail("Admitted hostile retained original: \(hostile)")
+        } catch {
+            XCTAssertFalse(error is CancellationError)
+        }
+        guard case .maintenance(.eraseInconsistent) = fresh.router.route else {
+            return XCTFail("Hostile source must leave cold Erase in maintenance")
+        }
+        XCTAssertTrue(phases.contains("recovery.presence.retained-source"),
+            "\(hostile): \(phases)")
+        XCTAssertEqual(readbacks.count, 1, hostile)
+        if let pair = readbacks.first {
+            XCTAssertEqual(pair.0, observation.raw, hostile)
+            XCTAssertEqual(pair.1, observation.raw, hostile)
+        }
+        if hostile == "byte-race" { XCTAssertTrue(replaced) }
+        XCTAssertEqual(try StoreGenerationFactory(
+            applicationSupportURL: prepared.support).currentGenerationID(),
+            observation.pointer, hostile)
+        XCTAssertTrue(FileManager.default.fileExists(atPath:
+            observation.generationRootURL.path), hostile)
+        XCTAssertEqual(try? Data(contentsOf: observation.originalURL),
+            expectedBytes, hostile)
+        XCTAssertEqual((try? FileManager.default.attributesOfItem(
+            atPath: observation.originalURL.path))?[.referenceCount]
+            as? NSNumber, observation.originalLinkCount, hostile)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(
+            atPath: observation.originalURL.deletingLastPathComponent().path)
+            .sorted(), observation.siblings, hostile)
+        if hostile == "symlink" {
+            XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(
+                atPath: observation.originalURL.path),
+                observation.externalURL.path)
+        }
+        if hostile == "symlink" || hostile == "hardlink" {
+            XCTAssertEqual(try Data(contentsOf: observation.externalURL),
+                observation.externalBytes, hostile)
+        }
+    }
+
+    @MainActor
+    private func assertHostileEraseOriginals(recovering: Bool) async throws {
+        let cases = ["raw-row", "wrong-workspace", "missing", "wrong-digest",
+                     "wrong-length", "extra-sibling", "unowned-derivative",
+                     "symlink", "hardlink"]
+        for hostile in cases {
+            if recovering {
+                try await assertC33HostileOriginalAfterColdHandoff(hostile)
+                continue
             }
-            let rowsBefore = try rawRows(), receiptsBefore = try rawReceipts()
-            let kernelBefore = try rawEraseKernelState(session.modelContext)
-            let factory = StoreGenerationFactory(applicationSupportURL: fixture.support)
-            let pointerBefore = try factory.currentGenerationID()
-            let originalBefore = try? Data(contentsOf: original)
-            let linksBefore = (try? FileManager.default.attributesOfItem(atPath: original.path))?[.referenceCount] as? NSNumber
-            let siblingsBefore = try FileManager.default.contentsOfDirectory(atPath: original.deletingLastPathComponent().path).sorted()
+            let fixture = try await makeEraseOriginalFixture(
+                retainForEraseOwner: true, routerOwned: true)
+            let owner = try XCTUnwrap(fixture.originalOwner)
+            guard case let .ready(coordinator, diagnostics, _) = owner.router.route,
+                  coordinator.modelContext === fixture.session.modelContext else {
+                throw V23EraseOperationHarnessV1.Failure.admission
+            }
+            await diagnostics.prepare()
+            let observation = try applyC33HostileOriginal(hostile,
+                session: fixture.session, clip: fixture.clip,
+                fixtureRoot: fixture.root, support: fixture.support)
+            try await owner.admit(coordinator: coordinator)
+            let operation = try owner.originalOperationForInterruption()
+            let service = try owner.configure(EraseAllService(
+                applicationSupportURL: fixture.support,
+                cachesDirectoryURL: fixture.caches,
+                temporaryDirectoryURL: fixture.temporary,
+                userDefaults: fixture.defaults,
+                bundleIdentifier: "com.palatis3.fieldrecord",
+                defaultsDomainName: fixture.defaultsName,
+                admitErase: { try await owner.admitSubject($0) }))
+            Self.retainedC33InterruptedServices.append((fixture.root, service))
             var activated = false
-            var phases: [String] = []
-            let rejectingService = fixture.service()
-            #if DEBUG
-            rejectingService.erasePhaseDiagnosticForTesting = { phases.append($0) }
-            #endif
             do {
-                if recovering {
-                    _ = try await rejectingService.reconcileAtStartup(diagnosticsStore: diagnostics)
-                } else {
-                    _ = try await rejectingService.erase(confirmation: "ERASE", coordinator: try XCTUnwrap(coordinator),
-                        diagnosticsStore: diagnostics, activate: { _ in activated = true })
-                }
-                XCTFail("Accepted hostile original inventory: \(hostile), recovery=\(recovering)")
+                _ = try await service.erase(confirmation: "ERASE",
+                    coordinator: coordinator, diagnosticsStore: diagnostics,
+                    operation: operation,
+                    activate: { _ in activated = true })
+                XCTFail("Admitted hostile original inventory: \(hostile)")
             } catch {
                 XCTAssertFalse(error is CancellationError)
             }
             XCTAssertFalse(activated, hostile)
-            #if DEBUG
-            if recovering {
-                XCTAssertTrue(phases.contains("recovery.presence.retained-source"), "\(hostile): \(phases)")
-            }
-            #endif
-            XCTAssertEqual(try factory.currentGenerationID(), pointerBefore, hostile)
-            XCTAssertTrue(FileManager.default.fileExists(atPath: session.generationRootURL.path), hostile)
-            XCTAssertEqual(try rawRows(), rowsBefore, hostile)
-            XCTAssertEqual(try rawReceipts(), receiptsBefore, hostile)
-            XCTAssertEqual(try rawEraseKernelState(session.modelContext), kernelBefore, hostile)
-            XCTAssertEqual(try? Data(contentsOf: original), originalBefore, hostile)
-            XCTAssertEqual((try? FileManager.default.attributesOfItem(atPath: original.path))?[.referenceCount] as? NSNumber, linksBefore, hostile)
-            XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: original.deletingLastPathComponent().path).sorted(), siblingsBefore, hostile)
+            XCTAssertEqual(try StoreGenerationFactory(
+                applicationSupportURL: fixture.support).currentGenerationID(),
+                observation.pointer, hostile)
+            XCTAssertTrue(FileManager.default.fileExists(atPath:
+                observation.generationRootURL.path), hostile)
+            XCTAssertEqual(try V949ColdSourceReadbackV1.capture(
+                fixture.session.modelContext), observation.raw, hostile)
+            XCTAssertEqual(try? Data(contentsOf: observation.originalURL),
+                observation.originalBytes, hostile)
+            XCTAssertEqual((try? FileManager.default.attributesOfItem(
+                atPath: observation.originalURL.path))?[.referenceCount]
+                as? NSNumber, observation.originalLinkCount, hostile)
+            XCTAssertEqual(try FileManager.default.contentsOfDirectory(
+                atPath: observation.originalURL.deletingLastPathComponent().path)
+                .sorted(), observation.siblings, hostile)
             if hostile == "symlink" {
-                XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: original.path), external.path)
+                XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(
+                    atPath: observation.originalURL.path),
+                    observation.externalURL.path)
             }
             if hostile == "symlink" || hostile == "hardlink" {
-                XCTAssertEqual(try Data(contentsOf: external), bytes, hostile)
+                XCTAssertEqual(try Data(contentsOf: observation.externalURL),
+                    observation.externalBytes, hostile)
             }
-            XCTAssertFalse(session.modelContext.hasChanges)
+            XCTAssertFalse(fixture.session.modelContext.hasChanges)
         }
     }
 

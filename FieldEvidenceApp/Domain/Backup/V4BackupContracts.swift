@@ -3654,7 +3654,23 @@ enum C55PartsStockBackupEnrollmentV1 {
         }
         guard records.recordsSchemaVersion >= recordsSchemaVersion,
               let snapshot = records.partsStockSnapshot else { throw PartsStockFailureV1.incompatibleVersion }
+#if DEBUG
+        do {
+            try snapshot.validate()
+        } catch {
+            // PartsStockValidationV1.replay has the sole snapshot-side
+            // staleRevision guard: location revision or pre-balance mismatch.
+            FileHandle.standardError.write(Data((
+                "C55 snapshot validation failure phase=stock-snapshot-replay "
+                    + "type=\(String(reflecting: type(of: error))) "
+                    + "parts=\(snapshot.parts.count) locations=\(snapshot.locations.count) "
+                    + "movements=\(snapshot.movements.count)\n"
+            ).utf8))
+            throw error
+        }
+#else
         try snapshot.validate()
+#endif
         guard workspaceID.map({ snapshot.workspaceID == $0 }) ?? true else {
             throw PartsStockFailureV1.crossWorkspace
         }
@@ -3714,6 +3730,23 @@ enum C55PartsStockBackupEnrollmentV1 {
         history: MutationHistorySnapshotV1,
         importedHistoryFacts: MutationHistoryImportedValidationFactsV1?
     ) throws {
+#if DEBUG
+        func staleRevision(_ guardName: String) -> PartsStockFailureV1 {
+            FileHandle.standardError.write(Data(
+                "C55 journal failure guard=\(guardName)\n".utf8
+            ))
+            return .staleRevision
+        }
+        FileHandle.standardError.write(Data((
+            "C55 journal entry parts=\(snapshot.parts.count) "
+                + "locations=\(snapshot.locations.count) "
+                + "movements=\(snapshot.movements.count) "
+                + "uses=\(snapshot.uses.count) reversals=\(snapshot.reversals.count) "
+                + "returns=\(snapshot.returns.count) "
+                + "abandonments=\(snapshot.abandonments.count) "
+                + "historyReceipts=\(history.receipts.count)\n"
+        ).utf8))
+#endif
         func isStockKind(_ kind: WorkspaceEntityKindV1) -> Bool {
             switch kind {
             case .localPartDefinition, .stockStorageLocation, .stockBalanceStream,
@@ -3951,19 +3984,29 @@ enum C55PartsStockBackupEnrollmentV1 {
                   workspaceResults.insert(nextWorkspaceRevision).inserted else {
                 throw PartsStockFailureV1.invalidTransition
             }
-            if envelope.sourceKind == .importedHistory {
-                guard !sawNonImportedReceipt,
-                      priorResultingWorkspaceRevision.map({
+            if envelope.sourceKind == .importedHistory && !sawNonImportedReceipt {
+                // A retained historical prefix may begin at a projected
+                // baseline. After native work, a live imported append joins
+                // the same exact contiguous chain as every other command.
+                guard priorResultingWorkspaceRevision.map({
                           expectedWorkspaceRevision >= $0
                       }) ?? true else {
+                    #if DEBUG
+                    throw staleRevision("imported-prefix-order")
+                    #else
                     throw PartsStockFailureV1.staleRevision
+                    #endif
                 }
                 importedPrefixCutoff = nextWorkspaceRevision
             } else {
                 let expectedPredecessor = priorResultingWorkspaceRevision
                     ?? importedPrefixCutoff
                 guard expectedWorkspaceRevision == expectedPredecessor else {
+                    #if DEBUG
+                    throw staleRevision("local-workspace-predecessor")
+                    #else
                     throw PartsStockFailureV1.staleRevision
+                    #endif
                 }
                 sawNonImportedReceipt = true
             }
@@ -4038,7 +4081,11 @@ enum C55PartsStockBackupEnrollmentV1 {
                           expected == (prior ?? 1),
                           image.revision == successor,
                           image.revision <= baseline.revision else {
+                        #if DEBUG
+                        throw staleRevision("projected-part-baseline")
+                        #else
                         throw PartsStockFailureV1.staleRevision
+                        #endif
                     }
                     explainedPartRevision[identity.id] = image.revision
                 case .stockStorageLocation:
@@ -4051,7 +4098,11 @@ enum C55PartsStockBackupEnrollmentV1 {
                           expected == (prior ?? 1),
                           image.revision == successor,
                           image.revision <= baseline.revision else {
+                        #if DEBUG
+                        throw staleRevision("projected-location-baseline")
+                        #else
                         throw PartsStockFailureV1.staleRevision
+                        #endif
                     }
                     explainedLocationRevision[identity.id] = image.revision
                 default:
@@ -4066,23 +4117,39 @@ enum C55PartsStockBackupEnrollmentV1 {
                           try physicalIdentity(for: $0) == identity
                       }),
                       image.revision == successor else {
+                    #if DEBUG
+                    throw staleRevision("stock-image-for-missing-state")
+                    #else
                     throw PartsStockFailureV1.staleRevision
+                    #endif
                 }
                 switch identity.kind {
                 case .localPartDefinition:
                     guard projected,
                           let baseline = externalPartBaselines[identity.id],
                           successor <= baseline.revision else {
+                        #if DEBUG
+                        throw staleRevision("missing-part-baseline")
+                        #else
                         throw PartsStockFailureV1.staleRevision
+                        #endif
                     }
                 case .stockStorageLocation:
                     guard projected,
                           let baseline = externalLocationBaselines[identity.id],
                           successor <= baseline.revision else {
+                        #if DEBUG
+                        throw staleRevision("missing-location-baseline")
+                        #else
                         throw PartsStockFailureV1.staleRevision
+                        #endif
                     }
                 default:
+                    #if DEBUG
+                    throw staleRevision("unsupported-missing-stock-kind")
+                    #else
                     throw PartsStockFailureV1.staleRevision
+                    #endif
                 }
                 stockState[identity] = expected
             }
@@ -4121,7 +4188,11 @@ enum C55PartsStockBackupEnrollmentV1 {
             guard expectedStock.allSatisfy({
                 stockState[$0.key, default: 0] == $0.value
             }) else {
+                #if DEBUG
+                throw staleRevision("expected-stock-frontier")
+                #else
                 throw PartsStockFailureV1.staleRevision
+                #endif
             }
             var nextStockState = stockState
             for image in images {
@@ -4878,16 +4949,184 @@ extension V4BackupRecordsV1 {
         let contactsByID = Dictionary(uniqueKeysWithValues: contacts.map {
             ($0.contactPointID, $0)
         })
+        var historicalTargets: [(intent: SystemHandoffIntentV1, current: ServiceContactPointV1)] = []
         for intent in activeIntents where intent.target.kind == .serviceContactPoint {
             guard let target = contactsByID[intent.target.targetID],
                   target.workspaceID == intent.workspaceID,
-                  target.lifecycle == .effective,
-                  target.revision == intent.target.expectedRevision,
-                  target.contactPointSHA256 == intent.target.expectedSHA256 else {
+                  target.lifecycle == .effective else {
+                throw OperationalContactFailureV1.digestMismatch
+            }
+            if target.revision == intent.target.expectedRevision,
+               target.contactPointSHA256 == intent.target.expectedSHA256 {
+                continue
+            }
+            guard intent.target.expectedRevision < target.revision else {
+                throw OperationalContactFailureV1.digestMismatch
+            }
+            historicalTargets.append((intent, target))
+        }
+        if !historicalTargets.isEmpty {
+            try requireAuthenticatedC46HistoricalTargets(historicalTargets)
+        }
+        return (contacts, intents)
+    }
+
+    /// An archive keeps the reviewed target as issued. A later contact row may
+    /// replace that target, but only complete receipt-backed history can prove
+    /// the old target and every successor through the current row. This does
+    /// not authorize a live system handoff against the stale target.
+    private func requireAuthenticatedC46HistoricalTargets(
+        _ targets: [(intent: SystemHandoffIntentV1, current: ServiceContactPointV1)]
+    ) throws {
+        guard let history = mutationHistory else {
+            throw OperationalContactFailureV1.digestMismatch
+        }
+        let facts = try MutationJournalStoreV1.validatedImportedSnapshotFacts(history)
+        guard facts.receiptStableKeys(matching: history)?.count == history.receipts.count else {
+            throw OperationalContactFailureV1.digestMismatch
+        }
+        struct ContactProducer {
+            let value: ServiceContactPointV1
+            let predecessor: ServiceContactPointV1?
+            let workspaceRevision: UInt64
+        }
+        struct IntentProducer {
+            let value: SystemHandoffIntentV1
+            let workspaceRevision: UInt64
+        }
+        struct ContactKey: Hashable {
+            let workspaceID: WorkspaceID
+            let contactPointID: UUID
+        }
+        struct IntentKey: Hashable {
+            let workspaceID: WorkspaceID
+            let intentID: UUID
+        }
+        var contactsByKey: [ContactKey: [ContactProducer]] = [:]
+        var intentsByKey: [IntentKey: [IntentProducer]] = [:]
+        var terminalImagesByKey: [ContactKey: MutationPostImageV1] = [:]
+        for record in history.receipts {
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+            let receipt = try MutationReceiptV1.decodeCanonical(from: record.receiptData)
+            // Match the journal's latest-image rule in this one receipt pass.
+            // A later tombstone has the same contact identity and must replace
+            // an earlier live image; equal-revision conflicts never use order.
+            for image in receipt.postImages {
+                let identity = try image.identity
+                guard identity.kind == .serviceContactPoint else { continue }
+                let key = ContactKey(
+                    workspaceID: receipt.identity.workspaceID,
+                    contactPointID: identity.id)
+                if let prior = terminalImagesByKey[key] {
+                    if prior.revision == image.revision && prior != image {
+                        throw OperationalContactFailureV1.digestMismatch
+                    }
+                    if prior.revision >= image.revision { continue }
+                }
+                terminalImagesByKey[key] = image
+            }
+            let mutation: OperationalContactMutationV1
+            switch envelope.command {
+            case let .applyOperationalContact(value):
+                _ = try OperationalContactMutationReceiptV1(
+                    mutation: value, mutationReceipt: receipt)
+                mutation = value
+            case let .applyPartyContactSiteRoleImport(value):
+                _ = try PartyContactSiteRoleImportMutationReceiptV1(
+                    mutation: value, mutationReceipt: receipt)
+                mutation = value.operationalContactMutation
+            default:
+                continue
+            }
+            let revision = receipt.resultingRevision.workspaceRevision
+            for successor in mutation.successors {
+                let key = ContactKey(
+                    workspaceID: successor.workspaceID,
+                    contactPointID: successor.contactPointID)
+                contactsByKey[key, default: []].append(ContactProducer(
+                    value: successor,
+                    predecessor: mutation.predecessors.first {
+                        $0.contactPointID == successor.contactPointID
+                    },
+                    workspaceRevision: revision
+                ))
+            }
+            for intent in mutation.handoffIntents {
+                let key = IntentKey(
+                    workspaceID: intent.workspaceID, intentID: intent.intentID)
+                intentsByKey[key, default: []].append(IntentProducer(
+                    value: intent, workspaceRevision: revision))
+            }
+        }
+        let currentRowsByKey = Dictionary(uniqueKeysWithValues: operationalContacts
+            .filter { $0.kind == .serviceContactPoint }
+            .map { row in
+                (ContactKey(workspaceID: WorkspaceID(rawValue: row.workspaceID),
+                            contactPointID: row.id), row)
+            })
+        let revisionsByIdentity = Dictionary(uniqueKeysWithValues: history.entityRevisions.map {
+            ($0.identity, $0.revision)
+        })
+        var validatedChains: [ContactKey: [UInt64: ContactProducer]] = [:]
+        for key in Set(targets.map {
+            ContactKey(workspaceID: $0.current.workspaceID,
+                       contactPointID: $0.current.contactPointID)
+        }) {
+            let chain = (contactsByKey[key] ?? []).sorted {
+                $0.value.revision < $1.value.revision
+            }
+            guard !chain.isEmpty else {
+                throw OperationalContactFailureV1.digestMismatch
+            }
+            for (index, producer) in chain.enumerated() {
+                guard producer.value.revision == UInt64(index + 1) else {
+                    throw OperationalContactFailureV1.digestMismatch
+                }
+                if index == 0 {
+                    guard producer.predecessor == nil else {
+                        throw OperationalContactFailureV1.digestMismatch
+                    }
+                } else {
+                    let prior = chain[index - 1]
+                    guard producer.predecessor == prior.value,
+                          producer.value.supersedes == (try prior.value.revisionReference),
+                          prior.workspaceRevision < producer.workspaceRevision else {
+                        throw OperationalContactFailureV1.digestMismatch
+                    }
+                }
+            }
+            validatedChains[key] = Dictionary(uniqueKeysWithValues: chain.map {
+                ($0.value.revision, $0)
+            })
+        }
+        for (intent, current) in targets {
+            let key = ContactKey(
+                workspaceID: current.workspaceID,
+                contactPointID: current.contactPointID)
+            let issuanceKey = IntentKey(
+                workspaceID: intent.workspaceID, intentID: intent.intentID)
+            guard let issued = intentsByKey[issuanceKey], issued.count == 1,
+                  issued[0].value == intent,
+                  let chain = validatedChains[key],
+                  let original = chain[intent.target.expectedRevision],
+                  original.value.contactPointSHA256 == intent.target.expectedSHA256,
+                  original.workspaceRevision <= issued[0].workspaceRevision,
+                  chain[UInt64(chain.count)]?.value == current else {
+                throw OperationalContactFailureV1.digestMismatch
+            }
+            guard currentRowsByKey[key] == (try V35BackupOperationalContactRecordV1(current)) else {
+                throw OperationalContactFailureV1.digestMismatch
+            }
+            let identity = try WorkspaceEntityIdentityV1(
+                kind: .serviceContactPoint, id: current.contactPointID)
+            let expectedImage = MutationPostImageV1.serviceContactPoint(
+                id: current.contactPointID, concurrencyIdentity: identity,
+                revision: current.revision, semanticSHA256: current.contactPointSHA256)
+            guard terminalImagesByKey[key] == expectedImage,
+                  revisionsByIdentity[identity] == current.revision else {
                 throw OperationalContactFailureV1.digestMismatch
             }
         }
-        return (contacts, intents)
     }
 
     /// C32 uses the existing records-envelope families and stores its one
@@ -4943,7 +5182,25 @@ extension V4BackupRecordsV1 {
             }
         }
 
-        var aggregates: [PartyContactSiteRoleImportMutationV1] = []
+        // Imported clone/fork history retains byte-identical source receipts.
+        // Authenticate every aggregate below, but compare its mutable Party
+        // and append-only role children to present rows only when it belongs
+        // to the current row workspace. Foreign receipts are historical
+        // provenance, not authority for destination rows.
+        let rowWorkspaces = Set(partyValues.values.map(\.workspaceID)
+            + roleValues.values.map(\.workspaceID)
+            + operationalContacts.map { WorkspaceID(rawValue: $0.workspaceID) })
+        guard rowWorkspaces.count <= 1 else {
+            throw OperationalContactFailureV1.crossWorkspaceReference
+        }
+        let currentRowWorkspace = rowWorkspaces.first
+
+        struct AggregateWitness {
+            let envelope: MutationEnvelopeV1
+            let receipt: MutationReceiptV1
+            let mutation: PartyContactSiteRoleImportMutationV1
+        }
+        var aggregates: [AggregateWitness] = []
         var aggregateKeys = Set<String>()
         for record in mutationHistory.receipts {
             let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
@@ -4971,10 +5228,238 @@ extension V4BackupRecordsV1 {
                 mutation: mutation,
                 mutationReceipt: receipt
             )
-            aggregates.append(mutation)
+            aggregates.append(.init(
+                envelope: envelope, receipt: receipt, mutation: mutation
+            ))
         }
 
-        for mutation in aggregates {
+        // A retained foreign aggregate is permitted only as an exact source
+        // in the imported projection chain that reaches this row workspace.
+        // The projection correlation names its immediate source mutation ID;
+        // its own deterministic ID binds target workspace and generation.
+        let projectionsBySourceID = Dictionary(grouping: aggregates.compactMap {
+            value -> AggregateWitness? in
+            value.envelope.sourceKind == .importedHistory
+                && value.envelope.correlationID != nil ? value : nil
+        }, by: { $0.envelope.correlationID! })
+        let aggregateByMutationKey = Dictionary(uniqueKeysWithValues: aggregates.map {
+            (MutationWorkspaceKeyV1.value(
+                workspaceID: $0.mutation.workspaceID,
+                mutationID: $0.mutation.mutationID
+            ), $0)
+        })
+        func projectedPartyMutationID(
+            for original: ServicePartyReferenceV1,
+            workspace: WorkspaceID,
+            generationID: UUID
+        ) throws -> MutationIDV1 {
+            let sourceKey = MutationWorkspaceKeyV1.value(
+                workspaceID: original.workspaceID,
+                mutationID: original.mutationID
+            )
+            guard let sourceProducer = aggregateByMutationKey[sourceKey] else {
+                // A Party created outside C32 keeps its original mutation
+                // provenance; contact projection never invents that command.
+                return original.mutationID
+            }
+            let sourceParties = try sourceProducer.mutation.partyMutations.map {
+                value -> ServicePartyReferenceV1 in
+                guard case let .recordParty(party) = value else {
+                    throw OperationalContactFailureV1.digestMismatch
+                }
+                return party
+            }
+            guard sourceParties.contains(original) else {
+                throw OperationalContactFailureV1.digestMismatch
+            }
+            let targetID = try RestoreIdentityV1.destinationOperationalContactMutationID(
+                for: original.mutationID,
+                targetWorkspaceID: workspace.rawValue,
+                targetGenerationID: generationID
+            )
+            let targetKey = MutationWorkspaceKeyV1.value(
+                workspaceID: workspace,
+                mutationID: targetID
+            )
+            guard let targetProducer = aggregateByMutationKey[targetKey],
+                  targetProducer.envelope.sourceKind == .importedHistory,
+                  targetProducer.envelope.correlationID == original.mutationID.rawValue else {
+                throw OperationalContactFailureV1.digestMismatch
+            }
+            return targetID
+        }
+        func sameContactFacts(
+            _ original: ServiceContactPointV1,
+            _ projected: ServiceContactPointV1,
+            workspace: WorkspaceID,
+            generationID: UUID
+        ) throws -> Bool {
+            let originalParty = original.party
+            let projectedParty = try ServicePartyReferenceV1(
+                partyID: originalParty.partyID,
+                workspaceID: workspace,
+                kind: originalParty.kind,
+                displayName: originalParty.displayName,
+                profileDescriptor: originalParty.profileDescriptor,
+                provenance: originalParty.provenance,
+                privacyClass: originalParty.privacyClass,
+                state: originalParty.state,
+                effectiveAt: originalParty.effectiveAt,
+                retiredAt: originalParty.retiredAt,
+                revision: originalParty.revision,
+                mutationID: try projectedPartyMutationID(
+                    for: originalParty,
+                    workspace: workspace,
+                    generationID: generationID
+                )
+            )
+            return try projected.workspaceID == workspace
+                && projected.party == projectedParty
+                && projected.contactPointID == original.contactPointID
+                && projected.kind == original.kind
+                && projected.label == original.label
+                && projected.displayValue == original.displayValue
+                && projected.preferred == original.preferred
+                && projected.provenance == original.provenance
+                && projected.privacyClass == original.privacyClass
+                && projected.lifecycle == original.lifecycle
+                && projected.effectiveAt == original.effectiveAt
+                && projected.retiredAt == original.retiredAt
+                && projected.revision == original.revision
+                && projected.supersedes?.contactPointID
+                    == original.supersedes?.contactPointID
+                && projected.supersedes?.revision == original.supersedes?.revision
+                && projected.mutationID ==
+                    (try RestoreIdentityV1.destinationOperationalContactMutationID(
+                        for: original.mutationID,
+                        targetWorkspaceID: workspace.rawValue,
+                        targetGenerationID: generationID
+                    ))
+        }
+        func authenticProjection(
+            source: AggregateWitness, target: AggregateWitness
+        ) throws -> Bool {
+            let original = source.mutation
+            let projected = target.mutation
+            let workspace = projected.workspaceID
+            let generationID = target.envelope.generationID
+            guard original.partyMutations.count == projected.partyMutations.count,
+                  original.siteRoleMutations.count == projected.siteRoleMutations.count else {
+                return false
+            }
+            for (sourceValue, targetValue) in zip(
+                original.partyMutations, projected.partyMutations
+            ) {
+                guard case let .recordParty(party) = sourceValue,
+                      case let .recordParty(rebound) = targetValue,
+                      rebound == (try ServicePartyReferenceV1(
+                        partyID: party.partyID, workspaceID: workspace,
+                        kind: party.kind, displayName: party.displayName,
+                        profileDescriptor: party.profileDescriptor,
+                        provenance: party.provenance,
+                        privacyClass: party.privacyClass, state: party.state,
+                        effectiveAt: party.effectiveAt, retiredAt: party.retiredAt,
+                        revision: party.revision,
+                        mutationID: projected.mutationID
+                      )) else { return false }
+            }
+            for (sourceValue, targetValue) in zip(
+                original.siteRoleMutations, projected.siteRoleMutations
+            ) {
+                guard case let .appendSiteRole(role) = sourceValue,
+                      case let .appendSiteRole(rebound) = targetValue,
+                      rebound == (try SitePartyRoleEventV1(
+                        eventID: role.eventID, workspaceID: workspace,
+                        siteID: role.siteID, partyID: role.partyID,
+                        role: role.role, effectiveFrom: role.effectiveFrom,
+                        effectiveUntil: role.effectiveUntil,
+                        source: role.source,
+                        supersedesEventID: role.supersedesEventID,
+                        revision: role.revision,
+                        mutationID: projected.mutationID,
+                        recordedAt: role.recordedAt
+                      )) else { return false }
+            }
+            let sourceContact = original.operationalContactMutation
+            let targetContact = projected.operationalContactMutation
+            guard sourceContact.predecessors.count == targetContact.predecessors.count,
+                  sourceContact.successors.count == targetContact.successors.count,
+                  sourceContact.handoffIntents.count == targetContact.handoffIntents.count,
+                  sourceContact.preferredScopes == targetContact.preferredScopes,
+                  sourceContact.importSourceSet?.files == targetContact.importSourceSet?.files,
+                  targetContact.importSourceSet?.workspaceID ==
+                    sourceContact.importSourceSet.map({ _ in workspace }) else {
+                return false
+            }
+            for (original, rebound) in zip(
+                sourceContact.predecessors, targetContact.predecessors
+            ) {
+                guard try sameContactFacts(original, rebound,
+                    workspace: workspace, generationID: generationID) else {
+                    return false
+                }
+            }
+            for (original, rebound) in zip(
+                sourceContact.successors, targetContact.successors
+            ) {
+                guard try sameContactFacts(original, rebound,
+                    workspace: workspace, generationID: generationID) else {
+                    return false
+                }
+            }
+            for (original, rebound) in zip(
+                sourceContact.handoffIntents, targetContact.handoffIntents
+            ) {
+                guard rebound == (try original.reboundForHistoricRestore(
+                    to: workspace, mutationID: projected.mutationID
+                )) else { return false }
+            }
+            return true
+        }
+        var verifiedHistoricAggregates = Set<String>()
+        for witness in aggregates {
+            let mutation = witness.mutation
+            if let currentRowWorkspace,
+               mutation.workspaceID != currentRowWorkspace {
+                var cursor = witness
+                var seen = Set<String>()
+                while cursor.mutation.workspaceID != currentRowWorkspace {
+                    let cursorKey = MutationWorkspaceKeyV1.value(
+                        workspaceID: cursor.mutation.workspaceID,
+                        mutationID: cursor.mutation.mutationID
+                    )
+                    if verifiedHistoricAggregates.contains(cursorKey) { break }
+                    guard seen.insert(cursorKey).inserted else {
+                        throw OperationalContactFailureV1.digestMismatch
+                    }
+                    let candidates = projectionsBySourceID[
+                        cursor.mutation.mutationID.rawValue, default: []
+                    ]
+                    let children = try candidates.filter { candidate in
+                        try candidate.mutation.workspaceID != cursor.mutation.workspaceID
+                            && candidate.mutation.mutationID ==
+                                (try RestoreIdentityV1.destinationOperationalContactMutationID(
+                                    for: cursor.mutation.mutationID,
+                                    targetWorkspaceID: candidate.mutation.workspaceID.rawValue,
+                                    targetGenerationID: candidate.envelope.generationID
+                                ))
+                            && candidate.envelope.contentDependencyIDs
+                                == cursor.envelope.contentDependencyIDs
+                            && candidate.receipt.committedAt == cursor.receipt.committedAt
+                            && candidate.receipt.identity.localSequence
+                                == cursor.receipt.identity.localSequence
+                            && (try authenticProjection(
+                                source: cursor, target: candidate
+                            ))
+                    }
+                    guard children.count == 1, let child = children.first else {
+                        throw OperationalContactFailureV1.digestMismatch
+                    }
+                    cursor = child
+                }
+                verifiedHistoricAggregates.formUnion(seen)
+                continue
+            }
             let parties = try mutation.partyMutations.map { value -> ServicePartyReferenceV1 in
                 guard case let .recordParty(party) = value else {
                     throw OperationalContactFailureV1.digestMismatch
@@ -5039,7 +5524,7 @@ extension V4BackupRecordsV1 {
                 }
             }
         }
-        return aggregates.sorted {
+        return aggregates.map(\.mutation).sorted {
             $0.mutationID.rawValue.uuidString.lowercased()
                 < $1.mutationID.rawValue.uuidString.lowercased()
         }
