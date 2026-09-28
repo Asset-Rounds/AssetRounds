@@ -1798,6 +1798,14 @@ final class V9_53OperationalContactTests: XCTestCase {
             generationRootURL: replaced.generationRootURL
         ).delete(assetID: unrelatedAssetID)
         XCTAssertEqual(deletion.assetID, unrelatedAssetID)
+        // Ordinary deletion must invalidate the shared exchange at App Support,
+        // never create a second exchange inside the pointer-storage directory.
+        let exchangeDirectory = PortableExchangeSessionStoreLayoutV2.directoryName
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sourceSupport
+            .appendingPathComponent(exchangeDirectory, isDirectory: true).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: sourceSupport
+            .appendingPathComponent("FieldEvidenceData", isDirectory: true)
+            .appendingPathComponent(exchangeDirectory, isDirectory: true).path))
         XCTAssertEqual(
             try replaced.modelContext.fetch(FetchDescriptor<ServiceContactPointRow>()).map { try $0.value() },
             [successor]
@@ -1863,6 +1871,10 @@ final class V9_53OperationalContactTests: XCTestCase {
         ))
         try await owner.prepareCompatibility(service: erase,
             confirmation: EraseAllService.requiredConfirmation, coordinator: coordinator, diagnostics: diagnostics)
+
+#if DEBUG
+        print("C46_R01_POST_DETACH_V1 stage=service-returned")
+#endif
         return erase
         }()
         guard originalCoordinator == nil, originalContext == nil, originalContainer == nil else {
@@ -1870,17 +1882,50 @@ final class V9_53OperationalContactTests: XCTestCase {
             throw V23EraseOperationHarnessV1.Failure.drainPending
         }
         XCTAssertTrue(completedReceipts.isEmpty)
+#if DEBUG
+        print("C46_R01_POST_DETACH_V1 stage=cleanup-enter")
+#endif
         try await owner.completeCleanup()
+#if DEBUG
+        print("C46_R01_POST_DETACH_V1 stage=cleanup-complete")
+#endif
         XCTAssertEqual(completedReceipts.count, 1)
+#if DEBUG
+        print("C46_R01_POST_DETACH_V1 stage=receipt-enter")
+#endif
         let deliveredReceipt = try XCTUnwrap(completedReceipts.first)
         let reservation = try XCTUnwrap(admittedReservation)
         XCTAssertEqual(deliveredReceipt.reservation, reservation)
         XCTAssertEqual(deliveredReceipt.subject, reservation.subject)
+#if DEBUG
+        print("C46_R01_POST_DETACH_V1 stage=adoption-enter")
+#endif
         try await owner.adoptCompletedReceipt()
+#if DEBUG
+        print("C46_R01_POST_DETACH_V1 stage=adoption-complete")
+#endif
+#if DEBUG
+        print("C46_R01_POST_DETACH_V1 stage=content-read-enter")
+#endif
         let token = try await owner.accessGate.beginContentRead(for: AppAccessContentReadSurfaceV1.startupRecovery)
+#if DEBUG
+        print("C46_R01_POST_DETACH_V1 stage=content-read-complete")
+#endif
         try token.withContentRead(for: AppAccessContentReadSurfaceV1.startupRecovery) {
+#if DEBUG
+        print("C46_R01_POST_DETACH_V1 stage=fresh-open-enter")
+#endif
         let erasedSession = try StoreGenerationFactory(applicationSupportURL: target.support).openOrBootstrapCurrent()
+#if DEBUG
+        print("C46_R01_POST_DETACH_V1 stage=fresh-open-complete")
+#endif
+#if DEBUG
+        print("C46_R01_POST_DETACH_V1 stage=contact-closure-enter")
+#endif
         try erase.validateOperationalContactEraseClosure(session: erasedSession)
+#if DEBUG
+        print("C46_R01_POST_DETACH_V1 stage=contact-closure-complete")
+#endif
         XCTAssertTrue(
             try erasedSession.modelContext.fetch(FetchDescriptor<ServiceContactPointRow>()).isEmpty
         )

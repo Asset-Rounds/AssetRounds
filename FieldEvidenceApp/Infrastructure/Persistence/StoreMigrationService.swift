@@ -2642,6 +2642,30 @@ final class StoreMigrationJournalStoreV1 {
 /// The registry is operational state, is excluded from backup, and never uses
 /// wall-clock expiry as liveness authority. An owner is abandoned only when
 /// its exact owner-lock file can be locked exclusively.
+@MainActor
+final class CompletedAbortExclusiveScratchPermitV1 {
+    private let check: @MainActor () throws -> Void
+    private let poison: @MainActor () -> Void
+    private var active = true
+
+    fileprivate init(check: @escaping @MainActor () throws -> Void,
+                     poison: @escaping @MainActor () -> Void) {
+        self.check = check
+        self.poison = poison
+    }
+
+    func requireHeld() throws {
+        guard active else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        try check()
+    }
+
+    func poisonOnUncertainCleanup() {
+        if active { poison() }
+    }
+
+    fileprivate func revoke() { active = false }
+}
+
 final class GenerationLeaseRegistryV1: @unchecked Sendable {
     private struct RegistryStateV1: Codable, Equatable {
         static let currentSchemaVersion = 1
@@ -2867,6 +2891,43 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
     private var freshAdoptionReleases: [UUID: FreshAdoptionReplacement] = [:]
     private var temporalReleaseAttempts: [UUID: TemporalReleaseAttempt] = [:]
     private var temporalReaderAllocations: [ObjectIdentifier: TemporalReleaseAttempt] = [:]
+    private let restoreSourceCloseLock = NSLock()
+    private var restoreSourceTerminal = false
+    private var restoreExitUncertainDescriptors: [Int32] = []
+    /// Only this Restore source-reader release may own the replacement pair.
+    /// The Router retains this Registry on every failure; deinit is never a
+    /// checked disposal of either descriptor or a retry authorization.
+    private final class RestoreExitReaderRelease {
+        let token: GenerationLeaseTokenV1
+        var original: Int32 = -1
+        var temporary: Int32 = -1
+        var originalCloseAttempted = false
+        var temporaryCloseAttempted = false
+        var closeUncertain = false
+
+        init(token: GenerationLeaseTokenV1) { self.token = token }
+
+        func closeChecked() throws {
+            guard !closeUncertain else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            if original >= 0, !originalCloseAttempted {
+                originalCloseAttempted = true
+                guard Darwin.close(original) == 0 else {
+                    closeUncertain = true
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+            }
+            if temporary >= 0, !temporaryCloseAttempted {
+                temporaryCloseAttempted = true
+                guard Darwin.close(temporary) == 0 else {
+                    closeUncertain = true
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+            }
+        }
+    }
+    private var restoreExitReaderRelease: RestoreExitReaderRelease?
     private var temporalColdGuardRemoved = false
     private var isTemporalColdOwner = false
 #if DEBUG
@@ -3122,6 +3183,62 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         try withOriginalEraseShutdownScope(witness) {
             try service.requireCompletedAbortNoEffectForTesting(
                 operation: operation, receipt: receipt)
+        }
+    }
+
+    @MainActor
+    func sealCompletedAbortCanonicalUnderOriginalShutdown(
+        witness: EraseOriginalShutdownWitnessV1,
+        service: EraseAllService,
+        operation: EraseRouterOperationV1,
+        receipt: AbortedEraseAdmissionReceiptV1,
+        coordinator: StoreSessionCoordinator
+    ) throws {
+        try withOriginalEraseShutdownScope(witness) {
+            try service.sealCompletedAbortCanonicalBeforeAliasReleaseForTesting(
+                operation: operation, receipt: receipt,
+                coordinator: coordinator)
+        }
+    }
+
+    /// A synchronous, nonescaping capability for private source copy after
+    /// the pre-alias seal. It reuses the exact original G scope and EX owner;
+    /// it never admits a second Registry or producer activity.
+    @MainActor
+    func withCompletedAbortExclusiveScratchPermit<Value>(
+        witness: EraseOriginalShutdownWitnessV1,
+        physicalRoot: StoreTemporalPhysicalRootExclusionV1,
+        service: EraseAllService,
+        operation: EraseRouterOperationV1,
+        receipt: AbortedEraseAdmissionReceiptV1,
+        _ body: (CompletedAbortExclusiveScratchPermitV1) throws -> Value
+    ) throws -> Value {
+        try withOriginalEraseShutdownScope(witness) {
+            try operation.requireCompletedAbortExclusiveScratchOwner(
+                witness: witness, registry: self,
+                root: physicalRoot, receipt: receipt)
+            try service.requireCompletedAbortReceiptForExclusiveScratch(
+                operation: operation, receipt: receipt)
+            try witness.requireDrained(registry: self)
+            try physicalRoot.requireHeldOriginalEraseShutdownForExclusiveScratch(
+                at: applicationSupportURL)
+            let permit = CompletedAbortExclusiveScratchPermitV1(check: {
+                guard self.originalEraseClosingWitness == ObjectIdentifier(witness),
+                      self.originalEraseScopeThread.map({ pthread_equal($0, pthread_self()) != 0 }) == true,
+                      !self.originalEraseGuardUnlinked else {
+                    throw Self.uncertainOwnerFailure()
+                }
+                try witness.requireBound(registry: self)
+                try operation.requireCompletedAbortExclusiveScratchOwner(
+                    witness: witness, registry: self,
+                    root: physicalRoot, receipt: receipt)
+                try physicalRoot.requireHeldOriginalEraseShutdownForExclusiveScratch(
+                    at: self.applicationSupportURL)
+            }, poison: {
+                operation.poisonCompletedAbortExclusiveScratchOwner()
+            })
+            defer { permit.revoke() }
+            return try body(permit)
         }
     }
 #endif
@@ -3625,6 +3742,10 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
     }
 
     deinit {
+        // The Restore transition owns an explicit one-way close. If it began,
+        // a deinit fallback could close an ambiguous descriptor twice or
+        // silently release an unresolved owner guard.
+        if !restoreSourceCloseLock.withLock({ restoreSourceTerminal }) {
         if didCompleteInitialization {
             #if DEBUG
             initializationTesting?.cleanup(.ownerGuardCleanupRequested)
@@ -3645,6 +3766,7 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
             owner: .object, testing: initializationTesting)
         StoreControlInitializationTestHooksV1.close(rootDescriptor, role: .applicationSupport,
             owner: .object, testing: initializationTesting)
+        }
     }
 
     func acquire(
@@ -3749,6 +3871,492 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
     ) throws {
         try withExclusiveGenerationMutationLock {
             try validateActiveLocked(token, requiredRole: requiredRole)
+        }
+    }
+
+    /// A Restore transition supplies its actual retained wrappers. Epoch or
+    /// owner counts would collapse unknown same-epoch leases; compare the full
+    /// durable token set under one G interval and refuse any unfinished
+    /// publication or migration reservation before source-reader release.
+    @MainActor
+    func requireExactRestoreTransitionLeases(
+        _ expected: [GenerationLeaseHandleV1]
+    ) throws {
+        guard !expected.isEmpty else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try withExclusiveGenerationMutationLock {
+            try requireNoMigrationReservationLocked()
+            guard temporalReleaseAttempts.isEmpty,
+                  temporalReaderAllocations.isEmpty,
+                  freshAdoptionReleases.isEmpty,
+                  freshWriterPublications.isEmpty,
+                  freshReaderPublications.isEmpty,
+                  coldPreparationReaderPublications.isEmpty,
+                  preparationReaderPublications.isEmpty,
+                  preparationWriterPublications.isEmpty else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            for handle in expected {
+                try handle.requireLiveTemporalIdentity(mutationRegistry: self)
+                try validateActiveLocked(handle.token,
+                    requiredRole: handle.token.role)
+            }
+            let observed = try observeTemporalRegistryLocked()
+            let expectedTokens = try RegistryStateV1(
+                leases: expected.map(\.token)).leases
+            guard observed.leases == expectedTokens else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        }
+    }
+
+    private func retainRestoreExitUncertainDescriptor(_ descriptor: Int32) {
+        restoreSourceCloseLock.withLock {
+            restoreExitUncertainDescriptors.append(descriptor)
+            restoreSourceTerminal = true
+        }
+    }
+
+    private func withRestoreExitOpened<Value>(parent: Int32?, name: String,
+        flags: Int32, optional: Bool = false,
+        _ body: (Int32) throws -> Value) throws -> Value? {
+        let descriptor = parent.map { Darwin.openat($0, name, flags) }
+            ?? Darwin.open(name, flags)
+        if descriptor < 0, optional, errno == ENOENT { return nil }
+        guard descriptor >= 0 else { throw Self.identityFailure(errorNumber: errno) }
+        var closeAttempted = false
+        do {
+            let value = try body(descriptor)
+            closeAttempted = true
+            guard Darwin.close(descriptor) == 0 else {
+                retainRestoreExitUncertainDescriptor(descriptor)
+                throw Self.uncertainOwnerFailure()
+            }
+            return value
+        } catch {
+            if !closeAttempted {
+                closeAttempted = true
+                guard Darwin.close(descriptor) == 0 else {
+                    retainRestoreExitUncertainDescriptor(descriptor)
+                    throw Self.uncertainOwnerFailure()
+                }
+            }
+            throw error
+        }
+    }
+
+    private func requireRestoreExitNamedIdentity(parent: Int32,
+        name: String, expected: Identity, directory: Bool) throws {
+        let flags = O_RDONLY | O_NOFOLLOW |
+            (directory ? O_DIRECTORY : 0)
+        _ = try withRestoreExitOpened(parent: parent, name: name,
+            flags: flags) { descriptor in
+            let actual: Identity
+            if directory { actual = try Self.directoryIdentity(descriptor) }
+            else { actual = try Self.regularFileIdentity(descriptor) }
+            guard actual == expected else { throw Self.identityFailure() }
+            return ()
+        }
+    }
+
+    /// The final A exit uses the same held and named identities as verify(),
+    /// but every new descriptor has a checked one-attempt disposition.
+    private func verifyRestoreExitLocked() throws {
+        guard !restoreSourceCloseLock.withLock({ restoreSourceTerminal }) else {
+            throw Self.uncertainOwnerFailure()
+        }
+#if DEBUG
+        try requireOriginalEraseAdmission()
+        guard eraseAbandonmentLock.withLock({ !eraseAbandonedForColdRestart }) else {
+            throw Self.uncertainOwnerFailure()
+        }
+#endif
+        guard try Self.directoryIdentity(rootDescriptor) == rootIdentity,
+              try Self.directoryIdentity(operationsDescriptor) == operationsIdentity,
+              try Self.directoryIdentity(leaseDescriptor) == leaseIdentity,
+              try Self.directoryIdentity(ownersDescriptor) == ownersIdentity,
+              try Self.regularFileIdentity(mutationLockDescriptor) == mutationLockIdentity,
+              try Self.regularFileIdentity(ownerLockDescriptor) == ownerLockIdentity else {
+            throw Self.identityFailure()
+        }
+        let reopened: Identity? = try withRestoreExitOpened(parent: nil,
+            name: applicationSupportURL.path,
+            flags: O_RDONLY | O_DIRECTORY | O_NOFOLLOW) { descriptor in
+                try Self.directoryIdentity(descriptor)
+            }
+        guard reopened == rootIdentity else {
+            throw Self.identityFailure()
+        }
+        try requireRestoreExitNamedIdentity(parent: rootDescriptor,
+            name: Self.operationsName, expected: operationsIdentity, directory: true)
+        try requireRestoreExitNamedIdentity(parent: operationsDescriptor,
+            name: Self.leaseDirectoryName, expected: leaseIdentity, directory: true)
+        try requireRestoreExitNamedIdentity(parent: leaseDescriptor,
+            name: Self.ownerDirectoryName, expected: ownersIdentity, directory: true)
+        try requireRestoreExitNamedIdentity(parent: leaseDescriptor,
+            name: Self.mutationLockName, expected: mutationLockIdentity, directory: false)
+        try requireRestoreExitNamedIdentity(parent: ownersDescriptor,
+            name: Self.ownerLockName(ownerID), expected: ownerLockIdentity, directory: false)
+    }
+
+    private func readRestoreExitControl(parent: Int32, name: String,
+        policyKind: OwnedFileKindV1? = nil,
+        policyURL: URL? = nil) throws -> Data? {
+        try Self.requireSafeName(name)
+        return try withRestoreExitOpened(parent: parent, name: name,
+            flags: O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC,
+            optional: true) { descriptor in
+            let before = try Self.regularFileSnapshot(descriptor)
+            if let policyKind, let policyURL {
+                _ = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(
+                    policyKind, at: policyURL,
+                    retainUncertainDescriptor: retainRestoreExitUncertainDescriptor)
+            }
+            let data = try Self.readAll(from: descriptor)
+            guard try Self.regularFileSnapshot(descriptor) == before,
+                  data.count == Int(before.byteCount) else {
+                throw Self.identityFailure()
+            }
+            try requireRestoreExitNamedIdentity(parent: parent,
+                name: name, expected: before.identity, directory: false)
+            return data
+        }
+    }
+
+    private func observeRestoreExitRegistryLocked() throws
+        -> TemporalGenerationRegistryObservationV1 {
+        try verifyRestoreExitLocked()
+        let directoryPolicy = try ProtectedFilePolicyV1
+            .observeTemporalPolicyWithCheckedClose(
+                .stagingDirectory, at: leaseURL,
+                retainUncertainDescriptor: retainRestoreExitUncertainDescriptor)
+        let url = leaseURL.appendingPathComponent(Self.registryName)
+        let data = try readRestoreExitControl(parent: leaseDescriptor,
+            name: Self.registryName,
+            policyKind: try Self.controlKind(for: Self.registryName),
+            policyURL: url)
+        guard let data else { throw GenerationLeaseRegistryFailureV1.corruptRegistry }
+        let policy = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(
+            try Self.controlKind(for: Self.registryName), at: url,
+            retainUncertainDescriptor: retainRestoreExitUncertainDescriptor)
+        let state: RegistryStateV1
+        do { state = try RegistryStateV1.decodeCanonical(from: data) }
+        catch { throw GenerationLeaseRegistryFailureV1.corruptRegistry }
+        try verifyRestoreExitLocked()
+        return TemporalGenerationRegistryObservationV1(
+            leases: state.leases, registryBytes: data,
+            registryPolicy: policy, directoryPolicy: directoryPolicy)
+    }
+
+    /// Mirrors the canonical published/pending relationship of the aggregate
+    /// reader. The exact retained Operations FD supplies the parent: no new
+    /// reparative controller or unchecked deinit is admitted at final A exit.
+    private func requireNoRestoreExitMigrationReservationLocked() throws {
+        let observed: StoreAggregateMigrationJournalV1?? = try
+            withRestoreExitOpened(parent: operationsDescriptor,
+                name: "schema-migration",
+                flags: O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC,
+                optional: true) { directory in
+                let before = try Self.directoryIdentity(directory)
+                let currentData = try readRestoreExitControl(parent: directory,
+                    name: StoreAggregateMigrationControlV1.name)
+                let pendingData = try readRestoreExitControl(parent: directory,
+                    name: StoreAggregateMigrationControlV1.temporaryName)
+                let current = try currentData.map {
+                    try StoreAggregateMigrationJournalV1.decodeCanonical(from: $0)
+                }
+                let pending = try pendingData.map {
+                    try StoreAggregateMigrationJournalV1.decodeCanonical(from: $0)
+                }
+                if let pending {
+                    if let current {
+                        if pending.revision == current.revision + 1 {
+                            try pending.validateReplacement(of: current)
+                        } else if current.revision == pending.revision + 1 {
+                            try current.validateReplacement(of: pending)
+                        } else { throw StoreMigrationFailure.invalidPhaseTransition }
+                    } else {
+                        guard pending.phase == .recoveringSource,
+                              pending.revision == 0 else {
+                            throw StoreMigrationFailure.invalidPhaseTransition
+                        }
+                    }
+                }
+                guard try Self.directoryIdentity(directory) == before else {
+                    throw Self.identityFailure()
+                }
+                try requireRestoreExitNamedIdentity(parent: operationsDescriptor,
+                    name: "schema-migration", expected: before, directory: true)
+                return current ?? pending
+            }
+        let result = observed ?? nil
+        guard result?.reservationIsActive != true else {
+            throw Self.uncertainOwnerFailure()
+        }
+    }
+
+    /// The original reader is removed under the actual A Registry G while B's
+    /// exact reader and writer stay published. This one-way attempt owns both
+    /// opened inodes before the first write; no ordinary release/reparative
+    /// load or unchecked transient control read participates in A's exit.
+    @MainActor
+    fileprivate func releaseOriginalRestoreSourceReader(
+        _ reader: GenerationLeaseHandleV1,
+        targetRegistry: GenerationLeaseRegistryV1,
+        targetReader: GenerationLeaseHandleV1,
+        targetWriter: GenerationLeaseHandleV1,
+        reproveSource: () throws -> Void
+    ) throws {
+        guard targetRegistry !== self,
+              restoreExitReaderRelease == nil,
+              !restoreSourceCloseLock.withLock({ restoreSourceTerminal }) else {
+            throw Self.uncertainOwnerFailure()
+        }
+        try reader.requireExactRegistry(self)
+        try targetReader.requireExactRegistry(targetRegistry)
+        try targetWriter.requireExactRegistry(targetRegistry)
+        let token = reader.token
+        try token.validate()
+        guard token.role == .reader, token.ownerID == ownerID,
+              targetReader.token.role == .reader,
+              targetWriter.token.role == .writer else {
+            throw Self.uncertainOwnerFailure()
+        }
+        let attempt = RestoreExitReaderRelease(token: token)
+        restoreExitReaderRelease = attempt
+        Self.processMutationLock.lock()
+        var generationLocked = false
+        var unlockAttempted = false
+        var failure: Error?
+        do {
+            guard flock(mutationLockDescriptor, LOCK_EX) == 0 else {
+                throw Self.uncertainOwnerFailure()
+            }
+            generationLocked = true
+            try verifyRestoreExitLocked()
+            try targetRegistry.verifyRestoreExitLocked()
+            try reproveSource()
+            try requireNoRestoreExitMigrationReservationLocked()
+            let observed = try observeRestoreExitRegistryLocked()
+            let beforeTokens = try RegistryStateV1(
+                leases: [token, targetReader.token, targetWriter.token]).leases
+            guard observed.leases == beforeTokens,
+                  temporalReleaseAttempts.isEmpty,
+                  temporalReaderAllocations.isEmpty,
+                  freshAdoptionReleases.isEmpty,
+                  freshWriterPublications.isEmpty,
+                  freshReaderPublications.isEmpty,
+                  coldPreparationReaderPublications.isEmpty,
+                  preparationReaderPublications.isEmpty,
+                  preparationWriterPublications.isEmpty,
+                  try readRestoreExitControl(parent: leaseDescriptor,
+                      name: Self.registryTemporaryName) == nil else {
+                throw Self.uncertainOwnerFailure()
+            }
+            let replacement = try RegistryStateV1(
+                leases: [targetReader.token, targetWriter.token]).canonicalData()
+            attempt.original = Darwin.openat(leaseDescriptor,
+                Self.registryName, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+            guard attempt.original >= 0 else { throw Self.mappedFailure() }
+            let oldSnapshot = try Self.regularFileSnapshot(attempt.original)
+            try requireRestoreExitNamedIdentity(parent: leaseDescriptor,
+                name: Self.registryName, expected: oldSnapshot.identity,
+                directory: false)
+            let oldBytes = try Self.readAll(from: attempt.original)
+            guard oldBytes == observed.registryBytes,
+                  try Self.regularFileSnapshot(attempt.original) == oldSnapshot else {
+                throw Self.identityFailure()
+            }
+            attempt.temporary = Darwin.openat(leaseDescriptor,
+                Self.registryTemporaryName,
+                O_RDWR | O_CREAT | O_EXCL | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC,
+                mode_t(0o600))
+            guard attempt.temporary >= 0 else { throw Self.mappedFailure() }
+            let temporaryIdentity = try Self.regularFileIdentity(attempt.temporary)
+            try requireRestoreExitNamedIdentity(parent: leaseDescriptor,
+                name: Self.registryTemporaryName, expected: temporaryIdentity,
+                directory: false)
+            // The existing setter applies the frozen control policy only to
+            // this newly created, retained temp inode; the final observation
+            // uses Restore's checked-close policy reader.
+            try protectFile(.generationLeaseControlTemporary,
+                parent: leaseDescriptor, directoryURL: leaseURL,
+                name: Self.registryTemporaryName, expected: temporaryIdentity)
+            guard Darwin.ftruncate(attempt.temporary, 0) == 0,
+                  Darwin.lseek(attempt.temporary, 0, SEEK_SET) == 0 else {
+                throw Self.mappedFailure()
+            }
+            try Self.writeAll(replacement, to: attempt.temporary)
+            guard Darwin.fsync(attempt.temporary) == 0,
+                  Darwin.lseek(attempt.temporary, 0, SEEK_SET) == 0 else {
+                throw Self.mappedFailure()
+            }
+            let prepared = try Self.regularFileSnapshot(attempt.temporary)
+            guard try Self.readAll(from: attempt.temporary) == replacement,
+                  try Self.regularFileSnapshot(attempt.temporary) == prepared else {
+                throw Self.identityFailure()
+            }
+            _ = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(
+                .generationLeaseControlTemporary,
+                at: leaseURL.appendingPathComponent(Self.registryTemporaryName),
+                retainUncertainDescriptor: retainRestoreExitUncertainDescriptor)
+            try requireRestoreExitNamedIdentity(parent: leaseDescriptor,
+                name: Self.registryName, expected: oldSnapshot.identity,
+                directory: false)
+            try requireRestoreExitNamedIdentity(parent: leaseDescriptor,
+                name: Self.registryTemporaryName, expected: temporaryIdentity,
+                directory: false)
+            guard try Self.regularFileSnapshot(attempt.original) == oldSnapshot,
+                  try Self.regularFileSnapshot(attempt.temporary) == prepared,
+                  Darwin.renameat(leaseDescriptor, Self.registryTemporaryName,
+                      leaseDescriptor, Self.registryName) == 0,
+                  Darwin.fsync(leaseDescriptor) == 0 else {
+                throw Self.uncertainOwnerFailure()
+            }
+            let persisted = try observeRestoreExitRegistryLocked()
+            guard persisted.registryBytes == replacement else {
+                throw Self.uncertainOwnerFailure()
+            }
+            let expectedPersistedLeases = try RegistryStateV1(
+                leases: [targetReader.token, targetWriter.token]).leases
+            guard persisted.leases == expectedPersistedLeases else {
+                throw Self.uncertainOwnerFailure()
+            }
+            try requireRestoreExitNamedIdentity(parent: leaseDescriptor,
+                name: Self.registryName, expected: temporaryIdentity,
+                directory: false)
+            try reproveSource()
+            try attempt.closeChecked()
+            try reader.recordRestoreTransitionRelease(registry: self)
+            unlockAttempted = true
+            guard flock(mutationLockDescriptor, LOCK_UN) == 0 else {
+                throw Self.uncertainOwnerFailure()
+            }
+            generationLocked = false
+        } catch {
+            failure = error
+            restoreSourceCloseLock.withLock { restoreSourceTerminal = true }
+        }
+        if generationLocked && !unlockAttempted {
+            if flock(mutationLockDescriptor, LOCK_UN) != 0 {
+                failure = Self.uncertainOwnerFailure()
+            }
+        }
+        Self.processMutationLock.unlock()
+        if let failure { throw failure }
+        restoreExitReaderRelease = nil
+    }
+
+    /// Final A-provider exit after the original source reader's durable close.
+    /// B owns distinct open descriptions of the same physical controls; only
+    /// this A instance's guard and descriptors are touched. Any failed step
+    /// remains terminal, with the actual Registry retained by Router.
+    @MainActor
+    func closeOriginalRestoreSourceOwner(
+        sourceReader: GenerationLeaseHandleV1,
+        targetRegistry: GenerationLeaseRegistryV1,
+        targetReader: GenerationLeaseHandleV1,
+        targetWriter: GenerationLeaseHandleV1
+    ) throws {
+        guard targetRegistry !== self,
+              !restoreSourceCloseLock.withLock({ restoreSourceTerminal }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        // The reader has already entered its one-way durable release. Even
+        // an early identity/census failure here must bar ordinary A reuse and
+        // unchecked deinit closure of its still-held control descriptors.
+        defer { restoreSourceCloseLock.withLock { restoreSourceTerminal = true } }
+        try sourceReader.requireClosedForRestoreTransition(registry: self)
+        try verifyRestoreExitLocked()
+        try targetRegistry.verifyRestoreExitLocked()
+        guard rootIdentity == targetRegistry.rootIdentity,
+              operationsIdentity == targetRegistry.operationsIdentity,
+              leaseIdentity == targetRegistry.leaseIdentity,
+              mutationLockIdentity == targetRegistry.mutationLockIdentity else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try targetReader.requireExactRegistry(targetRegistry)
+        try targetWriter.requireExactRegistry(targetRegistry)
+        let ownDescriptors = [ownerLockDescriptor, mutationLockDescriptor,
+            ownersDescriptor, leaseDescriptor, operationsDescriptor, rootDescriptor]
+        let targetDescriptors = [targetRegistry.ownerLockDescriptor,
+            targetRegistry.mutationLockDescriptor, targetRegistry.ownersDescriptor,
+            targetRegistry.leaseDescriptor, targetRegistry.operationsDescriptor,
+            targetRegistry.rootDescriptor]
+        guard Set(ownDescriptors).count == ownDescriptors.count,
+              Set(ownDescriptors).isDisjoint(with: Set(targetDescriptors)) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+
+        Self.processMutationLock.lock()
+        var generationLocked = false
+        var generationUnlockAttempted = false
+        var primaryFailure: Error?
+        do {
+            guard flock(mutationLockDescriptor, LOCK_EX) == 0 else {
+                throw Self.uncertainOwnerFailure()
+            }
+            generationLocked = true
+            try verifyRestoreExitLocked()
+            try requireNoRestoreExitMigrationReservationLocked()
+            let observation = try observeRestoreExitRegistryLocked()
+            let expected = try RegistryStateV1(
+                leases: [targetReader.token, targetWriter.token]).leases
+            guard observation.leases == expected,
+                  !observation.leases.contains(where: { $0.ownerID == ownerID }),
+                  temporalReleaseAttempts.isEmpty,
+                  temporalReaderAllocations.isEmpty,
+                  freshAdoptionReleases.isEmpty,
+                  freshWriterPublications.isEmpty,
+                  freshReaderPublications.isEmpty,
+                  coldPreparationReaderPublications.isEmpty,
+                  preparationReaderPublications.isEmpty,
+                  preparationWriterPublications.isEmpty else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try targetReader.token.validate()
+            try targetWriter.token.validate()
+            guard targetReader.token.role == .reader,
+                  targetWriter.token.role == .writer else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            // No ordinary operation may reenter this A Registry from here.
+            restoreSourceCloseLock.withLock { restoreSourceTerminal = true }
+            try requireRestoreExitNamedIdentity(parent: ownersDescriptor,
+                name: Self.ownerLockName(ownerID), expected: ownerLockIdentity,
+                directory: false)
+            guard Darwin.unlinkat(ownersDescriptor,
+                    Self.ownerLockName(ownerID), 0) == 0,
+                  Darwin.fsync(ownersDescriptor) == 0 else {
+                throw Self.uncertainOwnerFailure()
+            }
+            generationUnlockAttempted = true
+            guard flock(mutationLockDescriptor, LOCK_UN) == 0 else {
+                throw Self.uncertainOwnerFailure()
+            }
+            generationLocked = false
+        } catch {
+            primaryFailure = error
+            restoreSourceCloseLock.withLock { restoreSourceTerminal = true }
+        }
+        if generationLocked && !generationUnlockAttempted {
+            if flock(mutationLockDescriptor, LOCK_UN) != 0 {
+                primaryFailure = Self.uncertainOwnerFailure()
+            }
+        }
+        Self.processMutationLock.unlock()
+        if let primaryFailure { throw primaryFailure }
+
+        // The guard was durably unlinked under G. Close exactly A's own open
+        // descriptions once; a close error is ambiguous and stops this list.
+        guard flock(ownerLockDescriptor, LOCK_UN) == 0 else {
+            throw Self.uncertainOwnerFailure()
+        }
+        for descriptor in ownDescriptors {
+            guard Darwin.close(descriptor) == 0 else {
+                throw Self.uncertainOwnerFailure()
+            }
         }
     }
 
@@ -4629,6 +5237,9 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
     }
 
     private func verify() throws {
+        guard !restoreSourceCloseLock.withLock({ restoreSourceTerminal }) else {
+            throw Self.uncertainOwnerFailure()
+        }
 #if DEBUG
         try requireOriginalEraseAdmission()
         guard eraseAbandonmentLock.withLock({ !eraseAbandonedForColdRestart }) else {
@@ -5275,12 +5886,53 @@ final class GenerationLeaseHandleV1: @unchecked Sendable {
         isClosed = true
     }
 
+    @MainActor
+    func closeForOriginalRestoreTransition(
+        registry expected: GenerationLeaseRegistryV1,
+        targetRegistry: GenerationLeaseRegistryV1,
+        targetReader: GenerationLeaseHandleV1,
+        targetWriter: GenerationLeaseHandleV1,
+        reproveSource: () throws -> Void
+    ) throws {
+        try requireExactRegistry(expected)
+        try expected.releaseOriginalRestoreSourceReader(self,
+            targetRegistry: targetRegistry, targetReader: targetReader,
+            targetWriter: targetWriter, reproveSource: reproveSource)
+    }
+
+    fileprivate func recordRestoreTransitionRelease(
+        registry expected: GenerationLeaseRegistryV1
+    ) throws {
+        try lock.withLock {
+            guard registry === expected, !isClosed else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            isClosed = true
+        }
+    }
+
     /// A checked writer release must precede retirement of the original
     /// reader cohort after a no-effect Erase abort.  An invalidated writer is
     /// insufficient: its durable lease may still be held by a producer.
     func requireClosedForAbortedEraseReaderRetirement() throws {
         try lock.withLock {
             guard isClosed else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        }
+    }
+
+    func requireClosedForRestoreTransition() throws {
+        try lock.withLock {
+            guard isClosed else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        }
+    }
+
+    func requireClosedForRestoreTransition(
+        registry expected: GenerationLeaseRegistryV1
+    ) throws {
+        try lock.withLock {
+            guard isClosed, registry === expected else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
         }
     }
 
@@ -6720,6 +7372,8 @@ final class GenerationWriterAllocationAttemptV1 {
     private weak var preparationOperation: EraseRouterOperationV1?
     private var acquisitionStarted = false
     private weak var adoption: EraseFreshAdoptionOwnerV1?
+    private var restoreAcquisitionStarted = false
+    private weak var restoreOwner: RestoreWriterTransitionOwnerV1?
     private(set) var sealedForRetirement = false
     fileprivate init(registry: GenerationLeaseRegistryV1, epoch: GenerationEpochV1) {
         self.registry = registry; generationEpoch = epoch
@@ -6728,7 +7382,8 @@ final class GenerationWriterAllocationAttemptV1 {
     func matches(registry expected: GenerationLeaseRegistryV1) -> Bool { registry === expected }
     func sealForRetirement() { sealedForRetirement = true }
     func acquireWriter(adoption expected: EraseFreshAdoptionOwnerV1) throws -> GenerationLeaseHandleV1 {
-        guard !preparationAcquisitionStarted, !acquisitionStarted, !closed, !sealedForRetirement else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        guard !preparationAcquisitionStarted, !acquisitionStarted, !restoreAcquisitionStarted,
+              !closed, !sealedForRetirement else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         try expected.requireWriterAllocation(self, registry: registry)
         acquisitionStarted = true; adoption = expected
         do { return try registry.publishFreshAdoptionWriter(self, adoption: expected) }
@@ -6745,7 +7400,8 @@ final class GenerationWriterAllocationAttemptV1 {
         return registry.preparationPublishedToken(writer: self)
     }
     func acquireWriterForErasePreparation(operation expected: EraseRouterOperationV1) throws -> GenerationLeaseHandleV1 {
-        guard !preparationAcquisitionStarted, !acquisitionStarted, !closed, !sealedForRetirement,
+        guard !preparationAcquisitionStarted, !acquisitionStarted, !restoreAcquisitionStarted,
+              !closed, !sealedForRetirement,
               token == nil, handle == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         try expected.requirePreparationWriterAllocation(self, registry: registry)
         preparationAcquisitionStarted = true; preparationOperation = expected
@@ -6758,9 +7414,51 @@ final class GenerationWriterAllocationAttemptV1 {
         try expected.requirePreparationWriterAllocation(self, registry: registry)
     }
     fileprivate func requirePreparationDisposalEligibility() throws {
-        guard !acquisitionStarted, preparationAcquisitionStarted || (token == nil && handle == nil) else {
+        guard !acquisitionStarted, !restoreAcquisitionStarted,
+              preparationAcquisitionStarted || (token == nil && handle == nil) else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
+    }
+    /// The Router retains this exact attempt before the first durable B writer
+    /// publication. An ambiguous publication is never replaced by an ordinary
+    /// writer acquisition or by an Erase allocation.
+    func acquireWriterForRestoreTransition(
+        owner expected: RestoreWriterTransitionOwnerV1
+    ) throws -> GenerationLeaseHandleV1 {
+        guard !preparationAcquisitionStarted, !acquisitionStarted,
+              !restoreAcquisitionStarted, !closed, !sealedForRetirement,
+              token == nil, handle == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try expected.requireWriterAllocation(self, registry: registry)
+        restoreAcquisitionStarted = true
+        restoreOwner = expected
+        do { return try registry.publishRestoreTransitionWriter(self, owner: expected) }
+        catch { sealedForRetirement = true; throw error }
+    }
+
+    fileprivate func requireRestoreAcquiring(
+        _ expected: RestoreWriterTransitionOwnerV1
+    ) throws {
+        guard restoreAcquisitionStarted, !preparationAcquisitionStarted,
+              !acquisitionStarted, restoreOwner === expected,
+              !closed, !sealedForRetirement else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try expected.requireWriterAllocation(self, registry: registry)
+    }
+
+    func closeAfterRestoreTransitionFailure(
+        owner expected: RestoreWriterTransitionOwnerV1
+    ) throws {
+        try expected.requireFailedWriterDrained(self, registry: registry)
+        guard restoreAcquisitionStarted, sealedForRetirement,
+              restoreOwner === expected else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        if closed { return }
+        try registry.closeRestoreTransitionWriter(self, owner: expected)
+        closed = true
     }
 #if DEBUG
     /// Installed target writers are eligible only through this exact original
@@ -6878,6 +7576,75 @@ extension GenerationLeaseRegistryV1 {
             freshWriterPublications.removeValue(forKey: ObjectIdentifier(allocation))
         }
         try allocation.requireAcquiring(adoption: adoption)
+        return handle
+    }
+
+    /// Restore's target writer is a different authority from Erase adoption.
+    /// The Router-owned attempt is retained before this method opens or
+    /// publishes anything; the existing fixed replacement record owns every
+    /// partial rename and descriptor until its checked disposition.
+    @MainActor
+    fileprivate func publishRestoreTransitionWriter(
+        _ allocation: GenerationWriterAllocationAttemptV1,
+        owner: RestoreWriterTransitionOwnerV1
+    ) throws -> GenerationLeaseHandleV1 {
+        guard allocation.registry === self else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try allocation.requireRestoreAcquiring(owner)
+        let handle = try withExclusiveGenerationMutationLock {
+            try allocation.requireRestoreAcquiring(owner)
+            try requireNoMigrationReservationLocked()
+            let observed = try observeTemporalRegistryLocked()
+            try owner.requireWriterLeaseCensus(observed.leases, registry: self)
+            guard !observed.leases.contains(where: { $0.role == .writer }),
+                  observed.leases.count < Self.maximumActiveLeaseCount else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            let owners = Set(observed.leases.map(\.ownerID))
+            guard owners.contains(ownerID) || owners.count < Self.maximumOwnerCount else {
+                throw GenerationLeaseRegistryFailureV1.registryLimitExceeded
+            }
+            let token = try GenerationLeaseTokenV1(
+                leaseID: makeLeaseID(), ownerID: ownerID,
+                epoch: allocation.generationEpoch, role: .writer, acquiredAt: now())
+            guard !observed.leases.contains(where: { $0.leaseID == token.leaseID }),
+                  allocation.token == nil else {
+                throw GenerationLeaseRegistryFailureV1.duplicateLease
+            }
+            allocation.token = token
+            let record = FreshAdoptionReplacement(token: token)
+            let id = ObjectIdentifier(allocation)
+            guard freshWriterPublications[id] == nil else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            freshWriterPublications[id] = record
+            try captureFreshAdoptionReplacementLocked(record, observed: observed,
+                replacement: RegistryStateV1(leases: observed.leases + [token]))
+            guard let attempt = record.replacement else { throw Self.identityFailure() }
+            try finishTemporalReplacementLocked(attempt)
+            let current = try observeTemporalRegistryLocked()
+            try owner.requirePublishedWriterLeaseCensus(
+                current.leases, token: token, registry: self)
+            let handle = try GenerationLeaseHandleV1(
+                registry: self, publishedWriterToken: token)
+            allocation.handle = handle
+            try allocation.requireRestoreAcquiring(owner)
+            return handle
+        }
+        try allocation.requireRestoreAcquiring(owner)
+        try withExclusiveGenerationMutationLock {
+            try allocation.requireRestoreAcquiring(owner)
+            guard let record = freshWriterPublications[ObjectIdentifier(allocation)] else {
+                throw Self.identityFailure()
+            }
+            let observed = try observeTemporalRegistryLocked()
+            try owner.requirePublishedWriterLeaseCensus(
+                observed.leases, token: handle.token, registry: self)
+            try record.closeOwnedDescriptorsChecked()
+            freshWriterPublications.removeValue(forKey: ObjectIdentifier(allocation))
+        }
+        try allocation.requireRestoreAcquiring(owner)
         return handle
     }
 
@@ -7065,6 +7832,62 @@ extension GenerationLeaseRegistryV1 {
             try proof.requireDrained(registry: self, writerAllocation: allocation)
         }
         try proof.requireDrained(registry: self, writerAllocation: allocation)
+    }
+
+    @MainActor
+    fileprivate func closeRestoreTransitionWriter(
+        _ allocation: GenerationWriterAllocationAttemptV1,
+        owner: RestoreWriterTransitionOwnerV1
+    ) throws {
+        guard allocation.registry === self, allocation.sealedForRetirement else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try owner.requireFailedWriterDrained(allocation, registry: self)
+        try withExclusiveGenerationMutationLock {
+            try owner.requireFailedWriterDrained(allocation, registry: self)
+            if let completed = allocation.freshDisposalCompletion {
+                guard freshWriterPublications[ObjectIdentifier(allocation)] == nil else {
+                    throw Self.identityFailure()
+                }
+                try requireFreshDisposalCompletionLocked(
+                    completed, token: allocation.token, handle: allocation.handle)
+                return
+            }
+            if let retained = freshWriterPublications[ObjectIdentifier(allocation)],
+               retained.closeUncertain {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            var published = allocation.handle != nil
+            if let insertion = freshWriterPublications[ObjectIdentifier(allocation)]?.replacement {
+                if insertion.renamed {
+                    published = true
+                    if allocation.handle == nil,
+                       freshAdoptionReleases[insertion.token.leaseID] == nil {
+                        try finishTemporalReplacementLocked(insertion)
+                    }
+                } else {
+                    try abandonFreshAdoptionInsertionLocked(insertion)
+                }
+            }
+            if published {
+                guard let token = allocation.token else { throw Self.identityFailure() }
+                try releaseFreshAdoptionTokenLocked(token)
+                try finishFreshAdoptionRelease(token)
+            } else if let token = allocation.token {
+                guard try !observeTemporalRegistryLocked().leases.contains(
+                    where: { $0.leaseID == token.leaseID }) else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+            }
+            if let insertion = freshWriterPublications[ObjectIdentifier(allocation)] {
+                try insertion.closeOwnedDescriptorsChecked()
+                freshWriterPublications.removeValue(forKey: ObjectIdentifier(allocation))
+            }
+            try allocation.handle?.recordFreshAdoptionRelease(registry: self)
+            allocation.freshDisposalCompletion = .init(token: allocation.token)
+            try owner.requireFailedWriterDrained(allocation, registry: self)
+        }
+        try owner.requireFailedWriterDrained(allocation, registry: self)
     }
     @MainActor
     fileprivate func closeFreshAdoptionReader(_ allocation: GenerationLeaseAllocationAttemptV1,

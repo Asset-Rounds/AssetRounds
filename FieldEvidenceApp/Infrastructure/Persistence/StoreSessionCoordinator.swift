@@ -22,6 +22,135 @@ final class StoreSessionWriterCleanupFailureV1: Error {
     }
 }
 
+/// The exact B writer allocation belongs to one original Restore operation.
+/// It does not retain the A Coordinator, session, context, or container: those
+/// are observed by the separate checked source-reader exit owner.
+@MainActor
+final class RestoreWriterTransitionOwnerV1 {
+    let operationID: UUID
+    let targetSession: StoreGenerationSession
+    let targetFactory: StoreGenerationFactory
+    let registry: GenerationLeaseRegistryV1
+    let sourceReader: GenerationLeaseHandleV1
+    let sourceWriter: GenerationLeaseHandleV1?
+    let targetReader: GenerationLeaseHandleV1
+    private(set) var allocation: GenerationWriterAllocationAttemptV1?
+    private weak var constructedWriter: WorkspaceWriterV1?
+    var constructedWriterForTransition: WorkspaceWriterV1? { constructedWriter }
+    private enum Phase: Equatable { case captured, acquiring, constructed, uncertain }
+    private var phase = Phase.captured
+
+    init(operationID: UUID, targetSession: StoreGenerationSession,
+         targetFactory: StoreGenerationFactory,
+         sourceReader: GenerationLeaseHandleV1,
+         sourceWriter: GenerationLeaseHandleV1?,
+         targetReader: GenerationLeaseHandleV1) throws {
+        let registry = try targetFactory.makeGenerationLeaseRegistry()
+        guard let epoch = targetSession.generationEpoch,
+              sourceReader.token.role == .reader,
+              targetReader.token.role == .reader,
+              targetReader.token.epoch == epoch else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try targetReader.requireExactRegistry(registry)
+        try sourceReader.requireLiveTemporalIdentity(mutationRegistry: registry)
+        if let sourceWriter {
+            guard sourceWriter.token.role == .writer else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try sourceWriter.requireClosedForRestoreTransition()
+        }
+        try registry.requireExactRestoreTransitionLeases(
+            [sourceReader, targetReader])
+        self.operationID = operationID
+        self.targetSession = targetSession
+        self.targetFactory = targetFactory
+        self.registry = registry
+        self.sourceReader = sourceReader
+        self.sourceWriter = sourceWriter
+        self.targetReader = targetReader
+    }
+
+    func retainAllocation(_ value: GenerationWriterAllocationAttemptV1) throws {
+        guard phase == .captured, allocation == nil,
+              value.matches(registry: registry),
+              value.generationEpoch == targetSession.generationEpoch else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        allocation = value
+        phase = .acquiring
+    }
+
+    func requireWriterAllocation(_ value: GenerationWriterAllocationAttemptV1,
+                                 registry expected: GenerationLeaseRegistryV1) throws {
+        guard phase == .acquiring, allocation === value,
+              registry === expected,
+              value.generationEpoch == targetSession.generationEpoch else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try sourceWriter?.requireClosedForRestoreTransition()
+        try targetReader.requireExactRegistry(registry)
+        try sourceReader.requireLiveTemporalIdentity(mutationRegistry: registry)
+    }
+
+    func requireWriterLeaseCensus(_ observed: [GenerationLeaseTokenV1],
+                                  registry expected: GenerationLeaseRegistryV1) throws {
+        guard registry === expected else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireTokens(observed, equalTo: [sourceReader.token, targetReader.token])
+    }
+
+    func requirePublishedWriterLeaseCensus(_ observed: [GenerationLeaseTokenV1],
+                                           token: GenerationLeaseTokenV1,
+                                           registry expected: GenerationLeaseRegistryV1) throws {
+        guard registry === expected, token.role == .writer,
+              token.epoch == targetSession.generationEpoch else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireTokens(observed, equalTo: [sourceReader.token, targetReader.token, token])
+    }
+
+    private func requireTokens(_ actual: [GenerationLeaseTokenV1],
+                               equalTo expected: [GenerationLeaseTokenV1]) throws {
+        guard actual.count == expected.count,
+              Set(actual).count == actual.count,
+              Set(actual) == Set(expected) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    func observeConstructedWriter(_ value: WorkspaceWriterV1) throws {
+        guard phase == .acquiring, constructedWriter == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        constructedWriter = value
+        phase = .constructed
+    }
+
+    func sealFailure() {
+        allocation?.sealForRetirement()
+        phase = .uncertain
+    }
+
+    func requireFailedWriterDrained(_ value: GenerationWriterAllocationAttemptV1,
+                                    registry expected: GenerationLeaseRegistryV1) throws {
+        guard phase == .uncertain, allocation === value,
+              registry === expected, constructedWriter == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    func requireConstructed(_ coordinator: StoreSessionCoordinator) throws {
+        guard phase == .constructed,
+              coordinator.workspaceWriter === constructedWriter,
+              coordinator.generationID == targetSession.generationID,
+              coordinator.modelContext === targetSession.modelContext else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+}
+
 @MainActor
 final class StoreSessionCoordinator: ObservableObject {
     @Published private(set) var uiGenerationToken: UInt64 = 0
@@ -621,6 +750,64 @@ final class StoreSessionCoordinator: ObservableObject {
         try writerLeaseHandle.close()
     }
 
+    /// One-way A writer exit for the original Restore ticket. New producer
+    /// admission remains closed; a failed durable close is retained uncertain
+    /// and cannot be retried through ordinary activation.
+    func closeWriterForOriginalRestoreTransition(
+        source: StoreGenerationSession, drainID: UUID,
+        expectedWriter: WorkspaceWriterV1
+    ) throws -> GenerationLeaseHandleV1 {
+        guard self.session === source,
+              self.workspaceWriter === expectedWriter,
+              temporalAdmission == .draining(drainID),
+              temporalProducerIDs.isEmpty,
+              temporalDrainWaiters.isEmpty,
+              temporalExclusiveOwner == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        workspaceWriter.invalidate()
+        do {
+            try writerLeaseHandle.close()
+            try writerLeaseHandle.requireClosedForRestoreTransition()
+            temporalAdmission = .maintenance(drainID)
+            return writerLeaseHandle
+        } catch {
+            temporalAdmission = .maintenance(drainID)
+            throw error
+        }
+    }
+
+    var restoreWriterLeaseHandleForTransition: GenerationLeaseHandleV1 {
+        writerLeaseHandle
+    }
+
+    func beginOriginalRestoreProducerDrain(source: StoreGenerationSession,
+                                           expectedWriter: WorkspaceWriterV1) throws -> UUID {
+        guard self.session === source,
+              workspaceWriter === expectedWriter,
+              temporalAdmission == .open,
+              temporalExclusiveOwner == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let id = UUID()
+        temporalAdmission = .draining(id)
+        return id
+    }
+
+    func awaitOriginalRestoreProducerDrain(_ id: UUID) async throws {
+        guard temporalAdmission == .draining(id) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        await awaitTemporalProducerDrain(id: id)
+        guard temporalAdmission == .draining(id),
+              temporalProducerIDs.isEmpty,
+              temporalDrainWaiters.isEmpty,
+              temporalExclusiveOwner == nil else {
+            temporalAdmission = .maintenance(id)
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
     /// Reuses the journal's exact registry/fence instance. The operation is
     /// synchronous: no actor suspension or byte-copy work may hold this lock.
     var checkRunnerPhotoApplicationSupportURL: URL {
@@ -719,6 +906,69 @@ final class StoreSessionCoordinator: ObservableObject {
               writerRevision.workspaceID == session.workspaceID else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
+        return session
+    }
+
+    /// Capture the original ready Restore source through the currently
+    /// published writer, without manufacturing a session or a Registry.
+    func requireOriginalRestoreSource(
+        context expectedContext: ModelContext,
+        generationID expectedID: UUID,
+        factory expectedFactory: StoreGenerationFactory
+    ) throws -> (session: StoreGenerationSession,
+                 writer: WorkspaceWriterV1,
+                 writerHandle: GenerationLeaseHandleV1) {
+        guard session.modelContext === expectedContext,
+              session.generationID == expectedID,
+              generationFactory.sharesRegistryProvider(with: expectedFactory),
+              try session.validatedOpeningFactoryForWriter()
+                  .sharesRegistryProvider(with: expectedFactory),
+              writerLeaseHandle.token.role == .writer,
+              writerLeaseHandle.token.epoch == session.generationEpoch,
+              try workspaceWriter.currentRevision().generationID == expectedID else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let registry = try expectedFactory.makeGenerationLeaseRegistry()
+        try writerLeaseHandle.requireExactRegistry(registry)
+        try writerLeaseHandle.requireLiveTemporalIdentity(mutationRegistry: registry)
+        try registry.validateActive(writerLeaseHandle.token, requiredRole: .writer)
+        return (session, workspaceWriter, writerLeaseHandle)
+    }
+
+    /// Router has already attested B's exact pointer and retained A's source
+    /// reader. A's writer is deliberately stale after that publication, so a
+    /// second currentRevision() would reject the correct old owner. Check the
+    /// original object, drain, provider and durable writer token instead;
+    /// only the Router's same-ticket path consumes this result for close.
+    func requireOriginalRestoreSourceAfterTargetPublication(
+        context expectedContext: ModelContext,
+        generationID expectedID: UUID,
+        factory expectedFactory: StoreGenerationFactory,
+        expectedWriter: WorkspaceWriterV1,
+        expectedWriterHandle: GenerationLeaseHandleV1,
+        drainID: UUID
+    ) throws -> StoreGenerationSession {
+        guard session.modelContext === expectedContext,
+              session.generationID == expectedID,
+              workspaceWriter === expectedWriter,
+              writerLeaseHandle === expectedWriterHandle,
+              temporalAdmission == .draining(drainID),
+              temporalProducerIDs.isEmpty,
+              temporalDrainWaiters.isEmpty,
+              temporalExclusiveOwner == nil,
+              generationFactory.sharesRegistryProvider(with: expectedFactory),
+              try session.validatedOpeningFactoryForWriter()
+                .sharesRegistryProvider(with: expectedFactory),
+              writerLeaseHandle.token.role == .writer,
+              writerLeaseHandle.token.epoch == session.generationEpoch else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let registry = try expectedFactory.makeGenerationLeaseRegistry()
+        try writerLeaseHandle.requireExactRegistry(registry)
+        try writerLeaseHandle.requireLiveTemporalIdentity(
+            mutationRegistry: registry)
+        try registry.validateActive(writerLeaseHandle.token,
+            requiredRole: .writer)
         return session
     }
 
@@ -1265,6 +1515,62 @@ final class StoreSessionCoordinator: ObservableObject {
             allocation.sealForRetirement()
             // Exact attempt stays with the Router owner; its genuine weak drain
             // must settle after this synchronous frame unwinds before release.
+            throw error
+        }
+    }
+
+    /// Restore creates B through its actual opening provider after A's writer
+    /// has durably closed. The Router owns the allocation before publication;
+    /// a thrown constructor leaves the attempt and original B session pinned.
+    static func makeForOriginalRestoreTransition(
+        owner: RestoreWriterTransitionOwnerV1,
+        lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1?,
+        clock: any ApplicationClock = SystemApplicationClock(),
+        idSource: any ApplicationIDSource = SystemApplicationIDSource(),
+        fileAuthority: any ApplicationFileAuthorityV1 = SystemApplicationFileAuthorityV1()
+    ) throws -> StoreSessionCoordinator {
+        let session = owner.targetSession
+        let factory = owner.targetFactory
+        let resolvedLifecycleProfileRegistry = try lifecycleProfileRegistry
+            ?? WorkspacePackageLifecycleCompatibilityV1.shippingRegistry()
+        guard session.storeSchemaRelease == PersistentSchemaReleaseRegistryV1.activeRelease,
+              let epoch = session.generationEpoch else {
+            throw GenerationLeaseRegistryFailureV1.staleGeneration
+        }
+        let rootIdentity = try ReportPDFAnchoredFile.rootIdentity(
+            at: session.generationRootURL)
+        let registry = owner.registry
+        let allocation = try registry.makeWriterAllocationAttempt(epoch: epoch)
+        try owner.retainAllocation(allocation)
+        var constructedWriter: WorkspaceWriterV1?
+        do {
+            let handle = try allocation.acquireWriterForRestoreTransition(owner: owner)
+            let binding = try constructWriter(session: session, clock: clock,
+                idSource: idSource, fileAuthority: fileAuthority,
+                generationFactory: factory,
+                lifecycleProfileRegistry: resolvedLifecycleProfileRegistry,
+                generationEpoch: epoch, rootIdentity: rootIdentity,
+                registry: registry, leaseHandle: handle,
+                mutationJournalFailureInjection: nil)
+            constructedWriter = binding.writer
+            try owner.observeConstructedWriter(binding.writer)
+            let store = try LocalSearchIndexStoreV1(
+                applicationSupportURL: factory.restoreApplicationSupportURL)
+            let search = try makeSearchServices(
+                session: session, writer: binding.writer, store: store)
+            let coordinator = StoreSessionCoordinator(session: session,
+                clock: clock, idSource: idSource, fileAuthority: fileAuthority,
+                generationFactory: factory,
+                lifecycleProfileRegistry: resolvedLifecycleProfileRegistry,
+                binding: binding, searchIndexStore: store,
+                searchServices: search)
+            try owner.requireConstructed(coordinator)
+            return coordinator
+        } catch {
+            constructedWriter?.invalidate()
+            owner.sealFailure()
+            // The attempt remains with Router. The caller may dispose it only
+            // after the throwing frame and all weak construction aliases drain.
             throw error
         }
     }
@@ -1893,6 +2199,13 @@ final class StoreTemporalPhysicalRootExclusionV1 {
         try StoreTemporalPhysicalRootExclusionV1(unacquiredColdRetirementAt: url)
     }
     func acquireOriginalEraseShutdown() throws { try acquireColdRetirement() }
+    func requireHeldOriginalEraseShutdownForExclusiveScratch(at url: URL) throws {
+        guard coldAcquisition, coldLockHeld, coldIdentityCaptured,
+              !checkedCloseUncertain else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try revalidate(applicationSupportURL: url)
+    }
     func closeCheckedForOriginalEraseShutdown() throws { try closeCheckedForMaintenance() }
 #endif
 

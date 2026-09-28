@@ -247,9 +247,69 @@ final class StartupRouter: ObservableObject {
         var acknowledgedReservation: AppAccessGateV1.EraseAdoptionToken?
         var postAdoptionStartup = false
         var postAdoptionExecutionID: UUID?
+        var restoreSourceExit: RestoreSourceReaderExitV1?
+        var restoreDrainID: UUID?
+        var restoreSourceWriterHandle: GenerationLeaseHandleV1?
+        var restoreTargetPointerData: Data?
     }
     private let originalOperationOwner = OriginalOperationOwner()
     private var originalOperations: [UUID: OriginalOperationState] = [:]
+    private final class PendingRestoreReaderTransition {
+        enum Phase: Equatable { case waitingForOldAliases, sourceClosed, rebound, recovering, uncertain }
+        let id: UUID
+        let ticket: OriginalOperationTicket
+        let source: RestoreSourceReaderExitV1
+        let targetSession: StoreGenerationSession
+        let targetFactory: StoreGenerationFactory
+        let targetReader: GenerationLeaseHandleV1
+        let writerOwner: RestoreWriterTransitionOwnerV1
+        let targetCoordinator: StoreSessionCoordinator
+        let targetWriter: GenerationLeaseHandleV1
+        let originalFactory: StoreGenerationFactory
+        var phase = Phase.waitingForOldAliases
+
+        init(ticket: OriginalOperationTicket,
+             source: RestoreSourceReaderExitV1,
+             targetSession: StoreGenerationSession,
+             targetFactory: StoreGenerationFactory,
+             targetReader: GenerationLeaseHandleV1,
+             writerOwner: RestoreWriterTransitionOwnerV1,
+             targetCoordinator: StoreSessionCoordinator,
+             targetWriter: GenerationLeaseHandleV1,
+             originalFactory: StoreGenerationFactory) {
+            id = UUID()
+            self.ticket = ticket
+            self.source = source
+            self.targetSession = targetSession
+            self.targetFactory = targetFactory
+            self.targetReader = targetReader
+            self.writerOwner = writerOwner
+            self.targetCoordinator = targetCoordinator
+            self.targetWriter = targetWriter
+            self.originalFactory = originalFactory
+        }
+    }
+    private var pendingRestoreReaderTransition: PendingRestoreReaderTransition?
+    private var retainedRestoreOldCoordinatorOnFailure: StoreSessionCoordinator?
+    private var retainedRestoreTargetSessionOnFailure: StoreGenerationSession?
+    private var retainedRestoreWriterAttemptOnFailure: RestoreWriterTransitionOwnerV1?
+    private var maintenanceClearObservation: RestoreMaintenanceClearObservationV1?
+    private static var retainedUncertainMaintenanceObservations:
+        [RestoreMaintenanceClearObservationV1] = []
+    private var maintenanceControlFrame: RestoreMaintenanceClearObservationV1.Frame?
+    private var maintenanceOperationsExpectedFrame: RestoreMaintenanceClearObservationV1.Frame?
+    private var maintenanceOperationsOwner: RestoreMaintenanceClearObservationV1?
+    private var maintenanceFinalizationStore: FinalizationIntentStore?
+    private var maintenanceFinalizationDescriptorOwner:
+        RestoreMaintenanceOperationsDescriptorOwnerV1?
+    private var maintenanceDeletionService: WholeSignDeletionService?
+    private var maintenanceDeletionDescriptorOwner:
+        RestoreMaintenanceOperationsDescriptorOwnerV1?
+    private var maintenanceOperationsUncertain = false
+    private weak var maintenanceFrameSession: StoreGenerationSession?
+    private weak var maintenanceFrameReader: GenerationLeaseHandleV1?
+    private var maintenanceFrameOpeningFactory: StoreGenerationFactory?
+    private var maintenanceFrameHadInstalledWriter = false
     private var coldErasePreparation: EraseColdPreparationOperationV1?
     private var coldEraseRetirement: EraseColdRetirementAuthorityV1?
     private var retainedEraseRetirementOperation: EraseRouterOperationV1?
@@ -280,6 +340,7 @@ final class StartupRouter: ObservableObject {
         service: EraseAllService,
         receipt: AbortedEraseAdmissionReceiptV1
     )?
+    private var completedAbortPreAliasSealed = false
 #endif
     private var detachedEraseRetirement: EraseSessionRetirementV1?
     private var freshEraseAdoption: EraseFreshAdoptionOwnerV1?
@@ -301,6 +362,9 @@ final class StartupRouter: ObservableObject {
     /// Test observation after read-only preparation, before final authorization.
     var beforeCurrentMediaCleanupForTesting: (@MainActor (ModelContext) async throws -> Void)?
     var beforePrivatePreparationCleanupForTesting: (@MainActor (ModelContext) async throws -> Void)?
+    /// Runs only after ordinary startup writer cleanup has settled and just
+    /// before maintenance eligibility reads the existing Restore controls.
+    var beforeMaintenanceClearObservationForTesting: (@MainActor () throws -> Void)?
 #endif
     fileprivate enum StartupAuthorization {
         case content(AppAccessGateV1, AppAccessGateV1.ContentReadToken)
@@ -502,6 +566,9 @@ final class StartupRouter: ObservableObject {
     }
 
     func retryChecks(accessGate: any AppAccessGatePortV1) async throws {
+        guard pendingRestoreReaderTransition == nil else {
+            throw AppAccessContractFailureV1.invalidTransition
+        }
         let authorization = try await startupAuthorization(accessGate)
         await runStartup(authorization: authorization)
         try await authorization.validate()
@@ -565,6 +632,7 @@ final class StartupRouter: ObservableObject {
     }
 
     func startIfNeeded() async {
+        guard pendingRestoreReaderTransition == nil else { return }
 #if DEBUG
         if abandonedOriginalEraseForColdRestart { return }
 #endif
@@ -582,6 +650,9 @@ final class StartupRouter: ObservableObject {
     }
 
     func startIfNeeded(accessGate: any AppAccessGatePortV1) async throws {
+        guard pendingRestoreReaderTransition == nil else {
+            throw AppAccessContractFailureV1.invalidTransition
+        }
 #if DEBUG
         guard !abandonedOriginalEraseForColdRestart else {
             throw AppAccessContractFailureV1.staleAttempt
@@ -601,6 +672,7 @@ final class StartupRouter: ObservableObject {
     }
 
     func retryChecks() async {
+        guard pendingRestoreReaderTransition == nil else { return }
         if let startupAccessGate {
             do { try await retryChecks(accessGate: startupAccessGate) }
             catch { lastStartupAccessFailure = error }
@@ -634,29 +706,54 @@ final class StartupRouter: ObservableObject {
         coordinator: StoreSessionCoordinator?,
         accessGate: AppAccessGateV1
     ) async throws -> OriginalOperationTicket {
-        guard pendingEraseDrainProof == nil, !isRunning,
+        guard pendingRestoreReaderTransition == nil,
+              pendingEraseDrainProof == nil, !isRunning,
               pendingAbortedOriginalReaderRetirements.isEmpty,
               originalOperations.isEmpty else {
             throw AppAccessContractFailureV1.invalidTransition
         }
         let authorization = try await startupAuthorization(accessGate)
-        guard pendingEraseDrainProof == nil, !isRunning,
+        guard pendingRestoreReaderTransition == nil,
+              pendingEraseDrainProof == nil, !isRunning,
               pendingAbortedOriginalReaderRetirements.isEmpty,
               originalOperations.isEmpty else {
             throw AppAccessContractFailureV1.staleAttempt
         }
+        let sourceSession: StoreGenerationSession
+        let sourceWriter: WorkspaceWriterV1?
+        let sourceWriterHandle: GenerationLeaseHandleV1?
         if let coordinator {
-            guard coordinator.modelContext === sourceModelContext,
-                  coordinator.generationID == sourceGenerationID else {
+            let captured = try coordinator.requireOriginalRestoreSource(
+                context: sourceModelContext,
+                generationID: sourceGenerationID,
+                factory: generationFactory)
+            sourceSession = captured.session
+            sourceWriter = captured.writer
+            sourceWriterHandle = captured.writerHandle
+            guard case let .ready(published, _, _) = route,
+                  published === coordinator,
+                  publishedWriter?.coordinator === coordinator,
+                  publishedWriter?.writer === captured.writer else {
                 throw AppAccessContractFailureV1.staleAttempt
             }
-        }
-        guard try generationFactory.currentGenerationID() == sourceGenerationID else {
-            throw AppAccessContractFailureV1.staleAttempt
+        } else {
+            guard let maintenanceRestoreSession,
+                  maintenanceRestoreSession.modelContext === sourceModelContext,
+                  maintenanceRestoreSession.generationID == sourceGenerationID,
+                  case .maintenance = route else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+            sourceSession = maintenanceRestoreSession
+            sourceWriter = nil
+            sourceWriterHandle = nil
+            try requireMaintenanceFrame(sourceSession)
         }
         // This retention is an admission property, not a post-service
         // cleanup detail.  It therefore survives every suspended callback.
         retainsGenerationsUntilColdLaunch = true
+        let sourceExit = try RestoreSourceReaderExitV1(
+            session: sourceSession, sourceContext: sourceModelContext,
+            coordinator: coordinator, factory: generationFactory)
         let operation = beginOperation(.restored, authorization: authorization)
         let mint = OriginalOperationMint()
         originalOperations[operation] = OriginalOperationState(
@@ -664,8 +761,34 @@ final class StartupRouter: ObservableObject {
             sourceGenerationID: sourceGenerationID,
             source: OriginalOperationSourceReference(
                 coordinator: coordinator, modelContext: sourceModelContext
-            ), authorization: authorization
+            ), authorization: authorization, restoreSourceExit: sourceExit,
+            restoreSourceWriterHandle: sourceWriterHandle
         )
+        do {
+            if let coordinator, let sourceWriter {
+                let drainID = try coordinator.beginOriginalRestoreProducerDrain(
+                    source: sourceSession, expectedWriter: sourceWriter)
+                originalOperations[operation]?.restoreDrainID = drainID
+                try await coordinator.awaitOriginalRestoreProducerDrain(drainID)
+                guard operationID == operation,
+                      originalOperations[operation]?.mint === mint,
+                      coordinator.modelContext === sourceModelContext,
+                      coordinator.workspaceWriter === sourceWriter else {
+                    throw AppAccessContractFailureV1.staleAttempt
+                }
+            }
+            try await authorization.validate()
+            guard operationID == operation,
+                  originalOperations[operation]?.mint === mint else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+            try sourceExit.capturePhysical()
+        } catch {
+            // The exact source controls remain attached to originalOperations;
+            // a failed checked observation cannot become a new baseline.
+            route = .maintenance(.restoreInconsistent)
+            throw error
+        }
         return OriginalOperationTicket(owner: originalOperationOwner, mint: mint,
                                        operationID: operation)
     }
@@ -675,6 +798,30 @@ final class StartupRouter: ObservableObject {
         try await state.authorization.validate()
     }
 
+    /// The original Restore service calls this only after publishing and
+    /// checking its pre-switch intended pointer. It does not acknowledge a
+    /// completed Restore: activation still requires the returned B session.
+    func attestRestorePublishedPointer(originalCanonicalPointer: Data,
+        targetCanonicalPointer: Data,
+        ticket: OriginalOperationTicket) throws {
+        guard ticket.owner === originalOperationOwner,
+              operationID == ticket.operationID,
+              operationKind == .restored,
+              let state = originalOperations[ticket.operationID],
+              state.kind == .restore, state.mint === ticket.mint,
+              let source = state.restoreSourceExit,
+              state.restoreTargetPointerData == nil,
+              case .v3(let pointer, _) = try CurrentPointerCodecV1.decode(
+                  targetCanonicalPointer),
+              try pointer.canonicalData() == targetCanonicalPointer,
+              pointer.generationID != state.sourceGenerationID.uuidString.lowercased() else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        try source.requireOriginalPointerAttestation(originalCanonicalPointer)
+        originalOperations[ticket.operationID]?.restoreTargetPointerData
+            = targetCanonicalPointer
+    }
+
     /// Admission is intentionally separate from the service subject.  The
     /// service mints that subject immediately before its first effect; root
     /// passes this original token to the lifecycle exactly once at that edge.
@@ -682,7 +829,8 @@ final class StartupRouter: ObservableObject {
         coordinator: StoreSessionCoordinator,
         accessGate: AppAccessGateV1
     ) async throws -> OriginalOperationTicket {
-        guard !isRunning, pendingEraseDrainProof == nil,
+        guard !isRunning, pendingRestoreReaderTransition == nil,
+              pendingEraseDrainProof == nil,
               pendingAbortedOriginalReaderRetirements.isEmpty,
               originalOperations.isEmpty, resolvePendingWriterCleanup(),
               publishedWriter.map({ $0.coordinator === coordinator &&
@@ -690,8 +838,14 @@ final class StartupRouter: ObservableObject {
             throw AppAccessContractFailureV1.invalidTransition
         }
         try requireOriginalEraseSourceOwner(coordinator)
+        if case .maintenance = route {
+            let source = try coordinator.requireOriginalEraseOpeningAuthority(
+                factory: generationFactory)
+            try requireMaintenanceFrame(source)
+        }
         let authorization = try await startupAuthorization(accessGate)
-        guard !isRunning, pendingEraseDrainProof == nil,
+        guard !isRunning, pendingRestoreReaderTransition == nil,
+              pendingEraseDrainProof == nil,
               pendingAbortedOriginalReaderRetirements.isEmpty,
               originalOperations.isEmpty, resolvePendingWriterCleanup(),
               publishedWriter.map({ $0.coordinator === coordinator &&
@@ -701,6 +855,11 @@ final class StartupRouter: ObservableObject {
         // Authentication suspends. Reprove the exact session, source reader
         // and writer provider before inventory capture or any route mutation.
         try requireOriginalEraseSourceOwner(coordinator)
+        if case .maintenance = route {
+            let source = try coordinator.requireOriginalEraseOpeningAuthority(
+                factory: generationFactory)
+            try requireMaintenanceFrame(source)
+        }
         let returnStartup: PreparedStartup?
         if let publishedWriter, case let .ready(actual, _, recovery) = route,
            actual === coordinator, publishedWriter.coordinator === coordinator {
@@ -851,6 +1010,7 @@ final class StartupRouter: ObservableObject {
     /// A stale or foreign completion cannot tear down the operation which
     /// replaced it.  Only the exact current ticket may close this route.
     func failExternalOperation(_ ticket: OriginalOperationTicket) {
+        if pendingRestoreReaderTransition?.ticket.operationID == ticket.operationID { return }
         guard ticket.owner === originalOperationOwner,
               let state = originalOperations[ticket.operationID],
               state.mint === ticket.mint,
@@ -858,6 +1018,12 @@ final class StartupRouter: ObservableObject {
         if let value = retainedEraseRetirementOperation {
             do { try value.requireNoRetirementResourcesForAbort() }
             catch { invalidateOperationAndPublishedWriter(); return }
+        }
+        if state.kind == .restore, state.restoreSourceExit != nil {
+            // The service may already have published B. Retain the exact A
+            // controls and ticket instead of generic startup invalidation.
+            route = .maintenance(.restoreInconsistent)
+            return
         }
         removeOriginalOperation(ticket.operationID)
         if state.kind == .erase {
@@ -1070,7 +1236,12 @@ final class StartupRouter: ObservableObject {
             deferredEraseCoordinator = nil
         }
 
+        guard !maintenanceOperationsUncertain else {
+            route = .maintenance(.restoreInconsistent)
+            return
+        }
         let operation = beginOperation(.startup, authorization: authorization)
+        clearMaintenanceFrameForNewOpening()
         maintenanceRestoreSession = nil
         maintenanceEraseSession = nil
         route = .checking
@@ -1155,6 +1326,9 @@ final class StartupRouter: ObservableObject {
                 }
             }
             openedSession = session
+            // The exact opened reader is live here; every later Router
+            // recovery await must be measured against this original frame.
+            try captureMaintenanceFrame(session)
             do {
                 try reconcileGenerationLeasesForStartup()
             } catch {
@@ -1218,14 +1392,21 @@ final class StartupRouter: ObservableObject {
             let owner = OwnedWriter(coordinator)
             unpublishedOwner = owner
             operationOwnedWriter = owner
+            maintenanceFrameHadInstalledWriter = true
             do {
                 try await retireCurrentPrivatePreparations(session: session, operation: operation, owner: owner)
-                _ = try await FinalizationRecoveryService(
+                let finalizationRecovery = FinalizationRecoveryService(
                     modelContext: session.modelContext,
                     generationRootURL: session.generationRootURL,
                     workspaceWriter: owner.writer,
-                    lifecycleProfileRegistry: coordinator.lifecycleProfileRegistry
-                ).reconcile()
+                    lifecycleProfileRegistry: coordinator.lifecycleProfileRegistry,
+                    retainedStartupStore: maintenanceFinalizationStore)
+                _ = try await finalizationRecovery.reconcile()
+                if let store = maintenanceFinalizationStore {
+                    let receipt = try await store.startupRecoveryJournalReceipt()
+                    try recordMaintenanceOperationsRecoveryEffect(receipt)
+                }
+                try await closeMaintenanceFinalizationOwnerChecked()
             } catch {
 #if DEBUG
                 reportStartupFailureForTesting(error)
@@ -1239,11 +1420,32 @@ final class StartupRouter: ObservableObject {
 #endif
             didBeginStep(.deletion)
             do {
-                _ = try await WholeSignDeletionService(
+                try requireBeforeMaintenanceOperationsEffect()
+                let descriptorOwner: RestoreMaintenanceOperationsDescriptorOwnerV1?
+                if maintenanceControlFrame != nil {
+                    descriptorOwner = RestoreMaintenanceOperationsDescriptorOwnerV1()
+                    maintenanceDeletionDescriptorOwner = descriptorOwner
+                } else { descriptorOwner = nil }
+                let deletionRecovery = WholeSignDeletionService(
                     modelContext: session.modelContext,
                     generationRootURL: session.generationRootURL,
-                    fileManager: fileManager
-                ).reconcile()
+                    fileManager: fileManager,
+                    trackStartupOperationsCreation: maintenanceControlFrame != nil,
+                    startupDescriptorOwner: descriptorOwner)
+                maintenanceDeletionService = deletionRecovery
+                if maintenanceControlFrame != nil {
+                    try recordMaintenanceOperationsEffect {
+                        try descriptorOwner?.requireOpen()
+                        return try deletionRecovery.startupOperationsReceipt()
+                    }
+                    maintenanceOperationsUncertain = true
+                }
+                _ = try await deletionRecovery.reconcile()
+                if maintenanceControlFrame != nil {
+                    try recordMaintenanceOperationsRecoveryEffect(
+                        deletionRecovery.startupRecoveryJournalReceipt())
+                }
+                try closeMaintenanceDeletionOwnerChecked()
             } catch {
 #if DEBUG
                 reportStartupFailureForTesting(error)
@@ -1367,6 +1569,20 @@ final class StartupRouter: ObservableObject {
                 return
             }
             if let reason = error as? StartupMaintenanceReason {
+#if DEBUG
+                if openedSession == nil {
+                    FileHandle.standardError.write(Data(
+                        "V23_RESTORE_MAINTENANCE_ELIGIBILITY_V1 first=no-opened-session\n".utf8))
+                }
+                do {
+                    try beforeMaintenanceClearObservationForTesting?()
+                } catch {
+                    maintenanceRestoreSession = nil
+                    maintenanceEraseSession = nil
+                    route = .maintenance(reason)
+                    return
+                }
+#endif
                 maintenanceRestoreSession = openedSession.flatMap {
                     eligibleMaintenanceRestoreSession($0)
                 }
@@ -1473,6 +1689,13 @@ final class StartupRouter: ObservableObject {
     /// transient cover or completed repair; real revocation retires its lease.
     func pauseForAppAccess(discardPrepared: Bool = true) {
         stopCommerce()
+        if pendingRestoreReaderTransition != nil ||
+            originalOperations.values.contains(where: {
+                $0.kind == .restore && $0.restoreSourceExit != nil
+            }) {
+            route = .checking
+            return
+        }
         if retainedEraseRetirementOperation != nil {
             invalidateOperationAndPublishedWriter()
             return
@@ -1723,6 +1946,13 @@ final class StartupRouter: ObservableObject {
     /// A suspended continuation cannot reclaim a newer binding in the same
     /// mutable coordinator when its own operation resumes.
     private func invalidateOperationAndPublishedWriter() {
+        if pendingRestoreReaderTransition != nil ||
+            originalOperations.values.contains(where: {
+                $0.kind == .restore && $0.restoreSourceExit != nil
+            }) {
+            route = .checking
+            return
+        }
 #if DEBUG
         if abandonedOriginalEraseForColdRestart {
             route = .maintenance(.eraseInconsistent)
@@ -2492,8 +2722,442 @@ final class StartupRouter: ObservableObject {
         _ session: StoreGenerationSession,
         coordinator: StoreSessionCoordinator?,
         ticket: OriginalOperationTicket
+    ) async throws -> UUID {
+        let state = try await validateOriginalOperation(ticket, kind: .restore)
+        guard pendingRestoreReaderTransition == nil,
+              let source = state.restoreSourceExit,
+              let intendedPointer = state.restoreTargetPointerData,
+              let targetFactory = try? session.validatedOpeningFactoryForWriter(),
+              !targetFactory.sharesRegistryProvider(with: generationFactory) else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        try requireOriginalRestoreSourceAtActivation(state,
+            source: source, coordinator: coordinator)
+        retainedRestoreTargetSessionOnFailure = session
+        try await state.authorization.validate()
+        guard pendingRestoreReaderTransition == nil,
+              operationID == ticket.operationID,
+              operationKind == .restored,
+              originalOperations[ticket.operationID]?.mint === ticket.mint,
+              originalOperations[ticket.operationID]?.restoreSourceExit === source,
+              originalOperations[ticket.operationID]?.restoreTargetPointerData
+                == intendedPointer else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        try requireOriginalRestoreSourceAtActivation(state,
+            source: source, coordinator: coordinator)
+        try source.requireSourceUnchanged(stage: .activationBeforeTarget)
+        try source.requireTargetPublished(session, openingFactory: targetFactory,
+            intendedCanonicalPointer: intendedPointer)
+        let targetReader = try session.retainedReaderForOriginalRestoreTransition(
+            factory: targetFactory)
+        let sourceWriterHandle: GenerationLeaseHandleV1?
+        if let coordinator {
+            guard let drainID = state.restoreDrainID,
+                  let capturedHandle = state.restoreSourceWriterHandle,
+                  let original = state.source.coordinator,
+                  original === coordinator,
+                  let originalOwner = publishedWriter,
+                  originalOwner.coordinator === coordinator else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+            retainedRestoreOldCoordinatorOnFailure = coordinator
+            do {
+                let reboundSource = try coordinator
+                    .requireOriginalRestoreSourceAfterTargetPublication(
+                        context: coordinator.modelContext,
+                        generationID: state.sourceGenerationID,
+                        factory: generationFactory,
+                        expectedWriter: originalOwner.writer,
+                        expectedWriterHandle: capturedHandle,
+                        drainID: drainID)
+                sourceWriterHandle = try coordinator.closeWriterForOriginalRestoreTransition(
+                    source: reboundSource,
+                    drainID: drainID, expectedWriter: originalOwner.writer)
+            } catch {
+                route = .maintenance(.restoreInconsistent)
+                throw error
+            }
+            publishedWriter = nil
+            operationOwnedWriter = nil
+            retainedRestoreOldCoordinatorOnFailure = nil
+        } else {
+            sourceWriterHandle = nil
+        }
+        maintenanceRestoreSession = nil
+        maintenanceEraseSession = nil
+        route = .checking
+        let writerOwner = try RestoreWriterTransitionOwnerV1(
+            operationID: ticket.operationID, targetSession: session,
+            targetFactory: targetFactory, sourceReader: source.reader,
+            sourceWriter: sourceWriterHandle, targetReader: targetReader)
+        retainedRestoreWriterAttemptOnFailure = writerOwner
+        let targetCoordinator: StoreSessionCoordinator
+        do {
+            targetCoordinator = try StoreSessionCoordinator.makeForOriginalRestoreTransition(
+                owner: writerOwner,
+                lifecycleProfileRegistry: lifecycleProfileRegistry)
+        } catch {
+            route = .maintenance(.restoreInconsistent)
+            throw error
+        }
+        let boundSession = try targetCoordinator.requireOriginalEraseOpeningAuthority(
+            factory: targetFactory)
+        guard boundSession === session,
+              operationID == ticket.operationID,
+              originalOperations[ticket.operationID]?.mint === ticket.mint else {
+            route = .maintenance(.restoreInconsistent)
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        let pending = PendingRestoreReaderTransition(
+            ticket: ticket, source: source, targetSession: session,
+            targetFactory: targetFactory, targetReader: targetReader,
+            writerOwner: writerOwner, targetCoordinator: targetCoordinator,
+            targetWriter: targetCoordinator.restoreWriterLeaseHandleForTransition,
+            originalFactory: generationFactory)
+        pendingRestoreReaderTransition = pending
+        retainedRestoreTargetSessionOnFailure = nil
+        retainedRestoreWriterAttemptOnFailure = nil
+        return pending.id
+    }
+
+    private func requireOriginalRestoreSourceAtActivation(
+        _ state: OriginalOperationState,
+        source: RestoreSourceReaderExitV1,
+        coordinator: StoreSessionCoordinator?) throws {
+        if let coordinator {
+            guard state.source.coordinator === coordinator,
+                  state.source.modelContext === coordinator.modelContext,
+                  coordinator.generationID == state.sourceGenerationID,
+                  case .ready(let published, _, _) = route,
+                  published === coordinator,
+                  publishedWriter?.coordinator === coordinator,
+                  publishedWriter?.writer === coordinator.workspaceWriter else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+        } else {
+            guard state.source.coordinator == nil,
+                  let sourceContext = state.source.modelContext,
+                  let maintenanceRestoreSession,
+                  case .maintenance = route else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+            try source.requireObservedMaintenanceSource(
+                maintenanceRestoreSession, context: sourceContext,
+                openingFactory: generationFactory)
+        }
+    }
+
+    private func requirePendingRestore(
+        _ pending: PendingRestoreReaderTransition
     ) async throws {
-        try await activateRestoredSessionCore(session, coordinator: coordinator, ticket: ticket)
+        guard pendingRestoreReaderTransition === pending,
+              pending.ticket.owner === originalOperationOwner,
+              operationID == pending.ticket.operationID,
+              operationKind == .restored, isRunning,
+              let state = originalOperations[pending.ticket.operationID],
+              state.mint === pending.ticket.mint,
+              state.restoreSourceExit === pending.source,
+              state.restoreTargetPointerData != nil,
+              pending.targetCoordinator.modelContext === pending.targetSession.modelContext,
+              pending.targetCoordinator.generationID == pending.targetSession.generationID,
+              pending.targetCoordinator.workspaceWriter === pending.writerOwner.constructedWriterForTransition else {
+#if DEBUG
+            let first: String
+            if pendingRestoreReaderTransition !== pending { first = "pending-owner" }
+            else if pending.ticket.owner !== originalOperationOwner { first = "ticket-owner" }
+            else if operationID != pending.ticket.operationID || operationKind != .restored || !isRunning {
+                first = "operation-state"
+            } else if originalOperations[pending.ticket.operationID] == nil { first = "operation-record" }
+            else if originalOperations[pending.ticket.operationID]?.mint !== pending.ticket.mint {
+                first = "operation-mint"
+            } else if originalOperations[pending.ticket.operationID]?.restoreSourceExit !== pending.source {
+                first = "source-owner"
+            } else if originalOperations[pending.ticket.operationID]?.restoreTargetPointerData == nil {
+                first = "pointer-attestation"
+            } else if pending.targetCoordinator.modelContext !== pending.targetSession.modelContext {
+                first = "target-context"
+            } else if pending.targetCoordinator.generationID != pending.targetSession.generationID {
+                first = "target-generation"
+            } else { first = "target-writer" }
+            FileHandle.standardError.write(Data(
+                "V23_RESTORE_PENDING_PROOF_V1 first=\(first)\n".utf8))
+#endif
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        #if DEBUG
+        var proofStage = "target-reader-registry"
+        #endif
+        do {
+            try pending.targetReader.requireExactRegistry(pending.writerOwner.registry)
+            #if DEBUG
+            proofStage = "target-reader-active"
+            #endif
+            try pending.writerOwner.registry.validateActive(
+                pending.targetReader.token, requiredRole: .reader)
+            #if DEBUG
+            proofStage = "target-writer-active"
+            #endif
+            try pending.writerOwner.registry.validateActive(
+                pending.targetWriter.token, requiredRole: .writer)
+            #if DEBUG
+            proofStage = "authorization"
+            #endif
+            try await state.authorization.validate()
+        } catch {
+            #if DEBUG
+            FileHandle.standardError.write(Data(
+                "V23_RESTORE_PENDING_PROOF_V1 first=\(proofStage)\n".utf8))
+            #endif
+            throw error
+        }
+        guard pendingRestoreReaderTransition === pending,
+              operationID == pending.ticket.operationID,
+              originalOperations[pending.ticket.operationID]?.mint
+                === pending.ticket.mint,
+              originalOperations[pending.ticket.operationID]?.restoreSourceExit
+                === pending.source,
+              pending.targetCoordinator.workspaceWriter === pending.writerOwner.constructedWriterForTransition else {
+#if DEBUG
+            FileHandle.standardError.write(Data(
+                "V23_RESTORE_PENDING_PROOF_V1 first=postawait-association\n".utf8))
+#endif
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+    }
+
+    /// Only the exact pending ticket may advance the already restored B owner.
+    /// A false result means that an actual A SwiftData alias is still alive;
+    /// neither elapsed time nor sheet dismissal is an ownership witness.
+    func resumeOriginalRestoreReaderTransition(_ id: UUID) async throws -> Bool {
+        guard let pending = pendingRestoreReaderTransition,
+              pending.id == id else {
+#if DEBUG
+            FileHandle.standardError.write(Data(
+                "V23_RESTORE_RESUME_PHASE_V1 first=pending-id\n".utf8))
+#endif
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        guard pending.phase == .waitingForOldAliases else {
+#if DEBUG
+            FileHandle.standardError.write(Data(
+                "V23_RESTORE_RESUME_PHASE_V1 first=pending-phase\n".utf8))
+#endif
+            throw AppAccessContractFailureV1.invalidTransition
+        }
+        do { try await requirePendingRestore(pending) }
+        catch {
+#if DEBUG
+            FileHandle.standardError.write(Data(
+                "V23_RESTORE_RESUME_PHASE_V1 first=initial-pending-proof\n".utf8))
+#endif
+            throw error
+        }
+        let originalAliasesDrained = pending.source.hasDrainedOriginalAliases
+#if DEBUG
+        if !originalAliasesDrained {
+            let aliases = pending.source.originalAliasPresenceForTesting()
+            FileHandle.standardError.write(Data(
+                "V23_RESTORE_ALIAS_DRAIN_V1 session=\(aliases.session) context=\(aliases.context) container=\(aliases.container) coordinator=\(aliases.coordinator) maintenance=\(maintenanceRestoreSession != nil) published=\(publishedWriter != nil) operation=\(operationOwnedWriter != nil) prepared=\(preparedStartup != nil) failureSource=\(retainedRestoreOldCoordinatorOnFailure != nil) failureTarget=\(retainedRestoreTargetSessionOnFailure != nil) failureWriter=\(retainedRestoreWriterAttemptOnFailure != nil)\n".utf8))
+        }
+#endif
+        guard originalAliasesDrained else { return false }
+#if DEBUG
+        var resumeStage = "intended-pointer"
+#endif
+        do {
+            guard let intendedPointer = originalOperations[
+                pending.ticket.operationID]?.restoreTargetPointerData else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+#if DEBUG
+            resumeStage = "target-published"
+#endif
+            try pending.source.requireTargetPublished(pending.targetSession,
+                openingFactory: pending.targetFactory,
+                intendedCanonicalPointer: intendedPointer)
+#if DEBUG
+            resumeStage = "source-close"
+#endif
+            try pending.source.closeAfterCheckedAliasDrain(
+                targetRegistry: pending.writerOwner.registry,
+                targetReader: pending.targetReader,
+                targetWriter: pending.targetWriter,
+                targetSession: pending.targetSession,
+                targetFactory: pending.targetFactory,
+                intendedCanonicalPointer: intendedPointer)
+            pending.phase = .sourceClosed
+#if DEBUG
+            resumeStage = "postclose-pending-proof"
+#endif
+            try await requirePendingRestore(pending)
+#if DEBUG
+            resumeStage = "target-reader-provider"
+#endif
+            let exactB = try pending.targetSession.validatedOpeningFactoryForWriter()
+#if DEBUG
+            resumeStage = "target-coordinator-provider"
+#endif
+            guard exactB.sharesRegistryProvider(with: pending.targetFactory),
+                  try pending.targetCoordinator.requireOriginalEraseOpeningAuthority(
+                    factory: exactB) === pending.targetSession else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+            generationFactory = exactB
+            pending.phase = .rebound
+#if DEBUG
+            resumeStage = "rebound-coordinator"
+#endif
+            guard try pending.targetCoordinator.requireOriginalEraseOpeningAuthority(
+                    factory: generationFactory) === pending.targetSession else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+#if DEBUG
+            resumeStage = "rebound-pending-proof"
+#endif
+            try await requirePendingRestore(pending)
+            pending.phase = .recovering
+            let owner = OwnedWriter(pending.targetCoordinator)
+            operationOwnedWriter = owner
+            let session = pending.targetSession
+            let operation = pending.ticket.operationID
+#if DEBUG
+            resumeStage = "current-generation"
+#endif
+            guard try generationFactory.currentGenerationID() == session.generationID else {
+                throw StartupMaintenanceReason.restoreInconsistent
+            }
+#if DEBUG
+            resumeStage = "generation-leases"
+#endif
+            try reconcileGenerationLeasesForStartup()
+#if DEBUG
+            resumeStage = "preparation-pending-proof"
+#endif
+            try await requirePendingRestore(pending)
+#if DEBUG
+            resumeStage = "private-preparations"
+#endif
+            try await retireCurrentPrivatePreparations(
+                session: session, operation: operation, owner: owner)
+#if DEBUG
+            resumeStage = "finalization-pending-proof"
+#endif
+            try await requirePendingRestore(pending)
+#if DEBUG
+            resumeStage = "finalization-recovery"
+#endif
+            let finalizationRecovery = FinalizationRecoveryService(
+                modelContext: session.modelContext,
+                generationRootURL: session.generationRootURL,
+                workspaceWriter: owner.writer,
+                lifecycleProfileRegistry: pending.targetCoordinator.lifecycleProfileRegistry,
+                retainedStartupStore: maintenanceFinalizationStore)
+            _ = try await finalizationRecovery.reconcile()
+            if let store = maintenanceFinalizationStore {
+                let receipt = try await store.startupRecoveryJournalReceipt()
+                try recordMaintenanceOperationsRecoveryEffect(receipt)
+            }
+            try await closeMaintenanceFinalizationOwnerChecked()
+#if DEBUG
+            resumeStage = "deletion-pending-proof"
+#endif
+            try await requirePendingRestore(pending)
+#if DEBUG
+            resumeStage = "whole-sign-recovery"
+#endif
+            try requireBeforeMaintenanceOperationsEffect()
+            let descriptorOwner: RestoreMaintenanceOperationsDescriptorOwnerV1?
+            if maintenanceControlFrame != nil {
+                descriptorOwner = RestoreMaintenanceOperationsDescriptorOwnerV1()
+                maintenanceDeletionDescriptorOwner = descriptorOwner
+            } else { descriptorOwner = nil }
+            let deletionRecovery = WholeSignDeletionService(
+                modelContext: session.modelContext,
+                generationRootURL: session.generationRootURL,
+                fileManager: fileManager,
+                trackStartupOperationsCreation: maintenanceControlFrame != nil,
+                startupDescriptorOwner: descriptorOwner)
+            maintenanceDeletionService = deletionRecovery
+            if maintenanceControlFrame != nil {
+                try recordMaintenanceOperationsEffect {
+                    try descriptorOwner?.requireOpen()
+                    return try deletionRecovery.startupOperationsReceipt()
+                }
+                maintenanceOperationsUncertain = true
+            }
+            _ = try await deletionRecovery.reconcile()
+            if maintenanceControlFrame != nil {
+                try recordMaintenanceOperationsRecoveryEffect(
+                    deletionRecovery.startupRecoveryJournalReceipt())
+            }
+            try closeMaintenanceDeletionOwnerChecked()
+#if DEBUG
+            resumeStage = "media-pending-proof"
+#endif
+            try await requirePendingRestore(pending)
+#if DEBUG
+            resumeStage = "media-recovery"
+#endif
+            try await recoverCurrentMedia(session: session, operation: operation, owner: owner)
+#if DEBUG
+            resumeStage = "report-pending-proof"
+#endif
+            try await requirePendingRestore(pending)
+#if DEBUG
+            resumeStage = "report-construction"
+#endif
+            let recovery = try makeActiveReportRecovery(
+                session: session, coordinator: pending.targetCoordinator)
+#if DEBUG
+            resumeStage = "report-recovery"
+#endif
+            try recovery.reconcileAtStartup()
+#if DEBUG
+            resumeStage = "writer-history"
+#endif
+            _ = try owner.writer.sourceMutationHistorySnapshot()
+#if DEBUG
+            resumeStage = "diagnostics"
+#endif
+            await diagnosticsStore.prepare()
+#if DEBUG
+            resumeStage = "commerce-pending-proof"
+#endif
+            try await requirePendingRestore(pending)
+#if DEBUG
+            resumeStage = "commerce-install"
+#endif
+            try await installCommerceProcessor(operation: operation, owner: owner)
+#if DEBUG
+            resumeStage = "publication-pending-proof"
+#endif
+            try await requirePendingRestore(pending)
+#if DEBUG
+            resumeStage = "publication-authority"
+#endif
+            guard generationFactory.sharesRegistryProvider(
+                    with: pending.targetFactory),
+                  try pending.targetCoordinator.requireOriginalEraseOpeningAuthority(
+                    factory: generationFactory) === session,
+                  try generationFactory.currentGenerationID() == session.generationID else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+            operationOwnedWriter = nil
+            publishedWriter = owner
+            route = .ready(pending.targetCoordinator, diagnosticsStore, recovery)
+            pendingRestoreReaderTransition = nil
+            endOperation(operation)
+            return true
+        } catch {
+#if DEBUG
+            FileHandle.standardError.write(Data(
+                "V23_RESTORE_RESUME_PHASE_V1 first=\(resumeStage) errorType=\(String(reflecting: type(of: error)))\n".utf8))
+#endif
+            pending.phase = .uncertain
+            route = .maintenance(.restoreInconsistent)
+            throw error
+        }
     }
 
     private func activateRestoredSessionCore(
@@ -2531,6 +3195,11 @@ final class StartupRouter: ObservableObject {
         maintenanceEraseSession = nil
         route = .checking
         defer { endOperation(operation) }
+        guard !maintenanceOperationsUncertain else {
+            route = .maintenance(.restoreInconsistent)
+            return
+        }
+        clearMaintenanceFrameForNewOpening()
         var unpublishedOwner: OwnedWriter?
 
         do {
@@ -2538,6 +3207,18 @@ final class StartupRouter: ObservableObject {
             // retired generation bytes for the remainder of this process even
             // after the coordinator releases its old session lease.
             retainsGenerationsUntilColdLaunch = true
+            let intendedPointer: Data?
+            if let ticket {
+                guard let attested = originalOperations[
+                    ticket.operationID]?.restoreTargetPointerData else {
+                    throw AppAccessContractFailureV1.staleAttempt
+                }
+                intendedPointer = attested
+            } else {
+                intendedPointer = nil
+            }
+            try captureMaintenanceFrame(session,
+                intendedPointer: intendedPointer)
             guard try generationFactory.currentGenerationID() == session.generationID
             else {
                 throw StartupMaintenanceReason.restoreInconsistent
@@ -2556,6 +3237,7 @@ final class StartupRouter: ObservableObject {
             let owner = OwnedWriter(activeCoordinator)
             unpublishedOwner = owner
             operationOwnedWriter = owner
+            maintenanceFrameHadInstalledWriter = true
 
             do {
                 try await retireCurrentPrivatePreparations(session: session, operation: operation, owner: owner)
@@ -2563,14 +3245,41 @@ final class StartupRouter: ObservableObject {
                     modelContext: session.modelContext,
                     generationRootURL: session.generationRootURL,
                     workspaceWriter: owner.writer,
-                    lifecycleProfileRegistry: activeCoordinator.lifecycleProfileRegistry
+                    lifecycleProfileRegistry: activeCoordinator.lifecycleProfileRegistry,
+                    retainedStartupStore: maintenanceFinalizationStore
                 ).reconcile()
+                if let store = maintenanceFinalizationStore {
+                    let receipt = try await store.startupRecoveryJournalReceipt()
+                    try recordMaintenanceOperationsRecoveryEffect(receipt)
+                }
+                try await closeMaintenanceFinalizationOwnerChecked()
                 try await requireCurrentOperationAndAccess(operation, owner: owner)
-                _ = try await WholeSignDeletionService(
+                try requireBeforeMaintenanceOperationsEffect()
+                let descriptorOwner: RestoreMaintenanceOperationsDescriptorOwnerV1?
+                if maintenanceControlFrame != nil {
+                    descriptorOwner = RestoreMaintenanceOperationsDescriptorOwnerV1()
+                    maintenanceDeletionDescriptorOwner = descriptorOwner
+                } else { descriptorOwner = nil }
+                let deletionRecovery = WholeSignDeletionService(
                     modelContext: session.modelContext,
                     generationRootURL: session.generationRootURL,
-                    fileManager: fileManager
-                ).reconcile()
+                    fileManager: fileManager,
+                    trackStartupOperationsCreation: maintenanceControlFrame != nil,
+                    startupDescriptorOwner: descriptorOwner)
+                maintenanceDeletionService = deletionRecovery
+                if maintenanceControlFrame != nil {
+                    try recordMaintenanceOperationsEffect {
+                        try descriptorOwner?.requireOpen()
+                        return try deletionRecovery.startupOperationsReceipt()
+                    }
+                    maintenanceOperationsUncertain = true
+                }
+                _ = try await deletionRecovery.reconcile()
+                if maintenanceControlFrame != nil {
+                    try recordMaintenanceOperationsRecoveryEffect(
+                        deletionRecovery.startupRecoveryJournalReceipt())
+                }
+                try closeMaintenanceDeletionOwnerChecked()
                 try await requireCurrentOperationAndAccess(operation, owner: owner)
                 try await recoverCurrentMedia(session: session, operation: operation, owner: owner)
                 try await requireCurrentOperationAndAccess(operation, owner: owner)
@@ -2672,8 +3381,25 @@ final class StartupRouter: ObservableObject {
                 throw StartupMaintenanceReason.finalizationInconsistent
             }
         }
+        try requireBeforeMaintenanceOperationsEffect()
+        let trackMaintenanceOperations = maintenanceControlFrame != nil
+        let descriptorOwner: RestoreMaintenanceOperationsDescriptorOwnerV1?
+        if trackMaintenanceOperations {
+            descriptorOwner = RestoreMaintenanceOperationsDescriptorOwnerV1()
+            maintenanceFinalizationDescriptorOwner = descriptorOwner
+        } else { descriptorOwner = nil }
         let store = FinalizationIntentStore(generationRootURL: session.generationRootURL,
-            expectedGenerationRootIdentity: rootIdentity)
+            expectedGenerationRootIdentity: rootIdentity,
+            trackStartupOperationsCreation: trackMaintenanceOperations,
+            startupDescriptorOwner: descriptorOwner)
+        if trackMaintenanceOperations {
+            maintenanceFinalizationStore = store
+            try recordMaintenanceOperationsEffect {
+                try descriptorOwner?.requireOpen()
+                return try store.startupOperationsReceipt()
+            }
+            maintenanceOperationsUncertain = true
+        }
         let prepared = try await store.prepareStartupPrivateRetirement(authority: authority)
 #if DEBUG
         try await beforePrivatePreparationCleanupForTesting?(session.modelContext)
@@ -2885,13 +3611,232 @@ final class StartupRouter: ObservableObject {
         }
     }
 
+    private func closeMaintenanceFinalizationOwnerChecked() async throws {
+        guard let descriptorOwner = maintenanceFinalizationDescriptorOwner else {
+            maintenanceFinalizationStore = nil
+            return
+        }
+        guard let store = maintenanceFinalizationStore else {
+            maintenanceOperationsUncertain = true
+            throw StartupMaintenanceReason.finalizationInconsistent
+        }
+        do {
+            try descriptorOwner.requireOpen()
+            maintenanceOperationsUncertain = true
+            try await store.closeStartupOperationsAuthorityChecked()
+            maintenanceFinalizationStore = nil
+            maintenanceFinalizationDescriptorOwner = nil
+            maintenanceOperationsUncertain = false
+        } catch {
+            maintenanceOperationsUncertain = true
+            throw error
+        }
+    }
+
+    private func closeMaintenanceDeletionOwnerChecked() throws {
+        guard let descriptorOwner = maintenanceDeletionDescriptorOwner else {
+            maintenanceDeletionService = nil
+            return
+        }
+        guard maintenanceDeletionService != nil else {
+            maintenanceOperationsUncertain = true
+            throw StartupMaintenanceReason.finalizationInconsistent
+        }
+        do {
+            try descriptorOwner.requireOpen()
+            try descriptorOwner.closeAllChecked()
+            maintenanceDeletionService = nil
+            maintenanceDeletionDescriptorOwner = nil
+            maintenanceOperationsUncertain = false
+        } catch {
+            maintenanceOperationsUncertain = true
+            throw error
+        }
+    }
+
+    private func clearMaintenanceFrameForNewOpening() {
+        guard !maintenanceOperationsUncertain else { return }
+        maintenanceControlFrame = nil
+        maintenanceOperationsExpectedFrame = nil
+        maintenanceOperationsOwner = nil
+        maintenanceFinalizationStore = nil
+        maintenanceFinalizationDescriptorOwner = nil
+        maintenanceDeletionService = nil
+        maintenanceDeletionDescriptorOwner = nil
+        maintenanceFrameSession = nil
+        maintenanceFrameReader = nil
+        maintenanceFrameOpeningFactory = nil
+        maintenanceFrameHadInstalledWriter = false
+    }
+
+    /// The opened reader and provider are the authority for this observation.
+    /// Capture before Router recovery awaits, and keep the original canonical
+    /// controls as a value rather than adopting any later maintenance state.
+    private func captureMaintenanceFrame(
+        _ session: StoreGenerationSession,
+        intendedPointer: Data? = nil
+    ) throws {
+        guard maintenanceClearObservation == nil,
+              maintenanceControlFrame == nil else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let opening = try session.validatedOpeningFactoryForWriter()
+        guard opening.sharesRegistryProvider(with: generationFactory) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let reader = try session.retainedReaderForOriginalRestoreTransition(
+            factory: opening)
+        var root = stat()
+        guard Darwin.lstat(applicationSupportURL.standardizedFileURL.path,
+                &root) == 0,
+              root.st_mode & S_IFMT == S_IFDIR,
+              root.st_nlink > 0 else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let observation = try opening.makeRestoreMaintenanceClearObservation(
+            expectedApplicationSupportIdentity: StoreApplicationSupportIdentity(
+                device: root.st_dev, inode: root.st_ino))
+        maintenanceClearObservation = observation
+        do {
+            let frame = try observation.captureFrame(session: session,
+                intendedPointer: intendedPointer)
+            maintenanceControlFrame = frame
+            maintenanceOperationsExpectedFrame = frame
+            maintenanceOperationsOwner = observation
+            maintenanceFrameSession = session
+            maintenanceFrameReader = reader
+            maintenanceFrameOpeningFactory = opening
+            maintenanceClearObservation = nil
+        } catch {
+            if observation.hasUncertainClose {
+                Self.retainedUncertainMaintenanceObservations.append(observation)
+            } else {
+                maintenanceClearObservation = nil
+            }
+            throw error
+        }
+    }
+
+    private func requireBeforeMaintenanceOperationsEffect() throws {
+        guard !maintenanceOperationsUncertain else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        if maintenanceControlFrame == nil {
+            guard maintenanceOperationsExpectedFrame == nil,
+                  maintenanceOperationsOwner == nil else {
+                maintenanceOperationsUncertain = true
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            return
+        }
+        guard let expected = maintenanceOperationsExpectedFrame,
+              let owner = maintenanceOperationsOwner else {
+            maintenanceOperationsUncertain = true
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        do {
+            try owner.requireBeforeOperationsEffect(matching: expected)
+        } catch {
+            maintenanceOperationsUncertain = true
+            throw error
+        }
+    }
+
+    private func recordMaintenanceOperationsEffect(
+        _ receipt: () throws -> RestoreMaintenanceClearObservationV1.OperationsChildReceipt
+    ) throws {
+        guard let original = maintenanceControlFrame,
+              let expected = maintenanceOperationsExpectedFrame,
+              let owner = maintenanceOperationsOwner else {
+            maintenanceOperationsUncertain = true
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        do {
+            let authenticated = try receipt()
+            maintenanceOperationsExpectedFrame = try owner.recordOperationsEffect(
+                original: original, previous: expected, receipt: authenticated)
+        } catch {
+            maintenanceOperationsUncertain = true
+            throw error
+        }
+    }
+
+    private func recordMaintenanceOperationsRecoveryEffect(
+        _ receipt: RestoreMaintenanceClearObservationV1.OperationsRecoveryReceipt
+    ) throws {
+        guard maintenanceOperationsUncertain,
+              let original = maintenanceControlFrame,
+              let expected = maintenanceOperationsExpectedFrame,
+              let owner = maintenanceOperationsOwner else {
+            maintenanceOperationsUncertain = true
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        do {
+            maintenanceOperationsExpectedFrame = try owner
+                .recordOperationsRecoveryEffect(original: original,
+                    previous: expected, receipt: receipt)
+        } catch {
+            maintenanceOperationsUncertain = true
+            throw error
+        }
+    }
+
+    private func requireMaintenanceFrame(
+        _ session: StoreGenerationSession
+    ) throws {
+        guard !maintenanceOperationsUncertain,
+              maintenanceOperationsExpectedFrame != nil,
+              maintenanceOperationsOwner != nil,
+              maintenanceFinalizationStore == nil,
+              maintenanceDeletionService == nil,
+              maintenanceFrameHadInstalledWriter,
+              maintenanceFrameSession === session,
+              let frame = maintenanceControlFrame,
+              let opening = maintenanceFrameOpeningFactory,
+              let reader = maintenanceFrameReader,
+              opening.sharesRegistryProvider(with: generationFactory),
+              try session.validatedOpeningFactoryForWriter()
+                .sharesRegistryProvider(with: opening),
+              try session.retainedReaderForOriginalRestoreTransition(
+                factory: opening) === reader,
+              reader.token.epoch.generationID == frame.generationID,
+              session.generationID == frame.generationID,
+              !session.modelContext.hasChanges else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        guard maintenanceJournalAuthorityIsClear(matching: frame),
+              try session.validatedOpeningFactoryForWriter()
+                .sharesRegistryProvider(with: opening),
+              try session.retainedReaderForOriginalRestoreTransition(
+                factory: opening) === reader else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+    }
+
     private func eligibleMaintenanceRestoreSession(
         _ session: StoreGenerationSession
     ) -> StoreGenerationSession? {
         guard !hasPendingWriterCleanup,
-              BackupRestoreService.isEmptyCurrent(session.modelContext),
-              (try? generationFactory.currentGenerationID()) == session.generationID,
-              maintenanceJournalAuthorityIsClear() else {
+              maintenanceFinalizationStore == nil,
+              maintenanceDeletionService == nil else {
+#if DEBUG
+            FileHandle.standardError.write(Data(
+                "V23_RESTORE_MAINTENANCE_ELIGIBILITY_V1 first=writer-cleanup\n".utf8))
+#endif
+            return nil
+        }
+        guard BackupRestoreService.isEmptyCurrent(session.modelContext) else {
+#if DEBUG
+            FileHandle.standardError.write(Data(
+                "V23_RESTORE_MAINTENANCE_ELIGIBILITY_V1 first=nonempty-source\n".utf8))
+#endif
+            return nil
+        }
+        guard (try? requireMaintenanceFrame(session)) != nil else {
+#if DEBUG
+            FileHandle.standardError.write(Data(
+                "V23_RESTORE_MAINTENANCE_ELIGIBILITY_V1 first=control-frame\n".utf8))
+#endif
             return nil
         }
         return session
@@ -2901,38 +3846,72 @@ final class StartupRouter: ObservableObject {
         _ session: StoreGenerationSession
     ) -> StoreGenerationSession? {
         guard !hasPendingWriterCleanup,
+              maintenanceFinalizationStore == nil,
+              maintenanceDeletionService == nil,
               !session.modelContext.hasChanges,
-              (try? generationFactory.currentGenerationID()) == session.generationID,
-              maintenanceJournalAuthorityIsClear() else {
+              (try? requireMaintenanceFrame(session)) != nil else {
             return nil
         }
-        do {
-            try EraseAllService(
-                applicationSupportURL: applicationSupportURL,
-                fileManager: fileManager
-            ).validateMaintenanceEntry(session)
-        } catch {
-            return nil
-        }
+        // EraseAllService.erase retains its full current/retired, package,
+        // receipt, policy and intent validation before its first effect. The
+        // option itself uses only this original, no-repair reader frame.
         return session
     }
 
-    private func maintenanceJournalAuthorityIsClear() -> Bool {
+    private func maintenanceJournalAuthorityIsClear(
+        matching frame: RestoreMaintenanceClearObservationV1.Frame
+    ) -> Bool {
+        // An ambiguous descriptor close is a one-way refusal for this Router.
+        guard maintenanceClearObservation == nil else { return false }
+        var stage = "root"
         do {
-            let root = try ReportPDFAnchoredFile.rootIdentity(
-                at: applicationSupportURL
-            )
-            let authority = try generationFactory.makeRestoreGenerationAuthority(
+            // This is Application Support, not a generation root. The report
+            // helper requires Data/generations/<UUID> and rejects this path.
+            // The retained restore authority below opens this exact named
+            // directory no-follow and compares the physical identity.
+            var root = stat()
+            guard Darwin.lstat(applicationSupportURL.standardizedFileURL.path,
+                    &root) == 0,
+                  root.st_mode & S_IFMT == S_IFDIR,
+                  root.st_nlink > 0 else {
+#if DEBUG
+                FileHandle.standardError.write(Data(
+                    "V23_RESTORE_MAINTENANCE_JOURNAL_V1 first=root\n".utf8))
+#endif
+                return false
+            }
+            stage = "authority"
+            let observation = try generationFactory.makeRestoreMaintenanceClearObservation(
                 expectedApplicationSupportIdentity: StoreApplicationSupportIdentity(
-                    device: root.device,
-                    inode: root.inode
+                    device: root.st_dev,
+                    inode: root.st_ino
                 )
             )
-            try authority.requireNoEraseAuthority()
-            try authority.requireNoRestoreJournal()
-            return try authority.restoreGenerationNames().isEmpty
-                && authority.importStagingNames().isEmpty
+            maintenanceClearObservation = observation
+            try observation.requireClear(matching: frame,
+                expectedOperations: maintenanceOperationsExpectedFrame,
+                onStage: { stage = $0 })
+            maintenanceClearObservation = nil
+            return true
         } catch {
+            if let observation = maintenanceClearObservation {
+                if observation.hasUncertainClose {
+                    Self.retainedUncertainMaintenanceObservations.append(observation)
+                }
+            }
+#if DEBUG
+            let label: String
+            switch error {
+            case RestoreMaintenanceClearObservationV1.EmptyRootFailure.restoreGenerations:
+                label = "generation-names-nonempty"
+            case RestoreMaintenanceClearObservationV1.EmptyRootFailure.importStaging:
+                label = "import-names-nonempty"
+            default:
+                label = stage
+            }
+            FileHandle.standardError.write(Data(
+                "V23_RESTORE_MAINTENANCE_JOURNAL_V1 first=\(label)\n".utf8))
+#endif
             return false
         }
     }
@@ -4759,6 +5738,18 @@ final class EraseRouterOperationV1 {
         v949PostHandoffSource = (service, subject, reservation, binding)
     }
 
+    /// Only the original Router calls this after actual Registry G and
+    /// physical-root EX acquisition, before releasing its strong model owner.
+    fileprivate func beginV949OwnedSourceCloseTransition() throws {
+        guard let armed = v949PostHandoffSource else { return }
+        guard originalShutdownState == .poisoned,
+              originalShutdownActivity != nil, originalShutdownRoot != nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try armed.service.beginV949OwnedSourceCloseTransitionForTesting(
+            armed.binding, operation: self)
+    }
+
     fileprivate func takeV949PostHandoffWitness()
         throws -> V949PostHandoffHostileFixtureWitnessV1 {
         guard originalShutdownState == .controlsReleased,
@@ -4814,6 +5805,9 @@ final class EraseRouterOperationV1 {
     fileprivate var permitsOriginalEffectForTesting: Bool {
         coldRestartAbandonment == .active && originalShutdownState == .active
     }
+    fileprivate var permitsCompletedAbortInventoryBindingForTesting: Bool {
+        coldRestartAbandonment == .active && originalShutdownState == .poisoned
+    }
 #endif
 
     fileprivate init(router: StartupRouter, ticket: StartupRouter.OriginalOperationTicket,
@@ -4836,6 +5830,9 @@ final class EraseRouterOperationV1 {
 #if DEBUG
     private enum OriginalShutdownState { case active, poisoned, controlsTransferred, controlsReleased, uncertain }
     private var originalShutdownState = OriginalShutdownState.active
+    // True only while the exact poisoned operation synchronously binds its
+    // already-disposed preparation witness into the original-reader census.
+    private var completedAbortInventoryBindingInProgress = false
     private var originalShutdownWitness: EraseOriginalShutdownWitnessV1?
     private var originalShutdownRegistry: GenerationLeaseRegistryV1?
     private var originalShutdownActivity: GenerationTemporalActivityHandleV1?
@@ -5071,12 +6068,19 @@ final class EraseRouterOperationV1 {
               preparationWriterPhase != .installed, !detached, prepared == nil else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
+#if DEBUG
+        if completedAbortInventoryBindingInProgress {
+            try router.requireCompletedAbortInventoryBindingOperation(self)
+            return
+        }
+#endif
         try router.requireEraseRetirementOperation(self)
     }
 
 #if DEBUG
     fileprivate func poisonInterruptedOriginalPreparation(
-        sourceGenerationID: UUID, targetGenerationID: UUID
+        sourceGenerationID: UUID, targetGenerationID: UUID,
+        completedAbort: Bool = false
     ) throws {
         guard originalShutdownState == .active, !detached, !detaching,
               prepared == nil, drain == nil, originalExclusion == nil,
@@ -5092,6 +6096,39 @@ final class EraseRouterOperationV1 {
         originalShutdownSourceGenerationID = sourceGenerationID
         originalShutdownTargetGenerationID = targetGenerationID
         originalShutdownState = .poisoned
+        if completedAbort {
+            try armCompletedAbortOriginalShutdownInventory()
+        }
+    }
+
+    /// The already-disposed preparation witness is verified while this exact
+    /// original Router operation is still current. The later original-shutdown
+    /// seal can then include its live original readers without reopening
+    /// inventory admission or minting an unrelated witness.
+    private func armCompletedAbortOriginalShutdownInventory() throws {
+        guard originalShutdownState == .poisoned,
+              !preparationServiceFrame,
+              let router,
+              let coordinator = preparationCoordinator else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try router.requireCompletedAbortInventoryBindingOperation(self)
+        let control = try coordinator.captureOriginalEraseShutdownControl(
+            operation: self)
+        guard !control.installed,
+              preparationRegistry == nil || preparationRegistry === control.registry,
+              preparationSourceWriter === control.writer else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        guard !completedAbortInventoryBindingInProgress else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        completedAbortInventoryBindingInProgress = true
+        defer { completedAbortInventoryBindingInProgress = false }
+        try inventory.armCompletedAbortOriginalShutdownAfterDisposal(
+            operation: self, registry: control.registry,
+            witness: preparationFailureWitness,
+            writer: preparationWriterAllocation)
     }
 
     /// Durable pre-detach interruption keeps its constructed readers and
@@ -5281,6 +6318,29 @@ final class EraseRouterOperationV1 {
         }
     }
 
+    func requireCompletedAbortExclusiveScratchOwner(
+        witness: EraseOriginalShutdownWitnessV1,
+        registry: GenerationLeaseRegistryV1,
+        root: StoreTemporalPhysicalRootExclusionV1,
+        receipt: AbortedEraseAdmissionReceiptV1
+    ) throws {
+        try requireOriginalShutdownWitness(witness, registry: registry)
+        guard originalShutdownState == .controlsTransferred,
+              originalShutdownRoot === root,
+              !completedAbortExclusiveScratchUncertain,
+              let router else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try router.requireCompletedAbortPreAliasSealForExclusiveScratch(
+            self, receipt: receipt)
+    }
+
+    private var completedAbortExclusiveScratchUncertain = false
+
+    func poisonCompletedAbortExclusiveScratchOwner() {
+        completedAbortExclusiveScratchUncertain = true
+    }
+
     fileprivate func retainOriginalShutdownActivity(
         _ activity: GenerationTemporalActivityHandleV1,
         registry: GenerationLeaseRegistryV1
@@ -5355,18 +6415,28 @@ final class EraseRouterOperationV1 {
         }
         // Weak aliases are live observations, not a time-based or cached bit.
         // A refusal here is harmless and retryable after the caller lets go.
-        try witness.requireDrained(registry: registry)
+        do {
+            try witness.requireDrained(registry: registry)
+        } catch {
+            FileHandle.standardError.write(Data(
+                "ERASE_ORIGINAL_SHUTDOWN_V1 stage=alias-drain-before\n".utf8))
+            throw error
+        }
+        var diagnosticStage = "preparation-reader-close"
         do {
             for reader in witness.preparationReaders {
                 try reader.closeForOriginalEraseShutdown(proof: witness, activity: activity)
             }
+            diagnosticStage = "captured-reader-close"
             for reader in witness.capturedReaders {
                 try witness.requireCapturedReader(reader, registry: registry)
                 try reader.closeForOriginalEraseShutdown(witness: witness, activity: activity)
             }
+            diagnosticStage = "target-writer-close"
             if let target = witness.preparationWriter {
                 try target.closeForOriginalEraseShutdown(proof: witness, activity: activity)
             }
+            diagnosticStage = "source-writer-close"
             if originalShutdownInstalled {
                 try source.requireCheckedClosedForOriginalEraseShutdown(registry: registry)
                 guard witness.preparationWriter?.allocatedHandle === current else {
@@ -5376,19 +6446,33 @@ final class EraseRouterOperationV1 {
                 guard current === source else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
                 try source.closeForOriginalEraseShutdown(witness: witness, activity: activity)
             }
+            diagnosticStage = "alias-drain-after"
             try witness.requireDrained(registry: registry)
+            diagnosticStage = "lease-census"
             try registry.requireOriginalEraseShutdownLeaseCensus(witness: witness,
                 activity: activity)
+            diagnosticStage = "v949-sqlite-postclose"
+            if let armed = v949PostHandoffSource {
+                try armed.service.completeV949OwnedSourceCloseTransitionForTesting(
+                    armed.binding, operation: self)
+            }
+            diagnosticStage = "final-no-effect"
             try finalNoEffect?()
+            diagnosticStage = "exclusion-close"
             try registry.closeOriginalEraseShutdownExclusion(
                 witness: witness, activity: activity, physicalRoot: root)
+            diagnosticStage = "guard-unlink"
             try registry.unlinkOriginalEraseShutdownOwnerGuard(witness: witness)
+            diagnosticStage = "guard-unlinked-finish"
             try registry.finishOriginalEraseShutdownUnlinkedGuard(witness: witness)
             originalShutdownState = .controlsReleased
         } catch {
             // Any ambiguous close or post-unlink result remains terminal and
             // retains the exact owner. This path cannot mint cold readiness.
             originalShutdownState = .uncertain
+            FileHandle.standardError.write(Data((
+                "ERASE_ORIGINAL_SHUTDOWN_V1 stage=" + diagnosticStage + "\n"
+            ).utf8))
             throw error
         }
     }
@@ -5397,15 +6481,39 @@ final class EraseRouterOperationV1 {
         service: EraseAllService,
         receipt: AbortedEraseAdmissionReceiptV1
     ) throws {
-        guard let registry = originalShutdownRegistry,
-              let witness = originalShutdownWitness else {
+        guard !completedAbortExclusiveScratchUncertain,
+              let registry = originalShutdownRegistry,
+              let witness = originalShutdownWitness,
+              let root = originalShutdownRoot else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         try finishInterruptedOriginalPreparationForColdRestart {
-            try registry.requireCompletedAbortFinalNoEffectUnderOriginalShutdown(
-                witness: witness, service: service,
-                operation: self, receipt: receipt)
+            try registry.withCompletedAbortExclusiveScratchPermit(
+                witness: witness, physicalRoot: root,
+                service: service, operation: self, receipt: receipt) { permit in
+                try service.requireCompletedAbortPostCloseNoEffectForTesting(
+                    operation: self, receipt: receipt, permit: permit)
+            }
         }
+    }
+
+    /// Reprove the immutable original source while the authentic Router still
+    /// holds EX/G and AppAccess still holds its internal source aliases. This
+    /// stores no session, context, container, or new reader owner.
+    fileprivate func requireCompletedAbortPreAliasNoEffect(
+        service: EraseAllService,
+        receipt: AbortedEraseAdmissionReceiptV1,
+        coordinator: StoreSessionCoordinator
+    ) throws {
+        guard originalShutdownState == .controlsTransferred,
+              let registry = originalShutdownRegistry,
+              let witness = originalShutdownWitness,
+              originalShutdownActivity != nil, originalShutdownRoot != nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try registry.sealCompletedAbortCanonicalUnderOriginalShutdown(
+            witness: witness, service: service, operation: self,
+            receipt: receipt, coordinator: coordinator)
     }
 #endif
 
@@ -5815,6 +6923,22 @@ extension StartupRouter {
     }
 
 #if DEBUG
+    /// The completed-abort inventory is armed after the original effects are
+    /// poisoned. Reprove the exact retained operation without reopening the
+    /// active-only effect gate used by every other Erase transition.
+    fileprivate func requireCompletedAbortInventoryBindingOperation(
+        _ value: EraseRouterOperationV1
+    ) throws {
+        let ticket = value.ticket
+        guard value.permitsCompletedAbortInventoryBindingForTesting,
+              retainedEraseRetirementOperation === value, value.router === self,
+              ticket.owner === originalOperationOwner,
+              let state = originalOperations[ticket.operationID], state.kind == .erase,
+              state.owner === ticket.owner, state.mint === ticket.mint else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+    }
+
     /// The original preparation and detached EX are genuine, with no fault.
     /// Consume every Router continuation while that EX is still held; the
     /// caller may release retained model aliases before the checked finish.
@@ -5998,9 +7122,21 @@ extension StartupRouter {
         receipt: AbortedEraseAdmissionReceiptV1,
         expectedFault: EraseAllFailurePoint
     ) throws {
-        try requireEraseRetirementOperation(value)
-        try service.requireCompletedAbortColdShutdownForTesting(
-            expectedFault, operation: value, receipt: receipt)
+        do {
+            try requireEraseRetirementOperation(value)
+        } catch {
+            FileHandle.standardError.write(Data(
+                "ERASE_COMPLETED_ABORT_POISON_PREFLIGHT_V1 stage=operation\n".utf8))
+            throw error
+        }
+        do {
+            try service.requireCompletedAbortColdShutdownForTesting(
+                expectedFault, operation: value, receipt: receipt)
+        } catch {
+            FileHandle.standardError.write(Data(
+                "ERASE_COMPLETED_ABORT_POISON_PREFLIGHT_V1 stage=service\n".utf8))
+            throw error
+        }
         let ticket = value.ticket
         guard completedAbortShutdown == nil, completedAbortFinal == nil,
               let state = originalOperations[ticket.operationID],
@@ -6016,12 +7152,59 @@ extension StartupRouter {
               let coordinator = state.source.coordinator,
               completedAbortSourceRouteMatchesForTesting(
                   coordinator, liveTicket: ticket) else {
+            // Diagnostic only: classify the already-refused in-memory guard.
+            // The original short-circuit expression above remains authority.
+            let category: String
+            if completedAbortShutdown != nil || completedAbortFinal != nil {
+                category = "shutdown-state"
+            } else if let observed = originalOperations[ticket.operationID] {
+                if observed.kind != .erase { category = "operation-kind" }
+                else if observed.eraseSubject != receipt.subject { category = "subject" }
+                else if observed.acknowledgedReservation != receipt.reservation {
+                    category = "reservation"
+                } else if observed.sourceGenerationID != receipt.originalGenerationID {
+                    category = "source-generation"
+                } else if !observed.eraseAuthorizationIssued {
+                    category = "authorization-issued"
+                } else if receipt.reservation.subject != receipt.subject {
+                    category = "receipt-subject"
+                } else if value.detached || detachedEraseRetirement != nil {
+                    category = "detached"
+                } else if retainedEraseRetirementOperation !== value {
+                    category = "retained-operation"
+                } else if hasPendingWriterCleanup {
+                    category = "pending-writer-cleanup"
+                } else if let coordinator = observed.source.coordinator {
+                    category = completedAbortSourceRouteMatchesForTesting(
+                        coordinator, liveTicket: ticket) ? "unclassified" : "source-route"
+                } else {
+                    category = "source-coordinator"
+                }
+            } else {
+                category = "operation-state"
+            }
+            FileHandle.standardError.write(Data((
+                "ERASE_COMPLETED_ABORT_POISON_PREFLIGHT_V1 stage=" + category + "\n"
+            ).utf8))
             throw AppAccessContractFailureV1.staleAttempt
         }
-        try value.requireNoRetirementResourcesForAbort()
-        try value.poisonInterruptedOriginalPreparation(
-            sourceGenerationID: state.sourceGenerationID,
-            targetGenerationID: receipt.subject.newGenerationID)
+        do {
+            try value.requireNoRetirementResourcesForAbort()
+        } catch {
+            FileHandle.standardError.write(Data(
+                "ERASE_COMPLETED_ABORT_POISON_PREFLIGHT_V1 stage=resource-proof\n".utf8))
+            throw error
+        }
+        do {
+            try value.poisonInterruptedOriginalPreparation(
+                sourceGenerationID: state.sourceGenerationID,
+                targetGenerationID: receipt.subject.newGenerationID,
+                completedAbort: true)
+        } catch {
+            FileHandle.standardError.write(Data(
+                "ERASE_COMPLETED_ABORT_POISON_PREFLIGHT_V1 stage=operation-poison\n".utf8))
+            throw error
+        }
         Self.retainedOriginalEraseShutdownOwnersForTesting.append(value)
         completedAbortShutdown = CompletedAbortShutdown(
             operation: value, service: service, receipt: receipt,
@@ -6033,7 +7216,14 @@ extension StartupRouter {
         operationAuthorization = nil
         isRunning = false
         stopCommerce()
-        let drainID = try coordinator.closeProducerAdmissionForOriginalEraseShutdown()
+        let drainID: UUID
+        do {
+            drainID = try coordinator.closeProducerAdmissionForOriginalEraseShutdown()
+        } catch {
+            FileHandle.standardError.write(Data(
+                "ERASE_COMPLETED_ABORT_POISON_PREFLIGHT_V1 stage=producer-close\n".utf8))
+            throw error
+        }
         completedAbortShutdown?.drainID = drainID
         coordinator.workspaceWriter.invalidate()
     }
@@ -6056,6 +7246,8 @@ extension StartupRouter {
         _ value: EraseRouterOperationV1,
         receipt: AbortedEraseAdmissionReceiptV1
     ) async throws {
+        var diagnosticStage = "initial-authority"
+        do {
         guard abandonedOriginalEraseForColdRestart,
               let held = completedAbortShutdown,
               held.operation === value,
@@ -6067,6 +7259,7 @@ extension StartupRouter {
             throw AppAccessContractFailureV1.staleAttempt
         }
         let coordinator = held.coordinator
+        diagnosticStage = "producer-await"
         try await coordinator.awaitProducersForOriginalEraseShutdown(drainID)
         guard completedAbortShutdown?.operation === value,
               completedAbortShutdown?.drainID == drainID,
@@ -6075,28 +7268,42 @@ extension StartupRouter {
                   coordinator, liveTicket: nil) else {
             throw AppAccessContractFailureV1.staleAttempt
         }
+        diagnosticStage = "producer-drain-before-proof"
         try coordinator.requireOriginalEraseShutdownProducerDrain(drainID)
+        diagnosticStage = "service-no-effect"
         try held.service.requireCompletedAbortNoEffectForTesting(
             operation: value, receipt: receipt)
+        diagnosticStage = "capture-control"
         let control = try coordinator.captureOriginalEraseShutdownControl(operation: value)
         guard !control.installed else { throw AppAccessContractFailureV1.staleAttempt }
+        diagnosticStage = "seal-witness"
         let witness = try value.prepareOriginalShutdownControls(
             registry: control.registry, writer: control.writer, installed: false)
+        diagnosticStage = "begin-registry-shutdown"
         try control.registry.beginOriginalEraseCheckedShutdown(witness)
+        diagnosticStage = "producer-drain-after-fence"
         try coordinator.requireOriginalEraseShutdownProducerDrain(drainID)
+        diagnosticStage = "normalization-activity"
         try control.registry.acquireTemporalNormalizationActivityForOriginalEraseShutdown(
             witness: witness, retainedWriter: control.writer.token,
             retain: { try value.retainOriginalShutdownActivity($0, registry: control.registry) })
+        diagnosticStage = "physical-root-create"
         let root = try StoreTemporalPhysicalRootExclusionV1
             .unacquiredOriginalEraseShutdown(at: control.supportURL)
+        diagnosticStage = "physical-root-retain"
         try value.retainOriginalShutdownRoot(root)
+        diagnosticStage = "physical-root-acquire"
         try root.acquireOriginalEraseShutdown()
+        diagnosticStage = "producer-drain-after-root"
         try coordinator.requireOriginalEraseShutdownProducerDrain(drainID)
+        diagnosticStage = "fresh-ledger-no-effect"
         try control.registry.requireCompletedAbortNoEffectUnderOriginalShutdown(
             witness: witness, service: held.service,
             operation: value, receipt: receipt, coordinator: coordinator)
+        diagnosticStage = "transfer-controls"
         try value.markOriginalShutdownControlsTransferred()
         completedAbortFinal = (value, held.service, receipt)
+        completedAbortPreAliasSealed = false
         completedAbortShutdown = nil
         operationOwnedWriter = nil
         pendingErasedActivation = nil
@@ -6106,9 +7313,36 @@ extension StartupRouter {
         publishedWriter = nil
         preparedStartup = nil
         route = .maintenance(.eraseInconsistent)
+        } catch {
+            FileHandle.standardError.write(Data((
+                "ERASE_COMPLETED_ABORT_ROUTER_V1 stage=" + diagnosticStage + "\n"
+            ).utf8))
+            throw error
+        }
     }
 
-    func finishCompletedAbortColdRestartForTesting(
+    /// One-use exact-source seal before AppAccess drops its pending aliases.
+    /// The final checked-close proof remains unchanged and still runs later.
+    func sealCompletedAbortSourceBeforeAliasReleaseForTesting(
+        _ value: EraseRouterOperationV1,
+        receipt: AbortedEraseAdmissionReceiptV1,
+        coordinator: StoreSessionCoordinator
+    ) throws {
+        guard abandonedOriginalEraseForColdRestart,
+              let final = completedAbortFinal,
+              final.operation === value,
+              final.receipt.matchesExactOriginalAuthority(receipt),
+              !completedAbortPreAliasSealed,
+              case .maintenance(.eraseInconsistent) = route else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        try value.requireCompletedAbortPreAliasNoEffect(
+            service: final.service, receipt: receipt,
+            coordinator: coordinator)
+        completedAbortPreAliasSealed = true
+    }
+
+    fileprivate func requireCompletedAbortPreAliasSealForExclusiveScratch(
         _ value: EraseRouterOperationV1,
         receipt: AbortedEraseAdmissionReceiptV1
     ) throws {
@@ -6116,12 +7350,37 @@ extension StartupRouter {
               let final = completedAbortFinal,
               final.operation === value,
               final.receipt.matchesExactOriginalAuthority(receipt),
+              completedAbortPreAliasSealed,
               case .maintenance(.eraseInconsistent) = route else {
             throw AppAccessContractFailureV1.staleAttempt
         }
+    }
+
+    func finishCompletedAbortColdRestartForTesting(
+        _ value: EraseRouterOperationV1,
+        receipt: AbortedEraseAdmissionReceiptV1
+    ) throws {
+        var diagnosticStage = "final-authority"
+        do {
+        guard abandonedOriginalEraseForColdRestart,
+              let final = completedAbortFinal,
+              final.operation === value,
+              final.receipt.matchesExactOriginalAuthority(receipt),
+              completedAbortPreAliasSealed,
+              case .maintenance(.eraseInconsistent) = route else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        diagnosticStage = "final-checked-close"
         try value.finishCompletedAbortForColdRestart(
             service: final.service, receipt: receipt)
         completedAbortFinal = nil
+        completedAbortPreAliasSealed = false
+        } catch {
+            FileHandle.standardError.write(Data((
+                "ERASE_COMPLETED_ABORT_ROUTER_V1 stage=" + diagnosticStage + "\n"
+            ).utf8))
+            throw error
+        }
     }
 
     /// Begin a test-host process boundary for an injected original Erase
@@ -6238,6 +7497,40 @@ extension StartupRouter {
               publishedWriter == nil,
               retainedEraseRetirementOperation === value,
               !hasPendingWriterCleanup else {
+#if DEBUG
+            let routeIsChecking: Bool
+            if case .checking = route { routeIsChecking = true }
+            else { routeIsChecking = false }
+            let firstFailure: String
+            if canonicalIntent.phase != expectedPhase { firstFailure = "intent-phase" }
+            else if canonicalIntent.eraseID != subject.eraseID { firstFailure = "intent-erase" }
+            else if canonicalIntent.newGenerationID != subject.newGenerationID { firstFailure = "intent-new" }
+            else if canonicalIntent.oldGenerationID != state.sourceGenerationID { firstFailure = "intent-old" }
+            else if state.kind != .erase { firstFailure = "state-kind" }
+            else if !(state.owner === ticket.owner) { firstFailure = "ticket-owner" }
+            else if !(state.mint === ticket.mint) { firstFailure = "ticket-mint" }
+            else if !(state.source.coordinator === coordinator) { firstFailure = "source-coordinator" }
+            else if !(state.source.modelContext === coordinator.modelContext) { firstFailure = "source-context" }
+            else if state.sourceGenerationID != coordinator.generationID { firstFailure = "source-generation" }
+            else if !routeIsChecking { firstFailure = "route" }
+            else if operationOwnedWriter == nil { firstFailure = "owned-writer-missing" }
+            else if let owned = operationOwnedWriter,
+                    !(owned.coordinator === coordinator) { firstFailure = "owned-coordinator" }
+            else if let owned = operationOwnedWriter,
+                    !(owned.writer === coordinator.workspaceWriter) { firstFailure = "owned-writer" }
+            else if let owned = operationOwnedWriter,
+                    owned.generationID != state.sourceGenerationID { firstFailure = "owned-generation" }
+            else if pendingErasedActivation != nil { firstFailure = "pending-activation" }
+            else if eraseCleanupRetirement != nil { firstFailure = "cleanup-retirement" }
+            else if detachedEraseRetirement != nil { firstFailure = "detached-retirement" }
+            else if publishedWriter != nil { firstFailure = "published-writer" }
+            else if !(retainedEraseRetirementOperation === value) { firstFailure = "retained-operation" }
+            else if hasPendingWriterCleanup { firstFailure = "writer-cleanup" }
+            else { firstFailure = "changed-during-check" }
+            FileHandle.standardError.write(Data((
+                "V906_PREACTIVATION_ROUTE_GUARD_V1 first=" + firstFailure + "\n"
+            ).utf8))
+#endif
             throw AppAccessContractFailureV1.staleAttempt
         }
         if poisoned {
@@ -6262,6 +7555,24 @@ extension StartupRouter {
                   isRunning,
                   originalOperations[ticket.operationID]?.owner === state.owner,
                   originalOperations[ticket.operationID]?.mint === state.mint else {
+#if DEBUG
+                let originalKind: Bool
+                if case .erase = operationKind { originalKind = true }
+                else { originalKind = false }
+                let firstFailure: String
+                if abandonedOriginalEraseForColdRestart { firstFailure = "abandoned" }
+                else if operationID != ticket.operationID { firstFailure = "operation-id" }
+                else if !originalKind { firstFailure = "operation-kind" }
+                else if !isRunning { firstFailure = "not-running" }
+                else if !(originalOperations[ticket.operationID]?.owner === state.owner) {
+                    firstFailure = "original-owner"
+                } else if !(originalOperations[ticket.operationID]?.mint === state.mint) {
+                    firstFailure = "original-mint"
+                } else { firstFailure = "changed-during-check" }
+                FileHandle.standardError.write(Data((
+                    "V906_PREACTIVATION_PREPOISON_GUARD_V1 first=" + firstFailure + "\n"
+                ).utf8))
+#endif
                 throw AppAccessContractFailureV1.staleAttempt
             }
         }
@@ -6435,6 +7746,12 @@ extension StartupRouter {
         try root.acquireOriginalEraseShutdown()
         tracePreactivationShutdown("root-ex.complete")
         try coordinator.requireOriginalEraseShutdownProducerDrain(drainID)
+        if expectedFault == .afterPointerSwitch,
+           preactivationIntent != nil {
+            tracePreactivationShutdown("v949-sqlite-preclose.enter")
+            try value.beginV949OwnedSourceCloseTransition()
+            tracePreactivationShutdown("v949-sqlite-preclose.complete")
+        }
         coordinator.workspaceWriter.invalidate()
         // If another genuine activation route retained the target strongly,
         // reprove its exact identity before transferring that aggregate.
@@ -6499,15 +7816,22 @@ extension StartupRouter {
         try requireEraseRetirementOperation(value)
         let ticket = value.ticket
         guard let state = originalOperations[ticket.operationID],
+              let coordinator = state.source.coordinator,
               let subject = state.eraseSubject,
               let reservation = state.acknowledgedReservation,
               reservation.subject == subject,
-              case let .eraseCleanupPending(.preparing(coordinator)) = route,
-              state.source.coordinator === coordinator,
+              state.eraseAuthorizationIssued,
               retainedEraseRetirementOperation === value,
               !value.detached else {
             throw AppAccessContractFailureV1.staleAttempt
         }
+        let intent = try originalService.interruptedRetiredAuthorityIntentForTesting(
+            .afterPointerSwitch, operation: value)
+        try requirePreactivationDurableEraseRouteForTesting(
+            value, state: state, coordinator: coordinator,
+            subject: subject, expectedFault: .afterPointerSwitch,
+            originalService: originalService,
+            canonicalIntent: intent, poisoned: false)
         let binding = try originalService.capturePostHandoffHostileSourceForTesting(
             operation: value)
         try value.armV949PostHandoffSource(

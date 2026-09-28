@@ -1500,6 +1500,134 @@ extension ProtectedFilePolicyV1 {
         return result
     }
 
+    /// A retained owner can observe the unchanged temporal policy while
+    /// accounting for ambiguous closes of this helper's transient descriptors.
+    /// Existing ordinary callers above retain their established behavior.
+    /// On a failed close the supplied exact owner keeps the FD number as
+    /// terminal uncertainty; neither helper nor owner retries that close.
+    static func observeTemporalPolicyWithCheckedClose(
+        _ kind: OwnedFileKindV1, at url: URL,
+        retainUncertainDescriptor: (Int32) -> Void
+    ) throws -> TemporalPolicyObservationV1 {
+        let expected = disposition(for: kind)
+        let before = try pinForRestoreExit(kind, at: url,
+            disposition: expected,
+            retainUncertainDescriptor: retainUncertainDescriptor)
+        let flags = O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC
+            | (expected.expectsDirectory ? O_DIRECTORY : 0)
+        return try withRestoreExitDescriptor(
+            path: url.path, flags: flags,
+            retainUncertainDescriptor: retainUncertainDescriptor) { descriptor in
+            func reproveHeld() throws {
+                var held = stat()
+                guard Darwin.fstat(descriptor, &held) == 0,
+                      held.st_dev == before.device, held.st_ino == before.inode,
+                      held.st_nlink == before.linkCount,
+                      (held.st_mode & S_IFMT) == (expected.expectsDirectory ? S_IFDIR : S_IFREG) else {
+                    throw ProtectedFilePolicyError.identityChanged
+                }
+            }
+            try reproveHeld()
+            let result = try readTemporalPolicy(kind, at: url,
+                expectedDevice: UInt64(before.device),
+                expectedInode: UInt64(before.inode),
+                expectedLinkCount: UInt64(before.linkCount))
+            try reproveHeld()
+            guard try pinForRestoreExit(kind, at: url,
+                disposition: expected,
+                retainUncertainDescriptor: retainUncertainDescriptor) == before else {
+                throw ProtectedFilePolicyError.identityChanged
+            }
+            return result
+        }
+    }
+
+    private static func withRestoreExitDescriptor<Value>(
+        path: String, flags: Int32,
+        retainUncertainDescriptor: (Int32) -> Void,
+        openFailure: () -> Error = { ProtectedFilePolicyError.invalidURL },
+        _ body: (Int32) throws -> Value
+    ) throws -> Value {
+        let descriptor = Darwin.open(path, flags)
+        guard descriptor >= 0 else { throw openFailure() }
+        var closeAttempted = false
+        do {
+            let result = try body(descriptor)
+            closeAttempted = true
+            guard Darwin.close(descriptor) == 0 else {
+                retainUncertainDescriptor(descriptor)
+                throw ProtectedFilePolicyError.identityChanged
+            }
+            return result
+        } catch {
+            if !closeAttempted {
+                closeAttempted = true
+                guard Darwin.close(descriptor) == 0 else {
+                    retainUncertainDescriptor(descriptor)
+                    throw ProtectedFilePolicyError.identityChanged
+                }
+            }
+            throw error
+        }
+    }
+
+    private static func pinForRestoreExit(
+        _ kind: OwnedFileKindV1, at url: URL,
+        disposition: OwnedFileProtectionDispositionV1,
+        retainUncertainDescriptor: (Int32) -> Void
+    ) throws -> LeafIdentity {
+        guard url.isFileURL else { throw ProtectedFilePolicyError.invalidURL }
+        var inspected = stat()
+        guard Darwin.lstat(url.path, &inspected) == 0 else {
+            if errno == ENOENT { throw ProtectedFilePolicyError.missing }
+            if errno == ELOOP { throw ProtectedFilePolicyError.symbolicLink }
+            throw ProtectedFilePolicyError.invalidURL
+        }
+        let type = inspected.st_mode & S_IFMT
+        if type == S_IFLNK { throw ProtectedFilePolicyError.symbolicLink }
+        guard (disposition.expectsDirectory && type == S_IFDIR) ||
+              (!disposition.expectsDirectory && type == S_IFREG) else {
+            throw ProtectedFilePolicyError.invalidType
+        }
+        if !disposition.expectsDirectory && inspected.st_nlink != 1 {
+            throw ProtectedFilePolicyError.hardLink
+        }
+        let flags = disposition.expectsDirectory
+            ? O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC
+            : O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC
+        return try withRestoreExitDescriptor(
+            path: url.path, flags: flags,
+            retainUncertainDescriptor: retainUncertainDescriptor,
+            openFailure: {
+                if errno == ENOENT { return ProtectedFilePolicyError.missing }
+                if errno == ELOOP { return ProtectedFilePolicyError.symbolicLink }
+                if errno == EACCES || errno == EPERM {
+                    return ProtectedFilePolicyError.protectedDataUnavailable
+                }
+                return ProtectedFilePolicyError.invalidURL
+            }) { descriptor in
+            var actual = stat()
+            guard Darwin.fstat(descriptor, &actual) == 0 else {
+                throw ProtectedFilePolicyError.invalidURL
+            }
+            guard (actual.st_mode & S_IFMT) == type else {
+                throw ProtectedFilePolicyError.identityChanged
+            }
+            if !disposition.expectsDirectory && actual.st_nlink != 1 {
+                throw ProtectedFilePolicyError.hardLink
+            }
+            let identity = LeafIdentity(device: actual.st_dev, inode: actual.st_ino,
+                linkCount: actual.st_nlink)
+            guard identity.device == inspected.st_dev,
+                  identity.inode == inspected.st_ino,
+                  identity.linkCount == inspected.st_nlink else {
+                throw ProtectedFilePolicyError.identityChanged
+            }
+            _ = kind
+            return identity
+        }
+    }
+
     /// Narrow census observation for the actual two names of one scratch
     /// final/partial inode. No caller-selected link-count exemption exists.
     /// This is not accepted policy and does not authorize a setter/removal.
@@ -1621,5 +1749,230 @@ extension ProtectedFilePolicyV1 {
             urlProtection: protectionName(values.fileProtection), fileManagerProtection: managerProtection,
             backupExcluded: values.isExcludedFromBackup, isDirectory: values.isDirectory,
             volumeSupportsProtection: capability)
+    }
+}
+
+extension ProtectedFilePolicyV1 {
+    /// Observation-only verification for a private Erase-owned scratch leaf.
+    /// This has the same resource-value predicate as `verify`, while every
+    /// transient identity pin uses the checked-close owner.
+    @discardableResult
+    static func verifyEraseColdPrivateWithCheckedClose(
+        _ kind: OwnedFileKindV1,
+        at url: URL,
+        retainUncertainDescriptor: (Int32) -> Void
+    ) throws -> ProtectedFileVerificationDispositionV1 {
+        let expected = disposition(for: kind)
+        let identity = try pinForRestoreExit(kind, at: url,
+            disposition: expected,
+            retainUncertainDescriptor: retainUncertainDescriptor)
+        let result: ProtectedFileVerificationDispositionV1
+        #if DEBUG && os(iOS) && targetEnvironment(simulator)
+        result = try verifySimulatorResourceValues(kind, at: url,
+            disposition: expected, identity: identity,
+            successfulRequestReadback: nil)
+        #else
+        try verifyResourceValues(at: url, disposition: expected)
+        result = .verifiedComplete
+        #endif
+        try emitVerificationDisposition(result, kind: kind)
+        return result
+    }
+
+    /// The C05 private validation copy is newly owned staging, so its exact
+    /// files still receive the ordinary complete/backup policy request. This
+    /// variant replaces only the original unchecked transient pin closes with
+    /// the retained checked-close primitive; established callers are intact.
+    @discardableResult
+    static func applyAndVerifyEraseColdPrivateWithCheckedClose(
+        _ kind: OwnedFileKindV1,
+        at url: URL,
+        retainUncertainDescriptor: (Int32) -> Void,
+        authorityCheck: () throws -> Void,
+        beforeFirstEffect: (() throws -> Void)? = nil
+    ) throws -> ProtectedFileVerificationDispositionV1 {
+        let expected = disposition(for: kind)
+        try authorityCheck()
+        let before = try pinForRestoreExit(kind, at: url,
+            disposition: expected,
+            retainUncertainDescriptor: retainUncertainDescriptor)
+        try beforeFirstEffect?()
+        #if DEBUG && os(iOS) && targetEnvironment(simulator)
+        let beforeRequest = independentProtectionReadback(at: url)
+        #endif
+        do {
+            try (url as NSURL).setResourceValue(URLFileProtection.complete,
+                forKey: .fileProtectionKey)
+            var fresh = URL(fileURLWithPath: url.path)
+            fresh.removeAllCachedResourceValues()
+            let backup = try fresh.resourceValues(
+                forKeys: [.isExcludedFromBackupKey]
+            ).isExcludedFromBackup
+            if backup != expected.isExcludedFromBackup {
+                var values = URLResourceValues()
+                values.isExcludedFromBackup = expected.isExcludedFromBackup
+                var writable = url
+                try writable.setResourceValues(values)
+            }
+        } catch {
+            throw mapWriteError(error)
+        }
+        try authorityCheck()
+        let after = try pinForRestoreExit(kind, at: url,
+            disposition: expected,
+            retainUncertainDescriptor: retainUncertainDescriptor)
+        guard before == after else {
+            throw ProtectedFilePolicyError.identityChanged
+        }
+        let result: ProtectedFileVerificationDispositionV1
+        #if DEBUG && os(iOS) && targetEnvironment(simulator)
+        if try simulatorStrictResourceValuesMatch(at: url,
+            disposition: expected) {
+            result = .verifiedComplete
+        } else {
+            let readback = independentProtectionReadback(at: url)
+            guard simulatorDiagnosticAllows(
+                capabilityBefore: beforeRequest.volumeSupportsProtection,
+                after: readback, disposition: expected,
+                successfulCompleteRequest: true,
+                identityUnchanged: true) else {
+                throw ProtectedFilePolicyError.resourceValueMismatch
+            }
+            result = .simulatorFileProtectionUnsupported
+        }
+        #else
+        try verifyResourceValues(at: url, disposition: expected)
+        result = .verifiedComplete
+        #endif
+        try authorityCheck()
+        guard try pinForRestoreExit(kind, at: url,
+                disposition: expected,
+                retainUncertainDescriptor: retainUncertainDescriptor)
+                == before else {
+            throw ProtectedFilePolicyError.identityChanged
+        }
+        try emitVerificationDisposition(result, kind: kind)
+        return result
+    }
+
+    /// One Erase-cold read/effect boundary. A pending DEBUG Simulator shape
+    /// makes a *new* complete-protection request on this exact leaf; it never
+    /// becomes a cached strict policy result. The caller's witness must cover
+    /// its held/named metadata and canonical bytes or directory names.
+    static func verifyEraseColdTemporalPolicyWithCheckedRequest<Witness: Equatable>(
+        _ kind: OwnedFileKindV1,
+        at url: URL,
+        retainUncertainDescriptor: (Int32) -> Void,
+        unchangedWitness: () throws -> Witness
+    ) throws -> ProtectedFileVerificationDispositionV1 {
+        var diagnosticStage = "initial-witness"
+        do {
+        let original = try unchangedWitness()
+        diagnosticStage = "initial-checked-policy-observation"
+        let initial = try observeTemporalPolicyWithCheckedClose(kind,
+            at: url, retainUncertainDescriptor: retainUncertainDescriptor)
+        diagnosticStage = "initial-witness-reproof"
+        guard try unchangedWitness() == original else {
+            throw ProtectedFilePolicyError.identityChanged
+        }
+        if initial.state == .strictComplete {
+            diagnosticStage = "strict-checked-policy-reproof"
+            let after = try observeTemporalPolicyWithCheckedClose(kind,
+                at: url, retainUncertainDescriptor: retainUncertainDescriptor)
+            guard after == initial,
+                  try unchangedWitness() == original else {
+                throw ProtectedFilePolicyError.identityChanged
+            }
+            try emitVerificationDisposition(.verifiedComplete, kind: kind)
+            return .verifiedComplete
+        }
+
+        #if DEBUG && os(iOS) && targetEnvironment(simulator)
+        diagnosticStage = "pending-policy-shape"
+        guard initial.state == .pendingSimulatorRequest else {
+            throw ProtectedFilePolicyError.resourceValueMismatch
+        }
+        let expected = disposition(for: kind)
+        diagnosticStage = "pre-request-resource-readback"
+        let beforeReadback = independentProtectionReadback(at: url)
+        guard simulatorReadbackIsExactFallback(beforeReadback,
+                disposition: expected),
+              beforeReadback.volumeSupportsProtection == false else {
+            throw ProtectedFilePolicyError.resourceValueMismatch
+        }
+        diagnosticStage = "complete-request"
+        do {
+            try (url as NSURL).setResourceValue(
+                URLFileProtection.complete, forKey: .fileProtectionKey)
+        } catch {
+            throw mapWriteError(error)
+        }
+        // No backup setter is used: the exact pending predicate already
+        // proved its required value. Refuse even a same-inode byte or metadata
+        // drift caused by the request before accepting this one call.
+        diagnosticStage = "post-request-witness-reproof"
+        guard try unchangedWitness() == original else {
+            throw ProtectedFilePolicyError.identityChanged
+        }
+        diagnosticStage = "post-request-checked-policy-observation"
+        let after = try observeTemporalPolicyWithCheckedClose(kind,
+            at: url, retainUncertainDescriptor: retainUncertainDescriptor)
+        guard after.device == initial.device,
+              after.inode == initial.inode,
+              after.linkCount == initial.linkCount,
+              after.mode == initial.mode,
+              after.backupExcluded == initial.backupExcluded,
+              after.isDirectory == initial.isDirectory,
+              after.volumeSupportsProtection
+                == initial.volumeSupportsProtection,
+              try unchangedWitness() == original else {
+            throw ProtectedFilePolicyError.identityChanged
+        }
+        if after.state == .strictComplete {
+            try emitVerificationDisposition(.verifiedComplete, kind: kind)
+            return .verifiedComplete
+        }
+        diagnosticStage = "post-request-resource-readback"
+        let afterReadback = independentProtectionReadback(at: url)
+        guard simulatorDiagnosticAllows(
+                capabilityBefore: beforeReadback.volumeSupportsProtection,
+                after: afterReadback, disposition: expected,
+                successfulCompleteRequest: true,
+                identityUnchanged: true) else {
+            throw ProtectedFilePolicyError.resourceValueMismatch
+        }
+        try emitVerificationDisposition(.simulatorFileProtectionUnsupported,
+            kind: kind)
+        return .simulatorFileProtectionUnsupported
+        #else
+        throw ProtectedFilePolicyError.resourceValueMismatch
+        #endif
+        } catch {
+            #if DEBUG && os(iOS) && targetEnvironment(simulator)
+            // Keep the diagnostic a fixed vocabulary. NSError descriptions
+            // and arbitrary error types can contain filesystem paths.
+            let category: String
+            switch error as? ProtectedFilePolicyError {
+            case .resourceValueMismatch: category = "resourceValueMismatch"
+            case .identityChanged: category = "identityChanged"
+            case .invalidURL: category = "invalidURL"
+            case .invalidRelativePath: category = "invalidRelativePath"
+            case .missing: category = "missing"
+            case .symbolicLink: category = "symbolicLink"
+            case .invalidType: category = "invalidType"
+            case .hardLink: category = "hardLink"
+            case .attributeWriteFailed: category = "attributeWriteFailed"
+            case .protectedDataUnavailable: category = "protectedDataUnavailable"
+            case nil: category = "other"
+            }
+            diagnosticWriter.write("V23_ERASE_POLICY_REQUEST_FAILURE_V1"
+                + " kind=\(kind.rawValue) stage=\(diagnosticStage)"
+                + " category=\(category)\n")
+            emitDirectoryProtectionReadback(kind: kind, at: url,
+                phase: diagnosticStage,
+                readback: independentProtectionReadback(at: url))
+            #endif
+            throw error
+        }
     }
 }

@@ -796,7 +796,9 @@ final class WholeSignDeletionService {
         makeUUID: @escaping () -> UUID = UUID.init,
         failureInjection: WholeSignDeletionFailureInjection? = nil,
         assetLabelPublishedOutputRemoval: AssetLabelPublishedOutputRemovalV1? = nil,
-        signPack: SignPack = .illuminatedSignV1
+        signPack: SignPack = .illuminatedSignV1,
+        trackStartupOperationsCreation: Bool = false,
+        startupDescriptorOwner: RestoreMaintenanceOperationsDescriptorOwnerV1? = nil
     ) {
         self.init(
             modelContext: modelContext,
@@ -809,7 +811,9 @@ final class WholeSignDeletionService {
             lifecycleRoute: .expiringCompatibility(
                 package: signPack,
                 posture: WorkspacePackageLifecycleCompatibilityV1.expiration
-            )
+            ),
+            trackStartupOperationsCreation: trackStartupOperationsCreation,
+            startupDescriptorOwner: startupDescriptorOwner
         )
     }
 
@@ -879,7 +883,9 @@ final class WholeSignDeletionService {
         assetLabelPublishedOutputRemoval: AssetLabelPublishedOutputRemovalV1?,
         lifecycleRoute: WholeSignDeletionLifecycleRouteV1,
         sharedWriterOwner: StoreSessionCoordinator? = nil,
-        sharedWriterFence: StaleWriterFenceV1? = nil
+        sharedWriterFence: StaleWriterFenceV1? = nil,
+        trackStartupOperationsCreation: Bool = false,
+        startupDescriptorOwner: RestoreMaintenanceOperationsDescriptorOwnerV1? = nil
     ) {
         self.modelContext = modelContext
         ledgerStore = DeletionLedgerStore(context: modelContext)
@@ -968,9 +974,12 @@ final class WholeSignDeletionService {
            dataRoot.lastPathComponent == "FieldEvidenceData",
            let parsed = UUID(uuidString: root.lastPathComponent),
            parsed.uuidString.lowercased() == root.lastPathComponent,
-           let fileAuthority = try? DeletionGenerationFiles(rootURL: root),
+           let fileAuthority = try? DeletionGenerationFiles(rootURL: root,
+               startupDescriptorOwner: startupDescriptorOwner),
            let journalAuthority = try? DeletionJournalStore(
-               applicationSupportURL: applicationSupport
+               applicationSupportURL: applicationSupport,
+               trackStartupOperationsCreation: trackStartupOperationsCreation,
+               startupDescriptorOwner: startupDescriptorOwner
            ) {
             generationID = parsed
             files = fileAuthority
@@ -1024,6 +1033,21 @@ final class WholeSignDeletionService {
         }
         writerLeaseHandle = derivedWriterLeaseHandle
         staleWriterFence = derivedStaleWriterFence
+    }
+
+    /// The actual journal constructor supplies the operation-bound parent
+    /// and child postimage before this service begins its recovery await.
+    func startupOperationsReceipt() throws
+        -> RestoreMaintenanceClearObservationV1.OperationsChildReceipt {
+        guard let receipt = journal.startupOperationsReceipt else {
+            throw WholeSignDeletionServiceError.invalidGeneration
+        }
+        return receipt
+    }
+
+    func startupRecoveryJournalReceipt() throws
+        -> RestoreMaintenanceClearObservationV1.OperationsRecoveryReceipt {
+        try journal.startupRecoveryJournalReceipt()
     }
 
     func delete(assetID: UUID) async throws -> WholeSignDeletionOutcome {
@@ -1394,6 +1418,7 @@ final class WholeSignDeletionService {
             if let workspaceID {
                 let store = try PortableExchangeSessionStoreV2(
                     applicationSupportURL: generationRootURL
+                        .deletingLastPathComponent()
                         .deletingLastPathComponent()
                         .deletingLastPathComponent(),
                     fileManager: fileManager
@@ -1959,6 +1984,7 @@ final class WholeSignDeletionService {
                 try PortableExchangeProtectedFilePolicyV2.validate()
                 let store = try PortableExchangeSessionStoreV2(
                     applicationSupportURL: generationRootURL
+                        .deletingLastPathComponent()
                         .deletingLastPathComponent()
                         .deletingLastPathComponent(),
                     fileManager: fileManager
@@ -3781,6 +3807,7 @@ private final class DeletionGenerationFiles {
     private let rootURL: URL?
     private let identity: Identity?
     let generationID: UUID
+    private let startupDescriptorOwner: RestoreMaintenanceOperationsDescriptorOwnerV1?
 
     var isValid: Bool { rootURL != nil && identity != nil }
     static let invalid = DeletionGenerationFiles()
@@ -3789,26 +3816,44 @@ private final class DeletionGenerationFiles {
         rootURL = nil
         identity = nil
         generationID = UUID()
+        startupDescriptorOwner = nil
     }
 
-    init(rootURL: URL) throws {
+    init(rootURL: URL,
+         startupDescriptorOwner: RestoreMaintenanceOperationsDescriptorOwnerV1? = nil) throws {
         let root = rootURL.standardizedFileURL
         guard let parsed = UUID(uuidString: root.lastPathComponent),
               parsed.uuidString.lowercased() == root.lastPathComponent else {
             throw WholeSignDeletionServiceError.invalidGeneration
         }
-        let descriptor = try Self.openRoot(root)
-        defer { Darwin.close(descriptor) }
+        self.startupDescriptorOwner = startupDescriptorOwner
+        try startupDescriptorOwner?.requireOpen()
+        let descriptor = try Self.openRoot(root, startupDescriptorOwner: startupDescriptorOwner)
+        var needsClose = true
+        defer {
+            if needsClose {
+                if let startupDescriptorOwner { startupDescriptorOwner.closeInDefer(descriptor) }
+                else { _ = Darwin.close(descriptor) }
+            }
+        }
+        try startupDescriptorOwner?.requireOpen()
         identity = try Self.identity(descriptor, directory: true)
         self.rootURL = root
         generationID = parsed
+        if let startupDescriptorOwner {
+            try startupDescriptorOwner.closeChecked(descriptor)
+            needsClose = false
+        }
     }
 
     func read(relativePath: String, maximumByteCount: Int) throws -> Data {
-        try withParent(relativePath) { parent, leaf in
+        return try withCheckedOperation {
+        try startupDescriptorOwner?.requireOpen()
+        return try withParent(relativePath) { parent, leaf in
             let descriptor = Darwin.openat(parent, leaf, O_RDONLY | O_NOFOLLOW)
             guard descriptor >= 0 else { throw WholeSignDeletionServiceError.fileInvalid }
-            defer { Darwin.close(descriptor) }
+            startupDescriptorOwner?.retain(descriptor)
+            defer { closeTransient(descriptor) }
             var info = stat()
             guard Darwin.fstat(descriptor, &info) == 0,
                   (info.st_mode & S_IFMT) == S_IFREG,
@@ -3830,9 +3875,12 @@ private final class DeletionGenerationFiles {
             }
             return data
         }
+            }
     }
 
     func removeIfPresent(relativePath: String) throws {
+        return try withCheckedOperation {
+        try startupDescriptorOwner?.requireOpen()
         try withParent(relativePath) { parent, leaf in
             var before = stat()
             if Darwin.fstatat(parent, leaf, &before, AT_SYMLINK_NOFOLLOW) != 0 {
@@ -3848,7 +3896,8 @@ private final class DeletionGenerationFiles {
             guard descriptor >= 0 else {
                 throw WholeSignDeletionServiceError.cleanupFailed
             }
-            defer { Darwin.close(descriptor) }
+            startupDescriptorOwner?.retain(descriptor)
+            defer { closeTransient(descriptor) }
             let opened = try Self.identity(descriptor, directory: false)
             guard opened == Identity(device: before.st_dev, inode: before.st_ino),
                   Darwin.unlinkat(parent, leaf, 0) == 0,
@@ -3856,17 +3905,24 @@ private final class DeletionGenerationFiles {
                 throw WholeSignDeletionServiceError.cleanupFailed
             }
         }
+            }
     }
 
     /// Original recovery may resume after an earlier pass removed an entire
     /// evidence directory but had not yet removed its committed journal.
     /// Only ENOENT on the descriptor-anchored chain is absence.
     func removeOriginalIfPresent(relativePath: String) throws {
+        return try withCheckedOperation {
+        try startupDescriptorOwner?.requireOpen()
         try inspectOriginalIfPresent(relativePath: relativePath, remove: true)
+            }
     }
 
     func validateOriginalIfPresent(relativePath: String) throws {
+        return try withCheckedOperation {
+        try startupDescriptorOwner?.requireOpen()
         try inspectOriginalIfPresent(relativePath: relativePath, remove: false)
+            }
     }
 
     private func inspectOriginalIfPresent(relativePath: String, remove: Bool) throws {
@@ -3874,15 +3930,15 @@ private final class DeletionGenerationFiles {
               let rootURL, let identity else { throw WholeSignDeletionServiceError.fileInvalid }
         let components = relativePath.split(separator: "/").map(String.init)
         guard let leaf = components.last else { throw WholeSignDeletionServiceError.fileInvalid }
-        let root = try Self.openRoot(rootURL)
+        let root = try openRoot(rootURL)
         var descriptors = [root]
-        defer { for descriptor in descriptors.reversed() { Darwin.close(descriptor) } }
+        defer { for descriptor in descriptors.reversed() { closeTransient(descriptor) } }
         func verifyChain() throws {
             guard try Self.identity(root, directory: true) == identity else {
                 throw WholeSignDeletionServiceError.fileInvalid
             }
-            let currentRoot = try Self.openRoot(rootURL)
-            defer { Darwin.close(currentRoot) }
+            let currentRoot = try openRoot(rootURL)
+            defer { closeTransient(currentRoot) }
             guard try Self.identity(currentRoot, directory: true) == identity else {
                 throw WholeSignDeletionServiceError.fileInvalid
             }
@@ -3900,6 +3956,7 @@ private final class DeletionGenerationFiles {
             let next = Darwin.openat(descriptors.last!, component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
             if next < 0, errno == ENOENT { try verifyChain(); return }
             guard next >= 0 else { throw WholeSignDeletionServiceError.fileInvalid }
+            startupDescriptorOwner?.retain(next)
             descriptors.append(next)
         }
         try verifyChain()
@@ -3916,7 +3973,8 @@ private final class DeletionGenerationFiles {
         let file = Darwin.openat(parent, leaf, O_RDONLY | O_NOFOLLOW | O_NONBLOCK)
         if file < 0, errno == ENOENT { try verifyChain(); return }
         guard file >= 0 else { throw WholeSignDeletionServiceError.fileInvalid }
-        defer { Darwin.close(file) }
+        startupDescriptorOwner?.retain(file)
+        defer { closeTransient(file) }
         let opened = try Self.identity(file, directory: false)
         var linked = stat()
         guard Darwin.fstatat(parent, leaf, &linked, AT_SYMLINK_NOFOLLOW) == 0,
@@ -3934,16 +3992,18 @@ private final class DeletionGenerationFiles {
     func inspectOriginalEvidenceBundleIfPresent(
         id: UUID, ownedLeaves: Set<String>, removeEmpty: Bool = false
     ) throws {
+        return try withCheckedOperation {
+        try startupDescriptorOwner?.requireOpen()
         guard ownedLeaves.isSubset(of: ["original.jpg", "thumbnail.jpg"]),
               let rootURL, let identity else { throw WholeSignDeletionServiceError.fileInvalid }
-        let root = try Self.openRoot(rootURL)
+        let root = try openRoot(rootURL)
         var descriptors = [root]
-        defer { for descriptor in descriptors.reversed() { Darwin.close(descriptor) } }
+        defer { for descriptor in descriptors.reversed() { closeTransient(descriptor) } }
         let components = ["evidence", id.uuidString.lowercased()]
         func reprove() throws {
             guard try Self.identity(root, directory: true) == identity else { throw WholeSignDeletionServiceError.fileInvalid }
-            let current = try Self.openRoot(rootURL)
-            defer { Darwin.close(current) }
+            let current = try openRoot(rootURL)
+            defer { closeTransient(current) }
             guard try Self.identity(current, directory: true) == identity else { throw WholeSignDeletionServiceError.fileInvalid }
             for index in 1..<descriptors.count {
                 var linked = stat()
@@ -3958,9 +4018,10 @@ private final class DeletionGenerationFiles {
             let next = Darwin.openat(descriptors.last!, component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
             if next < 0, errno == ENOENT { try reprove(); return }
             guard next >= 0 else { throw WholeSignDeletionServiceError.fileInvalid }
+            startupDescriptorOwner?.retain(next)
             descriptors.append(next)
         }
-        let names = try Self.names(in: descriptors.last!)
+        let names = try names(in: descriptors.last!)
         guard Set(names).isSubset(of: ownedLeaves) else { throw WholeSignDeletionServiceError.fileInvalid }
         for name in names {
             var info = stat()
@@ -3974,23 +4035,30 @@ private final class DeletionGenerationFiles {
             guard names.isEmpty, Darwin.unlinkat(descriptors[1], components[1], AT_REMOVEDIR) == 0,
                   Darwin.fsync(descriptors[1]) == 0 else { throw WholeSignDeletionServiceError.cleanupFailed }
         }
+            }
     }
 
     func validateEvidenceBundle(id: UUID) throws {
+        return try withCheckedOperation {
+        try startupDescriptorOwner?.requireOpen()
         try withEvidenceParent { evidence in
             let name = id.uuidString.lowercased()
             let bundle = Darwin.openat(
                 evidence, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW
             )
             guard bundle >= 0 else { throw WholeSignDeletionServiceError.fileInvalid }
-            defer { Darwin.close(bundle) }
-            guard try Self.names(in: bundle) == ["original.jpg", "thumbnail.jpg"] else {
+            startupDescriptorOwner?.retain(bundle)
+        defer { closeTransient(bundle) }
+            guard try names(in: bundle) == ["original.jpg", "thumbnail.jpg"] else {
                 throw WholeSignDeletionServiceError.fileInvalid
             }
         }
+            }
     }
 
     func removeEvidenceBundleIfEmpty(id: UUID) throws {
+        return try withCheckedOperation {
+        try startupDescriptorOwner?.requireOpen()
         try withEvidenceParent { evidence in
             let name = id.uuidString.lowercased()
             if Darwin.unlinkat(evidence, name, AT_REMOVEDIR) != 0 {
@@ -4001,9 +4069,12 @@ private final class DeletionGenerationFiles {
                 throw WholeSignDeletionServiceError.cleanupFailed
             }
         }
+            }
     }
 
     func requireAbsent(components: [String]) throws {
+        return try withCheckedOperation {
+        try startupDescriptorOwner?.requireOpen()
         guard !components.isEmpty,
               components.allSatisfy({ component in
                   !component.isEmpty && component != "." && component != ".."
@@ -4012,8 +4083,8 @@ private final class DeletionGenerationFiles {
               let rootURL, let identity else {
             throw WholeSignDeletionServiceError.fileInvalid
         }
-        var descriptor = try Self.openRoot(rootURL)
-        defer { Darwin.close(descriptor) }
+        var descriptor = try openRoot(rootURL)
+        defer { closeTransient(descriptor) }
         guard try Self.identity(descriptor, directory: true) == identity else {
             throw WholeSignDeletionServiceError.invalidGeneration
         }
@@ -4027,7 +4098,8 @@ private final class DeletionGenerationFiles {
                 }
                 return
             }
-            Darwin.close(descriptor)
+            startupDescriptorOwner?.retain(next)
+            try closeChecked(descriptor)
             descriptor = next
         }
         guard let leaf = components.last else {
@@ -4039,14 +4111,15 @@ private final class DeletionGenerationFiles {
         ) != 0, errno == ENOENT else {
             throw WholeSignDeletionServiceError.fileInvalid
         }
+            }
     }
 
     private func withEvidenceParent<T>(_ body: (Int32) throws -> T) throws -> T {
         guard let rootURL, let identity else {
             throw WholeSignDeletionServiceError.invalidGeneration
         }
-        let root = try Self.openRoot(rootURL)
-        defer { Darwin.close(root) }
+        let root = try openRoot(rootURL)
+        defer { closeTransient(root) }
         guard try Self.identity(root, directory: true) == identity else {
             throw WholeSignDeletionServiceError.invalidGeneration
         }
@@ -4054,7 +4127,8 @@ private final class DeletionGenerationFiles {
             root, "evidence", O_RDONLY | O_DIRECTORY | O_NOFOLLOW
         )
         guard evidence >= 0 else { throw WholeSignDeletionServiceError.fileInvalid }
-        defer { Darwin.close(evidence) }
+        startupDescriptorOwner?.retain(evidence)
+        defer { closeTransient(evidence) }
         return try body(evidence)
     }
 
@@ -4070,8 +4144,8 @@ private final class DeletionGenerationFiles {
         guard let leaf = components.last else {
             throw WholeSignDeletionServiceError.fileInvalid
         }
-        var descriptor = try Self.openRoot(rootURL)
-        defer { Darwin.close(descriptor) }
+        var descriptor = try openRoot(rootURL)
+        defer { closeTransient(descriptor) }
         guard try Self.identity(descriptor, directory: true) == identity else {
             throw WholeSignDeletionServiceError.fileInvalid
         }
@@ -4080,13 +4154,44 @@ private final class DeletionGenerationFiles {
                 descriptor, component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW
             )
             guard next >= 0 else { throw WholeSignDeletionServiceError.fileInvalid }
-            Darwin.close(descriptor)
+            startupDescriptorOwner?.retain(next)
+            try closeChecked(descriptor)
             descriptor = next
         }
         return try body(descriptor, leaf)
     }
 
-    private static func openRoot(_ root: URL) throws -> Int32 {
+    /// A deferred close can mark the retained owner uncertain. Do not let a
+    /// successful read or cleanup return to its caller until that one-way
+    /// state has been checked after every nested defer has run.
+    private func withCheckedOperation<Value>(_ body: () throws -> Value) throws -> Value {
+        try startupDescriptorOwner?.requireOpen()
+        let value = try body()
+        try startupDescriptorOwner?.requireOpen()
+        return value
+    }
+
+    private func openRoot(_ root: URL) throws -> Int32 {
+        try startupDescriptorOwner?.requireOpen()
+        let result = try Self.openRoot(root,
+            startupDescriptorOwner: startupDescriptorOwner)
+        try startupDescriptorOwner?.requireOpen()
+        return result
+    }
+
+    private func closeTransient(_ descriptor: Int32) {
+        if let startupDescriptorOwner { startupDescriptorOwner.closeInDefer(descriptor) }
+        else { _ = Darwin.close(descriptor) }
+    }
+
+    private func closeChecked(_ descriptor: Int32) throws {
+        if let startupDescriptorOwner { try startupDescriptorOwner.closeChecked(descriptor) }
+        else { _ = Darwin.close(descriptor) }
+    }
+
+    private static func openRoot(_ root: URL,
+        startupDescriptorOwner: RestoreMaintenanceOperationsDescriptorOwnerV1?
+    ) throws -> Int32 {
         let generations = root.deletingLastPathComponent()
         let dataRoot = generations.deletingLastPathComponent()
         guard generations.lastPathComponent == "generations",
@@ -4095,19 +4200,28 @@ private final class DeletionGenerationFiles {
         }
         let data = Darwin.open(dataRoot.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
         guard data >= 0 else { throw WholeSignDeletionServiceError.invalidGeneration }
-        defer { Darwin.close(data) }
+        startupDescriptorOwner?.retain(data)
+        defer {
+            if let startupDescriptorOwner { startupDescriptorOwner.closeInDefer(data) }
+            else { _ = Darwin.close(data) }
+        }
         let generationsFD = Darwin.openat(
             data, "generations", O_RDONLY | O_DIRECTORY | O_NOFOLLOW
         )
         guard generationsFD >= 0 else {
             throw WholeSignDeletionServiceError.invalidGeneration
         }
-        defer { Darwin.close(generationsFD) }
+        startupDescriptorOwner?.retain(generationsFD)
+        defer {
+            if let startupDescriptorOwner { startupDescriptorOwner.closeInDefer(generationsFD) }
+            else { _ = Darwin.close(generationsFD) }
+        }
         let result = Darwin.openat(
             generationsFD, root.lastPathComponent,
             O_RDONLY | O_DIRECTORY | O_NOFOLLOW
         )
         guard result >= 0 else { throw WholeSignDeletionServiceError.invalidGeneration }
+        startupDescriptorOwner?.retain(result)
         return result
     }
 
@@ -4126,13 +4240,27 @@ private final class DeletionGenerationFiles {
         return Identity(device: info.st_dev, inode: info.st_ino)
     }
 
-    private static func names(in descriptor: Int32) throws -> [String] {
+    private func names(in descriptor: Int32) throws -> [String] {
+        if let startupDescriptorOwner {
+            return try startupDescriptorOwner.withOpenDirectory(parent: descriptor) {
+                directory in
+                try Self.names(inDirectory: directory)
+            }
+        }
+        return try Self.namesOrdinary(in: descriptor)
+    }
+
+    private static func namesOrdinary(in descriptor: Int32) throws -> [String] {
         let duplicate = Darwin.dup(descriptor)
         guard duplicate >= 0, let directory = Darwin.fdopendir(duplicate) else {
             if duplicate >= 0 { Darwin.close(duplicate) }
             throw WholeSignDeletionServiceError.fileInvalid
         }
         defer { Darwin.closedir(directory) }
+        return try names(inDirectory: directory)
+    }
+
+    private static func names(inDirectory directory: UnsafeMutablePointer<DIR>) throws -> [String] {
         var result = [String]()
         errno = 0
         while let entry = Darwin.readdir(directory) {
@@ -4190,6 +4318,16 @@ private final class DeletionJournalStore {
     private let identity: Identity?
     private let operationsIdentity: Identity?
     private let deletionIdentity: Identity?
+    private let startupDescriptorOwner: RestoreMaintenanceOperationsDescriptorOwnerV1?
+    private var startupJournalInitialFact:
+        RestoreMaintenanceClearObservationV1.DirectoryFact?
+    private var startupJournalExpectedFact:
+        RestoreMaintenanceClearObservationV1.DirectoryFact?
+    private var startupJournalExpectedNames: [String]?
+    private var startupJournalMutationUncertain = false
+    private var startupJournalMutationCount = 0
+    let startupOperationsReceipt:
+        RestoreMaintenanceClearObservationV1.OperationsChildReceipt?
     var isValid: Bool {
         applicationSupportURL != nil && identity != nil
             && operationsIdentity != nil && deletionIdentity != nil
@@ -4201,61 +4339,231 @@ private final class DeletionJournalStore {
         identity = nil
         operationsIdentity = nil
         deletionIdentity = nil
+        startupOperationsReceipt = nil
+        startupDescriptorOwner = nil
     }
 
-    init(applicationSupportURL: URL) throws {
+    init(applicationSupportURL: URL,
+         trackStartupOperationsCreation: Bool = false,
+         startupDescriptorOwner: RestoreMaintenanceOperationsDescriptorOwnerV1? = nil) throws {
+        guard !trackStartupOperationsCreation || startupDescriptorOwner != nil else {
+            throw Self.journalInvalidFailure()
+        }
+        try startupDescriptorOwner?.requireOpen()
         let root = applicationSupportURL.standardizedFileURL
         let descriptor = Darwin.open(root.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
         guard descriptor >= 0 else {
             throw WholeSignDeletionServiceError.invalidGeneration
         }
-        defer { Darwin.close(descriptor) }
+        startupDescriptorOwner?.retain(descriptor)
+        defer {
+            if let startupDescriptorOwner {
+                startupDescriptorOwner.closeInDefer(descriptor)
+            } else { _ = Darwin.close(descriptor) }
+        }
         let capturedIdentity = try Self.identity(descriptor)
         let operations = try Self.openOrCreateDirectory(
             parent: descriptor,
             name: "FieldEvidenceOperations"
         )
-        defer { Darwin.close(operations) }
+        startupDescriptorOwner?.retain(operations)
+        defer {
+            if let startupDescriptorOwner {
+                startupDescriptorOwner.closeInDefer(operations)
+            } else { _ = Darwin.close(operations) }
+        }
         let capturedOperationsIdentity = try Self.identity(operations)
         do {
-            try ProtectedFilePolicyV1.applyAndVerify(
-                .stagingDirectory,
-                relativePath: "FieldEvidenceOperations",
-                within: root
-            ) {
+            let authorityCheck: () throws -> Void = {
+                try startupDescriptorOwner?.requireOpen()
                 guard try Self.identity(descriptor) == capturedIdentity,
                       try Self.identity(operations) == capturedOperationsIdentity else {
                     throw Self.journalInvalidFailure()
                 }
+                if startupDescriptorOwner != nil {
+                    try Self.requireNamedStartupDirectory(
+                        root: root, rootDescriptor: descriptor,
+                        rootIdentity: capturedIdentity,
+                        parent: descriptor, name: "FieldEvidenceOperations",
+                        child: operations,
+                        childIdentity: capturedOperationsIdentity)
+                }
             }
-        } catch {
-            throw Self.journalInvalidFailure()
+            if let startupDescriptorOwner {
+                try ProtectedFilePolicyV1
+                    .applyAndVerifyEraseColdPrivateWithCheckedClose(
+                        .stagingDirectory,
+                        at: root.appendingPathComponent(
+                            "FieldEvidenceOperations", isDirectory: true),
+                        retainUncertainDescriptor: {
+                            startupDescriptorOwner.retainUncertain($0)
+                        }, authorityCheck: authorityCheck,
+                        beforeFirstEffect: authorityCheck)
+                try startupDescriptorOwner.requireOpen()
+            } else {
+                try ProtectedFilePolicyV1.applyAndVerify(
+                    .stagingDirectory,
+                    relativePath: "FieldEvidenceOperations",
+                    within: root, authorityCheck: authorityCheck)
+            }
+        } catch { throw Self.journalInvalidFailure() }
+        let deletionOpening: (descriptor: Int32, created: Bool)
+        if trackStartupOperationsCreation {
+            deletionOpening = try Self.openOrCreateDirectoryWithCreation(
+                parent: operations, name: "deletion")
+        } else {
+            deletionOpening = (try Self.openOrCreateDirectory(
+                parent: operations, name: "deletion"), false)
         }
-        let deletion = try Self.openOrCreateDirectory(
-            parent: operations,
-            name: "deletion"
-        )
-        defer { Darwin.close(deletion) }
+        let deletion = deletionOpening.descriptor
+        startupDescriptorOwner?.retain(deletion)
+        defer {
+            if let startupDescriptorOwner {
+                startupDescriptorOwner.closeInDefer(deletion)
+            } else { _ = Darwin.close(deletion) }
+        }
         let capturedDeletionIdentity = try Self.identity(deletion)
         do {
-            try ProtectedFilePolicyV1.applyAndVerify(
-                .stagingDirectory,
-                relativePath: "FieldEvidenceOperations/deletion",
-                within: root
-            ) {
+            let authorityCheck: () throws -> Void = {
+                try startupDescriptorOwner?.requireOpen()
                 guard try Self.identity(descriptor) == capturedIdentity,
                       try Self.identity(operations) == capturedOperationsIdentity,
                       try Self.identity(deletion) == capturedDeletionIdentity else {
                     throw Self.journalInvalidFailure()
                 }
+                if startupDescriptorOwner != nil {
+                    try Self.requireNamedStartupDirectory(
+                        root: root, rootDescriptor: descriptor,
+                        rootIdentity: capturedIdentity,
+                        parent: descriptor, name: "FieldEvidenceOperations",
+                        child: operations,
+                        childIdentity: capturedOperationsIdentity)
+                    try Self.requireNamedStartupDirectory(
+                        root: root, rootDescriptor: descriptor,
+                        rootIdentity: capturedIdentity,
+                        parent: operations, name: "deletion",
+                        child: deletion,
+                        childIdentity: capturedDeletionIdentity)
+                }
             }
-        } catch {
-            throw Self.journalInvalidFailure()
-        }
+            if let startupDescriptorOwner {
+                try ProtectedFilePolicyV1
+                    .applyAndVerifyEraseColdPrivateWithCheckedClose(
+                        .stagingDirectory,
+                        at: root.appendingPathComponent(
+                            "FieldEvidenceOperations", isDirectory: true)
+                            .appendingPathComponent("deletion", isDirectory: true),
+                        retainUncertainDescriptor: {
+                            startupDescriptorOwner.retainUncertain($0)
+                        }, authorityCheck: authorityCheck,
+                        beforeFirstEffect: authorityCheck)
+                try startupDescriptorOwner.requireOpen()
+            } else {
+                try ProtectedFilePolicyV1.applyAndVerify(
+                    .stagingDirectory,
+                    relativePath: "FieldEvidenceOperations/deletion",
+                    within: root, authorityCheck: authorityCheck)
+            }
+        } catch { throw Self.journalInvalidFailure() }
         self.applicationSupportURL = root
         identity = capturedIdentity
         operationsIdentity = capturedOperationsIdentity
         deletionIdentity = capturedDeletionIdentity
+        self.startupDescriptorOwner = startupDescriptorOwner
+        if trackStartupOperationsCreation {
+            var parent = stat(), child = stat(), named = stat()
+            guard Darwin.fstat(operations, &parent) == 0,
+                  Darwin.fstat(deletion, &child) == 0,
+                  Darwin.fstatat(operations, "deletion", &named,
+                    AT_SYMLINK_NOFOLLOW) == 0,
+                  child.st_dev == named.st_dev,
+                  child.st_ino == named.st_ino,
+                  child.st_mode == named.st_mode else {
+                throw Self.journalInvalidFailure()
+            }
+            startupOperationsReceipt = try RestoreMaintenanceClearObservationV1
+                .OperationsChildReceipt(name: "deletion",
+                    created: deletionOpening.created,
+                    parent: .init(parent), child: .init(child))
+        } else {
+            startupOperationsReceipt = nil
+        }
+        if startupDescriptorOwner != nil {
+            let initial = try startupJournalFact()
+            startupJournalInitialFact = initial
+            startupJournalExpectedFact = initial
+            startupJournalExpectedNames = try startupJournalNames()
+            try startupDescriptorOwner?.requireOpen()
+        }
+    }
+
+    private func startupJournalFact() throws
+        -> RestoreMaintenanceClearObservationV1.DirectoryFact {
+        try withDeletionDirectory { descriptor in
+            var held = stat(), named = stat()
+            guard Darwin.fstat(descriptor, &held) == 0,
+                  let root = applicationSupportURL else {
+                throw Self.journalInvalidFailure()
+            }
+            let fact = try RestoreMaintenanceClearObservationV1.DirectoryFact(held)
+            let url = root.appendingPathComponent(
+                "FieldEvidenceOperations/deletion", isDirectory: true)
+            guard Darwin.lstat(url.path, &named) == 0,
+                  fact == (try RestoreMaintenanceClearObservationV1.DirectoryFact(named))
+            else { throw Self.journalInvalidFailure() }
+            return fact
+        }
+    }
+
+    private func startupJournalNames() throws -> [String] {
+        try withDeletionDirectory { descriptor in
+            try enumerateNames(in: descriptor,
+                maximumCount: Self.maximumJournalEntryCount)
+        }
+    }
+
+    private func beforeStartupJournalMutation() throws -> [String]? {
+        guard let startupDescriptorOwner else { return nil }
+        try startupDescriptorOwner.requireOpen()
+        guard !startupJournalMutationUncertain,
+              let expectedFact = startupJournalExpectedFact,
+              let expectedNames = startupJournalExpectedNames,
+              try startupJournalFact() == expectedFact,
+              try startupJournalNames() == expectedNames else {
+            startupJournalMutationUncertain = true
+            throw Self.journalInvalidFailure()
+        }
+        startupJournalMutationUncertain = true
+        return expectedNames
+    }
+
+    private func afterStartupJournalMutation(expectedNames: [String]?) throws {
+        guard let startupDescriptorOwner, let expectedNames else { return }
+        try startupDescriptorOwner.requireOpen()
+        guard try startupJournalNames() == expectedNames else {
+            throw Self.journalInvalidFailure()
+        }
+        startupJournalExpectedFact = try startupJournalFact()
+        startupJournalExpectedNames = expectedNames
+        startupJournalMutationCount += 1
+        startupJournalMutationUncertain = false
+    }
+
+    func startupRecoveryJournalReceipt() throws
+        -> RestoreMaintenanceClearObservationV1.OperationsRecoveryReceipt {
+        guard let startupDescriptorOwner,
+              !startupJournalMutationUncertain,
+              let initial = startupJournalInitialFact,
+              let expected = startupJournalExpectedFact,
+              let names = startupJournalExpectedNames,
+              names.isEmpty,
+              try startupJournalFact() == expected,
+              try startupJournalNames().isEmpty else {
+            throw Self.journalInvalidFailure()
+        }
+        try startupDescriptorOwner.requireOpen()
+        return .init(name: "deletion", initialChild: initial,
+            finalChild: expected, mutationCount: startupJournalMutationCount)
     }
 
     func create(_ intent: DeletionIntentV1) throws {
@@ -4277,7 +4585,7 @@ private final class DeletionJournalStore {
         try verifyExistingPolicy(.journal, name: Self.name(intent.deletionID))
         try withDeletionDirectory { descriptor in
             let existing = try Self.decode(
-                Self.read(descriptor: descriptor, name: Self.name(intent.deletionID))
+                read(descriptor: descriptor, name: Self.name(intent.deletionID))
             )
             guard existing == expected else {
                 throw Self.journalInvalidFailure()
@@ -4295,7 +4603,7 @@ private final class DeletionJournalStore {
         try verifyExistingPolicy(.journal, name: name)
         try withDeletionDirectory { descriptor in
             let existing = try Self.decodeSiteMarker(
-                Self.read(descriptor: descriptor, name: name)
+                read(descriptor: descriptor, name: name)
             )
             guard existing == expected else {
                 throw Self.journalInvalidFailure()
@@ -4306,9 +4614,13 @@ private final class DeletionJournalStore {
 
     func remove(_ expected: DeletionIntentV1) throws {
         try verifyExistingPolicy(.journal, name: Self.name(expected.deletionID))
+        let priorNames = try beforeStartupJournalMutation()
+        guard priorNames?.contains(Self.name(expected.deletionID)) != false else {
+            throw Self.journalInvalidFailure()
+        }
         try withDeletionDirectory { descriptor in
             let name = Self.name(expected.deletionID)
-            let existing = try Self.decode(Self.read(descriptor: descriptor, name: name))
+            let existing = try Self.decode(read(descriptor: descriptor, name: name))
             guard existing == expected else {
                 throw Self.journalInvalidFailure()
             }
@@ -4317,20 +4629,32 @@ private final class DeletionJournalStore {
                 throw Self.journalInvalidFailure()
             }
         }
+        if let priorNames {
+            try afterStartupJournalMutation(expectedNames:
+                priorNames.filter { $0 != Self.name(expected.deletionID) })
+        }
     }
 
     func removeSiteSearchPurgeMarker(_ expected: SiteSearchPurgeMarkerV1) throws {
         let name = Self.siteMarkerName(expected.deletionID)
         try verifyExistingPolicy(.journal, name: name)
+        let priorNames = try beforeStartupJournalMutation()
+        guard priorNames?.contains(name) != false else {
+            throw Self.journalInvalidFailure()
+        }
         try withDeletionDirectory { descriptor in
             let existing = try Self.decodeSiteMarker(
-                Self.read(descriptor: descriptor, name: name)
+                read(descriptor: descriptor, name: name)
             )
             guard existing == expected,
                   Darwin.unlinkat(descriptor, name, 0) == 0,
                   Darwin.fsync(descriptor) == 0 else {
                 throw Self.journalInvalidFailure()
             }
+        }
+        if let priorNames {
+            try afterStartupJournalMutation(expectedNames:
+                priorNames.filter { $0 != name })
         }
     }
 
@@ -4342,29 +4666,8 @@ private final class DeletionJournalStore {
 
     func loadAll() throws -> [DeletionIntentV1] {
         try withDeletionDirectory { descriptor in
-            let duplicate = Darwin.dup(descriptor)
-            guard duplicate >= 0, let directory = Darwin.fdopendir(duplicate) else {
-                if duplicate >= 0 { Darwin.close(duplicate) }
-                throw Self.journalInvalidFailure()
-            }
-            defer { Darwin.closedir(directory) }
-            var names = [String]()
-            errno = 0
-            while let entry = Darwin.readdir(directory) {
-                guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
-                    throw Self.journalInvalidFailure()
-                }
-                if name != "." && name != ".." {
-                    guard names.count < Self.maximumJournalEntryCount else {
-                        throw Self.journalInvalidFailure()
-                    }
-                    names.append(name)
-                }
-                errno = 0
-            }
-            guard errno == 0 else {
-                throw Self.journalInvalidFailure()
-            }
+            let names = try enumerateNames(in: descriptor,
+                maximumCount: Self.maximumJournalEntryCount)
             let temporaryNames = names.filter { Self.temporaryIdentifier($0) != nil }
             let journalNames = names.filter { Self.journalIdentifier($0) != nil }
             let siteTemporaryNames = names.filter {
@@ -4402,28 +4705,14 @@ private final class DeletionJournalStore {
                 guard let temporaryID = Self.temporaryIdentifier(temporary) else {
                     throw Self.journalInvalidFailure()
                 }
-                let file = Darwin.openat(descriptor, temporary, O_RDONLY | O_NOFOLLOW)
-                guard file >= 0 else {
-                    throw Self.journalInvalidFailure()
-                }
-                var info = stat()
-                guard Darwin.fstat(file, &info) == 0,
-                      (info.st_mode & S_IFMT) == S_IFREG,
-                      info.st_nlink == 1 else {
-                    Darwin.close(file)
-                    throw Self.journalInvalidFailure()
-                }
-                let expectedTemporary = Identity(
-                    device: info.st_dev,
-                    inode: info.st_ino
-                )
-                Darwin.close(file)
+                let expectedTemporary = try temporaryIdentity(
+                    descriptor: descriptor, name: temporary)
                 if journalIDs.contains(temporaryID) {
                     let existing = try Self.decode(
-                        Self.read(descriptor: descriptor, name: Self.name(temporaryID))
+                        read(descriptor: descriptor, name: Self.name(temporaryID))
                     )
                     let replacement = try Self.decode(
-                        Self.read(descriptor: descriptor, name: temporary)
+                        read(descriptor: descriptor, name: temporary)
                     )
                     let beforeSwap = existing.phase == .prepared
                         && replacement == existing.withPhase(.databaseCommitted)
@@ -4434,7 +4723,7 @@ private final class DeletionJournalStore {
                         throw Self.journalInvalidFailure()
                     }
                 }
-                try Self.removeIfExact(
+                try removeIfExact(
                     descriptor: descriptor,
                     name: temporary,
                     expected: expectedTemporary
@@ -4448,21 +4737,17 @@ private final class DeletionJournalStore {
                 guard let temporaryID = Self.siteTemporaryIdentifier(temporary) else {
                     throw Self.journalInvalidFailure()
                 }
-                let file = Darwin.openat(descriptor, temporary, O_RDONLY | O_NOFOLLOW)
-                guard file >= 0 else {
-                    throw Self.journalInvalidFailure()
-                }
-                let expectedTemporary = try Self.fileIdentity(file)
-                Darwin.close(file)
+                let expectedTemporary = try temporaryIdentity(
+                    descriptor: descriptor, name: temporary)
                 if siteMarkerIDs.contains(temporaryID) {
                     let existing = try Self.decodeSiteMarker(
-                        Self.read(
+                        read(
                             descriptor: descriptor,
                             name: Self.siteMarkerName(temporaryID)
                         )
                     )
                     let replacement = try Self.decodeSiteMarker(
-                        Self.read(descriptor: descriptor, name: temporary)
+                        read(descriptor: descriptor, name: temporary)
                     )
                     let beforeSwap = existing.phase == .prepared
                         && replacement == existing.withPhase(.databaseCommitted)
@@ -4473,7 +4758,7 @@ private final class DeletionJournalStore {
                         throw Self.journalInvalidFailure()
                     }
                 }
-                try Self.removeIfExact(
+                try removeIfExact(
                     descriptor: descriptor,
                     name: temporary,
                     expected: expectedTemporary
@@ -4488,7 +4773,7 @@ private final class DeletionJournalStore {
                 guard let identifier = Self.journalIdentifier(name) else {
                     throw Self.journalInvalidFailure()
                 }
-                let data = try Self.read(descriptor: descriptor, name: name)
+                let data = try read(descriptor: descriptor, name: name)
                 let intent = try Self.decode(data)
                 guard intent.deletionID == identifier else {
                     throw Self.journalInvalidFailure()
@@ -4501,33 +4786,17 @@ private final class DeletionJournalStore {
     func loadAllSiteSearchPurgeMarkers() throws -> [SiteSearchPurgeMarkerV1] {
         _ = try loadAll()
         return try withDeletionDirectory { descriptor in
-            let duplicate = Darwin.dup(descriptor)
-            guard duplicate >= 0, let directory = Darwin.fdopendir(duplicate) else {
-                if duplicate >= 0 { Darwin.close(duplicate) }
-                throw Self.journalInvalidFailure()
-            }
-            defer { Darwin.closedir(directory) }
-            var names = [String]()
-            errno = 0
-            while let entry = Darwin.readdir(directory) {
-                guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
-                    throw Self.journalInvalidFailure()
+            let names = try enumerateNames(in: descriptor,
+                maximumCount: nil).filter {
+                    Self.siteMarkerIdentifier($0) != nil
                 }
-                if Self.siteMarkerIdentifier(name) != nil {
-                    names.append(name)
-                }
-                errno = 0
-            }
-            guard errno == 0 else {
-                throw Self.journalInvalidFailure()
-            }
             return try names.sorted().map { name in
                 try verifyExistingPolicy(.journal, name: name)
                 guard let identifier = Self.siteMarkerIdentifier(name) else {
                     throw Self.journalInvalidFailure()
                 }
                 let marker = try Self.decodeSiteMarker(
-                    Self.read(descriptor: descriptor, name: name)
+                    read(descriptor: descriptor, name: name)
                 )
                 guard marker.deletionID == identifier else {
                     throw Self.journalInvalidFailure()
@@ -4535,6 +4804,64 @@ private final class DeletionJournalStore {
                 return marker
             }
         }
+    }
+
+    private func enumerateNames(in descriptor: Int32,
+        maximumCount: Int?) throws -> [String] {
+        if let startupDescriptorOwner {
+            return try startupDescriptorOwner.withOpenDirectory(parent: descriptor) {
+                directory in
+                try Self.names(in: directory, maximumCount: maximumCount)
+            }
+        }
+        let duplicate = Darwin.dup(descriptor)
+        guard duplicate >= 0, let directory = Darwin.fdopendir(duplicate) else {
+            if duplicate >= 0 { _ = Darwin.close(duplicate) }
+            throw Self.journalInvalidFailure()
+        }
+        defer { _ = Darwin.closedir(directory) }
+        return try Self.names(in: directory, maximumCount: maximumCount)
+    }
+
+    private static func names(in directory: UnsafeMutablePointer<DIR>,
+        maximumCount: Int?) throws -> [String] {
+        var names = [String]()
+        errno = 0
+        while let entry = Darwin.readdir(directory) {
+            guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+                throw journalInvalidFailure()
+            }
+            if name != "." && name != ".." {
+                if let maximumCount, names.count >= maximumCount {
+                    throw journalInvalidFailure()
+                }
+                names.append(name)
+            }
+            errno = 0
+        }
+        guard errno == 0 else { throw journalInvalidFailure() }
+        return names
+    }
+
+    private func temporaryIdentity(descriptor: Int32,
+                                   name: String) throws -> Identity {
+        let inspect: (Int32) throws -> Identity = { file in
+            var info = stat()
+            guard Darwin.fstat(file, &info) == 0,
+                  (info.st_mode & S_IFMT) == S_IFREG,
+                  info.st_nlink == 1 else {
+                throw Self.journalInvalidFailure()
+            }
+            return Identity(device: info.st_dev, inode: info.st_ino)
+        }
+        if let startupDescriptorOwner {
+            return try startupDescriptorOwner.withOpenChild(descriptor,
+                name: name, flags: O_RDONLY, inspect)
+        }
+        let file = Darwin.openat(descriptor, name, O_RDONLY | O_NOFOLLOW)
+        guard file >= 0 else { throw Self.journalInvalidFailure() }
+        defer { _ = Darwin.close(file) }
+        return try inspect(file)
     }
 
     private func write(_ intent: DeletionIntentV1, exclusive: Bool) throws {
@@ -4590,6 +4917,11 @@ private final class DeletionJournalStore {
         exclusive: Bool,
         expectedData: Data?
     ) throws {
+        let priorNames = try beforeStartupJournalMutation()
+        guard priorNames.map({ exclusive ? !$0.contains(name) : $0.contains(name) })
+                != false else {
+            throw Self.journalInvalidFailure()
+        }
         try withDeletionDirectory { descriptor in
             var temporaryInfo = stat()
             guard Darwin.fstatat(
@@ -4605,14 +4937,19 @@ private final class DeletionJournalStore {
                 O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, mode_t(S_IRUSR | S_IWUSR)
             )
             guard file >= 0 else { throw Self.journalInvalidFailure() }
-            defer { Darwin.close(file) }
+            startupDescriptorOwner?.retain(file)
+            defer {
+                if let startupDescriptorOwner {
+                    startupDescriptorOwner.closeInDefer(file)
+                } else { _ = Darwin.close(file) }
+            }
             let expectedTemporary = try Self.fileIdentity(file)
             var succeeded = false
             var published = false
             var swapped = false
             defer {
                 if !succeeded && !published {
-                    try? Self.removeIfExact(
+                    try? removeIfExact(
                         descriptor: descriptor,
                         name: temporary,
                         expected: expectedTemporary
@@ -4637,7 +4974,7 @@ private final class DeletionJournalStore {
             guard Darwin.fsync(file) == 0 else {
                 throw Self.journalInvalidFailure()
             }
-            guard let temporaryValue = try Self.readValueIfPresent(
+            guard let temporaryValue = try readValueIfPresent(
                 descriptor: descriptor,
                 name: temporary
             ), temporaryValue.identity == expectedTemporary,
@@ -4651,7 +4988,7 @@ private final class DeletionJournalStore {
                 guard let expectedData else {
                     throw Self.journalInvalidFailure()
                 }
-                guard let existing = try Self.readValueIfPresent(
+                guard let existing = try readValueIfPresent(
                     descriptor: descriptor,
                     name: name
                 ), existing.data == expectedData else {
@@ -4680,7 +5017,7 @@ private final class DeletionJournalStore {
                     name: name,
                     expectedIdentity: temporaryValue.identity
                 )
-                guard let publishedValue = try Self.readValueIfPresent(
+                guard let publishedValue = try readValueIfPresent(
                     descriptor: descriptor,
                     name: name
                 ), publishedValue.identity == temporaryValue.identity,
@@ -4693,14 +5030,14 @@ private final class DeletionJournalStore {
                         name: temporary,
                         expectedIdentity: priorValue.identity
                     )
-                    guard let displaced = try Self.readValueIfPresent(
+                    guard let displaced = try readValueIfPresent(
                         descriptor: descriptor,
                         name: temporary
                     ), displaced.identity == priorValue.identity,
                           displaced.data == priorValue.data else {
                         throw Self.journalInvalidFailure()
                     }
-                    try Self.removeExact(
+                    try removeExact(
                         descriptor: descriptor,
                         name: temporary,
                         expected: displaced
@@ -4711,10 +5048,10 @@ private final class DeletionJournalStore {
             } catch {
                 if let priorValue, swapped {
                     do {
-                        if let publishedValue = try Self.readValueIfPresent(
+                        if let publishedValue = try readValueIfPresent(
                             descriptor: descriptor,
                             name: name
-                        ), let displaced = try Self.readValueIfPresent(
+                        ), let displaced = try readValueIfPresent(
                             descriptor: descriptor,
                             name: temporary
                         ), publishedValue.identity == temporaryValue.identity,
@@ -4729,7 +5066,7 @@ private final class DeletionJournalStore {
                                 UInt32(RENAME_SWAP)
                               ) == 0,
                               Darwin.fsync(descriptor) == 0 {
-                            try Self.removeExact(
+                            try removeExact(
                                 descriptor: descriptor,
                                 name: temporary,
                                 expected: temporaryValue
@@ -4742,7 +5079,7 @@ private final class DeletionJournalStore {
                     }
                 } else if priorValue == nil, published {
                     do {
-                        try Self.removeExact(
+                        try removeExact(
                             descriptor: descriptor,
                             name: name,
                             expected: temporaryValue
@@ -4755,16 +5092,28 @@ private final class DeletionJournalStore {
                 throw error
             }
         }
+        if let priorNames {
+            try afterStartupJournalMutation(expectedNames:
+                exclusive ? (priorNames + [name]).sorted() : priorNames)
+        }
     }
 
     private func policyRelativePath(_ name: String) -> String {
         "FieldEvidenceOperations/deletion/\(name)"
     }
 
+    private static func requirePolicyComponent(_ name: String) throws {
+        guard !name.isEmpty, name != ".", name != "..",
+              !name.contains("/"), !name.contains("\\") else {
+            throw journalInvalidFailure()
+        }
+    }
+
     private func verifyExistingPolicy(
         _ kind: OwnedFileKindV1,
         name: String
     ) throws {
+        try Self.requirePolicyComponent(name)
         guard let root = applicationSupportURL else {
             throw WholeSignDeletionServiceError.invalidGeneration
         }
@@ -4779,19 +5128,35 @@ private final class DeletionJournalStore {
                 guard leaf >= 0 else {
                     throw Self.journalInvalidFailure()
                 }
-                defer { Darwin.close(leaf) }
+                startupDescriptorOwner?.retain(leaf)
+                defer {
+                    if let startupDescriptorOwner {
+                        startupDescriptorOwner.closeInDefer(leaf)
+                    } else { _ = Darwin.close(leaf) }
+                }
                 let expected = try Self.fileIdentity(leaf)
-                try ProtectedFilePolicyV1.applyAndVerify(
-                    kind,
-                    relativePath: policyRelativePath(name),
-                    within: root
-                ) {
+                let authorityCheck: () throws -> Void = {
                     try self.withDeletionDirectory { _ in }
                     try self.verifyLeaf(
                         name,
                         descriptor: leaf,
                         expected: expected
                     )
+                }
+                if let startupDescriptorOwner {
+                    try ProtectedFilePolicyV1
+                        .applyAndVerifyEraseColdPrivateWithCheckedClose(
+                            kind, at: root.appendingPathComponent(
+                                policyRelativePath(name)),
+                            retainUncertainDescriptor: {
+                                startupDescriptorOwner.retainUncertain($0)
+                            }, authorityCheck: authorityCheck,
+                            beforeFirstEffect: authorityCheck)
+                    try startupDescriptorOwner.requireOpen()
+                } else {
+                    try ProtectedFilePolicyV1.applyAndVerify(kind,
+                        relativePath: policyRelativePath(name),
+                        within: root, authorityCheck: authorityCheck)
                 }
             }
         } catch {
@@ -4805,21 +5170,33 @@ private final class DeletionJournalStore {
         descriptor: Int32,
         expected: Identity
     ) throws {
+        try Self.requirePolicyComponent(name)
         guard let root = applicationSupportURL else {
             throw WholeSignDeletionServiceError.invalidGeneration
         }
         do {
-            try ProtectedFilePolicyV1.applyAndVerify(
-                kind,
-                relativePath: policyRelativePath(name),
-                within: root
-            ) {
+            let authorityCheck: () throws -> Void = {
                 try self.withDeletionDirectory { _ in }
                 try self.verifyLeaf(
                     name,
                     descriptor: descriptor,
                     expected: expected
                 )
+            }
+            if let startupDescriptorOwner {
+                try ProtectedFilePolicyV1
+                    .applyAndVerifyEraseColdPrivateWithCheckedClose(
+                        kind, at: root.appendingPathComponent(
+                            policyRelativePath(name)),
+                        retainUncertainDescriptor: {
+                            startupDescriptorOwner.retainUncertain($0)
+                        }, authorityCheck: authorityCheck,
+                        beforeFirstEffect: authorityCheck)
+                try startupDescriptorOwner.requireOpen()
+            } else {
+                try ProtectedFilePolicyV1.applyAndVerify(kind,
+                    relativePath: policyRelativePath(name),
+                    within: root, authorityCheck: authorityCheck)
             }
         } catch {
             throw Self.journalInvalidFailure()
@@ -4855,6 +5232,7 @@ private final class DeletionJournalStore {
         name: String,
         expectedIdentity: Identity
     ) throws {
+        try Self.requirePolicyComponent(name)
         guard let root = applicationSupportURL else {
             throw WholeSignDeletionServiceError.invalidGeneration
         }
@@ -4868,7 +5246,12 @@ private final class DeletionJournalStore {
                 guard leaf >= 0 else {
                     throw Self.journalInvalidFailure()
                 }
-                defer { Darwin.close(leaf) }
+                startupDescriptorOwner?.retain(leaf)
+                defer {
+                    if let startupDescriptorOwner {
+                        startupDescriptorOwner.closeInDefer(leaf)
+                    } else { _ = Darwin.close(leaf) }
+                }
                 guard try Self.fileIdentity(leaf) == expectedIdentity else {
                     throw Self.journalInvalidFailure()
                 }
@@ -4877,13 +5260,23 @@ private final class DeletionJournalStore {
                     descriptor: leaf,
                     expected: expectedIdentity
                 )
-                try ProtectedFilePolicyV1.verify(
-                    kind,
-                    at: root
-                        .appendingPathComponent("FieldEvidenceOperations", isDirectory: true)
-                        .appendingPathComponent("deletion", isDirectory: true)
-                        .appendingPathComponent(name)
-                )
+                let url = root
+                    .appendingPathComponent("FieldEvidenceOperations", isDirectory: true)
+                    .appendingPathComponent("deletion", isDirectory: true)
+                    .appendingPathComponent(name)
+                if let startupDescriptorOwner {
+                    let observed = try ProtectedFilePolicyV1
+                        .observeTemporalPolicyWithCheckedClose(kind, at: url,
+                            retainUncertainDescriptor: {
+                                startupDescriptorOwner.retainUncertain($0)
+                            })
+                    guard observed.state == .strictComplete else {
+                        throw Self.journalInvalidFailure()
+                    }
+                    try startupDescriptorOwner.requireOpen()
+                } else {
+                    try ProtectedFilePolicyV1.verify(kind, at: url)
+                }
                 try self.verifyLeaf(
                     name,
                     descriptor: leaf,
@@ -4901,6 +5294,28 @@ private final class DeletionJournalStore {
               let operationsIdentity,
               let deletionIdentity else {
             throw WholeSignDeletionServiceError.invalidGeneration
+        }
+        if let startupDescriptorOwner {
+            return try startupDescriptorOwner.withOpenPath(root.path,
+                flags: O_RDONLY | O_DIRECTORY) { rootFD in
+                guard try Self.identity(rootFD) == identity else {
+                    throw WholeSignDeletionServiceError.invalidGeneration
+                }
+                return try startupDescriptorOwner.withOpenChild(rootFD,
+                    name: "FieldEvidenceOperations",
+                    flags: O_RDONLY | O_DIRECTORY) { operations in
+                    guard try Self.identity(operations) == operationsIdentity else {
+                        throw WholeSignDeletionServiceError.invalidGeneration
+                    }
+                    return try startupDescriptorOwner.withOpenChild(operations,
+                        name: "deletion", flags: O_RDONLY | O_DIRECTORY) { deletion in
+                        guard try Self.identity(deletion) == deletionIdentity else {
+                            throw WholeSignDeletionServiceError.invalidGeneration
+                        }
+                        return try body(deletion)
+                    }
+                }
+            }
         }
         let rootFD = Darwin.open(root.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
         guard rootFD >= 0, try Self.identity(rootFD) == identity else {
@@ -4931,6 +5346,49 @@ private final class DeletionJournalStore {
         return try body(deletion)
     }
 
+    private static func requireNamedStartupDirectory(
+        root: URL, rootDescriptor: Int32, rootIdentity: Identity,
+        parent: Int32, name: String, child: Int32,
+        childIdentity: Identity
+    ) throws {
+        var namedRoot = stat(), namedChild = stat(), heldChild = stat()
+        guard Darwin.lstat(root.path, &namedRoot) == 0,
+              (namedRoot.st_mode & S_IFMT) == S_IFDIR,
+              Identity(device: namedRoot.st_dev,
+                inode: namedRoot.st_ino) == rootIdentity,
+              try identity(rootDescriptor) == rootIdentity,
+              Darwin.fstatat(parent, name, &namedChild,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              Darwin.fstat(child, &heldChild) == 0,
+              (namedChild.st_mode & S_IFMT) == S_IFDIR,
+              namedChild.st_dev == heldChild.st_dev,
+              namedChild.st_ino == heldChild.st_ino,
+              namedChild.st_mode == heldChild.st_mode,
+              Identity(device: heldChild.st_dev,
+                inode: heldChild.st_ino) == childIdentity else {
+            throw journalInvalidFailure()
+        }
+    }
+
+    /// The startup receipt is issued only when this exact constructor won
+    /// the exclusive mkdir; EEXIST after an absent observation refuses.
+    private static func openOrCreateDirectoryWithCreation(
+        parent: Int32, name: String
+    ) throws -> (descriptor: Int32, created: Bool) {
+        var result = Darwin.openat(parent, name,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        if result >= 0 { return (result, false) }
+        guard errno == ENOENT,
+              Darwin.mkdirat(parent, name, mode_t(S_IRWXU)) == 0,
+              Darwin.fsync(parent) == 0 else {
+            throw Self.journalInvalidFailure()
+        }
+        result = Darwin.openat(parent, name,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard result >= 0 else { throw Self.journalInvalidFailure() }
+        return (result, true)
+    }
+
     private static func openOrCreateDirectory(parent: Int32, name: String) throws -> Int32 {
         var result = Darwin.openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
         if result < 0 && errno == ENOENT {
@@ -4944,11 +5402,11 @@ private final class DeletionJournalStore {
         return result
     }
 
-    private static func read(descriptor: Int32, name: String) throws -> Data {
+    private func read(descriptor: Int32, name: String) throws -> Data {
         try readValue(descriptor: descriptor, name: name).data
     }
 
-    private static func readValueIfPresent(
+    private func readValueIfPresent(
         descriptor: Int32,
         name: String
     ) throws -> ReadValue? {
@@ -4965,13 +5423,23 @@ private final class DeletionJournalStore {
         return try readValue(descriptor: descriptor, name: name)
     }
 
-    private static func readValue(
+    private func readValue(
         descriptor: Int32,
         name: String
     ) throws -> ReadValue {
+        if let startupDescriptorOwner {
+            return try startupDescriptorOwner.withOpenChild(descriptor,
+                name: name, flags: O_RDONLY) { file in
+                try Self.readOpenedValue(file)
+            }
+        }
         let file = Darwin.openat(descriptor, name, O_RDONLY | O_NOFOLLOW)
         guard file >= 0 else { throw Self.journalInvalidFailure() }
         defer { Darwin.close(file) }
+        return try Self.readOpenedValue(file)
+    }
+
+    private static func readOpenedValue(_ file: Int32) throws -> ReadValue {
         var before = stat()
         guard Darwin.fstat(file, &before) == 0,
               (before.st_mode & S_IFMT) == S_IFREG,
@@ -5000,11 +5468,15 @@ private final class DeletionJournalStore {
         )
     }
 
-    private static func removeIfExact(
+    private func removeIfExact(
         descriptor: Int32,
         name: String,
         expected: Identity
     ) throws {
+        let priorNames = try beforeStartupJournalMutation()
+        guard priorNames?.contains(name) != false else {
+            throw Self.journalInvalidFailure()
+        }
         guard let current = try readValueIfPresent(
             descriptor: descriptor,
             name: name
@@ -5014,9 +5486,13 @@ private final class DeletionJournalStore {
               try readValueIfPresent(descriptor: descriptor, name: name) == nil else {
             throw Self.journalInvalidFailure()
         }
+        if let priorNames {
+            try afterStartupJournalMutation(expectedNames:
+                priorNames.filter { $0 != name })
+        }
     }
 
-    private static func removeExact(
+    private func removeExact(
         descriptor: Int32,
         name: String,
         expected: ReadValue

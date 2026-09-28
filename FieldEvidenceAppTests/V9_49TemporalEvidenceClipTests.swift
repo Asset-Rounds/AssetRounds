@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import SwiftData
 import XCTest
@@ -2093,7 +2094,8 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
             "prepare.empty-generation.factory-returned",
             "prepare.empty-generation.original-bind-returned",
             "prepare.bind", "prepare.empty-ledger", "prepare.validate-empty",
-            "prepare.revalidate-empty", "projection.local-purge.begin",
+            "prepare.revalidate-empty", "after-pointer-fault-proved",
+            "after-pointer-witness-captured", "projection.local-purge.begin",
             "projection.local-purge.end", "projection.private-discovery.begin",
             "projection.private-discovery.end", "retirement.binding.enter",
             "retirement.binding.complete", "cleanup.prepare.enter",
@@ -2191,6 +2193,12 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
             let service = try owner.configure(serviceSeed)
             Self.retainedC33InterruptedServices.append((fixture.root, service))
             if interrupted {
+                // Configuration and a requested fault do not mint a durable
+                // pointer-published witness from the original Erase frame.
+                XCTAssertThrowsError(try service.capturePostHandoffHostileSourceForTesting(
+                    operation: operation)) { error in
+                    XCTAssertEqual(error as? EraseAllServiceError, .invalidAuthority)
+                }
 #if DEBUG
                 service.erasePhaseDiagnosticForTesting = { phase in
                     Self.traceC33DirectErasePhase(phase)
@@ -2207,6 +2215,11 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
                     guard error as? EraseAllServiceError == .injectedFailure else { throw error }
                 }
                 XCTAssertTrue(completedReceipts.isEmpty)
+                let durable = try service.interruptedRetiredAuthorityIntentForTesting(
+                    .afterPointerSwitch, operation: operation)
+                XCTAssertEqual(durable.phase, .emptyGenerationPrepared)
+                XCTAssertNotNil(durable.targetPointer)
+                Self.traceC33DirectErasePhase("after-pointer-fault-proved")
             } else {
                 try await owner.prepareCompatibility(service: service,
                     confirmation: "ERASE", coordinator: coordinator,
@@ -2226,6 +2239,7 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
             if interrupted {
                 let binding = try service.capturePostHandoffHostileSourceForTesting(
                     operation: operation)
+                Self.traceC33DirectErasePhase("after-pointer-witness-captured")
                 try service.requireV949PostHandoffControlsUnchanged(
                     binding, operation: operation)
                 current = binding.newGenerationID
@@ -2558,7 +2572,8 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
         clip: TemporalEvidenceClipV1,
         registered: (clip: TemporalEvidenceClipV1,
             derivative: TemporalEvidenceDerivativeV1),
-        fixtureRoot: URL, support: URL
+        fixtureRoot: URL, support: URL,
+        pointerObservation: (@MainActor () throws -> UUID)? = nil
     ) throws -> C33HostileDerivativeObservation {
         let content = registered.derivative.content
         let directory = session.generationRootURL.appendingPathComponent(
@@ -2624,10 +2639,16 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
         case "byte-race": break
         default: XCTFail("Unknown derivative hostile case: \(hostile)")
         }
+        let observedPointer: UUID
+        if let pointerObservation {
+            observedPointer = try pointerObservation()
+        } else {
+            observedPointer = try StoreGenerationFactory(
+                applicationSupportURL: support).currentGenerationID()
+        }
         return try C33HostileDerivativeObservation(
             raw: V949ColdSourceReadbackV1.capture(session.modelContext),
-            pointer: StoreGenerationFactory(
-                applicationSupportURL: support).currentGenerationID(),
+            pointer: observedPointer,
             generationRootURL: session.generationRootURL,
             originalURL: original, originalBytes: originalBytes,
             derivativeURL: path,
@@ -2658,7 +2679,10 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
                 session: session, clip: prepared.value.clip,
                 registered: prepared.value.registered,
                 fixtureRoot: prepared.fixtureRoot,
-                support: prepared.support)
+                support: prepared.support,
+                pointerObservation: {
+                    try hostileOwner.observedPublishedCurrentGenerationIDWhileExcluded()
+                })
         }
         try hostileOwner.closeAfterCheckedDrain()
         XCTAssertFalse(observation.contextHadChanges)
@@ -3048,6 +3072,9 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
 
     @MainActor
     private static var retainedC33InterruptedServices: [(URL, EraseAllService)] = []
+    @MainActor
+    private static var retainedC33RejectedEarlyWitnessOwners:
+        [(URL, V23EraseOperationHarnessV1, EraseAllService)] = []
 
     @MainActor
     private struct C33InterruptedHostileSource<Value> {
@@ -3070,6 +3097,7 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
     /// reader/EX/guard exit and constructs a separate hostile fixture owner.
     @MainActor
     private func prepareC33InterruptedHostileSource<Value>(
+        beforeArming: (@MainActor (EraseOriginalFixture) throws -> Void)? = nil,
         _ seed: @MainActor (EraseOriginalFixture,
             WorkspaceWriterV1) async throws -> Value
     ) async throws -> C33InterruptedHostileSource<Value> {
@@ -3118,6 +3146,18 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
             }
         }
         XCTAssertTrue(completedReceipts.isEmpty)
+        let durable = try service.interruptedRetiredAuthorityIntentForTesting(
+            .afterPointerSwitch, operation: operation)
+        XCTAssertEqual(durable.phase, .emptyGenerationPrepared)
+        XCTAssertNotNil(durable.targetPointer)
+        Self.traceC33DirectErasePhase("after-pointer-fault-proved")
+        if let beforeArming {
+            // A denied witness leaves the exact interrupted Router, Service,
+            // operation and root retained; no deinit is used as close proof.
+            Self.retainedC33RejectedEarlyWitnessOwners.append(
+                (fixture.root, owner, service))
+            try beforeArming(fixture)
+        }
         try owner.router.armPostHandoffHostileFixtureForTesting(
             operation, originalService: service)
         try await owner.router.beginInterruptedEarlyEraseColdRestartForTesting(
@@ -3395,6 +3435,35 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
     }
 
     @MainActor
+    func testC33EarlyPointerWitnessRejectsSameByteRetiredControlReplacement() async throws {
+        var reachedArmingBoundary = false
+        do {
+            _ = try await prepareC33InterruptedHostileSource(
+                beforeArming: { fixture in
+                    let leaf = fixture.support
+                        .appendingPathComponent("FieldEvidenceData", isDirectory: true)
+                        .appendingPathComponent("retired.json")
+                    let replacement = leaf.deletingLastPathComponent()
+                        .appendingPathComponent("retired.json.fixture-replacement")
+                    let original = try Data(contentsOf: leaf)
+                    var before = stat(), after = stat()
+                    XCTAssertEqual(leaf.path.withCString { lstat($0, &before) }, 0)
+                    try FileManager.default.copyItem(at: leaf, to: replacement)
+                    try FileManager.default.removeItem(at: leaf)
+                    try FileManager.default.moveItem(at: replacement, to: leaf)
+                    XCTAssertEqual(leaf.path.withCString { lstat($0, &after) }, 0)
+                    XCTAssertNotEqual(before.st_ino, after.st_ino)
+                    XCTAssertEqual(try Data(contentsOf: leaf), original)
+                    reachedArmingBoundary = true
+                }) { fixture, _ in fixture.clip }
+            XCTFail("Replaced published control must not mint the early witness")
+        } catch {
+            XCTAssertTrue(reachedArmingBoundary)
+            XCTAssertEqual(error as? EraseAllServiceError, .invalidAuthority)
+        }
+    }
+
+    @MainActor
     func testC33EraseRejectsHostileOriginalInventoryBeforeEffects() async throws {
         try await assertHostileEraseOriginals(recovering: false)
     }
@@ -3425,7 +3494,8 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
     private func applyC33HostileOriginal(
         _ hostile: String, session: StoreGenerationSession,
         clip: TemporalEvidenceClipV1, fixtureRoot: URL,
-        support: URL
+        support: URL,
+        pointerObservation: (@MainActor () throws -> UUID)? = nil
     ) throws -> C33HostileOriginalObservation {
         let original = session.generationRootURL.appendingPathComponent(
             try TemporalEvidenceBackupMemberV1.original(for: clip))
@@ -3461,10 +3531,16 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
             try FileManager.default.linkItem(at: original, to: external)
         default: XCTFail("Unknown hostile original case: \(hostile)")
         }
+        let observedPointer: UUID
+        if let pointerObservation {
+            observedPointer = try pointerObservation()
+        } else {
+            observedPointer = try StoreGenerationFactory(
+                applicationSupportURL: support).currentGenerationID()
+        }
         return try C33HostileOriginalObservation(
             raw: V949ColdSourceReadbackV1.capture(session.modelContext),
-            pointer: StoreGenerationFactory(
-                applicationSupportURL: support).currentGenerationID(),
+            pointer: observedPointer,
             generationRootURL: session.generationRootURL,
             originalURL: original,
             originalBytes: try? Data(contentsOf: original),
@@ -3489,7 +3565,10 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
             try self.applyC33HostileOriginal(hostile,
                 session: session, clip: prepared.value,
                 fixtureRoot: prepared.fixtureRoot,
-                support: prepared.support)
+                support: prepared.support,
+                pointerObservation: {
+                    try hostileOwner.observedPublishedCurrentGenerationIDWhileExcluded()
+                })
         }
         try hostileOwner.closeAfterCheckedDrain()
         XCTAssertFalse(observation.contextHadChanges)
@@ -3515,6 +3594,10 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
         Self.retainedC33InterruptedServices.append(
             (prepared.fixtureRoot, recovery))
         var phases = [String]()
+        var startupFailures = [String]()
+        fresh.router.startupFailureDiagnosticForTesting = {
+            startupFailures.append($0)
+        }
         var readbacks = [(V949ColdSourceReadbackV1,
             V949ColdSourceReadbackV1)]()
         var expectedBytes = observation.originalBytes
@@ -3540,7 +3623,9 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
         do {
             try await fresh.router.retryColdEraseForTesting(
                 service: recovery, accessGate: fresh.accessGate)
-            XCTFail("Admitted hostile retained original: \(hostile)")
+            XCTFail("Admitted hostile retained original: \(hostile); "
+                + "retainedStages=\(phases.filter { $0.hasPrefix("recovery.retained.") }); "
+                + "startupFailures=\(startupFailures)")
         } catch {
             XCTAssertFalse(error is CancellationError)
         }
@@ -3549,7 +3634,9 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
         }
         XCTAssertTrue(phases.contains("recovery.presence.retained-source"),
             "\(hostile): \(phases)")
-        XCTAssertEqual(readbacks.count, 1, hostile)
+        XCTAssertEqual(readbacks.count, 1,
+            "\(hostile); retainedStages=\(phases.filter { $0.hasPrefix("recovery.retained.") }); "
+                + "startupFailures=\(startupFailures)")
         if let pair = readbacks.first {
             XCTAssertEqual(pair.0, observation.raw, hostile)
             XCTAssertEqual(pair.1, observation.raw, hostile)
@@ -4446,5 +4533,69 @@ final class C46V949TemporalCompatibilityTests: XCTestCase {
             handoff: .text,
             slot: 46049
         )
+    }
+}
+
+/// The checked tree walk keeps every non-target byte and namespace fact even
+/// when the one authenticated target manifest changes the root link count.
+final class V949SchemaMigrationRootLinkWitnessTests: XCTestCase {
+    func testExpectedTargetManifestLinkTransitionRetainsFullTreeChecks() throws {
+        let parent = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "V949-schema-links-\(UUID().uuidString)", isDirectory: true)
+        let migration = parent.appendingPathComponent(
+            "schema-migration", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: migration, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let stable = migration.appendingPathComponent("stable.json")
+        try Data("stable".utf8).write(to: stable)
+        let targetName = "manifest-\(UUID().uuidString.lowercased()).json"
+        let io = EraseAbortCheckedSnapshotIOV1()
+
+        func snapshot(excluding: Set<String> = [],
+            sourceRootLinks: UInt64? = nil
+        ) throws -> (digest: String, links: UInt64) {
+            var links: UInt64?
+            let digest = try io.withOpen(
+                parent: AT_FDCWD, name: parent.path,
+                flags: O_RDONLY | O_DIRECTORY
+            ) { parentDescriptor in
+                try io.postRetiredTree(
+                    parent: parentDescriptor, name: "schema-migration",
+                    excluding: excluding,
+                    ignoringDirectoryMetadata: [""],
+                    observedRootLinks: { links = $0 },
+                    normalizingSingleTargetManifestRootLinksFrom: sourceRootLinks)
+            }
+            return (digest, try XCTUnwrap(links))
+        }
+
+        let source = try snapshot()
+        let unrelated = migration.appendingPathComponent("unrelated.json")
+        try Data("unrelated".utf8).write(to: unrelated)
+        let wrongSingleAddition = try snapshot(
+            excluding: [targetName], sourceRootLinks: source.links)
+        XCTAssertEqual(wrongSingleAddition.links, source.links + 1)
+        XCTAssertNotEqual(wrongSingleAddition.digest, source.digest)
+        try FileManager.default.removeItem(at: unrelated)
+
+        let target = migration.appendingPathComponent(targetName)
+        try Data("target manifest fixture".utf8).write(to: target)
+        let exact = try snapshot(
+            excluding: [targetName], sourceRootLinks: source.links)
+        XCTAssertEqual(exact.links, source.links + 1)
+        XCTAssertEqual(exact.digest, source.digest)
+        XCTAssertNotEqual(try snapshot(
+            excluding: ["manifest-wrong.json"],
+            sourceRootLinks: source.links).digest, source.digest)
+
+        try Data("hostile sibling".utf8).write(to: unrelated)
+        XCTAssertThrowsError(try snapshot(
+            excluding: [targetName], sourceRootLinks: source.links))
+        try FileManager.default.removeItem(at: unrelated)
+        try Data("changed".utf8).write(to: stable)
+        XCTAssertNotEqual(try snapshot(
+            excluding: [targetName], sourceRootLinks: source.links).digest,
+            source.digest)
     }
 }

@@ -251,6 +251,22 @@ final class FinalizationRecoveryService {
                     expectedGenerationRootIdentity: try? ReportPDFAnchoredFile.rootIdentity(at: generationRootURL.standardizedFileURL)))
     }
 
+    /// Startup reuses the exact preparation store whose authenticated
+    /// Operations child transition was captured before the first recovery
+    /// await. Other callers retain the existing constructor behavior.
+    convenience init(modelContext: ModelContext, generationRootURL: URL,
+                     workspaceWriter: WorkspaceWriterV1?,
+                     lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1?,
+                     retainedStartupStore: FinalizationIntentStore?) {
+        self.init(modelContext: modelContext, generationRootURL: generationRootURL,
+                  sourceRecoveryAuthority: nil, workspaceWriter: workspaceWriter,
+                  lifecycleProfileRegistry: lifecycleProfileRegistry,
+                  store: retainedStartupStore ?? FinalizationIntentStore(
+                    generationRootURL: generationRootURL,
+                    expectedGenerationRootIdentity: try? ReportPDFAnchoredFile.rootIdentity(
+                        at: generationRootURL.standardizedFileURL)))
+    }
+
     convenience init(sourceRecoveryAuthority authority: StoreMigrationSourceRecoveryAuthorityV1) throws {
         self.init(modelContext: try authority.recoveryContext(),
                   generationRootURL: authority.generationRootURL,

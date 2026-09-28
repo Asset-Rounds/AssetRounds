@@ -417,7 +417,7 @@ private struct C16IngressHygieneRequestV1: Codable, Equatable {
     let minimumAge: TimeInterval
 }
 
-private struct C16IngressHygieneFileIdentityV1: Codable, Equatable {
+fileprivate struct C16IngressHygieneFileIdentityV1: Codable, Equatable {
     let name: String
     let device: UInt64
     let inode: UInt64
@@ -1044,10 +1044,31 @@ enum WorkspaceExperiencePreAuthenticationScratchPolicyV1 {
     static let permitsPayloadIndexing = false
 }
 
+/// A close failure leaves the integer's kernel ownership uncertain. Keep the
+/// attempted descriptor recorded for process life; never retry or use it as a
+/// newly acquired descriptor. The original Erase EX/G owner also stays fenced.
+private final class ScratchUncertainCloseQuarantineV1: @unchecked Sendable {
+    static let shared = ScratchUncertainCloseQuarantineV1()
+    private let lock = NSLock()
+    private var attempted: [UUID: Int32] = [:]
+
+    func begin(_ descriptor: Int32) -> UUID {
+        let id = UUID()
+        lock.withLock { attempted[id] = descriptor }
+        return id
+    }
+
+    func complete(_ id: UUID) {
+        lock.withLock { attempted.removeValue(forKey: id) }
+    }
+}
+
 private final class PinnedScratchRootV1: @unchecked Sendable {
     private let operationsURL: URL
-    let operationsDescriptor: Int32
-    let rootDescriptor: Int32
+    private(set) var operationsDescriptor: Int32
+    private(set) var rootDescriptor: Int32
+    private var rootCloseAttempted = false
+    private var operationsCloseAttempted = false
     let operationsDevice: UInt64
     let operationsInode: UInt64
     let rootDevice: UInt64
@@ -1065,7 +1086,10 @@ private final class PinnedScratchRootV1: @unchecked Sendable {
         var operations = stat()
         guard Darwin.fstat(operationsDescriptor, &operations) == 0,
               (operations.st_mode & S_IFMT) == S_IFDIR else {
-            _ = Darwin.close(operationsDescriptor)
+            let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(operationsDescriptor)
+            if Darwin.close(operationsDescriptor) == 0 {
+                ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+            }
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
         operationsDevice = UInt64(operations.st_dev)
@@ -1076,15 +1100,24 @@ private final class PinnedScratchRootV1: @unchecked Sendable {
             O_RDONLY | O_DIRECTORY | O_NOFOLLOW
         )
         guard rootDescriptor >= 0 else {
-            _ = Darwin.close(operationsDescriptor)
+            let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(operationsDescriptor)
+            if Darwin.close(operationsDescriptor) == 0 {
+                ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+            }
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
         var root = stat()
         guard Darwin.fstat(rootDescriptor, &root) == 0,
               (root.st_mode & S_IFMT) == S_IFDIR,
               root.st_dev == operations.st_dev else {
-            _ = Darwin.close(rootDescriptor)
-            _ = Darwin.close(operationsDescriptor)
+            let rootAttempt = ScratchUncertainCloseQuarantineV1.shared.begin(rootDescriptor)
+            if Darwin.close(rootDescriptor) == 0 {
+                ScratchUncertainCloseQuarantineV1.shared.complete(rootAttempt)
+            }
+            let operationsAttempt = ScratchUncertainCloseQuarantineV1.shared.begin(operationsDescriptor)
+            if Darwin.close(operationsDescriptor) == 0 {
+                ScratchUncertainCloseQuarantineV1.shared.complete(operationsAttempt)
+            }
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
         rootDevice = UInt64(root.st_dev)
@@ -1092,9 +1125,37 @@ private final class PinnedScratchRootV1: @unchecked Sendable {
     }
 
     deinit {
-        _ = Darwin.close(rootDescriptor)
-        _ = Darwin.close(operationsDescriptor)
+        if rootDescriptor >= 0 && !rootCloseAttempted { _ = Darwin.close(rootDescriptor) }
+        if operationsDescriptor >= 0 && !operationsCloseAttempted { _ = Darwin.close(operationsDescriptor) }
     }
+
+#if DEBUG
+    func closeCheckedForExclusiveOriginalEraseRead(
+        verifyBeforeClose: Bool = true
+    ) throws {
+        if verifyBeforeClose { try verify(rootName: "ScratchDataV1") }
+        let root = rootDescriptor
+        rootCloseAttempted = true
+        let rootAttempt = ScratchUncertainCloseQuarantineV1.shared.begin(root)
+        var failed = false
+        if Darwin.close(root) == 0 {
+            ScratchUncertainCloseQuarantineV1.shared.complete(rootAttempt)
+            rootDescriptor = -1
+        } else {
+            failed = true
+        }
+        let operations = operationsDescriptor
+        operationsCloseAttempted = true
+        let operationsAttempt = ScratchUncertainCloseQuarantineV1.shared.begin(operations)
+        if Darwin.close(operations) == 0 {
+            ScratchUncertainCloseQuarantineV1.shared.complete(operationsAttempt)
+            operationsDescriptor = -1
+        } else {
+            failed = true
+        }
+        if failed { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+    }
+#endif
 
     func verify(rootName: String) throws {
         var operations = stat()
@@ -1892,6 +1953,36 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     private var beforeIngressControlFinalInventory: BeforeIngressControlFinalInventory = {}
     #endif
     private var active: [UUID: ScratchDataLeaseV1] = [:]
+    private var exclusiveNoRepairRead = false
+
+    private func applySourceReadPolicy(
+        _ kind: OwnedFileKindV1, at url: URL,
+        authorityCheck: () throws -> Void = {}
+    ) throws {
+        if exclusiveNoRepairRead {
+            try ProtectedFilePolicyV1.applyAndVerifyEraseColdPrivateWithCheckedClose(
+                kind, at: url,
+                retainUncertainDescriptor: {
+                    _ = ScratchUncertainCloseQuarantineV1.shared.begin($0)
+                }, authorityCheck: authorityCheck)
+        } else {
+            try ProtectedFilePolicyV1.applyAndVerify(
+                kind, at: url, authorityCheck: authorityCheck)
+        }
+    }
+
+    private func verifySourceReadPolicy(
+        _ kind: OwnedFileKindV1, at url: URL
+    ) throws {
+        if exclusiveNoRepairRead {
+            try ProtectedFilePolicyV1.verifyEraseColdPrivateWithCheckedClose(
+                kind, at: url, retainUncertainDescriptor: {
+                    _ = ScratchUncertainCloseQuarantineV1.shared.begin($0)
+                })
+        } else {
+            try ProtectedFilePolicyV1.verify(kind, at: url)
+        }
+    }
     // Populated only by real returned in-process acquisitions, never by cold
     // metadata recovery. A serializable lease is not a live producer proof.
     private var producerActivities: [UUID: OwnedStorageProducerActivityV1] = [:]
@@ -1954,19 +2045,43 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private init(verifiedExistingTemporalRootAt applicationSupportURL: URL,
-                 clock: @escaping Clock) throws {
+                 clock: @escaping Clock,
+                 capacityProvider: @escaping StoragePreflightService.CapacityProvider = { _ in nil },
+                 checkedClose: Bool = false) throws {
         let operations = applicationSupportURL.standardizedFileURL.appendingPathComponent(
             OwnedStorageRootKindV1.operations.rawValue, isDirectory: true)
         rootURL = operations.appendingPathComponent(Self.rootName, isDirectory: true)
         self.clock = clock
         ingressHygieneFailureInjection = .none
         ingressMutationFailureInjection = .none
-        storagePreflight = StoragePreflightService(capacityProvider: { _ in nil })
+        storagePreflight = StoragePreflightService(capacityProvider: capacityProvider)
         authority = try PinnedScratchRootV1(operationsURL: operations, rootName: Self.rootName)
-        try authority.verify(rootName: Self.rootName)
-        _ = try ProtectedFilePolicyV1.observeTemporalPolicy(.stagingDirectory, at: operations)
-        _ = try ProtectedFilePolicyV1.observeTemporalPolicy(.stagingDirectory, at: rootURL)
-        try authority.verify(rootName: Self.rootName)
+        do {
+            try authority.verify(rootName: Self.rootName)
+            if checkedClose {
+                _ = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(
+                    .stagingDirectory, at: operations,
+                    retainUncertainDescriptor: {
+                        _ = ScratchUncertainCloseQuarantineV1.shared.begin($0)
+                    })
+                _ = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(
+                    .stagingDirectory, at: rootURL,
+                    retainUncertainDescriptor: {
+                        _ = ScratchUncertainCloseQuarantineV1.shared.begin($0)
+                    })
+            } else {
+                _ = try ProtectedFilePolicyV1.observeTemporalPolicy(.stagingDirectory, at: operations)
+                _ = try ProtectedFilePolicyV1.observeTemporalPolicy(.stagingDirectory, at: rootURL)
+            }
+            try authority.verify(rootName: Self.rootName)
+        } catch {
+#if DEBUG
+            // A failed checked close is quarantined by the pinned owner; the
+            // exclusive caller poisons its original Erase operation as well.
+            try? authority.closeCheckedForExclusiveOriginalEraseRead(verifyBeforeClose: false)
+#endif
+            throw error
+        }
     }
 
     #if DEBUG
@@ -2275,7 +2390,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         guard names.count <= 128 else { throw AppAccessContractFailureV1.configurationUnknown }
         return try names.map { child in
             let before = try regularFileInformation(named: child, directoryDescriptor: descriptor)
-            try ProtectedFilePolicyV1.verify(.temporaryFile,
+            try verifySourceReadPolicy(.temporaryFile,
                 at: rootURL.appendingPathComponent(name).appendingPathComponent(child))
             let after = try regularFileInformation(named: child, directoryDescriptor: descriptor)
             let identity = C16IngressHygieneFileIdentityV1(name: child, information: before)
@@ -3598,33 +3713,173 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     final class SourceReadDirectory {
         fileprivate let store: ScratchDataLeaseStoreV1
         fileprivate let lease: ScratchDataLeaseV1
-        fileprivate let descriptor: Int32
+        fileprivate var descriptor: Int32
         fileprivate let readerIsDrained: @MainActor () -> Bool
         private var unlocked = false
-        private let producerActivity: OwnedStorageProducerActivityV1
+        private var descriptorCloseAttempted = false
+        private let producerActivity: OwnedStorageProducerActivityV1?
+        private let exclusivePermit: CompletedAbortExclusiveScratchPermitV1?
+        private var exclusiveOwnedInodes: [String: (device: UInt64, inode: UInt64)] = [:]
         private static let sqliteNames: Set<String> = ["model.sqlite", "model.sqlite-wal", "model.sqlite-shm"]
         var modelURL: URL { directoryURL.appendingPathComponent("model.sqlite") }
         private var directoryURL: URL { store.rootURL.appendingPathComponent(lease.relativeDirectory) }
 
         fileprivate init(store: ScratchDataLeaseStoreV1, lease: ScratchDataLeaseV1,
-                         readerIsDrained: @escaping @MainActor () -> Bool) throws {
-            let retainedActivity = try OwnedStorageProducerActivityV1.acquire(
-                applicationSupportURL: store.producerApplicationSupportURL)
+                         readerIsDrained: @escaping @MainActor () -> Bool,
+                         exclusivePermit: CompletedAbortExclusiveScratchPermitV1? = nil) throws {
+            try exclusivePermit?.requireHeld()
+            let retainedActivity: OwnedStorageProducerActivityV1?
+            if exclusivePermit == nil {
+                retainedActivity = try OwnedStorageProducerActivityV1.acquire(
+                    applicationSupportURL: store.producerApplicationSupportURL)
+            } else {
+                retainedActivity = nil
+            }
             let fd: Int32
             do { fd = try store.openLeaseDirectory(lease.relativeDirectory) }
-            catch { retainedActivity.close(); throw error }
+            catch { retainedActivity?.close(); throw error }
             guard flock(fd, LOCK_EX | LOCK_NB) == 0 else {
-                retainedActivity.close()
-                Darwin.close(fd); throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                retainedActivity?.close()
+                let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(fd)
+                if Darwin.close(fd) == 0 {
+                    ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+                }
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
             }
             self.store = store; self.lease = lease; descriptor = fd
             producerActivity = retainedActivity
+            self.exclusivePermit = exclusivePermit
             self.readerIsDrained = readerIsDrained
         }
-        deinit { Darwin.close(descriptor) }
+        deinit {
+            if descriptor >= 0 {
+                if !descriptorCloseAttempted { _ = Darwin.close(descriptor) }
+            }
+        }
+
+        /// The freshly allocated lease owns only its canonical metadata.
+        /// Record its actual inode before any SQLite file is created.
+        func establishExclusiveOwnedMetadata() throws {
+            guard exclusivePermit != nil, exclusiveOwnedInodes.isEmpty else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+            try verify()
+            guard Set(try store.directoryNames(descriptor))
+                    == Set([ScratchDataLeaseStoreV1.metadataName]) else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+            let value = try store.regularFileInformation(
+                named: ScratchDataLeaseStoreV1.metadataName,
+                directoryDescriptor: descriptor)
+            exclusiveOwnedInodes[ScratchDataLeaseStoreV1.metadataName] =
+                (UInt64(value.st_dev), UInt64(value.st_ino))
+        }
+
+        private func requireExactExclusiveOwnedFiles() throws -> [C16IngressHygieneFileIdentityV1] {
+            guard exclusivePermit != nil, !exclusiveOwnedInodes.isEmpty else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+            let names = try store.directoryNames(descriptor)
+            guard Set(names) == Set(exclusiveOwnedInodes.keys) else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+            return try names.map { name in
+                guard let expected = exclusiveOwnedInodes[name] else {
+                    throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                }
+                let value = try store.regularFileInformation(
+                    named: name, directoryDescriptor: descriptor)
+                guard UInt64(value.st_dev) == expected.device,
+                      UInt64(value.st_ino) == expected.inode,
+                      value.st_nlink == 1 else {
+                    throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                }
+                return C16IngressHygieneFileIdentityV1(name: name, information: value)
+            }
+        }
+
+        /// Called immediately before SwiftData sees the private directory.
+        /// A hostile same-name SHM supplied by a fixture is rejected here.
+        func requireExclusiveOwnedFilesBeforeContainer() throws {
+            try verify()
+            _ = try requireExactExclusiveOwnedFiles()
+        }
+
+        /// If the authenticated source had no SHM, create a zero-length one
+        /// with O_EXCL before SwiftData sees this private directory. SQLite
+        /// may grow this owned inode; it may never create or substitute one.
+        func prepareExclusiveOwnedSHMForContainer() throws {
+            try verify()
+            guard exclusivePermit != nil else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+            _ = try requireExactExclusiveOwnedFiles()
+            guard exclusiveOwnedInodes["model.sqlite"] != nil else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+            if exclusiveOwnedInodes["model.sqlite-shm"] == nil {
+                let fd = Darwin.openat(descriptor, "model.sqlite-shm",
+                    O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC,
+                    mode_t(0o600))
+                guard fd >= 0 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+                var closeAttempted = false
+                defer {
+                    if !closeAttempted {
+                        let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(fd)
+                        if Darwin.close(fd) == 0 {
+                            ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+                        }
+                    }
+                }
+                var owned = stat()
+                guard Darwin.fstat(fd, &owned) == 0,
+                      owned.st_mode & S_IFMT == S_IFREG,
+                      owned.st_nlink == 1,
+                      owned.st_size == 0 else {
+                    throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                }
+                try store.applySourceReadPolicy(.temporaryFile,
+                    at: directoryURL.appendingPathComponent("model.sqlite-shm")) {
+                    try self.store.verifyLeaseDirectory(
+                        self.lease.relativeDirectory, descriptor: self.descriptor)
+                    let named = try self.store.regularFileInformation(
+                        named: "model.sqlite-shm",
+                        directoryDescriptor: self.descriptor)
+                    var held = stat()
+                    guard Darwin.fstat(fd, &held) == 0,
+                          named.st_dev == owned.st_dev,
+                          named.st_ino == owned.st_ino,
+                          held.st_dev == owned.st_dev,
+                          held.st_ino == owned.st_ino else {
+                        throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                    }
+                }
+                guard Darwin.fsync(fd) == 0,
+                      Darwin.fsync(descriptor) == 0 else {
+                    throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                }
+                exclusiveOwnedInodes["model.sqlite-shm"] =
+                    (UInt64(owned.st_dev), UInt64(owned.st_ino))
+                closeAttempted = true
+                let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(fd)
+                guard Darwin.close(fd) == 0 else {
+                    throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                }
+                ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+            }
+            _ = try requireExactExclusiveOwnedFiles()
+        }
+
+        func requireExclusiveContainerKeptOwnedFiles() throws {
+            try verify()
+            _ = try requireExactExclusiveOwnedFiles()
+        }
 
         func verify() throws {
-            try producerActivity.requireApplicationSupport(store.producerApplicationSupportURL)
+            if let exclusivePermit { try exclusivePermit.requireHeld() }
+            else if let producerActivity {
+                try producerActivity.requireApplicationSupport(store.producerApplicationSupportURL)
+            } else { throw ScratchDataLeaseStoreFailureV1.invalidLease }
             guard !unlocked, store.clock() < lease.request.expiresAt else {
                 throw ScratchDataLeaseStoreFailureV1.leaseExpired
             }
@@ -3650,7 +3905,18 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             }
             let fd = Darwin.openat(descriptor, name, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, mode_t(0o600))
             guard fd >= 0 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
-            defer { Darwin.close(fd) }
+            var terminalFD = fd
+            var closeAttempted = false
+            defer {
+                if terminalFD >= 0 && !closeAttempted {
+                    if exclusivePermit != nil {
+                        let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(terminalFD)
+                        if Darwin.close(terminalFD) == 0 {
+                            ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+                        }
+                    } else { _ = Darwin.close(terminalFD) }
+                }
+            }
             var owned = stat()
             guard Darwin.fstat(fd, &owned) == 0 else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
             func reprove() throws {
@@ -3662,7 +3928,8 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                     throw ScratchDataLeaseStoreFailureV1.leaseCollision
                 }
             }
-            try ProtectedFilePolicyV1.applyAndVerify(.temporaryFile, at: directoryURL.appendingPathComponent(name), authorityCheck: reprove)
+            try store.applySourceReadPolicy(.temporaryFile,
+                at: directoryURL.appendingPathComponent(name), authorityCheck: reprove)
             try write(fd)
             try reprove()
             var final = stat()
@@ -3671,6 +3938,17 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                 throw ScratchDataLeaseStoreFailureV1.invalidRoot
             }
             try verify()
+            if exclusivePermit != nil {
+                exclusiveOwnedInodes[name] =
+                    (UInt64(owned.st_dev), UInt64(owned.st_ino))
+                closeAttempted = true
+                let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(fd)
+                guard Darwin.close(fd) == 0 else {
+                    throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                }
+                ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+                terminalFD = -1
+            }
         }
 
         struct FileProof: Equatable {
@@ -3690,7 +3968,18 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             let named = try store.regularFileInformation(named: name, directoryDescriptor: descriptor)
             let fd = Darwin.openat(descriptor, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
             guard fd >= 0 else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
-            defer { Darwin.close(fd) }
+            var terminalFD = fd
+            var closeAttempted = false
+            defer {
+                if terminalFD >= 0 && !closeAttempted {
+                    if exclusivePermit != nil {
+                        let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(terminalFD)
+                        if Darwin.close(terminalFD) == 0 {
+                            ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+                        }
+                    } else { _ = Darwin.close(terminalFD) }
+                }
+            }
             var held = stat()
             guard Darwin.fstat(fd, &held) == 0,
                   C16IngressHygieneFileIdentityV1(name: name, information: named)
@@ -3702,6 +3991,15 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                   Int64(held.st_ctimespec.tv_sec) == expected.changedSeconds,
                   Int64(held.st_ctimespec.tv_nsec) == expected.changedNanoseconds else {
                 throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+            if exclusivePermit != nil {
+                closeAttempted = true
+                let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(fd)
+                guard Darwin.close(fd) == 0 else {
+                    throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                }
+                ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+                terminalFD = -1
             }
         }
 
@@ -3716,7 +4014,18 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             let before = try store.regularFileInformation(named: name, directoryDescriptor: descriptor)
             let fd = Darwin.openat(descriptor, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
             guard fd >= 0 else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
-            defer { Darwin.close(fd) }
+            var terminalFD = fd
+            var closeAttempted = false
+            defer {
+                if terminalFD >= 0 && !closeAttempted {
+                    if exclusivePermit != nil {
+                        let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(terminalFD)
+                        if Darwin.close(terminalFD) == 0 {
+                            ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+                        }
+                    } else { _ = Darwin.close(terminalFD) }
+                }
+            }
             var held = stat()
             guard Darwin.fstat(fd, &held) == 0, held.st_dev == before.st_dev, held.st_ino == before.st_ino else {
                 throw ScratchDataLeaseStoreFailureV1.leaseCollision
@@ -3740,13 +4049,23 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                     == C16IngressHygieneFileIdentityV1(name: name, information: held) else {
                 throw ScratchDataLeaseStoreFailureV1.leaseCollision
             }
+            if exclusivePermit != nil {
+                closeAttempted = true
+                let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(fd)
+                guard Darwin.close(fd) == 0 else {
+                    throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                }
+                ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+                terminalFD = -1
+            }
             return FileProof(device: UInt64(before.st_dev), inode: UInt64(before.st_ino),
                 byteCount: count, sha256: hash.finalize().map { String(format: "%02x", $0) }.joined(),
                 modifiedSeconds: Int64(before.st_mtimespec.tv_sec), modifiedNanoseconds: Int64(before.st_mtimespec.tv_nsec),
                 changedSeconds: Int64(before.st_ctimespec.tv_sec), changedNanoseconds: Int64(before.st_ctimespec.tv_nsec))
         }
 
-        fileprivate func closeReaderScope() throws {
+        fileprivate func closeReaderScope() throws -> [C16IngressHygieneFileIdentityV1]? {
+            try exclusivePermit?.requireHeld()
             guard readerIsDrained() else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
             // SQLite-created auxiliary files inherit protection, but apply and
             // verify the shared temporary-file policy before terminal cleanup.
@@ -3755,9 +4074,12 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             guard Set(names).isSubset(of: Self.sqliteNames.union([ScratchDataLeaseStoreV1.metadataName])) else {
                 throw ScratchDataLeaseStoreFailureV1.invalidLease
             }
+            let exclusiveFiles = exclusivePermit != nil
+                ? try requireExactExclusiveOwnedFiles() : nil
             for name in names where name != ScratchDataLeaseStoreV1.metadataName {
                 let before = try store.regularFileInformation(named: name, directoryDescriptor: descriptor)
-                try ProtectedFilePolicyV1.applyAndVerify(.temporaryFile, at: directoryURL.appendingPathComponent(name)) {
+                try store.applySourceReadPolicy(.temporaryFile,
+                    at: directoryURL.appendingPathComponent(name)) {
                     try self.store.verifyLeaseDirectory(self.lease.relativeDirectory, descriptor: self.descriptor)
                     let now = try self.store.regularFileInformation(named: name, directoryDescriptor: self.descriptor)
                     guard now.st_dev == before.st_dev, now.st_ino == before.st_ino else {
@@ -3767,13 +4089,113 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             }
             guard flock(descriptor, LOCK_UN) == 0 else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
             unlocked = true
-            producerActivity.close()
+            if exclusivePermit != nil {
+                let owned = descriptor
+                descriptorCloseAttempted = true
+                let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(owned)
+                guard Darwin.close(owned) == 0 else {
+                    throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                }
+                ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+                descriptor = -1
+            }
+            producerActivity?.close()
+            return exclusiveFiles
         }
     }
 
     // An unexpectedly retained reader keeps its directory lock until it drains
     // or the process ends. Existing cold lease recovery remains the sole owner.
     @MainActor private static var retainedSourceReaders: [SourceReadDirectory] = []
+#if DEBUG
+    @MainActor private static var retainedExclusiveSourceStores: [ScratchDataLeaseStoreV1] = []
+
+    /// Used only within the original Erase Registry's synchronous G scope and
+    /// already-held Support-root EX. No new producer SH or scratch recovery is
+    /// permitted; any existing scratch member makes this read fail closed.
+    @MainActor
+    static func withExclusiveOriginalEraseSourceRead<Value>(
+        applicationSupportURL: URL,
+        request: ScratchDataLeaseRequestV1,
+        permit: CompletedAbortExclusiveScratchPermitV1,
+        requireProtectedIngressUnchanged: @escaping @MainActor () throws -> Void,
+        readerIsDrained: @escaping @MainActor () -> Bool,
+        _ read: (SourceReadDirectory) throws -> Value
+    ) throws -> Value {
+        try permit.requireHeld()
+        guard request.purpose == .source, request.owner == .source else {
+            throw ScratchDataLeaseStoreFailureV1.invalidLease
+        }
+        try request.validate()
+        // The sibling is owned by the original pre-authentication ingress
+        // lifecycle. Its exact tree was sealed by the original Erase Service
+        // before the fault; this read neither opens an ingress Store nor
+        // requires a valid preexisting sibling to be absent.
+        try requireProtectedIngressUnchanged()
+        let store: ScratchDataLeaseStoreV1
+        do {
+            store = try ScratchDataLeaseStoreV1(
+                verifiedExistingTemporalRootAt: applicationSupportURL,
+                clock: Date.init,
+                capacityProvider: {
+                    try $0.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+                        .volumeAvailableCapacityForImportantUsage
+                }, checkedClose: true)
+        } catch {
+            permit.poisonOnUncertainCleanup()
+            throw error
+        }
+        store.exclusiveNoRepairRead = true
+        var directory: SourceReadDirectory?
+        var cleanupProved = false
+        do {
+            return try Self.filesystemLock.withLock {
+                try permit.requireHeld()
+                try requireProtectedIngressUnchanged()
+                let lease = try store.acquireScratchLeaseSynchronously(
+                    request, recoverExisting: false)
+                directory = try SourceReadDirectory(
+                    store: store, lease: lease,
+                    readerIsDrained: readerIsDrained,
+                    exclusivePermit: permit)
+                guard let directory else { throw ScratchDataLeaseStoreFailureV1.invalidLease }
+                try directory.establishExclusiveOwnedMetadata()
+                let result = Result { try read(directory) }
+                guard readerIsDrained() else {
+                    throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                }
+                guard let ownedFiles = try directory.closeReaderScope() else {
+                    throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                }
+                let terminal: ScratchDataLeaseTerminalV1
+                switch result {
+                case .success: terminal = .completed
+                case .failure: terminal = .failed
+                }
+                try store.releaseScratchLeaseSynchronously(
+                    lease, terminal: terminal, exclusiveNoRepair: true,
+                    exclusiveExpectedFiles: ownedFiles)
+                try permit.requireHeld()
+                guard store.active.isEmpty else {
+                    throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                }
+                try store.authority.closeCheckedForExclusiveOriginalEraseRead()
+                try requireProtectedIngressUnchanged()
+                cleanupProved = true
+                return try result.get()
+            }
+        } catch {
+            // An uncertain close or cleanup remains pinned for process life;
+            // the caller's original EX/G owner must also fail closed.
+            if !cleanupProved {
+                if let directory { Self.retainedSourceReaders.append(directory) }
+                Self.retainedExclusiveSourceStores.append(store)
+                permit.poisonOnUncertainCleanup()
+            }
+            throw error
+        }
+    }
+#endif
 
     @MainActor
     func withSourceReadScratch<Value>(request: ScratchDataLeaseRequestV1,
@@ -3785,7 +4207,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         try request.validate()
         return try withProducerFilesystemLock {
             for prior in Self.retainedSourceReaders where prior.readerIsDrained() {
-                try prior.closeReaderScope()
+                _ = try prior.closeReaderScope()
                 try prior.store.releaseScratchLeaseSynchronously(prior.lease, terminal: .failed)
             }
             Self.retainedSourceReaders.removeAll { $0.readerIsDrained() }
@@ -3798,7 +4220,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                 Self.retainedSourceReaders.append(directory)
                 throw ScratchDataLeaseStoreFailureV1.leaseCollision
             }
-            try directory.closeReaderScope()
+            _ = try directory.closeReaderScope()
             let terminal: ScratchDataLeaseTerminalV1
             switch result { case .success: terminal = .completed; case .failure: terminal = .failed }
             try releaseScratchLeaseSynchronously(lease, terminal: terminal)
@@ -3820,14 +4242,23 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func acquireScratchLeaseSynchronously(
-        _ request: ScratchDataLeaseRequestV1
+        _ request: ScratchDataLeaseRequestV1,
+        recoverExisting: Bool = true
     ) throws -> ScratchDataLeaseV1 {
         try request.validate()
         let current = clock()
         guard request.createdAt <= current, current < request.expiresAt else {
             throw ScratchDataLeaseStoreFailureV1.invalidLease
         }
-        _ = try recoverScratchLeaseState()
+        if recoverExisting {
+            _ = try recoverScratchLeaseState()
+        } else {
+            try verifyRoot()
+            guard active.isEmpty,
+                  try directoryNames(authority.rootDescriptor).isEmpty else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+        }
         if let existing = active[request.leaseID] {
             guard existing.request == request else {
                 throw ScratchDataLeaseStoreFailureV1.leaseCollision
@@ -3862,9 +4293,20 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                 throw ScratchDataLeaseStoreFailureV1.invalidRoot
             }
             createdDirectory = true
-            let leaseDescriptor = try openLeaseDirectory(name)
-            defer { _ = Darwin.close(leaseDescriptor) }
-            try ProtectedFilePolicyV1.applyAndVerify(
+            var leaseDescriptor = try openLeaseDirectory(name)
+            var closeAttempted = false
+            defer {
+                if leaseDescriptor >= 0 && !closeAttempted {
+                    if recoverExisting { _ = Darwin.close(leaseDescriptor) }
+                    else {
+                        let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(leaseDescriptor)
+                        if Darwin.close(leaseDescriptor) == 0 {
+                            ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+                        }
+                    }
+                }
+            }
+            try applySourceReadPolicy(
                 .stagingDirectory,
                 at: directory,
                 authorityCheck: {
@@ -3882,16 +4324,26 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                 leaseName: name
             )
             active[request.leaseID] = lease
+            if !recoverExisting {
+                let owned = leaseDescriptor
+                closeAttempted = true
+                let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(owned)
+                guard Darwin.close(owned) == 0 else {
+                    throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                }
+                ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+                leaseDescriptor = -1
+            }
             return lease
         } catch let failure as ProtectedFilePolicyError
             where failure == .protectedDataUnavailable {
-            if createdDirectory { try? removeLeaseDirectory(named: name) }
+            if createdDirectory && recoverExisting { try? removeLeaseDirectory(named: name) }
             throw ScratchDataLeaseStoreFailureV1.protectedDataUnavailable
         } catch let failure as ScratchDataLeaseStoreFailureV1 {
-            if createdDirectory { try? removeLeaseDirectory(named: name) }
+            if createdDirectory && recoverExisting { try? removeLeaseDirectory(named: name) }
             throw failure
         } catch {
-            if createdDirectory { try? removeLeaseDirectory(named: name) }
+            if createdDirectory && recoverExisting { try? removeLeaseDirectory(named: name) }
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
     }
@@ -4001,7 +4453,9 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
 
     private func releaseScratchLeaseSynchronously(
         _ lease: ScratchDataLeaseV1,
-        terminal: ScratchDataLeaseTerminalV1
+        terminal: ScratchDataLeaseTerminalV1,
+        exclusiveNoRepair: Bool = false,
+        exclusiveExpectedFiles: [C16IngressHygieneFileIdentityV1]? = nil
     ) throws {
         try verifyRoot()
         try lease.request.validate()
@@ -4011,9 +4465,16 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         }
         // A different owner may have removed and reused a cached lease's ID.
         // Release is bound to the caller's value before any recovery can mutate it.
-        if try removeIngressScratchLeaseIfOwned(named: lease.relativeDirectory, expectedLease: lease) {
+        if !exclusiveNoRepair,
+           try removeIngressScratchLeaseIfOwned(named: lease.relativeDirectory, expectedLease: lease) {
             active.removeValue(forKey: lease.request.leaseID)
             return
+        }
+        if exclusiveNoRepair {
+            guard exclusiveExpectedFiles != nil,
+                  try directoryInformationIfPresent(named: lease.relativeDirectory) != nil else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
         }
         if try directoryInformationIfPresent(named: lease.relativeDirectory) == nil,
            try directoryInformationIfPresent(named: Self.deletionTombstoneName(for: lease.relativeDirectory)) == nil {
@@ -4021,7 +4482,9 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             return
         }
         _ = terminal
-        try removeLeaseDirectory(named: lease.relativeDirectory, expectedLease: lease)
+        try removeLeaseDirectory(named: lease.relativeDirectory,
+            expectedLease: lease, exclusiveNoRepair: exclusiveNoRepair,
+            exclusiveExpectedFiles: exclusiveExpectedFiles)
         active.removeValue(forKey: lease.request.leaseID)
     }
 
@@ -4207,7 +4670,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                 named: name,
                 directoryDescriptor: directoryDescriptor
             )
-            try ProtectedFilePolicyV1.verify(
+            try verifySourceReadPolicy(
                 .temporaryFile,
                 at: directoryURL.appendingPathComponent(name)
             )
@@ -4252,7 +4715,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     ) throws {
         try verifyLeaseDirectory(name, descriptor: descriptor)
         let metadata = rootURL.appendingPathComponent(name).appendingPathComponent(Self.metadataName)
-        try ProtectedFilePolicyV1.verify(.temporaryFile, at: metadata)
+        try verifySourceReadPolicy(.temporaryFile, at: metadata)
         let before = try regularFileInformation(named: Self.metadataName, directoryDescriptor: descriptor)
         let data = try readRegularFile(named: Self.metadataName, directoryDescriptor: descriptor, maximumBytes: 65_536)
         let after = try regularFileInformation(named: Self.metadataName, directoryDescriptor: descriptor)
@@ -4265,16 +4728,20 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func removeLeaseDirectory(
-        named name: String, expectedLease: ScratchDataLeaseV1? = nil
+        named name: String, expectedLease: ScratchDataLeaseV1? = nil,
+        exclusiveNoRepair: Bool = false,
+        exclusiveExpectedFiles: [C16IngressHygieneFileIdentityV1]? = nil
     ) throws {
         guard Self.isLeaseDirectoryName(name) else {
             throw ScratchDataLeaseStoreFailureV1.invalidLease
         }
         try verifyRoot()
-        if try removeIngressScratchLeaseIfOwned(named: name, expectedLease: expectedLease) { return }
+        if !exclusiveNoRepair,
+           try removeIngressScratchLeaseIfOwned(named: name, expectedLease: expectedLease) { return }
         try requireNoUnfinishedHygieneTarget(named: name)
         let tombstone = Self.deletionTombstoneName(for: name)
         if try directoryInformationIfPresent(named: name) == nil {
+            if exclusiveNoRepair { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
             guard try directoryInformationIfPresent(named: tombstone) != nil else {
                 throw ScratchDataLeaseStoreFailureV1.invalidRoot
             }
@@ -4285,10 +4752,27 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
         let descriptor = try openLeaseDirectory(name)
-        defer { _ = Darwin.close(descriptor) }
+        var closeAttempted = false
+        defer {
+            if !closeAttempted {
+                if exclusiveNoRepair {
+                    let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(descriptor)
+                    if Darwin.close(descriptor) == 0 {
+                        ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+                    }
+                } else { _ = Darwin.close(descriptor) }
+            }
+        }
         guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
         if let expectedLease {
             try requireExpectedScratchLease(expectedLease, named: name, descriptor: descriptor)
+        }
+        if exclusiveNoRepair {
+            guard let exclusiveExpectedFiles else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+            try requireExclusiveExpectedChildren(
+                exclusiveExpectedFiles, descriptor: descriptor)
         }
         var pinned = stat()
         guard Darwin.fstat(descriptor, &pinned) == 0,
@@ -4323,7 +4807,17 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
               linked.st_ino == pinned.st_ino else {
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
-        try deletePinnedDirectory(named: tombstone, descriptor: descriptor)
+        try deletePinnedDirectory(named: tombstone, descriptor: descriptor,
+            expectedFiles: exclusiveExpectedFiles,
+            exclusiveNoRepair: exclusiveNoRepair)
+        if exclusiveNoRepair {
+            closeAttempted = true
+            let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(descriptor)
+            guard Darwin.close(descriptor) == 0 else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+            ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+        }
     }
 
     private func removeDeletionTombstone(
@@ -4390,25 +4884,60 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         }
     }
 
+    /// Exact children of this freshly allocated exclusive lease. The witness
+    /// is captured while its source-reader directory is still locked; it is
+    /// rechecked before the tombstone rename and again before any child unlink.
+    private func requireExclusiveExpectedChildren(
+        _ expected: [C16IngressHygieneFileIdentityV1],
+        descriptor: Int32
+    ) throws {
+        let names = try directoryNames(descriptor)
+        guard !expected.isEmpty,
+              Set(names) == Set(expected.map(\.name)),
+              expected.count == names.count else {
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+        for child in expected {
+            let current = try regularFileInformation(
+                named: child.name, directoryDescriptor: descriptor)
+            guard current.st_nlink == 1,
+                  C16IngressHygieneFileIdentityV1(
+                    name: child.name, information: current) == child else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+        }
+    }
+
     private func deletePinnedDirectory(
         named name: String,
         descriptor: Int32,
-        expectedFiles: [C16IngressHygieneFileIdentityV1]? = nil
+        expectedFiles: [C16IngressHygieneFileIdentityV1]? = nil,
+        exclusiveNoRepair: Bool = false
     ) throws {
         guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
         try verifyLeaseDirectory(name, descriptor: descriptor)
-        if expectedFiles == nil {
+        if expectedFiles == nil && !exclusiveNoRepair {
             try removeInterruptedPublications(directoryDescriptor: descriptor)
         }
         let names = try directoryNames(descriptor)
         if let expectedFiles {
+            if exclusiveNoRepair {
+                try requireExclusiveExpectedChildren(
+                    expectedFiles, descriptor: descriptor)
+            }
             let survivors = try ingressHygieneFileIdentities(name: name, descriptor: descriptor)
             guard survivors.map(\.name) == names,
                   survivors.allSatisfy({ expectedFiles.contains($0) }) else {
                 throw AppAccessContractFailureV1.configurationUnknown
             }
         }
+        var exclusiveRemaining = Set(expectedFiles?.map(\.name) ?? [])
         for child in names {
+            if exclusiveNoRepair {
+                guard Set(try directoryNames(descriptor)) == exclusiveRemaining else {
+                    throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                }
+            }
             let information = try regularFileInformation(
                 named: child,
                 directoryDescriptor: descriptor
@@ -4418,7 +4947,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                 guard expectedFiles.contains(current) else {
                     throw AppAccessContractFailureV1.configurationUnknown
                 }
-                try ProtectedFilePolicyV1.verify(.temporaryFile,
+                try verifySourceReadPolicy(.temporaryFile,
                     at: rootURL.appendingPathComponent(name).appendingPathComponent(child))
                 try verifyLeaseDirectory(name, descriptor: descriptor)
                 guard try C16IngressHygieneFileIdentityV1(name: child,
@@ -4429,9 +4958,16 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             guard Darwin.unlinkat(descriptor, child, 0) == 0 else {
                 throw ScratchDataLeaseStoreFailureV1.invalidRoot
             }
+            if exclusiveNoRepair { exclusiveRemaining.remove(child) }
             if expectedFiles != nil {
                 guard Darwin.fsync(descriptor) == 0 else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
                 try ingressMutationFailureInjection.interruptIfTriggered(.afterPreparedDirectoryFileDeletion)
+            }
+        }
+        if exclusiveNoRepair {
+            guard exclusiveRemaining.isEmpty,
+                  try directoryNames(descriptor).isEmpty else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
             }
         }
         guard Darwin.fsync(descriptor) == 0 else {
@@ -4505,7 +5041,12 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
               (pinned.st_mode & S_IFMT) == S_IFDIR,
               pinned.st_dev == before.st_dev,
               pinned.st_ino == before.st_ino else {
-            _ = Darwin.close(descriptor)
+            if exclusiveNoRepairRead {
+                let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(descriptor)
+                if Darwin.close(descriptor) == 0 {
+                    ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+                }
+            } else { _ = Darwin.close(descriptor) }
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
         return descriptor
@@ -4535,10 +5076,28 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     private func directoryNames(_ descriptor: Int32) throws -> [String] {
         let duplicate = Darwin.dup(descriptor)
         guard duplicate >= 0, let directory = Darwin.fdopendir(duplicate) else {
-            if duplicate >= 0 { _ = Darwin.close(duplicate) }
+            if duplicate >= 0 {
+                if exclusiveNoRepairRead {
+                    let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(duplicate)
+                    if Darwin.close(duplicate) == 0 {
+                        ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+                    }
+                } else { _ = Darwin.close(duplicate) }
+            }
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
-        defer { _ = Darwin.closedir(directory) }
+        var closeAttempted = false
+        defer {
+            if !closeAttempted {
+                if exclusiveNoRepairRead {
+                    let held = Darwin.dirfd(directory)
+                    let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(held)
+                    if Darwin.closedir(directory) == 0 {
+                        ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+                    }
+                } else { _ = Darwin.closedir(directory) }
+            }
+        }
         // dup shares the directory offset with the retained descriptor. Every
         // independently fenced snapshot must start at the beginning.
         Darwin.rewinddir(directory)
@@ -4556,6 +5115,15 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         }
         guard errno == 0 else {
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        if exclusiveNoRepairRead {
+            closeAttempted = true
+            let held = Darwin.dirfd(directory)
+            let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(held)
+            guard Darwin.closedir(directory) == 0 else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+            ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
         }
         return names.sorted()
     }
@@ -4658,7 +5226,17 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         guard descriptor >= 0 else {
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
-        defer { _ = Darwin.close(descriptor) }
+        var closeAttempted = false
+        defer {
+            if !closeAttempted {
+                if exclusiveNoRepairRead {
+                    let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(descriptor)
+                    if Darwin.close(descriptor) == 0 {
+                        ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+                    }
+                } else { _ = Darwin.close(descriptor) }
+            }
+        }
         var pinned = stat()
         guard Darwin.fstat(descriptor, &pinned) == 0,
               pinned.st_dev == expected.st_dev,
@@ -4702,6 +5280,14 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
               linked.st_size == pinned.st_size else {
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
+        if exclusiveNoRepairRead {
+            closeAttempted = true
+            let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(descriptor)
+            guard Darwin.close(descriptor) == 0 else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+            ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+        }
         return result
     }
 
@@ -4727,11 +5313,28 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
         var published = false
+        var descriptorCloseAttempted = false
         defer {
-            _ = Darwin.close(descriptor)
+            if !descriptorCloseAttempted {
+                if exclusiveNoRepairRead {
+                    let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(descriptor)
+                    if Darwin.close(descriptor) == 0 {
+                        ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+                    }
+                } else { _ = Darwin.close(descriptor) }
+            }
             if !published {
                 _ = Darwin.unlinkat(directoryDescriptor, temporaryName, 0)
             }
+        }
+        func closeExclusivePublicationDescriptor() throws {
+            guard exclusiveNoRepairRead else { return }
+            descriptorCloseAttempted = true
+            let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(descriptor)
+            guard Darwin.close(descriptor) == 0 else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+            ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
         }
         var offset = 0
         while offset < data.count {
@@ -4752,7 +5355,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
         let temporaryURL = directoryURL.appendingPathComponent(temporaryName)
-        try ProtectedFilePolicyV1.applyAndVerify(
+        try applySourceReadPolicy(
             .temporaryFile,
             at: temporaryURL,
             authorityCheck: {
@@ -4782,6 +5385,11 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         }
         if publicationResult != 0 {
             if errno == EEXIST {
+                // A newly allocated exclusive lease has no prior final file.
+                // Matching bytes cannot turn an unowned collision into proof.
+                if exclusiveNoRepairRead {
+                    throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                }
                 guard try adoptExistingFileIfIdentical(
                     data,
                     named: name,
@@ -4801,6 +5409,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                 }
                 published = true
                 try directoryAuthorityCheck?()
+                try closeExclusivePublicationDescriptor()
                 return
             }
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
@@ -4820,7 +5429,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             named: name,
             directoryDescriptor: directoryDescriptor
         )
-        try ProtectedFilePolicyV1.verify(.temporaryFile, at: finalURL)
+        try verifySourceReadPolicy(.temporaryFile, at: finalURL)
         if let leaseName {
             try verifyLeaseDirectory(
                 leaseName,
@@ -4837,6 +5446,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
         try directoryAuthorityCheck?()
+        try closeExclusivePublicationDescriptor()
     }
 
     private func removeInterruptedPublications(

@@ -1,6 +1,7 @@
 import Darwin
 import Combine
 import Foundation
+import SQLite3
 import SwiftData
 import XCTest
 @testable import FieldEvidenceApp
@@ -1390,7 +1391,15 @@ final class S6_6EraseRecoveryTests: XCTestCase {
 
     @MainActor
     private func exerciseKernelCompletedAbort(point: EraseAllFailurePoint,
-        offset: Int) async throws {
+        offset: Int, foreignReceipt: AbortedEraseAdmissionReceiptV1?,
+        holdExternalBackupAccess: Bool = false,
+        mutatePrivateCopy: Bool = false,
+        mutateLatentSQLite: Bool = false,
+        introduceForeignSourceLeaf: Bool = false,
+        introduceForeignIngressLeaf: Bool = false,
+        replacePrivateSHM: Bool = false,
+        replacePrivateSHMAfterRead: Bool = false
+    ) async throws -> AbortedEraseAdmissionReceiptV1 {
         let root = fileManager.temporaryDirectory.appendingPathComponent(
             "S6_6-phase-\(offset)-\(UUID().uuidString)", isDirectory: true)
         let support = root.appendingPathComponent("Library/Application Support", isDirectory: true)
@@ -1414,6 +1423,7 @@ final class S6_6EraseRecoveryTests: XCTestCase {
             authenticationClient: S66ColdEraseAuthentication())
         var aborts = [AbortedEraseAdmissionReceiptV1]()
         var completions = [CompletedEraseReceiptV1]()
+        var hostilePrivateSHM: URL?
         let newID = UUID(uuid: (0x66, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, UInt8(0x40 + offset), UInt8(0x60 + offset)))
         let presentation = AppAccessPresentationV1(startupRouter: router,
@@ -1437,6 +1447,36 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                         XCTAssertNotNil(aborted)
                         aborted?(receipt)
                     })
+                if mutatePrivateCopy || replacePrivateSHM {
+                    original.completedAbortPrivateCopyMutationForTesting = { copyURL in
+                        if mutatePrivateCopy {
+                            var bytes = try Data(contentsOf: copyURL)
+                            guard !bytes.isEmpty else { throw FixtureError.invalid }
+                            bytes[0] ^= 1
+                            try bytes.write(to: copyURL)
+                        }
+                        if replacePrivateSHM {
+                            let shm = copyURL.deletingLastPathComponent()
+                                .appendingPathComponent("model.sqlite-shm")
+                            if self.fileManager.fileExists(atPath: shm.path) {
+                                try self.fileManager.removeItem(at: shm)
+                            }
+                            try Data("foreign private SHM".utf8).write(to: shm)
+                            hostilePrivateSHM = shm
+                        }
+                    }
+                }
+                if replacePrivateSHMAfterRead {
+                    original.completedAbortPrivateCopyPostReadMutationForTesting = { copyURL in
+                        let shm = copyURL.deletingLastPathComponent()
+                            .appendingPathComponent("model.sqlite-shm")
+                        if self.fileManager.fileExists(atPath: shm.path) {
+                            try self.fileManager.removeItem(at: shm)
+                        }
+                        try Data("foreign post-read SHM".utf8).write(to: shm)
+                        hostilePrivateSHM = shm
+                    }
+                }
                 Self.retainedS6EraseServices.append((root, original))
                 return original
             }, sessionFactory: { session })
@@ -1447,6 +1487,10 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         defer { subscription.cancel() }
         await presentation.bootstrapIfNeeded()
         await fulfillment(of: [published], timeout: 30)
+        var externalBackupAccess: AppAccessPresentationV1.BackupPreviewAccess?
+        if holdExternalBackupAccess {
+            externalBackupAccess = try XCTUnwrap(presentation.backupPreviewAccess)
+        }
         let (oldID, aliases, sourceBefore, pointerBefore) = try await
             runKernelCompletedAbortOriginal(presentation: presentation,
                 router: router, support: support, caches: caches,
@@ -1457,6 +1501,8 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         XCTAssertEqual(abort.originalGenerationID, oldID)
         XCTAssertEqual(abort.subject.newGenerationID, newID)
         XCTAssertEqual(abort.reservation.subject, abort.subject)
+        XCTAssertNil(presentation.backupPreviewAccess)
+        XCTAssertNil(presentation.renderAccess)
         // An absent Erase root proves both intent and preparation absent
         // without constructing a Store that would recreate the namespace.
         XCTAssertTrue(try EraseIntentStore.completedCleanupRootIsAbsent(
@@ -1467,17 +1513,111 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: support
             .appendingPathComponent("FieldEvidenceData/current.json")), pointerBefore)
         let operation = try await presentation.continueCompletedAbortColdRestartForTesting()
+        if holdExternalBackupAccess {
+            XCTAssertFalse(aliases.drained)
+            XCTAssertThrowsError(try XCTUnwrap(externalBackupAccess).withRead {}) {
+                XCTAssertEqual($0 as? AppAccessContractFailureV1, .accessDenied)
+            }
+            XCTAssertThrowsError(try router.finishCompletedAbortColdRestartForTesting(
+                operation, receipt: abort)) {
+                XCTAssertEqual($0 as? GenerationLeaseRegistryFailureV1, .uncertainOwner)
+            }
+            externalBackupAccess = nil
+        }
         let drained = expectation(for: NSPredicate { _, _ in aliases.drained },
             evaluatedWith: NSObject())
         await fulfillment(of: [drained], timeout: 30)
         XCTAssertTrue(aliases.drained)
+        if let foreignReceipt {
+            // A genuine receipt from the prior original Router cannot close
+            // this operation's retained writer, Registry, or source readers.
+            XCTAssertThrowsError(try router.finishCompletedAbortColdRestartForTesting(
+                operation, receipt: foreignReceipt))
+        }
+        if introduceForeignSourceLeaf {
+            try Data("foreign generation leaf".utf8).write(
+                to: sourceRoot.appendingPathComponent("foreign-leaf.bin"))
+        }
+        let foreignIngressLeaf = support
+            .appendingPathComponent("FieldEvidenceOperations/ProtectedIngressReceiptsV1")
+            .appendingPathComponent("foreign-ingress.bin")
+        if introduceForeignIngressLeaf {
+            guard fileManager.fileExists(atPath:
+                    foreignIngressLeaf.deletingLastPathComponent().path) else {
+                throw FixtureError.invalid
+            }
+            try Data("foreign ingress leaf".utf8).write(to: foreignIngressLeaf)
+        }
+        if mutateLatentSQLite {
+            // SQLite header expansion byte 72 is outside the fetched row and
+            // journal frontier. Keep the exact file inode and size: only the
+            // authenticated physical transition may reject this rewrite.
+            let model = sourceRoot.appendingPathComponent("model.sqlite")
+            let fd = Darwin.open(model.path, O_RDWR | O_NOFOLLOW | O_CLOEXEC)
+            guard fd >= 0 else { throw FixtureError.invalid }
+            var before = stat()
+            guard Darwin.fstat(fd, &before) == 0, before.st_size > 72 else {
+                _ = Darwin.close(fd)
+                throw FixtureError.invalid
+            }
+            var byte: UInt8 = 0
+            guard Darwin.pread(fd, &byte, 1, 72) == 1 else {
+                _ = Darwin.close(fd)
+                throw FixtureError.invalid
+            }
+            byte ^= 1
+            guard Darwin.pwrite(fd, &byte, 1, 72) == 1,
+                  Darwin.fsync(fd) == 0 else {
+                _ = Darwin.close(fd)
+                throw FixtureError.invalid
+            }
+            var after = stat()
+            guard Darwin.fstat(fd, &after) == 0,
+                  after.st_dev == before.st_dev,
+                  after.st_ino == before.st_ino,
+                  after.st_size == before.st_size,
+                  Darwin.close(fd) == 0 else {
+                throw FixtureError.invalid
+            }
+        }
+        if mutatePrivateCopy || mutateLatentSQLite || introduceForeignSourceLeaf ||
+            introduceForeignIngressLeaf || replacePrivateSHM ||
+            replacePrivateSHMAfterRead {
+            XCTAssertThrowsError(try presentation
+                .finishCompletedAbortColdRestartForTesting(operation))
+            XCTAssertEqual(aborts.count, 1)
+            XCTAssertTrue(completions.isEmpty)
+            XCTAssertTrue(try EraseIntentStore.completedCleanupRootIsAbsent(
+                applicationSupportURL: support))
+            XCTAssertEqual(try Data(contentsOf: support
+                .appendingPathComponent("FieldEvidenceData/current.json")),
+                pointerBefore)
+            XCTAssertThrowsError(try router.finishCompletedAbortColdRestartForTesting(
+                operation, receipt: abort))
+            if introduceForeignIngressLeaf {
+                XCTAssertTrue(fileManager.fileExists(atPath: foreignIngressLeaf.path),
+                    "unowned ingress sibling must remain after refused cold exit")
+            }
+            if replacePrivateSHM || replacePrivateSHMAfterRead {
+                let privateSHM = try XCTUnwrap(hostilePrivateSHM)
+                XCTAssertTrue(fileManager.fileExists(atPath: privateSHM.path),
+                    "foreign private SHM must not be unlinked during refused cleanup")
+            }
+            return abort
+        }
         try presentation.finishCompletedAbortColdRestartForTesting(operation)
+        XCTAssertThrowsError(try router.finishCompletedAbortColdRestartForTesting(
+            operation, receipt: abort), "consumed receipt cannot repeat the close")
         XCTAssertThrowsError(try operation.completedRetirement())
         do {
             try await router.startIfNeeded(accessGate: session.gate)
             XCTFail("completed-abort original Router re-entered")
         } catch { }
-        XCTAssertEqual(try tree(sourceRoot), sourceBefore)
+        let postCloseSource = try tree(sourceRoot)
+        XCTAssertEqual(postCloseSource.map(\.path), sourceBefore.map(\.path))
+        let sqliteNames: Set<String> = ["model.sqlite", "model.sqlite-wal", "model.sqlite-shm"]
+        XCTAssertEqual(postCloseSource.filter { !sqliteNames.contains($0.path) },
+                       sourceBefore.filter { !sqliteNames.contains($0.path) })
         XCTAssertEqual(try Data(contentsOf: support
             .appendingPathComponent("FieldEvidenceData/current.json")), pointerBefore)
         let recovered = try await startKernelColdOwner(root: root, support: support,
@@ -1491,6 +1631,155 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         XCTAssertNotEqual(diagnostics, .zero)
         XCTAssertEqual(aborts.count, 1)
         XCTAssertTrue(completions.isEmpty)
+        return abort
+    }
+
+    @MainActor
+    func testCompletedAbortHeldBackupAccessDefersCheckedColdExit() async throws {
+        _ = try await exerciseKernelCompletedAbort(
+            point: .afterEmptyGenerationDirectoryCreate, offset: 99,
+            foreignReceipt: nil, holdExternalBackupAccess: true)
+    }
+
+    @MainActor
+    func testCompletedAbortPrivateCopyCorruptionRefusesColdExit() async throws {
+        _ = try await exerciseKernelCompletedAbort(
+            point: .beforePreparedWrite, offset: 100,
+            foreignReceipt: nil, mutatePrivateCopy: true)
+    }
+
+    @MainActor
+    func testCompletedAbortSameInodeSQLiteRewriteRefusesColdExit() async throws {
+        _ = try await exerciseKernelCompletedAbort(
+            point: .beforePreparedWrite, offset: 104,
+            foreignReceipt: nil, mutateLatentSQLite: true)
+    }
+
+    @MainActor
+    func testCompletedAbortForeignSourceLeafRefusesColdExit() async throws {
+        _ = try await exerciseKernelCompletedAbort(
+            point: .afterEmptyGenerationDirectoryCreate, offset: 101,
+            foreignReceipt: nil, introduceForeignSourceLeaf: true)
+    }
+
+    @MainActor
+    func testCompletedAbortForeignIngressSiblingRefusesColdExit() async throws {
+        _ = try await exerciseKernelCompletedAbort(
+            point: .afterEmptyGenerationDirectoryCreate, offset: 105,
+            foreignReceipt: nil, introduceForeignIngressLeaf: true)
+    }
+
+    @MainActor
+    func testCompletedAbortForeignPrivateSHMRemainsAfterRefusedCleanup() async throws {
+        _ = try await exerciseKernelCompletedAbort(
+            point: .beforePreparedWrite, offset: 102,
+            foreignReceipt: nil, replacePrivateSHM: true)
+    }
+
+    @MainActor
+    func testCompletedAbortPostReadForeignSHMRemainsAfterRefusedCleanup() async throws {
+        _ = try await exerciseKernelCompletedAbort(
+            point: .afterEmptyGenerationDirectoryCreate, offset: 103,
+            foreignReceipt: nil, replacePrivateSHMAfterRead: true)
+    }
+
+    @MainActor
+    func testCompletedAbortPhysicalImageRejectsDamagedWALFrame() throws {
+        let root = fileManager.temporaryDirectory.appendingPathComponent(
+            "S6_6-wal-physical-\(UUID())", isDirectory: true)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: root) }
+        let live = root.appendingPathComponent("live.sqlite")
+        var connection: OpaquePointer?
+        guard sqlite3_open_v2(live.path, &connection,
+            SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nil) == SQLITE_OK,
+            let connection else { throw FixtureError.invalid }
+        defer { XCTAssertEqual(sqlite3_close(connection), SQLITE_OK) }
+        guard sqlite3_exec(connection,
+            "PRAGMA journal_mode=WAL; CREATE TABLE probe(value BLOB); INSERT INTO probe VALUES (zeroblob(4096));",
+            nil, nil, nil) == SQLITE_OK else { throw FixtureError.invalid }
+        let copied = root.appendingPathComponent("copied.sqlite")
+        let copiedWAL = root.appendingPathComponent("copied.sqlite-wal")
+        try fileManager.copyItem(at: live, to: copied)
+        try fileManager.copyItem(at: URL(fileURLWithPath: live.path + "-wal"),
+            to: copiedWAL)
+        let modelFD = Darwin.open(copied.path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+        let walFD = Darwin.open(copiedWAL.path, O_RDWR | O_NOFOLLOW | O_CLOEXEC)
+        guard modelFD >= 0, walFD >= 0 else {
+            if modelFD >= 0 { _ = Darwin.close(modelFD) }
+            if walFD >= 0 { _ = Darwin.close(walFD) }
+            throw FixtureError.invalid
+        }
+        defer {
+            XCTAssertEqual(Darwin.close(modelFD), 0)
+            XCTAssertEqual(Darwin.close(walFD), 0)
+        }
+        _ = try CompletedAbortSQLitePhysicalImageV1.capture(
+            model: modelFD, wal: walFD)
+        var original: UInt8 = 0
+        guard Darwin.pread(walFD, &original, 1, 32 + 24) == 1 else {
+            throw FixtureError.invalid
+        }
+        var changed = original ^ 1
+        guard Darwin.pwrite(walFD, &changed, 1, 32 + 24) == 1,
+              Darwin.fsync(walFD) == 0 else {
+            throw FixtureError.invalid
+        }
+        XCTAssertThrowsError(try CompletedAbortSQLitePhysicalImageV1.capture(
+            model: modelFD, wal: walFD))
+    }
+
+    @MainActor
+    func testCompletedAbortFullIntegrityRejectsFreelistCorruption() throws {
+        let root = fileManager.temporaryDirectory.appendingPathComponent(
+            "S6_6-freelist-physical-\(UUID())", isDirectory: true)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: root) }
+        let model = root.appendingPathComponent("model.sqlite")
+        var connection: OpaquePointer?
+        guard sqlite3_open_v2(model.path, &connection,
+            SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nil) == SQLITE_OK,
+            let connection else { throw FixtureError.invalid }
+        var connectionClosed = false
+        defer {
+            if !connectionClosed {
+                XCTAssertEqual(sqlite3_close(connection), SQLITE_OK)
+            }
+        }
+        guard sqlite3_exec(connection,
+            "CREATE TABLE probe(value BLOB); INSERT INTO probe VALUES (zeroblob(131072)); DELETE FROM probe;",
+            nil, nil, nil) == SQLITE_OK else {
+            throw FixtureError.invalid
+        }
+        guard sqlite3_close(connection) == SQLITE_OK else {
+            throw FixtureError.invalid
+        }
+        connectionClosed = true
+        try CompletedAbortSQLitePhysicalImageV1.requireFullIntegrity(at: model)
+        let fd = Darwin.open(model.path, O_RDWR | O_NOFOLLOW | O_CLOEXEC)
+        guard fd >= 0 else { throw FixtureError.invalid }
+        defer { XCTAssertEqual(Darwin.close(fd), 0) }
+        var header = [UInt8](repeating: 0, count: 100)
+        let headerRead = header.withUnsafeMutableBytes {
+            Darwin.pread(fd, $0.baseAddress!, $0.count, 0)
+        }
+        guard headerRead == header.count else {
+            throw FixtureError.invalid
+        }
+        let encodedPageSize = UInt16(header[16]) << 8 | UInt16(header[17])
+        let pageSize = encodedPageSize == 1 ? 65_536 : Int(encodedPageSize)
+        let trunk = UInt32(header[32]) << 24 | UInt32(header[33]) << 16 |
+            UInt32(header[34]) << 8 | UInt32(header[35])
+        guard pageSize >= 512, trunk > 1 else { throw FixtureError.invalid }
+        let offset = Int64(trunk - 1) * Int64(pageSize)
+        var broken: [UInt8] = [0xff, 0xff, 0xff, 0xff]
+        let written = broken.withUnsafeBytes {
+            Darwin.pwrite(fd, $0.baseAddress!, $0.count, offset)
+        }
+        guard written == broken.count,
+              Darwin.fsync(fd) == 0 else { throw FixtureError.invalid }
+        XCTAssertThrowsError(try CompletedAbortSQLitePhysicalImageV1.requireFullIntegrity(
+            at: model))
     }
 
     /// Executes the real ticketed original frame. The configured copy is
@@ -1532,10 +1821,13 @@ final class S6_6EraseRecoveryTests: XCTestCase {
     func testEveryInterruptionRecoversOldOrFullyErasedNew() async throws {
         var diagnosticPhase = "harness"
         do {
+            var priorGenuineAbort: AbortedEraseAdmissionReceiptV1?
             for (offset, point) in EraseAllFailurePoint.allCases.enumerated() {
                 if point == .afterEmptyGenerationDirectoryCreate
                     || point == .beforePreparedWrite {
-                    try await exerciseKernelCompletedAbort(point: point, offset: offset)
+                    priorGenuineAbort = try await exerciseKernelCompletedAbort(
+                        point: point, offset: offset,
+                        foreignReceipt: priorGenuineAbort)
                     continue
                 }
                 let harness = try await makeHarness(
@@ -1688,6 +1980,23 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                         accessGate: harness.originalOwner.accessGate)
                     XCTFail("original Router re-entered after checked shutdown at \(point)")
                 } catch { }
+                // Cleanup must remove the frozen roots before ordinary startup
+                // may recreate current-owner control directories.
+                let frozenAuxiliaryRoots = [
+                    harness.support.appendingPathComponent("FieldEvidenceRestore"),
+                    harness.support.appendingPathComponent("FieldEvidenceOperations"),
+                    harness.support.appendingPathComponent("FieldEvidenceCommerce"),
+                    harness.caches.appendingPathComponent("FieldEvidenceApp"),
+                    harness.temporary.appendingPathComponent("FieldEvidenceApp"),
+                ]
+                let frozenAuxiliaryPayloads = [
+                    harness.support.appendingPathComponent("FieldEvidenceRestore/owned.bin"),
+                    harness.support.appendingPathComponent("FieldEvidenceOperations/owned.bin"),
+                    harness.support.appendingPathComponent("FieldEvidenceCommerce/entitlement.json"),
+                    harness.caches.appendingPathComponent("FieldEvidenceApp/owned.bin"),
+                    harness.temporary.appendingPathComponent("FieldEvidenceApp/owned.bin"),
+                ]
+                var preReadyCleanupObserved = false
                 let recovery = EraseAllService(
                     applicationSupportURL: harness.support,
                     cachesDirectoryURL: harness.caches,
@@ -1703,6 +2012,13 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                         FileHandle.standardError.write(Data((phase + "\n").utf8))
                     } else {
                         diagnosticPhase = phase
+                        if phase == "cleanup.pre-ready-roots-absent" {
+                            preReadyCleanupObserved = true
+                            for root in frozenAuxiliaryRoots {
+                                XCTAssertFalse(FileManager.default.fileExists(atPath: root.path),
+                                    "frozen root remained before ready publication at \(point)")
+                            }
+                        }
                     }
                 }
                 diagnosticPhase = "startup-reconcile.\(point)"
@@ -1712,7 +2028,12 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                 do {
                     let session = recovered
                     XCTAssertEqual(session.generationID, newID, "\(point)")
-                    assertAuxiliaryRootsCleared(harness)
+                    XCTAssertTrue(preReadyCleanupObserved,
+                        "cold cleanup did not prove frozen root absence before ready publication at \(point)")
+                    for payload in frozenAuxiliaryPayloads {
+                        XCTAssertFalse(fileManager.fileExists(atPath: payload.path),
+                            "seeded auxiliary payload survived Erase at \(point)")
+                    }
                     if let handoff = handoffBeforeRecovery {
                         XCTAssertEqual(try Data(contentsOf: sidecarURL), handoff.manifest, "\(point)")
                         XCTAssertEqual(try regularFileIdentity(sidecarURL), handoff.identity, "\(point)")
@@ -1724,7 +2045,14 @@ final class S6_6EraseRecoveryTests: XCTestCase {
                         [0, 0, 0, 0, 0, 0, 0],
                         "\(point)"
                     )
-                    let clearedDiagnostics = await harness.diagnostics.snapshot()
+                    let freshOwner = try XCTUnwrap(Self.retainedS6ColdOwners.last(
+                        where: { $0.0 == harness.root }))
+                    guard case let .ready(published, freshDiagnostics, _) = freshOwner.1.route else {
+                        throw FixtureError.invalid
+                    }
+                    XCTAssertTrue(published === session,
+                        "cold Router must publish the recovered generation at \(point)")
+                    let clearedDiagnostics = await freshDiagnostics.snapshot()
                     XCTAssertEqual(clearedDiagnostics, .zero)
                     if let handoff = handoffBeforeRecovery {
                         // A passive factory was never the original owner;
@@ -2321,6 +2649,119 @@ extension S6_6EraseRecoveryTests {
         XCTAssertThrowsError(try WholeSignDeletionRule.validateFieldDraftLifecycle(authority:.workspaceErase,before:before,after:before))
     }
 }
+
+#if DEBUG
+private struct S66CloseOnlySQLiteFileObservation: Equatable {
+    let bytes: Data
+    let device: UInt64
+    let inode: UInt64
+    let mode: UInt32
+    let links: UInt64
+    let size: Int64
+    let modifiedSeconds: Int64
+    let modifiedNanoseconds: Int64
+    let changedSeconds: Int64
+    let changedNanoseconds: Int64
+
+    static func capture(_ url: URL) throws -> Self? {
+        var before = stat()
+        if url.path.withCString({ Darwin.lstat($0, &before) }) != 0 {
+            guard errno == ENOENT else { throw S66CloseOnlyObservationFailure.invalidFile }
+            return nil
+        }
+        guard before.st_mode & S_IFMT == S_IFREG, before.st_nlink == 1,
+              before.st_size >= 0, before.st_size <= 64 * 1024 * 1024 else {
+            throw S66CloseOnlyObservationFailure.invalidFile
+        }
+        // This isolated test observes bytes; it is not an authorization read.
+        // The existing checked-close owners below establish lease disposition.
+        let bytes = try Data(contentsOf: url)
+        var after = stat()
+        guard url.path.withCString({ Darwin.lstat($0, &after) }) == 0,
+              before.st_dev == after.st_dev, before.st_ino == after.st_ino,
+              before.st_size == after.st_size,
+              before.st_mtimespec.tv_sec == after.st_mtimespec.tv_sec,
+              before.st_mtimespec.tv_nsec == after.st_mtimespec.tv_nsec,
+              before.st_ctimespec.tv_sec == after.st_ctimespec.tv_sec,
+              before.st_ctimespec.tv_nsec == after.st_ctimespec.tv_nsec,
+              bytes.count == Int(after.st_size) else {
+            throw S66CloseOnlyObservationFailure.invalidFile
+        }
+        return .init(bytes: bytes, device: UInt64(after.st_dev),
+            inode: UInt64(after.st_ino), mode: UInt32(after.st_mode),
+            links: UInt64(after.st_nlink), size: Int64(after.st_size),
+            modifiedSeconds: Int64(after.st_mtimespec.tv_sec),
+            modifiedNanoseconds: Int64(after.st_mtimespec.tv_nsec),
+            changedSeconds: Int64(after.st_ctimespec.tv_sec),
+            changedNanoseconds: Int64(after.st_ctimespec.tv_nsec))
+    }
+}
+
+private enum S66CloseOnlyObservationFailure: Error { case invalidFile }
+
+private struct S66CloseOnlySQLiteObservation: Equatable {
+    let model: S66CloseOnlySQLiteFileObservation
+    let wal: S66CloseOnlySQLiteFileObservation?
+    let shm: S66CloseOnlySQLiteFileObservation?
+
+    static func capture(_ generationRoot: URL) throws -> Self {
+        guard let model = try S66CloseOnlySQLiteFileObservation.capture(
+            generationRoot.appendingPathComponent("model.sqlite")) else {
+            throw S66CloseOnlyObservationFailure.invalidFile
+        }
+        return .init(model: model,
+            wal: try S66CloseOnlySQLiteFileObservation.capture(
+                generationRoot.appendingPathComponent("model.sqlite-wal")),
+            shm: try S66CloseOnlySQLiteFileObservation.capture(
+                generationRoot.appendingPathComponent("model.sqlite-shm")))
+    }
+
+    static func report(_ first: Self, _ second: Self, boundary: String) {
+        for (kind, lhs, rhs) in [
+            ("model", Optional(first.model), Optional(second.model)),
+            ("wal", first.wal, second.wal),
+            ("shm", first.shm, second.shm),
+        ] {
+            let facts = "S66_CLOSE_ONLY_SQLITE_V1 boundary=\(boundary) kind=\(kind)"
+                + " presenceChanged=\((lhs == nil) != (rhs == nil))"
+                + " bytesChanged=\(lhs?.bytes != rhs?.bytes)"
+                + " identityChanged=\(lhs?.device != rhs?.device || lhs?.inode != rhs?.inode)"
+                + " sizeChanged=\(lhs?.size != rhs?.size)"
+                + " modeChanged=\(lhs?.mode != rhs?.mode)"
+                + " linksChanged=\(lhs?.links != rhs?.links)"
+                + " mtimeChanged=\(lhs?.modifiedSeconds != rhs?.modifiedSeconds || lhs?.modifiedNanoseconds != rhs?.modifiedNanoseconds)"
+                + " ctimeChanged=\(lhs?.changedSeconds != rhs?.changedSeconds || lhs?.changedNanoseconds != rhs?.changedNanoseconds)\n"
+            FileHandle.standardError.write(Data(facts.utf8))
+        }
+    }
+
+    static func classification(_ first: Self, _ second: Self) -> [Bool] {
+        func fields(_ lhs: S66CloseOnlySQLiteFileObservation?,
+            _ rhs: S66CloseOnlySQLiteFileObservation?) -> [Bool] {
+            let leftAbsent: Bool = lhs == nil
+            let rightAbsent: Bool = rhs == nil
+            let bytesEqual: Bool = lhs?.bytes == rhs?.bytes
+            let identityEqual: Bool = lhs?.device == rhs?.device
+                && lhs?.inode == rhs?.inode
+            let sizeEqual: Bool = lhs?.size == rhs?.size
+            let modeEqual: Bool = lhs?.mode == rhs?.mode
+            let linksEqual: Bool = lhs?.links == rhs?.links
+            let mtimeEqual: Bool = lhs?.modifiedSeconds == rhs?.modifiedSeconds
+                && lhs?.modifiedNanoseconds == rhs?.modifiedNanoseconds
+            let ctimeEqual: Bool = lhs?.changedSeconds == rhs?.changedSeconds
+                && lhs?.changedNanoseconds == rhs?.changedNanoseconds
+            return [leftAbsent, rightAbsent, bytesEqual, identityEqual,
+                sizeEqual, modeEqual, linksEqual, mtimeEqual, ctimeEqual]
+        }
+        let modelFields = fields(first.model, second.model)
+        let walFields = fields(first.wal, second.wal)
+        let shmFields = fields(first.shm, second.shm)
+        return modelFields + walFields + shmFields
+    }
+}
+
+
+#endif
 
 extension S6_6EraseRecoveryTests {
     func testV23P03C15EraseRecoveryRebindsPacketHistoryWithoutChangingIDs() throws {
@@ -3164,3 +3605,99 @@ extension S6_6EraseRecoveryTests {
         XCTAssertFalse(C54EncryptedPortableEnvelopeEraseAllBoundaryV1.createsCanonicalDeletionRows)
     }
 }
+
+#if DEBUG
+extension S6_6EraseRecoveryTests {
+    /// Measurement only: there is no Erase, target, checkpoint call, or second
+    /// writer. Maintenance releases EX before the actual original reader is
+    /// checked closed, so these observations do not authorize an abort proof.
+    @MainActor
+    func testNoEraseCheckedOwnerCloseMeasuresSQLiteAndSidecarTransition() async throws {
+        var firstClassification: [Bool]?
+        for trial in 0..<2 {
+        let root = fileManager.temporaryDirectory.appendingPathComponent(
+            "S6_6-close-only-\(UUID().uuidString)", isDirectory: true)
+        let support = root.appendingPathComponent("Library/Application Support", isDirectory: true)
+        try fileManager.createDirectory(at: support, withIntermediateDirectories: true)
+        // A live reader can remain uncertain after any failed checked close.
+        // Retain the isolated fixture for the test host instead of unlinking it.
+        let factory = StoreGenerationFactory(applicationSupportURL: support)
+        let pointerURL = support.appendingPathComponent("FieldEvidenceData/current.json")
+
+        let (readerExit, generationRoot, before, afterWriter, pointerBytes) =
+            try await { @MainActor () async throws ->
+                (V949RestoredSourceReaderExitV1, URL,
+                 S66CloseOnlySQLiteObservation, S66CloseOnlySQLiteObservation, Data) in
+                let session = try factory.openOrBootstrapCurrent()
+                let coordinator = try StoreSessionCoordinator(validatingSession: session)
+                let revision = try coordinator.workspaceWriter.currentRevision()
+                let siteID = UUID(), assetID = UUID(), eventID = UUID()
+                let mutationID = try MutationIDV1(rawValue: UUID())
+                let expected = try WorkspaceExpectedRevisionV1(
+                    workspaceID: revision.workspaceID,
+                    generationID: revision.generationID,
+                    writerInstanceID: revision.writerInstanceID,
+                    workspaceRevision: revision.revision,
+                    entityRevisions: [
+                        .init(identity: try WorkspaceEntityIdentityV1(kind: .site, id: siteID), revision: 0),
+                        .init(identity: try WorkspaceEntityIdentityV1(kind: .asset, id: assetID), revision: 0),
+                        .init(identity: try WorkspaceEntityIdentityV1(kind: .assetPlacementEvent, id: eventID), revision: 0),
+                    ])
+                let request = WorkspaceMutationRequestV1(mutationID: mutationID,
+                    expectedRevision: expected, command: .createFirstSign(.init(
+                        siteID: siteID,
+                        newSite: .init(id: siteID, label: "Close-only fixture",
+                            address: nil, timeZoneID: "UTC"),
+                        assetID: assetID, assetLabel: "Close-only asset",
+                        packID: SignPack.illuminatedSignV1.packID,
+                        packSchemaVersion: SignPack.illuminatedSignV1.schemaVersion,
+                        packContentVersion: SignPack.illuminatedSignV1.contentVersion,
+                        createdAt: Date(timeIntervalSinceReferenceDate: 601_000),
+                        initialPlacementMutationID: mutationID,
+                        initialPlacementEventID: eventID,
+                        initialPhysicalEpisodeID: try PhysicalPlacementEpisodeIDV1(rawValue: UUID()))))
+                let result = try coordinator.workspaceWriter.execute(request)
+                XCTAssertEqual(result.after.revision, revision.revision + 1)
+                let readerExit = try factory.captureV949RestoredSourceReaderExit(session: session)
+                let before = try S66CloseOnlySQLiteObservation.capture(session.generationRootURL)
+                let pointer = try Data(contentsOf: pointerURL)
+                let exclusion = try await coordinator.drainTemporalProducersForNormalization()
+                try exclusion.closeForMaintenance()
+                XCTAssertThrowsError(try coordinator.workspaceWriter.currentRevision())
+                let afterWriter = try S66CloseOnlySQLiteObservation.capture(session.generationRootURL)
+                XCTAssertEqual(try Data(contentsOf: pointerURL), pointer)
+                return (readerExit, session.generationRootURL, before, afterWriter, pointer)
+            }()
+
+        // The wrapper was pinned before lexical session/Coordinator release.
+        // Capture their teardown while the exact original reader token remains
+        // held. This is observational; the checked close below still has to
+        // prove those weak aliases drained before releasing the token.
+        let afterAliases = try S66CloseOnlySQLiteObservation.capture(generationRoot)
+        try readerExit.closeAfterCheckedAliasDrain()
+        let afterReader = try S66CloseOnlySQLiteObservation.capture(generationRoot)
+        XCTAssertEqual(try Data(contentsOf: pointerURL), pointerBytes)
+        XCTAssertFalse(fileManager.fileExists(atPath: support
+            .appendingPathComponent("FieldEvidenceErase").path))
+        S66CloseOnlySQLiteObservation.report(before, afterWriter,
+            boundary: "writer-close-\(trial)")
+        S66CloseOnlySQLiteObservation.report(afterWriter, afterReader,
+            boundary: "reader-close-\(trial)")
+        S66CloseOnlySQLiteObservation.report(afterWriter, afterAliases,
+            boundary: "alias-teardown-\(trial)")
+        S66CloseOnlySQLiteObservation.report(afterAliases, afterReader,
+            boundary: "reader-handle-close-\(trial)")
+        var classification = S66CloseOnlySQLiteObservation.classification(before, afterWriter)
+            + S66CloseOnlySQLiteObservation.classification(afterWriter, afterReader)
+        classification += S66CloseOnlySQLiteObservation.classification(afterWriter, afterAliases)
+        classification += S66CloseOnlySQLiteObservation.classification(afterAliases, afterReader)
+        if let firstClassification {
+            XCTAssertEqual(classification, firstClassification,
+                "independent no-Erase close sequences diverged")
+        } else {
+            firstClassification = classification
+        }
+        }
+    }
+}
+#endif

@@ -560,13 +560,20 @@ final class V9_06DeletionArchiveIntegrationTests: XCTestCase {
                 diagnosticsStore: noRepeatDiagnostics)
             XCTAssertNil(repeatedOutcome)
             XCTAssertTrue(owner.completions.isEmpty)
+            // The ready Router still owns its source reader. Bind both real
+            // wrappers to that same retained provider before writer close;
+            // an epoch-only emptiness check would conflate reader and writer.
+            let openingFactory = try recoveredSession
+                .validatedOpeningFactoryForWriter()
+            let registry = try openingFactory.makeGenerationLeaseRegistry()
+            let readyReader = try recoveredSession
+                .retainedReaderForOriginalRestoreTransition(factory: openingFactory)
+            let readyWriter = recoveredCoordinator.restoreWriterLeaseHandleForTransition
             try recoveredCoordinator.invalidateAndReleaseWriter()
-            let remainingEpochs = try recoveryFactory
-                .makeGenerationLeaseRegistry().activeEpochs()
-            XCTAssertTrue(remainingEpochs.isEmpty,
-                "The fresh writer lease must close before fixture return")
-            // Fresh Router/registry/model FDs remain live; the exact root and
-            // owner graph are retained by V906RouterEraseFixture.hostPins.
+            try readyWriter.requireClosedForRestoreTransition(registry: registry)
+            try registry.requireExactRestoreTransitionLeases([readyReader])
+            // Fresh Router/registry/model FDs and the exact ready reader remain
+            // live; the root and owner graph are retained by hostPins.
         }
 
         // A preparation is durable before an Erase intent exists. These cases

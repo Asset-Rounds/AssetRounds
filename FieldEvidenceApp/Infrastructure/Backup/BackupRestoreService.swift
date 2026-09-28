@@ -1861,7 +1861,8 @@ final class BackupRestoreService {
             currentGenerationID: currentGenerationID,
             currentGenerationRootURL: currentGenerationRootURL,
             mode: mode,
-            validateAccess: {}
+            validateAccess: {},
+            attestPublishedPointer: { _, _ in }
         )
     }
 
@@ -1872,7 +1873,8 @@ final class BackupRestoreService {
         currentGenerationID: UUID,
         currentGenerationRootURL: URL,
         mode: BackupRestoreMode = .emptyInstall,
-        validateAccess: @MainActor () async throws -> Void
+        validateAccess: @MainActor () async throws -> Void,
+        attestPublishedPointer: @MainActor (Data, Data) throws -> Void = { _, _ in }
     ) async throws -> StoreGenerationSession {
         do {
             return try await restoreWithAccessFailureIsolation(
@@ -1881,7 +1883,8 @@ final class BackupRestoreService {
                 currentGenerationID: currentGenerationID,
                 currentGenerationRootURL: currentGenerationRootURL,
                 mode: mode,
-                validateAccess: validateAccess
+                validateAccess: validateAccess,
+                attestPublishedPointer: attestPublishedPointer
             )
         } catch let failure as RestoreAccessValidationFailure {
             // Early admission also uses the private recovery-isolation tag.
@@ -1897,7 +1900,8 @@ final class BackupRestoreService {
         currentGenerationID: UUID,
         currentGenerationRootURL: URL,
         mode: BackupRestoreMode,
-        validateAccess: @MainActor () async throws -> Void
+        validateAccess: @MainActor () async throws -> Void,
+        attestPublishedPointer: @MainActor (Data, Data) throws -> Void
     ) async throws -> StoreGenerationSession {
         traceRestorePhase("access-and-admission")
         // The caller's permit guards every private restore read.  Wrap its
@@ -1937,6 +1941,7 @@ final class BackupRestoreService {
         }
         traceRestorePhase("current-and-source-identity")
         let frozenCurrentIdentity: WorkspaceReplicaIdentityV1
+        let frozenCurrentPointer: CurrentGenerationPointerV3
         let incomingIdentity: WorkspaceReplicaIdentityV1?
         do {
             frozenCurrentIdentity = try generationFactory
@@ -1944,6 +1949,12 @@ final class BackupRestoreService {
                     expectedGenerationID: currentGenerationID,
                     authority: generationAuthority
                 )
+            frozenCurrentPointer = try generationFactory.currentGenerationPointerV3(
+                expectedGenerationID: currentGenerationID,
+                authority: generationAuthority)
+            guard try frozenCurrentPointer.identity() == frozenCurrentIdentity else {
+                throw attributedRestoreAuthorityFailureV1(line: #line)
+            }
             incomingIdentity = try sourceWorkspaceIdentity(
                 validatedPackage.manifest.source
             )
@@ -2673,6 +2684,22 @@ final class BackupRestoreService {
             ) == persistedPortableExchangeSidecar.expectedBeforeEnvelopeSHA256 else {
                 throw attributedRestoreAuthorityFailureV1(line: #line)
             }
+            // This value is derived from the original pre-effect current pointer
+            // and the already authenticated target manifest, before publication.
+            // A post-return current.json read must never become its baseline.
+            let intendedTargetPointer: CurrentGenerationPointerV3
+            if let identityDecision {
+                intendedTargetPointer = try currentPointer(identityDecision.targetPointer)
+            } else {
+                intendedTargetPointer = try CurrentGenerationPointerV3(
+                    generationID: newGenerationID,
+                    generationManifestSHA256: targetManifestDigest,
+                    workspaceID: frozenCurrentIdentity.workspaceID,
+                    replicaID: frozenCurrentIdentity.replicaID,
+                    knownReplicaIDs: try frozenCurrentPointer.knownReplicaIdentitySet(),
+                    storeSchemaVersion: PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major)
+            }
+            let intendedTargetPointerData = try intendedTargetPointer.canonicalData()
             try protectDataPointer(named: "current.json")
             guard try generationFactory.currentWorkspaceIdentity(
                     expectedGenerationID: currentGenerationID,
@@ -2745,6 +2772,16 @@ final class BackupRestoreService {
                 installed,
                 currentID: newGenerationID
             )
+            let publishedTargetPointer = try generationFactory.currentGenerationPointerV3(
+                expectedGenerationID: newGenerationID,
+                authority: generationAuthority)
+            guard publishedTargetPointer == intendedTargetPointer,
+                  try publishedTargetPointer.canonicalData() == intendedTargetPointerData else {
+                throw attributedRestoreAuthorityFailureV1(line: #line)
+            }
+            try attestPublishedPointer(
+                try frozenCurrentPointer.canonicalData(),
+                intendedTargetPointerData)
             traceRestorePhase("intent.pointer-switch.done")
             let switched = installed.advancing(to: .pointerSwitched)
             try intentStore.replace(expected: installed, with: switched)
@@ -2783,23 +2820,28 @@ final class BackupRestoreService {
                     })
             }
             try Task.checkCancellation()
+            traceRestorePhase("post-validation.exchange.begin")
             try applyPortableExchangeRestoreSidecar(
                 matching: switched,
                 targetWorkspaceID: session.workspaceID.rawValue
             )
+            traceRestorePhase("post-validation.exchange.end")
             let validated = switched.advancing(to: .newGenerationValidated)
             try intentStore.replace(expected: switched, with: validated)
             try removePortableExchangeRestoreSidecar(matching: validated)
+            traceRestorePhase("post-validation.intent.end")
             try inject(.afterNewGenerationValidation)
 
             try inject(.beforeCleanup)
             try Task.checkCancellation()
             try protectDataPointer(named: "retired.json")
+            traceRestorePhase("post-validation.retired-protection.end")
             try generationFactory.retireGeneration(
                 oldID: currentGenerationID,
                 currentID: newGenerationID,
                 authority: generationAuthority
             )
+            traceRestorePhase("post-validation.retire.end")
 #if DEBUG
             if cloneRetirement != nil {
                 try configurationCloneRetirementObservationForTesting?("after-retirement-generation-retired")
@@ -2808,17 +2850,21 @@ final class BackupRestoreService {
             try await searchIndexLifecycle.dropProjection(
                 workspaceID: session.workspaceID.rawValue
             )
+            traceRestorePhase("post-validation.search.end")
             try await validateRestoreAccess(validateAccess)
+            traceRestorePhase("post-validation.access.end")
             try await dropPrivateSystemDiscoveryAfterRestore(
                 restoreID: restoreID,
                 session: session
             )
+            traceRestorePhase("post-validation.discovery.end")
 #if DEBUG
             if cloneGuard != nil || cloneRetirement != nil {
                 try await configurationCloneObservationForTesting?(.afterFinalCleanup)
             }
 #endif
             try await validateRestoreAccess(validateAccess)
+            traceRestorePhase("post-validation.final-access.end")
             if let cloneRetirement {
                 try validateConfigurationCloneRetirementBoundary(cloneRetirement, session: session,
                     expectedIntent: validated, retireIntent: true)

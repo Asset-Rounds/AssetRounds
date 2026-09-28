@@ -55,6 +55,8 @@ final class V949RetiredSourceFixtureOwnerV1 {
     private weak var observedContext: ModelContext?
     private weak var observedContainer: ModelContainer?
     private var contextObservation: EraseOriginalColdExitContextObservationV1?
+    private var readerOpenProofActive = false
+    private var hostileCallbackActive = false
     private enum State: Equatable {
         case acquiring, ready, mutating, closing, uncertain, closed
     }
@@ -113,6 +115,41 @@ final class V949RetiredSourceFixtureOwnerV1 {
         state = .ready
     }
 
+    /// The Service may observe the one new SQLite reader-open representation
+    /// only during this owner's synchronous, fresh-G mutation scope. It gets
+    /// no authority to rebaseline the source after the hostile callback.
+    func requireReaderOpenProofAuthority(
+        _ expected: V949PostHandoffHostileFixtureWitnessV1
+    ) throws {
+        try witness.requireFixtureOwnerStarted()
+        guard witness === expected, state == .mutating,
+              readerOpenProofActive,
+              physicalRoot != nil, registry != nil, activity != nil,
+              allocation != nil, reader != nil,
+              contextObservation != nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    /// The checked original control reader proves current.json is byte-for-
+    /// byte the canonical pointer published by this same Erase. Return its
+    /// bound generation ID only after that fresh disk proof, under the new
+    /// fixture's G/EX. A new Factory would construct a competing registry.
+    func observedPublishedCurrentGenerationIDWhileExcluded() throws -> UUID {
+        try witness.requireFixtureOwnerStarted()
+        guard state == .mutating, hostileCallbackActive,
+              !readerOpenProofActive,
+              physicalRoot != nil, registry != nil, activity != nil,
+              allocation != nil, reader != nil,
+              observedSession != nil, observedContext != nil,
+              observedContainer != nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try witness.originalService.requireV949PostHandoffControlsUnchanged(
+            witness.binding, operation: witness.operation)
+        return witness.binding.newGenerationID
+    }
+
     /// The closure has the only new SwiftData source alias. It executes while
     /// the exact fresh reader, EX, physical root, and G are held. Its result
     /// must be a value snapshot, not an escaped session or model object.
@@ -124,6 +161,7 @@ final class V949RetiredSourceFixtureOwnerV1 {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         state = .mutating
+        var diagnosticStage = "initial-source"
         do {
             return try registry.withV949HostileMutationLock(
                 witness: witness, activity: activity) {
@@ -143,6 +181,12 @@ final class V949RetiredSourceFixtureOwnerV1 {
                 let contextObservation = EraseOriginalColdExitContextObservationV1()
                 self.contextObservation = contextObservation
                 @MainActor func perform() throws -> Value {
+                    diagnosticStage = "reader-preimage"
+                    readerOpenProofActive = true
+                    try witness.originalService
+                        .beginV949OwnedReaderOpenTransitionForTesting(
+                            witness, owner: self)
+                    diagnosticStage = "reader-construction"
                     let session = try factory.openV949RetiredSourceUnderExclusive(
                         witness: witness, allocation: allocation,
                         reader: reader,
@@ -150,10 +194,19 @@ final class V949RetiredSourceFixtureOwnerV1 {
                     observedSession = session
                     observedContext = session.modelContext
                     observedContainer = session.modelContext.container
+                    diagnosticStage = "reader-postimage"
+                    try witness.originalService
+                        .completeV949OwnedReaderOpenTransitionForTesting(
+                            witness, owner: self)
+                    readerOpenProofActive = false
+                    diagnosticStage = "postproof-source"
                     try witness.originalService
                         .requireV949PostHandoffOriginalSourceUnchanged(
                             witness.binding, operation: witness.operation)
+                    diagnosticStage = "hostile-callback"
+                    hostileCallbackActive = true
                     let result = try body(session)
+                    hostileCallbackActive = false
                     guard !session.modelContext.hasChanges else {
                         throw GenerationLeaseRegistryFailureV1.uncertainOwner
                     }
@@ -165,7 +218,11 @@ final class V949RetiredSourceFixtureOwnerV1 {
                 return try perform()
             }
         } catch {
+            hostileCallbackActive = false
             state = .uncertain
+            FileHandle.standardError.write(Data((
+                "V949_FRESH_READER_OPEN_V1 stage=" + diagnosticStage + "\n"
+            ).utf8))
             throw error
         }
     }
@@ -295,10 +352,17 @@ final class V949RestoredSourceReaderExitV1 {
     }
 }
 #endif
+#endif
 
 /// Descriptor owner for the completed-abort source-byte witness. An ambiguous
 /// close is kept here as an actual unresolved handle and bars every snapshot.
 final class EraseAbortCheckedSnapshotIOV1 {
+    struct CheckedTreeNode {
+        let path: String
+        let fact: stat
+        let sha256: String?
+    }
+
     private var uncertainDescriptors: [Int32] = []
     private var uncertainDirectories: [UnsafeMutablePointer<DIR>] = []
 
@@ -309,9 +373,11 @@ final class EraseAbortCheckedSnapshotIOV1 {
     }
 
     func withOpen<Value>(parent: Int32, name: String, flags: Int32,
+                         mode: mode_t = 0,
                          _ body: (Int32) throws -> Value) throws -> Value {
         try requireSettled()
-        let descriptor = Darwin.openat(parent, name, flags | O_NOFOLLOW | O_CLOEXEC)
+        let descriptor = Darwin.openat(parent, name,
+            flags | O_NOFOLLOW | O_CLOEXEC, mode)
         guard descriptor >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
         var closeAttempted = false
         do {
@@ -445,8 +511,17 @@ final class EraseAbortCheckedSnapshotIOV1 {
         }
     }
 
+    func treeWithNodes(parent: Int32, name: String) throws
+        -> (digest: String, nodes: [CheckedTreeNode]) {
+        var nodes = [CheckedTreeNode]()
+        let digest = try tree(parent: parent, name: name,
+            observeTypedNode: { nodes.append($0) })
+        return (digest, nodes)
+    }
+
     func tree(parent: Int32, name: String,
-              observeNode: ((String, String, [String: String]) -> Void)? = nil) throws -> String {
+              observeNode: ((String, String, [String: String]) -> Void)? = nil,
+              observeTypedNode: ((CheckedTreeNode) -> Void)? = nil) throws -> String {
         try requireSettled()
         var tokens = [String]()
         var nodeCount = 0
@@ -470,6 +545,7 @@ final class EraseAbortCheckedSnapshotIOV1 {
                 }
                 let initial = try names(in: directory)
                 tokens.append("D|\(path)|\(before.st_dev)|\(before.st_ino)|\(before.st_mode)|\(before.st_mtimespec.tv_sec)|\(before.st_mtimespec.tv_nsec)|\(before.st_ctimespec.tv_sec)|\(before.st_ctimespec.tv_nsec)|\(initial.joined(separator: ","))")
+                observeTypedNode?(CheckedTreeNode(path: path, fact: before, sha256: nil))
                 if let observeNode {
                     observeNode(path, "directory", [
                         "device": String(before.st_dev), "inode": String(before.st_ino),
@@ -523,6 +599,8 @@ final class EraseAbortCheckedSnapshotIOV1 {
                                 throw StoreGenerationFailure.dataPointerInvalid
                             }
                             tokens.append("F|\(childPath)|\(start.st_dev)|\(start.st_ino)|\(start.st_mode)|\(start.st_nlink)|\(start.st_size)|\(start.st_mtimespec.tv_sec)|\(start.st_mtimespec.tv_nsec)|\(start.st_ctimespec.tv_sec)|\(start.st_ctimespec.tv_nsec)|\(hash)")
+                            observeTypedNode?(CheckedTreeNode(
+                                path: childPath, fact: start, sha256: hash))
                             if let observeNode {
                                 observeNode(childPath, "file", [
                                     "device": String(start.st_dev), "inode": String(start.st_ino),
@@ -561,7 +639,10 @@ final class EraseAbortCheckedSnapshotIOV1 {
     /// intentionally independent of the generation-only path classifier.
     func postRetiredTree(parent: Int32, name: String,
         excluding excludedPaths: Set<String> = [],
-        ignoringDirectoryMetadata ignoredDirectories: Set<String> = []
+        ignoringDirectoryMetadata ignoredDirectories: Set<String> = [],
+        observedRootLinks: ((UInt64) -> Void)? = nil,
+        normalizingSingleTargetManifestRootLinksFrom sourceRootLinks: UInt64? = nil,
+        observeNode: ((String, String, String, [String]?, String?) -> Void)? = nil
     ) throws -> String {
         try requireSettled()
         var tokens: [String] = []
@@ -578,7 +659,10 @@ final class EraseAbortCheckedSnapshotIOV1 {
         }
         func stableDirectoryFact(_ value: stat, path: String) -> String {
             if ignoredDirectories.contains(path) {
-                return "\(value.st_dev)|\(value.st_ino)|\(value.st_mode)|\(value.st_nlink)"
+                let links = path.isEmpty
+                    ? sourceRootLinks ?? UInt64(value.st_nlink)
+                    : UInt64(value.st_nlink)
+                return "\(value.st_dev)|\(value.st_ino)|\(value.st_mode)|\(links)"
             }
             return nodeFact(value)
         }
@@ -597,12 +681,25 @@ final class EraseAbortCheckedSnapshotIOV1 {
                       named.st_mode & S_IFMT == S_IFDIR else {
                     throw StoreGenerationFailure.dataPointerInvalid
                 }
+                if path.isEmpty {
+                    observedRootLinks?(UInt64(before.st_nlink))
+                    if let sourceRootLinks = sourceRootLinks {
+                        guard ignoredDirectories.contains(""),
+                              excludedPaths.count == 1,
+                              sourceRootLinks < UInt64.max,
+                              UInt64(before.st_nlink) == sourceRootLinks + 1 else {
+                            throw StoreGenerationFailure.dataPointerInvalid
+                        }
+                    }
+                }
                 let entries = try names(in: directory)
                 let visible = entries.filter { entry in
                     let child = path.isEmpty ? entry : "\(path)/\(entry)"
                     return !excludedPaths.contains(child)
                 }
-                tokens.append("D|\(encoded(path))|\(stableDirectoryFact(before, path: path))|\(visible.map(encoded).joined(separator: ","))")
+                let directoryFact = stableDirectoryFact(before, path: path)
+                tokens.append("D|\(encoded(path))|\(directoryFact)|\(visible.map(encoded).joined(separator: ","))")
+                observeNode?(path, "directory", directoryFact, visible, nil)
                 for entry in visible {
                     guard !entry.isEmpty, entry != ".", entry != "..",
                           !entry.contains("/") else {
@@ -644,7 +741,9 @@ final class EraseAbortCheckedSnapshotIOV1 {
                                   nodeFact(start) == nodeFact(namedAfter) else {
                                 throw StoreGenerationFailure.dataPointerInvalid
                             }
-                            tokens.append("F|\(encoded(childPath))|\(nodeFact(start))|\(digest)")
+                            let fileFact = nodeFact(start)
+                            tokens.append("F|\(encoded(childPath))|\(fileFact)|\(digest)")
+                            observeNode?(childPath, "file", fileFact, nil, digest)
                         }
                     default:
                         throw StoreGenerationFailure.dataPointerInvalid
@@ -669,6 +768,611 @@ final class EraseAbortCheckedSnapshotIOV1 {
 
 }
 
+/// The maintenance eligibility probe must not construct the ordinary Restore
+/// authority: that constructor may create and protect missing directories.
+/// This owner opens only already-existing names and keeps any ambiguous close
+/// in its checked I/O owner. The Router retains it before the first open.
+final class RestoreMaintenanceClearObservationV1 {
+    enum EmptyRootFailure: Error {
+        case restoreGenerations
+        case importStaging
+    }
+    struct DirectoryFact: Equatable {
+        let device: dev_t
+        let inode: ino_t
+        let mode: mode_t
+        let links: nlink_t
+        let size: off_t
+        let modifiedSeconds: Int64
+        let modifiedNanoseconds: Int64
+        let changedSeconds: Int64
+        let changedNanoseconds: Int64
+
+        init(_ value: stat) throws {
+            guard value.st_mode & S_IFMT == S_IFDIR else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            device = value.st_dev
+            inode = value.st_ino
+            mode = value.st_mode
+            links = value.st_nlink
+            size = value.st_size
+            modifiedSeconds = Int64(value.st_mtimespec.tv_sec)
+            modifiedNanoseconds = Int64(value.st_mtimespec.tv_nsec)
+            changedSeconds = Int64(value.st_ctimespec.tv_sec)
+            changedNanoseconds = Int64(value.st_ctimespec.tv_nsec)
+        }
+    }
+
+    /// Captured while the actual opened reader is live and before Router
+    /// recovery. A later maintenance probe compares every control byte and
+    /// physical fact to this value; it never adopts a failed state as a new
+    /// baseline.
+    struct Frame: Equatable {
+        let generationID: UUID
+        let workspaceID: WorkspaceID
+        let replicaID: ReplicaID
+        let storeSchemaRelease: PersistentSchemaReleaseV1
+        let generationManifestSHA256: String
+        let intendedPointer: Data?
+        let support: DirectoryFact
+        let data: DirectoryFact
+        let generations: DirectoryFact
+        let operations: DirectoryFact
+        let operationsNames: [String]
+        let operationsChildFacts: [String: DirectoryFact]
+        let migration: DirectoryFact
+        let current: Data
+        let currentIdentity: String
+        let retired: Data
+        let retiredIdentity: String
+        let manifest: Data
+        let manifestIdentity: String
+        let installedNames: [String]
+        let migrationNames: [String]
+    }
+
+    /// Typed output of one actual journal-root constructor. Its parent and
+    /// child facts are read from the constructor's held descriptors before it
+    /// releases them; an after-failure filesystem scan cannot mint this value.
+    struct OperationsChildReceipt {
+        let name: String
+        let created: Bool
+        let parent: DirectoryFact
+        let child: DirectoryFact
+    }
+
+    /// The held journal owner advances its own physical cursor after each
+    /// exact mutation. This is a provenance-bearing result, not a fresh
+    /// filesystem scan offered as a new expected frame.
+    struct OperationsRecoveryReceipt {
+        let name: String
+        let initialChild: DirectoryFact
+        let finalChild: DirectoryFact
+        let mutationCount: Int
+    }
+
+    private let root: URL
+    private let expectedRoot: StoreApplicationSupportIdentity
+    private let io = EraseAbortCheckedSnapshotIOV1()
+    private var attempted = false
+
+    init(applicationSupportURL: URL, expectedRoot: StoreApplicationSupportIdentity) throws {
+        root = applicationSupportURL.standardizedFileURL
+        guard root.isFileURL else { throw StoreGenerationFailure.dataPointerInvalid }
+        self.expectedRoot = expectedRoot
+    }
+
+    var hasUncertainClose: Bool { (try? io.requireSettled()) == nil }
+
+    private func fact(_ descriptor: Int32) throws -> DirectoryFact {
+        var value = stat()
+        guard Darwin.fstat(descriptor, &value) == 0 else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        return try DirectoryFact(value)
+    }
+
+    private func namedFact(parent: Int32, name: String) throws -> DirectoryFact {
+        var value = stat()
+        guard Darwin.fstatat(parent, name, &value, AT_SYMLINK_NOFOLLOW) == 0 else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        return try DirectoryFact(value)
+    }
+
+    private func withExistingDirectory<Value>(
+        parent: Int32, name: String, _ body: (Int32) throws -> Value
+    ) throws -> Value {
+        try io.withOpen(parent: parent, name: name, flags: O_RDONLY | O_DIRECTORY) { descriptor in
+            let before = try fact(descriptor)
+            guard try namedFact(parent: parent, name: name) == before else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            let value = try body(descriptor)
+            guard try fact(descriptor) == before,
+                  try namedFact(parent: parent, name: name) == before else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            return value
+        }
+    }
+
+    private func requireAbsent(parent: Int32, name: String) throws {
+        var value = stat()
+        guard Darwin.fstatat(parent, name, &value, AT_SYMLINK_NOFOLLOW) != 0,
+              errno == ENOENT else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+    }
+
+    private func requireNoEraseAuthority(parent: Int32) throws -> DirectoryFact? {
+        var value = stat()
+        if Darwin.fstatat(parent, "FieldEvidenceErase", &value, AT_SYMLINK_NOFOLLOW) != 0 {
+            guard errno == ENOENT else { throw StoreGenerationFailure.dataPointerInvalid }
+            try requireAbsent(parent: parent, name: "FieldEvidenceErase")
+            return nil
+        }
+        return try withExistingDirectory(parent: parent, name: "FieldEvidenceErase") { erase in
+            guard try io.names(in: erase).isEmpty else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            return try fact(erase)
+        }
+    }
+
+#if DEBUG
+    /// Reports only fixed predicate results from the already-read control bytes.
+    /// It does not observe the filesystem again or change the failing guard.
+    private func reportPointerSemanticMismatch(
+        current: Data, retired: Data, generationID: UUID,
+        workspaceID: WorkspaceID, replicaID: ReplicaID,
+        storeSchemaRelease: PersistentSchemaReleaseV1,
+        generationManifestSHA256: String, intendedPointer: Data?
+    ) {
+        let pointer: CurrentGenerationPointerV3?
+        if let decoded = try? CurrentPointerCodecV1.decode(current),
+           case .v3(let value, _) = decoded {
+            pointer = value
+        } else { pointer = nil }
+        let retiredValue = try? JSONDecoder().decode(RetiredPointerV1.self,
+            from: retired)
+        let retiredIDs = retiredValue?.generationIDs ?? []
+        let pointerID = pointer?.generationID
+        let categories = [
+            "pointerV3=\(pointer != nil)",
+            "pointerCanonical=\(pointer.flatMap { try? $0.canonicalData() } == current)",
+            "generation=\(pointerID == generationID.uuidString.lowercased())",
+            "workspace=\(pointer?.workspaceID == workspaceID.rawValue.uuidString.lowercased())",
+            "replica=\(pointer?.replicaID == replicaID.rawValue.uuidString.lowercased())",
+            "schema=\(pointer?.storeSchemaVersion == storeSchemaRelease.versionIdentifier.major)",
+            "manifest=\(pointer?.generationManifestSHA256 == generationManifestSHA256)",
+            "intended=\(intendedPointer.map { $0 == current } ?? true)",
+            "retiredDecode=\(retiredValue != nil)",
+            "retiredCanonical=\(retiredValue.flatMap { try? StoreMigrationCanonicalJSONV1.encode($0) } == retired)",
+            "retiredSorted=\(retiredValue != nil && retiredIDs == retiredIDs.sorted())",
+            "retiredUnique=\(retiredValue != nil && Set(retiredIDs).count == retiredIDs.count)",
+            "retiredUUIDs=\(retiredValue != nil && retiredIDs.allSatisfy { UUID(uuidString: $0)?.uuidString.lowercased() == $0 })",
+            "retiredExcludesCurrent=\(retiredValue != nil && (pointerID.map { !retiredIDs.contains($0) } ?? false))"
+        ]
+        FileHandle.standardError.write(Data(
+            "V23_RESTORE_POINTER_SEMANTICS_V1 \(categories.joined(separator: " "))\n".utf8))
+    }
+#endif
+
+    private func scanControls(
+        generationID: UUID,
+        workspaceID: WorkspaceID,
+        replicaID: ReplicaID,
+        storeSchemaRelease: PersistentSchemaReleaseV1,
+        generationManifestSHA256: String,
+        intendedPointer: Data?
+    ) throws -> Frame {
+        try withExistingDirectory(parent: AT_FDCWD, name: root.path) { app in
+#if DEBUG
+            print("V23_RESTORE_MAINTENANCE_FRAME_V1 stage=root-open-complete")
+#endif
+            let support = try fact(app)
+            guard support.device == expectedRoot.device,
+                  support.inode == expectedRoot.inode else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            return try withExistingDirectory(parent: app,
+                name: "FieldEvidenceData") { dataFD in
+#if DEBUG
+                print("V23_RESTORE_MAINTENANCE_FRAME_V1 stage=data-open-complete")
+#endif
+                let data = try fact(dataFD)
+                let (current, currentIdentity) = try io.control(
+                    parent: dataFD, name: "current.json")
+                let (retired, retiredIdentity) = try io.control(
+                    parent: dataFD, name: "retired.json")
+#if DEBUG
+                print("V23_RESTORE_MAINTENANCE_FRAME_V1 stage=pointer-controls-complete")
+#endif
+                guard case .v3(let pointer, _) = try CurrentPointerCodecV1.decode(current),
+                      try pointer.canonicalData() == current,
+                      pointer.generationID == generationID.uuidString.lowercased(),
+                      pointer.workspaceID == workspaceID.rawValue.uuidString.lowercased(),
+                      pointer.replicaID == replicaID.rawValue.uuidString.lowercased(),
+                      pointer.storeSchemaVersion == storeSchemaRelease.versionIdentifier.major,
+                      pointer.generationManifestSHA256 == generationManifestSHA256,
+                      intendedPointer.map({ $0 == current }) ?? true,
+                      let retiredValue = try? JSONDecoder().decode(
+                        RetiredPointerV1.self, from: retired),
+                      try StoreMigrationCanonicalJSONV1.encode(retiredValue) == retired,
+                      retiredValue.generationIDs == retiredValue.generationIDs.sorted(),
+                      Set(retiredValue.generationIDs).count
+                        == retiredValue.generationIDs.count,
+                      retiredValue.generationIDs.allSatisfy({
+                        UUID(uuidString: $0)?.uuidString.lowercased() == $0
+                      }),
+                      !retiredValue.generationIDs.contains(pointer.generationID) else {
+#if DEBUG
+                    reportPointerSemanticMismatch(current: current, retired: retired,
+                        generationID: generationID, workspaceID: workspaceID,
+                        replicaID: replicaID, storeSchemaRelease: storeSchemaRelease,
+                        generationManifestSHA256: generationManifestSHA256,
+                        intendedPointer: intendedPointer)
+#endif
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+#if DEBUG
+                print("V23_RESTORE_POINTER_SEMANTICS_V1 stage=guard-complete")
+#endif
+                try StorePointerSchemaRegistry.requireRetired(retiredValue.schemaVersion)
+#if DEBUG
+                print("V23_RESTORE_MAINTENANCE_FRAME_V1 stage=pointer-semantics-complete")
+#endif
+                let expectedNames = ([pointer.generationID]
+                    + retiredValue.generationIDs).sorted()
+                return try withExistingDirectory(parent: dataFD,
+                    name: "generations") { generationsFD in
+                    let generations = try fact(generationsFD)
+                    let installedNames = try io.names(in: generationsFD)
+                    guard installedNames == expectedNames else {
+                        throw StoreGenerationFailure.dataPointerInvalid
+                    }
+#if DEBUG
+                    print("V23_RESTORE_MAINTENANCE_FRAME_V1 stage=installed-names-complete")
+#endif
+                    return try withExistingDirectory(parent: app,
+                        name: "FieldEvidenceOperations") { operationsFD in
+                        let operations = try fact(operationsFD)
+                        let operationsNames = try io.names(in: operationsFD)
+                        var operationsChildFacts = [String: DirectoryFact]()
+                        for child in ["finalization", "deletion"] where operationsNames.contains(child) {
+                            operationsChildFacts[child] = try withExistingDirectory(
+                                parent: operationsFD, name: child) { try fact($0) }
+                        }
+                        return try withExistingDirectory(parent: operationsFD,
+                            name: "schema-migration") { migrationFD in
+                            let migration = try fact(migrationFD)
+                            let migrationNames = try io.names(in: migrationFD)
+#if DEBUG
+                            print("V23_RESTORE_MAINTENANCE_FRAME_V1 stage=migration-open-complete")
+#endif
+                            let manifestName = "manifest-"
+                                + generationID.uuidString.lowercased() + ".json"
+                            guard migrationNames.contains(manifestName) else {
+                                throw StoreGenerationFailure.dataPointerInvalid
+                            }
+                            let (manifest, manifestIdentity) = try io.control(
+                                parent: migrationFD, name: manifestName,
+                                maximum: 32 * 1024 * 1024)
+                            let decoded = try StoreGenerationManifestV1
+                                .decodeCanonical(from: manifest)
+#if DEBUG
+                            print("V23_RESTORE_MAINTENANCE_FRAME_V1 stage=manifest-read-complete")
+#endif
+                            guard StoreMigrationCanonicalJSONV1.sha256(manifest)
+                                    == generationManifestSHA256,
+                                  decoded.generationID == generationID,
+                                  decoded.storeSchemaRelease == storeSchemaRelease else {
+                                throw StoreGenerationFailure.dataPointerInvalid
+                            }
+#if DEBUG
+                            print("V23_RESTORE_MAINTENANCE_FRAME_V1 stage=manifest-semantic-complete")
+#endif
+                            return Frame(generationID: generationID,
+                                workspaceID: workspaceID,
+                                replicaID: replicaID,
+                                storeSchemaRelease: storeSchemaRelease,
+                                generationManifestSHA256: generationManifestSHA256,
+                                intendedPointer: intendedPointer,
+                                support: support, data: data,
+                                generations: generations,
+                                operations: operations,
+                                operationsNames: operationsNames,
+                                operationsChildFacts: operationsChildFacts,
+                                migration: migration,
+                                current: current, currentIdentity: currentIdentity,
+                                retired: retired, retiredIdentity: retiredIdentity,
+                                manifest: manifest,
+                                manifestIdentity: manifestIdentity,
+                                installedNames: installedNames,
+                                migrationNames: migrationNames)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @MainActor
+    func captureFrame(session: StoreGenerationSession,
+        intendedPointer: Data? = nil) throws -> Frame {
+        guard !attempted, let epoch = session.generationEpoch,
+              epoch.generationID == session.generationID else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        attempted = true
+        let frame = try scanControls(generationID: session.generationID,
+            workspaceID: session.workspaceID,
+            replicaID: session.replicaID,
+            storeSchemaRelease: session.storeSchemaRelease,
+            generationManifestSHA256: epoch.generationManifestSHA256,
+            intendedPointer: intendedPointer)
+        try io.requireSettled()
+        return frame
+    }
+
+    /// Everything except the one authenticated Operations parent transition
+    /// stays bound to the immutable pre-effect frame.
+    private func sameOriginalControls(_ lhs: Frame, _ rhs: Frame) -> Bool {
+        lhs.generationID == rhs.generationID
+            && lhs.workspaceID == rhs.workspaceID
+            && lhs.replicaID == rhs.replicaID
+            && lhs.storeSchemaRelease == rhs.storeSchemaRelease
+            && lhs.generationManifestSHA256 == rhs.generationManifestSHA256
+            && lhs.intendedPointer == rhs.intendedPointer
+            && lhs.support == rhs.support
+            && lhs.data == rhs.data
+            && lhs.generations == rhs.generations
+            && lhs.migration == rhs.migration
+            && lhs.current == rhs.current
+            && lhs.currentIdentity == rhs.currentIdentity
+            && lhs.retired == rhs.retired
+            && lhs.retiredIdentity == rhs.retiredIdentity
+            && lhs.manifest == rhs.manifest
+            && lhs.manifestIdentity == rhs.manifestIdentity
+            && lhs.installedNames == rhs.installedNames
+            && lhs.migrationNames == rhs.migrationNames
+    }
+
+    /// Called immediately before an actual journal-root constructor, without
+    /// an await or a second owner. A failed check never refreshes the expected
+    /// frame.
+    func requireBeforeOperationsEffect(matching expected: Frame) throws {
+        let actual = try scanControls(generationID: expected.generationID,
+            workspaceID: expected.workspaceID,
+            replicaID: expected.replicaID,
+            storeSchemaRelease: expected.storeSchemaRelease,
+            generationManifestSHA256: expected.generationManifestSHA256,
+            intendedPointer: expected.intendedPointer)
+        guard actual == expected else { throw StoreGenerationFailure.dataPointerInvalid }
+        try io.requireSettled()
+    }
+
+    /// The only accepted parent change is the exact child created or reopened
+    /// by the retained constructor named by `receipt`. The constructor's
+    /// held/named postimage, not this scan, supplies the expected successor.
+    func recordOperationsEffect(original: Frame, previous: Frame,
+        receipt: OperationsChildReceipt) throws -> Frame {
+        guard receipt.name == "finalization" || receipt.name == "deletion",
+              previous.operationsNames.contains(receipt.name) != receipt.created else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let observed = try scanControls(generationID: original.generationID,
+            workspaceID: original.workspaceID,
+            replicaID: original.replicaID,
+            storeSchemaRelease: original.storeSchemaRelease,
+            generationManifestSHA256: original.generationManifestSHA256,
+            intendedPointer: original.intendedPointer)
+        var expectedNames = previous.operationsNames
+        if receipt.created { expectedNames.append(receipt.name); expectedNames.sort() }
+        guard sameOriginalControls(observed, original),
+              observed.operationsNames == expectedNames,
+              observed.operations.device == previous.operations.device,
+              observed.operations.inode == previous.operations.inode,
+              observed.operations.mode == previous.operations.mode,
+              observed.operations == receipt.parent,
+              observed.operationsChildFacts[receipt.name] == receipt.child,
+              previous.operationsChildFacts.filter({ $0.key != receipt.name })
+                == observed.operationsChildFacts.filter({ $0.key != receipt.name }) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        if !receipt.created {
+            guard previous.operationsChildFacts[receipt.name]?.device == receipt.child.device,
+                  previous.operationsChildFacts[receipt.name]?.inode == receipt.child.inode,
+                  previous.operationsChildFacts[receipt.name]?.mode == receipt.child.mode else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        }
+        try io.requireSettled()
+        return observed
+    }
+
+    func recordOperationsRecoveryEffect(original: Frame, previous: Frame,
+        receipt: OperationsRecoveryReceipt) throws -> Frame {
+        guard receipt.name == "finalization" || receipt.name == "deletion",
+              let priorChild = previous.operationsChildFacts[receipt.name],
+              priorChild == receipt.initialChild,
+              receipt.mutationCount >= 0,
+              receipt.finalChild.device == priorChild.device,
+              receipt.finalChild.inode == priorChild.inode,
+              receipt.finalChild.mode == priorChild.mode else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let observed = try scanControls(generationID: original.generationID,
+            workspaceID: original.workspaceID,
+            replicaID: original.replicaID,
+            storeSchemaRelease: original.storeSchemaRelease,
+            generationManifestSHA256: original.generationManifestSHA256,
+            intendedPointer: original.intendedPointer)
+        guard sameOriginalControls(observed, original),
+              observed.operations == previous.operations,
+              observed.operationsNames == previous.operationsNames,
+              observed.operationsChildFacts[receipt.name] == receipt.finalChild,
+              previous.operationsChildFacts.filter({ $0.key != receipt.name })
+                == observed.operationsChildFacts.filter({ $0.key != receipt.name }) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try io.requireSettled()
+        return observed
+    }
+
+    /// A maintenance option is displayed only after the original frame is
+    /// proved around the entire clear-journal observation. All opens are
+    /// exact-existing and checked-close owned by this retained observer.
+    func requireClear(matching frame: Frame,
+        expectedOperations: Frame? = nil,
+        onStage: (String) -> Void) throws {
+        guard !attempted else { throw StoreGenerationFailure.dataPointerInvalid }
+        attempted = true
+#if DEBUG
+        print("V23_RESTORE_MAINTENANCE_FRAME_V1 stage=before-scan-enter")
+#endif
+        let before = try scanControls(generationID: frame.generationID,
+            workspaceID: frame.workspaceID,
+            replicaID: frame.replicaID,
+            storeSchemaRelease: frame.storeSchemaRelease,
+            generationManifestSHA256: frame.generationManifestSHA256,
+            intendedPointer: frame.intendedPointer)
+#if DEBUG
+        if before != frame {
+            print("V23_RESTORE_MAINTENANCE_FRAME_V1 mismatch "
+                + "support=\(before.support == frame.support) "
+                + "data=\(before.data == frame.data) "
+                + "generations=\(before.generations == frame.generations) "
+                + "operations=\(before.operations == frame.operations) "
+                + "operationsDevice=\(before.operations.device == frame.operations.device) "
+                + "operationsInode=\(before.operations.inode == frame.operations.inode) "
+                + "operationsMode=\(before.operations.mode == frame.operations.mode) "
+                + "operationsLinks=\(before.operations.links == frame.operations.links) "
+                + "operationsSize=\(before.operations.size == frame.operations.size) "
+                + "operationsModifiedSeconds=\(before.operations.modifiedSeconds == frame.operations.modifiedSeconds) "
+                + "operationsModifiedNanoseconds=\(before.operations.modifiedNanoseconds == frame.operations.modifiedNanoseconds) "
+                + "operationsChangedSeconds=\(before.operations.changedSeconds == frame.operations.changedSeconds) "
+                + "operationsChangedNanoseconds=\(before.operations.changedNanoseconds == frame.operations.changedNanoseconds) "
+                + "migration=\(before.migration == frame.migration) "
+                + "currentBytes=\(before.current == frame.current) "
+                + "currentIdentity=\(before.currentIdentity == frame.currentIdentity) "
+                + "retiredBytes=\(before.retired == frame.retired) "
+                + "retiredIdentity=\(before.retiredIdentity == frame.retiredIdentity) "
+                + "manifestBytes=\(before.manifest == frame.manifest) "
+                + "manifestIdentity=\(before.manifestIdentity == frame.manifestIdentity) "
+                + "installedNames=\(before.installedNames == frame.installedNames) "
+                + "migrationNames=\(before.migrationNames == frame.migrationNames)")
+        }
+#endif
+        guard sameOriginalControls(before, frame),
+              before.operations == (expectedOperations ?? frame).operations,
+              before.operationsNames == (expectedOperations ?? frame).operationsNames,
+              before.operationsChildFacts == (expectedOperations ?? frame).operationsChildFacts else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+#if DEBUG
+        print("V23_RESTORE_MAINTENANCE_FRAME_V1 stage=before-scan-equal")
+#endif
+        try requireClearRoots(onStage: onStage)
+#if DEBUG
+        print("V23_RESTORE_MAINTENANCE_FRAME_V1 stage=after-scan-enter")
+#endif
+        let after = try scanControls(generationID: frame.generationID,
+            workspaceID: frame.workspaceID,
+            replicaID: frame.replicaID,
+            storeSchemaRelease: frame.storeSchemaRelease,
+            generationManifestSHA256: frame.generationManifestSHA256,
+            intendedPointer: frame.intendedPointer)
+#if DEBUG
+        if after != frame {
+            print("V23_RESTORE_MAINTENANCE_FRAME_V1 mismatch "
+                + "support=\(after.support == frame.support) "
+                + "data=\(after.data == frame.data) "
+                + "generations=\(after.generations == frame.generations) "
+                + "operations=\(after.operations == frame.operations) "
+                + "operationsDevice=\(after.operations.device == frame.operations.device) "
+                + "operationsInode=\(after.operations.inode == frame.operations.inode) "
+                + "operationsMode=\(after.operations.mode == frame.operations.mode) "
+                + "operationsLinks=\(after.operations.links == frame.operations.links) "
+                + "operationsSize=\(after.operations.size == frame.operations.size) "
+                + "operationsModifiedSeconds=\(after.operations.modifiedSeconds == frame.operations.modifiedSeconds) "
+                + "operationsModifiedNanoseconds=\(after.operations.modifiedNanoseconds == frame.operations.modifiedNanoseconds) "
+                + "operationsChangedSeconds=\(after.operations.changedSeconds == frame.operations.changedSeconds) "
+                + "operationsChangedNanoseconds=\(after.operations.changedNanoseconds == frame.operations.changedNanoseconds) "
+                + "migration=\(after.migration == frame.migration) "
+                + "currentBytes=\(after.current == frame.current) "
+                + "currentIdentity=\(after.currentIdentity == frame.currentIdentity) "
+                + "retiredBytes=\(after.retired == frame.retired) "
+                + "retiredIdentity=\(after.retiredIdentity == frame.retiredIdentity) "
+                + "manifestBytes=\(after.manifest == frame.manifest) "
+                + "manifestIdentity=\(after.manifestIdentity == frame.manifestIdentity) "
+                + "installedNames=\(after.installedNames == frame.installedNames) "
+                + "migrationNames=\(after.migrationNames == frame.migrationNames)")
+        }
+#endif
+        guard sameOriginalControls(after, frame),
+              after.operations == (expectedOperations ?? frame).operations,
+              after.operationsNames == (expectedOperations ?? frame).operationsNames,
+              after.operationsChildFacts == (expectedOperations ?? frame).operationsChildFacts else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+#if DEBUG
+        print("V23_RESTORE_MAINTENANCE_FRAME_V1 stage=after-scan-equal")
+#endif
+        try io.requireSettled()
+    }
+
+    func requireClear(onStage: (String) -> Void) throws {
+        guard !attempted else { throw StoreGenerationFailure.dataPointerInvalid }
+        attempted = true
+        try requireClearRoots(onStage: onStage)
+        try io.requireSettled()
+    }
+
+    private func requireClearRoots(onStage: (String) -> Void) throws {
+        try withExistingDirectory(parent: AT_FDCWD, name: root.path) { app in
+            let held = try fact(app)
+            guard held.device == expectedRoot.device,
+                  held.inode == expectedRoot.inode else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            // These two exact-existing children are also required by the
+            // ordinary Restore authority; neither may be reconstructed here.
+            try withExistingDirectory(parent: app, name: "FieldEvidenceData") { data in
+                try withExistingDirectory(parent: data, name: "generations") { _ in
+                    onStage("erase")
+                    let erase = try requireNoEraseAuthority(parent: app)
+                    try withExistingDirectory(parent: app, name: "FieldEvidenceRestore") { restore in
+                        onStage("restore")
+                        try requireAbsent(parent: restore, name: "restore.json")
+                        try requireAbsent(parent: restore, name: ".restore.json.next")
+                        try withExistingDirectory(parent: restore, name: "generations") { generations in
+                            onStage("generation-names")
+                            guard try io.names(in: generations).isEmpty else {
+                                throw EmptyRootFailure.restoreGenerations
+                            }
+                            try withExistingDirectory(parent: restore, name: "staging") { staging in
+                                onStage("import-names")
+                                guard try io.names(in: staging).isEmpty else {
+                                    throw EmptyRootFailure.importStaging
+                                }
+                                try requireAbsent(parent: restore, name: "restore.json")
+                                try requireAbsent(parent: restore, name: ".restore.json.next")
+                                guard try requireNoEraseAuthority(parent: app) == erase else {
+                                    throw StoreGenerationFailure.dataPointerInvalid
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#if DEBUG
 struct ErasePostRetiredGenerationSnapshotV1: Equatable {
     let current: Data
     let currentIdentity: String
@@ -679,12 +1383,44 @@ struct ErasePostRetiredGenerationSnapshotV1: Equatable {
     let dataRootDigest: String
 }
 
+struct EraseCompletedAbortNodeFactV1: Equatable {
+    let nodeType: String
+    let fields: [String: String]
+}
+
 struct EraseCompletedAbortSourceBytesV1: Equatable {
     let current: Data
     let currentIdentity: String
     let retired: Data
     let retiredIdentity: String
     let sourceTreeDigest: String
+    /// DEBUG diagnosis only. These facts come from the same checked tree walk
+    /// as sourceTreeDigest; authoritative equality remains the five facts above.
+    let sourceNodes: [String: EraseCompletedAbortNodeFactV1]
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.current == rhs.current
+            && lhs.currentIdentity == rhs.currentIdentity
+            && lhs.retired == rhs.retired
+            && lhs.retiredIdentity == rhs.retiredIdentity
+            && lhs.sourceTreeDigest == rhs.sourceTreeDigest
+    }
+}
+
+/// Value-only identity of one SQLite input in the original, held generation.
+/// The private copy is allowed to create its own WAL index; it never uses a
+/// pathname supplied by the caller to select source bytes.
+struct EraseCompletedAbortSQLiteFileV1: Equatable {
+    let name: String
+    let byteCount: UInt64
+    let sha256: String
+    let physicalIdentity: String
+}
+
+struct EraseCompletedAbortCanonicalSourceV1: Equatable {
+    let workspaceIdentity: WorkspaceReplicaIdentityV1
+    let canonicalRows: Data
+    let mutationHistory: MutationHistorySnapshotV1
 }
 struct EraseOriginalColdExitControlsV1: Equatable {
     let current: Data
@@ -693,6 +1429,666 @@ struct EraseOriginalColdExitControlsV1: Equatable {
     let retiredIdentity: String
 }
 #endif
+
+private struct RestoreSourceTreeNodeFactV1 {
+    let kind: String
+    let fields: [String]
+    let entries: [String]?
+    let digest: String?
+}
+
+enum RestoreSourceTreeProbeStageV1: Equatable {
+    case pointerAttestation
+    case maintenanceSource
+    case activationBeforeTarget
+    case targetPhysical
+    case readerClose
+    case other
+
+    var label: String {
+        switch self {
+        case .pointerAttestation: return "pointer-attestation"
+        case .maintenanceSource: return "maintenance-source"
+        case .activationBeforeTarget: return "activation-before-target"
+        case .targetPhysical: return "target-physical"
+        case .readerClose: return "reader-close"
+        case .other: return "other"
+        }
+    }
+}
+
+/// Original Restore source owner. Router retains this value before its first
+/// descriptor opens, but it never retains the old SwiftData session, context,
+/// container, or Coordinator. The old tree's immutable byte/identity digest
+/// remains the baseline across every service effect and the reader drain.
+@MainActor
+final class RestoreSourceReaderExitV1 {
+    private let factory: StoreGenerationFactory
+    let registry: GenerationLeaseRegistryV1
+    let reader: GenerationLeaseHandleV1
+    let sourceGenerationID: UUID
+    private let applicationSupportURL: URL
+    private weak var observedSession: StoreGenerationSession?
+    private weak var observedContext: ModelContext?
+    private weak var observedContainer: ModelContainer?
+    private weak var observedCoordinator: StoreSessionCoordinator?
+    private let io = EraseAbortCheckedSnapshotIOV1()
+    private var supportDescriptor: Int32 = -1
+    private var dataDescriptor: Int32 = -1
+    private var generationsDescriptor: Int32 = -1
+    private var supportIdentity: (dev_t, ino_t)?
+    private var dataIdentity: (dev_t, ino_t)?
+    private var generationsIdentity: (dev_t, ino_t)?
+    private var sourceTreeDigest: String?
+    // Facts are captured by the same checked walk as sourceTreeDigest. A
+    // post-alias exception may compare only the exact SHM ctime pair; every
+    // other node fact and content digest must remain bound to this baseline.
+    private var originalSourceTreeFacts: [String: RestoreSourceTreeNodeFactV1]?
+    private var preAliasTargetGenerationID: UUID?
+    private var preAliasTargetPointer: Data?
+    private var postAliasSHMCtime: (seconds: String, nanoseconds: String)?
+    private var originalCurrent: Data?
+    private var originalRetired: Data?
+    private enum State: Equatable { case unobserved, captured, closing, uncertain, closed }
+    private var state = State.unobserved
+
+    init(session: StoreGenerationSession, sourceContext: ModelContext,
+         coordinator: StoreSessionCoordinator?,
+         factory: StoreGenerationFactory) throws {
+        guard session.modelContext === sourceContext,
+              session.generationRootURL.standardizedFileURL
+                == factory.installedGenerationURL(id: session.generationID)
+                    .standardizedFileURL else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let reader = try session.retainedReaderForOriginalRestoreTransition(
+            factory: factory)
+        self.factory = factory
+        self.registry = try factory.makeGenerationLeaseRegistry()
+        self.reader = reader
+        self.sourceGenerationID = session.generationID
+        self.applicationSupportURL = factory.restoreApplicationSupportURL
+        observedSession = session
+        observedContext = sourceContext
+        observedContainer = sourceContext.container
+        observedCoordinator = coordinator
+    }
+
+    private static func identity(_ descriptor: Int32) throws -> (dev_t, ino_t) {
+        var value = stat()
+        guard Darwin.fstat(descriptor, &value) == 0,
+              value.st_mode & S_IFMT == S_IFDIR else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        return (value.st_dev, value.st_ino)
+    }
+
+    private static func requireNamedDirectory(parent: Int32, name: String,
+        identity: (dev_t, ino_t)) throws {
+        var value = stat()
+        guard Darwin.fstatat(parent, name, &value, AT_SYMLINK_NOFOLLOW) == 0,
+              value.st_mode & S_IFMT == S_IFDIR,
+              value.st_dev == identity.0, value.st_ino == identity.1 else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+    }
+
+    private func requireHeldRoots() throws {
+        guard supportDescriptor >= 0, dataDescriptor >= 0,
+              generationsDescriptor >= 0,
+              let supportIdentity, let dataIdentity,
+              let generationsIdentity else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let support = try Self.identity(supportDescriptor)
+        let data = try Self.identity(dataDescriptor)
+        let generations = try Self.identity(generationsDescriptor)
+        var namedSupport = stat()
+        guard support == supportIdentity, data == dataIdentity,
+              generations == generationsIdentity,
+              Darwin.lstat(applicationSupportURL.path, &namedSupport) == 0,
+              namedSupport.st_mode & S_IFMT == S_IFDIR,
+              namedSupport.st_dev == supportIdentity.0,
+              namedSupport.st_ino == supportIdentity.1 else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try Self.requireNamedDirectory(parent: supportDescriptor,
+            name: "FieldEvidenceData", identity: dataIdentity)
+        try Self.requireNamedDirectory(parent: dataDescriptor,
+            name: "generations", identity: generationsIdentity)
+    }
+
+    /// The Router stores this object before calling capturePhysical(). Every
+    /// successful open is transferred to a field before the next throw.
+    func capturePhysical() throws {
+        guard state == .unobserved else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        do {
+            supportDescriptor = Darwin.open(applicationSupportURL.path,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            guard supportDescriptor >= 0 else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            supportIdentity = try Self.identity(supportDescriptor)
+            dataDescriptor = Darwin.openat(supportDescriptor,
+                "FieldEvidenceData", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            guard dataDescriptor >= 0 else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            dataIdentity = try Self.identity(dataDescriptor)
+            generationsDescriptor = Darwin.openat(dataDescriptor,
+                "generations", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            guard generationsDescriptor >= 0 else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            generationsIdentity = try Self.identity(generationsDescriptor)
+            try requireHeldRoots()
+            let (current, _) = try io.control(parent: dataDescriptor,
+                name: "current.json")
+            let (retired, _) = try io.control(parent: dataDescriptor,
+                name: "retired.json")
+            guard case .v3(let pointer, _) = try CurrentPointerCodecV1.decode(current),
+                  pointer.generationID == sourceGenerationID.uuidString.lowercased(),
+                  let retiredValue = try? JSONDecoder().decode(
+                    RetiredPointerV1.self, from: retired),
+                  try StoreMigrationCanonicalJSONV1.encode(retiredValue) == retired,
+                  !retiredValue.generationIDs.contains(
+                    sourceGenerationID.uuidString.lowercased()) else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            var sourceFacts: [String: RestoreSourceTreeNodeFactV1] = [:]
+            let tree = try io.postRetiredTree(parent: generationsDescriptor,
+                name: sourceGenerationID.uuidString.lowercased(),
+                observeNode: { path, kind, fields, entries, digest in
+                    sourceFacts[path] = RestoreSourceTreeNodeFactV1(
+                        kind: kind, fields: fields.components(separatedBy: "|"),
+                        entries: entries, digest: digest)
+                })
+            try requireHeldRoots()
+            try io.requireSettled()
+            originalCurrent = current
+            originalRetired = retired
+            sourceTreeDigest = tree
+            originalSourceTreeFacts = sourceFacts
+            state = .captured
+        } catch {
+            state = .uncertain
+            throw error
+        }
+    }
+
+    func requireSourceUnchanged(
+        stage: RestoreSourceTreeProbeStageV1 = .other,
+        allowPostAliasSHMCtime: Bool = false
+    ) throws {
+        guard state == .captured || state == .closing,
+              let sourceTreeDigest,
+              originalCurrent != nil, originalRetired != nil else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try requireHeldRoots()
+        var currentFacts: [String: RestoreSourceTreeNodeFactV1] = [:]
+        let currentDigest = try io.postRetiredTree(parent: generationsDescriptor,
+            name: sourceGenerationID.uuidString.lowercased(),
+            observeNode: { path, kind, fields, entries, digest in
+                currentFacts[path] = RestoreSourceTreeNodeFactV1(
+                    kind: kind, fields: fields.components(separatedBy: "|"),
+                    entries: entries, digest: digest)
+            })
+#if DEBUG
+        emitSHMCheckpoint(currentFacts, stage: stage,
+            treeEqual: currentDigest == sourceTreeDigest)
+#endif
+        if currentDigest != sourceTreeDigest {
+            guard allowPostAliasSHMCtime,
+                  (stage == .targetPhysical || stage == .readerClose),
+                  hasDrainedOriginalAliases,
+                  acceptOnlyPostAliasSHMCtime(currentFacts) else {
+#if DEBUG
+                emitSourceTreeDifference(currentFacts)
+#endif
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+#if DEBUG
+            FileHandle.standardError.write(Data(
+                "V23_RESTORE_SHM_POST_ALIAS_V1 result=exact-ctime-projection\n".utf8))
+#endif
+        }
+        try io.requireSettled()
+        try requireHeldRoots()
+    }
+
+    /// SwiftData can update only the SHM change time while its last original
+    /// aliases drain. The initial full-tree/target proof must already have
+    /// succeeded. This comparison preserves every path, name, inode, mode,
+    /// link, size, mtime and content digest, including the SHM file itself.
+    /// A successful first projection freezes the observed ctime for all
+    /// later pre-close reproofs; it is never a new baseline for other facts.
+    private func acceptOnlyPostAliasSHMCtime(
+        _ current: [String: RestoreSourceTreeNodeFactV1]
+    ) -> Bool {
+        guard preAliasTargetPointer != nil,
+              preAliasTargetGenerationID != nil,
+              let original = originalSourceTreeFacts,
+              Set(original.keys) == Set(current.keys),
+              let oldSHM = original["model.sqlite-shm"],
+              let newSHM = current["model.sqlite-shm"],
+              oldSHM.kind == "file", newSHM.kind == "file",
+              oldSHM.fields.count == 9, newSHM.fields.count == 9,
+              oldSHM.digest != nil, oldSHM.digest == newSHM.digest else {
+            return false
+        }
+        for path in original.keys {
+            guard let old = original[path], let now = current[path],
+                  old.kind == now.kind, old.entries == now.entries,
+                  old.digest == now.digest,
+                  old.fields.count == now.fields.count else {
+                return false
+            }
+            for index in old.fields.indices {
+                if path == "model.sqlite-shm" && (index == 7 || index == 8) {
+                    continue
+                }
+                guard old.fields[index] == now.fields[index] else { return false }
+            }
+        }
+        let observed = (seconds: newSHM.fields[7],
+                        nanoseconds: newSHM.fields[8])
+        if let frozen = postAliasSHMCtime {
+            return frozen.seconds == observed.seconds &&
+                frozen.nanoseconds == observed.nanoseconds
+        }
+        postAliasSHMCtime = observed
+        return true
+    }
+
+#if DEBUG
+    private func emitSHMCheckpoint(
+        _ current: [String: RestoreSourceTreeNodeFactV1],
+        stage: RestoreSourceTreeProbeStageV1,
+        treeEqual: Bool
+    ) {
+        let old = originalSourceTreeFacts?["model.sqlite-shm"]
+        let now = current["model.sqlite-shm"]
+        let presence: String
+        if old == nil && now == nil { presence = "absent" }
+        else if old == nil { presence = "added" }
+        else if now == nil { presence = "removed" }
+        else { presence = "present" }
+        func comparison(_ index: Int) -> String {
+            guard let old, let now,
+                  old.fields.indices.contains(index),
+                  now.fields.indices.contains(index) else { return "unavailable" }
+            return old.fields[index] == now.fields[index] ? "same" : "changed"
+        }
+        let content: String
+        if let old, let now, let oldDigest = old.digest,
+           let nowDigest = now.digest {
+            content = oldDigest == nowDigest ? "same" : "changed"
+        } else {
+            content = "unavailable"
+        }
+        let tree = treeEqual ? "same" : "changed"
+        FileHandle.standardError.write(Data(
+            "V23_RESTORE_SHM_CHECKPOINT_V1 stage=\(stage.label) tree=\(tree) presence=\(presence) device=\(comparison(0)) inode=\(comparison(1)) mode=\(comparison(2)) nlink=\(comparison(3)) size=\(comparison(4)) mtimeSeconds=\(comparison(5)) mtimeNanoseconds=\(comparison(6)) ctimeSeconds=\(comparison(7)) ctimeNanoseconds=\(comparison(8)) content=\(content)\n".utf8))
+    }
+
+    private func emitSourceTreeDifference(
+        _ current: [String: RestoreSourceTreeNodeFactV1]
+    ) {
+        guard let original = originalSourceTreeFacts else {
+            FileHandle.standardError.write(Data(
+                "V23_RESTORE_SOURCE_TREE_DIFFERENCE_V1 category=all first=unavailable\n".utf8))
+            return
+        }
+        func category(_ path: String) -> String {
+            if path.isEmpty { return "root" }
+            let leaf = path.split(separator: "/").last.map(String.init) ?? ""
+            switch leaf {
+            case "model.sqlite": return "sqlite"
+            case "model.sqlite-wal": return "wal"
+            case "model.sqlite-shm": return "shm"
+            default: return "other"
+            }
+        }
+        let labels = ["device", "inode", "mode", "nlink", "size",
+                      "mtime-seconds", "mtime-nanoseconds", "ctime-seconds",
+                      "ctime-nanoseconds"]
+        for group in ["root", "sqlite", "wal", "shm", "other"] {
+            let oldPaths = Set(original.keys.filter { category($0) == group })
+            let newPaths = Set(current.keys.filter { category($0) == group })
+            var first = "equal"
+            if oldPaths != newPaths {
+                first = "membership"
+            } else {
+                for path in oldPaths.sorted() {
+                    guard let old = original[path], let now = current[path] else {
+                        first = "membership"
+                        break
+                    }
+                    if old.kind != now.kind { first = "kind"; break }
+                    if old.entries != now.entries { first = "entries"; break }
+                    if old.fields.count != now.fields.count {
+                        first = "field-count"
+                        break
+                    }
+                    if let index = old.fields.indices.first(where: {
+                        old.fields[$0] != now.fields[$0]
+                    }) {
+                        first = index < labels.count ? labels[index] : "field-other"
+                        break
+                    }
+                    if old.digest != now.digest { first = "bytes"; break }
+                }
+            }
+            FileHandle.standardError.write(Data(
+                "V23_RESTORE_SOURCE_TREE_DIFFERENCE_V1 category=\(group) first=\(first)\n".utf8))
+        }
+    }
+#endif
+
+    func requireOriginalPointerAttestation(_ canonicalPointer: Data) throws {
+        guard state == .captured,
+              originalCurrent == canonicalPointer,
+              case .v3(let pointer, _) = try CurrentPointerCodecV1.decode(
+                  canonicalPointer),
+              try pointer.canonicalData() == canonicalPointer,
+              pointer.generationID == sourceGenerationID.uuidString.lowercased() else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try requireSourceUnchanged(stage: .pointerAttestation)
+    }
+
+    /// The maintenance route has no published Coordinator. Its source is the
+    /// exact original reader and context captured before Restore effects, not
+    /// merely any later maintenance session in the Router slot.
+    func requireObservedMaintenanceSource(_ session: StoreGenerationSession,
+        context: ModelContext, openingFactory: StoreGenerationFactory) throws {
+        guard state == .captured,
+              observedCoordinator == nil,
+              observedSession === session,
+              observedContext === context,
+              observedContainer === context.container,
+              session.modelContext === context,
+              session.generationID == sourceGenerationID,
+              try session.validatedOpeningFactoryForWriter()
+                .sharesRegistryProvider(with: openingFactory),
+              try session.retainedReaderForOriginalRestoreTransition(
+                  factory: openingFactory) === reader else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try registry.validateActive(reader.token, requiredRole: .reader)
+        try requireSourceUnchanged(stage: .maintenanceSource)
+    }
+
+    /// A target session alone is not publication proof. Observe the actual
+    /// current control through A's held data root without a reparative load,
+    /// then bind its typed identity to B's already-opened session/reader.
+    func requireTargetPublished(_ target: StoreGenerationSession,
+        openingFactory: StoreGenerationFactory,
+        intendedCanonicalPointer: Data) throws {
+#if DEBUG
+        var stage = "target-physical"
+#endif
+        do {
+            try requireTargetPhysicalPublished(target,
+                openingFactory: openingFactory,
+                intendedCanonicalPointer: intendedCanonicalPointer)
+        // A matching target URL/epoch alone does not bind B's provider to
+        // A's held source root. The actual A reader and B Registry must name
+        // the same physical root/Operations/lease/lock controls before A's
+        // writer can close. This also runs again on the pending same-ID retry.
+            #if DEBUG
+            stage = "target-registry"
+            #endif
+            let targetRegistry = try openingFactory.makeGenerationLeaseRegistry()
+            #if DEBUG
+            stage = "source-reader-identity"
+            #endif
+            try reader.requireLiveTemporalIdentity(mutationRegistry: targetRegistry)
+            #if DEBUG
+            stage = "source-reader-active"
+            #endif
+            try registry.validateActive(reader.token, requiredRole: .reader)
+            #if DEBUG
+            stage = "target-reader-owner"
+            #endif
+            let targetReader = try target.retainedReaderForOriginalRestoreTransition(
+                factory: openingFactory)
+            #if DEBUG
+            stage = "target-reader-registry"
+            #endif
+            try targetReader.requireExactRegistry(targetRegistry)
+            #if DEBUG
+            stage = "target-reader-active"
+            #endif
+            try targetRegistry.validateActive(targetReader.token, requiredRole: .reader)
+            if !hasDrainedOriginalAliases {
+                guard preAliasTargetPointer == nil ||
+                        (preAliasTargetPointer == intendedCanonicalPointer &&
+                         preAliasTargetGenerationID == target.generationID) else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                preAliasTargetPointer = intendedCanonicalPointer
+                preAliasTargetGenerationID = target.generationID
+            }
+        } catch {
+#if DEBUG
+            FileHandle.standardError.write(Data(
+                "V23_RESTORE_TARGET_PROOF_V1 first=\(stage) errorType=\(String(reflecting: type(of: error)))\n".utf8))
+#endif
+            throw error
+        }
+    }
+
+    private func requireTargetPhysicalPublished(_ target: StoreGenerationSession,
+        openingFactory: StoreGenerationFactory,
+        intendedCanonicalPointer: Data,
+        probeStage: RestoreSourceTreeProbeStageV1 = .targetPhysical) throws {
+#if DEBUG
+        var stage = "target-association"
+#endif
+        do {
+        guard state == .captured || state == .closing,
+              target.generationID != sourceGenerationID,
+              let targetEpoch = target.generationEpoch,
+              targetEpoch.generationID == target.generationID,
+              openingFactory.restoreApplicationSupportURL.standardizedFileURL
+                == applicationSupportURL.standardizedFileURL,
+              target.generationRootURL.standardizedFileURL
+                == openingFactory.installedGenerationURL(
+                    id: target.generationID).standardizedFileURL else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+#if DEBUG
+        stage = "intended-pointer"
+#endif
+        guard case .v3(let intended, _) = try CurrentPointerCodecV1.decode(
+                intendedCanonicalPointer),
+              try intended.canonicalData() == intendedCanonicalPointer,
+              intended.generationID == target.generationID.uuidString.lowercased(),
+              intended.generationManifestSHA256
+                == targetEpoch.generationManifestSHA256,
+              intended.workspaceID
+                == target.workspaceID.rawValue.uuidString.lowercased(),
+              intended.replicaID
+                == target.replicaID.rawValue.uuidString.lowercased(),
+              intended.storeSchemaVersion
+                == target.storeSchemaRelease.versionIdentifier.major else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+#if DEBUG
+        stage = "held-roots-before-current"
+#endif
+        try requireHeldRoots()
+#if DEBUG
+        stage = "current-control"
+#endif
+        let (current, _) = try io.control(parent: dataDescriptor,
+            name: "current.json")
+#if DEBUG
+        stage = "current-pointer-equality"
+#endif
+        guard case .v3(let pointer, _) = try CurrentPointerCodecV1.decode(current),
+              current == intendedCanonicalPointer,
+              pointer == intended else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        // Read the exact target manifest through A's retained support root.
+        // These transient no-follow descriptors are checked-close owned by io.
+#if DEBUG
+        stage = "target-manifest"
+#endif
+        let manifestName = "manifest-" + target.generationID.uuidString.lowercased()
+            + ".json"
+        try io.withOpen(parent: supportDescriptor, name: "FieldEvidenceOperations",
+            flags: O_RDONLY | O_DIRECTORY) { operations in
+            try io.withOpen(parent: operations, name: "schema-migration",
+                flags: O_RDONLY | O_DIRECTORY) { migration in
+                let (bytes, _) = try io.control(parent: migration,
+                    name: manifestName)
+                let manifest = try StoreGenerationManifestV1.decodeCanonical(
+                    from: bytes)
+                guard StoreMigrationCanonicalJSONV1.sha256(bytes)
+                        == targetEpoch.generationManifestSHA256,
+                      manifest.generationID == target.generationID,
+                      manifest.predecessorGenerationID == sourceGenerationID,
+                      manifest.storeSchemaRelease == target.storeSchemaRelease else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+            }
+        }
+#if DEBUG
+        stage = "retired-control"
+#endif
+        let (retired, _) = try io.control(parent: dataDescriptor,
+            name: "retired.json")
+#if DEBUG
+        stage = "retired-canonical"
+#endif
+        guard let originalRetired,
+              let prior = try? JSONDecoder().decode(
+                RetiredPointerV1.self, from: originalRetired),
+              let published = try? JSONDecoder().decode(
+                RetiredPointerV1.self, from: retired),
+              try StoreMigrationCanonicalJSONV1.encode(published) == retired,
+              published.schemaVersion == prior.schemaVersion else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let expectedRetired = Array(Set(prior.generationIDs + [
+            sourceGenerationID.uuidString.lowercased()])).sorted()
+#if DEBUG
+        stage = "retired-transition"
+#endif
+        guard published.generationIDs == expectedRetired,
+              !published.generationIDs.contains(
+                target.generationID.uuidString.lowercased()) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+#if DEBUG
+        stage = "source-tree"
+#endif
+        let postAliasCtimeEligible =
+            preAliasTargetPointer == intendedCanonicalPointer &&
+            preAliasTargetGenerationID == target.generationID &&
+            hasDrainedOriginalAliases
+        try requireSourceUnchanged(stage: probeStage,
+            allowPostAliasSHMCtime: postAliasCtimeEligible)
+        } catch {
+#if DEBUG
+            FileHandle.standardError.write(Data(
+                "V23_RESTORE_PHYSICAL_PROOF_V1 first=\(stage) errorType=\(String(reflecting: type(of: error)))\n".utf8))
+#endif
+            throw error
+        }
+    }
+
+    /// Weak drain is necessary but not sufficient: the exact A reader remains
+    /// active until the source tree and full A+B token census pass under G.
+    @MainActor
+    func closeAfterCheckedAliasDrain(targetRegistry: GenerationLeaseRegistryV1,
+        targetReader: GenerationLeaseHandleV1,
+        targetWriter: GenerationLeaseHandleV1,
+        targetSession: StoreGenerationSession,
+        targetFactory: StoreGenerationFactory,
+        intendedCanonicalPointer: Data) throws {
+        guard state == .captured,
+              observedSession == nil, observedContext == nil,
+              observedContainer == nil, observedCoordinator == nil else {
+#if DEBUG
+            FileHandle.standardError.write(Data(
+                "V23_RESTORE_SOURCE_CLOSE_V1 first=alias-or-state\n".utf8))
+#endif
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        state = .closing
+#if DEBUG
+        var stage = "reader-close"
+#endif
+        do {
+            try reader.closeForOriginalRestoreTransition(
+                registry: registry, targetRegistry: targetRegistry,
+                targetReader: targetReader, targetWriter: targetWriter,
+                reproveSource: { [self] in
+                    try requireTargetPhysicalPublished(targetSession,
+                        openingFactory: targetFactory,
+                        intendedCanonicalPointer: intendedCanonicalPointer,
+                        probeStage: .readerClose)
+                })
+#if DEBUG
+            stage = "registry-close"
+#endif
+            try registry.closeOriginalRestoreSourceOwner(
+                sourceReader: reader, targetRegistry: targetRegistry,
+                targetReader: targetReader, targetWriter: targetWriter)
+#if DEBUG
+            stage = "transient-drain"
+#endif
+            try io.requireSettled()
+#if DEBUG
+            stage = "base-descriptor-close"
+#endif
+            for descriptor in [generationsDescriptor, dataDescriptor, supportDescriptor] {
+                guard Darwin.close(descriptor) == 0 else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+            }
+            generationsDescriptor = -1
+            dataDescriptor = -1
+            supportDescriptor = -1
+            state = .closed
+        } catch {
+#if DEBUG
+            FileHandle.standardError.write(Data(
+                "V23_RESTORE_SOURCE_CLOSE_V1 first=\(stage) errorType=\(String(reflecting: type(of: error)))\n".utf8))
+#endif
+            state = .uncertain
+            throw error
+        }
+    }
+
+    var hasDrainedOriginalAliases: Bool {
+        observedSession == nil && observedContext == nil &&
+        observedContainer == nil && observedCoordinator == nil
+    }
+
+#if DEBUG
+    /// Fixed presence categories only. This does not acquire, release, or
+    /// extend any original SwiftData alias used by the authoritative drain.
+    func originalAliasPresenceForTesting() -> (
+        session: Bool, context: Bool, container: Bool, coordinator: Bool
+    ) {
+        (observedSession != nil, observedContext != nil,
+         observedContainer != nil, observedCoordinator != nil)
+    }
+#endif
+
+    var isCheckedClosed: Bool {
+        if case .closed = state { return true }
+        return false
+    }
+}
 
 struct StoreApplicationSupportIdentity: Equatable {
     let device: dev_t
@@ -7577,6 +8973,9 @@ final class EraseReaderRetirementInventoryV1 {
     private var originalReaders: [GenerationLeaseHandleV1] = []
     private var abortedOriginalReaderRetirementArmed = false
 #if DEBUG
+    private var completedAbortOriginalShutdownArmed = false
+#endif
+#if DEBUG
     private(set) var lastAbortResourceCensusForTesting = "not-checked"
 
     private func abortResourceCensusForTesting() -> String {
@@ -7740,6 +9139,43 @@ final class EraseReaderRetirementInventoryV1 {
     }
 
 #if DEBUG
+    /// The original Service has already sealed and checked-disposed its
+    /// preparation cohort before issuing a genuine no-effect abort receipt.
+    /// While that exact operation is still current, bind the disposed witness
+    /// to the original-reader cohort. Admission stays closed throughout.
+    func armCompletedAbortOriginalShutdownAfterDisposal(
+        operation: EraseRouterOperationV1,
+        registry: GenerationLeaseRegistryV1,
+        witness: ErasePreparationFailureDrainWitnessV1?,
+        writer: GenerationWriterAllocationAttemptV1?
+    ) throws {
+        guard preparationOperation === operation, preparationWasBound,
+              !completedAbortOriginalShutdownArmed,
+              originalShutdownWitness == nil, sealedWitness == nil,
+              originalObservationCount > 0, !originalReaders.isEmpty,
+              originalReaders.allSatisfy({ original in
+                  readers.contains(where: { $0 === original })
+              }),
+              observations.allSatisfy({ !$0.constructionInProgress }),
+              allocations.allSatisfy({ $0.matches(registry: registry) }),
+              writer.map({ $0.matches(registry: registry) }) ?? true else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        if let witness {
+            guard admissionClosed, preparationWitness === witness else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try witness.requireDisposed()
+        } else {
+            guard !admissionClosed, preparationWitness == nil,
+                  writer == nil else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try requireNoConstructedResourcesForAbort()
+        }
+        completedAbortOriginalShutdownArmed = true
+    }
+
     /// Seals the actual original and preparation inventory together. The
     /// preparation-failure witness deliberately excludes original readers and
     /// therefore cannot authorize this test-host shutdown.
@@ -7747,8 +9183,11 @@ final class EraseReaderRetirementInventoryV1 {
         registry: GenerationLeaseRegistryV1,
         writer: GenerationWriterAllocationAttemptV1?) throws
         -> EraseOriginalShutdownWitnessV1 {
+        let unsealed = !admissionClosed && preparationWitness == nil
+        let disposedAbort = completedAbortOriginalShutdownArmed
+            && admissionClosed && preparationWitness != nil
         guard preparationOperation === operation, originalShutdownWitness == nil,
-              !admissionClosed, sealedWitness == nil, preparationWitness == nil,
+              (unsealed || disposedAbort), sealedWitness == nil,
               observations.allSatisfy({ !$0.constructionInProgress }),
               allocations.allSatisfy({ $0.matches(registry: registry) }),
               writer.map({ $0.matches(registry: registry) }) ?? true else {
@@ -8411,6 +9850,20 @@ final class StoreGenerationSession {
         return factory
     }
 
+    /// The original Restore transition retains this actual reader wrapper
+    /// before the source session can drain. Metadata or a newly constructed
+    /// Registry cannot substitute for this capture.
+    func retainedReaderForOriginalRestoreTransition(
+        factory expectedFactory: StoreGenerationFactory
+    ) throws -> GenerationLeaseHandleV1 {
+        let opening = try validatedOpeningFactoryForWriter()
+        guard opening.sharesRegistryProvider(with: expectedFactory),
+              let readerLeaseHandle else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        return readerLeaseHandle
+    }
+
     deinit {
         if let didSaveObserver {
             NotificationCenter.default.removeObserver(didSaveObserver)
@@ -8522,6 +9975,96 @@ final class StoreRestoreGenerationAuthority {
         let data: Data
         let identity: RegularFileIdentity
     }
+
+    private struct EraseRetirementFileFact: Equatable {
+        let device: dev_t, inode: ino_t, mode: mode_t, links: nlink_t
+        let size: off_t
+        let modifiedSeconds: Int64, modifiedNanoseconds: Int64
+        let changedSeconds: Int64, changedNanoseconds: Int64
+
+        init(_ value: stat) {
+            device = value.st_dev; inode = value.st_ino
+            mode = value.st_mode; links = value.st_nlink; size = value.st_size
+            modifiedSeconds = Int64(value.st_mtimespec.tv_sec)
+            modifiedNanoseconds = Int64(value.st_mtimespec.tv_nsec)
+            changedSeconds = Int64(value.st_ctimespec.tv_sec)
+            changedNanoseconds = Int64(value.st_ctimespec.tv_nsec)
+        }
+    }
+
+    private struct EraseRetirementPointerRead: Equatable {
+        let data: Data
+        let identity: RegularFileIdentity
+        let fact: EraseRetirementFileFact
+    }
+
+    private enum EraseRetirementPointerProvenance {
+        case captured(data: Data, fact: String)
+        case published(data: Data, fact: String)
+    }
+
+    private var eraseRetirementPointerProvenance: [String: EraseRetirementPointerProvenance] = [:]
+
+    private static func eraseRetirementFactToken(_ fact: EraseRetirementFileFact) -> String {
+        "\(fact.device)|\(fact.inode)|\(fact.mode)|\(fact.links)|\(fact.size)|\(fact.modifiedSeconds)|\(fact.modifiedNanoseconds)|\(fact.changedSeconds)|\(fact.changedNanoseconds)"
+    }
+
+    /// An authorized name swap may change inode ctime. It cannot change the
+    /// source's device, inode, mode, link count, size or content mtime. The
+    /// full post-swap fact is captured anew before a later policy request.
+    private static func eraseRetirementFactBeforeRenameMatches(
+        _ captured: String, _ observed: EraseRetirementFileFact
+    ) -> Bool {
+        let before = captured.split(separator: "|", omittingEmptySubsequences: false)
+        let after = eraseRetirementFactToken(observed).split(
+            separator: "|", omittingEmptySubsequences: false)
+        return before.count == 9 && after.count == 9
+            && before.prefix(7).elementsEqual(after.prefix(7))
+    }
+
+    @MainActor
+    fileprivate func captureEraseRetirementPointerProvenance(currentData: Data) throws {
+        try verify()
+        try eraseRetirementCheckedSnapshotIO.requireSettled()
+        let current = try eraseRetirementCheckedSnapshotIO.control(
+            parent: dataDescriptor, name: "current.json")
+        let retired = try eraseRetirementCheckedSnapshotIO.control(
+            parent: dataDescriptor, name: "retired.json")
+        guard current.0 == currentData,
+              try CurrentPointerCodecV1.decode(current.0).data == currentData else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let retiredPointer: RetiredPointerV1 = try Self.decodeCanonicalPointer(retired.0)
+        try StorePointerSchemaRegistry.requireRetired(retiredPointer.schemaVersion)
+        try eraseRetirementCheckedSnapshotIO.requireSettled()
+        try verify()
+        if eraseRetirementPointerProvenance.isEmpty {
+            eraseRetirementPointerProvenance = [
+                "current.json": .captured(data: current.0, fact: current.1),
+                "retired.json": .captured(data: retired.0, fact: retired.1)
+            ]
+        } else {
+            guard case .captured(let currentBytes, let currentFact)? =
+                    eraseRetirementPointerProvenance["current.json"],
+                  currentBytes == current.0, currentFact == current.1,
+                  case .captured(let retiredBytes, let retiredFact)? =
+                    eraseRetirementPointerProvenance["retired.json"],
+                  retiredBytes == retired.0, retiredFact == retired.1 else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        }
+    }
+
+    private struct EraseRetirementTreeWitness: Equatable {
+        let checkedTreeDigest: String
+        let paths: [String]
+        let directoryPaths: [String]
+        let facts: [EraseRetirementFileFact]
+        let files: [StoreGenerationFileDigestV1]
+    }
+
+    private var eraseRetirementUncertainDescriptors: [Int32] = []
+    private let eraseRetirementCheckedSnapshotIO = EraseAbortCheckedSnapshotIOV1()
 
     fileprivate struct RegularFileSnapshot: Equatable {
         let device: dev_t
@@ -8671,8 +10214,13 @@ final class StoreRestoreGenerationAuthority {
               retiredValue.generationIDs == priorRetired.map(Self.canonical) else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
+        var sourceNodes: [String: EraseCompletedAbortNodeFactV1] = [:]
         let sourceTreeDigest = try completedAbortIO.tree(
-            parent: installedGenerationsDescriptor, name: Self.canonical(id))
+            parent: installedGenerationsDescriptor, name: Self.canonical(id),
+            observeNode: { path, nodeType, fields in
+                sourceNodes[path] = EraseCompletedAbortNodeFactV1(
+                    nodeType: nodeType, fields: fields)
+            })
         let (currentAfter, currentIdentityAfter) = try completedAbortIO.control(
             parent: dataDescriptor, name: "current.json")
         let (retiredAfter, retiredIdentityAfter) = try completedAbortIO.control(
@@ -8685,7 +10233,166 @@ final class StoreRestoreGenerationAuthority {
         return EraseCompletedAbortSourceBytesV1(
             current: current, currentIdentity: currentIdentity,
             retired: retired, retiredIdentity: retiredIdentity,
-            sourceTreeDigest: sourceTreeDigest)
+            sourceTreeDigest: sourceTreeDigest,
+            sourceNodes: sourceNodes)
+    }
+
+    private func completedAbortSQLiteIdentity(_ value: stat) -> String {
+        "\(value.st_dev)|\(value.st_ino)|\(value.st_mode)|\(value.st_nlink)|\(value.st_size)|\(value.st_mtimespec.tv_sec)|\(value.st_mtimespec.tv_nsec)|\(value.st_ctimespec.tv_sec)|\(value.st_ctimespec.tv_nsec)"
+    }
+
+    /// One complete checked source-tree walk fixes both the SQLite filenames
+    /// and their byte identities before any private scratch allocation.
+    func completedAbortSQLiteFiles(id: UUID, treeDigest: String)
+        throws -> [EraseCompletedAbortSQLiteFileV1] {
+        try requireCompletedAbortHeldRoots()
+        let walk = try completedAbortIO.treeWithNodes(
+            parent: installedGenerationsDescriptor, name: Self.canonical(id))
+        guard walk.digest == treeDigest else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let allowed: Set<String> = ["model.sqlite", "model.sqlite-wal", "model.sqlite-shm"]
+        let files = try walk.nodes.filter { allowed.contains($0.path) }.map { node in
+            guard let hash = node.sha256,
+                  node.fact.st_mode & S_IFMT == S_IFREG,
+                  node.fact.st_nlink == 1,
+                  node.fact.st_size >= 0 else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            return EraseCompletedAbortSQLiteFileV1(
+                name: node.path, byteCount: UInt64(node.fact.st_size),
+                sha256: hash,
+                physicalIdentity: completedAbortSQLiteIdentity(node.fact))
+        }.sorted { $0.name < $1.name }
+        guard files.contains(where: { $0.name == "model.sqlite" }),
+              Set(files.map(\.name)).count == files.count else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try requireCompletedAbortHeldRoots()
+        return files
+    }
+
+    /// Capture every committed SQLite page through the same no-follow source
+    /// descriptors. No second Registry reader or SQLite connection touches the
+    /// live generation. The complete tree is rechecked on both sides.
+    func completedAbortSQLitePhysicalImage(id: UUID, treeDigest: String)
+        throws -> CompletedAbortSQLitePhysicalImageV1 {
+        var diagnosticStage = "files-before"
+        do {
+        let files = try completedAbortSQLiteFiles(id: id, treeDigest: treeDigest)
+        diagnosticStage = "physical-read"
+        let image = try completedAbortIO.withOpen(
+            parent: installedGenerationsDescriptor,
+            name: Self.canonical(id),
+            flags: O_RDONLY | O_DIRECTORY
+        ) { root in
+            try completedAbortIO.withOpen(parent: root, name: "model.sqlite",
+                flags: O_RDONLY | O_NONBLOCK) { model in
+                if files.contains(where: { $0.name == "model.sqlite-wal" }) {
+                    return try completedAbortIO.withOpen(
+                        parent: root, name: "model.sqlite-wal",
+                        flags: O_RDONLY | O_NONBLOCK
+                    ) { wal in
+                        try CompletedAbortSQLitePhysicalImageV1.capture(
+                            model: model, wal: wal)
+                    }
+                }
+                return try CompletedAbortSQLitePhysicalImageV1.capture(
+                    model: model, wal: nil)
+            }
+        }
+        diagnosticStage = "files-after"
+        guard try completedAbortSQLiteFiles(id: id, treeDigest: treeDigest) == files
+        else { throw StoreGenerationFailure.dataPointerInvalid }
+        return image
+        } catch {
+            FileHandle.standardError.write(Data((
+                "ERASE_COMPLETED_ABORT_PHYSICAL_V1 stage=" + diagnosticStage + "\n"
+            ).utf8))
+            throw error
+        }
+    }
+
+    /// Streams only the three fixed SQLite names through the same retained
+    /// generation parent and checked-close I/O owner. Source bytes and named
+    /// identity are rechecked after every copy and after the complete set.
+    @MainActor
+    func copyCompletedAbortSQLiteFiles(
+        id: UUID, files: [EraseCompletedAbortSQLiteFileV1],
+        treeDigest: String,
+        into copy: ScratchDataLeaseStoreV1.SourceReadDirectory
+    ) throws {
+        guard try completedAbortSQLiteFiles(id: id, treeDigest: treeDigest) == files else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try completedAbortIO.withOpen(parent: installedGenerationsDescriptor,
+            name: Self.canonical(id), flags: O_RDONLY | O_DIRECTORY) { root in
+            for file in files {
+                try completedAbortIO.withOpen(parent: root, name: file.name,
+                    flags: O_RDONLY | O_NONBLOCK) { source in
+                    func requireExactSource() throws {
+                        var held = stat(), named = stat()
+                        guard Darwin.fstat(source, &held) == 0,
+                              Darwin.fstatat(root, file.name, &named,
+                                  AT_SYMLINK_NOFOLLOW) == 0,
+                              held.st_mode & S_IFMT == S_IFREG,
+                              held.st_nlink == 1,
+                              completedAbortSQLiteIdentity(held) == file.physicalIdentity,
+                              completedAbortSQLiteIdentity(named) == file.physicalIdentity else {
+                            throw StoreGenerationFailure.dataPointerInvalid
+                        }
+                    }
+                    try requireExactSource()
+                    try copy.copySQLiteFile(named: file.name,
+                        byteCount: file.byteCount) { target in
+                        guard Darwin.lseek(source, 0, SEEK_SET) == 0 else {
+                            throw StoreGenerationFailure.dataPointerInvalid
+                        }
+                        var digest = SHA256()
+                        var count: UInt64 = 0
+                        var buffer = [UInt8](repeating: 0, count: 65_536)
+                        while true {
+                            let amount = buffer.withUnsafeMutableBytes {
+                                Darwin.read(source, $0.baseAddress, $0.count)
+                            }
+                            if amount == 0 { break }
+                            if amount < 0 && errno == EINTR { continue }
+                            guard amount > 0,
+                                  count <= file.byteCount,
+                                  UInt64(amount) <= file.byteCount - count else {
+                                throw StoreGenerationFailure.dataPointerInvalid
+                            }
+                            count += UInt64(amount)
+                            let bytes = Data(buffer.prefix(amount))
+                            digest.update(data: bytes)
+                            try bytes.withUnsafeBytes { raw in
+                                guard let base = raw.baseAddress else {
+                                    throw StoreGenerationFailure.dataPointerInvalid
+                                }
+                                var offset = 0
+                                while offset < raw.count {
+                                    let written = Darwin.write(target,
+                                        base.advanced(by: offset), raw.count - offset)
+                                    if written > 0 { offset += written }
+                                    else if written < 0 && errno == EINTR { continue }
+                                    else { throw StoreGenerationFailure.dataPointerInvalid }
+                                }
+                            }
+                        }
+                        guard count == file.byteCount,
+                              digest.finalize().map({ String(format: "%02x", $0) }).joined()
+                                == file.sha256 else {
+                            throw StoreGenerationFailure.dataPointerInvalid
+                        }
+                    }
+                    try requireExactSource()
+                }
+            }
+        }
+        guard try completedAbortSQLiteFiles(id: id, treeDigest: treeDigest) == files else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try requireCompletedAbortHeldRoots()
     }
     /// DEBUG original-Erase cold-exit observation after the current pointer
     /// has legitimately moved. It observes the *same held old generation*,
@@ -8697,6 +10404,115 @@ final class StoreRestoreGenerationAuthority {
             parent: installedGenerationsDescriptor, name: Self.canonical(id))
         try requireCompletedAbortHeldRoots()
         return digest
+    }
+    /// DEBUG-only checked observation for diagnosing the exact physical
+    /// source-tree field that changes during the original owner handoff.
+    /// It uses the same retained descriptors and checked tree walker.
+    func originalEraseSourceTreeObservationForColdExitForTesting(id: UUID) throws
+        -> (digest: String, nodes: [EraseAbortCheckedSnapshotIOV1.CheckedTreeNode]) {
+        try requireCompletedAbortHeldRoots()
+        let observation = try completedAbortIO.treeWithNodes(
+            parent: installedGenerationsDescriptor, name: Self.canonical(id))
+        try requireCompletedAbortHeldRoots()
+        return observation
+    }
+
+    /// The original operation retains this authority and its checked I/O
+    /// owner. Capture uses only held no-follow descriptors; it never opens a
+    /// new SwiftData reader or mints a replacement Registry token.
+    func originalEraseSQLitePhysicalImageForColdExitForTesting(id: UUID) throws
+        -> (tree: String, nodes: [EraseAbortCheckedSnapshotIOV1.CheckedTreeNode],
+            image: CompletedAbortSQLitePhysicalImageV1) {
+        try requireCompletedAbortHeldRoots()
+        let before = try completedAbortIO.treeWithNodes(
+            parent: installedGenerationsDescriptor, name: Self.canonical(id))
+        func samePhysicalFact(_ lhs: stat, _ rhs: stat) -> Bool {
+            lhs.st_dev == rhs.st_dev && lhs.st_ino == rhs.st_ino &&
+            lhs.st_mode == rhs.st_mode && lhs.st_nlink == rhs.st_nlink &&
+            lhs.st_size == rhs.st_size &&
+            lhs.st_mtimespec.tv_sec == rhs.st_mtimespec.tv_sec &&
+            lhs.st_mtimespec.tv_nsec == rhs.st_mtimespec.tv_nsec &&
+            lhs.st_ctimespec.tv_sec == rhs.st_ctimespec.tv_sec &&
+            lhs.st_ctimespec.tv_nsec == rhs.st_ctimespec.tv_nsec
+        }
+        func requireBoundDescriptor(_ descriptor: Int32, parent: Int32,
+                                    name: String, path: String) throws {
+            guard let expected = before.nodes.first(where: { $0.path == path }),
+                  before.nodes.filter({ $0.path == path }).count == 1 else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            var held = stat(), named = stat()
+            guard Darwin.fstat(descriptor, &held) == 0,
+                  Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  samePhysicalFact(held, expected.fact),
+                  samePhysicalFact(named, expected.fact) else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        }
+        let image: CompletedAbortSQLitePhysicalImageV1 = try completedAbortIO.withOpen(
+            parent: installedGenerationsDescriptor, name: Self.canonical(id),
+            flags: O_RDONLY | O_DIRECTORY) { generation in
+            try requireBoundDescriptor(generation,
+                parent: installedGenerationsDescriptor,
+                name: Self.canonical(id), path: "")
+            return try completedAbortIO.withOpen(parent: generation,
+                name: "model.sqlite", flags: O_RDONLY | O_NONBLOCK) { model in
+                try requireBoundDescriptor(model, parent: generation,
+                    name: "model.sqlite", path: "model.sqlite")
+                var wal = stat()
+                if Darwin.fstatat(generation, "model.sqlite-wal", &wal,
+                    AT_SYMLINK_NOFOLLOW) == 0 {
+                    guard wal.st_mode & S_IFMT == S_IFREG, wal.st_nlink == 1 else {
+                        throw StoreGenerationFailure.dataPointerInvalid
+                    }
+                    let captured = try completedAbortIO.withOpen(parent: generation,
+                        name: "model.sqlite-wal", flags: O_RDONLY | O_NONBLOCK) {
+                        descriptor in
+                        try requireBoundDescriptor(descriptor,
+                            parent: generation, name: "model.sqlite-wal",
+                            path: "model.sqlite-wal")
+                        let value = try CompletedAbortSQLitePhysicalImageV1.capture(
+                            model: model, wal: descriptor)
+                        try requireBoundDescriptor(descriptor,
+                            parent: generation, name: "model.sqlite-wal",
+                            path: "model.sqlite-wal")
+                        return value
+                    }
+                    try requireBoundDescriptor(model, parent: generation,
+                        name: "model.sqlite", path: "model.sqlite")
+                    try requireBoundDescriptor(generation,
+                        parent: installedGenerationsDescriptor,
+                        name: Self.canonical(id), path: "")
+                    return captured
+                }
+                guard errno == ENOENT else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                guard !before.nodes.contains(where: { $0.path == "model.sqlite-wal" }) else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                let captured = try CompletedAbortSQLitePhysicalImageV1.capture(
+                    model: model, wal: nil)
+                var missing = stat()
+                guard Darwin.fstatat(generation, "model.sqlite-wal", &missing,
+                    AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                try requireBoundDescriptor(model, parent: generation,
+                    name: "model.sqlite", path: "model.sqlite")
+                try requireBoundDescriptor(generation,
+                    parent: installedGenerationsDescriptor,
+                    name: Self.canonical(id), path: "")
+                return captured
+            }
+        }
+        let after = try completedAbortIO.treeWithNodes(
+            parent: installedGenerationsDescriptor, name: Self.canonical(id))
+        try requireCompletedAbortHeldRoots()
+        guard before.digest == after.digest else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        return (before.digest, after.nodes, image)
     }
 
     func originalEraseControlsForColdExitForTesting()
@@ -9875,37 +11691,72 @@ final class StoreRestoreGenerationAuthority {
     /// Fixed retirement observation. This never reconciles pointer temporaries
     /// or invokes policy repair, and remains usable after Operations retirement.
     @MainActor
-    func readPointerForEraseRetirement(name: String, binding: EraseRetirementBindingV1,
+    func readPointerForEraseRetirement(name: String, expectedData: Data? = nil,
+        binding: EraseRetirementBindingV1,
         exclusion: EraseRetirementExclusionV1) throws -> Data {
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=pointer-name-enter")
+#endif
         guard name == "current.json" || name == "retired.json" else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
         func requireAuthority() throws {
+#if DEBUG
+            print("C46_ERASE_ADVANCE_V1 stage=pointer-descriptors-enter")
+#endif
+            guard eraseRetirementUncertainDescriptors.isEmpty else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+#if DEBUG
+            print("C46_ERASE_ADVANCE_V1 stage=pointer-support-enter")
+#endif
             try exclusion.requireSupport(binding: binding)
+#if DEBUG
+            print("C46_ERASE_ADVANCE_V1 stage=pointer-subject-enter")
+#endif
             guard applicationSupportURL.standardizedFileURL == binding.subject.applicationSupportURL,
                   Int64(applicationSupportIdentity.device) == binding.subject.applicationSupportDevice,
                   UInt64(applicationSupportIdentity.inode) == binding.subject.applicationSupportInode else {
                 throw StoreGenerationFailure.dataPointerInvalid
             }
+#if DEBUG
+            print("C46_ERASE_ADVANCE_V1 stage=pointer-held-root-enter")
+#endif
             try Self.require(applicationSupportDescriptor, applicationSupportIdentity)
             try Self.require(dataDescriptor, dataIdentity)
+#if DEBUG
+            print("C46_ERASE_ADVANCE_V1 stage=pointer-named-root-enter")
+#endif
             guard try Self.directoryIdentity(at: applicationSupportURL) == applicationSupportIdentity,
                   try Self.requiredDirectoryIdentity(parent: applicationSupportDescriptor,
                     name: Self.dataName) == dataIdentity else {
                 throw StoreGenerationFailure.dataPointerInvalid
             }
+#if DEBUG
+            print("C46_ERASE_ADVANCE_V1 stage=pointer-pending-enter")
+#endif
             var pending = stat()
             guard Darwin.fstatat(dataDescriptor, ".\(name).restore-next", &pending,
                 AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else {
                 throw StoreGenerationFailure.dataPointerInvalid
             }
         }
-        func read() throws -> RegularFileRead {
+        func read() throws -> EraseRetirementPointerRead {
+#if DEBUG
+            print("C46_ERASE_ADVANCE_V1 stage=pointer-read-authority-enter")
+#endif
             try requireAuthority()
+#if DEBUG
+            print("C46_ERASE_ADVANCE_V1 stage=pointer-file-open-enter")
+#endif
             let descriptor = Darwin.openat(dataDescriptor, name,
                 O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
             guard descriptor >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
-            defer { _ = Darwin.close(descriptor) }
+            var closeAttempted = false
+            do {
+#if DEBUG
+            print("C46_ERASE_ADVANCE_V1 stage=pointer-file-open-complete")
+#endif
             var before = stat()
             guard Darwin.fstat(descriptor, &before) == 0,
                   before.st_mode & S_IFMT == S_IFREG, before.st_nlink == 1,
@@ -9915,15 +11766,16 @@ final class StoreRestoreGenerationAuthority {
             }
             let identity = RegularFileIdentity(device: before.st_dev, inode: before.st_ino,
                 linkCount: before.st_nlink)
+#if DEBUG
+            print("C46_ERASE_ADVANCE_V1 stage=pointer-before-stat-complete")
+#endif
             guard try Self.regularFileIdentity(parent: dataDescriptor, name: name) == identity else {
                 throw StoreGenerationFailure.dataPointerInvalid
             }
-            let policy = try ProtectedFilePolicyV1.observeTemporalPolicy(.generationPointer,
-                at: dataURL.appendingPathComponent(name))
-            guard policy.state == .strictComplete,
-                  policy.device == UInt64(before.st_dev), policy.inode == UInt64(before.st_ino) else {
-                throw EraseIntentStoreError.retirementPolicyEffectUnavailable
-            }
+            let fact = EraseRetirementFileFact(before)
+#if DEBUG
+            print("C46_ERASE_ADVANCE_V1 stage=pointer-before-name-complete")
+#endif
             var data = Data()
             var buffer = [UInt8](repeating: 0, count: 16 * 1024)
             while true {
@@ -9938,22 +11790,110 @@ final class StoreRestoreGenerationAuthority {
                 } else if count == 0 { break }
                 else if errno != EINTR { throw StoreGenerationFailure.dataPointerInvalid }
             }
+#if DEBUG
+            print("C46_ERASE_ADVANCE_V1 stage=pointer-read-bytes-complete")
+#endif
             var after = stat()
             guard Darwin.fstat(descriptor, &after) == 0,
                   after.st_mode & S_IFMT == S_IFREG, after.st_nlink == 1,
-                  before.st_dev == after.st_dev, before.st_ino == after.st_ino,
-                  before.st_size == after.st_size, data.count == Int(after.st_size),
+                  fact == EraseRetirementFileFact(after),
+                  data.count == Int(after.st_size),
                   try Self.regularFileIdentity(parent: dataDescriptor, name: name) == identity else {
                 throw StoreGenerationFailure.dataPointerInvalid
             }
+#if DEBUG
+            print("C46_ERASE_ADVANCE_V1 stage=pointer-after-facts-complete")
+#endif
             try requireAuthority()
-            return RegularFileRead(data: data, identity: identity)
+            closeAttempted = true
+            guard Darwin.close(descriptor) == 0 else {
+                eraseRetirementUncertainDescriptors.append(descriptor)
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+#if DEBUG
+            print("C46_ERASE_ADVANCE_V1 stage=pointer-close-complete")
+#endif
+            return EraseRetirementPointerRead(data: data,
+                identity: identity, fact: fact)
+            } catch {
+                if !closeAttempted {
+                    closeAttempted = true
+                    if Darwin.close(descriptor) != 0 {
+                        eraseRetirementUncertainDescriptors.append(descriptor)
+                    }
+                }
+                throw error
+            }
         }
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=pointer-first-read-enter")
+#endif
         let first = try read()
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=pointer-first-read-complete")
+#endif
         let second = try read()
-        guard first.identity == second.identity, first.data == second.data else {
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=pointer-second-read-complete")
+#endif
+        guard first == second,
+              expectedData.map({ first.data == $0 }) ?? true,
+              let provenance = eraseRetirementPointerProvenance[name] else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=pointer-provenance-enter")
+#endif
+        switch provenance {
+        case .captured(let data, let fact):
+            guard first.data == data,
+                  Self.eraseRetirementFactToken(first.fact) == fact else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        case .published(let data, let fact):
+            guard first.data == data,
+                  Self.eraseRetirementFactToken(first.fact) == fact else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        }
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=pointer-provenance-complete")
+#endif
+        if name == "current.json" {
+            guard try CurrentPointerCodecV1.decode(first.data).generationID
+                    == Self.canonical(binding.subject.newGenerationID) else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        }
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=pointer-canonical-complete")
+#endif
+        let url = dataURL.appendingPathComponent(name)
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=pointer-policy-enter")
+#endif
+        _ = try ProtectedFilePolicyV1
+            .verifyEraseColdTemporalPolicyWithCheckedRequest(
+                .generationPointer, at: url,
+                retainUncertainDescriptor: { value in
+                    self.eraseRetirementUncertainDescriptors.append(value)
+                }, unchangedWitness: {
+                    let current = try read()
+                    guard current == first else {
+                        throw StoreGenerationFailure.dataPointerInvalid
+                    }
+                    return current
+                })
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=pointer-policy-complete")
+#endif
+        guard eraseRetirementUncertainDescriptors.isEmpty,
+              try read() == first else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=pointer-final-read-complete")
+#endif
         return first.data
     }
 
@@ -10754,45 +12694,121 @@ final class StoreRestoreGenerationAuthority {
         }
         try requireInstalledAuthority()
         let name = Self.canonical(binding.subject.newGenerationID)
-        let descriptor = Darwin.openat(installedGenerationsDescriptor, name,
-            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
-        guard descriptor >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
-        defer { _ = Darwin.close(descriptor) }
-        let inventory = try GenerationInventory(parent: descriptor, requireModel: true)
         let rootURL = installedGenerationsURL.appendingPathComponent(name, isDirectory: true)
-        func observeProtection() throws {
-            try inventory.revalidate()
-            let rootPolicy = try ProtectedFilePolicyV1.observeTemporalPolicy(.durableDirectory, at: rootURL)
-            guard rootPolicy.state == .strictComplete,
-                  rootPolicy.device == UInt64(inventory.root.identity.device),
-                  rootPolicy.inode == UInt64(inventory.root.identity.inode) else {
-                throw EraseIntentStoreError.retirementPolicyEffectUnavailable
+        func snapshotTree() throws -> EraseRetirementTreeWitness {
+            guard eraseRetirementUncertainDescriptors.isEmpty else {
+                throw StoreGenerationFailure.dataPointerInvalid
             }
-            for path in inventory.directories.keys.sorted() + inventory.files.keys.sorted() {
-                let directory = inventory.directories[path] != nil
-                let owned = try GenerationOwnedPathV1.classify(path,
-                    nodeType: directory ? .directory : .regularFile)
-                let policy = try ProtectedFilePolicyV1.observeTemporalPolicy(owned.kind,
-                    at: rootURL.appendingPathComponent(path, isDirectory: directory))
-                guard policy.state == .strictComplete else {
-                    throw EraseIntentStoreError.retirementPolicyEffectUnavailable
+            try eraseRetirementCheckedSnapshotIO.requireSettled()
+            try requireInstalledAuthority()
+            let checked = try eraseRetirementCheckedSnapshotIO.treeWithNodes(
+                parent: installedGenerationsDescriptor, name: name)
+            var byPath = [String: EraseAbortCheckedSnapshotIOV1.CheckedTreeNode]()
+            for node in checked.nodes {
+                guard byPath.updateValue(node, forKey: node.path) == nil else {
+                    throw StoreGenerationFailure.dataPointerInvalid
                 }
             }
-            try inventory.revalidate()
+            guard let root = byPath[""], root.sha256 == nil,
+                  root.fact.st_mode & S_IFMT == S_IFDIR else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            let directories = byPath.values.filter { $0.sha256 == nil && !$0.path.isEmpty }
+                .map(\.path).sorted()
+            let filePaths = byPath.values.filter { $0.sha256 != nil }
+                .map(\.path).sorted()
+            let paths = [""] + directories + filePaths
+            let facts = try paths.map { path -> EraseRetirementFileFact in
+                guard let node = byPath[path] else { throw StoreGenerationFailure.dataPointerInvalid }
+                return EraseRetirementFileFact(node.fact)
+            }
+            let files = try filePaths.map { path -> StoreGenerationFileDigestV1 in
+                guard let node = byPath[path], let digest = node.sha256,
+                      node.fact.st_size >= 0, node.fact.st_size <= off_t(Int.max),
+                      node.fact.st_nlink == 1 else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                let kind = try GenerationOwnedPathV1.classify(path,
+                    nodeType: .regularFile).kind
+                return try StoreGenerationFileDigestV1(
+                    relativePath: path, byteCount: Int(node.fact.st_size),
+                    sha256: digest, kind: kind)
+            }
+            try eraseRetirementCheckedSnapshotIO.requireSettled()
+            try requireInstalledAuthority()
+            return EraseRetirementTreeWitness(
+                checkedTreeDigest: checked.digest, paths: paths,
+                directoryPaths: directories, facts: facts, files: files)
         }
-        try observeProtection()
-        let files = try inventory.fileDigests(durable: false)
-        let identity = inventory.root.identity
+        // Read-only shape and complete canonical digest come before any
+        // Simulator policy request. Each request is separately bound to the
+        // same physical tree and may not rebaseline its bytes or metadata.
+        let baseline = try snapshotTree()
+        let paths = baseline.paths
+        let files = baseline.files
+        let directoryPaths = Set(baseline.directoryPaths)
+        func nodeURL(_ path: String) -> URL {
+            path.isEmpty ? rootURL : rootURL.appendingPathComponent(path,
+                isDirectory: directoryPaths.contains(path))
+        }
+        func nodeKind(_ path: String) throws -> OwnedFileKindV1 {
+            if path.isEmpty { return .durableDirectory }
+            return try GenerationOwnedPathV1.classify(path,
+                nodeType: directoryPaths.contains(path) ? .directory : .regularFile).kind
+        }
+        for (index, path) in paths.enumerated() {
+            let observed = try ProtectedFilePolicyV1
+                .observeTemporalPolicyWithCheckedClose(
+                    nodeKind(path), at: nodeURL(path),
+                    retainUncertainDescriptor: { value in
+                        self.eraseRetirementUncertainDescriptors.append(value)
+                    })
+            let expected = baseline.facts[index]
+            guard eraseRetirementUncertainDescriptors.isEmpty,
+                  observed.device == UInt64(expected.device),
+                  observed.inode == UInt64(expected.inode),
+                  observed.linkCount == UInt64(expected.links),
+                  observed.state == .strictComplete
+                    || observed.state == .pendingSimulatorRequest else {
+                throw EraseIntentStoreError.retirementPolicyEffectUnavailable
+            }
+        }
+        guard try snapshotTree() == baseline else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let identity = Identity(device: baseline.facts[0].device,
+            inode: baseline.facts[0].inode)
         var tokens = ["source-directory|\(identity.device)|\(identity.inode)"]
+        let fileFacts = Dictionary(uniqueKeysWithValues:
+            zip(paths, baseline.facts).map { ($0, $1) })
         for file in files {
-            guard let source = inventory.files[file.relativePath] else {
+            guard let fact = fileFacts[file.relativePath] else {
                 throw StoreMigrationFailure.invalidPath
             }
-            let held = source.snapshot
-            tokens.append("\(file.relativePath)|\(held.device)|\(held.inode)|\(held.linkCount)|\(file.sha256)")
+            tokens.append("\(file.relativePath)|\(fact.device)|\(fact.inode)|\(fact.links)|\(file.sha256)")
         }
-        tokens.append(contentsOf: inventory.directoryIdentityTokens)
-        try observeProtection()
+        for path in baseline.directoryPaths {
+            guard let fact = fileFacts[path] else { throw StoreMigrationFailure.invalidPath }
+            tokens.append("subdirectory|\(path)|\(fact.device)|\(fact.inode)")
+        }
+        for path in paths {
+            _ = try ProtectedFilePolicyV1
+                .verifyEraseColdTemporalPolicyWithCheckedRequest(
+                    nodeKind(path), at: nodeURL(path),
+                    retainUncertainDescriptor: { value in
+                        self.eraseRetirementUncertainDescriptors.append(value)
+                    }, unchangedWitness: {
+                        let current = try snapshotTree()
+                        guard current == baseline else {
+                            throw StoreGenerationFailure.dataPointerInvalid
+                        }
+                        return current
+                    })
+            guard eraseRetirementUncertainDescriptors.isEmpty,
+                  try snapshotTree() == baseline else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        }
         try requireInstalledAuthority()
         guard try Self.requiredDirectoryIdentity(parent: installedGenerationsDescriptor,
             name: name) == identity else { throw StoreGenerationFailure.dataPointerInvalid }
@@ -11234,22 +13250,58 @@ final class StoreRestoreGenerationAuthority {
         guard try CurrentPointerCodecV1.decode(currentBytes).generationID == Self.canonical(currentID) else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
-        let retiredBytes = try retirement.readPointer(using: self, name: "retired.json")
-        let retired: RetiredPointerV1 = try Self.decodeCanonicalPointer(retiredBytes)
-        try StorePointerSchemaRegistry.requireRetired(retired.schemaVersion)
-        guard retired.generationIDs == retired.generationIDs.sorted(),
-              Set(retired.generationIDs).count == retired.generationIDs.count,
-              retired.generationIDs == expected.map(Self.canonical),
-              !expected.contains(currentID) else {
+        guard !expected.contains(currentID),
+              expected.map(Self.canonical) == expected.map(Self.canonical).sorted(),
+              Set(expected).count == expected.count,
+              try eraseRetirementCheckedSnapshotIO.names(
+                  in: installedGenerationsDescriptor)
+                    == [Self.canonical(currentID)] else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
-        let replacement = RetiredPointerV1(generationIDs: [],
-            schemaVersion: StorePointerSchemaRegistry.retiredVersion)
-        // This is the existing pointer writer, with its private CAS and exact
-        // expected bytes. Only the preceding/following observations are fixed;
-        // there is no ordinary reservation getter or temporary reconciliation.
-        try replacePointer(name: "retired.json", value: replacement, expectedData: retiredBytes)
-        guard try retirement.readPointer(using: self, name: "retired.json") == Self.canonicalData(replacement),
+        let oldData = try Self.canonicalData(RetiredPointerV1(
+            generationIDs: expected.map(Self.canonical),
+            schemaVersion: StorePointerSchemaRegistry.retiredVersion))
+        let replacementData = try Self.canonicalData(RetiredPointerV1(
+            generationIDs: [], schemaVersion: StorePointerSchemaRegistry.retiredVersion))
+        _ = try retiredIDsForEraseRetirementWithReservedTemporary(
+            expected: expected, currentID: currentID, retirement: retirement)
+        Self.pointerMutationLock.lock()
+        defer { Self.pointerMutationLock.unlock() }
+        func observe() throws -> EraseRetirementPointerState {
+            try observeEraseRetirementPointerState(expected: expected,
+                currentID: currentID, currentData: currentBytes,
+                oldData: oldData, replacementData: replacementData,
+                retirement: retirement)
+        }
+        var state = try observe()
+        if state.cut == .before || state.cut == .preparingTemporary {
+            state = try completeEraseRetirementTemporary(state: state,
+                expected: expected, currentID: currentID,
+                currentData: currentBytes, oldData: oldData,
+                replacementData: replacementData, retirement: retirement)
+            state = try publishEraseRetirementTemporary(state: state,
+                expected: expected, currentID: currentID,
+                currentData: currentBytes, oldData: oldData,
+                replacementData: replacementData, retirement: retirement)
+        }
+        if state.cut == .swapped {
+            state = try removeEraseRetirementOldTemporary(state: state,
+                expected: expected, currentID: currentID,
+                currentData: currentBytes, oldData: oldData,
+                replacementData: replacementData, retirement: retirement)
+        }
+        guard state.cut == .complete,
+              try observe() == state,
+              eraseRetirementUncertainDescriptors.isEmpty,
+              try eraseRetirementCheckedSnapshotIO.names(
+                  in: installedGenerationsDescriptor)
+                    == [Self.canonical(currentID)] else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        eraseRetirementPointerProvenance["retired.json"] = .published(
+            data: replacementData,
+            fact: Self.eraseRetirementFactToken(state.retired.fact))
+        guard try retirement.readPointer(using: self, name: "retired.json") == replacementData,
               try retirement.readPointer(using: self, name: "current.json") == currentBytes else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
@@ -11380,6 +13432,653 @@ final class StoreRestoreGenerationAuthority {
             .generationPointer,
             at: dataURL.appendingPathComponent(name, isDirectory: false)
         )
+    }
+
+    private func requireCheckedEraseRetirementWriterAuthority() throws {
+        guard eraseRetirementUncertainDescriptors.isEmpty else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try eraseRetirementCheckedSnapshotIO.requireSettled()
+        try Self.require(applicationSupportDescriptor, applicationSupportIdentity)
+        try Self.require(dataDescriptor, dataIdentity)
+        try Self.require(installedGenerationsDescriptor, installedGenerationsIdentity)
+        try Self.require(restoreDescriptor, restoreIdentity)
+        try Self.require(stagingGenerationsDescriptor, stagingGenerationsIdentity)
+        try Self.require(importStagingDescriptor, importStagingIdentity)
+        func requireNamed(_ parent: Int32, _ name: String, _ expected: Identity) throws {
+            guard try Self.requiredDirectoryIdentity(parent: parent, name: name)
+                    == expected else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        }
+        var root = stat()
+        guard Darwin.lstat(applicationSupportURL.path, &root) == 0,
+              root.st_mode & S_IFMT == S_IFDIR,
+              root.st_dev == applicationSupportIdentity.device,
+              root.st_ino == applicationSupportIdentity.inode else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try requireNamed(applicationSupportDescriptor, Self.dataName, dataIdentity)
+        try requireNamed(dataDescriptor, Self.generationsName, installedGenerationsIdentity)
+        try requireNamed(applicationSupportDescriptor, Self.restoreName, restoreIdentity)
+        try requireNamed(restoreDescriptor, Self.generationsName, stagingGenerationsIdentity)
+        try requireNamed(restoreDescriptor, Self.importStagingName, importStagingIdentity)
+    }
+
+    private func checkedEraseRetirementRead(_ name: String) throws -> EraseRetirementPointerRead {
+        try Self.requireSafeBasename(name)
+        try requireCheckedEraseRetirementWriterAuthority()
+        let value = try eraseRetirementCheckedSnapshotIO.withOpen(
+            parent: dataDescriptor, name: name,
+            flags: O_RDONLY | O_NONBLOCK) { descriptor in
+            var before = stat(), after = stat(), named = stat()
+            guard Darwin.fstat(descriptor, &before) == 0,
+                  before.st_mode & S_IFMT == S_IFREG, before.st_nlink == 1,
+                  before.st_size >= 0,
+                  before.st_size <= off_t(Self.maximumControlFileByteCount),
+                  Darwin.fstatat(dataDescriptor, name, &named,
+                      AT_SYMLINK_NOFOLLOW) == 0,
+                  EraseRetirementFileFact(named) == EraseRetirementFileFact(before) else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            var data = Data()
+            var buffer = [UInt8](repeating: 0, count: 16 * 1024)
+            while true {
+                let count = buffer.withUnsafeMutableBytes {
+                    Darwin.read(descriptor, $0.baseAddress, $0.count)
+                }
+                if count > 0 {
+                    guard data.count <= Self.maximumControlFileByteCount - count else {
+                        throw StoreGenerationFailure.dataPointerInvalid
+                    }
+                    data.append(contentsOf: buffer.prefix(count))
+                } else if count == 0 { break }
+                else if errno != EINTR { throw StoreGenerationFailure.dataPointerInvalid }
+            }
+            guard Darwin.fstat(descriptor, &after) == 0,
+                  Darwin.fstatat(dataDescriptor, name, &named,
+                      AT_SYMLINK_NOFOLLOW) == 0,
+                  EraseRetirementFileFact(after) == EraseRetirementFileFact(before),
+                  EraseRetirementFileFact(named) == EraseRetirementFileFact(before),
+                  data.count == Int(before.st_size) else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            return EraseRetirementPointerRead(data: data,
+                identity: RegularFileIdentity(device: before.st_dev,
+                    inode: before.st_ino, linkCount: before.st_nlink),
+                fact: EraseRetirementFileFact(before))
+        }
+        try requireCheckedEraseRetirementWriterAuthority()
+        return value
+    }
+
+    private func checkedEraseRetirementCreateEmpty(_ name: String) throws {
+        try Self.requireSafeBasename(name)
+        try requireCheckedEraseRetirementWriterAuthority()
+        _ = try eraseRetirementCheckedSnapshotIO.withOpen(parent: dataDescriptor,
+            name: name, flags: O_WRONLY | O_CREAT | O_EXCL,
+            mode: mode_t(0o600)) { descriptor in
+            guard Darwin.fsync(descriptor) == 0 else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        }
+        guard Darwin.fsync(dataDescriptor) == 0 else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try requireCheckedEraseRetirementWriterAuthority()
+    }
+
+    private struct EraseRetirementPointerState: Equatable {
+        enum Cut: Equatable {
+            case before
+            case preparingTemporary
+            case swapped
+            case complete
+        }
+        let current: EraseRetirementPointerRead
+        let retired: EraseRetirementPointerRead
+        let temporary: EraseRetirementPointerRead?
+        let dataDirectoryFact: EraseRetirementFileFact
+        let cut: Cut
+    }
+
+    /// Pure, checked observation of the four canonical Erase pointer cuts.
+    /// In particular, a prefix temp is not made into an authority by its name:
+    /// the genuine proof and frozen P/current/target are rechecked before any
+    /// later policy request or write.  No ordinary Restore reconciliation runs.
+    @MainActor
+    private func observeEraseRetirementPointerState(
+        expected: [UUID], currentID: UUID,
+        currentData: Data, oldData: Data, replacementData: Data,
+        retirement: ErasedRegistryRetirementProofV1
+    ) throws -> EraseRetirementPointerState {
+        try retirement.requireRetiredPointerClear(expected: expected, currentID: currentID)
+        try requireCheckedEraseRetirementWriterAuthority()
+        let allowed = ["current.json", "generations", "retired.json"]
+        let temporaryName = ".retired.json.restore-next"
+        func directoryFact() throws -> EraseRetirementFileFact {
+            var held = stat(), named = stat()
+            guard Darwin.fstat(dataDescriptor, &held) == 0,
+                  Darwin.fstatat(applicationSupportDescriptor, Self.dataName,
+                      &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  EraseRetirementFileFact(held) == EraseRetirementFileFact(named),
+                  held.st_mode & S_IFMT == S_IFDIR else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            return EraseRetirementFileFact(held)
+        }
+        func once() throws -> EraseRetirementPointerState {
+            let before = try directoryFact()
+            let names = try eraseRetirementCheckedSnapshotIO.names(in: dataDescriptor)
+            guard names == allowed || names == (allowed + [temporaryName]).sorted() else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            let current = try checkedEraseRetirementRead("current.json")
+            let retired = try checkedEraseRetirementRead("retired.json")
+            let temporary = names.contains(temporaryName)
+                ? try checkedEraseRetirementRead(temporaryName) : nil
+            guard try directoryFact() == before,
+                  try eraseRetirementCheckedSnapshotIO.names(in: dataDescriptor) == names,
+                  current.data == currentData,
+                  try CurrentPointerCodecV1.decode(current.data).generationID
+                    == Self.canonical(currentID),
+                  retired.data == oldData || retired.data == replacementData else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            if case .captured(let bytes, let fact)? =
+                eraseRetirementPointerProvenance["current.json"] {
+                guard bytes == current.data,
+                      fact == Self.eraseRetirementFactToken(current.fact) else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+            }
+            let cut: EraseRetirementPointerState.Cut
+            if retired.data == oldData {
+                guard temporary.map({ replacementData.starts(with: $0.data) }) ?? true else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                cut = temporary == nil ? .before : .preparingTemporary
+                if case .captured(let bytes, let fact)? =
+                    eraseRetirementPointerProvenance["retired.json"] {
+                    guard bytes == retired.data,
+                          fact == Self.eraseRetirementFactToken(retired.fact) else {
+                        throw StoreGenerationFailure.dataPointerInvalid
+                    }
+                }
+            } else {
+                guard temporary.map({ $0.data == oldData }) ?? true else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                cut = temporary == nil ? .complete : .swapped
+                if case .captured(let bytes, let fact)? =
+                    eraseRetirementPointerProvenance["retired.json"],
+                   let temporary {
+                    guard bytes == temporary.data,
+                          Self.eraseRetirementFactBeforeRenameMatches(
+                              fact, temporary.fact) else {
+                        throw StoreGenerationFailure.dataPointerInvalid
+                    }
+                }
+                if case .published(let bytes, let fact)? =
+                    eraseRetirementPointerProvenance["retired.json"] {
+                    guard bytes == retired.data,
+                          fact == Self.eraseRetirementFactToken(retired.fact) else {
+                        throw StoreGenerationFailure.dataPointerInvalid
+                    }
+                }
+            }
+            return EraseRetirementPointerState(current: current, retired: retired,
+                temporary: temporary, dataDirectoryFact: before, cut: cut)
+        }
+        let first = try once()
+        guard try once() == first else { throw StoreGenerationFailure.dataPointerInvalid }
+        try retirement.requireRetiredPointerClear(expected: expected, currentID: currentID)
+        return first
+    }
+
+    /// The newly named pointer inherits the temporary inode's backup policy
+    /// across RENAME_SWAP. Settle only that exact, operation-bound inode before
+    /// a strict pointer read. The displaced old pointer keeps pointer policy
+    /// until its checked unlink. A crash at either cut resumes from the same
+    /// canonical bytes and closed Data namespace, without an ordinary writer.
+    @MainActor
+    private func settlePublishedEraseRetirementPointerPolicy(
+        state original: EraseRetirementPointerState,
+        expected: [UUID], currentID: UUID,
+        currentData: Data, oldData: Data, replacementData: Data,
+        retirement: ErasedRegistryRetirementProofV1
+    ) throws -> EraseRetirementPointerState {
+        guard (original.cut == .swapped || original.cut == .complete),
+              original.retired.data == replacementData,
+              original.current.data == currentData,
+              try eraseRetirementCheckedSnapshotIO.names(
+                  in: installedGenerationsDescriptor)
+                    == [Self.canonical(currentID)] else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let url = dataURL.appendingPathComponent("retired.json", isDirectory: false)
+        func observe() throws -> EraseRetirementPointerState {
+            try observeEraseRetirementPointerState(expected: expected,
+                currentID: currentID, currentData: currentData,
+                oldData: oldData, replacementData: replacementData,
+                retirement: retirement)
+        }
+        guard try observe() == original else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        // A settled pointer needs no metadata write. A resource mismatch is
+        // eligible only when the exact same leaf still has the temporary
+        // disposition, including its backup exclusion and type.
+        do {
+            _ = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(
+                .generationPointer, at: url,
+                retainUncertainDescriptor: { value in
+                    self.eraseRetirementUncertainDescriptors.append(value)
+                })
+            guard eraseRetirementUncertainDescriptors.isEmpty,
+                  try observe() == original else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            return original
+        } catch ProtectedFilePolicyError.resourceValueMismatch {
+            guard eraseRetirementUncertainDescriptors.isEmpty,
+                  try observe() == original else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        }
+        _ = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(
+            .generationPointerTemporary, at: url,
+            retainUncertainDescriptor: { value in
+                self.eraseRetirementUncertainDescriptors.append(value)
+            })
+        guard eraseRetirementUncertainDescriptors.isEmpty,
+              try observe() == original else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let names = original.cut == .swapped
+            ? [".retired.json.restore-next", "current.json", "generations", "retired.json"]
+            : ["current.json", "generations", "retired.json"]
+        func boundRead() throws -> EraseRetirementPointerRead {
+            try retirement.requireRetiredPointerClear(expected: expected,
+                currentID: currentID)
+            try requireCheckedEraseRetirementWriterAuthority()
+            var heldData = stat(), namedData = stat()
+            guard Darwin.fstat(dataDescriptor, &heldData) == 0,
+                  Darwin.fstatat(applicationSupportDescriptor, Self.dataName,
+                      &namedData, AT_SYMLINK_NOFOLLOW) == 0,
+                  EraseRetirementFileFact(heldData) == original.dataDirectoryFact,
+                  EraseRetirementFileFact(namedData) == original.dataDirectoryFact,
+                  try eraseRetirementCheckedSnapshotIO.names(
+                      in: installedGenerationsDescriptor)
+                        == [Self.canonical(currentID)],
+                  try eraseRetirementCheckedSnapshotIO.names(in: dataDescriptor) == names,
+                  try checkedEraseRetirementRead("current.json") == original.current else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            let retired = try checkedEraseRetirementRead("retired.json")
+            guard retired.data == original.retired.data,
+                  retired.identity == original.retired.identity,
+                  retired.fact.mode == original.retired.fact.mode,
+                  retired.fact.size == original.retired.fact.size,
+                  retired.fact.modifiedSeconds == original.retired.fact.modifiedSeconds,
+                  retired.fact.modifiedNanoseconds == original.retired.fact.modifiedNanoseconds else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            if original.cut == .swapped {
+                guard try checkedEraseRetirementRead(
+                    ".retired.json.restore-next") == original.temporary else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+            }
+            guard try eraseRetirementCheckedSnapshotIO.names(in: dataDescriptor) == names,
+                  try eraseRetirementCheckedSnapshotIO.names(
+                      in: installedGenerationsDescriptor)
+                        == [Self.canonical(currentID)],
+                  Darwin.fstat(dataDescriptor, &heldData) == 0,
+                  Darwin.fstatat(applicationSupportDescriptor, Self.dataName,
+                      &namedData, AT_SYMLINK_NOFOLLOW) == 0,
+                  EraseRetirementFileFact(heldData) == original.dataDirectoryFact,
+                  EraseRetirementFileFact(namedData) == original.dataDirectoryFact else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            return retired
+        }
+        guard try boundRead() == original.retired else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        _ = try ProtectedFilePolicyV1.applyAndVerifyEraseColdPrivateWithCheckedClose(
+            .generationPointer, at: url,
+            retainUncertainDescriptor: { value in
+                self.eraseRetirementUncertainDescriptors.append(value)
+            }, authorityCheck: {
+                _ = try boundRead()
+            }, beforeFirstEffect: {
+                guard try observe() == original,
+                      try boundRead() == original.retired else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+            })
+        guard eraseRetirementUncertainDescriptors.isEmpty else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let settledRetired = try boundRead()
+        eraseRetirementPointerProvenance["retired.json"] = .published(
+            data: replacementData,
+            fact: Self.eraseRetirementFactToken(settledRetired.fact))
+        let settled = try observe()
+        guard settled.current == original.current,
+              settled.retired == settledRetired,
+              settled.temporary == original.temporary,
+              settled.cut == original.cut else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        return settled
+    }
+
+    @MainActor
+    fileprivate func retiredIDsForEraseRetirementWithReservedTemporary(
+        expected: [UUID], currentID: UUID,
+        retirement: ErasedRegistryRetirementProofV1
+    ) throws -> [UUID] {
+        let currentData = try retirement.readPointer(using: self, name: "current.json")
+        let oldData = try Self.canonicalData(RetiredPointerV1(
+            generationIDs: expected.map(Self.canonical),
+            schemaVersion: StorePointerSchemaRegistry.retiredVersion))
+        let replacementData = try Self.canonicalData(RetiredPointerV1(
+            generationIDs: [], schemaVersion: StorePointerSchemaRegistry.retiredVersion))
+        let original = try observeEraseRetirementPointerState(expected: expected,
+            currentID: currentID, currentData: currentData,
+            oldData: oldData, replacementData: replacementData,
+            retirement: retirement)
+        let settled: EraseRetirementPointerState
+        if original.cut == .swapped || original.cut == .complete {
+            settled = try settlePublishedEraseRetirementPointerPolicy(
+                state: original, expected: expected, currentID: currentID,
+                currentData: currentData, oldData: oldData,
+                replacementData: replacementData, retirement: retirement)
+        } else {
+            settled = original
+        }
+        let names: [(String, OwnedFileKindV1)]
+        switch settled.cut {
+        case .before, .preparingTemporary:
+            names = [("retired.json", .generationPointer)]
+        case .swapped:
+            names = [("retired.json", .generationPointer),
+                     // RENAME_SWAP moves the old pointer inode under this
+                     // reserved name. It retains pointer policy until its
+                     // checked removal; ordinary Restore does the same.
+                     (".retired.json.restore-next", .generationPointer)]
+        case .complete:
+            names = [("retired.json", .generationPointer)]
+        }
+        for (name, kind) in names {
+            _ = try ProtectedFilePolicyV1
+                .verifyEraseColdTemporalPolicyWithCheckedRequest(
+                    kind, at: dataURL.appendingPathComponent(name),
+                    retainUncertainDescriptor: { value in
+                        self.eraseRetirementUncertainDescriptors.append(value)
+                    }, unchangedWitness: {
+                        let current = try self.observeEraseRetirementPointerState(
+                            expected: expected, currentID: currentID,
+                            currentData: currentData, oldData: oldData,
+                            replacementData: replacementData,
+                            retirement: retirement)
+                        guard current == settled else {
+                            throw StoreGenerationFailure.dataPointerInvalid
+                        }
+                        return current
+                    })
+        }
+        guard eraseRetirementUncertainDescriptors.isEmpty,
+              try observeEraseRetirementPointerState(expected: expected,
+                  currentID: currentID, currentData: currentData,
+                  oldData: oldData, replacementData: replacementData,
+                  retirement: retirement) == settled else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        switch settled.cut {
+        case .before, .preparingTemporary: return expected
+        case .swapped, .complete: return []
+        }
+    }
+
+    @MainActor
+    private func completeEraseRetirementTemporary(
+        state original: EraseRetirementPointerState,
+        expected: [UUID], currentID: UUID,
+        currentData: Data, oldData: Data, replacementData: Data,
+        retirement: ErasedRegistryRetirementProofV1
+    ) throws -> EraseRetirementPointerState {
+        guard original.cut == .before || original.cut == .preparingTemporary else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let temporaryName = ".retired.json.restore-next"
+        func reproveSource() throws -> EraseRetirementPointerState {
+            let value = try observeEraseRetirementPointerState(
+                expected: expected, currentID: currentID,
+                currentData: currentData, oldData: oldData,
+                replacementData: replacementData, retirement: retirement)
+            guard value.current == original.current,
+                  value.retired == original.retired,
+                  value.cut == .preparingTemporary,
+                  let temporary = value.temporary,
+                  replacementData.starts(with: temporary.data) else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            return value
+        }
+        if original.cut == .before {
+            guard try observeEraseRetirementPointerState(
+                expected: expected, currentID: currentID,
+                currentData: currentData, oldData: oldData,
+                replacementData: replacementData, retirement: retirement) == original else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            // Reserve an empty inode before a protection request or bytes.
+            // A crash here leaves the exact empty-prefix cut for cold replay.
+            try checkedEraseRetirementCreateEmpty(temporaryName)
+        }
+        let beforePolicy = try reproveSource()
+        guard let beforeTemp = beforePolicy.temporary else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        _ = try ProtectedFilePolicyV1.applyAndVerifyEraseColdPrivateWithCheckedClose(
+            .generationPointerTemporary,
+            at: dataURL.appendingPathComponent(temporaryName),
+            retainUncertainDescriptor: { value in
+                self.eraseRetirementUncertainDescriptors.append(value)
+            }, authorityCheck: {
+                let now = try reproveSource()
+                guard now.temporary?.identity == beforeTemp.identity,
+                      now.temporary?.data == beforeTemp.data else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+            }, beforeFirstEffect: {
+                guard try reproveSource() == beforePolicy else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+            })
+        guard eraseRetirementUncertainDescriptors.isEmpty else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let protected = try reproveSource()
+        guard protected.temporary?.identity == beforeTemp.identity,
+              protected.temporary?.data == beforeTemp.data else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        if beforeTemp.data.count < replacementData.count {
+            let suffix = Data(replacementData.dropFirst(beforeTemp.data.count))
+            _ = try eraseRetirementCheckedSnapshotIO.withOpen(
+                parent: dataDescriptor, name: temporaryName,
+                flags: O_RDWR | O_NONBLOCK) { descriptor in
+                var held = stat(), named = stat()
+                guard Darwin.fstat(descriptor, &held) == 0,
+                      Darwin.fstatat(dataDescriptor, temporaryName,
+                          &named, AT_SYMLINK_NOFOLLOW) == 0,
+                      EraseRetirementFileFact(held) == protected.temporary?.fact,
+                      EraseRetirementFileFact(named) == protected.temporary?.fact,
+                      try reproveSource() == protected else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                try suffix.withUnsafeBytes { raw in
+                    guard let base = raw.baseAddress else { return }
+                    var written = 0
+                    while written < raw.count {
+                        let result = Darwin.pwrite(descriptor,
+                            base.advanced(by: written), raw.count - written,
+                            off_t(beforeTemp.data.count + written))
+                        if result > 0 { written += result }
+                        else if errno != EINTR {
+                            throw StoreGenerationFailure.dataPointerInvalid
+                        }
+                    }
+                }
+                guard Darwin.fsync(descriptor) == 0 else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+            }
+            guard Darwin.fsync(dataDescriptor) == 0 else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        }
+        let completed = try reproveSource()
+        guard completed.temporary?.data == replacementData,
+              completed.current == original.current,
+              completed.retired == original.retired else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        return completed
+    }
+
+    @MainActor
+    private func publishEraseRetirementTemporary(
+        state completed: EraseRetirementPointerState,
+        expected: [UUID], currentID: UUID,
+        currentData: Data, oldData: Data, replacementData: Data,
+        retirement: ErasedRegistryRetirementProofV1
+    ) throws -> EraseRetirementPointerState {
+        guard completed.cut == .preparingTemporary,
+              let sealed = completed.temporary,
+              sealed.data == replacementData else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let temporaryName = ".retired.json.restore-next"
+        func observe() throws -> EraseRetirementPointerState {
+            try observeEraseRetirementPointerState(expected: expected,
+                currentID: currentID, currentData: currentData,
+                oldData: oldData, replacementData: replacementData,
+                retirement: retirement)
+        }
+        _ = try ProtectedFilePolicyV1
+            .verifyEraseColdTemporalPolicyWithCheckedRequest(
+                .generationPointerTemporary,
+                at: dataURL.appendingPathComponent(temporaryName),
+                retainUncertainDescriptor: { value in
+                    self.eraseRetirementUncertainDescriptors.append(value)
+                }, unchangedWitness: {
+                    let state = try observe()
+                    guard state == completed else {
+                        throw StoreGenerationFailure.dataPointerInvalid
+                    }
+                    return state
+                })
+        guard eraseRetirementUncertainDescriptors.isEmpty,
+              try observe() == completed else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let published = try eraseRetirementCheckedSnapshotIO.withOpen(
+            parent: dataDescriptor, name: temporaryName,
+            flags: O_RDONLY | O_NONBLOCK) { heldNew -> EraseRetirementPointerState in
+            var held = stat(), named = stat()
+            guard Darwin.fstat(heldNew, &held) == 0,
+                  Darwin.fstatat(dataDescriptor, temporaryName,
+                      &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  EraseRetirementFileFact(held) == sealed.fact,
+                  EraseRetirementFileFact(named) == sealed.fact,
+                  try observe() == completed,
+                  Darwin.fsync(heldNew) == 0,
+                  Darwin.renameatx_np(dataDescriptor, temporaryName,
+                      dataDescriptor, "retired.json", UInt32(RENAME_SWAP)) == 0,
+                  Darwin.fsync(dataDescriptor) == 0 else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            let result = try observe()
+            guard result.cut == .swapped,
+                  result.current == completed.current,
+                  result.retired.data == replacementData,
+                  result.retired.identity == sealed.identity,
+                  result.temporary?.data == oldData,
+                  result.temporary?.identity == completed.retired.identity,
+                  Darwin.fstat(heldNew, &held) == 0,
+                  EraseRetirementFileFact(held) == result.retired.fact else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            return result
+        }
+        try retirement.requireRetiredPointerClear(expected: expected, currentID: currentID)
+        eraseRetirementPointerProvenance["retired.json"] = .published(
+            data: replacementData,
+            fact: Self.eraseRetirementFactToken(published.retired.fact))
+        return try settlePublishedEraseRetirementPointerPolicy(
+            state: published, expected: expected, currentID: currentID,
+            currentData: currentData, oldData: oldData,
+            replacementData: replacementData, retirement: retirement)
+    }
+
+    @MainActor
+    private func removeEraseRetirementOldTemporary(
+        state swapped: EraseRetirementPointerState,
+        expected: [UUID], currentID: UUID,
+        currentData: Data, oldData: Data, replacementData: Data,
+        retirement: ErasedRegistryRetirementProofV1
+    ) throws -> EraseRetirementPointerState {
+        guard swapped.cut == .swapped,
+              let displaced = swapped.temporary,
+              displaced.data == oldData,
+              swapped.retired.data == replacementData else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let temporaryName = ".retired.json.restore-next"
+        func observe() throws -> EraseRetirementPointerState {
+            try observeEraseRetirementPointerState(expected: expected,
+                currentID: currentID, currentData: currentData,
+                oldData: oldData, replacementData: replacementData,
+                retirement: retirement)
+        }
+        let completed = try eraseRetirementCheckedSnapshotIO.withOpen(
+            parent: dataDescriptor, name: temporaryName,
+            flags: O_RDONLY | O_NONBLOCK) { heldOld -> EraseRetirementPointerState in
+            var held = stat(), named = stat()
+            guard Darwin.fstat(heldOld, &held) == 0,
+                  Darwin.fstatat(dataDescriptor, temporaryName,
+                      &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  EraseRetirementFileFact(held) == displaced.fact,
+                  EraseRetirementFileFact(named) == displaced.fact,
+                  try observe() == swapped,
+                  Darwin.unlinkat(dataDescriptor, temporaryName, 0) == 0,
+                  Darwin.fsync(dataDescriptor) == 0 else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            guard Darwin.fstat(heldOld, &held) == 0,
+                  held.st_dev == displaced.identity.device,
+                  held.st_ino == displaced.identity.inode,
+                  held.st_nlink == 0,
+                  Darwin.fstatat(dataDescriptor, temporaryName,
+                      &named, AT_SYMLINK_NOFOLLOW) != 0,
+                  errno == ENOENT else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            let result = try observe()
+            guard result.cut == .complete,
+                  result.current == swapped.current,
+                  result.retired == swapped.retired else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            return result
+        }
+        try retirement.requireRetiredPointerClear(expected: expected, currentID: currentID)
+        return completed
     }
 
     private func replacePointer<Value: Encodable>(
@@ -12643,6 +15342,10 @@ struct StoreGenerationFactory {
               UInt64(information.st_ino) == binding.registryIdentity.inode else {
             throw EraseAllServiceError.invalidAuthority
         }
+        // Capture both physical pointer sources on the original admitted
+        // authority. A later same-byte replacement must not become the
+        // baseline of a Simulator protection request after EX transfer.
+        try authority.captureEraseRetirementPointerProvenance(currentData: envelope.data)
         return EraseCurrentManifestScopeV1(binding: binding, pointerData: envelope.data, store: store)
     }
 
@@ -12673,17 +15376,10 @@ struct StoreGenerationFactory {
 
     @MainActor
     func retiredGenerationIDsForEraseRetirement(authority: StoreRestoreGenerationAuthority,
-        retirement: ErasedRegistryRetirementProofV1) throws -> [UUID] {
-        let bytes = try retirement.readPointer(using: authority, name: "retired.json")
-        let pointer = try JSONDecoder().decode(RetiredPointerV1.self, from: bytes)
-        guard try canonicalData(for: pointer) == bytes else { throw StoreGenerationFailure.dataPointerInvalid }
-        try StorePointerSchemaRegistry.requireRetired(pointer.schemaVersion)
-        let ids = pointer.generationIDs.compactMap { UUID(uuidString: $0) }
-        guard ids.count == pointer.generationIDs.count,
-              pointer.generationIDs == ids.map({ canonicalString(for: $0) }),
-              pointer.generationIDs == pointer.generationIDs.sorted(),
-              Set(ids).count == ids.count else { throw StoreGenerationFailure.dataPointerInvalid }
-        return ids
+        retirement: ErasedRegistryRetirementProofV1,
+        expected: [UUID], currentID: UUID) throws -> [UUID] {
+        try authority.retiredIDsForEraseRetirementWithReservedTemporary(
+            expected: expected, currentID: currentID, retirement: retirement)
     }
 
     /// Fixed noncreating current validation under the genuine retired-reader
@@ -13426,6 +16122,181 @@ struct StoreGenerationFactory {
     }
 
 #if DEBUG
+    @MainActor
+    func completedAbortCanonicalSource(
+        in context: ModelContext,
+        generationRootURL: URL,
+        generationID: UUID,
+        migrationID: UUID,
+        expectedIdentity: WorkspaceReplicaIdentityV1
+    ) throws -> EraseCompletedAbortCanonicalSourceV1 {
+        var diagnosticStage = "context-binding"
+        do {
+        let configurations = Array(context.container.configurations)
+        guard configurations.count == 1,
+              !configurations[0].isStoredInMemoryOnly,
+              configurations[0].url.standardizedFileURL
+                == generationRootURL.appendingPathComponent(Self.modelStoreName)
+                    .standardizedFileURL,
+              !context.hasChanges else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        diagnosticStage = "semantic-identity"
+        let identity = try acceptedV53SemanticIdentity(
+            in: context, generationID: generationID, migrationID: migrationID)
+        guard identity == expectedIdentity else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        diagnosticStage = "canonical-rows"
+        let canonical = try semanticProjection(in: context, release: .v53)
+        diagnosticStage = "journal-open"
+        let journal = try MutationJournalStoreV1(modelContext: context,
+            identity: identity, generationID: generationID,
+            allowStateBootstrap: false)
+        diagnosticStage = "journal-history"
+        let history = try journal.exportSnapshot()
+        diagnosticStage = "journal-validation"
+        try journal.validateAll()
+        diagnosticStage = "context-after"
+        guard !context.hasChanges else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        return EraseCompletedAbortCanonicalSourceV1(
+            workspaceIdentity: identity,
+            canonicalRows: canonical,
+            mutationHistory: history)
+        } catch {
+            FileHandle.standardError.write(Data((
+                "ERASE_COMPLETED_ABORT_CANONICAL_V1 stage=" + diagnosticStage + "\n"
+            ).utf8))
+            throw error
+        }
+    }
+
+    /// The original G/EX permit exists only for this synchronous call. The
+    /// source uses retained no-follow FDs; only the bounded private copy is
+    /// opened with SwiftData. The scratch owner closes and deletes its exact
+    /// lease before the result can be compared with the pre-alias baseline.
+    @MainActor
+    func completedAbortCanonicalSourceFromExclusiveCopy(
+        generationID: UUID,
+        migrationID: UUID,
+        expectedIdentity: WorkspaceReplicaIdentityV1,
+        expectedTreeDigest: String,
+        operationID: UUID,
+        sourceAuthority: StoreRestoreGenerationAuthority,
+        permit: CompletedAbortExclusiveScratchPermitV1,
+        requireProtectedIngressUnchanged: @escaping @MainActor () throws -> Void,
+        afterCopyBeforeReadForTesting: (@MainActor (URL) throws -> Void)? = nil,
+        afterReadBeforeCleanupForTesting: (@MainActor (URL) throws -> Void)? = nil
+    ) throws -> EraseCompletedAbortCanonicalSourceV1 {
+        try permit.requireHeld()
+        CompletedAbortRSSStageV1.record(.privateCopyStart)
+        let files = try sourceAuthority.completedAbortSQLiteFiles(
+            id: generationID, treeDigest: expectedTreeDigest)
+        CompletedAbortRSSStageV1.record(.privateCopyFiles)
+        var requested: UInt64 = 0
+        for file in files {
+            let (sum, overflow) = requested.addingReportingOverflow(file.byteCount)
+            guard !overflow else { throw ScratchDataLeaseStoreFailureV1.sizeLimitExceeded }
+            requested = sum
+        }
+        if !files.contains(where: { $0.name == "model.sqlite-shm" }) {
+            let wal = files.first(where: { $0.name == "model.sqlite-wal" })?.byteCount ?? 0
+            let (sum, overflow) = requested.addingReportingOverflow(max(32_768, wal))
+            guard !overflow else { throw ScratchDataLeaseStoreFailureV1.sizeLimitExceeded }
+            requested = sum
+        }
+        guard requested > 0,
+              requested <= ScratchDataPurposeV1.source.maximumByteCount else {
+            throw ScratchDataLeaseStoreFailureV1.sizeLimitExceeded
+        }
+        let now = Date()
+        let request = try ScratchDataLeaseRequestV1(
+            leaseID: UUID(), purpose: .source, owner: .source,
+            ownerOperationID: operationID,
+            requestedByteCount: requested, createdAt: now,
+            expiresAt: now.addingTimeInterval(
+                ScratchDataPurposeV1.source.maximumLifetimeSeconds))
+        weak var retainedContainer: ModelContainer?
+        weak var retainedContext: ModelContext?
+        var constructionAttempted = false
+        var constructionSettled = false
+        let snapshot = try ScratchDataLeaseStoreV1.withExclusiveOriginalEraseSourceRead(
+            applicationSupportURL: applicationSupportURL,
+            request: request, permit: permit,
+            requireProtectedIngressUnchanged: requireProtectedIngressUnchanged,
+            readerIsDrained: {
+                (!constructionAttempted || constructionSettled) &&
+                    retainedContainer == nil && retainedContext == nil
+            }) { copy in
+            try sourceAuthority.copyCompletedAbortSQLiteFiles(
+                id: generationID, files: files,
+                treeDigest: expectedTreeDigest, into: copy)
+            CompletedAbortRSSStageV1.record(.privateCopyCopied)
+            var immutableInputs: [String: ScratchDataLeaseStoreV1.SourceReadDirectory.FileProof] = [:]
+            for file in files where file.name != "model.sqlite-shm" {
+                let proof = try copy.sqliteFileProof(named: file.name)
+                guard proof.byteCount == file.byteCount,
+                      proof.sha256 == file.sha256 else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                immutableInputs[file.name] = proof
+            }
+            try afterCopyBeforeReadForTesting?(copy.modelURL)
+            try copy.requireExclusiveOwnedFilesBeforeContainer()
+            try copy.prepareExclusiveOwnedSHMForContainer()
+            try CompletedAbortSQLitePhysicalImageV1.requireFullIntegrity(
+                at: copy.modelURL)
+            CompletedAbortRSSStageV1.record(.privateCopyIntegrity)
+            try copy.requireExclusiveContainerKeptOwnedFiles()
+            let result = Result { try autoreleasepool {
+                try permit.requireHeld()
+                constructionAttempted = true
+                let container = try openReadOnlyReleasedContainer(
+                    at: copy.modelURL, release: .v53,
+                    markerMigrationID: migrationID,
+                    observe: { opened in
+                        retainedContainer = opened
+                        retainedContext = opened.mainContext
+                    },
+                    afterConstruct: { _ in
+                        try copy.requireExclusiveContainerKeptOwnedFiles()
+                    })
+                constructionSettled = true
+                return try completedAbortCanonicalSource(
+                    in: container.mainContext,
+                    generationRootURL: copy.modelURL.deletingLastPathComponent(),
+                    generationID: generationID, migrationID: migrationID,
+                    expectedIdentity: expectedIdentity)
+            } }
+            guard retainedContainer == nil, retainedContext == nil else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            let canonical = try result.get()
+            CompletedAbortRSSStageV1.record(.privateCopyRead)
+            try afterReadBeforeCleanupForTesting?(copy.modelURL)
+            try permit.requireHeld()
+            guard try copy.sqliteFileNames().subtracting(["model.sqlite-shm"])
+                    == Set(immutableInputs.keys) else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            for (name, original) in immutableInputs {
+                guard try copy.sqliteFileProof(named: name) == original else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+            }
+            guard try sourceAuthority.completedAbortSQLiteFiles(
+                id: generationID, treeDigest: expectedTreeDigest) == files else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            return canonical
+        }
+        try permit.requireHeld()
+        CompletedAbortRSSStageV1.record(.privateCopyClosed)
+        return snapshot
+    }
+
     @MainActor
     func requireFreshCompletedAbortSourceLedger(
         coordinator: StoreSessionCoordinator,
@@ -14194,6 +17065,17 @@ struct StoreGenerationFactory {
             applicationSupportURL: applicationSupportURL,
             expectedApplicationSupportIdentity: expectedApplicationSupportIdentity,
             mutationRegistry: try makeGenerationLeaseRegistry()
+        )
+    }
+
+    /// An exact-existing, non-repairing maintenance probe. Constructing this
+    /// value opens no descriptors; its Router owner must retain it first.
+    func makeRestoreMaintenanceClearObservation(
+        expectedApplicationSupportIdentity: StoreApplicationSupportIdentity
+    ) throws -> RestoreMaintenanceClearObservationV1 {
+        try RestoreMaintenanceClearObservationV1(
+            applicationSupportURL: applicationSupportURL,
+            expectedRoot: expectedApplicationSupportIdentity
         )
     }
 
@@ -21353,6 +24235,7 @@ extension StoreRestoreGenerationAuthority {
                 throw GenerationLeaseRegistryFailureV1.uncertainOwner
             }
             guard try authority.readPointerForEraseRetirement(name: "current.json",
+                expectedData: manifestScope.pointerData,
                 binding: binding, exclusion: exclusion) == manifestScope.pointerData else {
                 throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
             }
@@ -21582,10 +24465,20 @@ extension StoreGenerationFactory {
         exclusion: EraseRetirementExclusionV1, authority: StoreRestoreGenerationAuthority,
         intent: EraseIntentV1, manifestScope: EraseCurrentManifestScopeV1) async throws
         -> StoreRestoreGenerationAuthority.EraseTargetValidationAttemptV1 {
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=target-exclusion-enter")
+#endif
         try exclusion.requirePostDrainValidation(reader: reader, proof: drain)
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=target-exclusion-complete")
+#endif
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=target-pointer-enter")
+#endif
         guard drain.postDrainValidation == nil, manifestScope.binding == binding,
               manifestScope.pointerData == (try authority.readPointerForEraseRetirement(
-                name: "current.json", binding: binding, exclusion: exclusion)),
+                name: "current.json", expectedData: manifestScope.pointerData,
+                binding: binding, exclusion: exclusion)),
               let store = manifestScope.store,
               intent.eraseID == binding.subject.eraseID,
               intent.newGenerationID == binding.subject.newGenerationID,
@@ -21593,6 +24486,12 @@ extension StoreGenerationFactory {
               EraseIntentCodecV1.valid(intent) else {
             throw EraseAllServiceError.invalidAuthority
         }
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=target-pointer-complete")
+#endif
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=target-manifest-enter")
+#endif
         let manifest = try store.readManifestForEraseRetirement(
             targetGenerationID: binding.subject.newGenerationID,
             expectedDigest: binding.generationEpoch.generationManifestSHA256,
@@ -21602,12 +24501,27 @@ extension StoreGenerationFactory {
         guard manifest.storeSchemaRelease == .v53 else {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=target-manifest-complete")
+#endif
         let attempt = StoreRestoreGenerationAuthority.EraseTargetValidationAttemptV1(
             authority: authority, binding: binding, exclusion: exclusion,
             witness: drain, reader: reader, intent: intent, manifest: manifest,
             manifestScope: manifestScope)
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=target-attempt-register-enter")
+#endif
         try drain.registerPostDrainValidation(attempt) // before mkdir/copy/model construction
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=target-copy-enter")
+#endif
         try await attempt.copyAfterOriginalDrain()
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=target-copy-complete")
+#endif
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=target-read-enter")
+#endif
         try attempt.beginRead()
         let valid: Bool = autoreleasepool {
             do {
@@ -21623,8 +24537,17 @@ extension StoreGenerationFactory {
                 return true
             } catch { return false } // map inside pool; no arbitrary Error escapes
         }
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=target-read-complete")
+#endif
         try attempt.endRead(valid: valid)
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=target-dispose-enter")
+#endif
         _ = try attempt.disposeValidatedCopy()
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=target-dispose-complete")
+#endif
         return attempt
     }
 }

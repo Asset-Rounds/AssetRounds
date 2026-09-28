@@ -2,6 +2,35 @@ import Darwin
 import CryptoKit
 import Foundation
 
+#if DEBUG
+/// Measurement only. Fixed stage labels and process RSS cannot expose source
+/// paths or payloads and never participate in an Erase authority decision.
+enum CompletedAbortRSSStageV1: String {
+    case prealiasEntry, prealiasExact, prealiasCanonical, prealiasPhysical
+    case postcloseEntry, postcloseSource, postclosePhysical
+    case privateCopyStart, privateCopyFiles, privateCopyCopied
+    case privateCopyIntegrity, privateCopyRead, privateCopyClosed
+    case postclosePrivateRead, postcloseFinalSource, postcloseFinalPhysical
+
+    static func record(_ stage: Self) {
+        var value = mach_task_basic_info()
+        var count = mach_msg_type_number_t(
+            MemoryLayout<mach_task_basic_info>.size / MemoryLayout<integer_t>.size)
+        let status = withUnsafeMutablePointer(to: &value) { pointer in
+            pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO),
+                    $0, &count)
+            }
+        }
+        let resident = status == KERN_SUCCESS
+            ? String(value.resident_size / 1024) : "unavailable"
+        FileHandle.standardError.write(Data((
+            "ERASE_COMPLETED_ABORT_RSS_V1 stage=" + stage.rawValue
+            + " residentKiB=" + resident + "\n").utf8))
+    }
+}
+#endif
+
 enum C50IncumbentFileExchangeEraseAllBoundaryV1 {
     static let removesAppOwnedScratch = true
     static let removesAppOwnedQuarantine = true
@@ -1101,6 +1130,19 @@ final class EraseAllService {
 
 #if DEBUG
     var erasePhaseDiagnosticForTesting: (@MainActor (String) -> Void)?
+    /// Hostile fixture observes only the newly owned private scratch copy.
+    /// It cannot select or obtain the original generation source FD.
+    var completedAbortPrivateCopyMutationForTesting:
+        (@MainActor (URL) throws -> Void)?
+    /// Runs only after the private SwiftData aliases have drained; it proves
+    /// the exclusive cleanup refuses a substituted child before any unlink.
+    var completedAbortPrivateCopyPostReadMutationForTesting:
+        (@MainActor (URL) throws -> Void)?
+    /// One-shot fixture seam after the real old-generation deletion and
+    /// before retired-pointer clear. A test may leave an exact crash cut and
+    /// throw; the same retained operation then performs the real retry.
+    var afterOldGenerationDeletionBeforeRetiredPointerClearForTesting:
+        (@MainActor () throws -> Void)?
     /// The genuine cold Service's fresh retained-source context supplies a
     /// value-only before/after refusal readback. Test code never receives its
     /// ModelContext or retains a reader across the failed cold attempt.
@@ -1205,22 +1247,103 @@ final class EraseAllService {
         var sourceBytes: EraseCompletedAbortSourceBytesV1?
         var deliveredAbort: AbortedEraseAdmissionReceiptV1?
         var deliveredAbortCount = 0
+        var canonicalBeforeAliasRelease: EraseCompletedAbortCanonicalSourceV1?
+        var physicalBeforeAliasRelease: CompletedAbortSQLitePhysicalImageV1?
+        let protectedIngressOrigin: String?
         var uncertain = false
 
         init(expectedFault: EraseAllFailurePoint,
              operation: EraseRouterOperationV1,
              auxiliary: EraseAuxiliaryAuthority,
-             generationAuthority: StoreRestoreGenerationAuthority) {
+             generationAuthority: StoreRestoreGenerationAuthority) throws {
             self.expectedFault = expectedFault
             self.operation = operation
             self.auxiliary = auxiliary
             self.generationAuthority = generationAuthority
+            protectedIngressOrigin = try auxiliary.completedAbortProtectedIngressTree()
+        }
+
+        func requireProtectedIngressUnchanged() throws {
+            guard try auxiliary.completedAbortProtectedIngressTree()
+                    == protectedIngressOrigin else {
+                throw EraseAllServiceError.invalidAuthority
+            }
         }
 
         private func report(_ stage: String) {
             FileHandle.standardError.write(Data((
                 "ERASE_COMPLETED_ABORT_PROOF_V1 stage=" + stage + "\n"
             ).utf8))
+        }
+
+        private func reportSourceDifference(
+            expected: EraseCompletedAbortSourceBytesV1,
+            observed: EraseCompletedAbortSourceBytesV1
+        ) {
+            // Every emitted word is a fixed field or ownership category. The
+            // compared paths, identities, bytes and digests never leave this frame.
+            func identityFields(_ first: String, _ second: String,
+                                prefix: String) -> [String] {
+                let lhs = first.split(separator: "|", omittingEmptySubsequences: false)
+                let rhs = second.split(separator: "|", omittingEmptySubsequences: false)
+                guard lhs.count == 9, rhs.count == 9 else {
+                    return [prefix + "-shape"]
+                }
+                let labels = ["device", "inode", "mode", "links", "size",
+                              "mtime-seconds", "mtime-nanoseconds",
+                              "ctime-seconds", "ctime-nanoseconds"]
+                return labels.indices.compactMap { index in
+                    lhs[index] == rhs[index] ? nil : prefix + "-" + labels[index]
+                }
+            }
+            var differences: [String] = []
+            if expected.current != observed.current {
+                differences.append("current-bytes")
+            }
+            differences += identityFields(expected.currentIdentity,
+                                          observed.currentIdentity,
+                                          prefix: "current")
+            if expected.retired != observed.retired {
+                differences.append("retired-bytes")
+            }
+            differences += identityFields(expected.retiredIdentity,
+                                          observed.retiredIdentity,
+                                          prefix: "retired")
+            if expected.sourceTreeDigest != observed.sourceTreeDigest {
+                differences.append("source-tree")
+                let paths = Set(expected.sourceNodes.keys)
+                    .union(observed.sourceNodes.keys).sorted()
+                if let first = paths.first(where: {
+                    expected.sourceNodes[$0] != observed.sourceNodes[$0]
+                }) {
+                    let before = expected.sourceNodes[first]
+                    let after = observed.sourceNodes[first]
+                    let node = after ?? before
+                    let nodeType = node?.nodeType == "directory"
+                        ? GenerationOwnedPathV1.NodeType.directory
+                        : GenerationOwnedPathV1.NodeType.regularFile
+                    let ownedKind = first.isEmpty ? "generation-root" :
+                        ((try? GenerationOwnedPathV1.classify(
+                            first, nodeType: nodeType))?.kind.rawValue ?? "unknown")
+                    let fixedFields = ["device", "inode", "mode", "nlink",
+                                       "size", "mtime", "ctime", "membership", "sha256"]
+                    let changedFields: [String]
+                    if before == nil { changedFields = ["node-added"] }
+                    else if after == nil { changedFields = ["node-removed"] }
+                    else {
+                        changedFields = fixedFields.filter {
+                            before?.fields[$0] != after?.fields[$0]
+                        }
+                    }
+                    differences.append("node-" + (node?.nodeType == "directory"
+                        ? "directory" : "file"))
+                    differences.append("owned-" + ownedKind)
+                    differences += changedFields.map { "field-" + $0 }
+                } else {
+                    differences.append("node-facts-equal")
+                }
+            }
+            report("no-effect.source-difference." + differences.joined(separator: ","))
         }
 
         func bindSource(oldPointer: RestorePointerIdentityV1,
@@ -1302,24 +1425,85 @@ final class EraseAllService {
                 guard !uncertain, let oldPointer, let sourceBytes, let targetID else {
                     throw EraseAllServiceError.invalidAuthority
                 }
+                stage = "protected-ingress-before"
+                try requireProtectedIngressUnchanged()
                 stage = "erase-root-before"
                 try auxiliary.requireEraseRootAbsentForAbortedAdmission()
                 stage = "target-before"
                 try generationAuthority.requireCompletedAbortTargetAbsent(targetID)
                 stage = "source-bytes"
-                guard try generationAuthority.snapshotCompletedAbortSource(
+                let observed = try generationAuthority.snapshotCompletedAbortSource(
                     id: oldPointer.generationID, oldPointer: oldPointer,
-                    priorRetired: priorRetired) == sourceBytes else {
+                    priorRetired: priorRetired)
+                guard observed == sourceBytes else {
+                    reportSourceDifference(expected: sourceBytes, observed: observed)
                     throw EraseAllServiceError.invalidAuthority
                 }
                 stage = "erase-root-after"
                 try auxiliary.requireEraseRootAbsentForAbortedAdmission()
                 stage = "target-after"
                 try generationAuthority.requireCompletedAbortTargetAbsent(targetID)
+                stage = "protected-ingress-after"
+                try requireProtectedIngressUnchanged()
             } catch {
                 report("no-effect." + stage + "." + String(reflecting: type(of: error)))
                 throw error
             }
+        }
+
+        /// The five-fact pre-alias proof remains exact. After a checked
+        /// SwiftData teardown, only the three already-present SQLite leaves
+        /// may change size, timestamps, or bytes; their names, source inodes,
+        /// modes and link counts remain fixed. Every other source/control
+        /// fact, including generation membership, stays byte-identical.
+        func postCloseSource(
+            _ receipt: AbortedEraseAdmissionReceiptV1,
+            operation expected: EraseRouterOperationV1
+        ) throws -> EraseCompletedAbortSourceBytesV1 {
+            try requireReceipt(receipt, operation: expected)
+            guard !uncertain, canonicalBeforeAliasRelease != nil,
+                  let oldPointer, let sourceBytes, let targetID else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireProtectedIngressUnchanged()
+            try auxiliary.requireEraseRootAbsentForAbortedAdmission()
+            try generationAuthority.requireCompletedAbortTargetAbsent(targetID)
+            let observed = try generationAuthority.snapshotCompletedAbortSource(
+                id: oldPointer.generationID, oldPointer: oldPointer,
+                priorRetired: priorRetired)
+            guard observed.current == sourceBytes.current,
+                  observed.currentIdentity == sourceBytes.currentIdentity,
+                  observed.retired == sourceBytes.retired,
+                  observed.retiredIdentity == sourceBytes.retiredIdentity,
+                  Set(observed.sourceNodes.keys) == Set(sourceBytes.sourceNodes.keys),
+                  observed.sourceNodes["model.sqlite"] != nil else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let sqlite: Set<String> = ["model.sqlite", "model.sqlite-wal", "model.sqlite-shm"]
+            let stableSQLiteFields = ["device", "inode", "mode", "nlink"]
+            let allSQLiteFields: Set<String> = ["device", "inode", "mode", "nlink",
+                                                 "size", "mtime", "ctime", "sha256"]
+            for (path, before) in sourceBytes.sourceNodes {
+                guard let after = observed.sourceNodes[path] else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                if sqlite.contains(path) {
+                    guard before.nodeType == "file", after.nodeType == "file",
+                          Set(before.fields.keys) == allSQLiteFields,
+                          Set(after.fields.keys) == allSQLiteFields,
+                          stableSQLiteFields.allSatisfy({
+                              before.fields[$0] == after.fields[$0]
+                          }) else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                } else if before != after {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+            }
+            try auxiliary.requireEraseRootAbsentForAbortedAdmission()
+            try generationAuthority.requireCompletedAbortTargetAbsent(targetID)
+            try requireProtectedIngressUnchanged()
+            return observed
         }
     }
 
@@ -1360,6 +1544,148 @@ final class EraseAllService {
             throw EraseAllServiceError.invalidAuthority
         }
         try frame.requireNoEffect(receipt, operation: operation)
+    }
+
+    /// The original callback and operation remain bound after checked source
+    /// closure. The exact five-fact source is separately proved at pre-alias
+    /// seal; this receipt check alone grants no post-close source acceptance.
+    func requireCompletedAbortReceiptForExclusiveScratch(
+        operation: EraseRouterOperationV1,
+        receipt: AbortedEraseAdmissionReceiptV1
+    ) throws {
+        guard !originalEraseFrameActive,
+              let frame = completedAbortFrame,
+              originalFrameOperation === operation else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try frame.requireReceipt(receipt, operation: operation)
+    }
+
+    /// Called inside the original G scope while AppAccess still retains its
+    /// exact original coordinator. This first repeats the unchanged five-fact
+    /// source proof, then records the full V53 committed rows and mutation
+    /// history as value types. No new owner, session or reader is constructed.
+    func sealCompletedAbortCanonicalBeforeAliasReleaseForTesting(
+        operation: EraseRouterOperationV1,
+        receipt: AbortedEraseAdmissionReceiptV1,
+        coordinator: StoreSessionCoordinator
+    ) throws {
+        var diagnosticStage = "authority"
+        do {
+        guard !originalEraseFrameActive,
+              let frame = completedAbortFrame,
+              originalFrameOperation === operation,
+              frame.canonicalBeforeAliasRelease == nil,
+              frame.physicalBeforeAliasRelease == nil,
+              let pointer = frame.oldPointer,
+              let migrationID = frame.sourceManifestMigrationID,
+              frame.sourceManifestRelease == .v53,
+              coordinator.generationID == pointer.generationID,
+              coordinator.generationRootURL.standardizedFileURL
+                == generationFactory.installedGenerationURL(
+                    id: pointer.generationID).standardizedFileURL,
+              coordinator.workspaceID.rawValue == pointer.workspaceID,
+              coordinator.replicaID.rawValue == pointer.replicaID else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        CompletedAbortRSSStageV1.record(.prealiasEntry)
+        diagnosticStage = "no-effect-before"
+        try frame.requireNoEffect(receipt, operation: operation)
+        CompletedAbortRSSStageV1.record(.prealiasExact)
+        diagnosticStage = "canonical-source"
+        // This synchronous pool releases SwiftData/Foundation export temporaries
+        // while the original context and EX/G remain held by their owners.
+        // The returned canonical values remain strongly retained by `baseline`.
+        let baseline = try autoreleasepool {
+            try generationFactory.completedAbortCanonicalSource(
+                in: coordinator.modelContext,
+                generationRootURL: coordinator.generationRootURL,
+                generationID: pointer.generationID,
+                migrationID: migrationID,
+                expectedIdentity: coordinator.workspaceIdentity)
+        }
+        CompletedAbortRSSStageV1.record(.prealiasCanonical)
+        guard let source = frame.sourceBytes else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        diagnosticStage = "physical-source"
+        let physical = try frame.generationAuthority.completedAbortSQLitePhysicalImage(
+            id: pointer.generationID, treeDigest: source.sourceTreeDigest)
+        CompletedAbortRSSStageV1.record(.prealiasPhysical)
+        diagnosticStage = "no-effect-after"
+        try frame.requireNoEffect(receipt, operation: operation)
+        frame.canonicalBeforeAliasRelease = baseline
+        frame.physicalBeforeAliasRelease = physical
+        } catch {
+            FileHandle.standardError.write(Data((
+                "ERASE_COMPLETED_ABORT_PREALIAS_V1 stage=" + diagnosticStage + "\n"
+            ).utf8))
+            throw error
+        }
+    }
+
+    /// After all original aliases and reader/writer handles have checked
+    /// closed, the original EX/G operation permits one private source read.
+    /// Exact controls and every non-SQLite node are checked before and after
+    /// the copy. A changed SQLite representation is accepted only if the
+    /// copied committed rows, entire receipt history, and V53 integrity
+    /// validation are equal to the sealed pre-alias source.
+    func requireCompletedAbortPostCloseNoEffectForTesting(
+        operation: EraseRouterOperationV1,
+        receipt: AbortedEraseAdmissionReceiptV1,
+        permit: CompletedAbortExclusiveScratchPermitV1
+    ) throws {
+        try permit.requireHeld()
+        guard !originalEraseFrameActive,
+              let frame = completedAbortFrame,
+              originalFrameOperation === operation,
+              let pointer = frame.oldPointer,
+              let migrationID = frame.sourceManifestMigrationID,
+              frame.sourceManifestRelease == .v53,
+              let expected = frame.canonicalBeforeAliasRelease,
+              let beforePhysical = frame.physicalBeforeAliasRelease,
+              expected.workspaceIdentity.workspaceID.rawValue == pointer.workspaceID,
+              expected.workspaceIdentity.replicaID.rawValue == pointer.replicaID else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        CompletedAbortRSSStageV1.record(.postcloseEntry)
+        let before = try frame.postCloseSource(receipt, operation: operation)
+        CompletedAbortRSSStageV1.record(.postcloseSource)
+        let afterPhysical = try frame.generationAuthority.completedAbortSQLitePhysicalImage(
+            id: pointer.generationID, treeDigest: before.sourceTreeDigest)
+        try beforePhysical.requireOwnedCloseTransition(to: afterPhysical)
+        CompletedAbortRSSStageV1.record(.postclosePhysical)
+        let observed = try generationFactory
+            .completedAbortCanonicalSourceFromExclusiveCopy(
+                generationID: pointer.generationID,
+                migrationID: migrationID,
+                expectedIdentity: expected.workspaceIdentity,
+                expectedTreeDigest: before.sourceTreeDigest,
+                operationID: receipt.subject.eraseID,
+                sourceAuthority: frame.generationAuthority,
+                permit: permit,
+                requireProtectedIngressUnchanged: {
+                    try frame.requireProtectedIngressUnchanged()
+                },
+                afterCopyBeforeReadForTesting:
+                    completedAbortPrivateCopyMutationForTesting,
+                afterReadBeforeCleanupForTesting:
+                    completedAbortPrivateCopyPostReadMutationForTesting)
+        CompletedAbortRSSStageV1.record(.postclosePrivateRead)
+        guard observed == expected else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let after = try frame.postCloseSource(receipt, operation: operation)
+        CompletedAbortRSSStageV1.record(.postcloseFinalSource)
+        let finalPhysical = try frame.generationAuthority.completedAbortSQLitePhysicalImage(
+            id: pointer.generationID, treeDigest: after.sourceTreeDigest)
+        CompletedAbortRSSStageV1.record(.postcloseFinalPhysical)
+        guard after == before,
+              after.sourceNodes == before.sourceNodes,
+              finalPhysical == afterPhysical else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try permit.requireHeld()
     }
 
     func requireCompletedAbortFreshLedgerForTesting(
@@ -1447,16 +1773,82 @@ final class EraseAllService {
     func capturePostHandoffHostileSourceForTesting(
         operation: EraseRouterOperationV1
     ) throws -> V949OriginalEraseSourceBindingV1 {
-        try requireInterruptedOriginalPreparationFaultForTesting(
+        let persisted = try interruptedRetiredAuthorityIntentForTesting(
             .afterPointerSwitch, operation: operation)
         guard enableOriginalColdExitWitnessForTesting,
               let frame = originalColdExitFrame,
-              let expected = originalFrameExpectedIntent,
-              expected.oldGenerationID != expected.newGenerationID else {
+              persisted.oldGenerationID != persisted.newGenerationID else {
             throw EraseAllServiceError.invalidAuthority
         }
         return try frame.capturePostHandoffHostileSource(
-            operation: operation, intent: expected)
+            operation: operation, intent: persisted)
+    }
+
+    /// Called only by the retained original operation under its physical EX
+    /// and Registry G, before the first checked source reader/writer close.
+    func beginV949OwnedSourceCloseTransitionForTesting(
+        _ binding: V949OriginalEraseSourceBindingV1,
+        operation: EraseRouterOperationV1
+    ) throws {
+        let intent = try interruptedRetiredAuthorityIntentForTesting(
+            .afterPointerSwitch, operation: operation)
+        guard originalFrameOperation === operation,
+              let frame = originalColdExitFrame else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try frame.beginOwnedSourceCloseTransition(
+            binding: binding, operation: operation, intent: intent)
+    }
+
+    /// Called after all actual source aliases and leases checked-close, but
+    /// before the original G/EX/guard release. Failure leaves that owner held.
+    func completeV949OwnedSourceCloseTransitionForTesting(
+        _ binding: V949OriginalEraseSourceBindingV1,
+        operation: EraseRouterOperationV1
+    ) throws {
+        let intent = try interruptedRetiredAuthorityIntentForTesting(
+            .afterPointerSwitch, operation: operation)
+        guard originalFrameOperation === operation,
+              let frame = originalColdExitFrame else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try frame.completeOwnedSourceCloseTransition(
+            binding: binding, operation: operation, intent: intent)
+    }
+
+    /// A distinct, one-use transition for the newly retained fixture reader.
+    /// Its owner calls these only inside its fresh Registry G and Support EX,
+    /// before the hostile callback receives the opened SwiftData session.
+    func beginV949OwnedReaderOpenTransitionForTesting(
+        _ witness: V949PostHandoffHostileFixtureWitnessV1,
+        owner: V949RetiredSourceFixtureOwnerV1
+    ) throws {
+        try owner.requireReaderOpenProofAuthority(witness)
+        guard witness.originalService === self,
+              originalFrameOperation === witness.operation,
+              let frame = originalColdExitFrame else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let intent = try interruptedRetiredAuthorityIntentForTesting(
+            .afterPointerSwitch, operation: witness.operation)
+        try frame.beginOwnedReaderOpenTransition(binding: witness.binding,
+            operation: witness.operation, intent: intent)
+    }
+
+    func completeV949OwnedReaderOpenTransitionForTesting(
+        _ witness: V949PostHandoffHostileFixtureWitnessV1,
+        owner: V949RetiredSourceFixtureOwnerV1
+    ) throws {
+        try owner.requireReaderOpenProofAuthority(witness)
+        guard witness.originalService === self,
+              originalFrameOperation === witness.operation,
+              let frame = originalColdExitFrame else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let intent = try interruptedRetiredAuthorityIntentForTesting(
+            .afterPointerSwitch, operation: witness.operation)
+        try frame.completeOwnedReaderOpenTransition(binding: witness.binding,
+            operation: witness.operation, intent: intent)
     }
 
     func requireV949PostHandoffOriginalSourceUnchanged(
@@ -1640,6 +2032,11 @@ final class EraseAllService {
 #if DEBUG
         enableOriginalColdExitWitnessForTesting =
             service.enableOriginalColdExitWitnessForTesting
+        erasePhaseDiagnosticForTesting = service.erasePhaseDiagnosticForTesting
+        completedAbortPrivateCopyMutationForTesting =
+            service.completedAbortPrivateCopyMutationForTesting
+        completedAbortPrivateCopyPostReadMutationForTesting =
+            service.completedAbortPrivateCopyPostReadMutationForTesting
 #endif
     }
 
@@ -1742,7 +2139,7 @@ final class EraseAllService {
                 operation, auxiliary, generationAuthority)
         }
         if let completedAbortPoint {
-            completedAbortFrame = CompletedAbortFrame(
+            completedAbortFrame = try CompletedAbortFrame(
                 expectedFault: completedAbortPoint, operation: operation,
                 auxiliary: auxiliary, generationAuthority: generationAuthority)
         }
@@ -3265,19 +3662,26 @@ private extension EraseAllService {
                id == intent.oldGenerationID,
                currentID == intent.newGenerationID {
                 traceErasePhase("recovery.presence.retained-source")
+                traceErasePhase("recovery.retained.acquire.enter")
                 let validation = try EraseRetainedSourceValidationV1.acquire(
                     intent: intent, generationFactory: generationFactory,
                     authority: authority
                 )
+                traceErasePhase("recovery.retained.acquire.complete")
+                traceErasePhase("recovery.retained.open.enter")
                 let session = try generationFactory.openInstalledGeneration(
                     id: id, identity: validation.workspaceIdentity, authority: authority
                 )
+                traceErasePhase("recovery.retained.open.complete")
                 #if DEBUG
+                traceErasePhase("recovery.retained.readback.enter")
                 let v949Before = try v949RetainedSourceReadbackForTesting.map {
                     _ in try V949ColdSourceReadbackV1.capture(
                         session.modelContext)
                 }
+                traceErasePhase("recovery.retained.readback.complete")
                 #endif
+                traceErasePhase("recovery.retained.validate.enter")
                 do {
                     try validateFrozenGeneration(
                         id: id, modelContext: session.modelContext,
@@ -3296,6 +3700,7 @@ private extension EraseAllService {
                     #endif
                     throw error
                 }
+                traceErasePhase("recovery.retained.validate.complete")
                 continue
             }
             let session = try generationFactory.openInstalledGeneration(
@@ -4531,6 +4936,47 @@ private struct EraseOriginalExchangePhysicalStateV1: Equatable {
     let names: [String]
 }
 
+/// Read-only DEBUG facts used to classify a failed full-tree equality check.
+/// Names and digests stay in memory; diagnostics print fixed categories only.
+private struct EraseSchemaMigrationDiagnosticFactV1: Equatable {
+    let kind: String
+    let identity: String
+    let modeAndLinks: String
+    let size: String
+    let modified: String
+    let changed: String
+    let contentDigest: String
+}
+
+private struct EraseSchemaMigrationDiagnosticSnapshotV1 {
+    let rootIdentity: String
+    let rootMode: String
+    let rootLinks: UInt64
+    let entries: [String: EraseSchemaMigrationDiagnosticFactV1]
+
+    func firstDifference(from other: Self) -> String {
+        if rootIdentity != other.rootIdentity { return "root-identity" }
+        if rootMode != other.rootMode { return "root-mode" }
+        if rootLinks != other.rootLinks { return "root-links" }
+        guard Set(entries.keys) == Set(other.entries.keys) else {
+            return "entry-membership"
+        }
+        for name in entries.keys.sorted() {
+            guard let before = entries[name], let after = other.entries[name] else {
+                return "entry-membership"
+            }
+            if before.kind != after.kind { return "entry-kind" }
+            if before.identity != after.identity { return "entry-identity" }
+            if before.modeAndLinks != after.modeAndLinks { return "entry-mode-links" }
+            if before.size != after.size { return "entry-size" }
+            if before.modified != after.modified { return "entry-mtime" }
+            if before.changed != after.changed { return "entry-ctime" }
+            if before.contentDigest != after.contentDigest { return "entry-content" }
+        }
+        return "no-shallow-difference"
+    }
+}
+
 #if DEBUG
 /// Immutable facts read from the genuine original Erase frame before the
 /// checked owner transfer. No caller can recreate these from later disk bytes.
@@ -4644,6 +5090,13 @@ private final class EraseOriginalColdExitFrameV1: @unchecked Sendable {
     private let auxiliary: EraseAuxiliaryAuthority
     private let oldGenerationID: UUID
     private let sourceTree: String
+    private let sourceTreeNodes: [EraseAbortCheckedSnapshotIOV1.CheckedTreeNode]
+    private var preCloseSQLiteImage: CompletedAbortSQLitePhysicalImageV1?
+    private var validatedPostCloseSourceTree: String?
+    private var preReaderOpenSQLiteImage: CompletedAbortSQLitePhysicalImageV1?
+    private var preReaderOpenSourceNodes:
+        [EraseAbortCheckedSnapshotIOV1.CheckedTreeNode]?
+    private var validatedPostReaderOpenSourceTree: String?
     private let controlsOrigin: EraseOriginalColdExitControlsV1
     private var controlsPublished: EraseOriginalColdExitControlsV1?
     private let userDefaults: UserDefaults
@@ -4655,6 +5108,8 @@ private final class EraseOriginalColdExitFrameV1: @unchecked Sendable {
     private var manifestObservationCount = 0
     private var targetGenerationID: UUID?
     private let schemaMigrationOrigin: String
+    private let schemaMigrationSourceRootLinks: UInt64
+    private let schemaMigrationDiagnosticOrigin: EraseSchemaMigrationDiagnosticSnapshotV1?
     private var targetManifestPointer: RestorePointerIdentityV1?
     private var targetManifestIdentity: String?
     private let auxiliaryOrigin: ErasePostRetiredAuxiliarySnapshotV1
@@ -4699,7 +5154,11 @@ private final class EraseOriginalColdExitFrameV1: @unchecked Sendable {
         intent: EraseIntentV1
     ) throws -> V949OriginalEraseSourceBindingV1 {
         try lock.withLock {
-            try requirePreparedTransition()
+            // This witness is captured at the actual afterPointerSwitch cut.
+            // Search, notification, scratch and Exchange effects have not run;
+            // the later .exchangePublished cleanup predicate is deliberately
+            // separate and remains strict for a prepared retirement.
+            try requireEarlyPointerPublishedTransition(intent)
             guard operation === expected,
                   intent.oldGenerationID == oldGenerationID,
                   intent.newGenerationID == targetGenerationID,
@@ -4723,14 +5182,50 @@ private final class EraseOriginalColdExitFrameV1: @unchecked Sendable {
         }
     }
 
+    private func requireEarlyPointerPublishedTransition(
+        _ intent: EraseIntentV1
+    ) throws {
+        guard stage == .sourceBound,
+              validatedPostCloseSourceTree == nil,
+              intent.phase == .emptyGenerationPrepared,
+              intent.oldGenerationID == oldGenerationID,
+              intent.oldPointer == oldPointer,
+              intent.sourceLedger == sourceLedger,
+              intent.newGenerationID == targetGenerationID,
+              intent.targetPointer == targetManifestPointer,
+              targetManifestIdentity != nil,
+              controlsPublished != nil,
+              searchExpectedBytes == nil,
+              discoveryAfter == nil,
+              notificationAfterSuccess == nil,
+              scratchOwner == nil,
+              exchangeOwner == nil else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try requireSourceUnchanged()
+        try requireUnrelatedOperationsUnchanged()
+        try requireDefaultsUnchanged()
+        try requirePublishedControlsUnchanged()
+        try auxiliary.requireOriginalEraseOtherAuxiliaryUnchangedForTesting(
+            auxiliaryOrigin, allowing: [])
+        guard try auxiliary.originalEraseSearchStateForTesting() == searchOrigin,
+              try auxiliary.originalEraseEmptyScratchStateForTesting() == scratchOrigin,
+              try auxiliary.originalEraseNotificationStateForTesting() == notificationOrigin,
+              try auxiliary.originalEraseExchangeStateForTesting() == exchangeOrigin else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+
     func requireV949OriginalSourceUnchanged(
         _ binding: V949OriginalEraseSourceBindingV1,
         operation expected: EraseRouterOperationV1
     ) throws {
         try lock.withLock {
-            guard operation === expected,
+            guard stage == .sourceBound,
+                  operation === expected,
                   binding.oldGenerationID == oldGenerationID,
                   binding.newGenerationID == targetGenerationID,
+                  binding.sourcePointer == oldPointer,
                   binding.sourceTreeDigest == sourceTree,
                   controlsPublished == binding.publishedControls,
                   try sourceManifest?.canonicalSHA256()
@@ -4748,9 +5243,11 @@ private final class EraseOriginalColdExitFrameV1: @unchecked Sendable {
         operation expected: EraseRouterOperationV1
     ) throws {
         try lock.withLock {
-            guard operation === expected,
+            guard stage == .sourceBound,
+                  operation === expected,
                   binding.oldGenerationID == oldGenerationID,
                   binding.newGenerationID == targetGenerationID,
+                  binding.sourcePointer == oldPointer,
                   controlsPublished == binding.publishedControls,
                   try sourceManifest?.canonicalSHA256()
                     == binding.sourceManifestSHA256,
@@ -4778,8 +5275,11 @@ private final class EraseOriginalColdExitFrameV1: @unchecked Sendable {
             userDefaults, domain: defaultsDomainName)
         controlsOrigin = try authority
             .originalEraseControlsForColdExitForTesting()
-        sourceTree = try authority.originalEraseSourceTreeForColdExitForTesting(
-            id: oldGenerationID)
+        let sourceObservation = try authority
+            .originalEraseSourceTreeObservationForColdExitForTesting(
+                id: oldGenerationID)
+        sourceTree = sourceObservation.digest
+        sourceTreeNodes = sourceObservation.nodes
         auxiliaryOrigin = try auxiliary.postRetiredSnapshot()
         searchOrigin = try auxiliary.originalEraseSearchStateForTesting()
         scratchOrigin = try auxiliary.originalEraseEmptyScratchStateForTesting()
@@ -4788,8 +5288,12 @@ private final class EraseOriginalColdExitFrameV1: @unchecked Sendable {
         exchangeOrigin = try auxiliary.originalEraseExchangeStateForTesting()
         unrelatedOperationsDigest = try auxiliary
             .originalEraseUnrelatedOperationsDigestForTesting()
-        schemaMigrationOrigin = try auxiliary
-            .originalEraseSchemaMigrationDigestForTesting()
+        let schemaMigrationSource = try auxiliary
+            .originalEraseSchemaMigrationSourceSnapshotForTesting()
+        schemaMigrationOrigin = schemaMigrationSource.digest
+        schemaMigrationSourceRootLinks = schemaMigrationSource.rootLinks
+        schemaMigrationDiagnosticOrigin = try? auxiliary
+            .originalEraseSchemaMigrationDiagnosticSnapshotForTesting()
         try requireSourceUnchanged()
         try auxiliary.requireOriginalEraseOtherAuxiliaryUnchangedForTesting(
             auxiliaryOrigin, allowing: [])
@@ -4827,17 +5331,274 @@ private final class EraseOriginalColdExitFrameV1: @unchecked Sendable {
         }
     }
 
+    /// The source root is already bound by the original Erase frame. The
+    /// only tolerated physical delta is an authenticated SQLite close: same
+    /// named inodes and non-SQLite tree, with the full committed page image
+    /// and surviving WAL prefix checked by the shared physical validator.
+    private func requireOwnedSQLiteNodeTransition(
+        from baseline: [EraseAbortCheckedSnapshotIOV1.CheckedTreeNode],
+        to observed: [EraseAbortCheckedSnapshotIOV1.CheckedTreeNode],
+        allowingSHMModificationTime: Bool
+    ) throws {
+        var old = [String: EraseAbortCheckedSnapshotIOV1.CheckedTreeNode]()
+        var new = [String: EraseAbortCheckedSnapshotIOV1.CheckedTreeNode]()
+        for node in baseline {
+            guard old.updateValue(node, forKey: node.path) == nil else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        }
+        for node in observed {
+            guard new.updateValue(node, forKey: node.path) == nil else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        }
+        guard Set(old.keys) == Set(new.keys) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        for (path, before) in old {
+            guard let after = new[path] else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let a = before.fact, b = after.fact
+            guard a.st_dev == b.st_dev, a.st_ino == b.st_ino,
+                  a.st_mode == b.st_mode, a.st_nlink == b.st_nlink else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            switch path {
+            case "model.sqlite", "model.sqlite-wal":
+                // Page and WAL content/length changes are verified below by
+                // the preclose image, not accepted from this fresh scan.
+                break
+            case "model.sqlite-shm":
+                // SQLite may rewrite its shared index. Reader open may also
+                // change its mtime; neither grants a new durable page image.
+                guard a.st_size == b.st_size,
+                      (allowingSHMModificationTime ||
+                       (a.st_mtimespec.tv_sec == b.st_mtimespec.tv_sec &&
+                        a.st_mtimespec.tv_nsec == b.st_mtimespec.tv_nsec)) else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+            default:
+                guard a.st_size == b.st_size,
+                      a.st_mtimespec.tv_sec == b.st_mtimespec.tv_sec,
+                      a.st_mtimespec.tv_nsec == b.st_mtimespec.tv_nsec,
+                      a.st_ctimespec.tv_sec == b.st_ctimespec.tv_sec,
+                      a.st_ctimespec.tv_nsec == b.st_ctimespec.tv_nsec,
+                      before.sha256 == after.sha256 else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+            }
+        }
+    }
+
+    func beginOwnedSourceCloseTransition(
+        binding: V949OriginalEraseSourceBindingV1,
+        operation expected: EraseRouterOperationV1,
+        intent: EraseIntentV1
+    ) throws {
+        try lock.withLock {
+            guard operation === expected, preCloseSQLiteImage == nil,
+                  validatedPostCloseSourceTree == nil,
+                  binding.sourceTreeDigest == sourceTree,
+                  binding.eraseID == intent.eraseID else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireEarlyPointerPublishedTransition(intent)
+            let before = try authority
+                .originalEraseSQLitePhysicalImageForColdExitForTesting(
+                    id: oldGenerationID)
+            guard before.tree == sourceTree else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            preCloseSQLiteImage = before.image
+        }
+    }
+
+    func completeOwnedSourceCloseTransition(
+        binding: V949OriginalEraseSourceBindingV1,
+        operation expected: EraseRouterOperationV1,
+        intent: EraseIntentV1
+    ) throws {
+        try lock.withLock {
+            guard operation === expected,
+                  let preCloseSQLiteImage,
+                  validatedPostCloseSourceTree == nil,
+                  binding.sourceTreeDigest == sourceTree,
+                  binding.eraseID == intent.eraseID,
+                  intent.phase == .emptyGenerationPrepared,
+                  intent.oldGenerationID == oldGenerationID,
+                  intent.newGenerationID == targetGenerationID,
+                  intent.oldPointer == oldPointer,
+                  intent.sourceLedger == sourceLedger,
+                  intent.targetPointer == targetManifestPointer else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let after = try authority
+                .originalEraseSQLitePhysicalImageForColdExitForTesting(
+                    id: oldGenerationID)
+            try requireOwnedSQLiteNodeTransition(from: sourceTreeNodes,
+                to: after.nodes, allowingSHMModificationTime: false)
+            try preCloseSQLiteImage.requireOwnedCloseTransition(to: after.image)
+            try requirePublishedControlsUnchanged()
+            try requireDefaultsUnchanged()
+            validatedPostCloseSourceTree = after.tree
+        }
+    }
+
+    func beginOwnedReaderOpenTransition(
+        binding: V949OriginalEraseSourceBindingV1,
+        operation expected: EraseRouterOperationV1,
+        intent: EraseIntentV1
+    ) throws {
+        try lock.withLock {
+            guard operation === expected, stage == .sourceBound,
+                  let validatedPostCloseSourceTree,
+                  preReaderOpenSQLiteImage == nil,
+                  validatedPostReaderOpenSourceTree == nil,
+                  binding.sourceTreeDigest == sourceTree,
+                  binding.eraseID == intent.eraseID,
+                  intent.phase == .emptyGenerationPrepared,
+                  intent.oldGenerationID == oldGenerationID,
+                  intent.newGenerationID == targetGenerationID,
+                  intent.oldPointer == oldPointer,
+                  intent.sourceLedger == sourceLedger,
+                  intent.targetPointer == targetManifestPointer else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireV949OriginalSourceUnchanged(binding,
+                operation: expected)
+            let before = try authority
+                .originalEraseSQLitePhysicalImageForColdExitForTesting(
+                    id: oldGenerationID)
+            guard before.tree == validatedPostCloseSourceTree else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            preReaderOpenSQLiteImage = before.image
+            preReaderOpenSourceNodes = before.nodes
+        }
+    }
+
+    func completeOwnedReaderOpenTransition(
+        binding: V949OriginalEraseSourceBindingV1,
+        operation expected: EraseRouterOperationV1,
+        intent: EraseIntentV1
+    ) throws {
+        try lock.withLock {
+            guard operation === expected, stage == .sourceBound,
+                  let preReaderOpenSQLiteImage,
+                  let preReaderOpenSourceNodes,
+                  validatedPostCloseSourceTree != nil,
+                  validatedPostReaderOpenSourceTree == nil,
+                  binding.sourceTreeDigest == sourceTree,
+                  binding.eraseID == intent.eraseID,
+                  intent.phase == .emptyGenerationPrepared,
+                  intent.oldGenerationID == oldGenerationID,
+                  intent.newGenerationID == targetGenerationID,
+                  intent.oldPointer == oldPointer,
+                  intent.sourceLedger == sourceLedger,
+                  intent.targetPointer == targetManifestPointer else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let after = try authority
+                .originalEraseSQLitePhysicalImageForColdExitForTesting(
+                    id: oldGenerationID)
+            try requireOwnedSQLiteNodeTransition(from: preReaderOpenSourceNodes,
+                to: after.nodes, allowingSHMModificationTime: true)
+            // This pure validator accepts only the same complete committed
+            // page vector and authenticated WAL prefix, irrespective of the
+            // mechanism that caused SQLite's checkpoint representation.
+            try preReaderOpenSQLiteImage.requireOwnedCloseTransition(
+                to: after.image)
+            try requirePublishedControlsUnchanged()
+            try requireDefaultsUnchanged()
+            validatedPostReaderOpenSourceTree = after.tree
+        }
+    }
+
+    private func reportSourceTreeDifference(
+        _ observed: [EraseAbortCheckedSnapshotIOV1.CheckedTreeNode]
+    ) {
+        func category(_ path: String) -> String {
+            if path.isEmpty { return "root" }
+            let leaf = path.split(separator: "/").last.map(String.init) ?? ""
+            switch leaf {
+            case "model.sqlite": return "sqlite"
+            case "model.sqlite-wal": return "wal"
+            case "model.sqlite-shm": return "shm"
+            default: return "other"
+            }
+        }
+        let labels = ["membership", "device", "inode", "mode", "nlink",
+                      "size", "mtime-seconds", "mtime-nanoseconds",
+                      "ctime-seconds", "ctime-nanoseconds", "bytes"]
+        var changes = [String: Set<String>]()
+        var beforeByPath = [String: EraseAbortCheckedSnapshotIOV1.CheckedTreeNode]()
+        var afterByPath = [String: EraseAbortCheckedSnapshotIOV1.CheckedTreeNode]()
+        for node in sourceTreeNodes {
+            if beforeByPath.updateValue(node, forKey: node.path) != nil {
+                changes[category(node.path), default: []].insert("membership")
+            }
+        }
+        for node in observed {
+            if afterByPath.updateValue(node, forKey: node.path) != nil {
+                changes[category(node.path), default: []].insert("membership")
+            }
+        }
+        for path in Set(beforeByPath.keys).union(afterByPath.keys) {
+            let group = category(path)
+            guard let old = beforeByPath[path], let new = afterByPath[path] else {
+                changes[group, default: []].insert("membership")
+                continue
+            }
+            let a = old.fact, b = new.fact
+            if a.st_dev != b.st_dev { changes[group, default: []].insert("device") }
+            if a.st_ino != b.st_ino { changes[group, default: []].insert("inode") }
+            if a.st_mode != b.st_mode { changes[group, default: []].insert("mode") }
+            if a.st_nlink != b.st_nlink { changes[group, default: []].insert("nlink") }
+            if a.st_size != b.st_size { changes[group, default: []].insert("size") }
+            if a.st_mtimespec.tv_sec != b.st_mtimespec.tv_sec {
+                changes[group, default: []].insert("mtime-seconds")
+            }
+            if a.st_mtimespec.tv_nsec != b.st_mtimespec.tv_nsec {
+                changes[group, default: []].insert("mtime-nanoseconds")
+            }
+            if a.st_ctimespec.tv_sec != b.st_ctimespec.tv_sec {
+                changes[group, default: []].insert("ctime-seconds")
+            }
+            if a.st_ctimespec.tv_nsec != b.st_ctimespec.tv_nsec {
+                changes[group, default: []].insert("ctime-nanoseconds")
+            }
+            if old.sha256 != new.sha256 {
+                changes[group, default: []].insert("bytes")
+            }
+        }
+        for group in ["root", "sqlite", "wal", "shm", "other"] {
+            let fields = labels.filter { changes[group, default: []].contains($0) }
+                .joined(separator: ",")
+            FileHandle.standardError.write(Data((
+                "V949_ORIGINAL_SOURCE_TREE_DIFFERENCE_V2 category=" + group
+                    + " fields=" + (fields.isEmpty ? "none" : fields) + "\n").utf8))
+        }
+    }
+
     func requireSourceUnchanged() throws {
-        let observedTree: String
+        let observed: (digest: String,
+            nodes: [EraseAbortCheckedSnapshotIOV1.CheckedTreeNode])
         do {
-            observedTree = try authority.originalEraseSourceTreeForColdExitForTesting(
-                id: oldGenerationID)
+            observed = try authority
+                .originalEraseSourceTreeObservationForColdExitForTesting(
+                    id: oldGenerationID)
         } catch {
             FileHandle.standardError.write(Data(
                 "V949_ORIGINAL_SOURCE_PHYSICAL_V1 stage=tree-observation-failed\n".utf8))
             throw error
         }
-        guard observedTree == sourceTree else {
+        let expectedTree = lock.withLock {
+            validatedPostReaderOpenSourceTree
+                ?? validatedPostCloseSourceTree ?? sourceTree
+        }
+        guard observed.digest == expectedTree else {
+            reportSourceTreeDifference(observed.nodes)
             FileHandle.standardError.write(Data(
                 "V949_ORIGINAL_SOURCE_PHYSICAL_V1 stage=tree-different\n".utf8))
             throw EraseAllServiceError.invalidAuthority
@@ -5005,14 +5766,39 @@ private final class EraseOriginalColdExitFrameV1: @unchecked Sendable {
                     throw EraseAllServiceError.invalidAuthority
                 }
                 stage = "schema-migration"
-                guard try auxiliary.originalEraseSchemaMigrationDigestForTesting(
-                        excludingTarget: pointer.generationID)
-                        == schemaMigrationOrigin else {
+                let targetManifest = try auxiliary
+                    .originalEraseSchemaMigrationExpectedTargetManifestForTesting(
+                        pointer, sourceRootLinks: schemaMigrationSourceRootLinks)
+                guard targetManifest.digest == schemaMigrationOrigin else {
+                    let category: String
+                    var rootLinkCounts = ""
+                    if let schemaMigrationDiagnosticOrigin,
+                       let current = try? auxiliary
+                        .originalEraseSchemaMigrationDiagnosticSnapshotForTesting(
+                            excludingTarget: pointer.generationID) {
+                        category = schemaMigrationDiagnosticOrigin
+                            .firstDifference(from: current)
+                        if category == "root-links" {
+                            let before = schemaMigrationDiagnosticOrigin.rootLinks
+                            let after = current.rootLinks
+                            let delta = after >= before
+                                ? "+" + String(after - before)
+                                : "-" + String(before - after)
+                            rootLinkCounts = " beforeLinks=" + String(before)
+                                + " afterLinks=" + String(after)
+                                + " delta=" + delta
+                        }
+                    } else {
+                        category = "snapshot-unavailable"
+                    }
+                    FileHandle.standardError.write(Data((
+                        "V949_SCHEMA_MIGRATION_DIFFERENCE_V1 category="
+                            + category + rootLinkCounts + "\n"
+                    ).utf8))
                     throw EraseAllServiceError.invalidAuthority
                 }
                 stage = "target-manifest"
-                targetManifestIdentity = try auxiliary
-                    .originalEraseTargetManifestForTesting(pointer)
+                targetManifestIdentity = targetManifest.identity
                 targetManifestPointer = pointer
                 stage = "unrelated-operations"
                 try requireUnrelatedOperationsUnchanged()
@@ -5031,11 +5817,12 @@ private final class EraseOriginalColdExitFrameV1: @unchecked Sendable {
             throw EraseAllServiceError.invalidAuthority
         }
         if let targetManifestPointer, let targetManifestIdentity {
-            guard try auxiliary.originalEraseSchemaMigrationDigestForTesting(
-                excludingTarget: targetManifestPointer.generationID)
-                    == schemaMigrationOrigin,
-                  try auxiliary.originalEraseTargetManifestForTesting(
-                    targetManifestPointer) == targetManifestIdentity else {
+            let observed = try auxiliary
+                .originalEraseSchemaMigrationExpectedTargetManifestForTesting(
+                    targetManifestPointer,
+                    sourceRootLinks: schemaMigrationSourceRootLinks)
+            guard observed.digest == schemaMigrationOrigin,
+                  observed.identity == targetManifestIdentity else {
                 throw EraseAllServiceError.invalidAuthority
             }
         } else {
@@ -5677,6 +6464,8 @@ private final class EraseAuxiliaryAuthority {
 
 #if DEBUG
     private let postRetiredIO = EraseAbortCheckedSnapshotIOV1()
+    // An uncertain diagnostic close cannot poison the authoritative IO owner.
+    private let schemaMigrationDiagnosticIO = EraseAbortCheckedSnapshotIOV1()
 
     /// The Search actor is the sole effect owner; this observation is only a
     /// held-support-root physical check. Unknown siblings are never adopted
@@ -5758,6 +6547,93 @@ private final class EraseAuxiliaryAuthority {
         return value
     }
 
+    /// A bounded, checked-close read alongside the full-tree digest. It does
+    /// not authorize any transition; a failed optional diagnostic cannot make
+    /// the authoritative digest pass. Unknown node kinds remain unavailable.
+    func originalEraseSchemaMigrationDiagnosticSnapshotForTesting(
+        excludingTarget targetID: UUID? = nil
+    ) throws -> EraseSchemaMigrationDiagnosticSnapshotV1 {
+        try verify()
+        let snapshot = try schemaMigrationDiagnosticIO.withOpen(
+            parent: applicationSupportDescriptor,
+            name: "FieldEvidenceOperations",
+            flags: O_RDONLY | O_DIRECTORY
+        ) { operations in
+            try schemaMigrationDiagnosticIO.withOpen(
+                parent: operations, name: "schema-migration",
+                flags: O_RDONLY | O_DIRECTORY
+            ) { migration in
+                var root = stat(), namedRoot = stat()
+                guard Darwin.fstat(migration, &root) == 0,
+                      root.st_mode & S_IFMT == S_IFDIR,
+                      Darwin.fstatat(operations, "schema-migration",
+                          &namedRoot, AT_SYMLINK_NOFOLLOW) == 0,
+                      namedRoot.st_dev == root.st_dev,
+                      namedRoot.st_ino == root.st_ino else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                let rootIdentity = "\(root.st_dev)|\(root.st_ino)"
+                let rootMode = String(root.st_mode)
+                let rootLinks = UInt64(root.st_nlink)
+                let originalNames = try schemaMigrationDiagnosticIO.names(in: migration)
+                let excluded = targetID.map {
+                    "manifest-\($0.uuidString.lowercased()).json"
+                }
+                var entries: [String: EraseSchemaMigrationDiagnosticFactV1] = [:]
+                for name in originalNames where name != excluded {
+                    var node = stat()
+                    guard Darwin.fstatat(migration, name, &node,
+                        AT_SYMLINK_NOFOLLOW) == 0 else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                    let kind: String
+                    let digest: String
+                    switch node.st_mode & S_IFMT {
+                    case S_IFREG:
+                        kind = "file"
+                        let bytes = try schemaMigrationDiagnosticIO.control(
+                            parent: migration, name: name,
+                            maximum: 32 * 1024 * 1024).0
+                        digest = StoreMigrationCanonicalJSONV1.sha256(bytes)
+                    case S_IFDIR:
+                        kind = "directory"
+                        digest = try schemaMigrationDiagnosticIO.postRetiredTree(
+                            parent: migration, name: name)
+                    default:
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                    entries[name] = EraseSchemaMigrationDiagnosticFactV1(
+                        kind: kind,
+                        identity: "\(node.st_dev)|\(node.st_ino)",
+                        modeAndLinks: "\(node.st_mode)|\(node.st_nlink)",
+                        size: String(node.st_size),
+                        modified: "\(node.st_mtimespec.tv_sec)|\(node.st_mtimespec.tv_nsec)",
+                        changed: "\(node.st_ctimespec.tv_sec)|\(node.st_ctimespec.tv_nsec)",
+                        contentDigest: digest)
+                }
+                var rootAfter = stat(), namedAfter = stat()
+                guard try schemaMigrationDiagnosticIO.names(in: migration)
+                        == originalNames,
+                      Darwin.fstat(migration, &rootAfter) == 0,
+                      Darwin.fstatat(operations, "schema-migration",
+                          &namedAfter, AT_SYMLINK_NOFOLLOW) == 0,
+                      rootAfter.st_dev == root.st_dev,
+                      rootAfter.st_ino == root.st_ino,
+                      rootAfter.st_mode == root.st_mode,
+                      rootAfter.st_nlink == root.st_nlink,
+                      namedAfter.st_dev == root.st_dev,
+                      namedAfter.st_ino == root.st_ino else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                return EraseSchemaMigrationDiagnosticSnapshotV1(
+                    rootIdentity: rootIdentity,
+                    rootMode: rootMode, rootLinks: rootLinks, entries: entries)
+            }
+        }
+        try verify()
+        return snapshot
+    }
+
     func originalEraseSchemaMigrationDigestForTesting(
         excludingTarget targetID: UUID? = nil
     ) throws -> String {
@@ -5777,6 +6653,54 @@ private final class EraseAuxiliaryAuthority {
         }
         try verify()
         return value
+    }
+
+    /// One checked tree walk binds the source digest and its root link count.
+    /// A separate optional diagnostic snapshot never supplies authority here.
+    func originalEraseSchemaMigrationSourceSnapshotForTesting()
+        throws -> (digest: String, rootLinks: UInt64) {
+        try verify()
+        let value = try postRetiredIO.withOpen(
+            parent: applicationSupportDescriptor,
+            name: "FieldEvidenceOperations",
+            flags: O_RDONLY | O_DIRECTORY
+        ) { operations in
+            var rootLinks: UInt64?
+            let digest = try postRetiredIO.postRetiredTree(
+                parent: operations, name: "schema-migration",
+                ignoringDirectoryMetadata: [""],
+                observedRootLinks: { rootLinks = $0 })
+            guard let rootLinks else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            return (digest: digest, rootLinks: rootLinks)
+        }
+        try verify()
+        return value
+    }
+
+    /// The only normalized root-link transition follows an authentic
+    /// operation-bound target manifest. The checked walk still hashes every
+    /// other directory and file fact and excludes only that target leaf.
+    func originalEraseSchemaMigrationExpectedTargetManifestForTesting(
+        _ pointer: RestorePointerIdentityV1,
+        sourceRootLinks: UInt64
+    ) throws -> (digest: String, identity: String) {
+        let identity = try originalEraseTargetManifestForTesting(pointer)
+        try verify()
+        let digest = try postRetiredIO.withOpen(
+            parent: applicationSupportDescriptor,
+            name: "FieldEvidenceOperations",
+            flags: O_RDONLY | O_DIRECTORY
+        ) { operations in
+            try postRetiredIO.postRetiredTree(
+                parent: operations, name: "schema-migration",
+                excluding: ["manifest-\(pointer.generationID.uuidString.lowercased()).json"],
+                ignoringDirectoryMetadata: [""],
+                normalizingSingleTargetManifestRootLinksFrom: sourceRootLinks)
+        }
+        try verify()
+        return (digest: digest, identity: identity)
     }
 
     func originalEraseTargetManifestForTesting(
@@ -5970,6 +6894,51 @@ private final class EraseAuxiliaryAuthority {
     /// Observes only original-held auxiliary roots. Operations is checked
     /// before control release; its authorized guard transition is proved by
     /// the Registry and is not called equal after unlink.
+    /// The original Service frame binds this sibling before its injected
+    /// failure. The exclusive SOURCE copy only observes it under the same
+    /// retained Support root and original G/EX; it never adopts or repairs it.
+    func completedAbortProtectedIngressTree() throws -> String? {
+        try verify()
+        let name = "FieldEvidenceOperations"
+        var operations = stat()
+        let present = Darwin.fstatat(applicationSupportDescriptor,
+            name, &operations, AT_SYMLINK_NOFOLLOW)
+        if present != 0 {
+            guard errno == ENOENT else { throw EraseAllServiceError.invalidAuthority }
+            return nil
+        }
+        guard operations.st_mode & S_IFMT == S_IFDIR else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        return try postRetiredIO.withOpen(parent: applicationSupportDescriptor,
+            name: name, flags: O_RDONLY | O_DIRECTORY) { operationsFD in
+            var sibling = stat()
+            let found = Darwin.fstatat(operationsFD,
+                "ProtectedIngressReceiptsV1", &sibling, AT_SYMLINK_NOFOLLOW)
+            if found != 0 {
+                guard errno == ENOENT else { throw EraseAllServiceError.invalidAuthority }
+                return nil
+            }
+            guard sibling.st_mode & S_IFMT == S_IFDIR else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let observed = try postRetiredIO.postRetiredTree(
+                parent: operationsFD, name: "ProtectedIngressReceiptsV1")
+            var after = stat()
+            guard Darwin.fstatat(operationsFD,
+                      "ProtectedIngressReceiptsV1", &after,
+                      AT_SYMLINK_NOFOLLOW) == 0,
+                  after.st_dev == sibling.st_dev,
+                  after.st_ino == sibling.st_ino,
+                  after.st_mode == sibling.st_mode,
+                  after.st_nlink == sibling.st_nlink else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try verify()
+            return observed
+        }
+    }
+
     func postRetiredSnapshot() throws -> ErasePostRetiredAuxiliarySnapshotV1 {
         try verify()
         func optionalTree(_ parent: Int32, _ name: String) throws -> String? {
@@ -7144,6 +8113,30 @@ final class EraseCleanupAfterRetirementV1 {
     private var running = false
 #if DEBUG
     private var interruptedLateFault: EraseAllFailurePoint?
+    private var coldCleanupProofObservationForTesting: (@MainActor (String) -> Void)?
+
+    fileprivate func installColdCleanupProofObservationForTesting(
+        _ observation: (@MainActor (String) -> Void)?
+    ) throws {
+        guard phase == .prepared,
+              coldCleanupProofObservationForTesting == nil else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        coldCleanupProofObservationForTesting = observation
+    }
+
+    private var afterOldGenerationDeletionBeforeRetiredPointerClearForTesting:
+        (@MainActor () throws -> Void)?
+
+    fileprivate func installRetiredPointerCutHookForTesting(
+        _ hook: @escaping @MainActor () throws -> Void
+    ) throws {
+        guard phase == .prepared,
+              afterOldGenerationDeletionBeforeRetiredPointerClearForTesting == nil else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        afterOldGenerationDeletionBeforeRetiredPointerClearForTesting = hook
+    }
     private var interruptedPostRetiredFault = false
     private var postRetiredWitness: ErasePostRetiredFaultWitnessV1?
     private var originalColdExitFrame: EraseOriginalColdExitFrameV1?
@@ -7540,11 +8533,20 @@ final class EraseCleanupAfterRetirementV1 {
         running = true
         defer { running = false }
         if proof == nil {
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=target-validation-enter")
+#endif
             guard let actual = try await retirement.validateAndAdvance(factory: factory,
                 authority: authority, targetReader: targetReader, manifestScope: manifestScope) else { return false }
             proof = actual
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=target-validation-complete")
+#endif
         }
         guard let proof, retirement.ownsProof(proof) else { throw EraseAllServiceError.invalidAuthority }
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=retirement-proof-complete")
+#endif
         let completed = intent.advancing(to: .cleanupComplete)
         if phase == .prepared {
             // The original protected semantic read and actual lease retirement
@@ -7560,19 +8562,44 @@ final class EraseCleanupAfterRetirementV1 {
             }
 #endif
             try inject(.afterSessionRetirementBeforeCleanup)
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=current-pointer-enter")
+#endif
             guard try factory.currentGenerationIDForEraseRetirement(authority: authority,
                 retirement: proof, manifestScope: manifestScope) == intent.newGenerationID else {
                 throw EraseAllServiceError.invalidAuthority
             }
-            let retired = try factory.retiredGenerationIDsForEraseRetirement(authority: authority, retirement: proof)
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=current-pointer-complete")
+#endif
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=retired-pointer-enter")
+#endif
+            let retired = try factory.retiredGenerationIDsForEraseRetirement(
+                authority: authority, retirement: proof,
+                expected: intent.generationIDsToDelete, currentID: intent.newGenerationID)
             guard retired == intent.generationIDsToDelete || retired.isEmpty else {
                 throw EraseAllServiceError.invalidAuthority
             }
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=retired-pointer-complete")
+#endif
             let allowed = Set((intent.generationIDsToDelete + [intent.newGenerationID]).map { $0.uuidString.lowercased() })
             let actual = Set(try authority.installedGenerationNames())
             guard actual.isSubset(of: allowed), actual.contains(intent.newGenerationID.uuidString.lowercased()) else {
                 throw EraseAllServiceError.invalidAuthority
             }
+            // The retired pointer can be empty only after the original writer
+            // proved all frozen old generation names absent.  A same-byte
+            // replacement cannot make an earlier generation deletion vanish.
+            if retired.isEmpty {
+                guard actual == [intent.newGenerationID.uuidString.lowercased()] else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+            }
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=installed-names-complete")
+#endif
             for id in intent.generationIDsToDelete {
                 if try authority.installedGenerationNames().contains(id.uuidString.lowercased()) {
                     try authority.removeInstalledGenerationForEraseRetirement(id: id,
@@ -7582,18 +8609,39 @@ final class EraseCleanupAfterRetirementV1 {
             guard Set(try authority.installedGenerationNames()) == [intent.newGenerationID.uuidString.lowercased()] else {
                 throw EraseAllServiceError.invalidAuthority
             }
-            if !retired.isEmpty {
-                try authority.clearRetiredGenerationsForEraseRetirement(expected: retired,
-                    currentID: intent.newGenerationID, retirement: proof)
+#if DEBUG
+            if let hook = afterOldGenerationDeletionBeforeRetiredPointerClearForTesting {
+                // Clear before invoking it: a simulated interruption cannot
+                // run the test mutation a second time on the retained retry.
+                afterOldGenerationDeletionBeforeRetiredPointerClearForTesting = nil
+                try hook()
             }
-            guard try factory.retiredGenerationIDsForEraseRetirement(authority: authority, retirement: proof).isEmpty else {
+#endif
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=generation-removal-complete")
+#endif
+            try authority.clearRetiredGenerationsForEraseRetirement(
+                expected: intent.generationIDsToDelete,
+                currentID: intent.newGenerationID, retirement: proof)
+            guard try factory.retiredGenerationIDsForEraseRetirement(
+                authority: authority, retirement: proof,
+                expected: intent.generationIDsToDelete, currentID: intent.newGenerationID).isEmpty else {
                 throw EraseAllServiceError.invalidAuthority
             }
             phase = .generationsRemoved
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=retired-clear-complete")
+#endif
         }
         if phase == .generationsRemoved {
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=manifest-preserve-enter")
+#endif
             try factory.preserveEraseManifest(scope: manifestScope, retirement: proof)
             phase = .manifestPreserved
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=manifest-preserve-complete")
+#endif
         }
         let ratingStore = PreferencesAdapterV1(defaults: userDefaults)
         if phase == .manifestPreserved {
@@ -7603,15 +8651,24 @@ final class EraseCleanupAfterRetirementV1 {
                       try notificationControl.loadPrivateNotificationMapping() == nil else {
                     throw EraseAllServiceError.recoveryRequired
                 }
+#if DEBUG
+                print("C46_ERASE_ADVANCE_V1 stage=namespace-begin-enter")
+#endif
                 try proof.beginFrozenTargetRemoval(using: auxiliary)
                 phase = .removingNamespace
             }
         }
         if phase == .removingNamespace {
             try AppLockNotificationTransactionFenceV1.perform {
+#if DEBUG
+                print("C46_ERASE_ADVANCE_V1 stage=namespace-remove-enter")
+#endif
                 try proof.removeFrozenTargets(using: auxiliary)
             }
             phase = .namespaceRemoved
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=namespace-remove-complete")
+#endif
         }
         if phase == .namespaceRemoved {
             try proof.requireNamespaceAbsent()
@@ -7625,6 +8682,9 @@ final class EraseCleanupAfterRetirementV1 {
             try proof.requireNamespaceAbsent()
             let rating = try RatingEligibilityCoordinatorV1(store: ratingStore,
                 nativeRequest: AppStoreRatingRequestAdapterV1(), clock: SystemApplicationClock())
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=rating-enter")
+#endif
             let result = try await rating.applyCompletedErase(eraseOperationID: intent.eraseID, erasedAt: Date())
             guard case .current(let ledger) = try await ratingStore.load(), ledger.attempts.isEmpty,
                   case .erasedCooldown(_, let suppressUntil) = ledger.origin,
@@ -7649,6 +8709,9 @@ final class EraseCleanupAfterRetirementV1 {
             try auxiliary.verifyDiagnostics(expectedData: bytes)
             diagnosticsZero = bytes
             phase = .diagnosticsVerified
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=diagnostics-complete")
+#endif
             if intent.phase != .cleanupComplete { try inject(.afterCleanup) }
         }
         if phase == .diagnosticsVerified {
@@ -7658,6 +8721,9 @@ final class EraseCleanupAfterRetirementV1 {
                     with: completed, retirement: proof)
             }
             phase = .phaseWritten
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=phase-write-complete")
+#endif
             if intent.phase != .cleanupComplete { try inject(.afterCleanupPhaseWrite) }
         }
         if phase == .phaseWritten {
@@ -7669,6 +8735,9 @@ final class EraseCleanupAfterRetirementV1 {
                 try intentStore.removePreparationAfterRegistryRetirement(expectedIntent: completed, retirement: proof)
             }
             phase = .preparationRemoved
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=preparation-remove-complete")
+#endif
         }
         if phase == .preparationRemoved {
             // Retain the real same-process completion authority before removing
@@ -7680,16 +8749,30 @@ final class EraseCleanupAfterRetirementV1 {
             try inject(.beforeJournalRemoval)
             try intentStore.removeAfterRegistryRetirement(expected: completed, retirement: proof)
             phase = .intentRemoved
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=intent-remove-complete")
+#endif
         }
         if phase == .intentRemoved {
             try auxiliary.removeEraseRootIfEmpty()
             try auxiliary.verifyTargetsRemovedExceptDiagnostics()
             try proof.requireNamespaceAbsent()
+#if DEBUG
+            // The cold Router has not yet performed ordinary ready startup.
+            // Observe only after the existing checked cleanup predicates pass.
+            coldCleanupProofObservationForTesting?("cleanup.pre-ready-roots-absent")
+#endif
             phase = .eraseRootRemoved
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=erase-root-remove-complete")
+#endif
         }
         if phase == .eraseRootRemoved {
             try proof.releaseAfterCompletion()
             phase = .released
+#if DEBUG
+        print("C46_ERASE_ADVANCE_V1 stage=release-complete")
+#endif
             // Clear before the synchronous call, so reentry cannot repeat it.
             if let receipt, let callback = completion {
                 completion = nil
@@ -7831,6 +8914,9 @@ private extension EraseAllService {
             fileManager: fileManager, failureInjection: failureInjection, reservation: reservation,
             completion: didCompleteErase)
 #if DEBUG
+        if let hook = afterOldGenerationDeletionBeforeRetiredPointerClearForTesting {
+            try prepared.installRetiredPointerCutHookForTesting(hook)
+        }
         if let originalColdExitFrame {
             try prepared.retainOriginalColdExitFrameForTesting(originalColdExitFrame)
         }
@@ -7880,12 +8966,17 @@ private extension EraseAllService {
             inventory: inventory, binding: binding)
         let scope = try generationFactory.captureEraseCurrentManifest(binding: binding, authority: authority)
         let observation = try intentStore.captureRetirementObservation(expected: value)
-        return EraseCleanupAfterRetirementV1(binding: binding, intent: value, factory: generationFactory,
+        let prepared = EraseCleanupAfterRetirementV1(binding: binding, intent: value, factory: generationFactory,
             authority: authority, auxiliary: auxiliary, intentStore: intentStore, observation: observation,
             manifestScope: scope, targetReader: reader, diagnosticsStore: diagnosticsStore,
             notificationControl: notifications, userDefaults: userDefaults, defaultsDomainName: defaultsDomainName,
             fileManager: fileManager, failureInjection: failureInjection, reservation: reservation,
             completion: nil)
+#if DEBUG
+        try prepared.installColdCleanupProofObservationForTesting(
+            erasePhaseDiagnosticForTesting)
+#endif
+        return prepared
     }
 }
 

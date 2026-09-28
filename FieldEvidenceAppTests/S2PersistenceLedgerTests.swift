@@ -6,6 +6,41 @@ import XCTest
 
 final class S2PersistenceLedgerTests: XCTestCase {
     private let fileManager = FileManager.default
+    @MainActor private static var retainedRestoreProviderControls:
+        [(URL, StoreGenerationFactory, StoreGenerationSession)] = []
+
+    @MainActor
+    func testRestoreReaderCaptureRequiresActualOpeningProvider() throws {
+        let root = try makeTemporaryApplicationSupportURL()
+        let opening = StoreGenerationFactory(applicationSupportURL: root)
+        let session = try opening.openOrBootstrapCurrent()
+        let originalContext = session.modelContext
+        let originalContainer = originalContext.container
+        Self.retainedRestoreProviderControls.append((root, opening, session))
+        let reader = try session.retainedReaderForOriginalRestoreTransition(
+            factory: opening)
+        XCTAssertEqual(reader.token.role, .reader)
+        let foreign = StoreGenerationFactory(applicationSupportURL: root)
+        XCTAssertThrowsError(try session.retainedReaderForOriginalRestoreTransition(
+            factory: foreign))
+        XCTAssertTrue(session.modelContext === originalContext)
+        XCTAssertTrue(session.modelContext.container === originalContainer)
+    }
+
+    @MainActor
+    func testRestoreReaderCaptureRejectsRetiredDurableToken() throws {
+        let root = try makeTemporaryApplicationSupportURL()
+        let opening = StoreGenerationFactory(applicationSupportURL: root)
+        let session = try opening.openOrBootstrapCurrent()
+        Self.retainedRestoreProviderControls.append((root, opening, session))
+        let reader = try session.retainedReaderForOriginalRestoreTransition(
+            factory: opening)
+        try reader.close()
+        XCTAssertThrowsError(try session.validatedOpeningFactoryForWriter(),
+            "The retained wrapper is insufficient after its durable token is retired")
+        XCTAssertThrowsError(try session.retainedReaderForOriginalRestoreTransition(
+            factory: opening))
+    }
 
     @MainActor
     func testLegitimatelyWrittenActiveStoreReopensWithoutRepinningItsActivationManifest() async throws {

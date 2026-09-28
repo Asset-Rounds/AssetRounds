@@ -174,9 +174,18 @@ final class V23EraseOperationHarnessV1 {
     /// Caller scopes must release all source readers first. Only the actual
     /// production witness decides whether the operation is ready to advance.
     func completeCleanup() async throws {
+#if DEBUG
+        print("C46_R01_ERASE_HARNESS_V1 stage=advance-enter")
+#endif
         guard failedCoordinator == nil, let operation,
               try await operation.advanceCleanup() else { throw Failure.drainPending }
+#if DEBUG
+        print("C46_R01_ERASE_HARNESS_V1 stage=advance-complete")
+#endif
         let (_, _, actualReceipt) = try operation.completedRetirement()
+#if DEBUG
+        print("C46_R01_ERASE_HARNESS_V1 stage=retirement-receipt-complete")
+#endif
         guard let actualReceipt, let reservation,
               actualReceipt.reservation == reservation else { throw Failure.receipt }
         receipt = actualReceipt

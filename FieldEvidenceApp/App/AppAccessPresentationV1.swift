@@ -32,6 +32,18 @@ final class AppAccessPresentationV1: ObservableObject {
 #if DEBUG
     /// Fixed recovery phase/type observations; no payloads or identifiers.
     var eraseRecoveryDiagnosticForTesting: (@MainActor (String) -> Void)?
+
+    private func reportEraseRecoveryForTesting(_ phase: String, error: Error? = nil) {
+        let category: String
+        switch error {
+        case nil: category = "none"
+        case is AppAccessContractFailureV1: category = "app-access"
+        case is EraseAllServiceError: category = "erase-service"
+        case is ProtectedFilePolicyError: category = "file-policy"
+        default: category = "other"
+        }
+        eraseRecoveryDiagnosticForTesting?("phase=\(phase) category=\(category)")
+    }
 #endif
 
     /// Captured by one presented Restore destination. A later foreground
@@ -1308,7 +1320,7 @@ final class AppAccessPresentationV1: ObservableObject {
     func terminateAndDrainForTesting() async -> Bool {
         // These handles do not own callers executing restore/unlock/erase.
         // Capture that limitation before termination clears activeAction.
-        let hasUnjoinedAction = pendingErase != nil
+        let hasUnjoinedAction = pendingErase != nil || pendingRestoreTransitionID != nil
             || (activeAction != nil && activeAction !== startupActionForTesting)
         terminatedForTesting = true
         receive(.termination)
@@ -1332,7 +1344,7 @@ final class AppAccessPresentationV1: ObservableObject {
         // Retry only the router's existing exact-owner cleanup after all task
         // frames have returned; callers never release an arbitrary writer.
         startupRouter.pauseForAppAccess(discardPrepared: true)
-        return !hasUnjoinedAction && pendingErase == nil && startupActionForTesting == nil
+        return !hasUnjoinedAction && pendingErase == nil && pendingRestoreTransitionID == nil && startupActionForTesting == nil
             && bootstrapTask == nil && lifecycleDrainTask == nil && startupTask == nil && eraseContinuationTask == nil
             && !startupRouter.hasPendingWriterCleanup && !permitsContentPresentation
     }
@@ -1347,6 +1359,8 @@ final class AppAccessPresentationV1: ObservableObject {
     private var activeAction: Action?
     private var pendingAuthorizedStartup: PendingAuthorizedStartup?
     private var pendingErase: PendingErase?
+    @Published private(set) var pendingRestoreTransitionID: UUID?
+    private var pendingRestoreRetryTask: Task<Void, Never>?
 #if DEBUG
     private var originalEraseFrameActive = false
     private var expectedCompletedAbortColdFaultForTesting: EraseAllFailurePoint?
@@ -1442,6 +1456,18 @@ final class AppAccessPresentationV1: ObservableObject {
             }
             try await startupRouter.continueCompletedAbortColdRestartForTesting(
                 pending.operation, receipt: receipt)
+            guard pendingErase === pending,
+                  let coordinator = pending.coordinator,
+                  pending.session == nil,
+                  pending.completedAbortShutdownState == .transferring else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+            // Seal the exact original snapshot synchronously under retained
+            // EX/G before dropping these pending source aliases. Other held
+            // aliases still have to pass the later weak-drain check.
+            try startupRouter.sealCompletedAbortSourceBeforeAliasReleaseForTesting(
+                pending.operation, receipt: receipt,
+                coordinator: coordinator)
             pending.coordinator = nil
             pending.session = nil
             pending.makeRecoveryService = nil
@@ -1776,18 +1802,52 @@ final class AppAccessPresentationV1: ObservableObject {
     }
 
     func retryStartup() async {
+#if DEBUG
+        reportEraseRecoveryForTesting("retry.enter")
+#endif
         await bootstrapIfNeeded()
-        guard let session, sceneIsActive else { return }
+        guard let session, sceneIsActive else {
+#if DEBUG
+            reportEraseRecoveryForTesting("retry.no-session-or-inactive")
+#endif
+            return
+        }
+        if pendingRestoreTransitionID != nil {
+#if DEBUG
+            reportEraseRecoveryForTesting("retry.restore-pending")
+#endif
+            await retryPendingRestoreTransition()
+            schedulePendingRestoreRetryWindow()
+            return
+        }
         if let pendingErase {
-            guard let action = beginLongAction(resumesAfterInactive: true) else { return }
+            guard let action = beginLongAction(resumesAfterInactive: true) else {
+#if DEBUG
+                reportEraseRecoveryForTesting("retry.erase-action-busy")
+#endif
+                return
+            }
             defer { finishLongAction(action) }
             do {
+#if DEBUG
+                reportEraseRecoveryForTesting("retry.erase-resume-begin")
+#endif
                 try await resumeErase(pendingErase, access: session)
+#if DEBUG
+                reportEraseRecoveryForTesting(self.pendingErase == nil
+                    ? "retry.erase-resume-cleared" : "retry.erase-resume-pending")
+#endif
                 if isCurrent(action), self.pendingErase == nil {
                     failure = nil
                     await startAndPublish(session, action: action)
+#if DEBUG
+                    reportEraseRecoveryForTesting("retry.erase-publish-return")
+#endif
                 }
             } catch {
+#if DEBUG
+                reportEraseRecoveryForTesting("retry.erase-catch", error: error)
+#endif
                 permitsContentPresentation = false
                 publishedMyDayAccess = nil
                 publishedRoundAccess = nil
@@ -1797,13 +1857,27 @@ final class AppAccessPresentationV1: ObservableObject {
         }
         let state = await session.gate.currentState()
         guard state.permitsContentAccess else {
+#if DEBUG
+            reportEraseRecoveryForTesting("retry.no-erase-gate-denied")
+#endif
             failure = .startup
             return
         }
-        guard let action = beginLongAction(resumesAfterInactive: true) else { return }
+        guard let action = beginLongAction(resumesAfterInactive: true) else {
+#if DEBUG
+            reportEraseRecoveryForTesting("retry.no-erase-action-busy")
+#endif
+            return
+        }
         defer { finishLongAction(action) }
         failure = nil
+#if DEBUG
+        reportEraseRecoveryForTesting("retry.no-erase-publish-begin")
+#endif
         await startAndPublish(session, action: action, retriesStartup: true)
+#if DEBUG
+        reportEraseRecoveryForTesting("retry.no-erase-publish-return")
+#endif
     }
 
     func performRestore(
@@ -1817,6 +1891,7 @@ final class AppAccessPresentationV1: ObservableObject {
     ) async throws {
         await bootstrapIfNeeded()
         guard let session, sceneIsActive, pendingErase == nil,
+              pendingRestoreTransitionID == nil,
               let action = beginLongAction(resumesAfterInactive: false) else {
             throw AppAccessContractFailureV1.accessDenied
         }
@@ -1829,23 +1904,117 @@ final class AppAccessPresentationV1: ObservableObject {
                 throw AppAccessContractFailureV1.accessDenied
             }
             permitsContentPresentation = false
+            // The admitted Restore covers this publication. Drop internal
+            // capabilities so only genuine external owners delay A's drain.
+            contentPublication = nil
+            publishedBackupPreviewAccess = nil
+            publishedRenderAccess = nil
+            publishedSceneNavigationAccess = nil
+            publishedReminderSettingsAccess = nil
             publishedMyDayAccess = nil
             publishedRoundAccess = nil
             let restored = try await restoreServiceFactory(applicationSupportURL)
                 .restore(validatedPackage: package, currentModelContext: sourceModelContext,
                     currentGenerationID: sourceGenerationID,
                     currentGenerationRootURL: sourceGenerationRootURL, mode: mode,
-                    validateAccess: { try await self.startupRouter.validateRestoreOperation(ticket) })
-            try await startupRouter.activateRestoredSession(restored, coordinator: coordinator, ticket: ticket)
-            if isCurrent(action), sceneIsActive {
-                failure = nil
-                await startAndPublish(session, action: action)
-            }
+                    validateAccess: { try await self.startupRouter.validateRestoreOperation(ticket) },
+                    attestPublishedPointer: { original, target in
+                        try self.startupRouter.attestRestorePublishedPointer(
+                            originalCanonicalPointer: original,
+                            targetCanonicalPointer: target, ticket: ticket)
+                    })
+#if DEBUG
+            FileHandle.standardError.write(Data(
+                "V23_RESTORE_PRESENTATION_BOUNDARY_V1 stage=service-returned\n".utf8))
+#endif
+            let id = try await startupRouter.activateRestoredSession(
+                restored, coordinator: coordinator, ticket: ticket)
+#if DEBUG
+            FileHandle.standardError.write(Data(
+                "V23_RESTORE_PRESENTATION_BOUNDARY_V1 stage=router-activated\n".utf8))
+#endif
+            pendingRestoreTransitionID = id
+            failure = nil
+            schedulePendingRestoreRetryWindow()
+            // The sheet's Task and the old ready/maintenance host still own
+            // the A context. Return before attempting the weak alias drain.
         } catch {
-            startupRouter.failExternalOperation(ticket)
+            if pendingRestoreTransitionID == nil {
+                startupRouter.failExternalOperation(ticket)
+            }
             if isCurrent(action) { failure = .startup }
             throw error
         }
+    }
+
+    /// The sheet/host/scene merely request another exact-ID attempt. Router
+    /// proves the old SwiftData aliases drained before releasing A's reader.
+    func retryPendingRestoreTransition() async {
+#if DEBUG
+        let retryEntry: String
+        if pendingRestoreTransitionID == nil { retryEntry = "no-pending" }
+        else if session == nil { retryEntry = "no-session" }
+        else if !sceneIsActive { retryEntry = "inactive-scene" }
+        else if activeAction != nil { retryEntry = "action-busy" }
+        else { retryEntry = "eligible" }
+        FileHandle.standardError.write(Data(
+            "V23_RESTORE_RETRY_ENTRY_V1 first=\(retryEntry)\n".utf8))
+#endif
+        guard let id = pendingRestoreTransitionID,
+              let session, sceneIsActive,
+              let action = beginLongAction(resumesAfterInactive: true) else { return }
+        defer { finishLongAction(action) }
+        do {
+            guard try await startupRouter.resumeOriginalRestoreReaderTransition(id) else {
+#if DEBUG
+                FileHandle.standardError.write(Data(
+                    "V23_RESTORE_RETRY_ENTRY_V1 result=router-pending\n".utf8))
+#endif
+                return
+            }
+#if DEBUG
+            FileHandle.standardError.write(Data(
+                "V23_RESTORE_RETRY_ENTRY_V1 result=router-complete\n".utf8))
+#endif
+            guard pendingRestoreTransitionID == id else { return }
+            pendingRestoreTransitionID = nil
+            failure = nil
+            if isCurrent(action), sceneIsActive {
+                await startAndPublish(session, action: action)
+            }
+        } catch {
+#if DEBUG
+            FileHandle.standardError.write(Data(
+                "V23_RESTORE_RETRY_ENTRY_V1 result=router-threw\n".utf8))
+#endif
+            failure = .startup
+            permitsContentPresentation = false
+            publishedMyDayAccess = nil
+            publishedRoundAccess = nil
+        }
+    }
+
+    /// A bounded liveness window for SwiftUI's asynchronous sheet teardown.
+    /// Time never grants authority: every attempt still asks Router to prove
+    /// the exact weak alias drain and checked A release. Later scene/retry
+    /// events can start another finite window if the host held A longer.
+    private func schedulePendingRestoreRetryWindow() {
+        guard pendingRestoreRetryTask == nil,
+              let id = pendingRestoreTransitionID else { return }
+        pendingRestoreRetryTask = Task { @MainActor [weak self] in
+            defer { self?.pendingRestoreRetryTask = nil }
+            for _ in 0..<30 {
+                guard let self, self.pendingRestoreTransitionID == id,
+                      self.failure == nil else { return }
+                await self.retryPendingRestoreTransition()
+                guard self.pendingRestoreTransitionID == id else { return }
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+        }
+    }
+
+    func requestPendingRestoreTransitionRetry() {
+        schedulePendingRestoreRetryWindow()
     }
 
     func performErase(
@@ -1891,6 +2060,14 @@ final class AppAccessPresentationV1: ObservableObject {
         }
 #endif
         permitsContentPresentation = false
+        // The covered publication is no longer an internal source owner.
+        // Externally held capabilities remain live aliases and still block
+        // the checked original-reader drain until their callers release them.
+        contentPublication = nil
+        publishedBackupPreviewAccess = nil
+        publishedRenderAccess = nil
+        publishedSceneNavigationAccess = nil
+        publishedReminderSettingsAccess = nil
         publishedMyDayAccess = nil
         publishedRoundAccess = nil
         failure = nil
@@ -2098,9 +2275,20 @@ final class AppAccessPresentationV1: ObservableObject {
 
     private func scheduleEraseContinuation(_ pending: PendingErase) {
 #if DEBUG
-        guard !pending.originalShutdownRequested else { return }
+        guard !pending.originalShutdownRequested else {
+            reportEraseRecoveryForTesting("continuation.original-shutdown")
+            return
+        }
 #endif
-        guard eraseContinuationTask == nil, pendingErase === pending else { return }
+        guard eraseContinuationTask == nil, pendingErase === pending else {
+#if DEBUG
+            reportEraseRecoveryForTesting("continuation.already-running-or-stale")
+#endif
+            return
+        }
+#if DEBUG
+        reportEraseRecoveryForTesting("continuation.scheduled")
+#endif
         eraseContinuationTask = Task { @MainActor [weak self, weak pending] in
             guard let self else { return }
             var followsCompletedDetach = false
@@ -2110,18 +2298,44 @@ final class AppAccessPresentationV1: ObservableObject {
                     self.scheduleEraseContinuation(pending)
                 }
             }
-            guard let pending, self.pendingErase === pending, let access = self.session,
-                  self.activeAction == nil,
-                  let action = self.beginLongAction(resumesAfterInactive: true) else { return }
+            guard let pending, self.pendingErase === pending, let access = self.session else {
+#if DEBUG
+                self.reportEraseRecoveryForTesting("continuation.owner-unavailable")
+#endif
+                return
+            }
+            guard self.activeAction == nil,
+                  let action = self.beginLongAction(resumesAfterInactive: true) else {
+#if DEBUG
+                self.reportEraseRecoveryForTesting("continuation.action-busy")
+#endif
+                return
+            }
             defer { self.finishLongAction(action) }
             let wasDetached = pending.operation.detached
             do {
+#if DEBUG
+                self.reportEraseRecoveryForTesting("continuation.resume-begin")
+#endif
                 try await self.resumeErase(pending, access: access)
+#if DEBUG
+                self.reportEraseRecoveryForTesting(self.pendingErase == nil
+                    ? "continuation.resume-cleared" : "continuation.resume-pending")
+#endif
                 followsCompletedDetach = !wasDetached && pending.operation.detached
                 if self.pendingErase == nil, self.sceneIsActive, self.isCurrent(action) {
+#if DEBUG
+                    self.reportEraseRecoveryForTesting("continuation.publish-begin")
+#endif
                     await self.startAndPublish(access, action: action)
+#if DEBUG
+                    self.reportEraseRecoveryForTesting("continuation.publish-return")
+#endif
                 }
             } catch {
+#if DEBUG
+                self.reportEraseRecoveryForTesting("continuation.catch", error: error)
+#endif
                 self.permitsContentPresentation = false
                 self.publishedMyDayAccess = nil
                 self.publishedRoundAccess = nil
@@ -2188,7 +2402,12 @@ final class AppAccessPresentationV1: ObservableObject {
             diagnosticPhase = "actual-retirement"
 #endif
             if pending.receipt == nil {
-                guard try await pending.operation.advanceCleanup() else { return }
+                guard try await pending.operation.advanceCleanup() else {
+#if DEBUG
+                    reportEraseRecoveryForTesting("resume.cleanup-incomplete")
+#endif
+                    return
+                }
                 let (_, _, receipt) = try pending.operation.completedRetirement()
                 guard let receipt else { throw AppAccessContractFailureV1.configurationUnknown }
                 pending.receipt = receipt
@@ -2212,13 +2431,12 @@ final class AppAccessPresentationV1: ObservableObject {
             guard pendingErase === pending else { throw AppAccessContractFailureV1.staleAttempt }
             pendingErase = nil
             failure = nil
+#if DEBUG
+            reportEraseRecoveryForTesting("resume.fresh-owner-ready")
+#endif
         } catch {
 #if DEBUG
-            if let observe = eraseRecoveryDiagnosticForTesting {
-                let errorType = String(reflecting: type(of: error))
-                let policyMismatch = (error as? ProtectedFilePolicyError) == .resourceValueMismatch
-                observe("phase=\(diagnosticPhase) type=\(errorType) resourceValueMismatch=\(policyMismatch)")
-            }
+            reportEraseRecoveryForTesting("resume." + diagnosticPhase, error: error)
 #endif
             throw error
         }
@@ -2273,7 +2491,14 @@ final class AppAccessPresentationV1: ObservableObject {
         // Startup can be long-running. Release this serial short-event drain
         // before considering it, so a background edge reaches the gate now.
         lifecycleDrainTask = nil
-        scheduleEligibleStartup(session)
+        if pendingRestoreTransitionID != nil {
+            // A scene-active edge is a useful retry after the old host has
+            // actually gone away. Time/event delivery itself grants nothing:
+            // the Router still checks the exact weak drain and held leases.
+            schedulePendingRestoreRetryWindow()
+        } else {
+            scheduleEligibleStartup(session)
+        }
     }
 
     private func startAndPublish(
@@ -2281,6 +2506,15 @@ final class AppAccessPresentationV1: ObservableObject {
         action: Action,
         retriesStartup: Bool = false
     ) async {
+#if DEBUG
+        reportEraseRecoveryForTesting("publish.begin")
+#endif
+        guard pendingRestoreTransitionID == nil else {
+#if DEBUG
+            reportEraseRecoveryForTesting("publish.restore-pending")
+#endif
+            return
+        }
         publishedMyDayAccess = nil
         publishedRoundAccess = nil
         do {
@@ -2295,6 +2529,14 @@ final class AppAccessPresentationV1: ObservableObject {
             } else {
                 try await startupRouter.startIfNeeded(accessGate: session.gate)
             }
+            // Router can finish startup by publishing a maintenance route
+            // without throwing. Only its actual ready owner may back content.
+            guard case .ready = startupRouter.route else {
+#if DEBUG
+                reportEraseRecoveryForTesting("publish.router-not-ready-first")
+#endif
+                throw AppAccessContractFailureV1.accessDenied
+            }
             let token = try await session.gate.beginContentRead(for: .render)
             let backupToken = try await session.gate.beginContentRead(for: .backupImport)
             let sceneToken = try await session.gate.beginContentRead(for: .sceneRestoration)
@@ -2305,6 +2547,12 @@ final class AppAccessPresentationV1: ObservableObject {
             try await session.gate.validateContentRead(token, for: .render)
             try await session.gate.validateContentRead(backupToken, for: .backupImport)
             try await session.gate.validateContentRead(sceneToken, for: .sceneRestoration)
+            guard case .ready = startupRouter.route else {
+#if DEBUG
+                reportEraseRecoveryForTesting("publish.router-not-ready-final")
+#endif
+                throw AppAccessContractFailureV1.accessDenied
+            }
             guard isCurrent(action),
                   action.revision === presentationRevision,
                   sceneIsActive,
@@ -2313,6 +2561,9 @@ final class AppAccessPresentationV1: ObservableObject {
                 if isCurrent(action), action.resumesAfterInactive {
                     retainPendingStartup(session, action: action)
                 }
+#if DEBUG
+                reportEraseRecoveryForTesting("publish.action-ineligible")
+#endif
                 return
             }
             // Do not await after this final MainActor validation.
@@ -2391,7 +2642,13 @@ final class AppAccessPresentationV1: ObservableObject {
                 publishedRoundAccess = nil
             }
             permitsContentPresentation = true
+#if DEBUG
+            reportEraseRecoveryForTesting("publish.ready")
+#endif
         } catch {
+#if DEBUG
+            reportEraseRecoveryForTesting("publish.catch", error: error)
+#endif
             guard isCurrent(action) else { return }
             permitsContentPresentation = false
             publishedMyDayAccess = nil
@@ -2474,7 +2731,8 @@ final class AppAccessPresentationV1: ObservableObject {
 #if DEBUG
         guard !terminatedForTesting else { return }
 #endif
-        guard startupTask == nil, activeAction == nil, pendingErase == nil, queuedLifecycleEvents.isEmpty,
+        guard startupTask == nil, activeAction == nil, pendingErase == nil,
+              pendingRestoreTransitionID == nil, queuedLifecycleEvents.isEmpty,
               sceneIsActive, failure == nil else { return }
         let epoch = hardEpoch
         startupTask = Task { @MainActor [weak self] in

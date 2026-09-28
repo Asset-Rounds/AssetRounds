@@ -2,6 +2,174 @@ import CryptoKit
 import Darwin
 import Foundation
 
+/// One-way descriptor owner for the opt-in startup Operations transition.
+/// The Router creates this before an effect-bearing store constructor and
+/// retains it if any close is ambiguous. Numeric FDs are never retried after
+/// close failure, because a reused number would no longer name our owner.
+final class RestoreMaintenanceOperationsDescriptorOwnerV1: @unchecked Sendable {
+    private enum State { case open, uncertain, closed }
+    private let lock = NSLock()
+    private var state: State = .open
+    private var descriptors: [Int32] = []
+    private var uncertainDescriptors: [Int32] = []
+    private var uncertainDirectories: [UnsafeMutablePointer<DIR>] = []
+
+    func retain(_ descriptor: Int32) {
+        lock.lock()
+        defer { lock.unlock() }
+        if state == .open { descriptors.append(descriptor) }
+        else {
+            uncertainDescriptors.append(descriptor)
+            state = .uncertain
+        }
+    }
+
+    func retainUncertain(_ descriptor: Int32) {
+        lock.lock()
+        uncertainDescriptors.append(descriptor)
+        state = .uncertain
+        lock.unlock()
+    }
+
+    func requireOpen() throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard state == .open, uncertainDescriptors.isEmpty,
+              uncertainDirectories.isEmpty else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+    }
+
+    func closeChecked(_ descriptor: Int32) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard state == .open,
+              let index = descriptors.lastIndex(of: descriptor) else {
+            state = .uncertain
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        if Darwin.close(descriptor) != 0 {
+            state = .uncertain
+            uncertainDescriptors.append(descriptor)
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        descriptors.remove(at: index)
+    }
+
+    func closeInDefer(_ descriptor: Int32) {
+        do { try closeChecked(descriptor) }
+        catch { /* The retained owner is terminally uncertain. */ }
+    }
+
+    func withOpenPath<Value>(_ path: String, flags: Int32,
+                             _ body: (Int32) throws -> Value) throws -> Value {
+        try requireOpen()
+        let descriptor = Darwin.open(path, flags | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        retain(descriptor)
+        do {
+            let value = try body(descriptor)
+            try closeChecked(descriptor)
+            return value
+        } catch {
+            if isRetained(descriptor) {
+                try? closeChecked(descriptor)
+            }
+            throw error
+        }
+    }
+
+    func withOpenChild<Value>(_ parent: Int32, name: String, flags: Int32,
+                              _ body: (Int32) throws -> Value) throws -> Value {
+        try requireOpen()
+        let descriptor = Darwin.openat(parent, name,
+            flags | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        retain(descriptor)
+        do {
+            let value = try body(descriptor)
+            try closeChecked(descriptor)
+            return value
+        } catch {
+            if isRetained(descriptor) {
+                try? closeChecked(descriptor)
+            }
+            throw error
+        }
+    }
+
+    private func isRetained(_ descriptor: Int32) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return state == .open && descriptors.contains(descriptor)
+    }
+
+    func withOpenDirectory<Value>(parent: Int32,
+        _ body: (UnsafeMutablePointer<DIR>) throws -> Value) throws -> Value {
+        try requireOpen()
+        let descriptor = Darwin.openat(parent, ".",
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        retain(descriptor)
+        guard let directory = Darwin.fdopendir(descriptor) else {
+            try closeChecked(descriptor)
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        do {
+            let value = try body(directory)
+            try closeDirectoryChecked(directory, descriptor: descriptor)
+            return value
+        } catch {
+            if isRetained(descriptor) {
+                try? closeDirectoryChecked(directory, descriptor: descriptor)
+            }
+            throw error
+        }
+    }
+
+    private func closeDirectoryChecked(_ directory: UnsafeMutablePointer<DIR>,
+                                       descriptor: Int32) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard state == .open,
+              let index = descriptors.lastIndex(of: descriptor) else {
+            state = .uncertain
+            uncertainDirectories.append(directory)
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        if Darwin.closedir(directory) != 0 {
+            state = .uncertain
+            uncertainDirectories.append(directory)
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        descriptors.remove(at: index)
+    }
+
+    func closeAllChecked() throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard state == .open, uncertainDescriptors.isEmpty,
+              uncertainDirectories.isEmpty else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        while let descriptor = descriptors.last {
+            if Darwin.close(descriptor) != 0 {
+                state = .uncertain
+                uncertainDescriptors.append(descriptor)
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            descriptors.removeLast()
+        }
+        state = .closed
+    }
+}
+
 struct PreparedFinalization: Equatable, Sendable {
     let intent: FinalizationIntentV1
     let intentRelativePath: String
@@ -36,7 +204,7 @@ struct RecoverableFinalization: Equatable, Sendable {
     let hasFinalSnapshot: Bool
 }
 
-enum FinalizationIntentStoreError: Error, Equatable {
+enum FinalizationIntentStoreError: Error, Equatable, Sendable {
     case generationRootInvalid
     case unsafePath
     case intentInvalid
@@ -215,7 +383,9 @@ actor FinalizationIntentStore {
         fileManager: FileManager = .default,
         failureInjection: FinalizationIntentStoreFailureInjection? = nil,
         expectedGenerationRootIdentity: ReportPDFAnchoredFile.RootIdentity? = nil,
-        authorityBarrier: FinalizationIntentStoreAuthorityBarrier? = nil
+        authorityBarrier: FinalizationIntentStoreAuthorityBarrier? = nil,
+        trackStartupOperationsCreation: Bool = false,
+        startupDescriptorOwner: RestoreMaintenanceOperationsDescriptorOwnerV1? = nil
     ) {
         let root = generationRootURL.standardizedFileURL
         self.failureInjection = failureInjection
@@ -226,7 +396,9 @@ actor FinalizationIntentStore {
             let open = {
                 try PinnedAuthority(
                     generationRootURL: root,
-                    expectedGenerationRootIdentity: expectedGenerationRootIdentity
+                    expectedGenerationRootIdentity: expectedGenerationRootIdentity,
+                    trackStartupOperationsCreation: trackStartupOperationsCreation,
+                    startupDescriptorOwner: startupDescriptorOwner
                 )
             }
             let authority = try open()
@@ -516,7 +688,8 @@ actor FinalizationIntentStore {
             for atRoot in [false, true] {
                 let parent = atRoot ? authority.generationDescriptor : authority.stagingSnapshotsDescriptor
                 let prefix = atRoot ? ".immutable-" : ".live-finalization-"
-                for name in try LivePrivatePreparation.names(in: parent) where name.hasPrefix(prefix) {
+                for name in try authority.namesForStartupPrivateRetirement(in: parent)
+                    where name.hasPrefix(prefix) {
                     try Task.checkCancellation()
                     guard LivePrivatePreparation.isReservedName(name, prefix: prefix),
                           let info = try authority.itemInfo(parent: parent, name: name),
@@ -604,6 +777,13 @@ actor FinalizationIntentStore {
         func withPinnedDescriptor<T>(_ body: (Int32) throws -> T) throws -> T {
             try Task.checkCancellation()
             try authority.verify()
+            if authority.hasStartupDescriptorOwner {
+                return try authority.withStartupOpenChild(parent: parent,
+                    name: name, flags: O_RDONLY | O_NONBLOCK) { descriptor in
+                    try verify(descriptor: descriptor, name: name)
+                    return try body(descriptor)
+                }
+            }
             let descriptor = Darwin.openat(parent, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW)
             guard descriptor >= 0 else { throw FinalizationIntentStoreError.itemMissing }
             defer { _ = Darwin.close(descriptor) }
@@ -1705,6 +1885,34 @@ actor FinalizationIntentStore {
         liveMutationInFlight = true
     }
 
+    /// The actual retained store reports its checked held/named Operations
+    /// child after construction, before startup's next await.
+    nonisolated func startupOperationsReceipt() throws
+        -> RestoreMaintenanceClearObservationV1.OperationsChildReceipt {
+        // This newly constructed store has not escaped the Router's startup
+        // frame. The receipt reads its immutable captured authority only; it
+        // neither observes nor mutates actor-isolated preparation state.
+        switch authorityResult {
+        case .success(let authority):
+            return try authority.startupOperationsReceipt()
+        case .failure(let failure):
+            throw failure
+        }
+    }
+
+    /// The tracked startup owner remains in the Router through reconciliation.
+    /// A failed close leaves that graph retained and terminally uncertain.
+    func closeStartupOperationsAuthorityChecked() throws {
+        let authority = try requireAuthority()
+        try authority.closeStartupChecked()
+    }
+
+    func startupRecoveryJournalReceipt() throws
+        -> RestoreMaintenanceClearObservationV1.OperationsRecoveryReceipt {
+        let authority = try requireAuthority()
+        return try authority.startupRecoveryJournalReceipt()
+    }
+
     private func requireAuthority(allowLiveMutation: Bool = false) throws -> PinnedAuthority {
         guard allowLiveMutation || !liveMutationInFlight else { throw FinalizationIntentStoreError.fileOperationFailed }
         let authority: PinnedAuthority
@@ -1763,6 +1971,10 @@ actor FinalizationIntentStore {
                 throw FinalizationIntentStoreError.fileOperationFailed
             }
             defer { _ = Darwin.closedir(directory) }
+            return try names(in: directory)
+        }
+
+        static func names(in directory: UnsafeMutablePointer<DIR>) throws -> [String] {
             var names: [String] = []
             errno = 0
             while let entry = Darwin.readdir(directory) {
@@ -2232,6 +2444,8 @@ actor FinalizationIntentStore {
         let generationDescriptor: Int32
         let operationsDescriptor: Int32
         let finalizationDescriptor: Int32
+        let finalizationWasCreated: Bool
+        let tracksStartupOperationsCreation: Bool
         let stagingDescriptor: Int32
         let stagingSnapshotsDescriptor: Int32
         let snapshotsDescriptor: Int32
@@ -2244,11 +2458,46 @@ actor FinalizationIntentStore {
         private let stagingIdentity: Identity
         private let stagingSnapshotsIdentity: Identity
         private let snapshotsIdentity: Identity
+        private let startupDescriptorOwner:
+            RestoreMaintenanceOperationsDescriptorOwnerV1?
+        var hasStartupDescriptorOwner: Bool { startupDescriptorOwner != nil }
+
+        func withStartupOpenChild<T>(parent: Int32, name: String,
+            flags: Int32, _ body: (Int32) throws -> T) throws -> T {
+            guard let startupDescriptorOwner else {
+                throw FinalizationIntentStoreError.generationRootInvalid
+            }
+            return try startupDescriptorOwner.withOpenChild(parent,
+                name: name, flags: flags, body)
+        }
+
+        func namesForStartupPrivateRetirement(in parent: Int32) throws -> [String] {
+            if let startupDescriptorOwner {
+                return try startupDescriptorOwner.withOpenDirectory(parent: parent) {
+                    directory in
+                    try LivePrivatePreparation.names(in: directory)
+                }
+            }
+            return try LivePrivatePreparation.names(in: parent)
+        }
+        private var startupJournalInitialFact:
+            RestoreMaintenanceClearObservationV1.DirectoryFact?
+        private var startupJournalExpectedFact:
+            RestoreMaintenanceClearObservationV1.DirectoryFact?
+        private var startupJournalExpectedNames: [String]?
+        private var startupJournalMutationUncertain = false
+        private var startupJournalMutationCount = 0
 
         init(
             generationRootURL: URL,
-            expectedGenerationRootIdentity: Identity?
+            expectedGenerationRootIdentity: Identity?,
+            trackStartupOperationsCreation: Bool = false,
+            startupDescriptorOwner: RestoreMaintenanceOperationsDescriptorOwnerV1? = nil
         ) throws {
+            guard !trackStartupOperationsCreation || startupDescriptorOwner != nil else {
+                throw FinalizationIntentStoreError.generationRootInvalid
+            }
+            try startupDescriptorOwner?.requireOpen()
             let root = generationRootURL.standardizedFileURL
             let generations = root.deletingLastPathComponent()
             let dataRoot = generations.deletingLastPathComponent()
@@ -2265,7 +2514,11 @@ actor FinalizationIntentStore {
             var succeeded = false
             defer {
                 if !succeeded {
-                    retained.forEach { _ = Darwin.close($0) }
+                    retained.forEach { descriptor in
+                        if let startupDescriptorOwner {
+                            startupDescriptorOwner.closeInDefer(descriptor)
+                        } else { _ = Darwin.close(descriptor) }
+                    }
                 }
             }
 
@@ -2276,6 +2529,7 @@ actor FinalizationIntentStore {
             guard applicationSupportDescriptor >= 0 else {
                 throw FinalizationIntentStoreError.generationRootInvalid
             }
+            startupDescriptorOwner?.retain(applicationSupportDescriptor)
             retained.append(applicationSupportDescriptor)
 
             let dataDescriptor = Darwin.openat(
@@ -2286,7 +2540,12 @@ actor FinalizationIntentStore {
             guard dataDescriptor >= 0 else {
                 throw FinalizationIntentStoreError.generationRootInvalid
             }
-            defer { _ = Darwin.close(dataDescriptor) }
+            startupDescriptorOwner?.retain(dataDescriptor)
+            defer {
+                if let startupDescriptorOwner {
+                    startupDescriptorOwner.closeInDefer(dataDescriptor)
+                } else { _ = Darwin.close(dataDescriptor) }
+            }
 
             let generationsDescriptor = Darwin.openat(
                 dataDescriptor,
@@ -2296,7 +2555,12 @@ actor FinalizationIntentStore {
             guard generationsDescriptor >= 0 else {
                 throw FinalizationIntentStoreError.generationRootInvalid
             }
-            defer { _ = Darwin.close(generationsDescriptor) }
+            startupDescriptorOwner?.retain(generationsDescriptor)
+            defer {
+                if let startupDescriptorOwner {
+                    startupDescriptorOwner.closeInDefer(generationsDescriptor)
+                } else { _ = Darwin.close(generationsDescriptor) }
+            }
 
             let generationDescriptor = Darwin.openat(
                 generationsDescriptor,
@@ -2306,6 +2570,7 @@ actor FinalizationIntentStore {
             guard generationDescriptor >= 0 else {
                 throw FinalizationIntentStoreError.generationRootInvalid
             }
+            startupDescriptorOwner?.retain(generationDescriptor)
             retained.append(generationDescriptor)
             let generationIdentity = try Self.directoryIdentity(generationDescriptor)
             guard expectedGenerationRootIdentity.map({ $0 == generationIdentity }) ?? true else {
@@ -2320,33 +2585,45 @@ actor FinalizationIntentStore {
                     applicationSupportDescriptor
                 ),
                 generationName: root.lastPathComponent,
-                generationIdentity: generationIdentity
+                generationIdentity: generationIdentity,
+                startupDescriptorOwner: startupDescriptorOwner
             )
+            try startupDescriptorOwner?.requireOpen()
 
             let operationsDescriptor = try Self.openOrCreateDirectory(
                 parent: applicationSupportDescriptor,
                 name: "FieldEvidenceOperations"
             )
+            startupDescriptorOwner?.retain(operationsDescriptor)
             retained.append(operationsDescriptor)
-            let finalizationDescriptor = try Self.openOrCreateDirectory(
-                parent: operationsDescriptor,
-                name: "finalization"
-            )
+            let finalizationOpening: (descriptor: Int32, created: Bool)
+            if trackStartupOperationsCreation {
+                finalizationOpening = try Self.openOrCreateDirectoryWithCreation(
+                    parent: operationsDescriptor, name: "finalization")
+            } else {
+                finalizationOpening = (try Self.openOrCreateDirectory(
+                    parent: operationsDescriptor, name: "finalization"), false)
+            }
+            let finalizationDescriptor = finalizationOpening.descriptor
+            startupDescriptorOwner?.retain(finalizationDescriptor)
             retained.append(finalizationDescriptor)
             let stagingDescriptor = try Self.openOrCreateDirectory(
                 parent: generationDescriptor,
                 name: ".staging"
             )
+            startupDescriptorOwner?.retain(stagingDescriptor)
             retained.append(stagingDescriptor)
             let stagingSnapshotsDescriptor = try Self.openOrCreateDirectory(
                 parent: stagingDescriptor,
                 name: "snapshots"
             )
+            startupDescriptorOwner?.retain(stagingSnapshotsDescriptor)
             retained.append(stagingSnapshotsDescriptor)
             let snapshotsDescriptor = try Self.openOrCreateDirectory(
                 parent: generationDescriptor,
                 name: "snapshots"
             )
+            startupDescriptorOwner?.retain(snapshotsDescriptor)
             retained.append(snapshotsDescriptor)
 
             let applicationSupportIdentity = try Self.directoryIdentity(
@@ -2391,29 +2668,45 @@ actor FinalizationIntentStore {
                 (.durableDirectory, snapshotsURL,
                  snapshotsDescriptor, snapshotsIdentity),
             ] {
-                try ProtectedFilePolicyV1.applyAndVerify(
-                    kind,
-                    at: url,
-                    authorityCheck: {
-                        guard try Self.directoryIdentity(descriptor) == expected,
-                              try Self.directoryIdentity(at: url) == expected else {
-                            throw FinalizationIntentStoreError.generationRootInvalid
-                        }
-                        try Self.requireCanonicalGeneration(
-                            applicationSupportURL: applicationSupport,
-                            applicationSupportIdentity: applicationSupportIdentity,
-                            generationName: root.lastPathComponent,
-                            generationIdentity: generationIdentity
-                        )
+                let authorityCheck: () throws -> Void = {
+                    try startupDescriptorOwner?.requireOpen()
+                    guard try Self.directoryIdentity(descriptor) == expected,
+                          try Self.directoryIdentity(at: url,
+                            startupDescriptorOwner: startupDescriptorOwner) == expected else {
+                        throw FinalizationIntentStoreError.generationRootInvalid
                     }
-                )
+                    try startupDescriptorOwner?.requireOpen()
+                    try Self.requireCanonicalGeneration(
+                        applicationSupportURL: applicationSupport,
+                        applicationSupportIdentity: applicationSupportIdentity,
+                        generationName: root.lastPathComponent,
+                        generationIdentity: generationIdentity,
+                        startupDescriptorOwner: startupDescriptorOwner
+                    )
+                    try startupDescriptorOwner?.requireOpen()
+                }
+                if let startupDescriptorOwner {
+                    try ProtectedFilePolicyV1
+                        .applyAndVerifyEraseColdPrivateWithCheckedClose(
+                            kind, at: url,
+                            retainUncertainDescriptor: {
+                                startupDescriptorOwner.retainUncertain($0)
+                            }, authorityCheck: authorityCheck,
+                            beforeFirstEffect: authorityCheck)
+                    try startupDescriptorOwner.requireOpen()
+                } else {
+                    try ProtectedFilePolicyV1.applyAndVerify(
+                        kind, at: url, authorityCheck: authorityCheck)
+                }
             }
             try Self.requireCanonicalGeneration(
                 applicationSupportURL: applicationSupport,
                 applicationSupportIdentity: applicationSupportIdentity,
                 generationName: root.lastPathComponent,
-                generationIdentity: generationIdentity
+                generationIdentity: generationIdentity,
+                startupDescriptorOwner: startupDescriptorOwner
             )
+            try startupDescriptorOwner?.requireOpen()
 
             self.generationID = generationID
             self.applicationSupportURL = applicationSupport
@@ -2422,6 +2715,8 @@ actor FinalizationIntentStore {
             self.generationDescriptor = generationDescriptor
             self.operationsDescriptor = operationsDescriptor
             self.finalizationDescriptor = finalizationDescriptor
+            self.finalizationWasCreated = finalizationOpening.created
+            self.tracksStartupOperationsCreation = trackStartupOperationsCreation
             self.stagingDescriptor = stagingDescriptor
             self.stagingSnapshotsDescriptor = stagingSnapshotsDescriptor
             self.snapshotsDescriptor = snapshotsDescriptor
@@ -2432,20 +2727,102 @@ actor FinalizationIntentStore {
             self.stagingIdentity = stagingIdentity
             self.stagingSnapshotsIdentity = stagingSnapshotsIdentity
             self.snapshotsIdentity = snapshotsIdentity
+            self.startupDescriptorOwner = startupDescriptorOwner
+            if startupDescriptorOwner != nil {
+                let initial = try startupJournalFact()
+                startupJournalInitialFact = initial
+                startupJournalExpectedFact = initial
+                startupJournalExpectedNames = try enumeratedIntentNames()
+                try startupDescriptorOwner?.requireOpen()
+            }
             succeeded = true
         }
 
         deinit {
-            _ = Darwin.close(snapshotsDescriptor)
-            _ = Darwin.close(stagingSnapshotsDescriptor)
-            _ = Darwin.close(stagingDescriptor)
-            _ = Darwin.close(finalizationDescriptor)
-            _ = Darwin.close(operationsDescriptor)
-            _ = Darwin.close(generationDescriptor)
-            _ = Darwin.close(applicationSupportDescriptor)
+            if startupDescriptorOwner == nil {
+                _ = Darwin.close(snapshotsDescriptor)
+                _ = Darwin.close(stagingSnapshotsDescriptor)
+                _ = Darwin.close(stagingDescriptor)
+                _ = Darwin.close(finalizationDescriptor)
+                _ = Darwin.close(operationsDescriptor)
+                _ = Darwin.close(generationDescriptor)
+                _ = Darwin.close(applicationSupportDescriptor)
+            }
+        }
+
+        func closeStartupChecked() throws {
+            guard let startupDescriptorOwner else {
+                throw FinalizationIntentStoreError.generationRootInvalid
+            }
+            try startupDescriptorOwner.requireOpen()
+            try startupDescriptorOwner.closeAllChecked()
+        }
+
+        private func startupJournalFact() throws
+            -> RestoreMaintenanceClearObservationV1.DirectoryFact {
+            var held = stat(), named = stat()
+            guard Darwin.fstat(finalizationDescriptor, &held) == 0,
+                  Darwin.fstatat(operationsDescriptor, "finalization", &named,
+                    AT_SYMLINK_NOFOLLOW) == 0 else {
+                throw FinalizationIntentStoreError.generationRootInvalid
+            }
+            let fact = try RestoreMaintenanceClearObservationV1.DirectoryFact(held)
+            guard fact == (try RestoreMaintenanceClearObservationV1.DirectoryFact(named)) else {
+                throw FinalizationIntentStoreError.generationRootInvalid
+            }
+            return fact
+        }
+
+        private func beforeStartupJournalMutation() throws -> [String]? {
+            guard let startupDescriptorOwner else { return nil }
+            try startupDescriptorOwner.requireOpen()
+            // Once a mutation failed, this owner remains retained for recovery;
+            // compensating cleanup is allowed but may not mint a new receipt.
+            guard !startupJournalMutationUncertain,
+                  let expectedFact = startupJournalExpectedFact,
+                  let expectedNames = startupJournalExpectedNames,
+                  try startupJournalFact() == expectedFact,
+                  try enumeratedIntentNames() == expectedNames else {
+                startupJournalMutationUncertain = true
+                throw FinalizationIntentStoreError.notOwned
+            }
+            startupJournalMutationUncertain = true
+            return expectedNames
+        }
+
+        private func afterStartupJournalMutation(
+            expectedNames: [String]?
+        ) throws {
+            guard let startupDescriptorOwner, let expectedNames else { return }
+            try startupDescriptorOwner.requireOpen()
+            guard try enumeratedIntentNames() == expectedNames else {
+                throw FinalizationIntentStoreError.notOwned
+            }
+            startupJournalExpectedFact = try startupJournalFact()
+            startupJournalExpectedNames = expectedNames
+            startupJournalMutationCount += 1
+            startupJournalMutationUncertain = false
+        }
+
+        func startupRecoveryJournalReceipt() throws
+            -> RestoreMaintenanceClearObservationV1.OperationsRecoveryReceipt {
+            guard let startupDescriptorOwner,
+                  !startupJournalMutationUncertain,
+                  let initial = startupJournalInitialFact,
+                  let expected = startupJournalExpectedFact,
+                  let names = startupJournalExpectedNames,
+                  names.isEmpty,
+                  try startupJournalFact() == expected,
+                  try enumeratedIntentNames().isEmpty else {
+                throw FinalizationIntentStoreError.generationRootInvalid
+            }
+            try startupDescriptorOwner.requireOpen()
+            return .init(name: "finalization", initialChild: initial,
+                finalChild: expected, mutationCount: startupJournalMutationCount)
         }
 
         func verify() throws {
+            try startupDescriptorOwner?.requireOpen()
             try Self.requireDirectory(
                 applicationSupportDescriptor,
                 identity: applicationSupportIdentity
@@ -2460,6 +2837,11 @@ actor FinalizationIntentStore {
             )
             try Self.requireDirectory(snapshotsDescriptor, identity: snapshotsIdentity)
 
+            if let startupDescriptorOwner {
+                try verifyTrackedStartupNames(with: startupDescriptorOwner)
+                return
+            }
+
             let currentApplicationSupport = Darwin.open(
                 applicationSupportURL.path,
                 O_RDONLY | O_DIRECTORY | O_NOFOLLOW
@@ -2467,7 +2849,8 @@ actor FinalizationIntentStore {
             guard currentApplicationSupport >= 0 else {
                 throw FinalizationIntentStoreError.generationRootInvalid
             }
-            defer { _ = Darwin.close(currentApplicationSupport) }
+            startupDescriptorOwner?.retain(currentApplicationSupport)
+            defer { closeTransient(currentApplicationSupport) }
             try Self.requireDirectory(
                 currentApplicationSupport,
                 identity: applicationSupportIdentity
@@ -2477,26 +2860,31 @@ actor FinalizationIntentStore {
                 parent: currentApplicationSupport,
                 name: "FieldEvidenceData"
             )
-            defer { _ = Darwin.close(data) }
+            startupDescriptorOwner?.retain(data)
+            defer { closeTransient(data) }
             let generations = try Self.openDirectory(parent: data, name: "generations")
-            defer { _ = Darwin.close(generations) }
+            startupDescriptorOwner?.retain(generations)
+            defer { closeTransient(generations) }
             let currentGeneration = try Self.openDirectory(
                 parent: generations,
                 name: generationName
             )
-            defer { _ = Darwin.close(currentGeneration) }
+            startupDescriptorOwner?.retain(currentGeneration)
+            defer { closeTransient(currentGeneration) }
             try Self.requireDirectory(currentGeneration, identity: generationIdentity)
             let currentStaging = try Self.openDirectory(
                 parent: currentGeneration,
                 name: ".staging"
             )
-            defer { _ = Darwin.close(currentStaging) }
+            startupDescriptorOwner?.retain(currentStaging)
+            defer { closeTransient(currentStaging) }
             try Self.requireDirectory(currentStaging, identity: stagingIdentity)
             let currentStagingSnapshots = try Self.openDirectory(
                 parent: currentStaging,
                 name: "snapshots"
             )
-            defer { _ = Darwin.close(currentStagingSnapshots) }
+            startupDescriptorOwner?.retain(currentStagingSnapshots)
+            defer { closeTransient(currentStagingSnapshots) }
             try Self.requireDirectory(
                 currentStagingSnapshots,
                 identity: stagingSnapshotsIdentity
@@ -2505,24 +2893,90 @@ actor FinalizationIntentStore {
                 parent: currentGeneration,
                 name: "snapshots"
             )
-            defer { _ = Darwin.close(currentSnapshots) }
+            startupDescriptorOwner?.retain(currentSnapshots)
+            defer { closeTransient(currentSnapshots) }
             try Self.requireDirectory(currentSnapshots, identity: snapshotsIdentity)
 
             let currentOperations = try Self.openDirectory(
                 parent: currentApplicationSupport,
                 name: "FieldEvidenceOperations"
             )
-            defer { _ = Darwin.close(currentOperations) }
+            startupDescriptorOwner?.retain(currentOperations)
+            defer { closeTransient(currentOperations) }
             try Self.requireDirectory(currentOperations, identity: operationsIdentity)
             let currentFinalization = try Self.openDirectory(
                 parent: currentOperations,
                 name: "finalization"
             )
-            defer { _ = Darwin.close(currentFinalization) }
+            startupDescriptorOwner?.retain(currentFinalization)
+            defer { closeTransient(currentFinalization) }
             try Self.requireDirectory(currentFinalization, identity: finalizationIdentity)
         }
 
+        private func verifyTrackedStartupNames(
+            with owner: RestoreMaintenanceOperationsDescriptorOwnerV1
+        ) throws {
+            try owner.withOpenPath(applicationSupportURL.path,
+                flags: O_RDONLY | O_DIRECTORY) { support in
+                try Self.requireDirectory(support,
+                    identity: applicationSupportIdentity)
+                try owner.withOpenChild(support,
+                    name: "FieldEvidenceData",
+                    flags: O_RDONLY | O_DIRECTORY) { data in
+                    try owner.withOpenChild(data, name: "generations",
+                        flags: O_RDONLY | O_DIRECTORY) { generations in
+                        try owner.withOpenChild(generations,
+                            name: generationName,
+                            flags: O_RDONLY | O_DIRECTORY) { generation in
+                            try Self.requireDirectory(generation,
+                                identity: generationIdentity)
+                            try owner.withOpenChild(generation, name: ".staging",
+                                flags: O_RDONLY | O_DIRECTORY) { staging in
+                                try Self.requireDirectory(staging,
+                                    identity: stagingIdentity)
+                                try owner.withOpenChild(staging, name: "snapshots",
+                                    flags: O_RDONLY | O_DIRECTORY) { snapshots in
+                                    try Self.requireDirectory(snapshots,
+                                        identity: stagingSnapshotsIdentity)
+                                }
+                            }
+                            try owner.withOpenChild(generation, name: "snapshots",
+                                flags: O_RDONLY | O_DIRECTORY) { snapshots in
+                                try Self.requireDirectory(snapshots,
+                                    identity: snapshotsIdentity)
+                            }
+                        }
+                    }
+                }
+                try owner.withOpenChild(support,
+                    name: "FieldEvidenceOperations",
+                    flags: O_RDONLY | O_DIRECTORY) { operations in
+                    try Self.requireDirectory(operations,
+                        identity: operationsIdentity)
+                    try owner.withOpenChild(operations,
+                        name: "finalization",
+                        flags: O_RDONLY | O_DIRECTORY) { finalization in
+                        try Self.requireDirectory(finalization,
+                            identity: finalizationIdentity)
+                    }
+                }
+            }
+            try owner.requireOpen()
+        }
+
+        private func closeTransient(_ descriptor: Int32) {
+            if let startupDescriptorOwner {
+                startupDescriptorOwner.closeInDefer(descriptor)
+            } else { _ = Darwin.close(descriptor) }
+        }
+
         func enumeratedIntentNames() throws -> [String] {
+            if let startupDescriptorOwner {
+                return try startupDescriptorOwner.withOpenDirectory(
+                    parent: finalizationDescriptor) { directory in
+                    try Self.enumerateIntentNames(in: directory)
+                }
+            }
             let duplicate = Darwin.openat(
                 finalizationDescriptor,
                 ".",
@@ -2533,6 +2987,12 @@ actor FinalizationIntentStore {
                 throw FinalizationIntentStoreError.fileOperationFailed
             }
             defer { _ = Darwin.closedir(directory) }
+            return try Self.enumerateIntentNames(in: directory)
+        }
+
+        private static func enumerateIntentNames(
+            in directory: UnsafeMutablePointer<DIR>
+        ) throws -> [String] {
             var result: [String] = []
             errno = 0
             while let entry = Darwin.readdir(directory) {
@@ -2577,12 +3037,24 @@ actor FinalizationIntentStore {
             guard Self.validComponent(name) else {
                 throw FinalizationIntentStoreError.unsafePath
             }
+            if let startupDescriptorOwner {
+                return try startupDescriptorOwner.withOpenChild(parent,
+                    name: name, flags: O_RDONLY) { descriptor in
+                    try Self.readOpenedRegularFile(descriptor)
+                }
+            }
             let descriptor = Darwin.openat(parent, name, O_RDONLY | O_NOFOLLOW)
             guard descriptor >= 0 else {
                 if errno == ENOENT { throw FinalizationIntentStoreError.itemMissing }
                 throw FinalizationIntentStoreError.fileOperationFailed
             }
             defer { _ = Darwin.close(descriptor) }
+            return try Self.readOpenedRegularFile(descriptor)
+        }
+
+        private static func readOpenedRegularFile(
+            _ descriptor: Int32
+        ) throws -> (data: Data, identity: Identity) {
             var before = stat()
             guard Darwin.fstat(descriptor, &before) == 0,
                   Self.isRegular(before),
@@ -2659,11 +3131,25 @@ actor FinalizationIntentStore {
             expected: Identity,
             url: URL
         ) throws {
-            try ProtectedFilePolicyV1.verify(kind, at: url)
+            if let startupDescriptorOwner {
+                let observed = try ProtectedFilePolicyV1
+                    .observeTemporalPolicyWithCheckedClose(kind, at: url,
+                        retainUncertainDescriptor: {
+                            startupDescriptorOwner.retainUncertain($0)
+                        })
+                guard observed.state == .strictComplete else {
+                    throw FinalizationIntentStoreError.generationRootInvalid
+                }
+                try startupDescriptorOwner.requireOpen()
+            } else {
+                try ProtectedFilePolicyV1.verify(kind, at: url)
+            }
             guard try Self.directoryIdentity(descriptor) == expected,
-                  try Self.directoryIdentity(at: url) == expected else {
+                  try Self.directoryIdentity(at: url,
+                    startupDescriptorOwner: startupDescriptorOwner) == expected else {
                 throw FinalizationIntentStoreError.generationRootInvalid
             }
+            try startupDescriptorOwner?.requireOpen()
         }
 
         func withGenerationParent<T>(
@@ -2721,6 +3207,32 @@ actor FinalizationIntentStore {
             }
         }
 
+        /// Startup recovery uses the retained descriptor owner for the policy
+        /// request as well as its before/after identity pins. Ordinary callers
+        /// continue through the existing policy API.
+        private func applyOwnedPolicy(
+            _ kind: OwnedFileKindV1,
+            at url: URL,
+            authorityCheck: () throws -> Void
+        ) throws {
+            if let startupDescriptorOwner {
+                try startupDescriptorOwner.requireOpen()
+                try withoutActuallyEscaping(authorityCheck) { checkedAuthority in
+                    try ProtectedFilePolicyV1
+                        .applyAndVerifyEraseColdPrivateWithCheckedClose(
+                            kind, at: url,
+                            retainUncertainDescriptor: {
+                                startupDescriptorOwner.retainUncertain($0)
+                            }, authorityCheck: checkedAuthority,
+                            beforeFirstEffect: checkedAuthority)
+                }
+                try startupDescriptorOwner.requireOpen()
+            } else {
+                try ProtectedFilePolicyV1.applyAndVerify(
+                    kind, at: url, authorityCheck: authorityCheck)
+            }
+        }
+
         func verifyRegularFilePolicy(
             _ kind: OwnedFileKindV1,
             parent: Int32,
@@ -2729,12 +3241,29 @@ actor FinalizationIntentStore {
         ) throws {
             do {
                 try verify()
-                let expected = try Self.regularIdentity(parent: parent, name: name)
-                try ProtectedFilePolicyV1.verify(kind, at: policyURL)
-                guard try Self.regularIdentity(parent: parent, name: name) == expected,
-                      try Self.regularIdentity(at: policyURL) == expected else {
+                let expected = try Self.regularIdentity(parent: parent,
+                    name: name, startupDescriptorOwner: startupDescriptorOwner)
+                if let startupDescriptorOwner {
+                    let observed = try ProtectedFilePolicyV1
+                        .observeTemporalPolicyWithCheckedClose(kind,
+                            at: policyURL,
+                            retainUncertainDescriptor: {
+                                startupDescriptorOwner.retainUncertain($0)
+                            })
+                    guard observed.state == .strictComplete else {
+                        throw FinalizationIntentStoreError.fileOperationFailed
+                    }
+                    try startupDescriptorOwner.requireOpen()
+                } else {
+                    try ProtectedFilePolicyV1.verify(kind, at: policyURL)
+                }
+                guard try Self.regularIdentity(parent: parent, name: name,
+                          startupDescriptorOwner: startupDescriptorOwner) == expected,
+                      try Self.regularIdentity(at: policyURL,
+                          startupDescriptorOwner: startupDescriptorOwner) == expected else {
                     throw FinalizationIntentStoreError.notOwned
                 }
+                try startupDescriptorOwner?.requireOpen()
                 try verify()
             } catch let error as FinalizationIntentStoreError {
                 throw error
@@ -2761,6 +3290,11 @@ actor FinalizationIntentStore {
             guard Self.validComponent(name) else {
                 throw FinalizationIntentStoreError.unsafePath
             }
+            let journalNames = parent == finalizationDescriptor
+                ? try beforeStartupJournalMutation() : nil
+            guard journalNames?.contains(name) != true else {
+                throw FinalizationIntentStoreError.itemAlreadyExists
+            }
             let descriptor = Darwin.openat(
                 parent,
                 name,
@@ -2771,26 +3305,41 @@ actor FinalizationIntentStore {
                 if errno == EEXIST { throw FinalizationIntentStoreError.itemAlreadyExists }
                 throw FinalizationIntentStoreError.fileOperationFailed
             }
+            startupDescriptorOwner?.retain(descriptor)
             let identity: Identity
             do {
                 identity = try Self.regularIdentity(descriptor)
             } catch {
-                _ = Darwin.close(descriptor)
+                if let startupDescriptorOwner {
+                    startupDescriptorOwner.closeInDefer(descriptor)
+                } else { _ = Darwin.close(descriptor) }
                 throw error
             }
             var descriptorIsOpen = true
             do {
-                try ProtectedFilePolicyV1.applyAndVerify(
-                    policyKind,
-                    at: policyURL,
-                    authorityCheck: {
-                        try verify()
-                        guard try Self.regularIdentity(descriptor) == identity,
-                              try Self.regularIdentity(at: policyURL) == identity else {
-                            throw FinalizationIntentStoreError.notOwned
-                        }
+                let authorityCheck: () throws -> Void = {
+                    try self.verify()
+                    guard try Self.regularIdentity(descriptor) == identity,
+                          try Self.regularIdentity(at: policyURL,
+                            startupDescriptorOwner: self.startupDescriptorOwner) == identity else {
+                        throw FinalizationIntentStoreError.notOwned
                     }
-                )
+                    try self.startupDescriptorOwner?.requireOpen()
+                }
+                if let startupDescriptorOwner {
+                    try ProtectedFilePolicyV1
+                        .applyAndVerifyEraseColdPrivateWithCheckedClose(
+                            policyKind, at: policyURL,
+                            retainUncertainDescriptor: {
+                                startupDescriptorOwner.retainUncertain($0)
+                            }, authorityCheck: authorityCheck,
+                            beforeFirstEffect: authorityCheck)
+                    try startupDescriptorOwner.requireOpen()
+                } else {
+                    try ProtectedFilePolicyV1.applyAndVerify(
+                        policyKind, at: policyURL,
+                        authorityCheck: authorityCheck)
+                }
                 try data.withUnsafeBytes { raw in
                     guard let base = raw.baseAddress else { return }
                     var offset = 0
@@ -2812,15 +3361,26 @@ actor FinalizationIntentStore {
                 guard Darwin.fsync(descriptor) == 0 else {
                     throw FinalizationIntentStoreError.fileOperationFailed
                 }
-                let closeResult = Darwin.close(descriptor)
                 descriptorIsOpen = false
-                guard closeResult == 0, Darwin.fsync(parent) == 0 else {
+                if let startupDescriptorOwner {
+                    try startupDescriptorOwner.closeChecked(descriptor)
+                } else if Darwin.close(descriptor) != 0 {
                     throw FinalizationIntentStoreError.fileOperationFailed
+                }
+                guard Darwin.fsync(parent) == 0 else {
+                    throw FinalizationIntentStoreError.fileOperationFailed
+                }
+                if let journalNames {
+                    try afterStartupJournalMutation(
+                        expectedNames: (journalNames + [name]).sorted())
                 }
             } catch {
                 if descriptorIsOpen {
-                    _ = Darwin.close(descriptor)
+                    if let startupDescriptorOwner {
+                        startupDescriptorOwner.closeInDefer(descriptor)
+                    } else { _ = Darwin.close(descriptor) }
                 }
+                try startupDescriptorOwner?.requireOpen()
                 do {
                     try quarantineAndRemove(
                         parent: parent,
@@ -2869,6 +3429,8 @@ actor FinalizationIntentStore {
             let replacement = try readRegularFile(parent: parent, name: temporary)
             var swapped = false
             do {
+                let swapNames = parent == finalizationDescriptor
+                    ? try beforeStartupJournalMutation() : nil
                 guard Darwin.renameatx_np(
                     parent,
                     temporary,
@@ -2883,14 +3445,16 @@ actor FinalizationIntentStore {
                 guard Darwin.fsync(parent) == 0 else {
                     throw FinalizationIntentStoreError.fileOperationFailed
                 }
-                try ProtectedFilePolicyV1.applyAndVerify(
+                try afterStartupJournalMutation(expectedNames: swapNames)
+                try applyOwnedPolicy(
                     .journal,
                     at: policyURL,
                     authorityCheck: {
                         try verify()
                         guard try readRegularFile(parent: parent, name: name).identity
                                 == replacement.identity,
-                              try Self.regularIdentity(at: policyURL)
+                              try Self.regularIdentity(at: policyURL,
+                                startupDescriptorOwner: startupDescriptorOwner)
                                 == replacement.identity else {
                             throw FinalizationIntentStoreError.notOwned
                         }
@@ -3064,7 +3628,7 @@ actor FinalizationIntentStore {
                             throw FinalizationIntentStoreError.fileOperationFailed
                         }
                         afterMutation()
-                        try ProtectedFilePolicyV1.applyAndVerify(
+                        try applyOwnedPolicy(
                             .reportSnapshot,
                             at: policyURL,
                             authorityCheck: {
@@ -3073,7 +3637,8 @@ actor FinalizationIntentStore {
                                     parent: destinationParent,
                                     name: destinationName
                                 ).identity == source.identity,
-                                      try Self.regularIdentity(at: policyURL)
+                                      try Self.regularIdentity(at: policyURL,
+                                        startupDescriptorOwner: startupDescriptorOwner)
                                         == source.identity else {
                                     throw FinalizationIntentStoreError.notOwned
                                 }
@@ -3112,17 +3677,19 @@ actor FinalizationIntentStore {
                                 throw FinalizationIntentStoreError.fileOperationFailed
                             }
                             do {
-                                try ProtectedFilePolicyV1.applyAndVerify(
+                                try applyOwnedPolicy(
                                     .stagingFile,
                                     at: sourcePolicyURL,
                                     authorityCheck: {
                                         try verify()
                                         guard try Self.regularIdentity(
                                             parent: sourceParent,
-                                            name: sourceName
+                                            name: sourceName,
+                                            startupDescriptorOwner: startupDescriptorOwner
                                         ) == source.identity,
                                               try Self.regularIdentity(
-                                                at: sourcePolicyURL
+                                                at: sourcePolicyURL,
+                                                startupDescriptorOwner: startupDescriptorOwner
                                               ) == source.identity else {
                                             throw FinalizationIntentStoreError.notOwned
                                         }
@@ -3167,6 +3734,11 @@ actor FinalizationIntentStore {
             let quarantine = LivePrivatePreparation.isReservedName(name)
                 ? ".live-finalization-\(UUID().uuidString.lowercased()).tmp"
                 : ".remove-\(UUID().uuidString.lowercased())"
+            let journalNames = parent == finalizationDescriptor
+                ? try beforeStartupJournalMutation() : nil
+            guard journalNames?.contains(name) != false else {
+                throw FinalizationIntentStoreError.notOwned
+            }
             guard Darwin.renameatx_np(
                 parent,
                 name,
@@ -3212,6 +3784,10 @@ actor FinalizationIntentStore {
             ) == -1, errno == ENOENT else {
                 throw FinalizationIntentStoreError.fileOperationFailed
             }
+            if let journalNames {
+                try afterStartupJournalMutation(expectedNames:
+                    journalNames.filter { $0 != name })
+            }
         }
 
         private func restoreQuarantined(
@@ -3249,7 +3825,11 @@ actor FinalizationIntentStore {
             return Identity(device: info.st_dev, inode: info.st_ino)
         }
 
-        private static func directoryIdentity(at url: URL) throws -> Identity {
+        private static func directoryIdentity(
+            at url: URL,
+            startupDescriptorOwner:
+                RestoreMaintenanceOperationsDescriptorOwnerV1? = nil
+        ) throws -> Identity {
             let descriptor = Darwin.open(
                 url.path,
                 O_RDONLY | O_DIRECTORY | O_NOFOLLOW
@@ -3257,7 +3837,12 @@ actor FinalizationIntentStore {
             guard descriptor >= 0 else {
                 throw FinalizationIntentStoreError.itemTypeInvalid
             }
-            defer { _ = Darwin.close(descriptor) }
+            startupDescriptorOwner?.retain(descriptor)
+            defer {
+                if let startupDescriptorOwner {
+                    startupDescriptorOwner.closeInDefer(descriptor)
+                } else { _ = Darwin.close(descriptor) }
+            }
             return try directoryIdentity(descriptor)
         }
 
@@ -3269,7 +3854,17 @@ actor FinalizationIntentStore {
             return Identity(device: info.st_dev, inode: info.st_ino)
         }
 
-        private static func regularIdentity(at url: URL) throws -> Identity {
+        private static func regularIdentity(
+            at url: URL,
+            startupDescriptorOwner:
+                RestoreMaintenanceOperationsDescriptorOwnerV1? = nil
+        ) throws -> Identity {
+            if let startupDescriptorOwner {
+                return try startupDescriptorOwner.withOpenPath(url.path,
+                    flags: O_RDONLY) { descriptor in
+                    try regularIdentity(descriptor)
+                }
+            }
             let descriptor = Darwin.open(url.path, O_RDONLY | O_NOFOLLOW)
             guard descriptor >= 0 else {
                 throw FinalizationIntentStoreError.itemTypeInvalid
@@ -3280,8 +3875,16 @@ actor FinalizationIntentStore {
 
         private static func regularIdentity(
             parent: Int32,
-            name: String
+            name: String,
+            startupDescriptorOwner:
+                RestoreMaintenanceOperationsDescriptorOwnerV1? = nil
         ) throws -> Identity {
+            if let startupDescriptorOwner {
+                return try startupDescriptorOwner.withOpenChild(parent,
+                    name: name, flags: O_RDONLY) { descriptor in
+                    try regularIdentity(descriptor)
+                }
+            }
             let descriptor = Darwin.openat(parent, name, O_RDONLY | O_NOFOLLOW)
             guard descriptor >= 0 else {
                 throw FinalizationIntentStoreError.itemTypeInvalid
@@ -3303,8 +3906,11 @@ actor FinalizationIntentStore {
             applicationSupportURL: URL,
             applicationSupportIdentity: Identity,
             generationName: String,
-            generationIdentity: Identity
+            generationIdentity: Identity,
+            startupDescriptorOwner:
+                RestoreMaintenanceOperationsDescriptorOwnerV1? = nil
         ) throws {
+            try startupDescriptorOwner?.requireOpen()
             let applicationSupport = Darwin.open(
                 applicationSupportURL.path,
                 O_RDONLY | O_DIRECTORY | O_NOFOLLOW
@@ -3312,14 +3918,34 @@ actor FinalizationIntentStore {
             guard applicationSupport >= 0 else {
                 throw FinalizationIntentStoreError.generationRootInvalid
             }
-            defer { _ = Darwin.close(applicationSupport) }
+            startupDescriptorOwner?.retain(applicationSupport)
+            defer {
+                if let startupDescriptorOwner {
+                    startupDescriptorOwner.closeInDefer(applicationSupport)
+                } else { _ = Darwin.close(applicationSupport) }
+            }
             try requireDirectory(applicationSupport, identity: applicationSupportIdentity)
             let data = try openDirectory(parent: applicationSupport, name: "FieldEvidenceData")
-            defer { _ = Darwin.close(data) }
+            startupDescriptorOwner?.retain(data)
+            defer {
+                if let startupDescriptorOwner {
+                    startupDescriptorOwner.closeInDefer(data)
+                } else { _ = Darwin.close(data) }
+            }
             let generations = try openDirectory(parent: data, name: "generations")
-            defer { _ = Darwin.close(generations) }
+            startupDescriptorOwner?.retain(generations)
+            defer {
+                if let startupDescriptorOwner {
+                    startupDescriptorOwner.closeInDefer(generations)
+                } else { _ = Darwin.close(generations) }
+            }
             let generation = try openDirectory(parent: generations, name: generationName)
-            defer { _ = Darwin.close(generation) }
+            startupDescriptorOwner?.retain(generation)
+            defer {
+                if let startupDescriptorOwner {
+                    startupDescriptorOwner.closeInDefer(generation)
+                } else { _ = Darwin.close(generation) }
+            }
             try requireDirectory(generation, identity: generationIdentity)
         }
 
@@ -3336,6 +3962,45 @@ actor FinalizationIntentStore {
                 throw FinalizationIntentStoreError.generationRootInvalid
             }
             return descriptor
+        }
+
+        /// For the startup maintenance transition, EEXIST after a witnessed
+        /// absence is not our creation and must not mint an effect receipt.
+        private static func openOrCreateDirectoryWithCreation(
+            parent: Int32, name: String
+        ) throws -> (descriptor: Int32, created: Bool) {
+            do {
+                return (try openDirectory(parent: parent, name: name), false)
+            } catch {
+                guard errno == ENOENT,
+                      Darwin.mkdirat(parent, name, mode_t(0o700)) == 0,
+                      Darwin.fsync(parent) == 0 else {
+                    throw FinalizationIntentStoreError.generationRootInvalid
+                }
+                return (try openDirectory(parent: parent, name: name), true)
+            }
+        }
+
+        func startupOperationsReceipt() throws
+            -> RestoreMaintenanceClearObservationV1.OperationsChildReceipt {
+            guard tracksStartupOperationsCreation else {
+                throw FinalizationIntentStoreError.generationRootInvalid
+            }
+            try verify()
+            try startupDescriptorOwner?.requireOpen()
+            var parent = stat(), child = stat(), named = stat()
+            guard Darwin.fstat(operationsDescriptor, &parent) == 0,
+                  Darwin.fstat(finalizationDescriptor, &child) == 0,
+                  Darwin.fstatat(operationsDescriptor, "finalization", &named,
+                    AT_SYMLINK_NOFOLLOW) == 0,
+                  child.st_dev == named.st_dev,
+                  child.st_ino == named.st_ino,
+                  child.st_mode == named.st_mode else {
+                throw FinalizationIntentStoreError.generationRootInvalid
+            }
+            return try RestoreMaintenanceClearObservationV1.OperationsChildReceipt(
+                name: "finalization", created: finalizationWasCreated,
+                parent: .init(parent), child: .init(child))
         }
 
         private static func openOrCreateDirectory(parent: Int32, name: String) throws -> Int32 {

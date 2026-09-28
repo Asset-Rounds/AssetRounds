@@ -786,7 +786,7 @@ SIMULATOR_DIAGNOSTIC_OWNER_POLICY_SHA256 = "FDCAF78EEAEDDFC9A2661CB283A16810B88F
 SIMULATOR_DIAGNOSTIC_POLICY_SHA256 = "4CE71CA43D961CF8A1318DA882BBA8989179700AB5202E5CE191185CFC0E44E0"
 SIMULATOR_DIAGNOSTIC_POLICY_ID = "V23-SIMULATOR-FILE-PROTECTION-DIAGNOSTIC-20260915"
 SIMULATOR_DIAGNOSTIC_SOURCE_PATH = "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift"
-SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "AF9304FDB44AA61638253EF1EFC8AAE4617F2439ECE6C959D2DEE6C06AB7F1A0"
+SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "755870276940DA63430F323ADE00D7CD6820BB3FC4DC84BDBBA076350D48AB31"
 # The original owner-approved allowance source remains admissible for historical replays;
 # the current source adds only development timing aggregates (2026-09-24).
 # 2026-09-25: the Simulator strict pre-check no longer throws, catches and logs the expected
@@ -800,12 +800,16 @@ SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "AF9304FDB44AA61638253EF1EFC8AAE4617F2439EC
 # Recompute the current SHA-256 from those bytes; preserve the prior source for replays.
 # 2026-09-27: reviewed idempotent backup exclusion preserves complete requests and all
 # final protection predicates; SHA-256 is recomputed from exact approved af9304fd bytes.
+# 2026-09-28: recomputed from exact reviewed checkpoint ProtectedFilePolicy.swift;
+# checked read-only/owned-effect paths preserve all final predicates. Prior published
+# af9304fd source stays available only under the historical replay rules.
 SIMULATOR_DIAGNOSTIC_HISTORICAL_SOURCE_SHA256S = ("7391B39F40D4C5DDE3B39AFCCB8A3F0D95037F7FDF0C1333F5D623A40F551A38",
                                                  "FCFF658FCE118760EAC50B13A3941470EA86ED6FB40E78D17E6A573A10DFA5DB",
                                                  "A8B18FFF49DE387183EA9B8B2377669BF1EE9E73A6DB11992178503070EDE139",
                                                  "D18D48D5DB47DD61AD7D979414BD62A1A6798639EDA00B537DB5D6F1D517700E",
                                                  "831C0FB85219183E7CA694F4F260BBB4765FFD929EBCCAE814CE7CC3D231C5B7",
-                                                 "4B102F6297E2AF1D02B926E79FEBDDB0362154EBD594FBD56BD929408B135D71")
+                                                 "4B102F6297E2AF1D02B926E79FEBDDB0362154EBD594FBD56BD929408B135D71",
+                                                 "AF9304FDB44AA61638253EF1EFC8AAE4617F2439ECE6C959D2DEE6C06AB7F1A0")
 SIMULATOR_DIAGNOSTIC_PREFIX = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V2"
 # Owner decision 15 (2026-09-25): after the first exact event of a kind in a process, later
 # identical events of that kind are journaled as bounded per-kind summaries carrying a count.

@@ -12,9 +12,12 @@ final class V23UnadmittedEraseReturnRouteTests: XCTestCase {
         let writer = original.workspaceWriter
         let revision = try writer.currentRevision()
         let history = try writer.sourceMutationHistorySnapshot()
-        let summary = try BackupRestoreService.currentSummary(
+        // Bind unchanged source truth, not the byte count of freshly minted
+        // export metadata (whose timestamp encoding can differ by one byte).
+        let basis = try BackupExportService(
             modelContext: original.modelContext,
-            generationRootURL: original.generationRootURL)
+            generationRootURL: original.generationRootURL
+        ).canonicalCheckpointBasis()
         let eraseRoot = fixture.support.appendingPathComponent("FieldEvidenceErase")
         XCTAssertFalse(FileManager.default.fileExists(atPath: eraseRoot.path))
 
@@ -26,9 +29,10 @@ final class V23UnadmittedEraseReturnRouteTests: XCTestCase {
         XCTAssertTrue(original.workspaceWriter === writer)
         XCTAssertEqual(try writer.currentRevision(), revision)
         XCTAssertEqual(try writer.sourceMutationHistorySnapshot(), history)
-        XCTAssertEqual(try BackupRestoreService.currentSummary(
+        XCTAssertEqual(try BackupExportService(
             modelContext: original.modelContext,
-            generationRootURL: original.generationRootURL), summary)
+            generationRootURL: original.generationRootURL
+        ).canonicalCheckpointBasis(), basis)
         XCTAssertFalse(FileManager.default.fileExists(atPath: eraseRoot.path))
 
         // The existing prepared-startup path must use a current gate token and
@@ -41,9 +45,10 @@ final class V23UnadmittedEraseReturnRouteTests: XCTestCase {
         XCTAssertTrue(republished.workspaceWriter === writer)
         XCTAssertEqual(try writer.currentRevision(), revision)
         XCTAssertEqual(try writer.sourceMutationHistorySnapshot(), history)
-        XCTAssertEqual(try BackupRestoreService.currentSummary(
+        XCTAssertEqual(try BackupExportService(
             modelContext: original.modelContext,
-            generationRootURL: original.generationRootURL), summary)
+            generationRootURL: original.generationRootURL
+        ).canonicalCheckpointBasis(), basis)
         XCTAssertFalse(FileManager.default.fileExists(atPath: eraseRoot.path))
         XCTAssertThrowsError(try fixture.router.cancelUnadmittedErase(ticket)) {
             XCTAssertEqual($0 as? AppAccessContractFailureV1, .staleAttempt)

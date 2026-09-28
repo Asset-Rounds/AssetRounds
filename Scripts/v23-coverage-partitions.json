@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "4a21cccb58f3534b9cdbb19ffda806bd71d7c192",
+  "generatedAtHead": "4bc335542f972f5d2bf47461e2be5eff41e7ca53",
   "sweepOrder": [
     "S01",
     "S02",
@@ -34,7 +34,8 @@
     "S29",
     "S30",
     "S31",
-    "S32"
+    "S32",
+    "S33"
   ],
   "partitions": [
     {
@@ -48,7 +49,7 @@
     {
       "id": "S02",
       "tier": "D50C",
-      "estimatedSeconds": 2109.0,
+      "estimatedSeconds": 2169.0,
       "selectors": [
         "FieldEvidenceAppTests/C27S82TypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorV901VersionedSchemaIdentity/testC33V901VersionedSchemaIdentityCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -206,6 +207,7 @@
         "FieldEvidenceAppTests/V9_40SurveySessionTests/testV23P03C34ExplicitSurveyResumeRestoresTheStableSessionRoute",
         "FieldEvidenceAppTests/V9_40SurveySessionTests/testV23P03C37TypedPoseContractAnchor",
         "FieldEvidenceAppTests/V9_40SurveySessionTests/testZeroSurveyIdentitiesRejectAndCaptureSuccessorsRequireExactReferences",
+        "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testC33EarlyPointerWitnessRejectsSameByteRetiredControlReplacement",
         "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testC33EraseAcceptsOnlyExactAncestorsLeftByAuthenticatedDerivativeCleanup",
         "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testC33EraseAuthenticatesSharedOriginalAndRecoversAfterPointerPublication",
         "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testC33EraseHistoricalRegisteredDerivativesRemainOwnedAfterReplacementAndRetirement",
@@ -379,7 +381,7 @@
     {
       "id": "S05",
       "tier": "D50C",
-      "estimatedSeconds": 1810.0,
+      "estimatedSeconds": 2410.0,
       "selectors": [
         "FieldEvidenceAppTests/C27S41TypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/S3_7CouldNotVerifyTests/testDuplicateAndWrongPurposeEvidenceFailClosedWithoutFinalizationRows",
@@ -413,6 +415,15 @@
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testC33RealEraseRemovesTemporalRowsJournalAndCanonicalOriginalBytes",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testCancelAndDirtyContextChangeNothingBeforeMarker",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testCompleteKernelEraseMappingsValidateWithoutDroppingRegistrations",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testCompletedAbortForeignIngressSiblingRefusesColdExit",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testCompletedAbortForeignPrivateSHMRemainsAfterRefusedCleanup",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testCompletedAbortForeignSourceLeafRefusesColdExit",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testCompletedAbortFullIntegrityRejectsFreelistCorruption",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testCompletedAbortHeldBackupAccessDefersCheckedColdExit",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testCompletedAbortPhysicalImageRejectsDamagedWALFrame",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testCompletedAbortPostReadForeignSHMRemainsAfterRefusedCleanup",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testCompletedAbortPrivateCopyCorruptionRefusesColdExit",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testCompletedAbortSameInodeSQLiteRewriteRefusesColdExit",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testCompletedEraseReceiptUsesActualIDsAndOnlyPublishesAfterEraseRootRemoval",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testEraseManifestHandoffPreservesExactInodeAndSupportsRepeatedConstructorRecovery",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testEraseManifestHandoffRejectsHostileSidecarsTargetsAndChangedPointerWithoutConsumption",
@@ -421,6 +432,7 @@
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testGoldenEraseActivatesEmptyGenerationAndClearsFrozenState",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testLiveCleanupWaitsForOldContextReferenceDrain",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testMalformedAuxiliaryTreeFailsBeforeAnyDeletion",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testNoEraseCheckedOwnerCloseMeasuresSQLiteAndSidecarTransition",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testNotificationPreferenceEraseFencePreservesExactCooldownAndRejectsHeldSettingAuthority",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testPinnedEmptyGenerationCreationRejectsReplacementBeforeSQLiteWrite",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testReplacedGenerationAncestorFailsClosedWithoutDeletingEitherTree",
@@ -1160,7 +1172,7 @@
     {
       "id": "S13",
       "tier": "D50C",
-      "estimatedSeconds": 1843.5,
+      "estimatedSeconds": 2323.5,
       "selectors": [
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS3_6CameraRecovery/testTypedEvidenceContextContractAnchor",
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS8_3DiagnosticPrivacy/testTypedEvidenceContextContractAnchor",
@@ -1298,14 +1310,22 @@
         "FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testPublicReplacementAndColdReadbackPreserveMixedIncomingOriginalHistory",
         "FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testPublicReplacementAndColdReadbackRemoveNonemptyCurrentStockForEmptyIncoming",
         "FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testReceiptIdentityExportOrderAndShuffleUseGlobalRevisionOrder",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testAuthenticatedMaintenanceRestorePublishesBAndAdmitsOriginalEraseAfterHostDrain",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testAuthenticatedReadyRestorePublishesExactTargetAfterOriginalAliasDrain",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testAuthenticatedReadyRestoreRefusesHeldOriginalReader",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testAuthenticatedReadyRestoreRefusesPostDrainSourceSHMByteMutation",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testFactoryKeepsStartupUnopenedAndBindsItsExactGateOnce",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testFactorySettingTransactionsCompleteAndReopenWithoutRepair",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testMaintenanceEligibilityRefusesForeignOperationsChildWithoutRepair",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testMaintenanceEligibilityRefusesPostOpenV3HistoryDriftWithoutRepair",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testMaintenanceRestoreClearProbeRefusesMissingOrLinkedChildWithoutRepair",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testPresentationConsumesAuthenticAbortAndASecondEraseUsesNewAuthority",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testPresentationDeferredEraseRetainsDrainAcrossPauseAndResumesWithFreshService",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testPresentationRestoreRejectsItsOriginalTicketAfterAdmissionRevocation",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testProductionEraseAdoptsFreshSettingOwnerAndNextToggleCommits",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testRestorePreviewRetainsOriginalAccessAcrossLifecycleAndRejectsStaleCallbacks",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testScenePreferencesPersistBoundedSnapshotsAndDiscardCorruptionAcrossReopen",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testTrackedMaintenanceDeletionRecoversActualPreparedJournalAndClosesOwner",
         "FieldEvidenceAppTests/V23ProductionRoundDraftOrderingTests/testActualDraftOrderingDeduplicatesEqualRequiredContentMaterialization",
         "FieldEvidenceAppTests/V23ProductionRoundDraftOrderingTests/testActualDraftOrderingExecutionSwapsExactlyOneAdjacentPairWithFreshRecorder",
         "FieldEvidenceAppTests/V23ProductionRoundDraftOrderingTests/testActualDraftOrderingLostAcknowledgementRetriesSamePreparedWriteWithoutSecondEffect",
@@ -2696,7 +2716,7 @@
     {
       "id": "S22",
       "tier": "D50C",
-      "estimatedSeconds": 1499.9,
+      "estimatedSeconds": 1619.9,
       "selectors": [
         "FieldEvidenceAppTests/C32AssistanceAnchorV906DeletionRights/testC32V906DeletionRightsCompatibilityKeepsProposalAtExplicitReviewBoundary",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorS83DiagnosticPrivacy/testC33S83DiagnosticPrivacyCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -2724,6 +2744,8 @@
         "FieldEvidenceAppTests/S2PersistenceLedgerTests/testPendingEraseAndRestoreRootsRouteToTheirExactMaintenanceReasons",
         "FieldEvidenceAppTests/S2PersistenceLedgerTests/testPostAdoptionExecutionRevokedAtFirstAwaitCannotInstallAStaleTokenOrRead",
         "FieldEvidenceAppTests/S2PersistenceLedgerTests/testRepeatedLifecyclePausesRetainPostAdoptionActivationForExactRetry",
+        "FieldEvidenceAppTests/S2PersistenceLedgerTests/testRestoreReaderCaptureRejectsRetiredDurableToken",
+        "FieldEvidenceAppTests/S2PersistenceLedgerTests/testRestoreReaderCaptureRequiresActualOpeningProvider",
         "FieldEvidenceAppTests/S2PersistenceLedgerTests/testStartupRecoversPendingPDFAndPublishesItsSingleWriter",
         "FieldEvidenceAppTests/S2PersistenceLedgerTests/testStartupReleaseFailureRemainsOwnedAndBlocksRetryUntilOriginalRegistryIsReadable",
         "FieldEvidenceAppTests/S2PersistenceLedgerTests/testStartupRetryAndUnsafePDFFailureExplicitlyReleaseRetainedPublishedWriters",
@@ -3887,6 +3909,20 @@
         "FieldEvidenceAppTests/V23WholeSignSharedOwnerTests/testForeignAndRelockedEraseReturnCannotReopenDeletion",
         "FieldEvidenceAppTests/V23WholeSignSharedOwnerTests/testForeignContextAndWriterRefuseBeforeDeletionEffects",
         "FieldEvidenceAppTests/V23WholeSignSharedOwnerTests/testLiveDeleteUsesPublishedWriterAndProducesRealAssetTombstone"
+      ]
+    },
+    {
+      "id": "S33",
+      "tier": "D50C",
+      "estimatedSeconds": 420.0,
+      "selectors": [
+        "FieldEvidenceAppTests/V23EraseRetiredPointerCutsTests/testAlreadyClearedRetiredPointerCompletesGenuineErase",
+        "FieldEvidenceAppTests/V23EraseRetiredPointerCutsTests/testCompletePreSwapTemporaryCompletesGenuineErase",
+        "FieldEvidenceAppTests/V23EraseRetiredPointerCutsTests/testEmptyReservedTemporaryCompletesGenuineErase",
+        "FieldEvidenceAppTests/V23EraseRetiredPointerCutsTests/testHostileReservedPointerShapesRefuseWithoutCanonicalDeletion",
+        "FieldEvidenceAppTests/V23EraseRetiredPointerCutsTests/testPrefixReservedTemporaryCompletesGenuineErase",
+        "FieldEvidenceAppTests/V23EraseRetiredPointerCutsTests/testSwappedOldTemporaryCompletesGenuineErase",
+        "FieldEvidenceAppTests/V949SchemaMigrationRootLinkWitnessTests/testExpectedTargetManifestLinkTransitionRetainsFullTreeChecks"
       ]
     }
   ]

@@ -338,6 +338,9 @@ private struct StartupRootView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             access.receive(sceneEvent(for: phase))
+            if phase == .active {
+                access.requestPendingRestoreTransitionRetry()
+            }
         }
         .onReceive(
             NotificationCenter.default.publisher(
@@ -464,7 +467,10 @@ private struct ReadyAppView: View {
         }
         .id(coordinator.uiGenerationToken)
         .modelContext(coordinator.modelContext)
-        .sheet(item: $restorePresentation) { presentation in
+        .sheet(item: $restorePresentation,
+               onDismiss: {
+                   access.requestPendingRestoreTransitionRetry()
+               }) { presentation in
             if let previewAccess = access.backupPreviewAccess {
             BackupRestoreProgressView(
                 applicationSupportURL: applicationSupportURL,
@@ -542,7 +548,10 @@ private struct MaintenanceRestoreHost: View {
                 )
             }
         }
-        .sheet(isPresented: $showsRestore) {
+        .sheet(isPresented: $showsRestore,
+               onDismiss: {
+                   access.requestPendingRestoreTransitionRetry()
+               }) {
             if let restoreSession, let previewAccess = access.backupPreviewAccess {
                 BackupRestoreProgressView(
                     applicationSupportURL: applicationSupportURL,
@@ -572,6 +581,12 @@ private struct MaintenanceRestoreHost: View {
                     }
                 )
             }
+        }
+        .onDisappear {
+            // The maintenance host itself owns its old Restore session.
+            // Disappearance is a retry trigger; Router still requires a real
+            // weak alias drain before closing its reader.
+            access.requestPendingRestoreTransitionRetry()
         }
     }
 
