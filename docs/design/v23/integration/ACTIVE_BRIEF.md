@@ -1,40 +1,42 @@
 # Active integration brief — 2026-09-27
 
-Read AGENTS.md first. This brief gives current state only. CURRENT_INTEGRATION.md retains exact batch/review/evidence history; VERIFICATION_DUE.md retains every open obligation; MERGE_READINESS.md defines the phased goal. All results below are development only.
+Read AGENTS.md. All results here are development only; CURRENT_INTEGRATION keeps exact history, VERIFICATION_DUE keeps open obligations, MERGE_READINESS defines phases.
 
 ## Authority and checkouts
 
-- Primary: `/Users/rentamac/Developer/AssetRounds`, branch `codex/v23-s10-integration-20260910`, pushed checkpoint `074d1b79`. Main remains accepted S10 `b1d04ae5`; Phase 1 is not merge-ready.
-- Live development: `/Users/rentamac/.codex/worktrees/integration-checkpoint/AssetRounds`, stale git HEAD `4a21cccb` plus authoritative newer overlay. Never reset it or transfer stale HEAD. Owner primary `.codex/config.toml` stays untouched/unstaged.
-- Root alone installs, collects, commits, pushes and dispatches. Sol medium/high and optional Luna max helpers only; reuse context and actual available slots. No Astra resume.
-- No force-push, history rewrite, merge commits, PRs, broad staging, signing or release. Never edit `docs/design/s10/**` or `Release/**`; preserve owner drafts, V30, Windows work and evidence.
-- Local: Xcode26.6/17F113, iOS26.5/23F77. Gates: GitHub Xcode26.6/iOS26.2/23C54. Physical TMPDIR `/private/var/folders/y6/44_p71z11778jy4vnj43r3bc0000gn/T/`. DerivedData `/Users/rentamac/DD-integration-checkpoint`; six build workers on this 16GB Mac.
+- Primary `/Users/rentamac/Developer/AssetRounds`: integration branch `codex/v23-s10-integration-20260910`, pushed0a9a789b. Main remains accepted S10b1d04ae5. Phase1 not merge-ready.
+- Authoritative live source `/Users/rentamac/.codex/worktrees/integration-checkpoint/AssetRounds`: stale Git HEAD4a21cccb plus newer overlay. Never reset or copy stale HEAD; primary now contains the frozen12 reviewed source changes; later scratch candidates stay isolated.
+- Root alone installs, builds/collects, commits/pushes/dispatches. Preserve owner `.codex/config.toml`, drafts, Windows/V30 and evidence. No force/history rewrite/merge commits/PRs/broad staging/signing/release; never edit docs/design/s10 or Release.
+- Helpers use Sol medium/high or Luna max; reuse context. No Astra resume. Independent consequential review remains nonauthor Sol high.
+- Local Xcode26.6/17F113, iOS26.5/23F77; gates GitHub iOS26.2/23C54. DerivedData `/Users/rentamac/DD-integration-checkpoint`; four workers on16GB Mac. Never rebuild products during native execution.
 
-## Current source and live handles — inspect before acting
+## Current exact checkpoint
 
-- Pushed074d1b79 is the reviewed102-source/five-record development checkpoint, with known failures. Later Erase/C46 source remains only in the live overlay; no current-overlay hosted run or gate evidence.
-- Latest full app/all304unitSwift build PASS92.414s: `.codex-temp/m2-owner-snapshot-replacement-diagnostic-build-v1`. Its seven-selector diagnostic native ended7FAIL93.213s, exact selectors/source/products unchanged; root retained1,312artifacts/268products at `~/AssetRounds-v23-review-evidence/m2-owner-snapshot-replacement-diagnostic-v1-20260927`. C46 successor full304buildPASS30.162s/native3=2PASS1FAIL76.681s now collected1,306artifacts/268products. No live native/build remains.
-- Current five-source checkpoint: BackupRestore9ef7f6bf, EraseService95f82d0f, MutationJournalfa326350, Router1052843a and V953testb0634512. Independent Sol-high composition review3d02bfa8 approves intermediate integration publication only after exact staged-record verification. Native2PASS1FAIL retains the later authority failure; new diagnostics and ownership corrections remain held in scratch.
-- Isolated C05 compiler session29356 terminalPASS271.361s: `.codex-temp/m2-c05-module-typecheck-v6`, immutable snapshot `.codex-temp/m2-c05-isolated-typecheck-v6`, INPUTS8070b9a0 (1,202bound inputs/602appSwift). Prior isolatedv5 PASS276.907s applies only to that older snapshot. No C05 live installation or runtime proof.
-- `.codex-temp/m2-next-bounded-composition-20260927.json` tracks handles and pending packets. Old installed packet before-hashes must not be reapplied.
+- No Xcode/native process is active after root collected native9. Isolated hosted27 CI suites are running in session76086 (m2-hosted27-ci-candidate-v1). Frozen12-path source/tool snapshot `.codex-temp/m2-verified-checkpoint-source-v1`; diffSHA bf6ad569416b783e9fcb0a789b3f7561a17d9e60dbc9fe6bd6470affdcfacfe1. All1,202 native input hashes match live. Independent intermediate-checkpoint source review613983b6 approved; exact12 paths transferred to primary. Staged/record verification and push pending.
+- Latest full app/all304unitSwift build PASS96.203s: m2-c46-abort-v949-build-v3. This proves compilation, not304tests executed.
+- Exact native9:5PASS4FAIL124.894s, source/products unchanged,1,314artifacts/268products retained at ~/AssetRounds-v23-review-evidence/m2-c46-abort-v949-v1-20260927.
+- Pass: C46R01 Party projection/hostiles, twoC32 restore controls, S6 cancel/dirty no-effect, genuine no-admission return. Fail: S6 every-interruption, V906 interruption, twoV949 retained-original cases. No full-family closure claim.
+- Current live hashes include BackupRestore db7848b7, Erase336370a1, Policyaf9304fd, Factory70a42b17, Migration1406847d, Coordinator0abd9f9d, Router538057aa; exact12-path inventory m2-current-source-delta-20260928.json.
+- Required Python suites v2: selection42PASS501.066s/native-CI379PASS419.200s;1,809inputs unchanged. Prior ENOSPC/exit65 failures retained. Later Swift changes do not inherit gate evidence.
 
-## Current failure families
+## Remaining failure work
 
-- Erase preactivation diagnostic first=registry-owner. Source trace shows Router and Coordinator constructed distinct Registry providers: source writer token and preparation reader belong to different owners. Preserve equality; exact writer-owned factory binding correction is in scratch.
-- S6/V906 completed-abort proof reports source.tree-different around current ledger validation. V949 original-source physical proof also reports tree-different, not a scan error. These remain separate unresolved proof failures; no rebaseline or predicate relaxation.
-- C46 historical secondclone/missing-receipt-negative and C32 replacement controls PASS in prior native17 (5PASS12FAIL158.512s). R01 now completes emptyInstall/clone/fork materialization, then replacement passed workspace-chain after reviewed target-frontier correction; later invalidRestoreAuthorityLine17955 remains. Same author diagnosing.
-- C05 partial CASv2 received independent Sol-high approval cc3b128b for isolated typecheck only after sticky failed-close uncertainty correction. Positive cold V3 route, schema2/absent-C05 no-repair control observation, held-out scanner, publication readback, checked closure and native tests remain incomplete. Service/Intent/Router next step is scratch only; no C05 live installation.
-- Other open families remain in VERIFICATION_DUE: AppAccess, broader S6/retired Erase, V949, V907 corpus, manual placement, C45/C47/C05 ownership/publication and journal/backup compatibility. Historical Search23+WholeSign7 passes and S6 golden Erase pass retain their exact scopes; they do not close broader suites.
-- Manual-placement original100 request executed51 (46PASS5FAIL);49 extension owners were misqualified. Separate never-run49 supplement47PASS2FAIL. Evidence is retained truthfully as two scopes, never a single full100run.
-- Unit census3,627. Historical native-CI379+selection42 passes retain prior captured inputs; subsequent source changes are not automatically covered. Cold CI route qualification remains due.
+- Shared Registry/provider correction compiled and all3 targeted S2 tests passed in prior native13. Revoked-reader regression now uses fixed export metadata and full canonical records/member inventory; targeted test passes.
+- Protection fix skips only freshly equal backup-exclusion writes, preserving every complete request and authority check. Four measured directoryctime differences disappear. Native19=15PASS4FAIL plus separate correctly qualified4PASS; never claim a single23run.
+- S6 fixture recreates Erase root by constructing Store while observing absence. V906 keeps source/coordinator aliases through shutdown; precise uncertainOwner guard remains unproven. Same Sol author preparing isolated fixture corrections without weakening production guards.
+- V949 Factory create succeeds; DEBUG original-cold bind fails. Static internal-stage diagnostics proposed; no Factory or witness weakening justified.
+- Restore→same-process Erase transition frozen SOURCE_3 under independent review. Reviewer found missing B-manifest digest binding; author correcting. No live installation or module/native verification.
+- C05 schema2/V3 positive cold recovery remains incomplete. V9 borrowed-owner foundation approval2e883293 permits isolated typecheck only. Author implementing no-create Factory/Registry/manifest owners from exact live bases; no live installation. Historical partial audit9bfcd661 direction approved, not runtime proof.
+- Other obligations remain: broader AppAccess/S6, V949, manual placement, C45/C47/C05 publication/ownership and backup/journal families. Historical passes retain exact scope; full unit coverage remains mandatory.
 
-## Next milestones and reserved decisions
+## Next actions
 
-1. Finish source-grounded family corrections, independent review, full compile and affected development verification. Collect terminal native evidence before rebuilding products; keep unrelated work isolated.
-2. Refresh exact source inventory, seal a coherent checkpoint, record failures honestly, obtain appropriate independent review, stage explicit paths and non-force push after refreshing refs.
-3. Stabilize with a deliberate hosted development sweep, then freeze one candidate for all required same-head coverage, qualified critical UI, independent integration review and genuine owner screenshots/checklist. Only then non-force main fast-forward and exact-main verification.
-4. Continue all remaining V23 phases before release, keeping S10 look/brand. C55 owner decision, privacy/AppStore and human review remain reserved. Physical protection UNVERIFIED/release-blocking; decision24 applies only to Phase1 functional Simulator gates. Card135 remains owner-only/skipped.
+1. Independently review and publish the frozen tested intermediate checkpoint with explicit failures, owned paths and refreshed refs/non-force push. Preserve subsequent isolated fixes.
+2. Review/compile/target-test bounded fixture and V949 diagnostics; finish full Restore and C05 positive recovery, including checked ownership and supported Simulator evidence semantics.
+3. Next hosted development proposal m2-next-hosted-development-selection-v2 has27selectors, still uninstalled. Existing route excludes six extension-class controls from this batch only; local/fullcoverage obligations retained. Validate route/support closure, review and required CI suites before dispatch.
+4. Stabilize, freeze one candidate and complete all same-head coverage/qualified UI/independent review/genuine owner visual acceptance gates before main FF, then exact-main verification. Continue full V23 scope before release.
+5. Physical protection UNVERIFIED/release-blocking; decision24 expires after Phase1 exact-main. C55/privacy/AppStore/human review owner-reserved; Card135 skipped/owner-only.
 
-## Capacity
+## Storage and worktrees
 
-Last measured5.4GiB free. Reviewed164-blob APFS consolidation recovered5,173,968,896bytes plus priorS07trial31,539,200bytes; logical hashes/original ZIPs/manifests preserved. Extracted inode/birthtime/ctime/provenance differences are recorded, not metadata identity. Earlier33 diagnostic compressions retain separate records. Owner work, app data and products preserved.
+Owner-authorized cleanup recovered about24.2GB; current source/products/evidence preserved. Critical integration-checkpoint, erase-reader-retirement and v949-fixture-migration remain present after owner's archival; no restore needed. Localization-check safely archived. Other worktrees require dependency/accounting checks before archival. Receipts in .codex-temp/owner-storage-cleanup-20260927.

@@ -1093,7 +1093,9 @@ class GeneratorTests(unittest.TestCase):
                        "--selection-output", str(output / "ci-selection.json"),
                        "--map-output", str(output / "ci-selection-map.json"),
                        "--report-output", str(output / "report.json")]
-            first = subprocess.run(command, check=True, capture_output=True)
+            first = subprocess.run(command, capture_output=True)
+            self.assertEqual(first.returncode, 0,
+                             f"first generate exit={first.returncode}; stderr={first.stderr!r}")
             selection, selection_map, report = self.generate()
             self.assertEqual((output / "ci-selection.json").read_bytes(), generator.canonical(selection))
             self.assertEqual((output / "ci-selection-map.json").read_bytes(), generator.canonical(selection_map))

@@ -5256,7 +5256,7 @@ final class GenerationLeaseHandleV1: @unchecked Sendable {
 
     /// A publication owner must use the wrapper's actual retained registry,
     /// not a second owner opened over the same physical control directory.
-    fileprivate func requireExactRegistry(_ expected: GenerationLeaseRegistryV1) throws {
+    func requireExactRegistry(_ expected: GenerationLeaseRegistryV1) throws {
         try lock.withLock {
             guard registry === expected else {
                 throw GenerationLeaseRegistryFailureV1.uncertainOwner

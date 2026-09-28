@@ -3861,7 +3861,7 @@
     {
       "id": "S32",
       "tier": "D50C",
-      "estimatedSeconds": 1380.0,
+      "estimatedSeconds": 1440.0,
       "selectors": [
         "FieldEvidenceAppTests/V23C05PublicationAuthorityTests/testOriginalC05PublicationAuthorityBindsExactWriterRegistryAndEpoch",
         "FieldEvidenceAppTests/V23C05PublicationAuthorityTests/testOriginalC05PublicationCloseUncertaintyPermanentlyRefusesEffect",
@@ -3879,6 +3879,7 @@
         "FieldEvidenceAppTests/V23UnadmittedEraseReturnRouteTests/testGenuineNoAdmissionReturnsSameWriterAndAuthenticatedRestartPublishesIt",
         "FieldEvidenceAppTests/V23UnadmittedEraseReturnRouteTests/testPresentPendingControlRefusesReturnWithoutChangingControlOrWriter",
         "FieldEvidenceAppTests/V23UnadmittedEraseReturnRouteTests/testRelockedEpochRefusesReturnAndPreservesOriginalWriter",
+        "FieldEvidenceAppTests/V23UnadmittedEraseReturnRouteTests/testRevokedDurableReaderWithLiveWrapperRefusesEraseBeforeEffects",
         "FieldEvidenceAppTests/V23WholeSignSharedOwnerTests/testAdmittedProducerDrainsBeforeOriginalEraseCanCaptureWriter",
         "FieldEvidenceAppTests/V23WholeSignSharedOwnerTests/testClosedOriginalWriterRefusesSharedDeletionWithoutLedgerChange",
         "FieldEvidenceAppTests/V23WholeSignSharedOwnerTests/testDirectSharedCommitWithoutAdmittedProducerRefusesBeforeBody",

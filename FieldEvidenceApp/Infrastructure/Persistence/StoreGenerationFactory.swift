@@ -445,7 +445,8 @@ final class EraseAbortCheckedSnapshotIOV1 {
         }
     }
 
-    func tree(parent: Int32, name: String) throws -> String {
+    func tree(parent: Int32, name: String,
+              observeNode: ((String, String, [String: String]) -> Void)? = nil) throws -> String {
         try requireSettled()
         var tokens = [String]()
         var nodeCount = 0
@@ -469,6 +470,15 @@ final class EraseAbortCheckedSnapshotIOV1 {
                 }
                 let initial = try names(in: directory)
                 tokens.append("D|\(path)|\(before.st_dev)|\(before.st_ino)|\(before.st_mode)|\(before.st_mtimespec.tv_sec)|\(before.st_mtimespec.tv_nsec)|\(before.st_ctimespec.tv_sec)|\(before.st_ctimespec.tv_nsec)|\(initial.joined(separator: ","))")
+                if let observeNode {
+                    observeNode(path, "directory", [
+                        "device": String(before.st_dev), "inode": String(before.st_ino),
+                        "mode": String(before.st_mode),
+                        "mtime": "\(before.st_mtimespec.tv_sec).\(before.st_mtimespec.tv_nsec)",
+                        "ctime": "\(before.st_ctimespec.tv_sec).\(before.st_ctimespec.tv_nsec)",
+                        "membership": initial.joined(separator: "\u{0}")
+                    ])
+                }
                 for child in initial {
                     guard !child.isEmpty, child != ".", child != "..",
                           !child.contains("/") else {
@@ -513,6 +523,16 @@ final class EraseAbortCheckedSnapshotIOV1 {
                                 throw StoreGenerationFailure.dataPointerInvalid
                             }
                             tokens.append("F|\(childPath)|\(start.st_dev)|\(start.st_ino)|\(start.st_mode)|\(start.st_nlink)|\(start.st_size)|\(start.st_mtimespec.tv_sec)|\(start.st_mtimespec.tv_nsec)|\(start.st_ctimespec.tv_sec)|\(start.st_ctimespec.tv_nsec)|\(hash)")
+                            if let observeNode {
+                                observeNode(childPath, "file", [
+                                    "device": String(start.st_dev), "inode": String(start.st_ino),
+                                    "mode": String(start.st_mode), "nlink": String(start.st_nlink),
+                                    "size": String(start.st_size),
+                                    "mtime": "\(start.st_mtimespec.tv_sec).\(start.st_mtimespec.tv_nsec)",
+                                    "ctime": "\(start.st_ctimespec.tv_sec).\(start.st_ctimespec.tv_nsec)",
+                                    "sha256": hash
+                                ])
+                            }
                         }
                     } else { throw StoreGenerationFailure.dataPointerInvalid }
                 }
@@ -2145,6 +2165,7 @@ private extension StoreGenerationFactory {
             storeSchemaRelease: .v2,
             generationEpoch: epoch,
             readerLeaseHandle: readerLease,
+            openingFactoryForWriter: self.forSaveReproof(),
             afterSaveReproof: { [factory = self.forSaveReproof()] in
                 try factory.protectGeneration(
                     at: generationRootURL,
@@ -2162,7 +2183,8 @@ private extension StoreGenerationFactory {
         pointer: CurrentGenerationPointerV3,
         dataRootURL: URL,
         store: StoreMigrationJournalStoreV1,
-        observeManifest: ((StoreGenerationManifestV1) -> Void)? = nil
+        observeManifest: ((StoreGenerationManifestV1) -> Void)? = nil,
+        observeSourceTreeStage: (@MainActor (String) -> Void)? = nil
     ) throws -> StoreGenerationSession {
         try eraseReaderRetirementInventory?.requireUnsealed()
         let identity = try pointer.identity()
@@ -2194,6 +2216,9 @@ private extension StoreGenerationFactory {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
         observeManifest?(manifest)
+#if DEBUG
+        observeSourceTreeStage?("after-manifest")
+#endif
         let epoch = try GenerationEpochV1(
             generationID: generationID,
             generationManifestSHA256: pointer.generationManifestSHA256
@@ -2209,11 +2234,19 @@ private extension StoreGenerationFactory {
             .beginConstruction(reader: readerLease)
         defer { retirementConstruction?.constructionInProgress = false }
 #if DEBUG
+        observeSourceTreeStage?("after-reader-lease")
         coldOpenDiagnostic("current-reader-lease-after")
 #endif
         let generationRootURL = installedGenerationURL(id: generationID)
         let modelStoreURL = generationRootURL.appendingPathComponent(Self.modelStoreName)
-        try protectGeneration(at: generationRootURL, staging: false, requireModel: true)
+#if DEBUG
+        observeSourceTreeStage?("before-protect")
+#endif
+        try protectGeneration(at: generationRootURL, staging: false, requireModel: true,
+                              diagnoseSourceProtection: observeSourceTreeStage != nil)
+#if DEBUG
+        observeSourceTreeStage?("after-protect")
+#endif
         let container: ModelContainer
         switch pointer.storeSchemaVersion {
         case 3: retirementConstruction?.constructorStarted = true; container = try makeV3Container(at: modelStoreURL, migrate: false)
@@ -2278,6 +2311,9 @@ private extension StoreGenerationFactory {
         }
         retirementConstruction?.container = container
         retirementConstruction?.context = container.mainContext
+#if DEBUG
+        observeSourceTreeStage?("after-container")
+#endif
         if pointer.storeSchemaVersion == 3 {
             _ = try requireV3Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
         } else if pointer.storeSchemaVersion == 4 {
@@ -2347,6 +2383,9 @@ private extension StoreGenerationFactory {
          }else if manifest.storeSchemaRelease == .v52 {_ = try requireV52Marker(in:container.mainContext,expectedMigrationID:manifest.migrationID)
          }else{_ = try requireV51Marker(in:container.mainContext,expectedMigrationID:manifest.migrationID)
          }
+#if DEBUG
+        observeSourceTreeStage?("after-marker")
+#endif
         if pointer.storeSchemaVersion == 3 {
             guard manifest.semanticSHA256 == (try semanticDigest(at: modelStoreURL, release: release)) else {
                 throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
@@ -2360,6 +2399,7 @@ private extension StoreGenerationFactory {
             storeSchemaRelease: release,
             generationEpoch: epoch,
             readerLeaseHandle: readerLease,
+            openingFactoryForWriter: self.forSaveReproof(),
             afterSaveReproof: { [factory = self.forSaveReproof()] in
                 try factory.protectGeneration(
                     at: generationRootURL,
@@ -7528,6 +7568,8 @@ final class EraseReaderRetirementInventoryV1 {
     private var preparationWitness: ErasePreparationFailureDrainWitnessV1?
 #if DEBUG
     private var originalShutdownWitness: EraseOriginalShutdownWitnessV1?
+    // Retains any uncertain diagnostic descriptor through the Erase operation.
+    let sourceProtectionDiagnosticIO = EraseAbortCheckedSnapshotIOV1()
 #endif
     private weak var coldPreparationOperation: EraseColdPreparationOperationV1?
     private var coldPreparationWasBound = false
@@ -8301,6 +8343,9 @@ final class StoreGenerationSession {
 
     private let modelContainer: ModelContainer
     private let readerLeaseHandle: GenerationLeaseHandleV1?
+    // This exact opening provider minted the real source reader. The copy
+    // drops Erase inventory ownership and never constructs another Registry.
+    private let openingFactoryForWriter: StoreGenerationFactory
     /// File-private capture preserves the original wrapper before the session
     /// can deallocate. Capturing does not close or invalidate any alias.
     fileprivate var eraseRetirementReaderHandle: GenerationLeaseHandleV1? {
@@ -8318,6 +8363,7 @@ final class StoreGenerationSession {
         storeSchemaRelease: PersistentSchemaReleaseV1,
         generationEpoch: GenerationEpochV1? = nil,
         readerLeaseHandle: GenerationLeaseHandleV1? = nil,
+        openingFactoryForWriter: StoreGenerationFactory,
         afterSaveReproof: @escaping () throws -> Void
     ) {
         self.generationID = generationID
@@ -8330,6 +8376,7 @@ final class StoreGenerationSession {
         self.modelContext = modelContainer.mainContext
         self.generationEpoch = generationEpoch
         self.readerLeaseHandle = readerLeaseHandle
+        self.openingFactoryForWriter = openingFactoryForWriter
         self.afterSaveReproof = afterSaveReproof
         let context = self.modelContext
         self.didSaveObserver = NotificationCenter.default.addObserver(
@@ -8341,6 +8388,27 @@ final class StoreGenerationSession {
                 self?.handleAutomaticSaveReproof()
             }
         }
+    }
+
+    func validatedOpeningFactoryForWriter() throws -> StoreGenerationFactory {
+        let factory = openingFactoryForWriter
+        guard let generationEpoch,
+              let readerLeaseHandle,
+              readerLeaseHandle.token.role == .reader,
+              readerLeaseHandle.token.epoch == generationEpoch,
+              generationEpoch.generationID == generationID,
+              generationRootURL.standardizedFileURL
+                == factory.installedGenerationURL(id: generationID).standardizedFileURL else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let registry = try factory.makeGenerationLeaseRegistry()
+        try readerLeaseHandle.requireExactRegistry(registry)
+        try readerLeaseHandle.requireLiveTemporalIdentity(
+            mutationRegistry: registry)
+        try registry.validateActive(
+            readerLeaseHandle.token,
+            requiredRole: .reader)
+        return factory
     }
 
     deinit {
@@ -12742,19 +12810,30 @@ struct StoreGenerationFactory {
     func currentGenerationDeletionLedgerProof(
         expectedPointer: RestorePointerIdentityV1,
         authority: StoreRestoreGenerationAuthority,
-        observeManifest: ((StoreGenerationManifestV1) -> Void)? = nil
+        observeManifest: ((StoreGenerationManifestV1) -> Void)? = nil,
+        observeSourceTreeStage: (@MainActor (String) -> Void)? = nil
     ) throws -> DeletionLedgerProofV2 {
+#if DEBUG
+        observeSourceTreeStage?("before-pointer")
+#endif
         let pointer = try requireCurrentPointer(expectedPointer, authority: authority)
+#if DEBUG
+        observeSourceTreeStage?("after-pointer")
+#endif
         let session = try openValidatedV3Current(
             pointer: pointer,
             dataRootURL: dataRootURL,
             store: StoreMigrationJournalStoreV1(applicationSupportURL: applicationSupportURL),
-            observeManifest: observeManifest
+            observeManifest: observeManifest,
+            observeSourceTreeStage: observeSourceTreeStage
         )
 #if DEBUG
         coldOpenDiagnostic("current-ledger.open-complete")
 #endif
         let proof = try deletionLedgerProof(in: session.modelContext)
+#if DEBUG
+        observeSourceTreeStage?("after-ledger")
+#endif
 #if DEBUG
         coldOpenDiagnostic("current-ledger.proof-complete")
 #endif
@@ -16111,6 +16190,7 @@ struct StoreGenerationFactory {
             storeSchemaRelease: PersistentSchemaReleaseRegistryV1.activeRelease,
             generationEpoch: allocation.generationEpoch,
             readerLeaseHandle: reader,
+            openingFactoryForWriter: self.forSaveReproof(),
             afterSaveReproof: { [factory = self.forSaveReproof()] in
                 try factory.protectGeneration(at: generationRootURL,
                     staging: false, requireModel: true)
@@ -16500,7 +16580,8 @@ struct StoreGenerationFactory {
     private func protectGeneration(
         at root: URL,
         staging: Bool,
-        requireModel: Bool
+        requireModel: Bool,
+        diagnoseSourceProtection: Bool = false
     ) throws {
         let descriptor = try openOwnedDirectory(at: root)
         defer { _ = Darwin.close(descriptor) }
@@ -16518,6 +16599,18 @@ struct StoreGenerationFactory {
             throw StoreGenerationFailure.dataPointerInvalid
         }
         let generationIdentity = inventory.root.identity
+#if DEBUG
+        // This diagnostic uses the already opened generation descriptor and
+        // the operation-retained checked-close walker. It never mints authority.
+        let diagnosticIO = diagnoseSourceProtection
+            ? eraseReaderRetirementInventory?.sourceProtectionDiagnosticIO : nil
+        var metadataBefore: [String: (kind: String, fields: [String: String])] = [:]
+        if let diagnosticIO {
+            _ = try diagnosticIO.tree(parent: descriptor, name: ".") { path, kind, fields in
+                metadataBefore[path] = (kind, fields)
+            }
+        }
+#endif
         try protect(staging ? .restoreStaging : .durableDirectory, at: root, authorityCheck: {
             try inventory.revalidate()
             guard try StoreRestoreGenerationAuthority.directoryIdentity(at: root) == generationIdentity else {
@@ -16527,6 +16620,34 @@ struct StoreGenerationFactory {
         try inventory.protect(rootURL: root, staging: staging) { kind, url, check in
             try self.protect(kind, at: url, authorityCheck: check)
         }
+#if DEBUG
+        if let diagnosticIO {
+            var metadataAfter: [String: (kind: String, fields: [String: String])] = [:]
+            _ = try diagnosticIO.tree(parent: descriptor, name: ".") { path, kind, fields in
+                metadataAfter[path] = (kind, fields)
+            }
+            let paths = Set(metadataBefore.keys).union(metadataAfter.keys).sorted()
+            if let path = paths.first(where: {
+                let before = metadataBefore[$0], after = metadataAfter[$0]
+                return before?.kind != after?.kind || before?.fields != after?.fields
+            }) {
+                let before = metadataBefore[path], after = metadataAfter[path]
+                let beforeKeys = before.map { Set($0.fields.keys) } ?? Set<String>()
+                let afterKeys = after.map { Set($0.fields.keys) } ?? Set<String>()
+                let fields = beforeKeys.union(afterKeys)
+                var changed = fields.filter { before?.fields[$0] != after?.fields[$0] }.sorted()
+                if before == nil || after == nil { changed.append("presence") }
+                if before?.kind != after?.kind { changed.append("kind") }
+                let kind = after?.kind ?? before?.kind ?? "unknown"
+                FileHandle.standardError.write(Data(
+                    ("ERASE_PROTECT_METADATA_V1 kind=" + kind
+                        + " fields=" + changed.joined(separator: ",") + "\n").utf8))
+            } else {
+                FileHandle.standardError.write(Data(
+                    "ERASE_PROTECT_METADATA_V1 kind=none fields=none\n".utf8))
+            }
+        }
+#endif
         try verifyOwnedDirectory(at: root, descriptor: descriptor)
     }
 
@@ -18458,6 +18579,7 @@ struct StoreGenerationFactory {
             storeSchemaRelease: PersistentSchemaReleaseRegistryV1.activeRelease,
             generationEpoch: epoch,
             readerLeaseHandle: readerLease,
+            openingFactoryForWriter: self.forSaveReproof(),
             afterSaveReproof: { [factory = self.forSaveReproof()] in
                 try factory.protectGeneration(
                     at: generationRootURL,

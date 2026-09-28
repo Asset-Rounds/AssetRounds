@@ -81,14 +81,13 @@ final class StoreSessionCoordinator: ObservableObject {
         fileAuthority: any ApplicationFileAuthorityV1 = SystemApplicationFileAuthorityV1(),
         lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1? = nil
     ) {
-        let resolvedFactory = StoreGenerationFactory(
-            applicationSupportURL: Self.applicationSupportURL(for: session)
-        )
+        let resolvedFactory: StoreGenerationFactory
         let binding: WriterBinding
         let searchIndexStore: LocalSearchIndexStoreV1
         let searchServices: ProductionSearchServicesV1
         let resolvedLifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1
         do {
+            resolvedFactory = try session.validatedOpeningFactoryForWriter()
             resolvedLifecycleProfileRegistry = try lifecycleProfileRegistry
                 ?? WorkspacePackageLifecycleCompatibilityV1.shippingRegistry()
             searchIndexStore = try LocalSearchIndexStoreV1(
@@ -167,9 +166,7 @@ final class StoreSessionCoordinator: ObservableObject {
         lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1?,
         mutationJournalFailureInjection: MutationJournalFailureInjectionV1?
     ) throws {
-        let resolvedFactory = StoreGenerationFactory(
-            applicationSupportURL: Self.applicationSupportURL(for: session)
-        )
+        let resolvedFactory = try session.validatedOpeningFactoryForWriter()
         let resolvedLifecycleProfileRegistry = try lifecycleProfileRegistry
             ?? WorkspacePackageLifecycleCompatibilityV1.shippingRegistry()
         let searchIndexStore = try LocalSearchIndexStoreV1(
@@ -693,6 +690,36 @@ final class StoreSessionCoordinator: ObservableObject {
             mutationRegistry: writerFence.retainedTemporalRegistry)
         try inventory.capture(session)
         wholeSignDeletionSuspendedForErase = true
+    }
+
+    /// The original Router's source session and this writer must have been
+    /// opened through one retained provider before Erase moves either owner.
+    /// Returning the actual session lets Router compare its maintenance input
+    /// by reference; path or token-owner equality is insufficient.
+    func requireOriginalEraseOpeningAuthority(
+        factory expectedFactory: StoreGenerationFactory
+    ) throws -> StoreGenerationSession {
+        let opening = try session.validatedOpeningFactoryForWriter()
+        guard generationFactory.sharesRegistryProvider(with: expectedFactory),
+              opening.sharesRegistryProvider(with: expectedFactory) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let registry = try expectedFactory.makeGenerationLeaseRegistry()
+        guard let epoch = session.generationEpoch,
+              writerLeaseHandle.token.role == .writer,
+              writerLeaseHandle.token.epoch == epoch,
+              writerFence.retainedTemporalRegistry === registry else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try writerLeaseHandle.requireExactRegistry(registry)
+        try writerLeaseHandle.requireLiveTemporalIdentity(
+            mutationRegistry: registry)
+        let writerRevision = try workspaceWriter.currentRevision()
+        guard writerRevision.generationID == session.generationID,
+              writerRevision.workspaceID == session.workspaceID else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        return session
     }
 
 #if DEBUG

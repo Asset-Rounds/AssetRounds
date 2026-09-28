@@ -689,6 +689,7 @@ final class StartupRouter: ObservableObject {
                   $0.writer === coordinator.workspaceWriter }) ?? true else {
             throw AppAccessContractFailureV1.invalidTransition
         }
+        try requireOriginalEraseSourceOwner(coordinator)
         let authorization = try await startupAuthorization(accessGate)
         guard !isRunning, pendingEraseDrainProof == nil,
               pendingAbortedOriginalReaderRetirements.isEmpty,
@@ -697,6 +698,9 @@ final class StartupRouter: ObservableObject {
                   $0.writer === coordinator.workspaceWriter }) ?? true else {
             throw AppAccessContractFailureV1.staleAttempt
         }
+        // Authentication suspends. Reprove the exact session, source reader
+        // and writer provider before inventory capture or any route mutation.
+        try requireOriginalEraseSourceOwner(coordinator)
         let returnStartup: PreparedStartup?
         if let publishedWriter, case let .ready(actual, _, recovery) = route,
            actual === coordinator, publishedWriter.coordinator === coordinator {
@@ -731,6 +735,29 @@ final class StartupRouter: ObservableObject {
         try inventory.bindPreparation(operation: retirementOperation)
         try coordinator.captureErasePreparationSource(operation: retirementOperation)
         return ticket
+    }
+
+    private func requireOriginalEraseSourceOwner(
+        _ coordinator: StoreSessionCoordinator
+    ) throws {
+        let session = try coordinator.requireOriginalEraseOpeningAuthority(
+            factory: generationFactory)
+        switch route {
+        case .ready(let actual, _, _):
+            guard let publishedWriter,
+                  actual === coordinator,
+                  publishedWriter.coordinator === coordinator,
+                  publishedWriter.writer === coordinator.workspaceWriter else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+        case .maintenance:
+            guard maintenanceEraseSession === session,
+                  publishedWriter == nil else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+        default:
+            throw AppAccessContractFailureV1.staleAttempt
+        }
     }
 
     /// Returns the original permit once.  It does not reserve at the gate:

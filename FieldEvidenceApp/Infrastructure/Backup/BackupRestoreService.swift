@@ -1264,7 +1264,111 @@ struct CheckRunnerPhotoRestorePublicationBindingV2: Codable, Equatable, Sendable
 }
 
 @MainActor
+/// Exact, source-bound value proof for a Party row rebound by cross-workspace
+/// replacement without a destination Party command. The source receipt or
+/// existing external terminal must authenticate the original persisted row;
+/// the target row must be the exact typed rebind of that row.
+struct C46ReplacementSourcePartyProjectionProofV1 {
+    private let sourceWorkspace: WorkspaceID
+    private let sourceRows: [UUID: V9BackupPartyAccountabilityRecordV1]
+    private let sourceTerminals: [WorkspaceEntityIdentityV1: MutationHistoryEntityRevisionV1]
+    private let sourceReceiptImages: [WorkspaceEntityIdentityV1: MutationPostImageV1]
+
+    init(sourceRecords: [V9BackupPartyAccountabilityRecordV1],
+         sourceHistory: MutationHistorySnapshotV1,
+         sourceWorkspace: WorkspaceID) throws {
+        try MutationJournalStoreV1.validateImportedSnapshot(sourceHistory)
+        self.sourceWorkspace = sourceWorkspace
+        sourceTerminals = Dictionary(uniqueKeysWithValues:
+            sourceHistory.entityRevisions.map { ($0.identity, $0) }
+        )
+        sourceReceiptImages = try MutationJournalStoreV1.receiptTerminalImages(
+            in: sourceHistory, workspaceID: sourceWorkspace
+        )
+        var rows: [UUID: V9BackupPartyAccountabilityRecordV1] = [:]
+        for row in sourceRecords where row.kind == .serviceParty {
+            guard row.workspaceID == sourceWorkspace.rawValue,
+                  rows.updateValue(row, forKey: row.id) == nil else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        }
+        sourceRows = rows
+    }
+
+    func digest(for entity: WorkspaceEntityIdentityV1, revision: UInt64,
+                targetRecord: V9BackupPartyAccountabilityRecordV1,
+                targetWorkspace: WorkspaceID) throws -> String {
+        guard entity.kind == .serviceParty,
+              let sourceRow = sourceRows[entity.id],
+              let sourceRevision = sourceRow.revision,
+              sourceRevision == revision,
+              let terminal = sourceTerminals[entity],
+              terminal.revision == revision,
+              targetRecord.kind == .serviceParty,
+              targetRecord.id == entity.id,
+              targetRecord.workspaceID == targetWorkspace.rawValue,
+              targetRecord.revision == revision else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        let original = try PartyAccountabilitySnapshotCodecV1.decode(
+            ServicePartyReferenceV1.self, from: sourceRow.canonicalData
+        )
+        let originalCanonicalData = try PartyAccountabilitySnapshotCodecV1.encode(original)
+        guard original.partyID == entity.id,
+              original.workspaceID == sourceWorkspace,
+              original.revision == revision,
+              originalCanonicalData == sourceRow.canonicalData else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        let sourceDigest = try PersistedMutationPostImageDigestV1.sha256(
+            identity: entity, revision: revision, value: original
+        )
+        if let external = terminal.externalProjectionSHA256 {
+            guard external == sourceDigest else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        } else {
+            guard sourceReceiptImages[entity]?.revision == revision,
+                  sourceReceiptImages[entity]?.semanticSHA256 == sourceDigest else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        }
+        let rebound = try ServicePartyReferenceV1(
+            partyID: original.partyID, workspaceID: targetWorkspace,
+            kind: original.kind, displayName: original.displayName,
+            profileDescriptor: original.profileDescriptor,
+            provenance: original.provenance, privacyClass: original.privacyClass,
+            state: original.state, effectiveAt: original.effectiveAt,
+            retiredAt: original.retiredAt, revision: original.revision,
+            mutationID: original.mutationID
+        )
+        let expected = V9BackupPartyAccountabilityRecordV1(
+            kind: .serviceParty, id: rebound.partyID,
+            workspaceID: targetWorkspace.rawValue,
+            revision: rebound.revision,
+            canonicalData: try PartyAccountabilitySnapshotCodecV1.encode(rebound)
+        )
+        guard targetRecord == expected else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        return try PersistedMutationPostImageDigestV1.sha256(
+            identity: entity, revision: revision, value: rebound
+        )
+    }
+}
+
+@MainActor
 final class BackupRestoreService {
+#if DEBUG
+    /// Exercises the production typed transformation without exposing its
+    /// implementation or changing Release API visibility.
+    func reboundPartyAccountabilityForTesting(
+        _ records: [V9BackupPartyAccountabilityRecordV1],
+        workspaceID: WorkspaceID
+    ) throws -> [V9BackupPartyAccountabilityRecordV1] {
+        try rebindingPartyAccountability(records, workspaceID: workspaceID)
+    }
+#endif
     private struct RestoreAccessValidationFailure: Error {
         let underlying: any Error
     }
@@ -4498,7 +4602,7 @@ private extension BackupRestoreService {
                 throw BackupRestoreServiceError.invalidPackage
             }
         }
-        let revisions = try projected.entityRevisions.map { terminal in
+        var revisions = try projected.entityRevisions.map { terminal in
             guard terminal.identity.kind == .serviceParty
                     || terminal.identity.kind == .serviceContactPoint,
                   let original = originalTerminals[terminal.identity],
@@ -4542,6 +4646,47 @@ private extension BackupRestoreService {
                 identity: terminal.identity, revision: terminal.revision,
                 externalProjectionSHA256: externalProjection
             )
+        }
+        // A source Party with no destination Party receipt needs an exact
+        // externally projected current row. The incumbent target projection
+        // above remains separate and unchanged.
+        guard let incomingHistory = incomingOriginal.mutationHistory else {
+            throw BackupRestoreServiceError.invalidPackage
+        }
+        let sourceProof = try C46ReplacementSourcePartyProjectionProofV1(
+            sourceRecords: incomingOriginal.partyAccountability,
+            sourceHistory: incomingHistory,
+            sourceWorkspace: WorkspaceID(rawValue: sourceWorkspace)
+        )
+        var finalParties: [UUID: V9BackupPartyAccountabilityRecordV1] = [:]
+        for row in target.partyAccountability where row.kind == .serviceParty {
+            guard finalParties.updateValue(row, forKey: row.id) == nil else {
+                throw BackupRestoreServiceError.invalidPackage
+            }
+        }
+        for index in revisions.indices {
+            let terminal = revisions[index]
+            let entity = terminal.identity
+            guard entity.kind == .serviceParty,
+                  originalTerminals[entity] == nil,
+                  projectedReceiptImages[entity] == nil,
+                  let finalRow = finalParties[entity.id] else {
+                continue
+            }
+            let targetDigest = try sourceProof.digest(
+                for: entity, revision: terminal.revision,
+                targetRecord: finalRow, targetWorkspace: targetWorkspace
+            )
+            if let external = terminal.externalProjectionSHA256 {
+                guard external == targetDigest else {
+                    throw BackupRestoreServiceError.invalidPackage
+                }
+            } else {
+                revisions[index] = MutationHistoryEntityRevisionV1(
+                    identity: entity, revision: terminal.revision,
+                    externalProjectionSHA256: targetDigest
+                )
+            }
         }
         let result = MutationHistorySnapshotV1(
             workspaceRevision: projected.workspaceRevision,

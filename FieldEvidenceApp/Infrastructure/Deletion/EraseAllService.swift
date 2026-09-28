@@ -1303,7 +1303,7 @@ final class EraseAllService {
                     throw EraseAllServiceError.invalidAuthority
                 }
                 stage = "erase-root-before"
-                try auxiliary.requireEraseRootAbsentForCompletedAbort()
+                try auxiliary.requireEraseRootAbsentForAbortedAdmission()
                 stage = "target-before"
                 try generationAuthority.requireCompletedAbortTargetAbsent(targetID)
                 stage = "source-bytes"
@@ -1313,7 +1313,7 @@ final class EraseAllService {
                     throw EraseAllServiceError.invalidAuthority
                 }
                 stage = "erase-root-after"
-                try auxiliary.requireEraseRootAbsentForCompletedAbort()
+                try auxiliary.requireEraseRootAbsentForAbortedAdmission()
                 stage = "target-after"
                 try generationAuthority.requireCompletedAbortTargetAbsent(targetID)
             } catch {
@@ -1834,8 +1834,44 @@ final class EraseAllService {
         } else {
             sourceManifestObservation = nil
         }
+        // Compare every named read stage with the one immutable original
+        // source-tree fact. A later observation is never a new baseline.
+        let originalSourceTreeForStages = completedAbortBefore?.sourceTreeDigest
+            ?? originalColdObservation?.sourceTreeDigestForDiagnostic()
+        var reportedFirstSourceStage = false
+        let sourceTreeStageObservation: (@MainActor (String) -> Void)?
+        if completedObservation != nil || originalColdObservation != nil {
+            sourceTreeStageObservation = { stage in
+                guard !reportedFirstSourceStage else { return }
+                guard let originalSourceTreeForStages else {
+                    reportedFirstSourceStage = true
+                    FileHandle.standardError.write(Data(
+                        "ERASE_SOURCE_STAGE_V1 first=baseline-unavailable\n".utf8))
+                    return
+                }
+                do {
+                    let observed = try generationAuthority
+                        .originalEraseSourceTreeForColdExitForTesting(
+                            id: oldGenerationID)
+                    guard observed == originalSourceTreeForStages else {
+                        reportedFirstSourceStage = true
+                        FileHandle.standardError.write(Data(
+                            ("ERASE_SOURCE_STAGE_V1 first=" + stage + "\n").utf8))
+                        return
+                    }
+                } catch {
+                    reportedFirstSourceStage = true
+                    FileHandle.standardError.write(Data(
+                        ("ERASE_SOURCE_STAGE_V1 first=" + stage
+                            + ".scan-unavailable\n").utf8))
+                }
+            }
+        } else {
+            sourceTreeStageObservation = nil
+        }
 #else
         let sourceManifestObservation: ((StoreGenerationManifestV1) -> Void)? = nil
+        let sourceTreeStageObservation: (@MainActor (String) -> Void)? = nil
 #endif
         // DEBUG traces the actual captured factory's read stages when a test
         // has requested Erase diagnostics. The value copy retains the same
@@ -1850,7 +1886,8 @@ final class EraseAllService {
             .currentGenerationDeletionLedgerProof(
                 expectedPointer: oldPointer,
                 authority: generationAuthority,
-                observeManifest: sourceManifestObservation
+                observeManifest: sourceManifestObservation,
+                observeSourceTreeStage: sourceTreeStageObservation
             )
 #if DEBUG
         try originalColdExitFrame?.bindOriginalSourceSemantics(
@@ -1977,7 +2014,9 @@ final class EraseAllService {
                 authority: generationAuthority
             )
 #if DEBUG
+            traceErasePhase("prepare.empty-generation.factory-returned")
             try originalColdExitFrame?.bindCreatedTargetManifest(created.pointer)
+            traceErasePhase("prepare.empty-generation.original-bind-returned")
 #endif
             let boundPreparation = initialPreparation.binding(
                 targetPointer: created.pointer
@@ -2817,13 +2856,10 @@ private extension EraseAllService {
                 newGenerationID: subject.newGenerationID,
                 auxiliary: auxiliary
             ) == subject else { return nil }
-            let store = try EraseIntentStore(
-                applicationSupportURL: applicationSupportURL,
-                fileManager: fileManager,
-                expectedApplicationSupportIdentity: auxiliary.applicationSupportRootIdentity
-            )
-            guard try store.load() == nil,
-                  try store.loadPreparation() == nil else { return nil }
+            // Absence under the retained support descriptor proves that no
+            // intent or preparation leaf remains, without recreating the
+            // namespace after checked rollback removed it.
+            try auxiliary.requireEraseRootAbsentForAbortedAdmission()
             try auxiliary.verifyTargets()
             try auxiliary.requireNoEraseIntent()
             try auxiliary.requireNoRestoreIntent()
@@ -2842,6 +2878,7 @@ private extension EraseAllService {
             !(try authority.installedGenerationNames()).contains(
                 Self.canonical(targetGenerationID)
             ) else { return nil }
+            try auxiliary.requireEraseRootAbsentForAbortedAdmission()
             return AbortedEraseAdmissionReceiptV1(
                 subject: subject,
                 reservation: reservation,
@@ -4653,6 +4690,10 @@ private final class EraseOriginalColdExitFrameV1: @unchecked Sendable {
     private var sourceReadObservation:
         EraseOriginalColdExitContextObservationV1?
 
+    func sourceTreeDigestForDiagnostic() -> String {
+        sourceTree
+    }
+
     func capturePostHandoffHostileSource(
         operation expected: EraseRouterOperationV1,
         intent: EraseIntentV1
@@ -6049,8 +6090,9 @@ private final class EraseAuxiliaryAuthority {
         _ = Darwin.close(applicationSupportDescriptor)
     }
 
-#if DEBUG
-    func requireEraseRootAbsentForCompletedAbort() throws {
+    // A completed pre-intent abort must observe the actual Erase namespace
+    // absent. Opening EraseIntentStore here would create that namespace.
+    func requireEraseRootAbsentForAbortedAdmission() throws {
         func requireHeldAndNamed(_ descriptor: Int32, _ url: URL,
                                  _ expected: Identity) throws {
             try Self.require(descriptor, expected)
@@ -6077,7 +6119,6 @@ private final class EraseAuxiliaryAuthority {
         try requireHeldAndNamed(applicationSupportDescriptor,
                                 applicationSupportURL, applicationSupportIdentity)
     }
-#endif
 
     func verifyTargets() throws {
         try verify()

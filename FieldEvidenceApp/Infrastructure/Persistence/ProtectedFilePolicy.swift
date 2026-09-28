@@ -656,10 +656,22 @@ enum ProtectedFilePolicyV1 {
             }
             #endif
 
-            var resourceValues = URLResourceValues()
-            resourceValues.isExcludedFromBackup = disposition.isExcludedFromBackup
-            var resourceURL = url
-            try resourceURL.setResourceValues(resourceValues)
+            // Rewriting the same backup exclusion can change directory ctime,
+            // invalidating a caller's unchanged-source witness. Read fresh
+            // metadata and write only when the requested value is not present.
+            // The complete-protection request above and full verification below
+            // still occur on every call.
+            var backupReadURL = URL(fileURLWithPath: url.path)
+            backupReadURL.removeAllCachedResourceValues()
+            let backupReadback = try backupReadURL.resourceValues(
+                forKeys: [.isExcludedFromBackupKey]
+            ).isExcludedFromBackup
+            if backupReadback != disposition.isExcludedFromBackup {
+                var resourceValues = URLResourceValues()
+                resourceValues.isExcludedFromBackup = disposition.isExcludedFromBackup
+                var resourceURL = url
+                try resourceURL.setResourceValues(resourceValues)
+            }
             #if DEBUG
             if disposition.expectsDirectory {
                 afterBackup = independentProtectionReadback(at: url)

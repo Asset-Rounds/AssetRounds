@@ -1348,16 +1348,183 @@ final class V9_53OperationalContactTests: XCTestCase {
             makeUUID: { C46OperationalContactTestSupport.id(440) },
             scopedAccess: .alreadyAuthorized
         ).stageAndValidate(selectedPackageURL: package)
-        let distinctReplaced = try await BackupRestoreService(
-            applicationSupportURL: distinctTargetSupport,
-            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })
-        ).restore(
-            validatedPackage: distinctValidated,
-            currentModelContext: distinctTarget.modelContext,
-            currentGenerationID: distinctTarget.generationID,
-            currentGenerationRootURL: distinctTarget.generationRootURL,
-            mode: .replaceExisting
-        )
+        let distinctReplaced: StoreGenerationSession
+        do {
+            let distinctService = try BackupRestoreService(
+                applicationSupportURL: distinctTargetSupport,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })
+            )
+            // Exercise the same pure source-Party proof used by the genuine
+            // replacement plan. Detached hostile values never modify or reseal
+            // the validated package, source store, or incumbent target.
+            let sourcePartyRows: [V9BackupPartyAccountabilityRecordV1] =
+                distinctValidated.records.partyAccountability
+            let sourcePartyID: UUID = party.partyID
+            let sourcePartyKind: V9BackupPartyAccountabilityRecordV1.Kind = .serviceParty
+            var sourcePartyCandidate: V9BackupPartyAccountabilityRecordV1?
+            for row in sourcePartyRows {
+                guard row.kind == sourcePartyKind, row.id == sourcePartyID else { continue }
+                sourcePartyCandidate = row
+                break
+            }
+            let sourcePartyRow = try XCTUnwrap(sourcePartyCandidate)
+            let sourceHistory = try XCTUnwrap(distinctValidated.records.mutationHistory)
+            let sourcePartyIdentity = try WorkspaceEntityIdentityV1(
+                kind: .serviceParty, id: party.partyID
+            )
+            let targetWorkspace: WorkspaceID = distinctTargetWorkspaceID
+            let reboundPartyRow = try XCTUnwrap(distinctService
+                .reboundPartyAccountabilityForTesting([sourcePartyRow], workspaceID: targetWorkspace).first)
+            let proof = try C46ReplacementSourcePartyProjectionProofV1(
+                sourceRecords: distinctValidated.records.partyAccountability,
+                sourceHistory: sourceHistory,
+                sourceWorkspace: source.workspaceIdentity.workspaceID
+            )
+            let sourcePartyRevision = try XCTUnwrap(sourcePartyRow.revision)
+            let genuineProjection = try proof.digest(
+                for: sourcePartyIdentity, revision: sourcePartyRevision,
+                targetRecord: reboundPartyRow, targetWorkspace: targetWorkspace
+            )
+            let reboundParty = try PartyAccountabilitySnapshotCodecV1.decode(
+                ServicePartyReferenceV1.self, from: reboundPartyRow.canonicalData
+            )
+            XCTAssertEqual(genuineProjection, try PersistedMutationPostImageDigestV1.sha256(
+                identity: sourcePartyIdentity, revision: sourcePartyRevision,
+                value: reboundParty
+            ))
+            func packageFiles() throws -> [String: Data] {
+                let walker = try XCTUnwrap(FileManager.default.enumerator(
+                    at: package, includingPropertiesForKeys: [.isRegularFileKey]
+                ))
+                var bytes: [String: Data] = [:]
+                for case let item as URL in walker {
+                    guard try item.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile
+                        == true else { continue }
+                    let relative = String(item.path.dropFirst(package.path.count + 1))
+                    guard bytes.updateValue(try Data(contentsOf: item),
+                                            forKey: relative) == nil else {
+                        throw BackupRestoreServiceError.invalidPackage
+                    }
+                }
+                return bytes
+            }
+            let packageBeforeHostiles = try packageFiles()
+            let targetPointerURL = distinctTargetSupport.appendingPathComponent(
+                "FieldEvidenceData/current.json"
+            )
+            let targetPointerBeforeHostiles = try Data(contentsOf: targetPointerURL)
+            let targetHistoryBeforeHostiles = try targetOriginalJournal.exportSnapshot()
+            let targetPartyBeforeHostiles = try XCTUnwrap(
+                distinctTarget.modelContext.fetch(FetchDescriptor<ServicePartyRow>()).first {
+                    $0.partyID == targetOriginalParty.partyID
+                }
+            ).canonicalData
+            let targetContactBeforeHostiles = try XCTUnwrap(
+                distinctTarget.modelContext.fetch(FetchDescriptor<ServiceContactPointRow>()).first {
+                    $0.contactPointID == targetOriginalContact.contactPointID
+                }
+            ).canonicalData
+            let sourceHistoryBeforeHostiles = try journal.exportSnapshot()
+            let sourcePointerURL = sourceSupport.appendingPathComponent(
+                "FieldEvidenceData/current.json"
+            )
+            let sourcePointerBeforeHostiles = try Data(contentsOf: sourcePointerURL)
+            let sourcePartyBeforeHostiles = try XCTUnwrap(
+                source.modelContext.fetch(FetchDescriptor<ServicePartyRow>()).first {
+                    $0.partyID == party.partyID
+                }
+            ).canonicalData
+            let sourceDirtyBeforeHostiles = source.modelContext.hasChanges
+            let targetDirtyBeforeHostiles = distinctTarget.modelContext.hasChanges
+            var removedPartyReceipt = false
+            let receiptsWithoutParty = try sourceHistory.receipts.filter { record in
+                let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+                if envelope.workspaceID == source.workspaceIdentity.workspaceID
+                    && envelope.mutationID == party.mutationID {
+                    removedPartyReceipt = true
+                    return false
+                }
+                return true
+            }
+            XCTAssertTrue(removedPartyReceipt)
+            let missingPartyHistory = MutationHistorySnapshotV1(
+                workspaceRevision: sourceHistory.workspaceRevision,
+                lastLocalSequence: sourceHistory.lastLocalSequence,
+                receipts: receiptsWithoutParty,
+                quarantines: sourceHistory.quarantines,
+                entityRevisions: sourceHistory.entityRevisions
+            )
+            XCTAssertThrowsError(try C46ReplacementSourcePartyProjectionProofV1(
+                sourceRecords: distinctValidated.records.partyAccountability,
+                sourceHistory: missingPartyHistory,
+                sourceWorkspace: source.workspaceIdentity.workspaceID
+            ))
+            let changedParty = try ServicePartyReferenceV1(
+                partyID: party.partyID, workspaceID: party.workspaceID,
+                kind: party.kind, displayName: party.displayName + " changed",
+                profileDescriptor: party.profileDescriptor,
+                provenance: party.provenance, privacyClass: party.privacyClass,
+                state: party.state, effectiveAt: party.effectiveAt,
+                retiredAt: party.retiredAt, revision: party.revision,
+                mutationID: party.mutationID
+            )
+            let changedPartyRow = V9BackupPartyAccountabilityRecordV1(
+                kind: .serviceParty, id: party.partyID,
+                workspaceID: party.workspaceID.rawValue,
+                revision: party.revision,
+                canonicalData: try PartyAccountabilitySnapshotCodecV1.encode(changedParty)
+            )
+            let changedSourceRows = distinctValidated.records.partyAccountability.map {
+                $0.kind == .serviceParty && $0.id == party.partyID ? changedPartyRow : $0
+            }
+            let changedProof = try C46ReplacementSourcePartyProjectionProofV1(
+                sourceRecords: changedSourceRows, sourceHistory: sourceHistory,
+                sourceWorkspace: source.workspaceIdentity.workspaceID
+            )
+            XCTAssertThrowsError(try changedProof.digest(
+                for: sourcePartyIdentity, revision: sourcePartyRevision,
+                targetRecord: reboundPartyRow, targetWorkspace: targetWorkspace
+            ))
+            XCTAssertEqual(try packageFiles(), packageBeforeHostiles)
+            XCTAssertEqual(try Data(contentsOf: targetPointerURL), targetPointerBeforeHostiles)
+            XCTAssertEqual(try targetOriginalJournal.exportSnapshot(), targetHistoryBeforeHostiles)
+            XCTAssertEqual(try XCTUnwrap(
+                distinctTarget.modelContext.fetch(FetchDescriptor<ServicePartyRow>()).first {
+                    $0.partyID == targetOriginalParty.partyID
+                }
+            ).canonicalData, targetPartyBeforeHostiles)
+            XCTAssertEqual(try XCTUnwrap(
+                distinctTarget.modelContext.fetch(FetchDescriptor<ServiceContactPointRow>()).first {
+                    $0.contactPointID == targetOriginalContact.contactPointID
+                }
+            ).canonicalData, targetContactBeforeHostiles)
+            XCTAssertEqual(try journal.exportSnapshot(), sourceHistoryBeforeHostiles)
+            XCTAssertEqual(try Data(contentsOf: sourcePointerURL), sourcePointerBeforeHostiles)
+            XCTAssertEqual(try XCTUnwrap(
+                source.modelContext.fetch(FetchDescriptor<ServicePartyRow>()).first {
+                    $0.partyID == party.partyID
+                }
+            ).canonicalData, sourcePartyBeforeHostiles)
+            XCTAssertEqual(distinctTarget.modelContext.hasChanges, targetDirtyBeforeHostiles)
+            XCTAssertEqual(source.modelContext.hasChanges, sourceDirtyBeforeHostiles)
+#if DEBUG
+            distinctService.restorePhaseDiagnosticForTesting = { category in
+                // The existing rows. producer emits fixed field names, kind
+                // labels, equality flags and counts, never contact values or IDs.
+                guard category.hasPrefix("rows.") else { return }
+                FileHandle.standardError.write(Data(
+                    "C46_R01_REPLACEMENT_READBACK_SHAPE_V1 category=\(category)\n".utf8
+                ))
+            }
+#endif
+            distinctReplaced = try await distinctService.restore(
+                validatedPackage: distinctValidated,
+                currentModelContext: distinctTarget.modelContext,
+                currentGenerationID: distinctTarget.generationID,
+                currentGenerationRootURL: distinctTarget.generationRootURL,
+                mode: .replaceExisting
+            )
+        }
         XCTAssertEqual(distinctReplaced.workspaceID, distinctTargetWorkspaceID)
         let distinctContactRow = try XCTUnwrap(
             distinctReplaced.modelContext.fetch(FetchDescriptor<ServiceContactPointRow>()).first
@@ -1710,8 +1877,8 @@ final class V9_53OperationalContactTests: XCTestCase {
         XCTAssertEqual(deliveredReceipt.reservation, reservation)
         XCTAssertEqual(deliveredReceipt.subject, reservation.subject)
         try await owner.adoptCompletedReceipt()
-        let token = try await owner.accessGate.beginContentRead(for: .startupRecovery)
-        try token.withContentRead(for: .startupRecovery) {
+        let token = try await owner.accessGate.beginContentRead(for: AppAccessContentReadSurfaceV1.startupRecovery)
+        try token.withContentRead(for: AppAccessContentReadSurfaceV1.startupRecovery) {
         let erasedSession = try StoreGenerationFactory(applicationSupportURL: target.support).openOrBootstrapCurrent()
         try erase.validateOperationalContactEraseClosure(session: erasedSession)
         XCTAssertTrue(
