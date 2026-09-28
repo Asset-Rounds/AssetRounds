@@ -742,7 +742,8 @@ final class EraseIntentStore {
     }
 
     /// Returns the exact canonical value from the retained original Store.
-    /// No fresh owner is opened and no pending leaf is repaired.
+    /// A checked policy request follows exact operation/phase authentication;
+    /// no fresh owner is opened and no pending leaf is repaired.
     func readLiveOriginalColdShutdownIntent(
         sameOperationAs expected: EraseIntentV1,
         requiringPhase: EraseIntentPhaseV1? = nil
@@ -765,11 +766,23 @@ final class EraseIntentStore {
             try verifyAuthority()
         }
         try requireNoPendingPreparation()
-        let leaf = try readRetirementCanonical()
+        // Read without effects first, then authenticate the exact original
+        // operation and phase before requesting policy on that same leaf.
+        let leaf = try readRetirementCanonical(policy: .pureObservation)
         let current = try decode(leaf.data)
         guard current.phase != .cleanupComplete,
               requiringPhase.map({ current.phase == $0 }) ?? true,
               sameOperation(current, expected) else {
+            throw EraseIntentStoreError.intentMismatch
+        }
+        try requireNoPendingPreparation()
+        let authenticated = try readRetirementCanonical(
+            policy: .authenticated(RetirementBoundWitness(
+                fact: leaf.fact, data: leaf.data)))
+        guard authenticated.identity == leaf.identity,
+              authenticated.fact == leaf.fact,
+              authenticated.data == leaf.data,
+              try decode(authenticated.data) == current else {
             throw EraseIntentStoreError.intentMismatch
         }
         try requireNoPendingPreparation()

@@ -5015,7 +5015,8 @@ private final class DeletionJournalStore {
                 try verifyPublishedPolicy(
                     .journal,
                     name: name,
-                    expectedIdentity: temporaryValue.identity
+                    expectedIdentity: temporaryValue.identity,
+                    expectedData: data
                 )
                 guard let publishedValue = try readValueIfPresent(
                     descriptor: descriptor,
@@ -5028,7 +5029,8 @@ private final class DeletionJournalStore {
                     try verifyPublishedPolicy(
                         .journalTemporary,
                         name: temporary,
-                        expectedIdentity: priorValue.identity
+                        expectedIdentity: priorValue.identity,
+                        expectedData: priorValue.data
                     )
                     guard let displaced = try readValueIfPresent(
                         descriptor: descriptor,
@@ -5230,7 +5232,8 @@ private final class DeletionJournalStore {
     private func verifyPublishedPolicy(
         _ kind: OwnedFileKindV1,
         name: String,
-        expectedIdentity: Identity
+        expectedIdentity: Identity,
+        expectedData: Data
     ) throws {
         try Self.requirePolicyComponent(name)
         guard let root = applicationSupportURL else {
@@ -5265,14 +5268,49 @@ private final class DeletionJournalStore {
                     .appendingPathComponent("deletion", isDirectory: true)
                     .appendingPathComponent(name)
                 if let startupDescriptorOwner {
-                    let observed = try ProtectedFilePolicyV1
-                        .observeTemporalPolicyWithCheckedClose(kind, at: url,
+                    // Publication retains the caller's exact bytes and inode.
+                    // A pending Simulator observation requires a fresh checked
+                    // request, never acceptance of pending policy by itself.
+                    try ProtectedFilePolicyV1
+                        .verifyEraseColdTemporalPolicyWithCheckedRequest(
+                            kind, at: url,
                             retainUncertainDescriptor: {
                                 startupDescriptorOwner.retainUncertain($0)
+                            }, unchangedWitness: {
+                                try startupDescriptorOwner.requireOpen()
+                                try self.verifyLeaf(name, descriptor: leaf,
+                                    expected: expectedIdentity)
+                                let parent = try self.startupJournalFact()
+                                let names = try self.startupJournalNames()
+                                var held = stat(), named = stat()
+                                guard Darwin.fstat(leaf, &held) == 0,
+                                      Darwin.fstatat(descriptor, name, &named,
+                                        AT_SYMLINK_NOFOLLOW) == 0,
+                                      held.st_mode & S_IFMT == S_IFREG,
+                                      held.st_nlink == 1,
+                                      PublishedPolicyLeafFact(held)
+                                        == PublishedPolicyLeafFact(named),
+                                      let value = try self.readValueIfPresent(
+                                        descriptor: descriptor, name: name),
+                                      value.identity == expectedIdentity,
+                                      value.data == expectedData else {
+                                    throw Self.journalInvalidFailure()
+                                }
+                                var after = stat()
+                                guard Darwin.fstat(leaf, &after) == 0,
+                                      PublishedPolicyLeafFact(after)
+                                        == PublishedPolicyLeafFact(held),
+                                      try self.startupJournalFact() == parent,
+                                      try self.startupJournalNames() == names else {
+                                    throw Self.journalInvalidFailure()
+                                }
+                                try self.verifyLeaf(name, descriptor: leaf,
+                                    expected: expectedIdentity)
+                                try startupDescriptorOwner.requireOpen()
+                                return PublishedPolicyWitness(parent: parent,
+                                    names: names, leaf: PublishedPolicyLeafFact(held),
+                                    value: value)
                             })
-                    guard observed.state == .strictComplete else {
-                        throw Self.journalInvalidFailure()
-                    }
                     try startupDescriptorOwner.requireOpen()
                 } else {
                     try ProtectedFilePolicyV1.verify(kind, at: url)
@@ -5558,6 +5596,34 @@ private final class DeletionJournalStore {
     private struct Identity: Equatable {
         let device: dev_t
         let inode: ino_t
+    }
+
+    private struct PublishedPolicyLeafFact: Equatable {
+        let device: dev_t
+        let inode: ino_t
+        let mode: mode_t
+        let links: nlink_t
+        let size: off_t
+        let modifiedSeconds: Int64
+        let modifiedNanoseconds: Int64
+        let changedSeconds: Int64
+        let changedNanoseconds: Int64
+
+        init(_ value: stat) {
+            device = value.st_dev; inode = value.st_ino
+            mode = value.st_mode; links = value.st_nlink; size = value.st_size
+            modifiedSeconds = Int64(value.st_mtimespec.tv_sec)
+            modifiedNanoseconds = Int64(value.st_mtimespec.tv_nsec)
+            changedSeconds = Int64(value.st_ctimespec.tv_sec)
+            changedNanoseconds = Int64(value.st_ctimespec.tv_nsec)
+        }
+    }
+
+    private struct PublishedPolicyWitness: Equatable {
+        let parent: RestoreMaintenanceClearObservationV1.DirectoryFact
+        let names: [String]
+        let leaf: PublishedPolicyLeafFact
+        let value: ReadValue
     }
 
     private struct ReadValue: Equatable {
