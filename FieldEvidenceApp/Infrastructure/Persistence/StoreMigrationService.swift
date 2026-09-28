@@ -2962,6 +2962,14 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
     private var postRetiredGuardUnlinked = false
     private let postRetiredIO = EraseAbortCheckedSnapshotIOV1()
     private var postRetiredStableOperationsDigest: String?
+    private var postRetiredOwnerDirectoryLinksBeforeUnlink: UInt64?
+    private struct PostRetiredNodeObservation: Equatable {
+        let kind: String
+        let fact: String
+        let entries: [String]?
+        let digest: String?
+    }
+    private var postRetiredStableNodes: [String: PostRetiredNodeObservation] = [:]
 #endif
 
     private func requireOriginalEraseAdmission() throws {
@@ -2990,18 +2998,38 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
     ) throws {
         Self.processMutationLock.lock()
         defer { Self.processMutationLock.unlock() }
+        print("POST_RETIRED_SHUTDOWN_V1 stage=begin.verify.enter")
         try verify()
+        print("POST_RETIRED_SHUTDOWN_V1 stage=begin.proof.enter")
         try proof.requireReadyForPreDeletionAbandonmentForTesting(registry: self)
+        print("POST_RETIRED_SHUTDOWN_V1 stage=begin.tree.enter")
         guard try postRetiredIO.postRetiredTree(
             parent: operationsDescriptor, name: ".") == originalOperationsDigest else {
             throw Self.uncertainOwnerFailure()
         }
+        print("POST_RETIRED_SHUTDOWN_V1 stage=begin.stable-tree.enter")
         let guardPath = "\(Self.leaseDirectoryName)/\(Self.ownerDirectoryName)/\(Self.ownerLockName(ownerID))"
         let ownersPath = "\(Self.leaseDirectoryName)/\(Self.ownerDirectoryName)"
+        var stableNodes: [String: PostRetiredNodeObservation] = [:]
         let stable = try postRetiredIO.postRetiredTree(
             parent: operationsDescriptor, name: ".",
             excluding: [guardPath],
-            ignoringDirectoryMetadata: [ownersPath])
+            ignoringDirectoryMetadata: [ownersPath],
+            observeNode: { path, kind, fact, entries, digest in
+                stableNodes[path] = PostRetiredNodeObservation(
+                    kind: kind, fact: fact, entries: entries, digest: digest)
+            })
+        guard let ownerDirectory = stableNodes[ownersPath],
+              ownerDirectory.kind == "directory" else {
+            throw Self.uncertainOwnerFailure()
+        }
+        let ownerFact = ownerDirectory.fact.split(
+            separator: "|", omittingEmptySubsequences: false)
+        guard ownerFact.count == 4,
+              let ownerLinks = UInt64(ownerFact[3]),
+              ownerLinks >= 2 else {
+            throw Self.uncertainOwnerFailure()
+        }
         try originalEraseClosingLock.withLock {
             guard postRetiredClosingProof == nil,
                   originalEraseClosingWitness == nil,
@@ -3013,8 +3041,11 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
                 throw Self.uncertainOwnerFailure()
             }
             postRetiredStableOperationsDigest = stable
+            postRetiredOwnerDirectoryLinksBeforeUnlink = ownerLinks
+            postRetiredStableNodes = stableNodes
             postRetiredClosingProof = ObjectIdentifier(proof)
         }
+        print("POST_RETIRED_SHUTDOWN_V1 stage=begin.complete")
     }
 
     @MainActor
@@ -3026,10 +3057,12 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         defer { Self.processMutationLock.unlock() }
         originalEraseClosingLock.lock()
         defer { originalEraseClosingLock.unlock() }
+        print("POST_RETIRED_SHUTDOWN_V1 stage=scope.guard.enter")
         guard postRetiredClosingProof == ObjectIdentifier(proof),
               postRetiredScopeThread == nil, !postRetiredGuardUnlinked else {
             throw Self.uncertainOwnerFailure()
         }
+        print("POST_RETIRED_SHUTDOWN_V1 stage=scope.guard.complete")
         postRetiredScopeThread = pthread_self()
         defer { postRetiredScopeThread = nil }
         return try body()
@@ -3042,8 +3075,11 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         physicalRoot: StoreTemporalPhysicalRootExclusionV1
     ) throws {
         try withPostRetiredEraseShutdownScope(proof: proof) {
+            print("POST_RETIRED_SHUTDOWN_V1 stage=close.proof.enter")
             try proof.requirePreDeletionAbandonmentPendingForTesting(registry: self)
+            print("POST_RETIRED_SHUTDOWN_V1 stage=close.registry-observe.enter")
             let observed = try observeTemporalRegistryLocked()
+            print("POST_RETIRED_SHUTDOWN_V1 stage=close.census.enter leases=\(observed.leases.count) releaseAttempts=\(temporalReleaseAttempts.count) originalCaptures=\(originalEraseReleaseCaptures.count) adoptionReleases=\(freshAdoptionReleases.count) writerPublications=\(freshWriterPublications.count) readerPublications=\(freshReaderPublications.count) coldReaders=\(coldPreparationReaderPublications.count) preparationReaders=\(preparationReaderPublications.count) preparationWriters=\(preparationWriterPublications.count)")
             guard observed.leases.isEmpty,
                   temporalReleaseAttempts.isEmpty,
                   originalEraseReleaseCaptures.isEmpty,
@@ -3052,12 +3088,18 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
                   freshReaderPublications.isEmpty,
                   coldPreparationReaderPublications.isEmpty,
                   preparationReaderPublications.isEmpty,
-                  preparationWriterPublications.isEmpty,
-                  try migrationReservationLocked()?.ownerID == nil else {
+                  preparationWriterPublications.isEmpty else {
                 throw Self.uncertainOwnerFailure()
             }
+            print("POST_RETIRED_SHUTDOWN_V1 stage=close.migration-reservation.enter")
+            guard try migrationReservationLocked()?.ownerID == nil else {
+                throw Self.uncertainOwnerFailure()
+            }
+            print("POST_RETIRED_SHUTDOWN_V1 stage=close.activity.enter")
             try activity.closeCheckedForMaintenance()
+            print("POST_RETIRED_SHUTDOWN_V1 stage=close.physical-root.enter")
             try physicalRoot.closeCheckedForPostRetiredEraseAbandonment()
+            print("POST_RETIRED_SHUTDOWN_V1 stage=close.complete")
         }
     }
 
@@ -3066,47 +3108,126 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         proof: ErasedRegistryRetirementProofV1
     ) throws {
         try withPostRetiredEraseShutdownScope(proof: proof) {
+            print("POST_RETIRED_SHUTDOWN_V1 stage=unlink.proof.enter")
             try proof.requirePreDeletionExclusionClosedForTesting(registry: self)
+            print("POST_RETIRED_SHUTDOWN_V1 stage=unlink.lock.enter")
             guard flock(mutationLockDescriptor, LOCK_EX) == 0 else {
                 throw Self.uncertainOwnerFailure()
             }
             do {
+                print("POST_RETIRED_SHUTDOWN_V1 stage=unlink.verify.enter")
                 try verify()
+                print("POST_RETIRED_SHUTDOWN_V1 stage=unlink.registry-observe.enter")
                 let observed = try observeTemporalRegistryLocked()
+                print("POST_RETIRED_SHUTDOWN_V1 stage=unlink.census.enter leases=\(observed.leases.count) releaseAttempts=\(temporalReleaseAttempts.count) originalCaptures=\(originalEraseReleaseCaptures.count)")
                 guard observed.leases.isEmpty,
                       temporalReleaseAttempts.isEmpty,
-                      originalEraseReleaseCaptures.isEmpty,
-                      try migrationReservationLocked()?.ownerID == nil else {
+                      originalEraseReleaseCaptures.isEmpty else {
                     throw Self.uncertainOwnerFailure()
                 }
+                print("POST_RETIRED_SHUTDOWN_V1 stage=unlink.migration-reservation.enter")
+                guard try migrationReservationLocked()?.ownerID == nil else {
+                    throw Self.uncertainOwnerFailure()
+                }
+                print("POST_RETIRED_SHUTDOWN_V1 stage=unlink.owner-identity.enter")
                 try requireNamedIdentity(parent: ownersDescriptor,
                     name: Self.ownerLockName(ownerID), expected: ownerLockIdentity)
+                print("POST_RETIRED_SHUTDOWN_V1 stage=unlink.owner-unlink.enter")
                 guard Darwin.unlinkat(ownersDescriptor,
                     Self.ownerLockName(ownerID), 0) == 0 else {
                     throw Self.uncertainOwnerFailure()
                 }
                 postRetiredGuardUnlinked = true
+                print("POST_RETIRED_SHUTDOWN_V1 stage=unlink.held-guard.enter")
                 try provePostRetiredUnlinkedGuardHeld()
                 let guardPath = "\(Self.leaseDirectoryName)/\(Self.ownerDirectoryName)/\(Self.ownerLockName(ownerID))"
                 let ownersPath = "\(Self.leaseDirectoryName)/\(Self.ownerDirectoryName)"
+                print("POST_RETIRED_SHUTDOWN_V1 stage=unlink.stable-binding.enter")
                 guard let expected = postRetiredStableOperationsDigest,
-                      try postRetiredIO.postRetiredTree(
-                          parent: operationsDescriptor, name: ".",
-                          excluding: [guardPath],
-                          ignoringDirectoryMetadata: [ownersPath]) == expected else {
+                      let sourceOwnerLinks =
+                        postRetiredOwnerDirectoryLinksBeforeUnlink else {
                     throw Self.uncertainOwnerFailure()
                 }
+                print("POST_RETIRED_SHUTDOWN_V1 stage=unlink.tree.enter")
+                var currentNodes: [String: PostRetiredNodeObservation] = [:]
+                let current = try postRetiredIO.postRetiredTree(
+                    parent: operationsDescriptor, name: ".",
+                    excluding: [guardPath],
+                    ignoringDirectoryMetadata: [ownersPath],
+                    normalizingSingleRemovedFileDirectoryLinksFrom: (
+                        path: ownersPath,
+                        excludedChild: Self.ownerLockName(ownerID),
+                        sourceLinks: sourceOwnerLinks),
+                    observeNode: { path, kind, fact, entries, digest in
+                        currentNodes[path] = PostRetiredNodeObservation(
+                            kind: kind, fact: fact, entries: entries, digest: digest)
+                    })
+                guard current == expected else {
+                    tracePostRetiredFirstDifference(currentNodes,
+                        ownersPath: ownersPath)
+                    throw Self.uncertainOwnerFailure()
+                }
+                // The excluded path must still be absent after the checked
+                // walk; a same-name insertion cannot hide behind projection.
+                try provePostRetiredUnlinkedGuardHeld()
+                print("POST_RETIRED_SHUTDOWN_V1 stage=unlink.tree.complete")
             } catch {
+                print("POST_RETIRED_SHUTDOWN_V1 stage=unlink.unlock-after-error.enter")
                 guard flock(mutationLockDescriptor, LOCK_UN) == 0 else {
                     throw Self.uncertainOwnerFailure()
                 }
                 throw error
             }
+            print("POST_RETIRED_SHUTDOWN_V1 stage=unlink.unlock.enter")
             guard flock(mutationLockDescriptor, LOCK_UN) == 0 else {
                 throw Self.uncertainOwnerFailure()
             }
         }
+        print("POST_RETIRED_SHUTDOWN_V1 stage=unlink.complete")
         eraseAbandonmentLock.withLock { eraseAbandonedForColdRestart = true }
+    }
+
+    @MainActor
+    private func tracePostRetiredFirstDifference(
+        _ current: [String: PostRetiredNodeObservation],
+        ownersPath: String
+    ) {
+        let names = Set(postRetiredStableNodes.keys).union(current.keys).sorted()
+        for name in names {
+            let before = postRetiredStableNodes[name]
+            let after = current[name]
+            guard before != after else { continue }
+            let nodeClass: String
+            if name.isEmpty { nodeClass = "root" }
+            else if name == ownersPath { nodeClass = "owner-directory" }
+            else if name.hasPrefix(ownersPath + "/") { nodeClass = "owner-child" }
+            else if name == Self.leaseDirectoryName
+                || name.hasPrefix(Self.leaseDirectoryName + "/") {
+                nodeClass = "lease-control"
+            } else if name == "AppLockNotificationControlV1"
+                || name.hasPrefix("AppLockNotificationControlV1/") {
+                nodeClass = "notification-control"
+            } else { nodeClass = "other-operations" }
+            let field: String
+            if before == nil || after == nil { field = "node-presence" }
+            else if before?.kind != after?.kind { field = "node-kind" }
+            else if before?.entries != after?.entries { field = "child-membership" }
+            else if before?.fact != after?.fact {
+                let left = before?.fact.split(separator: "|", omittingEmptySubsequences: false) ?? []
+                let right = after?.fact.split(separator: "|", omittingEmptySubsequences: false) ?? []
+                let labels = ["device", "inode", "mode", "links", "size",
+                    "mtime-seconds", "mtime-nanoseconds", "ctime-seconds",
+                    "ctime-nanoseconds"]
+                if left.count != right.count { field = "metadata-shape" }
+                else if let index = left.indices.first(where: { left[$0] != right[$0] }) {
+                    field = index < labels.count ? labels[index] : "metadata-other"
+                } else { field = "metadata-other" }
+            } else if before?.digest != after?.digest { field = "file-bytes" }
+            else { field = "other" }
+            print("POST_RETIRED_TREE_DIFFERENCE_V1 class=\(nodeClass) field=\(field)")
+            return
+        }
+        print("POST_RETIRED_TREE_DIFFERENCE_V1 class=undetected field=undetected")
     }
 
     @MainActor

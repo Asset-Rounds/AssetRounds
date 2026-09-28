@@ -7594,3 +7594,66 @@ Envelope3 module2025 PASS125.384s across603 actual app Swift inputs; snapshot/li
 Required CI83115 terminalPASS:42generator423.209s and379native-CI269.380s, all2696 frozen inputs unchanged. Conditional source reviewb23efeca prerequisite satisfied; separate staged-tree review remains due. Root ran exact-bound install-primary.py, verified all1204 app source bytes against the frozen compile/native binding, and transferred eight app/test +two CI paths from da388ed4. Owner config hash preserved in PRIMARY_INSTALLED.json and excluded from staging. Full305 compilePASS40.261s and exact16native14PASS2FAIL365.545s apply to this checkpoint; S6 injection and V949 raw-row SHM comparison remain explicitly failing. Later local diagnostic/marker/C05 evidence does not apply to these older bytes.
 
 This is an intermediate integration-branch development checkpoint, with14 focused hosted methods and complete3658 ordered coverage inventory. Full same-head gates and main advancement remain due. Exact staged-tree verdict will be retained at m2-framed-checkpoint-v2/REVIEW_STAGED.md before commit; no acceptance or release claim.
+
+
+### 2026-09-28 — framed checkpoint pushed and hosted development original dispatched
+
+Independent nonauthor GPT-6 Sol high staged review00b2c558eb59a9716a58513f3f990a8e7708f8ec969c0403de4ec25b7544bf55 approved exacttree08e52e7a20c716418d8584c232bfa21a65686e6f and14 explicit paths. Root verified review/tree/parent, committed f869dd07bed5b193f41247197468820f514ba60a, refreshed origin refs with no unexpected movement, and non-force pushed integration. Owner config preserved/unstaged; main remains b1d04ae5e684aa9c6807af655089efa1df8a7ed6. Known exact14PASS2FAIL retained; no gate claim.
+
+Root dispatcher83717 created hosted DEVELOPMENT original36425436253 at exactf869dd07b, selection v23-dev-batch-no-index-d50,14methods, resolvedSelectionSHA256 C14B6B32A904A5C474A0413ABF919BDABF1812FBEEC6B9963698FBC14A6A4EE0. URL https://github.com/Asset-Rounds/AssetRounds/actions/runs/36425436253. acceptance=false/releaseReady=false; request2026-09-28T12:59:25.129485Z. Solecollector58467 active via Scripts/dev/v23-original.py; do not duplicate original/collector. Current local marker/diagnostic/C05 followups remain separate and do not change hosted inputs.
+
+
+### 2026-09-28 — exact owner-directory link transition correction installed
+
+Independent nonauthor Sol-high reviewcc13f851f1b3283470f3391e92a6893cf7aeea2bcffc255c8aec672e0f9cdaef approved three exact paths after corrected diagnostic provenance. Root verified before/candidate/diff hashes and installed Factory019c4740/Registry0f313235/S6test0853b5e0 via m2-post-retired-owner-link-installed-v1.json. The checked original walk captures owner parent nlink; the one authenticated guard unlink may compare using captured nlink only when actual post count is exactly pre minus1 and exact child/parent exclusions match. Other metadata, membership, identities and bytes retain strict tree binding, with final held inode-zero/name-absent reproof. Default callers unchanged.
+
+New real-FD test covers allowed unlink plus wrong delta/child, extra owner, unrelated root and changed sibling bytes. Full305build91215 active, then only new low-level test and existing17-cut S6 Every; no native pass yet. Future live census must enroll both new marker-hostile and link-transition methods; current published3658 census retains its earlier frozen source scope. Other helpers notified to preserve exact installed hunks in their isolated C05/private-copy composition.
+
+
+2026-09-28 owner-link compile: full305build91215 PASS122.138s, exactCompileInputs/sourceUnchanged. Two-native68347 running at m2-post-retired-owner-link-native-v1; source/products held unchanged until terminal collection. Hosted36425436253 remains separate atf869dd07b with solecollector58467.
+
+
+### 2026-09-28 — owner-link control passes; late cleanup family exposed
+
+Two-native68347 terminal65/259.991s, exact source/products unchanged. New real-FD owner-link transition/hostile selector PASS0.023s; EveryFAIL226.413s. Real post-retired shutdown now reaches unlink.tree.complete beyond its prior blocker. Later afterCleanup and beforeCleanupPhaseWrite cuts each report missing erase-current-manifest.json/invalid at2199/2200 and2222/2223; a later cut reports missing exact completion-control directory at2076, then caught invalid2258. This is not a17-cut recovery pass. Solecollector81744 retained1328artifacts268products at m2-post-retired-owner-link-v1-20260928. Same author tracing late-cut family before another bounded correction. Hosted36425436253 remains on frozenf869dd07b, at unsigned simulator build when inspected; solecollector58467 remains active.
+
+
+### 2026-09-28 — provisional live coverage census preserves all prior methods
+
+Root regenerated a scratch-only live inventory at m2-owner-link-live-census-v1 against the exact1204 source bytes from owner-link compile. It discovers3660 unique methods in33partitions, preserving all3658 published methods in identical order and adding only the new S6 marker-hostile and owner-link-transition tests; maximum estimate2530s. Partition SHA256eb8322746167f3741b520ec45a1be2e6907eecbe5047967d9de1dd1dddaf5a44. Stale worktree generatedAtHead is not candidate evidence. No tracked CI file changed and no coverage execution/acceptance claimed. Future coherent checkpoint regeneration/review remains due.
+
+
+### 2026-09-28 — C05 frozen source review rejects old-token binding gap
+
+Joint retained-source/private-copy packets are source-only and noninstallable. Independent Sol-high review4d397951 on C05_RETAINED_ORIGINAL_SOURCE_1_FROZEN requests changes: original-generation Registry token epoch digest is not explicitly bound to authenticated intent.oldPointer digest before old-source FD capture. Same authors correcting in immutable successors. Self-audit also found ordinary root/content helper calls with unchecked closes; root authorized bounded private-copy content validation through the same operation-owned checked reader, with a narrow cold-only EvidenceBundleStore API only if needed to retain full resolver semantics. No global predicate relaxation, live installation or native success claim. Both initial control-root and later ManifestOwner strict-policy checks are conditional runtime prerequisites, not measured failures; retain strict checks until genuine runtime/owned effect evidence supports a successor.
+
+
+### 2026-09-28 — reviewed S6 late-handoff fixture expectations corrected
+
+Independent nonauthor Sol-high review8beb744437824b3e611d81f44bb687b8490aeca06e3435e6e6886af07e40eab6 approved exact test-only S60853b5e0 to0840da84, diff3341d443, all65 selectors/order retained. Root verified before/candidate/diff and installed via m2-s6-late-handoff-installed-v1.json. StoreMigrationJournalStore genuine init authenticates and moves sidecar to ordinary manifest before ready, preserving inode; test retains pre-recovery bytes/inode/pointer and observes exact restored ordinary bytes/inode after ready with sidecar absence. Phase15 genuine retained-EX cleanup requires Operations absent; replacement expectation now proves no-follow ENOENT, exact Erase children/canonical typed intent/IDs without reparative Store construction. All17 cuts, payload/row/diagnostic/lease/tombstone/no-repeat assertions remain. Full305build22897 active, then existing Every selector only. No native or gate pass claimed.
+
+
+2026-09-28 S6 late-handoff full305build22897 PASS16.019s, exactCompileInputs/sourceUnchanged; one Every native69016 active at m2-s6-late-handoff-native-v1. No live source/product changes until collection.
+
+C05 retained-source SOURCE2 reviewer e286014bf43af923eb4c68d7024e45a394ad2be7fe755b09148f85451e302a6a approves only exact noninstallable composition/typecheck; old-generation token digest now bound before first old FD and every retained use. S2 private-source v3 formal reviewfe080ed0d1b6a8b785a1f9d998733b3fece2bc977e1713411b2fce2726806b58 requests changes for stale SOURCE1 dependency and unchecked original root/content closes. Successor must use actual operation-owned checked original content reads (preserving media policy and full resolver semantics), private-only SQLite, original unchanged-source reproof, complete alias disposal. Source2 does not approve positive full forward recovery; pointerSwitched/V3/cleanup phase authority still due.
+
+
+### 2026-09-28 — complete S6 interruption method passes on corrected local source
+
+One-selector native69016 terminalPASS283.348s/test249.442s, source/products unchanged. Full17-cut testEveryInterruptionRecoversOldOrFullyErasedNew passes after independently reviewed exact marker, owner-link and phase-correct fixture changes. Solecollector retained1328artifacts268products at m2-s6-late-handoff-v1-20260928; exactfull305compilePASS16.019s. This closes the bounded local interruption family, not all S6 tests/full coverage/gates. Current newer live hashes include Factory019c4740/Registry0f313235/Servicecce1cefd/Ledger7c264208/S6test0840da84; hostedf869dd07b excludes these later changes and keeps its own result scope.
+
+
+### 2026-09-28 — hosted f869 build times out before all14 tests
+
+Solecollector58467 completed original36425436253, conclusion failure, exactheadf869dd07b and selection matches dispatch. Build reached its1800s budget and was interrupted;0SwiftErrors/571warning occurrences,14NotStarted, no structured native results. Warning count is not a new-warning attribution. Root independently streamed SHA verification of all62 manifest entries with no mismatches/notes (m2-hosted-f869-manifest-verification.json). No rerun or timeout increase; same Sol-high helper investigating measured compiler/phase bottleneck versus prior4bc build1194s. This supplies no pinned-runtime functional pass and does not negate newer scoped local S6 pass.
+
+Root froze next S6-closure development checkpoint at m2-s6-closure-checkpoint-v1 from exact latest1204 source binding. Six app/test deltas fromf869 plus one ordered coverage JSON;3660 unique methods/33partitions preserve3658priororder+two real S6 methods.2694tracked inputs (prior2696 included2derived Python caches; no app source omitted). Full305compilePASS16.019s/Every17cutsPASS249.442s apply exactly; prior marker/link native controls retain separate scopes. Independent Sol-high source review63f3a6e2cf21ac12bdcfc19c6a2198a7ddf60a7b13af99feeedcc1851b09af2f conditional; requiredCI15883 active and staged review due. No primary transfer yet; unfinished C05 excluded.
+
+
+### 2026-09-28 — S6 closure checkpoint tooling complete and exact transfer
+
+Root confirmed required generator42PASS354.387s and native-CI379PASS227.899s, all2694 frozen inputs unchanged. Exact six reviewed app/test paths and ordered coverage JSON transferred to primary after before/candidate/source checks; all1204 app hashes equal the compiled/native snapshot. Owner config preserved and excluded. Independent nonauthor Sol-high source review63f3a6e2 applies conditionally; separate staged-tree review remains required. Full305 compilePASS16.019s and existing Every17cutsPASS249.442s are local development evidence only. Marker/link controls retain earlier exact source scopes; V949 SHM and unfinished C05 remain open. No main advancement or new hosted dispatch.
+
+Hosted f869 diagnosis: same Xcode/image/build script; setup35s versus44s. App compilation output window about903s versus679s, tests623s versus262s. Both compilation targets finished before the1800s wrapper timeout, but14 tests never started. The logs cannot identify one costly file or distinguish source load from runner contention. Read-only diagnosis m2-hosted-f869-build-diagnosis-v1/DIAGNOSIS.md; bounded compiler/resource profiling recipe pending. No watchdog or tests weakened, no unchanged rerun.
+
+C05 private reader v6 remains noninstallable under independent review; checked-FD postproof ownership correction due. Independently confirmed legacy partial-deletion provenance gap and compatibility proposal2 remain design-only and owner-reserved where frozen recovery behavior would change. No exception or prospective roster implementation is approved by this checkpoint.

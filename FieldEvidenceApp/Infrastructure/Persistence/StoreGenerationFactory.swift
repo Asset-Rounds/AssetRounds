@@ -647,12 +647,26 @@ final class EraseAbortCheckedSnapshotIOV1 {
         ignoringDirectoryMetadata ignoredDirectories: Set<String> = [],
         observedRootLinks: ((UInt64) -> Void)? = nil,
         normalizingSingleTargetManifestRootLinksFrom sourceRootLinks: UInt64? = nil,
+        normalizingSingleRemovedFileDirectoryLinksFrom removedFile: (
+            path: String, excludedChild: String, sourceLinks: UInt64)? = nil,
         observeNode: ((String, String, String, [String]?, String?) -> Void)? = nil
     ) throws -> String {
         try requireSettled()
+        if let removedFile {
+            guard !removedFile.path.isEmpty,
+                  !removedFile.excludedChild.isEmpty,
+                  !removedFile.excludedChild.contains("/"),
+                  removedFile.sourceLinks >= 2,
+                  ignoredDirectories.contains(removedFile.path),
+                  excludedPaths == Set([removedFile.path + "/"
+                    + removedFile.excludedChild]) else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+        }
         var tokens: [String] = []
         var nodeCount = 0
         var totalBytes: Int64 = 0
+        var removedFileDirectorySeen = false
         // Directory names are adversarial UTF-8. Hex framing makes every
         // path and entry injective even when a name contains our token
         // separators, commas, newlines, or digits.
@@ -662,11 +676,20 @@ final class EraseAbortCheckedSnapshotIOV1 {
         func nodeFact(_ value: stat) -> String {
             "\(value.st_dev)|\(value.st_ino)|\(value.st_mode)|\(value.st_nlink)|\(value.st_size)|\(value.st_mtimespec.tv_sec)|\(value.st_mtimespec.tv_nsec)|\(value.st_ctimespec.tv_sec)|\(value.st_ctimespec.tv_nsec)"
         }
-        func stableDirectoryFact(_ value: stat, path: String) -> String {
+        func stableDirectoryFact(_ value: stat, path: String) throws -> String {
             if ignoredDirectories.contains(path) {
-                let links = path.isEmpty
-                    ? sourceRootLinks ?? UInt64(value.st_nlink)
-                    : UInt64(value.st_nlink)
+                let links: UInt64
+                if let removedFile, path == removedFile.path {
+                    guard UInt64(value.st_nlink) == removedFile.sourceLinks - 1 else {
+                        throw StoreGenerationFailure.dataPointerInvalid
+                    }
+                    links = removedFile.sourceLinks
+                    removedFileDirectorySeen = true
+                } else {
+                    links = path.isEmpty
+                        ? sourceRootLinks ?? UInt64(value.st_nlink)
+                        : UInt64(value.st_nlink)
+                }
                 return "\(value.st_dev)|\(value.st_ino)|\(value.st_mode)|\(links)"
             }
             return nodeFact(value)
@@ -702,7 +725,7 @@ final class EraseAbortCheckedSnapshotIOV1 {
                     let child = path.isEmpty ? entry : "\(path)/\(entry)"
                     return !excludedPaths.contains(child)
                 }
-                let directoryFact = stableDirectoryFact(before, path: path)
+                let directoryFact = try stableDirectoryFact(before, path: path)
                 tokens.append("D|\(encoded(path))|\(directoryFact)|\(visible.map(encoded).joined(separator: ","))")
                 observeNode?(path, "directory", directoryFact, visible, nil)
                 for entry in visible {
@@ -766,6 +789,9 @@ final class EraseAbortCheckedSnapshotIOV1 {
             }
         }
         try walk(parent, name, "", 0)
+        if removedFile != nil, !removedFileDirectorySeen {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
         try requireSettled()
         return StoreMigrationCanonicalJSONV1.sha256(
             Data(tokens.sorted().joined(separator: "\n").utf8))

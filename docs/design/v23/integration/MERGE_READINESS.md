@@ -117,3 +117,18 @@ Infrastructure priority: audited35566904385 build1088s/tests686s/job1930s; prior
 
 
 2026-09-28 framed checkpoint v2 CI complete:42+379PASS on2696 unchanged inputs; ten exact app/test/CI paths transferred to primary, pending staged review/commit. Its305compilePASS and16native14PASS2FAIL remain the exact development scope, not merge readiness. Later live corrections remain isolated; S6/V949 and full gate obligations stay open.
+
+
+2026-09-28 checkpoint f869dd07b pushed after independent Sol-high exact staged review00b2c558/tree08e52e7a, required421CI PASS and retained local14PASS2FAIL. Hosted DEVELOPMENT original36425436253 now running on that exacthead with14selectors; solecollector58467 active. No main/gate/release credit; later local marker/diagnostic/C05 work remains isolated.
+
+
+2026-09-28 later local owner-link correction: full305compilePASS122.138s;2native1PASS1FAIL259.991s,1328artifacts268products retained. Exact one-owned-file link transition/hostility control passes and real shutdown advances; S6 later cleanup-manifest/completion-directory family remains unresolved. Not evidence for frozen hostedf869dd07b or a gate.
+
+
+2026-09-28 S6 local interruption family: all17 cuts in the existing Every method now PASS249.442s (native283.348s), exact source/products,1328artifacts268products retained; latestfull305compilePASS16.019s. Earlier owner-link and marker hostility passes retain exact earlier input scopes. Full S6 coverage, V949 cold-source correctness and all merge gates remain due; hostedf869dd07b is older source and receives no transferred local pass.
+
+
+2026-09-28 hosted36425436253 atf869dd07b terminal build timeout1800s,0SwiftErrors/571warnings,all14NotStarted;62 retained manifest hashes verified. Compiler bottleneck diagnosis due; no rerun or budget relaxation. No hosted functional/gate credit. Next bounded S6 checkpoint3660census/33partitions is under requiredCI15883/independent staged review; local17-cut pass does not replace hosted verification.
+
+
+2026-09-28 S6 closure checkpoint: required42+379CI PASS,2694 inputs unchanged; exact six app/test plus coverage JSON transferred,1204 source hashes match local305compile/17-cut EveryPASS. Staged review/commit pending; no hosted/gate credit. Hosted f869 build-timeout diagnosis cannot isolate source versus runner load; measured profiling next, budgets unchanged. V949/C05 and legacy partial-delete compatibility remain open; main unchanged.

@@ -1183,6 +1183,18 @@ final class EraseAllService {
         }
     }
 
+    /// Observe the sealed pre-deletion marker through the exact original
+    /// prepared owner; this never creates a replacement notification store.
+    func requirePostRetiredOriginalNotificationForTesting(
+        operation: EraseRouterOperationV1
+    ) throws {
+        try requirePostRetiredOriginalServiceForTesting(operation: operation)
+        guard let prepared = originalPreparedForPostRetired else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try prepared.requireOriginalPostEffectNotificationForTesting()
+    }
+
     func poisonPostRetiredOriginalServiceForTesting(
         operation: EraseRouterOperationV1
     ) throws {
@@ -8143,6 +8155,31 @@ final class EraseCleanupAfterRetirementV1 {
     }
     private var interruptedPostRetiredFault = false
     private var postRetiredWitness: ErasePostRetiredFaultWitnessV1?
+    private var originalPostEffectNotification: ErasePostRetiredNotificationSnapshotV1?
+
+    /// Seal the genuine OS-success revocation marker before the original
+    /// Service returns and before an interruption fixture may alter its inode.
+    fileprivate func sealOriginalPostEffectNotificationForTesting(
+        _ witnessedAfterOSReadback: ErasePostRetiredNotificationSnapshotV1
+    ) throws {
+        guard phase == .prepared, originalPostEffectNotification == nil,
+              try notificationControl.postRetiredSnapshot(subject: binding.subject)
+                == witnessedAfterOSReadback else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        originalPostEffectNotification = witnessedAfterOSReadback
+    }
+
+    fileprivate func requireOriginalPostEffectNotificationForTesting() throws {
+        guard phase == .prepared, let originalPostEffectNotification else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let observed = try notificationControl.postRetiredSnapshot(
+            subject: binding.subject)
+        guard observed == originalPostEffectNotification else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
     private var originalColdExitFrame: EraseOriginalColdExitFrameV1?
     private var originalColdExitPreDeletionWitness:
         EraseOriginalColdExitPreDeletionWitnessV1?
@@ -8375,8 +8412,14 @@ final class EraseCleanupAfterRetirementV1 {
             newID: intent.newGenerationID, deleting: intent.generationIDsToDelete)
         let auxiliarySnapshot = try auxiliary.postRetiredSnapshot()
         let intentSnapshot = try intentStore.postRetiredSnapshot(observation: observation)
+        guard let originalPostEffectNotification else {
+            throw EraseAllServiceError.invalidAuthority
+        }
         let notification = try notificationControl.postRetiredSnapshot(
             subject: binding.subject)
+        guard notification == originalPostEffectNotification else {
+            throw EraseAllServiceError.invalidAuthority
+        }
         let defaults = try defaultsSnapshotForPostRetiredFault()
         try proof.requireCurrentGenerationValidation()
         try intentStore.requireRetirementObservation(observation)
@@ -8814,6 +8857,7 @@ private extension EraseAllService {
         let notifications = try AppLockNotificationControlStoreV1(
             applicationSupportURL: applicationSupportURL, preferences: preferences)
 #if DEBUG
+        var originalNotificationAfterOSReadback: ErasePostRetiredNotificationSnapshotV1?
         if let originalColdExitFrame {
             try originalColdExitFrame.retainOriginalNotificationControl(notifications)
             try await DeviceLocalNotificationOwnerV1
@@ -8837,11 +8881,24 @@ private extension EraseAllService {
                     afterSuccess: { revocation in
                         try originalColdExitFrame
                             .afterOriginalNotificationSuccess(revocation)
+                        originalNotificationAfterOSReadback = try notifications
+                            .postRetiredSnapshot(subject: binding.subject)
                     })
         } else {
-            try await DeviceLocalNotificationOwnerV1.erase(
+            // The same source-free OS effect publishes the marker. Capture its
+            // exact post-readback inode before later awaited cleanup can run.
+            try await DeviceLocalNotificationOwnerV1.eraseForOriginalColdExitForTesting(
                 control: notifications, system: notificationSystem,
-                operationID: value.eraseID)
+                operationID: value.eraseID,
+                beforeBegin: {}, afterBegin: { _ in },
+                observedOwnedRefusal: { _, _, _ in },
+                afterSuccess: { _ in
+                    originalNotificationAfterOSReadback = try notifications
+                        .postRetiredSnapshot(subject: binding.subject)
+                })
+        }
+        guard let originalNotificationAfterOSReadback else {
+            throw EraseAllServiceError.invalidAuthority
         }
 #else
         try await DeviceLocalNotificationOwnerV1.erase(control: notifications,
@@ -8918,6 +8975,8 @@ private extension EraseAllService {
             fileManager: fileManager, failureInjection: failureInjection, reservation: reservation,
             completion: didCompleteErase)
 #if DEBUG
+        try prepared.sealOriginalPostEffectNotificationForTesting(
+            originalNotificationAfterOSReadback)
         if let hook = afterOldGenerationDeletionBeforeRetiredPointerClearForTesting {
             try prepared.installRetiredPointerCutHookForTesting(hook)
         }

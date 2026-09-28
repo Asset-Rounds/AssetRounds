@@ -1245,25 +1245,38 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
     deinit { _ = Darwin.close(supportDescriptor) }
 
 #if DEBUG
-    /// Exact retained notification-control owner and six-leaf absence, with
-    /// checked transient descriptor closes. No load or pending repair occurs.
+    /// Pre-deletion Erase retains the typed revocation marker after OS absence
+    /// readback. Completed-Erase adoption separately requires all six leaves
+    /// absent after the Operations namespace is removed.
     func postRetiredSnapshot(subject: EraseAllOperationSubjectV1) throws
         -> ErasePostRetiredNotificationSnapshotV1 {
-        try requireEmptyForCompletedErase(subject: subject)
-        let names = try postRetiredIO.names(in: authority.rootDescriptor)
-        guard names.isEmpty else {
-            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        try AppLockNotificationTransactionFenceV1.perform {
+            guard subject.applicationSupportURL.standardizedFileURL == supportURL,
+                  let expectedDevice = UInt64(exactly: subject.applicationSupportDevice),
+                  expectedDevice == supportDevice,
+                  subject.applicationSupportInode == supportInode else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            let revocation = NotificationEraseRevocationV1(schemaVersion: 1,
+                operationID: subject.eraseID, rootIdentity: notificationRootIdentity)
+            try revocation.validate()
+            let expectedBytes = try CompatibilityCanonicalV1.encode(revocation)
+            let before = try originalErasePhysicalSnapshotForTesting()
+            guard before.names == [Self.eraseName],
+                  before.eraseBytes == expectedBytes,
+                  before.eraseIdentity != nil else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            let digest = try postRetiredIO.postRetiredTree(
+                parent: authority.operationsDescriptor, name: Self.rootName)
+            guard try originalErasePhysicalSnapshotForTesting() == before,
+                  try postRetiredIO.postRetiredTree(
+                      parent: authority.operationsDescriptor,
+                      name: Self.rootName) == digest else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            return ErasePostRetiredNotificationSnapshotV1(rootDigest: digest)
         }
-        let digest = try postRetiredIO.postRetiredTree(
-            parent: authority.operationsDescriptor, name: Self.rootName)
-        try requireEmptyForCompletedErase(subject: subject)
-        guard try postRetiredIO.names(in: authority.rootDescriptor) == names,
-              try postRetiredIO.postRetiredTree(
-                  parent: authority.operationsDescriptor,
-                  name: Self.rootName) == digest else {
-            throw AppAccessContractFailureV1.notificationReconciliationRequired
-        }
-        return ErasePostRetiredNotificationSnapshotV1(rootDigest: digest)
     }
 
     /// Nonrepairing six-leaf observation of the exact original Operations

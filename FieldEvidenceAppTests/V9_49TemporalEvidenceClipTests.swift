@@ -3633,6 +3633,24 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
         XCTAssertFalse(observation.contextHadChanges)
         let sourceDatabaseAfterDrain = try c33SourceDatabaseAfterDrain(
             observation.generationRootURL)
+        // Each fixed snapshot isolates a genuine fresh-startup boundary.
+        // Observations do not grant permission or change the refusal oracle.
+        func reportSHMOrigin(_ stage: String) throws {
+            guard hostile == "raw-row" || hostile == "wrong-workspace" else { return }
+            let current = try c33SourceDatabaseAfterDrain(
+                observation.generationRootURL)
+            let old = sourceDatabaseAfterDrain
+            let label = "V949_SHM_ORIGIN_V1 stage=\(stage) "
+                + "modelIdentity=\(current.model.device == old.model.device && current.model.inode == old.model.inode && current.model.linkCount == old.model.linkCount) "
+                + "modelBytes=\(current.model.bytes == old.model.bytes) "
+                + "walPresence=\((current.wal == nil) == (old.wal == nil)) "
+                + "walIdentity=\(current.wal?.device == old.wal?.device && current.wal?.inode == old.wal?.inode && current.wal?.linkCount == old.wal?.linkCount) "
+                + "walBytes=\(current.wal?.bytes == old.wal?.bytes) "
+                + "shmPresence=\((current.shm == nil) == (old.shm == nil)) "
+                + "shmIdentity=\(current.shm?.device == old.shm?.device && current.shm?.inode == old.shm?.inode && current.shm?.linkCount == old.shm?.linkCount) "
+                + "shmBytes=\(current.shm?.bytes == old.shm?.bytes)\n"
+            FileHandle.standardError.write(Data(label.utf8))
+        }
 
         let fresh = V23EraseOperationHarnessV1(
             retainingRoot: prepared.fixtureRoot,
@@ -3642,8 +3660,10 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
                 statusUpdates: { AsyncStream { $0.finish() } }),
             profileRegistry:
                 try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        try reportSHMOrigin("fresh-harness")
         let authentication = await fresh.accessGate.authenticate(
             trigger: .unlock)
+        try reportSHMOrigin("authenticated")
         XCTAssertEqual(authentication, .authenticated)
         let recovery = EraseAllService(
             applicationSupportURL: prepared.support,
@@ -3681,12 +3701,14 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
         recovery.v949RetainedSourceReadbackForTesting = {
             before, after in readbacks.append((before, after))
         }
+        try reportSHMOrigin("pre-retry")
         do {
             try await fresh.router.retryColdEraseForTesting(
                 service: recovery, accessGate: fresh.accessGate)
         } catch {
             XCTAssertFalse(error is CancellationError)
         }
+        try reportSHMOrigin("post-retry")
         guard case .maintenance(.eraseInconsistent) = fresh.router.route else {
             return XCTFail("Hostile source must leave cold Erase in maintenance")
         }

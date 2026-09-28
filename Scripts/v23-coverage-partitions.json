@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "da388ed4708677f67a9c02cb63cf683abc6efd90",
+  "generatedAtHead": "f869dd07bed5b193f41247197468820f514ba60a",
   "sweepOrder": [
     "S01",
     "S02",
@@ -381,7 +381,7 @@
     {
       "id": "S05",
       "tier": "D50C",
-      "estimatedSeconds": 2410.0,
+      "estimatedSeconds": 2530.0,
       "selectors": [
         "FieldEvidenceAppTests/C27S41TypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/S3_7CouldNotVerifyTests/testDuplicateAndWrongPurposeEvidenceFailClosedWithoutFinalizationRows",
@@ -435,6 +435,8 @@
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testNoEraseCheckedOwnerCloseMeasuresSQLiteAndSidecarTransition",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testNotificationPreferenceEraseFencePreservesExactCooldownAndRejectsHeldSettingAuthority",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testPinnedEmptyGenerationCreationRejectsReplacementBeforeSQLiteWrite",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testPostRetiredFaultRefusesReplacedMismatchedOrExtraNotificationMarker",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testPostRetiredOwnerGuardLinkTransitionRetainsOtherTreeFacts",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testReplacedGenerationAncestorFailsClosedWithoutDeletingEitherTree",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testRetainedLiveContextDefersCleanupUntilColdRecovery",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testRolledBackPreparationAbortsExactGateReservationButDurableIntentDoesNot",
