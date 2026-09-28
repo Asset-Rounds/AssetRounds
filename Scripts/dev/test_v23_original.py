@@ -1310,6 +1310,74 @@ class DevelopmentRouteTests(unittest.TestCase):
         self.assertFalse(NEW.development_route(ORDINARY_D30, dict(ORDINARY_PLAN, developmentOnly=True, acceptance=True)))
 
 
+class CompilerObservationDispatchTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.workflow = (REPO_ROOT / NEW.WORKFLOW_PATH).read_text(encoding="utf-8")
+
+    def test_default_dispatch_remains_ordinary_and_explicit_d50_is_bound(self):
+        self.assertTrue(NEW.compiler_observation_input_declared(self.workflow))
+        ordinary = DispatchHarness(NEW, self.root, DEV, workflow=self.workflow, resolved=DEV_PLAN)
+        ordinary.dispatch(kind="development")
+        ordinary_record = json.loads((self.root / str(RUN) / "dispatch.json").read_text())
+        self.assertNotIn("compilerObservation", ordinary_record)
+        self.assertFalse(any("v23_d50_compiler_observation=" in str(call)
+                             for call in ordinary.calls))
+        with tempfile.TemporaryDirectory() as directory:
+            host = Path(directory)
+            observed = DispatchHarness(NEW, host, DEV, workflow=self.workflow, resolved=DEV_PLAN)
+            observed.dispatch(kind="development", compiler_observation=True)
+            record = json.loads((host / str(RUN) / "dispatch.json").read_text())
+            with evidence_root(NEW, host):
+                self.assertTrue(NEW.check_compiler_observation_record(record))
+            self.assertEqual(record["kind"], "development")
+            self.assertFalse(record["acceptance"])
+            self.assertIn("v23_d50_compiler_observation=true", record["argv"])
+            self.assertTrue(ledger_lines(host)[0]["compilerObservation"])
+            attempt = json.loads((host / "v23-original-attempts" / record["attemptName"]).read_text())
+            self.assertTrue(attempt["compilerObservation"])
+            for downgrade in (dict(record, compilerObservation=False),
+                              {key: value for key, value in record.items()
+                               if key != "compilerObservation"}):
+                with evidence_root(NEW, host), self.assertRaisesRegex(SystemExit, "ledger/dispatch downgrade"):
+                    NEW.check_compiler_observation_record(downgrade)
+            ledger_path = host / "v23-original-ledger.jsonl"
+            retained_ledger = ledger_path.read_text()
+            downgraded_ledger = dict(ledger_lines(host)[0])
+            downgraded_ledger.pop("compilerObservation")
+            ledger_path.write_text(json.dumps(downgraded_ledger) + "\n")
+            with evidence_root(NEW, host), self.assertRaisesRegex(SystemExit, "attempt/dispatch downgrade"):
+                NEW.check_compiler_observation_record(dict(record, compilerObservation=False))
+            decoy = dict(record, compilerObservation=False,
+                         attemptName=record["head"] + "-v23-dev-batch-no-index-d50.infra-retry.json")
+            with evidence_root(NEW, host), self.assertRaisesRegex(SystemExit, "attempt/dispatch downgrade"):
+                NEW.check_compiler_observation_record(decoy)
+            noncanonical = dict(decoy, attemptName="a" * 40 + "-other.json")
+            with evidence_root(NEW, host), self.assertRaisesRegex(SystemExit, "noncanonical attempt name"):
+                NEW.check_compiler_observation_record(noncanonical)
+            ledger_path.write_text(retained_ledger)
+            attempt["compilerObservation"] = False
+            (host / "v23-original-attempts" / record["attemptName"]).write_text(json.dumps(attempt))
+            with evidence_root(NEW, host), self.assertRaisesRegex(SystemExit, "attempt/dispatch"):
+                NEW.check_compiler_observation_record(record)
+
+    def test_opt_in_refuses_gate_other_route_or_missing_boolean_before_dispatch(self):
+        for route, kind, workflow in ((DEV, "gate", self.workflow),
+                                      (NEW.SHARED_SELECTION_ID, "development", self.workflow),
+                                      (DEV, "development", self.workflow.replace(
+                                          "      v23_d50_compiler_observation:",
+                                          "      absent_observation_input:"))):
+            with self.subTest(route=route, kind=kind):
+                with tempfile.TemporaryDirectory() as directory:
+                    harness = DispatchHarness(NEW, Path(directory), route, workflow=workflow,
+                        resolved=DEV_PLAN if route == DEV else None)
+                    with self.assertRaises(SystemExit):
+                        harness.dispatch(kind=kind, compiler_observation=True)
+                    self.assertFalse(harness.dispatched)
+
+
 class RUI1OriginalTests(unittest.TestCase):
     def test_explicit_kind_and_serialized_dispatch_request_ui(self):
         plan = {'tier': 'RUI1', 'runUISmoke': True, 'unitTestSelectors': ['unit'],

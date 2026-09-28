@@ -909,6 +909,229 @@ class InterruptionPassiveTimingTests(unittest.TestCase):
                 self.assertIn("123@Mon Sep 14 22:05:03 2026", terminal["processesWithUnobservedTerminal"])
 
 
+class DevelopmentPassiveTimingTests(unittest.TestCase):
+    git = CurrentSourceTimingTests.git
+    admit = CompilerTimingTests.admit
+
+    def setUp(self):
+        CompilerTimingTests.setUp(self)
+        self.config = TIMING.read_configuration(ROOT / "Scripts/v23-compiler-timing-development.json")
+        self.assertEqual(self.config, TIMING.DEVELOPMENT_PROFILE)
+        for relative in ("Scripts/ci-selection.json", "Scripts/ci-selection-map.json"):
+            (self.root / relative).write_bytes(subprocess.check_output(
+                ["git", "show", self.config["sourceHead"] + ":" + relative], cwd=ROOT))
+        spec = importlib.util.spec_from_file_location("development_selector", ROOT / "Scripts/v23-native-ci.py")
+        selector = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(selector)
+        selected = selector.development_batch_selection(ROOT)
+        self.assertEqual((len(selected["unitTestSelectors"]), selected["tier"],
+                          selected["buildTimeoutSeconds"], selected["testTimeoutSeconds"],
+                          selected["totalBudgetSeconds"]), (14, "D50", 1800, 3000, 5100))
+        self.resolved.write_bytes(selector.canonical(selected))
+        self.env.update(NATIVE_SELECTION_ID=TIMING.DEVELOPMENT_SELECTION_ID,
+                        CI_TIER="D50", CI_BUILD_TIMEOUT_SECONDS="1800",
+                        CI_TEST_TIMEOUT_SECONDS="3000", CI_TOTAL_BUDGET_SECONDS="5100",
+                        CI_V23_COMPILER_OBSERVATION="true", CI_V23_RUN_KIND="development",
+                        DISPATCH_NATIVE_SELECTION_SHA256=self.config["resolvedSelectionSHA256"])
+        self.command = TIMING.expected_command(self.env, self.config)
+
+    def testExactProfileAndPreservedPassiveCommand(self):
+        self.assertEqual(self.admit(), self.env["GITHUB_SHA"])
+        self.assertEqual(self.command[-2:], ["COMPILER_INDEX_STORE_ENABLE=NO", "build-for-testing"])
+        self.assertEqual(self.config["sourceHead"], self.config["parentHead"])
+        self.assertEqual(self.config["sampleIntervalSeconds"], 5)
+        self.assertEqual(TIMING.validate_configuration(TIMING.INTERRUPTION_BUILD_ORDER_PROFILE),
+                         TIMING.INTERRUPTION_BUILD_ORDER_PROFILE)
+        for command in (TIMING.expected_command(self.env), TIMING.diagnostic_command(self.command),
+                        self.command[:-1] + ["test"],
+                        self.command[:-1] + ["-showBuildTimingSummary", "build-for-testing"]):
+            with self.subTest(command=command), self.assertRaisesRegex(ValueError, "exact base build argv"):
+                self.admit(command=command)
+
+    def testClosedSourceAndSelectorBinding(self):
+        for key, value in (("sourceHead", "0" * 40), ("parentHead", "0" * 40),
+                           ("resolvedSelectionSHA256", "A" * 64),
+                           ("sampleIntervalSeconds", 1), ("extra", True)):
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                TIMING.validate_configuration({**self.config, key: value})
+        for path in TIMING.SOURCE_PATHS:
+            changed = copy.deepcopy(self.config)
+            changed["sourceTrees"][path] = "0" * 40
+            with self.subTest(path=path), self.assertRaises(ValueError):
+                TIMING.validate_configuration(changed)
+        wrong = dict(self.env, CI_TIER="D30")
+        with self.assertRaises(ValueError):
+            self.admit(environment=wrong)
+        for changes in ({"CI_V23_COMPILER_OBSERVATION": "false"},
+                        {"CI_V23_RUN_KIND": "gate"},
+                        {"NATIVE_SELECTION_ID": "v23-shared-coverage-d50x"}):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                self.admit(environment=dict(self.env, **changes))
+
+    def testDevelopmentWrapperAddsOnlyPassiveRouteAndPreservesWatchdog(self):
+        before = subprocess.check_output(["git", "show", self.config["sourceHead"]
+                                          + ":Scripts/build-smoke.sh"], cwd=ROOT)
+        after = (ROOT / "Scripts/build-smoke.sh").read_bytes()
+        addition = (b'elif [ "${CI_V23_COMPILER_OBSERVATION:-false}" = true ]; then\n'
+                    b'  # The explicit development-only opt-in is rechecked by the source-pinned observer.\n'
+                    b'  test "${CI_V23_RUN_KIND:-}" = development\n'
+                    b'  test "${NATIVE_SELECTION_ID:-none}" = v23-dev-batch-no-index-d50\n'
+                    b'  v23_build_command=(python3 Scripts/v23-compiler-timing.py -- xcodebuild)\n')
+        admission = (b'case "${CI_V23_COMPILER_OBSERVATION:-false}" in\n'
+                     b'  false) ;;\n'
+                     b'  true)\n'
+                     b'    test "${CI_V23_RUN_KIND:-}" = development\n'
+                     b'    test "${NATIVE_SELECTION_ID:-none}" = v23-dev-batch-no-index-d50\n'
+                     b'    ;;\n'
+                     b'  *) exit 1 ;;\n'
+                     b'esac\n')
+        self.assertEqual(after.count(addition), 1)
+        self.assertEqual(after.count(admission), 1)
+        self.assertEqual(after.replace(addition, b"").replace(admission, b""), before)
+        self.assertEqual(subprocess.check_output(["git", "show", self.config["sourceHead"]
+                         + ":Scripts/run-with-timeout.sh"], cwd=ROOT),
+                         (ROOT / "Scripts/run-with-timeout.sh").read_bytes())
+        self.assertEqual(subprocess.check_output(["git", "show", self.config["sourceHead"]
+                         + ":Scripts/v23-compiler-timing.json"], cwd=ROOT),
+                         (ROOT / "Scripts/v23-compiler-timing.json").read_bytes())
+
+    def testExplicitWorkflowOptInReachesOnlyDevelopmentD50Worker(self):
+        caller = (ROOT / ".github/workflows/ios-ci.yml").read_text()
+        worker = (ROOT / ".github/workflows/ios-ci-worker.yml").read_text()
+        self.assertEqual(caller.count("      v23_d50_compiler_observation:\n"), 1)
+        block = caller.split("      v23_d50_compiler_observation:\n", 1)[1].split("      v23_phase1_gate_plan:\n", 1)[0]
+        self.assertIn("default: false", block)
+        self.assertIn("type: boolean", block)
+        self.assertIn("if: ${{ inputs.v23_d50_compiler_observation == true }}", caller)
+        self.assertIn("development:github-xcode-26.6-acceptance:v23-dev-batch-no-index-d50:false", caller)
+        self.assertEqual(caller.count("v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}"), 16)
+        self.assertEqual(worker.count("      v23_d50_compiler_observation:\n"), 1)
+        self.assertIn("CI_V23_COMPILER_OBSERVATION: ${{ inputs.v23_d50_compiler_observation }}", worker)
+        self.assertIn("CI_V23_RUN_KIND: ${{ inputs.v23_run_kind }}", worker)
+        self.assertIn("development:github:v23-dev-batch-no-index-d50:v23.integration.current-native.v1", worker)
+        self.assertLess(worker.index('case "$CI_V23_COMPILER_OBSERVATION"'),
+                        worker.index("python3 Scripts/v23-native-ci.py admit --stage worker"))
+
+    def testMainUsesPassiveObservationAndDoesNotAlterBuildOutcome(self):
+        with mock.patch.object(TIMING.Path, "cwd", return_value=ROOT), \
+             mock.patch.object(TIMING.sys, "argv", ["Scripts/v23-compiler-timing.py", "--", *self.command]), \
+             mock.patch.dict(TIMING.os.environ, self.env), \
+             mock.patch.object(TIMING, "admit", return_value=self.env["GITHUB_SHA"]), \
+             mock.patch.object(TIMING, "run_observed_build", return_value=7) as observed, \
+             mock.patch.object(TIMING, "diagnostic_command", side_effect=AssertionError("flags forbidden")), \
+             mock.patch.object(TIMING, "run_observed_capability", side_effect=AssertionError("query forbidden")):
+            self.assertEqual(TIMING.main(), 7)
+        args, kwargs = observed.call_args
+        self.assertEqual(args[0], self.command)
+        self.assertEqual(kwargs["interval"], 5)
+        self.assertTrue(kwargs["private_commands"])
+        self.assertEqual(kwargs["sample_limit_bytes"], 20 * 1024 * 1024)
+        self.assertFalse(args[2]["nativeAcceptance"])
+        self.assertFalse(args[2]["providerQualification"])
+        wrong = dict(self.env, DISPATCH_NATIVE_SELECTION_SHA256="A" * 64)
+        with self.assertRaises(ValueError):
+            self.admit(environment=wrong)
+
+    def testCompilerMetadataIsAllowlistedAndHostSampleFailureIsNonfatal(self):
+        process = {"key": "12@fixed", "pid": 12, "startedLocal": "fixed",
+                   "executable": "/tool/swift-frontend"}
+        sensitive = "/tmp/private-token.txt"
+        command = ("/tool/swift-frontend -c -module-name FieldEvidenceAppTests "
+                   "-primary-file " + str(ROOT / "FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift") + " "
+                   "-filelist " + sensitive)
+        with mock.patch.object(TIMING, "process_commands", return_value={process["key"]: command}):
+            summary = TIMING.development_command_summaries([process])[process["key"]]
+        self.assertEqual(summary["module"], "FieldEvidenceAppTests")
+        self.assertEqual(summary["primarySource"],
+                         "FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift")
+        self.assertEqual(summary["phase"], "compile")
+        self.assertTrue(summary["hasFileList"])
+        self.assertNotIn(sensitive, json.dumps(summary))
+        self.assertNotIn(str(ROOT), json.dumps(summary))
+        hostile = command.replace(str(ROOT / "FieldEvidenceAppTests"), "/tmp/FieldEvidenceAppTests")
+        with mock.patch.object(TIMING, "process_commands", return_value={process["key"]: hostile}):
+            self.assertIsNone(TIMING.development_command_summaries([process])[process["key"]]["primarySource"])
+        with mock.patch.object(TIMING, "sample_host", return_value={"processes": [],
+                          "loadAverages": [0, 0, 0], "logicalCPUCount": 10}), \
+             mock.patch.object(TIMING.subprocess, "check_output", side_effect=OSError("private path")):
+            sample = TIMING.development_host_sampler()()
+        self.assertEqual(sample["hostPressureError"], "unavailable")
+        self.assertNotIn("private path", json.dumps(sample))
+
+    def testOutputCapRetainsTerminalAndNoRawCommand(self):
+        with tempfile.TemporaryDirectory() as directory:
+            events = TIMING.Events(Path(directory) / "events.jsonl", sample_limit_bytes=200)
+            sample = {"processes": [], "secret": "sensitive" * 100}
+            events.append("sample", **sample)
+            events.append("sample", **sample)
+            events.append("build-terminal-observation", buildReturnCode=65,
+                          nativeAcceptance=False, providerQualification=False)
+            events.close()
+            rows = [json.loads(line) for line in (Path(directory) / "events.jsonl").read_text().splitlines()]
+        self.assertEqual([row["event"] for row in rows],
+                         ["observation-truncated", "build-terminal-observation"])
+        self.assertNotIn("sensitive", json.dumps(rows))
+
+    def testPrivateObservationCapsErrorFloodAndNeverRetainsExecutablePath(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            events = TIMING.Events(output / "events.jsonl", sample_limit_bytes=480)
+            events.append("build-request", command=["xcodebuild"])
+            for _ in range(100):
+                events.append("observation-error", errorCategory="os")
+                events.append("sampling-deadline-missed", overrunSeconds=1)
+            events.append("build-terminal-observation", buildReturnCode=7)
+            events.close()
+            rows = [json.loads(line) for line in (output / "events.jsonl").read_text().splitlines()]
+            observed_bytes = (output / "events.jsonl").stat().st_size
+        self.assertEqual(sum(row["event"] == "observation-truncated" for row in rows), 1)
+        self.assertEqual(rows[-1]["buildReturnCode"], 7)
+        self.assertLess(observed_bytes, 1000)
+        process = {"key": "12@fixed", "pid": 12, "startedLocal": "fixed",
+                   "executable": "/private/host/path/swift-frontend"}
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory)
+            sample = {"logicalCPUCount": 4, "loadAverages": [0, 0, 0],
+                      "processes": [process], "malformedMetadataRows": 0}
+            class Child:
+                pid = 99
+                calls = 0
+                def poll(self):
+                    self.calls += 1
+                    return None if self.calls < 3 else 0
+                def wait(self, timeout=None): return 0
+            with mock.patch.object(TIMING.subprocess, "Popen", return_value=Child()), \
+                 mock.patch.object(TIMING, "sample_host", return_value=sample):
+                TIMING.run_observed_build(["xcodebuild"], artifact, {}, interval=.001,
+                    sampler=lambda: sample, commands_reader=lambda _: {},
+                    private_commands=True, sample_limit_bytes=4096)
+            data = (artifact / "events.jsonl").read_text()
+        self.assertNotIn("/private/host/path", data)
+        self.assertIn("swift-frontend", data)
+
+    def testUnexpectedObserverShapeCannotReplaceSuccessfulBuild(self):
+        for error_type in (KeyError, TypeError):
+            with self.subTest(error=error_type.__name__), tempfile.TemporaryDirectory() as directory:
+                class Child:
+                    pid = 22
+                    calls = 0
+                    def poll(self):
+                        self.calls += 1
+                        return None if self.calls < 3 else 0
+                    def wait(self, timeout=None): return 0
+                def malformed():
+                    raise error_type("/private/secret-value")
+                with mock.patch.object(TIMING.subprocess, "Popen", return_value=Child()):
+                    self.assertEqual(TIMING.run_observed_build(["xcodebuild"], Path(directory), {},
+                        interval=.001, sampler=malformed, private_commands=True,
+                        sample_limit_bytes=4096), 0)
+                payload = (Path(directory) / "events.jsonl").read_text()
+                self.assertNotIn("/private/secret-value", payload)
+                events = [json.loads(line) for line in payload.splitlines()]
+                self.assertEqual(events[-1]["buildReturnCode"], 0)
+                self.assertEqual(events[-2]["errorCategory"], "invalid-sample")
+
+
 class CapabilityTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="v23-capability-test-")

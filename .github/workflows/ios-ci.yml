@@ -222,6 +222,11 @@ on:
         options:
           - gate
           - development
+      v23_d50_compiler_observation:
+        description: Explicit development-only D50 compiler observation at the reviewed source pin
+        required: false
+        default: false
+        type: boolean
       v23_phase1_gate_plan:
         description: Reserved canonical Phase 1 gate plan; admission remains disabled pending end-to-end review
         required: false
@@ -230,6 +235,10 @@ on:
 
 permissions:
   contents: read
+
+env:
+  CI_V23_COMPILER_OBSERVATION: ${{ inputs.v23_d50_compiler_observation }}
+  CI_V23_RUN_KIND: ${{ inputs.v23_run_kind }}
 
 concurrency:
   group: ${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-acceptance' && 'v23-bitrise-' || '' }}${{ startsWith(inputs.execution_lane, 's10-4-shared-') || inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance' }}-${{ inputs.s10_4_shared_segment_id }}-${{ inputs.s10_4_shared_payload_run_id }}-ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}${{ (inputs.execution_lane == 'github-xcode-26.6-acceptance' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-acceptance') && format('-{0}', inputs.native_selection_id) || '' }}${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-unit-development-only' && format('-unit-{0}', github.sha) || ((inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-segmented-development-only') && format('-{0}', github.sha) || '') }}${{ github.event.inputs.v23_run_kind == 'development' && (github.event.inputs.native_selection_id == 'v23-dev-batch-no-index-d50' || github.event.inputs.native_selection_id == 'v23-shared-coverage-d50x') && format('-development-{0}', github.sha) || '' }}
@@ -256,6 +265,17 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Admit explicit D50 compiler observation
+        if: ${{ inputs.v23_d50_compiler_observation == true }}
+        shell: bash
+        env:
+          OBSERVATION_KIND: ${{ inputs.v23_run_kind }}
+          OBSERVATION_LANE: ${{ inputs.execution_lane }}
+          OBSERVATION_SELECTION: ${{ inputs.native_selection_id }}
+          OBSERVATION_UI: ${{ inputs.run_ui_smoke }}
+        run: |
+          set -euo pipefail
+          test "$OBSERVATION_KIND:$OBSERVATION_LANE:$OBSERVATION_SELECTION:$OBSERVATION_UI" = development:github-xcode-26.6-acceptance:v23-dev-batch-no-index-d50:false
       - name: Validate ordinary V23 native acceptance selection
         id: native_selection
         if: ${{ inputs.execution_lane == 'github-xcode-26.6-acceptance' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-acceptance' }}
@@ -455,6 +475,8 @@ jobs:
       native_selection_id: ${{ needs.shared-selection.outputs.native_selection_id || inputs.native_selection_id }}
       native_selection_sha256: ${{ needs.shared-selection.outputs.native_selection_sha256 }}
       native_selection_map_sha256: ${{ needs.shared-selection.outputs.native_selection_map_sha256 }}
+      v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_run_kind: ${{ inputs.v23_run_kind }}
       run_ui_smoke: ${{ inputs.run_ui_smoke }}
       s10_4_shard_id: ${{ inputs.s10_4_shard_id }}
       s10_4_segment_id: ${{ startsWith(inputs.s10_4_shared_segment_id, 'segment-') && inputs.s10_4_shared_segment_id || 'none' }}
@@ -510,6 +532,8 @@ jobs:
     if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 'getmac-xcode-26.6-development-only') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
+      v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: getmac-tahoe
       runner_provider: getmac
       run_ui_smoke: ${{ inputs.run_ui_smoke }}
@@ -531,6 +555,8 @@ jobs:
       actions: read
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
+      v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: 'bitrise-runner-Asset Roundddd'
       runner_provider: bitrise
       native_acceptance_contract: ${{ needs.shared-selection.outputs.native_acceptance_contract || 'none' }}
@@ -585,6 +611,8 @@ jobs:
     if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
+      v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: 'bitrise-runner-Asset Roundddd'
       runner_provider: bitrise
       # The fixed S10.4 selector requires UI=true. The producer role gates test execution.
@@ -602,6 +630,8 @@ jobs:
     if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
+      v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: 'bitrise-runner-Asset Roundddd'
       runner_provider: bitrise
       run_ui_smoke: true
@@ -618,6 +648,8 @@ jobs:
     if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
+      v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: 'bitrise-runner-Asset Roundddd'
       runner_provider: bitrise
       run_ui_smoke: true
@@ -634,6 +666,8 @@ jobs:
     if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
+      v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: macos-26
       runner_provider: github
       run_ui_smoke: true
@@ -649,6 +683,8 @@ jobs:
     if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
+      v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: macos-26
       runner_provider: github
       run_ui_smoke: true
@@ -664,6 +700,8 @@ jobs:
     if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-hybrid-equivalence-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
+      v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: macos-26
       runner_provider: github
       run_ui_smoke: true
@@ -1106,6 +1144,8 @@ jobs:
     if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-minimum-diagnostic-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
+      v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: 'bitrise-runner-Asset Roundddd'
       runner_provider: bitrise
       run_ui_smoke: true
@@ -1122,6 +1162,8 @@ jobs:
     if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-minimum-diagnostic-pilot' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
+      v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: macos-26
       runner_provider: github
       run_ui_smoke: true
@@ -1191,6 +1233,8 @@ jobs:
     if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-focused-diagnostics-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
+      v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: 'bitrise-runner-Asset Roundddd'
       runner_provider: bitrise
       run_ui_smoke: true
@@ -1207,6 +1251,8 @@ jobs:
     if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-focused-diagnostics-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
+      v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: macos-26
       runner_provider: github
       run_ui_smoke: true
@@ -1224,6 +1270,8 @@ jobs:
     if: ${{ inputs.s10_4_minimum_core_smoke_id == 'none' && inputs.s10_4_shared_payload_run_id == '' && inputs.s10_4_shared_segment_id == 'none' && inputs.s10_4_segment_source_run_ids == '' && (inputs.execution_lane == 's10-4-focused-diagnostics-development-only' && inputs.run_ui_smoke == true && inputs.s10_4_shard_id == 'none') }}
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
+      v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: macos-26
       runner_provider: github
       run_ui_smoke: true
@@ -1299,6 +1347,8 @@ jobs:
           - segment-3
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
+      v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: macos-26
       runner_provider: github
       run_ui_smoke: true
@@ -1404,6 +1454,8 @@ jobs:
           - segment-3
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
+      v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: 'bitrise-runner-Asset Roundddd'
       runner_provider: bitrise
       run_ui_smoke: true

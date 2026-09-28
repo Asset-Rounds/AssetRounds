@@ -9,6 +9,14 @@ expected_destination="platform=iOS Simulator,id=${CI_SIMULATOR_UDID:?}"
 test "${CI_DESTINATION:?}" = "$expected_destination"
 test "${CODE_SIGNING_ALLOWED:-}" = "NO"
 test ! -e "$result_bundle_path"
+case "${CI_V23_COMPILER_OBSERVATION:-false}" in
+  false) ;;
+  true)
+    test "${CI_V23_RUN_KIND:-}" = development
+    test "${NATIVE_SELECTION_ID:-none}" = v23-dev-batch-no-index-d50
+    ;;
+  *) exit 1 ;;
+esac
 mkdir -p "$CI_ARTIFACT_DIR" "$derived_data_path"
 
 # H411 producer source argv receipt precedes the preserved cache wrapper.
@@ -82,6 +90,11 @@ fi
 # Bash 3.2 nounset requires a nonempty array on ordinary routes too.
 v23_build_command=(xcodebuild)
 if [ "${NATIVE_SELECTION_ID:-none}" = notification-interruption-no-index-build30m ]; then
+  v23_build_command=(python3 Scripts/v23-compiler-timing.py -- xcodebuild)
+elif [ "${CI_V23_COMPILER_OBSERVATION:-false}" = true ]; then
+  # The explicit development-only opt-in is rechecked by the source-pinned observer.
+  test "${CI_V23_RUN_KIND:-}" = development
+  test "${NATIVE_SELECTION_ID:-none}" = v23-dev-batch-no-index-d50
   v23_build_command=(python3 Scripts/v23-compiler-timing.py -- xcodebuild)
 fi
 

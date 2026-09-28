@@ -1,4 +1,14 @@
-## Latest development checkpoint — 2026-09-27
+## Current obligations — 2026-09-28
+
+Latest pushed checkpoint `e74df72d0` closes only the bounded local S6 17-cut interruption family. Full305-test compilePASS, exact Every17cutsPASS and421CI toolingPASS do not establish full S6 or phase acceptance. Current ordered census3660/33 includes both new S6 controls without dropping prior methods. Main remains accepted S10; releaseReady=false.
+
+- V949 original SHM preservation across hostile cold recovery remains unresolved. C05 private-reader v8 passed isolated603-app module typecheck85.567s on unchanged inputs after independent review; genuine schema2/V3 forward cleanup, full owner/alias disposal, target/auxiliary/receipt chain and native hostile/positive verification remain due.
+- Legacy partial-no-roster deletion compatibility needs the pending owner decision; prospective replay must bind the original held witness through publication and all cuts. No design-only approval proves implementation or runtime behavior.
+- Hosted36425436253 atf869 failed build timeout1800s with14NotStarted. Last actual hosted tests36368867150 passed17/failed10 on older4bc; six pinned-runtime retirement-policy failures need new verification. Local app-only typecheck profiling cannot establish hosted build performance. Reviewed passive V4 diagnostics plus V5 historical-compatibility tests passed full tooling77954 (52 timing,136 dispatcher/3optional skips,42 generator,380 nativeCI); staged review and a distinct hosted development original remain due, without budget relaxation.
+- All earlier unclosed functional, migration, restore, backup, report, photo, startup and lifecycle obligations below remain due unless an exact later record closes them. Historical status snapshots are not current failure counts.
+- Cold shared-build qualification and complete gate tooling; all-unit same-head coverage; pinned qualified critical UI; independent candidate review; genuine owner visual acceptance; non-force main fast-forward and exact-main verification remain required. Physical protection, minimum-runtime/device obligations, privacy/App Store owner decisions and complete V23 release scope remain open. No signing or distribution is authorized.
+
+## Historical development checkpoint — 2026-09-27
 
 Reviewed checkpoint `4bc33554` is pushed; main remains `b1d04ae5`. Hosted development original36368867150 passed unsigned app compilation and finished17PASS10FAIL, all1275manifest files verified. Six pinned-runtime retirement-policy effect failures remain; its prospective checked effect/writer successor is incomplete and uninstalled. This is not gate evidence.
 
@@ -8,7 +18,7 @@ Completed-abort S6/V906 fails on database SHA/mtime/ctime change across owner cl
 
 Current census is3636methods/32partitions; uninstalled303aea4e proposal independently approved but fresh requiredCI and candidate publication remain due. All five same-head gates, cold shared-build qualification, qualified UI, genuine owner visual review, main fast-forward/exact-main and complete V23 release obligations remain required. See CURRENT_INTEGRATION for exact source/review/result bindings; historical scopes below are not latest-state claims.
 
-## Current integration and isolated verification due — 2026-09-26/27 UTC
+## Historical integration and isolated verification due — 2026-09-26/27 UTC
 
 - PD24 checkpoint follows pushed FP3 `7293fb5f` after AT5 `7b3e6169`; accepted main stays `b1d04ae5`. AT5 recovery41/photo1/backup3 passes have distinct sealed scopes. FP3 compiled and passed12 affected local methods plus native-CI379/379 and generator42/42. Earlier AR1/C8 results retain their historical inputs. No development result is a same-head gate or authorizes activation.
 - PD24 directory/deletion checkpoint has independent nonauthor Astra medium approval; root transferred its exact14 paths and verified all1844 installed source hashes. PD21 deletion32 ended31PASS/1FAIL; PD24 site1 and recovery1 both passed after compilation, with1844 sources/268 products unchanged. Prior31 passes retain earlier exact inputs; no combined latest32PASS or full coverage claim. All earlier failures remain in CURRENT_INTEGRATION. M2 and production Erase retirement are incomplete and unintegrated; all other family obligations remain due.
@@ -610,3 +620,12 @@ C32 restore boundary now locally passes in `m2-c32-after-disk-repair-native-v1` 
 
 
 2026-09-28 S6 closure checkpoint: required42+379CI PASS,2694 inputs unchanged; exact six app/test plus coverage JSON transferred,1204 source hashes match local305compile/17-cut EveryPASS. Staged review/commit pending; no hosted/gate credit. Hosted f869 build-timeout diagnosis cannot isolate source versus runner load; measured profiling next, budgets unchanged. V949/C05 and legacy partial-delete compatibility remain open; main unchanged.
+
+
+2026-09-28 S6 closure checkpoint published as e74df72d0 after independent nonauthor Sol-high staged reviewfb01b955b6c454e0d3f0c26beb09f640ad66c0b1ed850ea41c8bb7e65b8eb78d/tree6f5af5c8149db86de42c83a3e077eebe0cf349c9. Eleven explicit paths, required421CI PASS, exact local305compile and17-cut method PASS; fresh remote refs before commit/push, non-force linear push, main unchanged. Owner config preserved/unstaged. No new hosted dispatch; bounded exactf869 app typecheck profiling is diagnostic-only and underway with separate cache.
+
+
+2026-09-28 C05 private-reader v8 isolated603-app modulePASS85.567s, snapshot/live unchanged after independent access/composition reviews. No live/native/full cold recovery evidence. Next typed preactivation/phase-CAS work is isolated; full forward cleanup and all gate obligations remain open. Passive hosted diagnostic V1 rejected; default-off bounded successor in scratch, no dispatch.
+
+
+2026-09-28 passive D50 V4 full tooling is not green: timing52 and selection42 pass; dispatcher136pass/3optional historical-module skips; native379run reports12historical-adapter/branch expectation failures, all2695inputs unchanged. Exact bounded test successor and independent review/full CI remain due. No diagnostic source installed or dispatched; main unchanged.

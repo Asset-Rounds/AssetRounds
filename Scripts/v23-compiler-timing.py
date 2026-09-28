@@ -50,6 +50,25 @@ INTERRUPTION_BUILD_ORDER_PROFILE = dict(INTERRUPTION_PROFILE, schemaVersion=6,
     sourceHead="cf357a4e75dce1a9bff56f4b72af60989d3df643",
     parentHead="cf357a4e75dce1a9bff56f4b72af60989d3df643")
 
+# A separate, development-only D50 observation. This pins a direct successor
+# of e74, with the same product trees and exact fourteen-method selection.
+DEVELOPMENT_SELECTION_ID = "v23-dev-batch-no-index-d50"
+DEVELOPMENT_PROFILE = {
+    "schemaVersion": 7, "mode": "timing-development-passive-source-v7",
+    "sourceHead": "e74df72d02482ed70bc208a0a118275237c7c714",
+    "parentHead": "e74df72d02482ed70bc208a0a118275237c7c714",
+    "sourceTrees": {
+        "FieldEvidenceApp": "50202502c4b163c19f845831154cf0c2d012b61a",
+        "FieldEvidenceAppTests": "90491de005d4d9f028e453ac7e95e1e25a4ab154",
+        "FieldEvidenceAppUITests": "74b8a3c90fff8c1160a75e84222054bcedab8b0b",
+        "FieldEvidenceApp.xcodeproj": "8bfd8a246776a4e3f15b62aef29d558f2b3ee34d",
+    },
+    "selectionSHA256": "AA6FED058B963A5110857E98FD68573DCA72F20FD8D0BD19B7A50B252E957A7B",
+    "selectionMapSHA256": "2872B03CDC17B8C001CA351411FBF10954063B09F052146BECAC81BE8E831FB0",
+    "resolvedSelectionSHA256": "C14B6B32A904A5C474A0413ABF919BDABF1812FBEEC6B9963698FBC14A6A4EE0",
+    "sampleIntervalSeconds": 5,
+}
+
 SWIFT_FLAGS = ("OTHER_SWIFT_FLAGS=$(inherited) -Xfrontend -warn-long-function-bodies=500"
                " -Xfrontend -warn-long-expression-type-checking=200")
 COMPILERS = {"xcodebuild", "swiftc", "swift-frontend", "clang", "clang++", "ld",
@@ -81,6 +100,9 @@ def read_configuration(path):
 
 def validate_configuration(config):
     require(isinstance(config, dict), "configuration object")
+    if type(config.get("schemaVersion")) is int and config["schemaVersion"] == 7:
+        require(config == DEVELOPMENT_PROFILE, "fixed development passive source profile")
+        return config
     if type(config.get("schemaVersion")) is int and config["schemaVersion"] == 6:
         require(type(config.get("sampleIntervalSeconds")) is int, "integer build-order sample interval")
         require(config == INTERRUPTION_BUILD_ORDER_PROFILE, "fixed interruption before-boot source profile")
@@ -137,7 +159,7 @@ def expected_command(environment, config=None):
             "-derivedDataPath", e["RUNNER_TEMP"] + "/FieldEvidenceDerivedData",
             "-resultBundlePath", e["CI_ARTIFACT_DIR"] + "/Build.xcresult",
             "CODE_SIGNING_ALLOWED=NO", "build-for-testing"]
-    if config is not None and config["schemaVersion"] in (5, 6):
+    if config is not None and config["schemaVersion"] in (5, 6, 7):
         command.insert(-1, "COMPILER_INDEX_STORE_ENABLE=NO")
     return command
 
@@ -173,6 +195,11 @@ def admit(config, environment, command, root, git_output, platform=sys.platform)
     if config["schemaVersion"] in (5, 6):
         required.update(NATIVE_SELECTION_ID=INTERRUPTION_SELECTION_ID, CI_TIER="D30",
                         CI_BUILD_TIMEOUT_SECONDS="1800", CI_TOTAL_BUDGET_SECONDS="3000")
+    if config["schemaVersion"] == 7:
+        required.update(NATIVE_SELECTION_ID=DEVELOPMENT_SELECTION_ID, CI_TIER="D50",
+                        CI_BUILD_TIMEOUT_SECONDS="1800", CI_TEST_TIMEOUT_SECONDS="3000",
+                        CI_TOTAL_BUDGET_SECONDS="5100",
+                        CI_V23_COMPILER_OBSERVATION="true", CI_V23_RUN_KIND="development")
     require(platform == "darwin", "host platform")
     for key, value in required.items():
         require(environment.get(key) == value, key)
@@ -180,7 +207,7 @@ def admit(config, environment, command, root, git_output, platform=sys.platform)
     head = git_output("rev-parse", "HEAD").decode().strip()
     require(re.fullmatch(r"[a-f0-9]{40}", head)
             and head == environment.get("GITHUB_SHA"), "actual checkout head")
-    if config["schemaVersion"] in (2, 3, 4, 5, 6):
+    if config["schemaVersion"] in (2, 3, 4, 5, 6, 7):
         require_direct_parent(git_output, config.get("parentHead", config["sourceHead"]))
     for path, tree in config["sourceTrees"].items():
         require(git_output("rev-parse", "HEAD:" + path).decode().strip() == tree, path + " tree")
@@ -254,6 +281,40 @@ def sample_host():
             "processes": processes, "malformedMetadataRows": malformed}
 
 
+def development_host_sampler():
+    """Five-second process samples; numeric VM pressure only every third sample."""
+    samples = 0
+
+    def sample():
+        nonlocal samples
+        result = sample_host()
+        samples += 1
+        if samples % 3 != 1:
+            return result
+        try:
+            vm = subprocess.check_output(["/usr/bin/vm_stat"], timeout=2,
+                                         stderr=subprocess.DEVNULL).decode("ascii", "replace")
+            swap = subprocess.check_output(["/usr/sbin/sysctl", "-n", "vm.swapusage"], timeout=2,
+                                           stderr=subprocess.DEVNULL).decode("ascii", "replace")
+            page = re.search(r"page size of (\d+) bytes", vm)
+            require(page is not None, "vm page size")
+            pages = {}
+            for label, count in re.findall(r"(?m)^Pages (free|active|wired down|occupied by compressor):\s*([0-9]+)\.", vm):
+                pages[label.replace(" ", "_")] = int(count)
+            require(set(pages) == {"free", "active", "wired_down", "occupied_by_compressor"}, "vm page counts")
+            usage = {}
+            for label, count in re.findall(r"\b(total|used|free)\s*=\s*([0-9]+(?:\.[0-9]+)?)M", swap):
+                usage[label] = float(count)
+            require(set(usage) == {"total", "used", "free"}, "swap usage")
+            result["hostPressure"] = {"pageBytes": int(page.group(1)), "pages": pages,
+                                      "swapMiB": usage, "sampleOrdinal": samples}
+        except (OSError, ValueError, subprocess.SubprocessError):
+            result["hostPressureError"] = "unavailable"
+        return result
+
+    return sample
+
+
 def process_commands(processes):
     if not processes:
         return {}
@@ -282,15 +343,58 @@ def process_commands(processes):
     return commands
 
 
+def development_command_summaries(processes):
+    """Retain compiler role and bounded source identity, never raw ps argv."""
+    observed = process_commands(processes)
+    result = {}
+    for key, command in observed.items():
+        module = re.search(r"(?:^|\s)-module-name\s+([A-Za-z0-9_]+)(?:\s|$)", command)
+        primary = re.search(r"(?:^|\s)-primary-file\s+(\S+)", command)
+        filelist = re.search(r"(?:^|\s)-filelist\s+(\S+)", command)
+        source = None
+        if primary is not None:
+            # Retain only a lexical path beneath the admitted checkout roots.
+            candidate = primary.group(1).strip("'\"")
+            try:
+                relative = Path(candidate).relative_to(Path.cwd())
+                if (relative.parts and relative.parts[0] in SOURCE_PATHS[:3]
+                        and ".." not in relative.parts and relative.suffix == ".swift"):
+                    source = relative.as_posix()
+            except ValueError:
+                pass
+        module_name = module.group(1) if module else None
+        if module_name not in {"FieldEvidenceApp", "FieldEvidenceAppTests", "FieldEvidenceAppUITests"}:
+            module_name = None
+        result[key] = {"commandSHA256": hashlib.sha256(command.encode()).hexdigest(),
+                       "module": module_name,
+                       "primarySource": source,
+                       "hasFileList": filelist is not None,
+                       "phase": "typecheck" if "-typecheck" in command else
+                                "compile" if re.search(r"(?:^|\s)-c(?:\s|$)", command) else
+                                "other"}
+    return result
+
+
 class Events:
-    def __init__(self, path):
+    def __init__(self, path, sample_limit_bytes=None):
         self.stream = path.open("x", encoding="utf-8", newline="\n")
         self.started = time.monotonic()
+        self.sample_limit_bytes = sample_limit_bytes
+        self.sample_truncated = False
 
     def append(self, event, **fields):
         row = {"event": event, "utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                "elapsedSeconds": round(time.monotonic() - self.started, 6), **fields}
-        self.stream.write(json.dumps(row, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n")
+        encoded = json.dumps(row, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n"
+        if self.sample_limit_bytes is not None and event in {
+                "sample", "observation-error", "sampling-deadline-missed"}:
+            if self.sample_truncated:
+                return
+            if self.stream.tell() + len(encoded.encode()) > self.sample_limit_bytes:
+                self.sample_truncated = True
+                self.append("observation-truncated", sampleLimitBytes=self.sample_limit_bytes)
+                return
+        self.stream.write(encoded)
         self.stream.flush()
         os.fsync(self.stream.fileno())
 
@@ -302,13 +406,13 @@ class ProcessObservations:
     def __init__(self):
         self.active = {}
 
-    def observe(self, sample, elapsed, commands):
+    def observe(self, sample, elapsed, commands, command_field="psRenderedCommand"):
         current = {p["key"]: p for p in sample["processes"]}
         first, disappeared = [], []
         for key, process in current.items():
             if key not in self.active:
                 first.append({**process, "firstObservedSeconds": elapsed,
-                              "psRenderedCommand": commands.get(process["key"]),
+                              command_field: commands.get(process["key"]),
                               "commandIsExactArgv": False, "exitStatus": None})
                 self.active[key] = {"firstObservedSeconds": elapsed}
             self.active[key]["lastObservedSeconds"] = elapsed
@@ -450,8 +554,9 @@ def run_observed_capability(command, output, metadata, interval=5,
 
 
 def run_observed_build(command, output, metadata, interval=5,
-                       sampler=sample_host, commands_reader=process_commands):
-    events = Events(output / "events.jsonl")
+                       sampler=sample_host, commands_reader=process_commands,
+                       private_commands=False, sample_limit_bytes=None):
+    events = Events(output / "events.jsonl", sample_limit_bytes=sample_limit_bytes)
     observations, child, received_signal = ProcessObservations(), None, []
     previous_handlers = {}
 
@@ -476,13 +581,33 @@ def run_observed_build(command, output, metadata, interval=5,
                 elapsed = round(time.monotonic() - events.started, 6)
                 new_processes = [p for p in sample["processes"] if p["key"] not in observations.active]
                 commands = commands_reader(new_processes)
-                first, disappeared = observations.observe(sample, elapsed, commands)
+                if private_commands:
+                    sample = {**sample, "processes": [
+                        {**p, "executable": PurePosixPath(p["executable"]).name}
+                        for p in sample["processes"]]}
+                first, disappeared = observations.observe(
+                    sample, elapsed, commands,
+                    command_field="compilerCommandSummary" if private_commands else "psRenderedCommand")
                 events.append("sample", **sample, newlyObserved=first, disappeared=disappeared,
                               sampleStartElapsedSeconds=round(start - events.started, 6),
                               samplerSeconds=round(time.monotonic() - start, 6))
-            except (OSError, ValueError, subprocess.SubprocessError) as error:
-                # Preserve failure without replacing the original xcodebuild result.
-                events.append("observation-error", errorType=type(error).__name__, error=str(error))
+            except Exception as error:
+                # Schema 7 observations are advisory. Even malformed process
+                # metadata cannot replace the already launched build's result.
+                # Historical profiles retain their original exception behavior.
+                if not private_commands and not isinstance(
+                        error, (OSError, ValueError, subprocess.SubprocessError)):
+                    raise
+                if private_commands:
+                    category = ("timeout" if isinstance(error, subprocess.TimeoutExpired) else
+                                "os" if isinstance(error, OSError) else
+                                "invalid-sample" if isinstance(error, (ValueError, KeyError, TypeError,
+                                                                       IndexError)) else
+                                "subprocess" if isinstance(error, subprocess.SubprocessError) else
+                                "observer")
+                    events.append("observation-error", errorCategory=category)
+                else:
+                    events.append("observation-error", errorType=type(error).__name__, error=str(error))
             if not received_signal:
                 remaining = next_sample_deadline - time.monotonic()
                 if remaining < 0:
@@ -497,10 +622,15 @@ def run_observed_build(command, output, metadata, interval=5,
             except subprocess.TimeoutExpired:
                 pass  # The existing group watchdog remains the sole hard timeout owner.
         code = child.poll()
-        events.append("build-terminal-observation", buildReturnCode=code,
-                      receivedSignals=received_signal,
-                      processesWithUnobservedTerminal=observations.active,
-                      nativeAcceptance=False, providerQualification=False)
+        terminal_active = observations.active
+        if private_commands:
+            terminal_active = dict(sorted(terminal_active.items())[:1024])
+        terminal_fields = {"buildReturnCode": code, "receivedSignals": received_signal,
+                           "processesWithUnobservedTerminal": terminal_active,
+                           "nativeAcceptance": False, "providerQualification": False}
+        if private_commands:
+            terminal_fields["unobservedTerminalCount"] = len(observations.active)
+        events.append("build-terminal-observation", **terminal_fields)
         return (128 + received_signal[0]) if code is None else (code if code >= 0 else 128 - code)
     finally:
         for signum, previous in previous_handlers.items():
@@ -511,7 +641,10 @@ def run_observed_build(command, output, metadata, interval=5,
 def main():
     require(len(sys.argv) > 2 and sys.argv[1] == "--", "usage: -- <original build argv>")
     root = Path.cwd()
-    config_path = root / "Scripts/v23-compiler-timing.json"
+    config_name = ("v23-compiler-timing-development.json"
+                   if os.environ.get("NATIVE_SELECTION_ID") == DEVELOPMENT_SELECTION_ID
+                   else "v23-compiler-timing.json")
+    config_path = root / "Scripts" / config_name
     config = read_configuration(config_path)
     command = sys.argv[2:]
     git = lambda *args: subprocess.check_output(["git", *args], cwd=root)
@@ -524,12 +657,18 @@ def main():
                 "configurationSHA256": hashlib.sha256(config_path.read_bytes()).hexdigest().upper(),
                 "baseCommand": command, "nativeAcceptance": False,
                 "providerQualification": False,
-                "buildWatchdogSeconds": 1800 if config["schemaVersion"] in (5, 6) else 1200,
+                "buildWatchdogSeconds": 1800 if config["schemaVersion"] in (5, 6, 7) else 1200,
                 "limits": "Sampling gives first/last sightings, not per-process exit codes. CPU percent is a decaying average. Host compilers can be unrelated; bind rendered source/primary paths before attribution. Instrumentation may affect duration."}
     if config["schemaVersion"] in (5, 6):
         # No compiler flags are added, so there is no capability query.
         return run_observed_build(command, output, metadata,
                                   interval=config["sampleIntervalSeconds"])
+    if config["schemaVersion"] == 7:
+        return run_observed_build(command, output, metadata,
+                                  interval=config["sampleIntervalSeconds"],
+                                  sampler=development_host_sampler(),
+                                  commands_reader=development_command_summaries,
+                                  private_commands=True, sample_limit_bytes=20 * 1024 * 1024)
     # This single capability query must succeed before xcodebuild. Its durable
     # request and stream files precede launch, including every failure path.
     if run_observed_capability(capability_command(os.environ), output, metadata) != 0:

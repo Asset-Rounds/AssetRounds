@@ -81,6 +81,11 @@ RUI1_WORKER_BRANCH = '          if test "${NATIVE_SELECTION_ID:-none}" = v23-ui-
 
 def workflow_before_parallel_development(raw):
     """Reverse the exact RUI1 choice and owner-decision-16 caller additions."""
+    was_bytes = isinstance(raw, bytes)
+    raw = before_passive_d50_observation(
+        '.github/workflows/ios-ci.yml', raw if was_bytes else raw.encode('utf-8'))
+    if not was_bytes:
+        raw = raw.decode('utf-8')
     text = raw.decode('utf-8') if isinstance(raw, bytes) else raw
     # The new optional input does not change any old dispatch route. Remove only
     # its exact independently reviewed block when comparing historical bytes.
@@ -93,6 +98,11 @@ def workflow_before_parallel_development(raw):
 
 def worker_before_parallel_development(raw):
     """Reverse the exact RUI1 branch and per-head development concurrency term."""
+    was_bytes = isinstance(raw, bytes)
+    raw = before_passive_d50_observation(
+        '.github/workflows/ios-ci-worker.yml', raw if was_bytes else raw.encode('utf-8'))
+    if not was_bytes:
+        raw = raw.decode('utf-8')
     text = raw.decode('utf-8') if isinstance(raw, bytes) else raw
     text = remove_exactly_once(text, RUI1_WORKER_BRANCH)
     text = remove_exactly_once(text, DEVELOPMENT_PER_HEAD_TERM + '\n  cancel-in-progress: false\n',
@@ -111,6 +121,129 @@ def remove_exactly_once(text, old, new=''):
     if text.count(old) != 1:
         raise AssertionError('expected one shared-coverage hunk: ' + old[:80])
     return text.replace(old, new)
+
+
+# Reverse only the reviewed opt-in additions. Exact whole-file hashes bind the
+# input and output, while each closed hunk must also occur the expected number
+# of times; historical comparisons below retain their original byte checks.
+PASSIVE_D50_SOURCE_SHA256 = {
+    '.github/workflows/ios-ci.yml': (
+        '7699a2174899d0e0094775bc5abfd4f3fd235f1c9702b12bf2823a71a0efe4ce',
+        '6e6243e623d2c7176811185078374f6fb0b16e9a025daa0970170d10447b99bb'),
+    '.github/workflows/ios-ci-worker.yml': (
+        '4e893c98c786caabb9d12ecfbdc9d285666fb0e0fa039711943b494156b52535',
+        '3bdf76c79d29ef5a82083c32b8ec2820622cbfa780c25db15df3cdae6918322a'),
+    'Scripts/build-smoke.sh': (
+        '060e6726fc6c40a441b21e5ac3a6e972b75a616763ebbd442db2f8826cc42d76',
+        'ff60c5fa04620fc65e67c64b193b0e9ba109851324a16f2b8bcd43910a47d715'),
+}
+PASSIVE_D50_FORWARDING = (
+    '      v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}\n'
+    '      v23_run_kind: ${{ inputs.v23_run_kind }}\n'
+)
+
+
+def before_passive_d50_observation(relative, raw):
+    candidate_sha, base_sha = PASSIVE_D50_SOURCE_SHA256[relative]
+    if hashlib.sha256(raw).hexdigest() != candidate_sha:
+        raise AssertionError('changed reviewed passive D50 source: ' + relative)
+    text = raw.decode('utf-8')
+    if relative == '.github/workflows/ios-ci.yml':
+        text = remove_exactly_once(text, (
+            '      v23_d50_compiler_observation:\n'
+            '        description: Explicit development-only D50 compiler observation at the reviewed source pin\n'
+            '        required: false\n'
+            '        default: false\n'
+            '        type: boolean\n'))
+        text = remove_exactly_once(text, (
+            '\nenv:\n'
+            '  CI_V23_COMPILER_OBSERVATION: ${{ inputs.v23_d50_compiler_observation }}\n'
+            '  CI_V23_RUN_KIND: ${{ inputs.v23_run_kind }}\n'))
+        text = remove_exactly_once(text, (
+            '      - name: Admit explicit D50 compiler observation\n'
+            '        if: ${{ inputs.v23_d50_compiler_observation == true }}\n'
+            '        shell: bash\n'
+            '        env:\n'
+            '          OBSERVATION_KIND: ${{ inputs.v23_run_kind }}\n'
+            '          OBSERVATION_LANE: ${{ inputs.execution_lane }}\n'
+            '          OBSERVATION_SELECTION: ${{ inputs.native_selection_id }}\n'
+            '          OBSERVATION_UI: ${{ inputs.run_ui_smoke }}\n'
+            '        run: |\n'
+            '          set -euo pipefail\n'
+            '          test "$OBSERVATION_KIND:$OBSERVATION_LANE:$OBSERVATION_SELECTION:$OBSERVATION_UI" = development:github-xcode-26.6-acceptance:v23-dev-batch-no-index-d50:false\n'))
+        if text.count(PASSIVE_D50_FORWARDING) != 16:
+            raise AssertionError('changed passive D50 caller forwarding count')
+        text = text.replace(PASSIVE_D50_FORWARDING, '')
+    elif relative == '.github/workflows/ios-ci-worker.yml':
+        text = remove_exactly_once(text, (
+            '        type: string\n'
+            '      v23_d50_compiler_observation:\n'
+            '        description: Explicit development-only D50 passive compiler observation\n'
+            '        required: false\n'
+            '        default: false\n'
+            '        type: boolean\n'
+            '      v23_run_kind:\n'
+            '        description: Caller-bound V23 execution kind for observation admission\n'
+            '        required: false\n'
+            '        default: gate\n'))
+        text = remove_exactly_once(text, (
+            '      CI_V23_COMPILER_OBSERVATION: ${{ inputs.v23_d50_compiler_observation }}\n'
+            '      CI_V23_RUN_KIND: ${{ inputs.v23_run_kind }}\n'))
+        text = remove_exactly_once(text, (
+            '          case "$CI_V23_COMPILER_OBSERVATION" in\n'
+            '            false) ;;\n'
+            '            true) test "$CI_V23_RUN_KIND:$CI_RUNNER_PROVIDER:$NATIVE_SELECTION_ID:$CI_NATIVE_ACCEPTANCE_CONTRACT" = development:github:v23-dev-batch-no-index-d50:v23.integration.current-native.v1 ;;\n'
+            '            *) exit 1 ;;\n'
+            '          esac\n'))
+    elif relative == 'Scripts/build-smoke.sh':
+        text = remove_exactly_once(text, (
+            'case "${CI_V23_COMPILER_OBSERVATION:-false}" in\n'
+            '  false) ;;\n'
+            '  true)\n'
+            '    test "${CI_V23_RUN_KIND:-}" = development\n'
+            '    test "${NATIVE_SELECTION_ID:-none}" = v23-dev-batch-no-index-d50\n'
+            '    ;;\n'
+            '  *) exit 1 ;;\n'
+            'esac\n'))
+        text = remove_exactly_once(text, (
+            'elif [ "${CI_V23_COMPILER_OBSERVATION:-false}" = true ]; then\n'
+            '  # The explicit development-only opt-in is rechecked by the source-pinned observer.\n'
+            '  test "${CI_V23_RUN_KIND:-}" = development\n'
+            '  test "${NATIVE_SELECTION_ID:-none}" = v23-dev-batch-no-index-d50\n'
+            '  v23_build_command=(python3 Scripts/v23-compiler-timing.py -- xcodebuild)\n'))
+    else:
+        raise AssertionError('unreviewed passive D50 inverse path')
+    result = text.encode('utf-8')
+    if hashlib.sha256(result).hexdigest() != base_sha:
+        raise AssertionError('passive D50 inverse changed historical source: ' + relative)
+    return result
+
+
+class PassiveD50HistoricalInverseTests(unittest.TestCase):
+    def test_only_reviewed_additions_are_removed_and_tampering_refuses(self):
+        for relative in PASSIVE_D50_SOURCE_SHA256:
+            with self.subTest(relative=relative):
+                raw = (ROOT / relative).read_bytes()
+                expected = subprocess.check_output(['git', 'show', 'e74df72d02482ed70bc208a0a118275237c7c714:' + relative],
+                                                   cwd=ROOT)
+                self.assertEqual(before_passive_d50_observation(relative, raw), expected)
+                with self.assertRaises(AssertionError):
+                    before_passive_d50_observation(relative, raw + b' ')
+
+        relative = '.github/workflows/ios-ci.yml'
+        raw = (ROOT / relative).read_bytes()
+        for changed in (
+                raw.replace(PASSIVE_D50_FORWARDING.encode(), 2 * PASSIVE_D50_FORWARDING.encode(), 1),
+                raw.replace(b'      - name: Admit explicit D50 compiler observation\n',
+                            b'      - name: Admit implicit D50 compiler observation\n', 1),
+                raw.replace(b'permissions:\n  contents: read\n',
+                            b'permissions:\n  contents: write\n', 1)):
+            self.assertNotEqual(raw, changed)
+            old_sha = PASSIVE_D50_SOURCE_SHA256[relative][1]
+            with mock.patch.dict(PASSIVE_D50_SOURCE_SHA256,
+                                 {relative: (hashlib.sha256(changed).hexdigest(), old_sha)}):
+                with self.assertRaises(AssertionError):
+                    before_passive_d50_observation(relative, changed)
 
 
 def workflow_before_shared_coverage(raw):
@@ -190,6 +323,7 @@ def before_shared_coverage_bytes(relative, raw):
     if relative == '.github/workflows/ios-ci-worker.yml':
         return worker_before_parallel_development(raw)
     if relative == 'Scripts/build-smoke.sh':
+        raw = before_passive_d50_observation(relative, raw)
         text = remove_exactly_once(raw.decode('utf-8'), '   [ "${NATIVE_SELECTION_ID:-none}" = v23-ui-batch-rui1 ] || \\\n')
         return remove_exactly_once(text, SHARED_BUILD_SMOKE_LINE).encode('utf-8')
     if relative == 'Scripts/test-smoke.sh':
@@ -3822,7 +3956,8 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
     def test_command_vector_is_nonempty_under_bash32_nounset(self):
         # Static compatibility guard: newer local Bash cannot reproduce the
         # hosted Bash 3.2 empty-array nounset behavior. The paired shell tests
-        # separately execute both command paths and check their exact argv.
+        # separately execute the historical observer. The three closed vectors
+        # are ordinary, historical interruption, and explicit D50 observation.
         source = (ROOT / 'Scripts/build-smoke.sh').read_text(encoding='utf-8')
 
         def assert_nonempty_command_vectors(text):
@@ -3835,11 +3970,19 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
             # prefix expanded ahead of a separate command token.
             self.assertEqual(invocation.group(2).strip(), '\\')
             assignments = list(re.finditer(r'^([ \t]*)' + re.escape(name) + r'=\(([^)\r\n]*)\)[ \t]*$', text, re.M))
-            self.assertEqual(len(assignments), 2)
+            self.assertEqual(len(assignments), 3)
             self.assertEqual(assignments[0].group(1), '')
             self.assertLess(assignments[-1].end(), invocation.start())
-            self.assertEqual(len(re.findall(r'\b' + re.escape(name) + r'\s*\+?=', text)), 2)
+            self.assertEqual(len(re.findall(r'\b' + re.escape(name) + r'\s*\+?=', text)), 3)
             self.assertNotRegex(text, r'(?m)^\s*unset\b[^\n]*\b' + re.escape(name) + r'\b')
+            expected = [
+                ['xcodebuild'],
+                ['python3', 'Scripts/v23-compiler-timing.py', '--', 'xcodebuild'],
+                ['python3', 'Scripts/v23-compiler-timing.py', '--', 'xcodebuild'],
+            ]
+            self.assertEqual([shlex.split(a.group(2)) for a in assignments], expected)
+            self.assertLess(text.index('if [ "${NATIVE_SELECTION_ID:-none}" = notification-interruption-no-index-build30m ]; then'),
+                            text.index('elif [ "${CI_V23_COMPILER_OBSERVATION:-false}" = true ]; then'))
             for assignment in assignments:
                 words = shlex.split(assignment.group(2))
                 self.assertTrue(words, 'Bash 3.2 nounset cannot expand an empty command array')

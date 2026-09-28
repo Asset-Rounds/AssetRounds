@@ -7657,3 +7657,95 @@ Root confirmed required generator42PASS354.387s and native-CI379PASS227.899s, al
 Hosted f869 diagnosis: same Xcode/image/build script; setup35s versus44s. App compilation output window about903s versus679s, tests623s versus262s. Both compilation targets finished before the1800s wrapper timeout, but14 tests never started. The logs cannot identify one costly file or distinguish source load from runner contention. Read-only diagnosis m2-hosted-f869-build-diagnosis-v1/DIAGNOSIS.md; bounded compiler/resource profiling recipe pending. No watchdog or tests weakened, no unchanged rerun.
 
 C05 private reader v6 remains noninstallable under independent review; checked-FD postproof ownership correction due. Independently confirmed legacy partial-deletion provenance gap and compatibility proposal2 remain design-only and owner-reserved where frozen recovery behavior would change. No exception or prospective roster implementation is approved by this checkpoint.
+
+
+2026-09-28 S6 closure checkpoint published as e74df72d0 after independent nonauthor Sol-high staged reviewfb01b955b6c454e0d3f0c26beb09f640ad66c0b1ed850ea41c8bb7e65b8eb78d/tree6f5af5c8149db86de42c83a3e077eebe0cf349c9. Eleven explicit paths, required421CI PASS, exact local305compile and17-cut method PASS; fresh remote refs before commit/push, non-force linear push, main unchanged. Owner config preserved/unstaged. No new hosted dispatch; bounded exactf869 app typecheck profiling is diagnostic-only and underway with separate cache.
+
+
+### 2026-09-28 — exact hosted-source app typecheck profiling and C05 design review
+
+Root diagnostic m2-f869-app-profile-v1 typechecked all603 app inputs from exactf869 tracked source with a separate cache and bound generated asset input: PASS85.170s, inputs unchanged. Function/expression timing and2s compiler process samples retained. Independent read-only Sol-high analysis found max single timed event739.72ms and sampled per-frontend RSS peak550112KiB; this app-only local typecheck excludes codegen, tests/link and hosted resource conditions. It does not explain or overturn hosted1800s timeout. Bounded hosted instrumentation proposal next; no budgets/tests changed.
+
+C05 compatibility proposal2 SHA9994bd500b7f6b48fa41fb58f9899d4d995bb0f4cf20a9027d5c7ba0968c9f5c has independent nonauthor Sol-high design-direction approval60e19539bba9b22c881002a4c0ee1b7838aa496c8b803eec44ac209a12ba5e21, not source/runtime approval. It separates legacy schema1 authority and prospective owned replay publication before first unlink; source must retain the original typed witness plus physical reproof through publication. Owner question is pending only for explicit preservation/recovery-required behavior in unprovable legacy partial-no-roster states; no exception inferred. Separate private-reader v6 formal reviewaa83a17f requests changes for FD ownership before throwing postproof, affecting original and target copies. v7 correction pending; no live installation.
+
+
+### 2026-09-28 — C05 checked-reader v7 approved for isolated compilation
+
+Independent nonauthor Sol-high review3034f03cf6aa964687333ecea3e9157b9a8a77a5da0a15c6324fbfdfac1d0898 approves exact six-file v7 BINDINGee5a23de/diff6704e325 for noninstallable app-module composition/typecheck only. Original/target duplicated FDs now enter retained attempt state before fallible stat and borrowed-root postproof. Typed BackupExport/PortableExchange authority and exact content-kind mapping are retained; no ordinary caller redirects. Full cold recovery remains incomplete.
+
+Author froze C05_PRIVATE_V7_COMPILE_COMPOSITION_1 (BINDINGb58d4ccdd53fba5cb2dda632dde6be48011b87a717ceeb795b6c4de09775c445, diff95f523fa7cececd42938e6bd073a251f9edec656b046eeace149589da92bc5c1):15 bound current live paths/14 changes, exact reviewed Router SOURCE2/scoped Support and all six v7 candidates; latest S6 owner-link/diagnostics preserved. All15 parse; independent composition review pending before isolated603-input typecheck. No live install or native claim.
+
+
+2026-09-28 C05 v7 composition review3178789653befcf140ca1eb9237a3b720cb27f4d479e4d187984f7b1f783b5e7 approved exact noninstallable snapshot. Root603-app module84103 terminalFAIL84.201s, snapshot/live unchanged, at m2-c05-private-v7-module-v1. Two compiler diagnostics: StartupRouter cannot call fileprivate EraseAllService resumeSchema2ColdRetainedSourceValidation; PortableExchange cannot call BackupExportService private revalidateControls. Same author assigned minimal cross-file typed access successor; no live installation/positive route claim.
+
+
+2026-09-28 passive D50 compiler diagnostics scratch V1 received independent nonauthor Sol-high REQUEST CHANGES ca3ca0e9bc9959c4f768f5de94895682159d1afec8374644e962e6fd39d8cd48. Unconditional route wrapping would reject future ordinary source heads; observation errors/deadline records bypass sample-only cap; raw executable paths need normalization. Nothing installed or dispatched. Root authorized bounded additive default-false workflow/worker/dispatcher opt-in with explicit development-only D50 admission, retained input/ledger binding, fixed observer error categories and total output cap. Existing budgets, ordinary route, command semantics, historical profiles and gate rules remain unchanged; full independent chain review, CI suites and template guard required.
+
+
+### 2026-09-28 — C05 private-reader compiler closure, forward phase still due
+
+Minimal v8 Service/Backup access correction received independent nonauthor Sol-high reviewe4c095a8cf90099f5b8c9e3e8488289ab1d4864ff3c9fbaaa0ddd4d0e5aa9836. Exact composition2c46795879c02fdeac279269cda132f85b9046838a0bfacb3da24cb6b7fc3751 received delta review90bcbdd03bfce7e8e9d482f97e065217fe42b7611f965d21f73465901ad54bbf; only the two reviewed files differ from v7. Root isolated603-app module51431 PASS85.567s, snapshot/live unchanged, at m2-c05-private-v8-module-v1. This closes the two compilation diagnostics only; no native, live installation, positive full C05 or gate claim.
+
+Root authorized the next bounded scratch implementation with disjoint ownership: cold helper Router/Migration retained phase authority and original typed witness/lifetime; S2 Factory distinct target-preactivation validation and Service checked phase CAS/integration. First complete phase is genuine pointerSwitched→sessionActivated with same-operation alias retry. Activated target proof must not stand in for preactivation; prospective original roster before unlink and complete old-present/old-absent cleanup remain due. Frozen v8 stays immutable and live unchanged. Legacy compatibility question remains pending; independent intact/absent work continues.
+
+
+### 2026-09-28 — frozen C05 phase semantics settle implementation order
+
+Independent nonauthor Sol-high read-only design check against S10 history blob4AEB0D438DCF1D3F lines224–226 confirms pointerSwitched may retain old or target current, while sessionActivated requires a genuine active new empty container. Root records this as frozen-design-settled implementation direction under owner decision14, not a product exception or source approval. A private-copy validator alone cannot activate the target. The bounded next source must validate target semantics and dispose private aliases before first pointer effect; reprove retained EX/G/source controls; perform checked, writer-attested pointer/retired publication; open/retain the actual target session; and only then CAS the intent phase using expected post-publication bytes. Cold target-current replay must freshly activate rather than trust lost in-memory state; uncertain intent CAS must authenticate the resulting phase instead of replaying a stale CAS.
+
+Original typed tree authority must derive from the previously held validated source and remain physically reprovable through prospective roster publication despite reader retirement. Root assigned narrow cold-only EraseIntentStore CAS seam to S2 alongside Service/Factory; cold helper owns Router/Migration retained authority. Ordinary Registry-constructing replace is not authorized for the cold seam. All source/native/gate requirements remain due; the pending legacy no-roster exception is separate and unapproved.
+
+
+2026-09-28 root confirmed GitHub branch has no active run; latest36425436253 remains terminal failure. Prepared exact committed e74 gitarchive at m2-ci-passive-d50-checkpoint-v1/source for future reviewed diagnostics overlay; no suite/candidate installation yet. A CI-only child preserving exact e74 product trees can carry the distinct explicit passive build-performance question while C05 implementation remains isolated. This avoids waiting on unrelated full recovery before measuring the hosted bottleneck; it is not an unchanged-head retry, test-failure retry, acceptance or budget increase. Required default-false development-only admission, complete independent review and CI suites precede any dispatch.
+
+
+2026-09-28 explicit passive D50 V2 source reviewb02d21af9e68c510240ebe613854ebb338128b54bc99e2b4189b443c2e2d24ec requests changes on exact eight-path BINDING4a685020/patcha42475a0. Default-false ordinary route, bounded redacted records and explicit development admission address V1 issues. Remaining blockers: ordinary unexpected observation exceptions (KeyError/TypeError/IndexError) can replace real child outcome; collector defaults false before reconciling opted-in ledger/attempt and dispatch, allowing a removed/false dispatch flag to evade consistency checks. Immutable root verification snapshot contains2695 exact inputs but no suites ran; it is not approved/installed/dispatched. Same author preparing minimal V3 and targeted regressions, same reviewer required.
+
+
+2026-09-28 passive diagnostic V3 review9f2f95b33b98ad17506b7ade5a14d6b7cbf5a68ddca496b53612f04687bf64db requests one residual provenance correction on exact BINDING261726b2/fullpatchcb6a415a. V2 sampler-exception and ledger-only downgrade blockers are fixed. A supplied valid noncanonical attemptName currently suppresses canonical head/selection normal/retry attempt checks when dispatch/ledger flags are false; an actual retained true attempt can be ignored. Same author assigned canonical-name checks independent of supplied name and negative regression. Root V3 snapshot m2-ci-passive-d50-checkpoint-v2 retains2695inputs, no suites/installation/dispatch.
+
+
+### 2026-09-28 — passive D50 V4 source approved; complete tooling checks active
+
+Independent nonauthor Sol-high reviewe48b4b3985aa65e2a0d6f06e5bc4c84a531f5aabede671af0daed1a213d0e5af approves exact V4 source for isolated full CI/template verification only. BINDINGd78b4ff43254c0274e89f65f6778949457b7c1d1ea574c42455483af8a7e73ef/fullpatch74a33460/delta814b9dbd closes canonical-attempt downgrade while retaining default-false ordinary route, development-only opt-in, bounded redaction, child-result isolation and historical profiles. Root sealed2695 exact inputs in m2-ci-passive-d50-checkpoint-v3; four full suites now active via prun4, handle66913 (timing, dispatcher, selection generator, nativeCI including actual template guard). No tracked source installation, commit or dispatch.
+
+Root also authorized S2's narrow scratch production visibility of existing pure CompletedAbortSQLitePhysicalImageV1 parser rather than duplicating it for genuine target activation proof. Preserve the exact parser algorithm and DEBUG-only diagnostics elsewhere; independent review plus DEBUG and unsigned Release compilation required. This is implementation/compile authority, not signing or release authorization.
+
+
+2026-09-28 parallel baseline check: root exacte74 app603-input non-DEBUG module typecheck20669 PASS107.727s, inputs unchanged, at m2-e74-nondebug-app-typecheck-v1. All tracked app bytes were checked against e74, generated asset input separately bound, separate compiler cache/products untouched. This checks conditional source visibility only, not full Release scheme/codegen/link/signing/runtime; candidate production-parser seam still requires corresponding compilation.
+
+CI66913 partial: timing52/52PASS3.396s; dispatcher139total/136PASS/3optional-baseline skips4.794s, noerrors. Separate reviewed historical baseline72CF4D9F...A6D2 is absent locally; initial tracked e9cc tool hashes40790f76 and was not substituted. Existing fixed golden fixture comparisons ran. Selection/nativeCI suites remain active; no overallPASS yet.
+
+
+2026-09-28 CI66913 selection generator42/42PASS382.376s. Timing52 and dispatcher136PASS/3optional historical-baseline skips remain terminal; native-CI379/actual template guard still running. Root prepared guarded exact8path transfer script but has not executed it. No source/dispatch/gate advancement before remaining results and staged review.
+
+
+### 2026-09-28 — passive V4 full tooling result exposes historical adapter family
+
+CI66913 terminal on2695 unchanged frozen inputs: timing52/52PASS3.396s, dispatcher136PASS/3optional historical-baseline skips4.794s, selection42/42PASS382.376s, nativeCI379run/12failure reports/0errors/0skips227.495s. The reports include three subcases of one method; do not infer a passing-method count by subtracting report count. Failures are exact historical workflow/build comparisons that lack the new reviewed opt-in block inverse and a Bash3.2 nonempty-command-vector guard expecting2assignments while the explicit new branch adds a third. The actual template-budget guard did not fail, but the complete native-CI suite is not green.
+
+Same author assigned one bounded scratch test successor: admit only exact count/hash-bound reviewed additions before unchanged historical byte comparisons, retain prior source/pool/budget checks, add negative tamper controls, and verify all3command branches remain nonempty under actual Bash3.2. This is a legitimate new-input expectation change requiring recorded provenance and independent review, not permission to strip arbitrary changes or weaken tests. V4 snapshot/logs remain immutable; transfer script was not executed. No tracked CI install, staging, commit or hosted dispatch. Full required suites must run on the reviewed successor.
+
+
+### 2026-09-28 — correct C05 intermediate phase scope; eventual writer still required
+
+Root challenged the writer-before-sessionActivated assumption using actual cold Service3817–3847. Same independent nonauthor Sol-high reviewer rechecked frozen docs/design/v23/integration/s10-card-history/blobs/4AEB0D438DCF1D3F.md:224–226 and confirmed an actual retained validated empty container/session satisfies that durable phase; the frozen text does not separately require journal/search writer installation before its CAS. Factory15975–15995 opens the actual session, whose ModelContainer/context/reader lease are retained; Router1371–1399/1527–1538 constructs/publishes the coordinator later. The reviewer explicitly corrected its earlier writer-before-phase assumption as an overconstraint.
+
+Root records this frozen-design-settled, reversible implementation direction under decision14: phase packet uses genuine held target ModelContainer/StoreGenerationSession plus checked source/EX/G/intent authority and retains it through CAS/uncertainty. Private-copy validation alone remains insufficient. Premature Coordinator writer/search seam is excluded from this intermediate packet; complete cleanup and the single genuine writer/coordinator/search installation remain mandatory before ready. This preserves the complete requested end state and existing cold sequence, rather than introducing an unnecessary earlier constructor dependency. No new source approval or runtime success is inferred.
+
+
+### 2026-09-28 — reviewed passive D50 V5 historical compatibility correction
+
+Independent nonauthor GPT-6 Sol high review3bec7a6981f9a2aa3d99042c309a89de4fd6d375aa0138b90a7f6036c7125513 approves exact test-only bindinga0e902c8/patch75614940 for isolated full tooling verification. The inverse requires exact reviewed V4 input hashes, singleton/count-bound removals and exact e74 output hashes before unchanged historical checks; negative tamper controls and all three nonempty Bash command vectors are retained. Native census increases379→380 solely by the new hostile inverse test. No production/route bytes change from reviewed V4.
+
+Root composed the nine-path candidate at m2-ci-passive-d50-checkpoint-v4 with2695 SHA-bound inputs and started all four suites through prun4, handle77954. Timing52 and dispatcher139 completed successfully (three existing optional historical-baseline skips); selection and native suites remain active. Prior failed snapshot/logs remain intact. No tracked installation, commit, hosted dispatch or gate credit. Cleanup is complete; measured free space remains11GiB, with DeskIn/tools/active work and required originals retained.
+
+
+2026-09-28 tooling77954 intermediate: selection generator42/42PASS357.923s joins timing52PASS3.539s and dispatcher136PASS/3optional historical-baseline skips4.574s. Native-CI380/actual template guard remains active; no overall result, transfer or dispatch. Ref refresh confirms integration origine74 and mainb1d unchanged.
+
+
+### 2026-09-28 — passive D50 diagnostic checkpoint verified and transferred
+
+Root tooling77954 terminalPASS: timing52/52(3.539s), dispatcher136PASS/3optional historical-baseline skips(4.574s), selection42/42(357.923s), nativeCI380/380(226.143s), including the actual template-budget guard. All2695 frozen inputs remain unchanged; results/logs retained at m2-ci-passive-d50-checkpoint-v4. The prior V4 failure remains recorded. Nine exact independently reviewed V4+V5 paths transferred to primary with before/candidate SHA checks, all1204 app inputs and owner config unchanged.
+
+This CI-only checkpoint adds explicitly requested, default-false, development-only D50 build observation for a direct child of e74 with exact product/selection pins. Bounded redacted process/resource records preserve the child result and existing1800s watchdog; ledger/attempt/dispatch opt-in consistency is checked. Historical source comparisons retain exact predecessor hashes through the narrowly reviewed inverse, and the additive hostile regression brings nativeCI379→380. This is tooling verification, not hosted compilation, performance improvement, acceptance or gate evidence. Final staged-tree independent review, commit/push and the distinct original diagnostic remain due. C05 recovery source remains isolated and unfinished; main stays S10, all phase gates and full V23 scope remain required.

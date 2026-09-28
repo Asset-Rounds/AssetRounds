@@ -139,6 +139,7 @@ DEVELOPMENT_TIERS = ("D30", "D50", "D40P", "D50C", "D90S")
 PER_HEAD_SELECTIONS = (DEV_BATCH_SELECTION_ID, "v23-shared-coverage-d50x")
 # The dispatch input that carries the kind to the workflow; declared with default gate.
 RUN_KIND_INPUT = "v23_run_kind"
+COMPILER_OBSERVATION_INPUT = "v23_d50_compiler_observation"
 # The exact term the caller group, the route jobs' groups and their workers' groups must
 # carry so that development originals at different heads get different groups. It reads
 # the dispatch event (a called worker sees its caller's event), so a gate dispatch and
@@ -465,6 +466,19 @@ def run_kind_input_declared(text):
                if match]
     return (keys.get("type") == "choice" and keys.get("default") == "gate" and "options" in keys
             and sorted(options) == sorted(KINDS))
+
+
+def compiler_observation_input_declared(text):
+    """The opt-in must be a default-false boolean on the dispatched workflow."""
+    body = dispatch_input_lines(text, COMPILER_OBSERVATION_INPUT)
+    if body is None:
+        return False
+    keys = {}
+    for line in body:
+        match = re.fullmatch(r"        ([A-Za-z_-]+):(.*)", line)
+        if match:
+            keys[match.group(1)] = yaml_scalar(match.group(2))
+    return keys.get("type") == "boolean" and keys.get("default") == "false"
 
 
 def runs_for(head):
@@ -1015,8 +1029,11 @@ def phase1_candidate_lifecycle(plan_path, *, selection=None, kind=None, infra_re
         lock.rmdir()
 
 
-def dispatch(selection, kind=None, infra_retry_of=None, reason=None, phase1_plan=None):
+def dispatch(selection, kind=None, infra_retry_of=None, reason=None, phase1_plan=None,
+             compiler_observation=False):
     if phase1_plan is not None:
+        if compiler_observation:
+            raise SystemExit("compiler observation is development-only, never a Phase1 gate input")
         # Deliberately before all network, attempt or ledger effects. Registering
         # intent is not activation of the incomplete Phase1 gate path.
         gate = phase1_gates()
@@ -1027,6 +1044,8 @@ def dispatch(selection, kind=None, infra_retry_of=None, reason=None, phase1_plan
         except gate.Refused as error:
             raise SystemExit(str(error)) from error
     kind = run_kind(selection, kind)
+    if compiler_observation and (kind != "development" or selection != DEV_BATCH_SELECTION_ID):
+        raise SystemExit("compiler observation requires explicit development D50 selection")
     if infra_retry_of is not None:
         reason = (reason or "").strip()
         if not reason:
@@ -1051,6 +1070,8 @@ def dispatch(selection, kind=None, infra_retry_of=None, reason=None, phase1_plan
     if kind == "development" and not run_kind_input_declared(workflow):
         raise SystemExit(f"a development original passes {RUN_KIND_INPUT}=development, but {WORKFLOW_PATH} at "
                          f"{head} does not declare that choice input (gate|development, default gate)")
+    if compiler_observation and not compiler_observation_input_declared(workflow):
+        raise SystemExit("the exact workflow does not declare default-false compiler observation")
     resolved, resolved_sha = resolve_selection(head, selection)
     if kind == "development" and not development_route(selection, resolved):
         raise SystemExit(f"--kind development is only for development routes; {selection} is not one")
@@ -1140,9 +1161,13 @@ def dispatch(selection, kind=None, infra_retry_of=None, reason=None, phase1_plan
     if kind == "development":
         # A gate passes nothing: the workflow default (gate) keeps its argv and groups unchanged.
         argv += ["-f", f"{RUN_KIND_INPUT}=development"]
+    if compiler_observation:
+        argv += ["-f", f"{COMPILER_OBSERVATION_INPUT}=true"]
     attempt = {"head": head, "parent": parent, "selection": selection, "argv": argv,
                "knownRunIDs": sorted(x["id"] for x in before),
                "requestedAtUTC": now(), "resolvedSelectionSHA256": resolved_sha, "kind": kind}
+    if compiler_observation:
+        attempt["compilerObservation"] = True
     attempt.update(retry or {})
     try:
         write_new(attempt_path, attempt)
@@ -1169,14 +1194,20 @@ def dispatch(selection, kind=None, infra_retry_of=None, reason=None, phase1_plan
               "requestedAtUTC": json.loads(attempt_path.read_text(encoding="utf-8"))["requestedAtUTC"],
               "url": new[0]["html_url"], "argv": argv, "resolvedSelection": resolved,
               "resolvedSelectionSHA256": resolved_sha, "acceptance": False, "releaseReady": False, "kind": kind}
+    if compiler_observation:
+        record["compilerObservation"] = True
+        record["attemptName"] = attempt_path.name
     if shared:
         record["sharedPartitions"] = partitions
     record.update(retry or {})
     directory = EVIDENCE / str(record["runID"])
     directory.mkdir(parents=True, exist_ok=False)
     write_new(directory / "dispatch.json", record)
-    append_ledger({k: record[k] for k in ("runID", "head", "parent", "selection", "url", "requestedAtUTC", "kind")
-                   + (("infraRetryOf", "infraRetryReason") if retry else ())})
+    ledger_entry = {k: record[k] for k in ("runID", "head", "parent", "selection", "url", "requestedAtUTC", "kind")
+                    + (("infraRetryOf", "infraRetryReason") if retry else ())}
+    if compiler_observation:
+        ledger_entry["compilerObservation"] = True
+    append_ledger(ledger_entry)
     print(json.dumps({k: v for k, v in record.items() if k not in ("resolvedSelection", "sharedPartitions")},
                      indent=2))
 
@@ -1213,9 +1244,59 @@ def check_identity(observed, dispatched):
         raise SystemExit(f"run identity changed {actual} != {expected}; inspect before collecting")
 
 
+def check_compiler_observation_record(dispatched):
+    """Bind an opted-in development original to its immutable request and ledger."""
+    requested = dispatched.get("compilerObservation", False)
+    if type(requested) is not bool:
+        raise SystemExit("compiler observation dispatch field is not boolean")
+    originals = [line for line in ledger_dispatches() if line.get("runID") == dispatched.get("runID")]
+    if not requested:
+        if any(line.get("compilerObservation") is True for line in originals):
+            raise SystemExit("compiler observation ledger/dispatch downgrade")
+        names = []
+        if isinstance(dispatched.get("attemptName"), str):
+            names.append(dispatched["attemptName"])
+        if (isinstance(dispatched.get("head"), str) and
+                dispatched.get("selection") == DEV_BATCH_SELECTION_ID):
+            stem = dispatched["head"] + "-" + dispatched["selection"]
+            canonical_names = (stem + ".json", stem + ".infra-retry.json")
+            if "attemptName" in dispatched and dispatched["attemptName"] not in canonical_names:
+                raise SystemExit("compiler observation noncanonical attempt name")
+            names.extend(canonical_names)
+        for name in sorted(set(names)):
+            if not re.fullmatch(r"[a-f0-9]{40}-[A-Za-z0-9-]+(?:\.infra-retry)?\.json", name):
+                raise SystemExit("compiler observation attempt name")
+            path = ATTEMPTS / name
+            if path.is_file():
+                attempt = json.loads(path.read_text(encoding="utf-8"))
+                if (attempt.get("requestedAtUTC") == dispatched.get("requestedAtUTC") and
+                        attempt.get("compilerObservation") is True):
+                    raise SystemExit("compiler observation attempt/dispatch downgrade")
+        return False  # Historical missing flags agree across retained records.
+    if (dispatched.get("kind"), dispatched.get("selection"), dispatched.get("acceptance"),
+            dispatched.get("releaseReady")) != ("development", DEV_BATCH_SELECTION_ID, False, False):
+        raise SystemExit("compiler observation cannot be attributed to a gate or other route")
+    name = dispatched.get("attemptName")
+    if not isinstance(name, str) or not re.fullmatch(r"[a-f0-9]{40}-v23-dev-batch-no-index-d50(?:\.infra-retry)?\.json", name):
+        raise SystemExit("compiler observation attempt name")
+    attempt = json.loads((ATTEMPTS / name).read_text(encoding="utf-8"))
+    terms = ("head", "parent", "selection", "kind", "resolvedSelectionSHA256", "argv")
+    if (attempt.get("compilerObservation") is not True or
+            any(attempt.get(key) != dispatched.get(key) for key in terms) or
+            attempt.get("requestedAtUTC") != dispatched.get("requestedAtUTC") or
+            attempt["argv"].count(f"{COMPILER_OBSERVATION_INPUT}=true") != 1):
+        raise SystemExit("compiler observation attempt/dispatch mismatch")
+    if len(originals) != 1 or originals[0].get("compilerObservation") is not True or any(
+            originals[0].get(key) != dispatched.get(key)
+            for key in ("head", "parent", "selection", "kind", "requestedAtUTC")):
+        raise SystemExit("compiler observation ledger/dispatch mismatch")
+    return True
+
+
 def collect(run_id, resume):
     directory = EVIDENCE / str(run_id)
     dispatched = json.loads((directory / "dispatch.json").read_text(encoding="utf-8"))
+    check_compiler_observation_record(dispatched)
     if any(key.startswith("phase1") for key in dispatched):
         return collect_phase1(run_id, resume)
     claim = directory / "collector.claim.json"
@@ -1893,6 +1974,7 @@ def build_facts(build_text):
 def summarize(run_id):
     directory = EVIDENCE / str(run_id)
     dispatched = json.loads((directory / "dispatch.json").read_text(encoding="utf-8"))
+    requested_compiler_observation = check_compiler_observation_record(dispatched)
     if dispatched["selection"] == SHARED_SELECTION_ID:
         return summarize_shared(run_id, directory, dispatched)
     selected_path = directory / "artifact" / "ci-selection.selected.json"
@@ -1921,6 +2003,10 @@ def summarize(run_id):
         structured = {"available": True, "bytes": results_path.stat().st_size}
     build_log = directory / "artifact" / "build-smoke.log"
     build_text = build_log.read_text(encoding="utf-8", errors="replace") if build_log.exists() else ""
+    observation_path = directory / "artifact" / "v23-compiler-timing" / "events.jsonl"
+    if (not requested_compiler_observation and dispatched.get("selection") == DEV_BATCH_SELECTION_ID
+            and observation_path.exists()):
+        raise SystemExit("unrequested D50 compiler observation artifact")
     jobs = json.loads((directory / "jobs.json").read_text(encoding="utf-8"))
     run_record = json.loads((directory / "run.json").read_text(encoding="utf-8"))
     steps = [{"job": job["name"], "step": step["name"], "conclusion": step["conclusion"],
@@ -1942,6 +2028,10 @@ def summarize(run_id):
                "duplicatedTestLines": duplicated, "protectedFileTiming": timings[-60:],
                "namedDiagnostics": diagnostics, "devBatch": selection.get("devBatch"),
                "steps": steps, "acceptance": False, "releaseReady": False, "atUTC": now()}
+    if requested_compiler_observation:
+        summary["compilerObservation"] = {"requested": True,
+            "eventsRetained": observation_path.is_file(),
+            "developmentOnly": True, "acceptance": False}
     if dispatched["selection"] == UI_BATCH_SELECTION_ID:
         summary["uiBatch"] = selection.get("uiBatch")
         summary["ownerReview"] = {"verifiedOriginals": (directory / "rui1-collected-review.json").is_file(),
@@ -2819,6 +2909,8 @@ def main():
     dispatch_parser.add_argument("--kind", choices=KINDS,
                                  help="required for " + " and ".join(KIND_REQUIRED_SELECTIONS)
                                  + "; other selections default to gate")
+    dispatch_parser.add_argument("--compiler-observation", action="store_true",
+                                 help="explicit development D50 passive compiler observation at the reviewed pin")
     dispatch_parser.add_argument("--infra-retry-of", type=int, metavar="RUN_ID",
                                  help="--kind development only: the one rerun of this head+selection "
                                  "after RUN_ID's infrastructure failure")
@@ -2847,7 +2939,8 @@ def main():
         parser.error("--infra-retry-of and --reason must be given together")
     EVIDENCE.mkdir(parents=True, exist_ok=True)
     if args.command == "dispatch":
-        dispatch(args.selection, args.kind, args.infra_retry_of, args.reason, args.phase1_plan)
+        dispatch(args.selection, args.kind, args.infra_retry_of, args.reason, args.phase1_plan,
+                 args.compiler_observation)
     elif args.command == "preregister-phase1":
         preregister_phase1(args.plan)
     elif args.command == "discover-phase1":
