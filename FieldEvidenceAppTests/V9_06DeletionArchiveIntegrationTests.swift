@@ -68,6 +68,18 @@ final class V906RouterEraseFixture {
         let operation: EraseRouterOperationV1
     }
 
+    /// The original Service frame returns only values and weak source aliases.
+    /// The Router's checked cold exit begins after its strong SwiftData locals
+    /// have left this lexical frame.
+    private struct PreparedInterruption {
+        let oldGenerationID: UUID
+        let oldPointer: RestorePointerIdentityV1
+        let oldPointerBytes: Data
+        let operationsDevice: dev_t
+        let operationsInode: ino_t
+        let aliases: V906WeakEraseSourceAliases
+    }
+
     private init(root: URL, support: URL, caches: URL, temporary: URL,
         defaults: UserDefaults, defaultsName: String, router: StartupRouter,
         appSession: ProductionAppAccessSessionV1,
@@ -155,8 +167,8 @@ final class V906RouterEraseFixture {
         return (coordinator, diagnostics)
     }
 
-    func interrupt(point: EraseAllFailurePoint,
-        tombstone: DeletionLedgerEntryV2) async throws -> Interrupted {
+    private func originalInterruptionFrame(point: EraseAllFailurePoint,
+        tombstone: DeletionLedgerEntryV2) async throws -> PreparedInterruption {
         let (coordinator, diagnostics) = try readyOwner()
         let session = try coordinator.sourceSessionForV949EraseFixture(router: router)
         try V906Integration.seedRouterOwnedAsset(session)
@@ -195,6 +207,18 @@ final class V906RouterEraseFixture {
         } catch EraseAllServiceError.injectedFailure {
             // The exact AppAccess/Router pending operation remains the owner.
         }
+        return PreparedInterruption(oldGenerationID: session.generationID,
+            oldPointer: oldPointerIdentity, oldPointerBytes: oldPointerBytes,
+            operationsDevice: operations.st_dev,
+            operationsInode: operations.st_ino, aliases: aliases)
+    }
+
+    func interrupt(point: EraseAllFailurePoint,
+        tombstone: DeletionLedgerEntryV2) async throws -> Interrupted {
+        let prepared = try await originalInterruptionFrame(
+            point: point, tombstone: tombstone)
+        // No source session/context/container/coordinator local survives the
+        // frame above. The original Router retains its exact shutdown owner.
         let operation: EraseRouterOperationV1
         if point == .beforePreparedWrite {
             operation = try await presentation.continueCompletedAbortColdRestartForTesting()
@@ -202,13 +226,12 @@ final class V906RouterEraseFixture {
             operation = try await presentation.beginInterruptedEarlyEraseColdRestartForTesting(
                 expectedFault: point)
         }
-        return Interrupted(oldGenerationID: session.generationID,
-            tombstone: tombstone, oldPointer: oldPointerIdentity,
-            oldPointerBytes: oldPointerBytes,
-            operationsDevice: operations.st_dev,
-            operationsInode: operations.st_ino,
-            aliases: aliases,
-            operation: operation)
+        return Interrupted(oldGenerationID: prepared.oldGenerationID,
+            tombstone: tombstone, oldPointer: prepared.oldPointer,
+            oldPointerBytes: prepared.oldPointerBytes,
+            operationsDevice: prepared.operationsDevice,
+            operationsInode: prepared.operationsInode,
+            aliases: prepared.aliases, operation: operation)
     }
 
     func finishCheckedOriginal(_ interrupted: Interrupted,
@@ -416,8 +439,8 @@ final class V9_06DeletionArchiveIntegrationTests: XCTestCase {
                 XCTAssertEqual(try Data(contentsOf: owner.support
                     .appendingPathComponent("FieldEvidenceData/current.json")),
                     interrupted.oldPointerBytes)
-                XCTAssertNil(try EraseIntentStore(
-                    applicationSupportURL: owner.support).load())
+                XCTAssertTrue(try EraseIntentStore.completedCleanupRootIsAbsent(
+                    applicationSupportURL: owner.support))
             } else {
                 XCTAssertTrue(owner.aborts.isEmpty)
                 XCTAssertNotNil(try EraseIntentStore(

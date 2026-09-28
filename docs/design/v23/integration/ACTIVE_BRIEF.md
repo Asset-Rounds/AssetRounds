@@ -1,42 +1,44 @@
 # Active integration brief — 2026-09-27
 
-Read AGENTS.md. All results here are development only; CURRENT_INTEGRATION keeps exact history, VERIFICATION_DUE keeps open obligations, MERGE_READINESS defines phases.
+Read AGENTS.md. Results below are development only. CURRENT_INTEGRATION keeps exact history; VERIFICATION_DUE and MERGE_READINESS retain full obligations.
 
-## Authority and checkouts
+## Checkouts and authority
 
-- Primary `/Users/rentamac/Developer/AssetRounds`: integration branch `codex/v23-s10-integration-20260910`, pushed0a9a789b. Main remains accepted S10b1d04ae5. Phase1 not merge-ready.
-- Authoritative live source `/Users/rentamac/.codex/worktrees/integration-checkpoint/AssetRounds`: stale Git HEAD4a21cccb plus newer overlay. Never reset or copy stale HEAD; primary now contains the frozen12 reviewed source changes; later scratch candidates stay isolated.
-- Root alone installs, builds/collects, commits/pushes/dispatches. Preserve owner `.codex/config.toml`, drafts, Windows/V30 and evidence. No force/history rewrite/merge commits/PRs/broad staging/signing/release; never edit docs/design/s10 or Release.
-- Helpers use Sol medium/high or Luna max; reuse context. No Astra resume. Independent consequential review remains nonauthor Sol high.
-- Local Xcode26.6/17F113, iOS26.5/23F77; gates GitHub iOS26.2/23C54. DerivedData `/Users/rentamac/DD-integration-checkpoint`; four workers on16GB Mac. Never rebuild products during native execution.
+- Primary `/Users/rentamac/Developer/AssetRounds`: branch `codex/v23-s10-integration-20260910`, pushed51e97358. Main/origin main stays accepted S10b1d04ae5. No Phase1 merge readiness or release.
+- Primary has a pending bounded hosted27 checkpoint: three earlier fixture/DEBUG files, three CI/manifest files, four records. Owner `.codex/config.toml` stays untouched/unstaged.
+- Live `/Users/rentamac/.codex/worktrees/integration-checkpoint/AssetRounds`: stale Git HEAD4a21cccb plus authoritative newer overlay, including later Restore/abort work. Never reset/copy its HEAD or replace live files with older primary bytes.
+- Root alone installs, builds/collects, commits/pushes/dispatches. Helpers Sol medium/high or Luna max; reuse context, no Astra resume. Consequential review remains independent nonauthor Sol high.
+- No force/history rewriting/merge commits/PRs/broad staging/signing/release. Preserve drafts, Windows/V30/evidence; never edit docs/design/s10 or Release.
+- Local Xcode26.6/17F113, iOS26.5/23F77; gates GitHub iOS26.2/23C54. DD `/Users/rentamac/DD-integration-checkpoint`; four workers chosen from measured CPU/memory. Never rebuild running native products.
 
-## Current exact checkpoint
+## Primary hosted candidate — keep separate from later live work
 
-- No Xcode/native process is active after root collected native9. Isolated hosted27 CI suites are running in session76086 (m2-hosted27-ci-candidate-v1). Frozen12-path source/tool snapshot `.codex-temp/m2-verified-checkpoint-source-v1`; diffSHA bf6ad569416b783e9fcb0a789b3f7561a17d9e60dbc9fe6bd6470affdcfacfe1. All1,202 native input hashes match live. Independent intermediate-checkpoint source review613983b6 approved; exact12 paths transferred to primary. Staged/record verification and push pending.
-- Latest full app/all304unitSwift build PASS96.203s: m2-c46-abort-v949-build-v3. This proves compilation, not304tests executed.
-- Exact native9:5PASS4FAIL124.894s, source/products unchanged,1,314artifacts/268products retained at ~/AssetRounds-v23-review-evidence/m2-c46-abort-v949-v1-20260927.
-- Pass: C46R01 Party projection/hostiles, twoC32 restore controls, S6 cancel/dirty no-effect, genuine no-admission return. Fail: S6 every-interruption, V906 interruption, twoV949 retained-original cases. No full-family closure claim.
-- Current live hashes include BackupRestore db7848b7, Erase336370a1, Policyaf9304fd, Factory70a42b17, Migration1406847d, Coordinator0abd9f9d, Router538057aa; exact12-path inventory m2-current-source-delta-20260928.json.
-- Required Python suites v2: selection42PASS501.066s/native-CI379PASS419.200s;1,809inputs unchanged. Prior ENOSPC/exit65 failures retained. Later Swift changes do not inherit gate evidence.
+- Isolated m2-hosted27-ci-candidate-v3 PASS: selection42/363.559s, native-CI379/266.496s, all2691inputs unchanged. Root verified primary app/test/tool/workflow bytes match and installed only approved CI59068e51, test29d58d35, manifest82b274fe. Receipt m2-hosted27-primary-installed-v1.json.
+- Source pin now matches reviewed policyaf9304fd; prior7391 retained in exact historical tuple. Independent approval68d10e01; strict guards unchanged. Earlier CIv1/v2 failures retained, not promoted.
+- Primary three-file fixture/DEBUG source compiled all304Swift PASS43.141s; exactnative6=2PASS4FAIL80.184s retained. This scope is older than live Restore/abort. Coverage remains3628methods/32partitions.
+- Hosted27 selection includes known development failures; six extension-class controls remain covered by separate local evidence/full coverage. Manifest/source-closure reviewed; no current-head hosted dispatch yet.
+- Next: exact staged checkpoint review, explicit-path commit, fresh refs/non-force push, then one `Scripts/dev/v23-original.py dispatch --selection v23-dev-batch-no-index-d50 --kind development`. Sole root collector; no acceptance claim.
 
-## Remaining failure work
+## Live verification — current handles
 
-- Shared Registry/provider correction compiled and all3 targeted S2 tests passed in prior native13. Revoked-reader regression now uses fixed export metadata and full canonical records/member inventory; targeted test passes.
-- Protection fix skips only freshly equal backup-exclusion writes, preserving every complete request and authority check. Four measured directoryctime differences disappear. Native19=15PASS4FAIL plus separate correctly qualified4PASS; never claim a single23run.
-- S6 fixture recreates Erase root by constructing Store while observing absence. V906 keeps source/coordinator aliases through shutdown; precise uncertainOwner guard remains unproven. Same Sol author preparing isolated fixture corrections without weakening production guards.
-- V949 Factory create succeeds; DEBUG original-cold bind fails. Static internal-stage diagnostics proposed; no Factory or witness weakening justified.
-- Restore→same-process Erase transition frozen SOURCE_3 under independent review. Reviewer found missing B-manifest digest binding; author correcting. No live installation or module/native verification.
-- C05 schema2/V3 positive cold recovery remains incomplete. V9 borrowed-owner foundation approval2e883293 permits isolated typecheck only. Author implementing no-create Factory/Registry/manifest owners from exact live bases; no live installation. Historical partial audit9bfcd661 direction approved, not runtime proof.
-- Other obligations remain: broader AppAccess/S6, V949, manual placement, C45/C47/C05 publication/ownership and backup/journal families. Historical passes retain exact scope; full unit coverage remains mandatory.
+- Reviewed Restore SOURCE9 plus exact diagnostic Router composition, SOURCE10 cleanup correction, SOURCE11 test correction, completed-abort inventory fix and V949 root-fact diagnostic are installed live only.
+- Full app/all304unitSwift build m2-restore-abort-root-build-v2 PASS69.944s, exactinputs/source unchanged. Native16 terminal9PASS/7FAIL123.199s; source/products unchanged, collected as m2-restore-abort-root-v1-20260927. New S2 controls and C46 pass; three AppAccess Restore, S6/V906 and two V949 fail.
+- Live hashes: Routercb797b23, Factory3e1b7efe, Migration75773b72, Erase6923d19e, Policy7cd129c4, S6test9a06e337, S2test6cd60190. Receipts m2-restore-abort-root-installed-v1.json and m2-restore-source11-installed-v1.json.
+- Five added Restore tests require future census/partition and source-pin updates before publishing live work. Uninstalled proposal m2-restore-source7-coverage-partitions-v1.json has3633methods/32partitions, exactly5 additions, no removal/reordering. Current hosted candidate intentionally remains3628.
+- Earlier isolated Restore attempts/compile failures preserved. SOURCE8 appmodule PASS81.220s was only its scope; SOURCE9 needed full-build cleanup fixes. No native success inferred from any parse/review/module result.
 
-## Next actions
+## Failure families and parallel work
 
-1. Independently review and publish the frozen tested intermediate checkpoint with explicit failures, owned paths and refreshed refs/non-force push. Preserve subsequent isolated fixes.
-2. Review/compile/target-test bounded fixture and V949 diagnostics; finish full Restore and C05 positive recovery, including checked ownership and supported Simulator evidence semantics.
-3. Next hosted development proposal m2-next-hosted-development-selection-v2 has27selectors, still uninstalled. Existing route excludes six extension-class controls from this batch only; local/fullcoverage obligations retained. Validate route/support closure, review and required CI suites before dispatch.
-4. Stabilize, freeze one candidate and complete all same-head coverage/qualified UI/independent review/genuine owner visual acceptance gates before main FF, then exact-main verification. Continue full V23 scope before release.
-5. Physical protection UNVERIFIED/release-blocking; decision24 expires after Phase1 exact-main. C55/privacy/AppStore/human review owner-reserved; Card135 skipped/owner-only.
+- C46R01 and two C32 controls passed earlier native9; shared Registry ownership and revoked-reader canonical-basis controls have bounded passes. No full-family or gate closure implied.
+- S6/V906 source cause: preparation inventory already sealed/disposed before original shutdown seal. Narrow same-disposed-witness arm now installed; original reader/census/checked close preserved. Native16 includes refusal controls.
+- V949 prior4 allfailed76.131s with schema-migration mismatch/no-shallow-difference. New root dev/ino/mode/nlink diagnostic installed; strict digest unchanged, actual cause unresolved.
+- Restore original-reader→target-provider transition source-approved; native16 now tests genuine ready/maintenance return, held-reader refusal and original Erase admission. No cold-only substitute accepted.
+- C05 positive schema2/V3 recovery still incomplete/noninstallable. S2 owns Support EX plus present-Registry EX/G and partial-owner route; cold author owns disjoint temp private-copy target validator. Existing Support EX/ordinary producer SH direction reviewed, but no completed cleanup authority inferred. No Registry recreation or unchecked recursive deletion.
+- Reused Sol author rechecks historical AP10 correction-assurance diagnosis against current source/frozen design, read-only; current writer path may already address old omission. Do not patch stale diagnosis blindly.
+- Other AppAccess/S6/V949/manual placement/C45/C47/journal/backup obligations remain in VERIFICATION_DUE. Every unit test remains required for Phase1.
 
-## Storage and worktrees
+## Merge and preservation
 
-Owner-authorized cleanup recovered about24.2GB; current source/products/evidence preserved. Critical integration-checkpoint, erase-reader-retirement and v949-fixture-migration remain present after owner's archival; no restore needed. Localization-check safely archived. Other worktrees require dependency/accounting checks before archival. Receipts in .codex-temp/owner-storage-cleanup-20260927.
+All five same-head gates, qualified UI, independent candidate review, genuine owner visual acceptance, main fast-forward and exact-main verification remain due. Full V23 scope remains required before release. Physical protection UNVERIFIED/release-blocking; decision24 expires after Phase1 exact-main. C55/privacy/AppStore/human review owner-reserved; Card135 skipped/owner-only.
+
+Owner cleanup recovered about24.2GB earlier; preserve current products/evidence. Critical integration-checkpoint, erase-reader-retirement and v949-fixture-migration still present after archival; localization-check safely archived. Other worktrees need dependency accounting before archival.

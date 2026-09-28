@@ -4996,19 +4996,32 @@ private final class EraseOriginalColdExitFrameV1: @unchecked Sendable {
     }
 
     func bindCreatedTargetManifest(_ pointer: RestorePointerIdentityV1) throws {
-        try lock.withLock {
-            guard targetGenerationID == pointer.generationID,
-                  targetManifestPointer == nil,
-                  targetManifestIdentity == nil,
-                  try auxiliary.originalEraseSchemaMigrationDigestForTesting(
-                    excludingTarget: pointer.generationID)
-                    == schemaMigrationOrigin else {
-                throw EraseAllServiceError.invalidAuthority
+        var stage = "target-binding"
+        do {
+            try lock.withLock {
+                guard targetGenerationID == pointer.generationID,
+                      targetManifestPointer == nil,
+                      targetManifestIdentity == nil else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                stage = "schema-migration"
+                guard try auxiliary.originalEraseSchemaMigrationDigestForTesting(
+                        excludingTarget: pointer.generationID)
+                        == schemaMigrationOrigin else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                stage = "target-manifest"
+                targetManifestIdentity = try auxiliary
+                    .originalEraseTargetManifestForTesting(pointer)
+                targetManifestPointer = pointer
+                stage = "unrelated-operations"
+                try requireUnrelatedOperationsUnchanged()
             }
-            targetManifestIdentity = try auxiliary
-                .originalEraseTargetManifestForTesting(pointer)
-            targetManifestPointer = pointer
-            try requireUnrelatedOperationsUnchanged()
+        } catch {
+            FileHandle.standardError.write(Data((
+                "V949_ORIGINAL_CREATED_BIND_V1 stage=" + stage + "\n"
+            ).utf8))
+            throw error
         }
     }
 

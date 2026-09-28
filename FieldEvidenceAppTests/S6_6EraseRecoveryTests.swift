@@ -1457,8 +1457,10 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         XCTAssertEqual(abort.originalGenerationID, oldID)
         XCTAssertEqual(abort.subject.newGenerationID, newID)
         XCTAssertEqual(abort.reservation.subject, abort.subject)
-        XCTAssertNil(try EraseIntentStore(applicationSupportURL: support).load())
-        XCTAssertNil(try EraseIntentStore(applicationSupportURL: support).loadPreparation())
+        // An absent Erase root proves both intent and preparation absent
+        // without constructing a Store that would recreate the namespace.
+        XCTAssertTrue(try EraseIntentStore.completedCleanupRootIsAbsent(
+            applicationSupportURL: support))
         let sourceRoot = StoreGenerationFactory(applicationSupportURL: support)
             .installedGenerationURL(id: oldID)
         XCTAssertEqual(try tree(sourceRoot), sourceBefore)
