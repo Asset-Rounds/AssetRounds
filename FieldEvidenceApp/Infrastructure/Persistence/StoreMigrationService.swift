@@ -1605,8 +1605,10 @@ final class StoreMigrationJournalStoreV1 {
         private var pointer: File?
         private var files: [String: File] = [:]
         private var originalNames: [String]?
+        private var originalDataNames: [String]?
         private var dataCloseAttempted = false
         private var closeUncertain = false
+        private var diagnosticStage = "entry"
         private var targetName: String { "manifest-" + binding.subject.newGenerationID.uuidString.lowercased() + ".json" }
         fileprivate init(store: StoreMigrationJournalStoreV1, binding: EraseRetirementBindingV1,
             exclusion: EraseRetirementExclusionV1, retirement: ErasedRegistryRetirementProofV1) {
@@ -1620,7 +1622,7 @@ final class StoreMigrationJournalStoreV1 {
             guard retirement === expected, let exclusion, !closeUncertain else { throw StoreMigrationFailure.invalidIdentity }
             return exclusion
         }
-        private func requireSupportAndData() throws {
+        private func requireSupportAndDataIdentity() throws {
             guard let exclusion, !closeUncertain else { throw StoreMigrationFailure.invalidIdentity }
             try exclusion.requireSupport(binding: binding)
             var named = stat()
@@ -1633,11 +1635,17 @@ final class StoreMigrationJournalStoreV1 {
                     &named, AT_SYMLINK_NOFOLLOW) == 0, Identity(named) == dataIdentity else {
                     throw StoreMigrationFailure.invalidIdentity
                 }
-                try requirePolicy(.durableDirectory, at: store.applicationSupportURL.appendingPathComponent(StoreMigrationJournalStoreV1.eraseDataName))
             }
         }
-        private func requireLiveMigration() throws {
-            try requireSupportAndData()
+        private func requireSupportAndData() throws {
+            try requireSupportAndDataIdentity()
+            if dataDescriptor != nil {
+                try requirePolicy(.durableDirectory,
+                    at: store.applicationSupportURL.appendingPathComponent(StoreMigrationJournalStoreV1.eraseDataName))
+            }
+        }
+        private func requireLiveMigrationIdentity() throws {
+            try requireSupportAndDataIdentity()
             guard let exclusion else { throw StoreMigrationFailure.invalidIdentity }
             try exclusion.requireLiveRegistry(binding: binding)
             var named = stat()
@@ -1649,12 +1657,225 @@ final class StoreMigrationJournalStoreV1 {
                     &named, AT_SYMLINK_NOFOLLOW) == 0, Identity(named) == store.migrationIdentity else {
                 throw StoreMigrationFailure.invalidIdentity
             }
+        }
+        private func requireLiveMigration() throws {
+            try requireLiveMigrationIdentity()
             try requirePolicy(.stagingDirectory, at: store.migrationURL)
         }
-        private func requirePolicy(_ kind: OwnedFileKindV1, at url: URL) throws {
-            guard try ProtectedFilePolicyV1.observeTemporalPolicy(kind, at: url).state == .strictComplete else {
+
+        // All policy requests stay under this attempt's original EX and held
+        // file descriptors. The request may change only the exact policy
+        // state; every owned name, inode, other metadata, and byte is re-read.
+        private struct PhysicalLeaf: Equatable {
+            let name: String
+            let snapshot: FileSnapshot
+            let bytes: Data
+        }
+        private struct PhysicalWitness: Equatable {
+            let support: Identity
+            let operations: Identity?
+            let migration: Identity?
+            let data: Identity
+            let migrationNames: [String]
+            let dataNames: [String]
+            let leaves: [PhysicalLeaf]
+        }
+        private func checkedNames(in parent: Int32) throws -> [String] {
+            let descriptor = Darwin.openat(parent, ".",
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            guard descriptor >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+            guard let directory = Darwin.fdopendir(descriptor) else {
+                guard Darwin.close(descriptor) == 0 else {
+                    store.poisonRetirementManifestReadClose(descriptor)
+                    closeUncertain = true
+                    throw StoreMigrationFailure.invalidIdentity
+                }
                 throw StoreMigrationFailure.invalidIdentity
             }
+            var closeAttempted = false
+            defer {
+                if !closeAttempted {
+                    closeAttempted = true
+                    if Darwin.closedir(directory) != 0 {
+                        store.poisonRetirementManifestReadClose(descriptor)
+                        closeUncertain = true
+                    }
+                }
+            }
+            var names: [String] = []
+            errno = 0
+            while let entry = Darwin.readdir(directory) {
+                guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                if name != "." && name != ".." { names.append(name) }
+                errno = 0
+            }
+            guard errno == 0 else { throw StoreMigrationFailure.invalidIdentity }
+            closeAttempted = true
+            guard Darwin.closedir(directory) == 0 else {
+                store.poisonRetirementManifestReadClose(descriptor)
+                closeUncertain = true
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            return names.sorted()
+        }
+        private func readPhysical(_ file: File, parent: Int32, name: String,
+            allowRenameMetadata: Bool = false) throws -> PhysicalLeaf {
+            guard !file.closeAttempted, !closeUncertain,
+                  !store.retirementManifestReadCloseUncertain else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            let before = try StoreMigrationJournalStoreV1.regularFileSnapshot(file.descriptor)
+            var named = stat()
+            guard Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  FileSnapshot(named) == before else { throw StoreMigrationFailure.invalidIdentity }
+            if let expected = file.snapshot {
+                guard before.identity == expected.identity,
+                      before.byteCount == expected.byteCount,
+                      before.modifiedSeconds == expected.modifiedSeconds,
+                      before.modifiedNanoseconds == expected.modifiedNanoseconds,
+                      allowRenameMetadata || before == expected else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+            }
+            var bytes = Data(count: Int(before.byteCount))
+            try bytes.withUnsafeMutableBytes { buffer in
+                var offset = 0
+                while offset < buffer.count {
+                    let amount = Darwin.pread(file.descriptor,
+                        buffer.baseAddress!.advanced(by: offset), buffer.count - offset, off_t(offset))
+                    if amount < 0, errno == EINTR { continue }
+                    guard amount > 0 else { throw StoreMigrationFailure.invalidIdentity }
+                    offset += amount
+                }
+            }
+            guard try StoreMigrationJournalStoreV1.regularFileSnapshot(file.descriptor) == before,
+                  Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  FileSnapshot(named) == before else { throw StoreMigrationFailure.invalidIdentity }
+            if let expected = file.bytes, bytes != expected { throw StoreMigrationFailure.digestMismatch }
+            return PhysicalLeaf(name: name, snapshot: before, bytes: bytes)
+        }
+        private func physicalWitness() throws -> PhysicalWitness {
+            guard let retirement, let dataDescriptor, let dataIdentity, let pointer,
+                  let originalNames, let originalDataNames,
+                  !store.retirementManifestReadCloseUncertain else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            let exclusion = try requireOwners(retirement)
+            try exclusion.requireSupport(binding: binding)
+            try requireSupportAndDataIdentity()
+            let retiring = phase == .namespaceRetiring
+            if retiring {
+                try retirement.requireManifestNamespaceRetirementOwnership(
+                    exclusion: exclusion, attempt: self)
+            } else {
+                try requireLiveMigrationIdentity()
+            }
+            let support = try StoreMigrationJournalStoreV1.directoryIdentity(store.applicationSupportDescriptor)
+            let data = try StoreMigrationJournalStoreV1.directoryIdentity(dataDescriptor)
+            guard support == store.applicationSupportIdentity,
+                  data == dataIdentity else { throw StoreMigrationFailure.invalidIdentity }
+            var named = stat()
+            let operations: Identity?
+            if Darwin.fstatat(store.applicationSupportDescriptor,
+                StoreMigrationJournalStoreV1.operationsName, &named, AT_SYMLINK_NOFOLLOW) == 0 {
+                operations = Identity(named)
+                guard operations == store.operationsIdentity,
+                      try StoreMigrationJournalStoreV1.directoryIdentity(store.operationsDescriptor)
+                        == store.operationsIdentity else { throw StoreMigrationFailure.invalidIdentity }
+            } else {
+                guard retiring, errno == ENOENT else { throw StoreMigrationFailure.invalidIdentity }
+                operations = nil
+            }
+            let migration: Identity?
+            let migrationNames: [String]
+            if operations != nil,
+               Darwin.fstatat(store.operationsDescriptor,
+                StoreMigrationJournalStoreV1.migrationName, &named, AT_SYMLINK_NOFOLLOW) == 0 {
+                migration = Identity(named)
+                guard migration == store.migrationIdentity,
+                      try StoreMigrationJournalStoreV1.directoryIdentity(store.migrationDescriptor)
+                        == store.migrationIdentity else { throw StoreMigrationFailure.invalidIdentity }
+                migrationNames = try store.eraseRetirementManifestNamesChecked()
+            } else {
+                guard retiring,
+                      operations == nil || errno == ENOENT else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                migration = nil
+                migrationNames = []
+            }
+            let dataNames = try checkedNames(in: dataDescriptor)
+            let originalPlacement = !retiring && migrationNames == originalNames
+                && dataNames == originalDataNames
+            let expectedAfterMove = originalNames.filter { $0 != targetName }
+            let movedPlacement = (phase == .moving || phase == .preserved || retiring)
+                && dataNames == (originalDataNames + [StoreMigrationJournalStoreV1.eraseManifestName]).sorted()
+                && (retiring
+                    ? Set(migrationNames).isSubset(of: Set(expectedAfterMove))
+                    : migrationNames == expectedAfterMove)
+            guard originalPlacement || movedPlacement else { throw StoreMigrationFailure.invalidIdentity }
+            var leaves: [PhysicalLeaf] = []
+            leaves.append(try readPhysical(pointer, parent: dataDescriptor, name: "current.json"))
+            for name in originalNames {
+                guard let file = files[name] else { throw StoreMigrationFailure.invalidIdentity }
+                let moved = name == targetName && movedPlacement
+                if retiring && !moved && !migrationNames.contains(name) { continue }
+                leaves.append(try readPhysical(file,
+                    parent: moved ? dataDescriptor : store.migrationDescriptor,
+                    name: moved ? StoreMigrationJournalStoreV1.eraseManifestName : name,
+                    allowRenameMetadata: moved))
+            }
+            guard !closeUncertain, !store.retirementManifestReadCloseUncertain,
+                  try checkedNames(in: dataDescriptor) == dataNames else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            if migration != nil {
+                guard try store.eraseRetirementManifestNamesChecked() == migrationNames else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+            } else if operations == nil {
+                guard Darwin.fstatat(store.applicationSupportDescriptor,
+                    StoreMigrationJournalStoreV1.operationsName, &named, AT_SYMLINK_NOFOLLOW) != 0,
+                    errno == ENOENT else { throw StoreMigrationFailure.invalidIdentity }
+            } else {
+                guard Darwin.fstatat(store.operationsDescriptor,
+                    StoreMigrationJournalStoreV1.migrationName, &named, AT_SYMLINK_NOFOLLOW) != 0,
+                    errno == ENOENT else { throw StoreMigrationFailure.invalidIdentity }
+            }
+            return PhysicalWitness(support: support, operations: operations,
+                migration: migration, data: data, migrationNames: migrationNames,
+                dataNames: dataNames, leaves: leaves)
+        }
+        private func requirePolicy(_ kind: OwnedFileKindV1, at url: URL) throws {
+            let disposition = try ProtectedFilePolicyV1.verifyEraseColdTemporalPolicyWithCheckedRequest(
+                kind, at: url,
+                retainUncertainDescriptor: { descriptor in
+                    self.store.poisonRetirementManifestReadClose(descriptor)
+                    self.closeUncertain = true
+                }, unchangedWitness: { try self.physicalWitness() })
+            let observed = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(
+                kind, at: url, retainUncertainDescriptor: { descriptor in
+                    self.store.poisonRetirementManifestReadClose(descriptor)
+                    self.closeUncertain = true
+                })
+            switch disposition {
+            case .verifiedComplete:
+                guard observed.state == .strictComplete else { throw StoreMigrationFailure.invalidIdentity }
+            case .simulatorFileProtectionUnsupported:
+                #if DEBUG && os(iOS) && targetEnvironment(simulator)
+                guard observed.state == .pendingSimulatorRequest else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                #else
+                throw StoreMigrationFailure.invalidIdentity
+                #endif
+            }
+            guard !closeUncertain, !store.retirementManifestReadCloseUncertain else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            _ = try physicalWitness()
         }
         private func openFile(parent: Int32, name: String) throws -> File {
             let fd = Darwin.openat(parent, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
@@ -1677,9 +1898,17 @@ final class StoreMigrationJournalStoreV1 {
             guard before.byteCount >= 0, before.byteCount <= off_t(StoreMigrationJournalStoreV1.maximumOwnedArtifactByteCount) else {
                 throw StoreMigrationFailure.invalidContract
             }
-            let policy = try ProtectedFilePolicyV1.observeTemporalPolicy(kind, at: url)
-            guard policy.state == .strictComplete,
-                  policy.device == UInt64(before.identity.device), policy.inode == UInt64(before.identity.inode) else {
+            diagnosticStage = name == StoreMigrationJournalStoreV1.eraseManifestName
+                ? "destination-policy"
+                : name == "current.json" ? "pointer-policy" : "control-policy"
+            try requirePolicy(kind, at: url)
+            let policy = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(kind,
+                at: url, retainUncertainDescriptor: { descriptor in
+                    self.store.poisonRetirementManifestReadClose(descriptor)
+                    self.closeUncertain = true
+                })
+            guard policy.device == UInt64(before.identity.device),
+                  policy.inode == UInt64(before.identity.inode) else {
                 throw StoreMigrationFailure.invalidIdentity
             }
             var bytes = Data(count: Int(before.byteCount))
@@ -1694,7 +1923,14 @@ final class StoreMigrationJournalStoreV1 {
             }
             guard try StoreMigrationJournalStoreV1.regularFileSnapshot(file.descriptor) == before,
                   Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0, FileSnapshot(named) == before,
-                  try ProtectedFilePolicyV1.observeTemporalPolicy(kind, at: url) == policy else { throw StoreMigrationFailure.invalidIdentity }
+                  try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(kind,
+                    at: url, retainUncertainDescriptor: { descriptor in
+                        self.store.poisonRetirementManifestReadClose(descriptor)
+                        self.closeUncertain = true
+                    }) == policy,
+                  !closeUncertain, !store.retirementManifestReadCloseUncertain else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
             if let expected = file.bytes { guard bytes == expected else { throw StoreMigrationFailure.digestMismatch } }
             if file.snapshot == nil { file.snapshot = before }
             if file.bytes == nil { file.bytes = bytes }
@@ -1716,7 +1952,7 @@ final class StoreMigrationJournalStoreV1 {
         private func requireOriginalControls(excludingMovedManifest: Bool) throws {
             guard let originalNames else { throw StoreMigrationFailure.invalidIdentity }
             let expected = excludingMovedManifest ? originalNames.filter { $0 != targetName } : originalNames
-            guard try StoreMigrationJournalStoreV1.names(in: store.migrationDescriptor).sorted() == expected else {
+            guard try store.eraseRetirementManifestNamesChecked() == expected else {
                 throw StoreMigrationFailure.invalidPath
             }
             for name in expected {
@@ -1733,19 +1969,29 @@ final class StoreMigrationJournalStoreV1 {
                     }
                 }
             }
-            guard try StoreMigrationJournalStoreV1.names(in: store.migrationDescriptor).sorted() == expected else {
+            guard try store.eraseRetirementManifestNamesChecked() == expected else {
                 throw StoreMigrationFailure.invalidPath
             }
         }
         func observeOriginalAfterRegistration(retirement expected: ErasedRegistryRetirementProofV1) throws {
+            diagnosticStage = "prepare-owner"
+            var completed = false
+            defer {
+                #if DEBUG
+                if !completed { print("ERASE_MANIFEST_PREP_STAGE_V1 first=\(diagnosticStage)") }
+                #endif
+            }
             let exclusion = try requireOwners(expected)
             guard phase == .registered || phase == .observedOriginal else { throw StoreMigrationFailure.invalidIdentity }
             try expected.requireManifestPreparation(exclusion: exclusion, attempt: self)
             if phase == .observedOriginal {
                 _ = try requireCurrentManifest(binding: binding, exclusion: exclusion)
+                completed = true
                 return // exact initialized attempt; registration may have failed later
             }
-            try requireLiveMigration()
+            diagnosticStage = "migration-identity"
+            try requireLiveMigrationIdentity()
+            diagnosticStage = "data-open"
             if dataDescriptor == nil {
                 let fd = Darwin.openat(store.applicationSupportDescriptor, StoreMigrationJournalStoreV1.eraseDataName,
                     O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
@@ -1756,17 +2002,38 @@ final class StoreMigrationJournalStoreV1 {
             let actualDataIdentity = try StoreMigrationJournalStoreV1.directoryIdentity(dataDescriptor)
             if let dataIdentity { guard actualDataIdentity == dataIdentity else { throw StoreMigrationFailure.invalidIdentity } }
             else { dataIdentity = actualDataIdentity }
-            try requireSupportAndData()
+            try requireSupportAndDataIdentity()
             if pointer == nil { pointer = try openFile(parent: dataDescriptor, name: "current.json") }
-            let pointerValue = try requirePointer()
-            let names = try StoreMigrationJournalStoreV1.names(in: store.migrationDescriptor).sorted()
+            let names = try store.eraseRetirementManifestNamesChecked()
             guard names.contains(targetName), names.allSatisfy({ StoreMigrationJournalStoreV1.isManifestName($0) || $0 == StoreAggregateMigrationControlV1.name }) else {
                 throw StoreMigrationFailure.invalidPath
             }
             if let originalNames { guard names == originalNames else { throw StoreMigrationFailure.invalidIdentity } }
             else { originalNames = names }
             for name in names where files[name] == nil { files[name] = try openFile(parent: store.migrationDescriptor, name: name) }
+            diagnosticStage = "original-physical-capture"
+            if originalDataNames == nil { originalDataNames = try checkedNames(in: dataDescriptor) }
+            if let pointer, pointer.snapshot == nil {
+                let leaf = try readPhysical(pointer, parent: dataDescriptor, name: "current.json")
+                pointer.snapshot = leaf.snapshot; pointer.bytes = leaf.bytes
+            }
+            for name in names {
+                guard let file = files[name] else { throw StoreMigrationFailure.invalidIdentity }
+                if file.snapshot == nil {
+                    let leaf = try readPhysical(file, parent: store.migrationDescriptor, name: name)
+                    file.snapshot = leaf.snapshot; file.bytes = leaf.bytes
+                }
+            }
+            _ = try physicalWitness()
+            diagnosticStage = "data-directory-policy"
+            try requirePolicy(.durableDirectory,
+                at: store.applicationSupportURL.appendingPathComponent(StoreMigrationJournalStoreV1.eraseDataName))
+            diagnosticStage = "migration-directory-policy"
+            try requirePolicy(.stagingDirectory, at: store.migrationURL)
+            let pointerValue = try requirePointer()
+            diagnosticStage = "original-controls"
             try requireOriginalControls(excludingMovedManifest: false)
+            diagnosticStage = "target-digest"
             guard let bytes = files[targetName]?.bytes,
                   StoreMigrationCanonicalJSONV1.sha256(bytes) == binding.generationEpoch.generationManifestSHA256 else {
                 throw StoreMigrationFailure.digestMismatch
@@ -1776,6 +2043,7 @@ final class StoreMigrationJournalStoreV1 {
             try requireLiveMigration()
             try expected.requireManifestPreparation(exclusion: exclusion, attempt: self)
             phase = .observedOriginal
+            completed = true
         }
         func requireOriginalPointerBytes(_ expected: Data) throws {
             guard phase == .observedOriginal else { throw StoreMigrationFailure.invalidIdentity }
@@ -1834,7 +2102,7 @@ final class StoreMigrationJournalStoreV1 {
                     guard Identity(named) == store.migrationIdentity else { throw StoreMigrationFailure.invalidIdentity }
                     try StoreMigrationJournalStoreV1.requireDirectory(store.migrationDescriptor, identity: store.migrationIdentity)
                     try requirePolicy(.stagingDirectory, at: store.migrationURL)
-                    let remaining = try StoreMigrationJournalStoreV1.names(in: store.migrationDescriptor).sorted()
+                    let remaining = try store.eraseRetirementManifestNamesChecked()
                     guard Set(remaining).isSubset(of: Set(originalNames.filter { $0 != targetName })) else {
                         throw StoreMigrationFailure.invalidPath
                     }
@@ -1843,7 +2111,7 @@ final class StoreMigrationJournalStoreV1 {
                         _ = try observe(captured, parent: store.migrationDescriptor, name: name,
                             url: store.migrationURL.appendingPathComponent(name), kind: StoreMigrationJournalStoreV1.ownedFileKind(for: name))
                     }
-                    guard try StoreMigrationJournalStoreV1.names(in: store.migrationDescriptor).sorted() == remaining else {
+                    guard try store.eraseRetirementManifestNamesChecked() == remaining else {
                         throw StoreMigrationFailure.invalidPath
                     }
                 } else { guard errno == ENOENT else { throw StoreMigrationFailure.invalidIdentity } }
@@ -1870,6 +2138,13 @@ final class StoreMigrationJournalStoreV1 {
             }
         }
         func preserveAfterLeaseDrain(retirement expected: ErasedRegistryRetirementProofV1) throws {
+            diagnosticStage = "transfer-owner"
+            var completed = false
+            defer {
+                #if DEBUG
+                if !completed { print("ERASE_MANIFEST_PRESERVE_STAGE_V1 first=\(diagnosticStage)") }
+                #endif
+            }
             let exclusion = try requireOwners(expected)
             switch phase {
             case .observedOriginal:
@@ -1879,27 +2154,37 @@ final class StoreMigrationJournalStoreV1 {
                 try exclusion.requireManifestTransferRetry(retirement: expected, attempt: self)
             case .registered, .namespaceRetiring, .closing, .released: throw StoreMigrationFailure.invalidIdentity
             }
+            diagnosticStage = "transfer-reproof"
             try exclusion.requireManifestTransferRetry(retirement: expected, attempt: self)
+            diagnosticStage = "migration-policy"
             try requireLiveMigration()
+            diagnosticStage = "pointer-policy"
             _ = try requirePointer()
             guard let dataDescriptor, let source = files[targetName] else { throw StoreMigrationFailure.invalidIdentity }
             var original = stat()
             if Darwin.fstatat(store.migrationDescriptor, targetName, &original, AT_SYMLINK_NOFOLLOW) == 0 {
                 guard phase == .moving else { throw StoreMigrationFailure.invalidIdentity }
+                diagnosticStage = "pre-rename-controls"
                 try requireOriginalControls(excludingMovedManifest: false)
                 try requireAbsent(parent: dataDescriptor, name: StoreMigrationJournalStoreV1.eraseManifestName)
+                diagnosticStage = "exclusive-rename"
                 guard Darwin.renameatx_np(store.migrationDescriptor, targetName, dataDescriptor,
                     StoreMigrationJournalStoreV1.eraseManifestName, UInt32(RENAME_EXCL)) == 0 else {
                     throw StoreMigrationFailure.invalidIdentity
                 }
             } else { guard errno == ENOENT else { throw StoreMigrationFailure.invalidIdentity } }
+            diagnosticStage = "post-rename-observation"
             _ = try observePreserved()
+            diagnosticStage = "durable-sync"
             guard Darwin.fsync(source.descriptor) == 0, Darwin.fsync(dataDescriptor) == 0,
                   Darwin.fsync(store.migrationDescriptor) == 0 else { throw StoreMigrationFailure.invalidIdentity }
+            diagnosticStage = "post-sync-observation"
             _ = try observePreserved()
+            diagnosticStage = "record-preserved"
             try exclusion.requireManifestTransferRetry(retirement: expected, attempt: self)
             phase = .preserved
             try expected.recordManifestPreserved(attempt: self)
+            completed = true
         }
         func requirePreserved(binding expectedBinding: EraseRetirementBindingV1,
             exclusion expectedExclusion: EraseRetirementExclusionV1,
