@@ -3487,6 +3487,65 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
         let contextHadChanges: Bool
     }
 
+    /// A cold refusal before SwiftData opens has no ModelContext to read back.
+    /// Preserve the actual hostile source's database files instead; a failed
+    /// open must not rewrite or replace any of these physical source members.
+    private struct C33SourceFileAfterDrain: Equatable {
+        let device: UInt64
+        let inode: UInt64
+        let linkCount: UInt64
+        let bytes: Data
+    }
+
+    private func c33SourceFileAfterDrain(_ url: URL) throws
+        -> C33SourceFileAfterDrain? {
+        var before = stat()
+        let first = url.path.withCString { lstat($0, &before) }
+        if first != 0 {
+            guard errno == ENOENT else { throw CocoaError(.fileReadUnknown) }
+            return nil
+        }
+        guard before.st_mode & S_IFMT == S_IFREG,
+              before.st_nlink == 1, before.st_size >= 0 else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        let bytes = try Data(contentsOf: url)
+        var after = stat()
+        guard url.path.withCString({ lstat($0, &after) }) == 0,
+              before.st_dev == after.st_dev,
+              before.st_ino == after.st_ino,
+              before.st_mode == after.st_mode,
+              before.st_nlink == after.st_nlink,
+              before.st_size == after.st_size,
+              before.st_mtimespec.tv_sec == after.st_mtimespec.tv_sec,
+              before.st_mtimespec.tv_nsec == after.st_mtimespec.tv_nsec,
+              before.st_ctimespec.tv_sec == after.st_ctimespec.tv_sec,
+              before.st_ctimespec.tv_nsec == after.st_ctimespec.tv_nsec,
+              bytes.count == Int(before.st_size) else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        return C33SourceFileAfterDrain(device: UInt64(before.st_dev),
+            inode: UInt64(before.st_ino), linkCount: UInt64(before.st_nlink),
+            bytes: bytes)
+    }
+
+    private struct C33SourceDatabaseAfterDrain: Equatable {
+        let model: C33SourceFileAfterDrain
+        let wal: C33SourceFileAfterDrain?
+        let shm: C33SourceFileAfterDrain?
+    }
+
+    private func c33SourceDatabaseAfterDrain(_ root: URL) throws
+        -> C33SourceDatabaseAfterDrain {
+        guard let model = try c33SourceFileAfterDrain(
+            root.appendingPathComponent("model.sqlite")) else {
+            throw CocoaError(.fileReadNoSuchFile)
+        }
+        return try C33SourceDatabaseAfterDrain(model: model,
+            wal: c33SourceFileAfterDrain(root.appendingPathComponent("model.sqlite-wal")),
+            shm: c33SourceFileAfterDrain(root.appendingPathComponent("model.sqlite-shm")))
+    }
+
     /// This exact mutation runs either on the Router-published source writer
     /// before an original Erase, or inside the new checked post-handoff owner.
     /// It returns values only; no row/context/session escapes the closure.
@@ -3572,6 +3631,8 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
         }
         try hostileOwner.closeAfterCheckedDrain()
         XCTAssertFalse(observation.contextHadChanges)
+        let sourceDatabaseAfterDrain = try c33SourceDatabaseAfterDrain(
+            observation.generationRootURL)
 
         let fresh = V23EraseOperationHarnessV1(
             retainingRoot: prepared.fixtureRoot,
@@ -3623,23 +3684,46 @@ final class V9_49TemporalEvidenceClipTests: XCTestCase {
         do {
             try await fresh.router.retryColdEraseForTesting(
                 service: recovery, accessGate: fresh.accessGate)
-            XCTFail("Admitted hostile retained original: \(hostile); "
-                + "retainedStages=\(phases.filter { $0.hasPrefix("recovery.retained.") }); "
-                + "startupFailures=\(startupFailures)")
         } catch {
             XCTAssertFalse(error is CancellationError)
         }
         guard case .maintenance(.eraseInconsistent) = fresh.router.route else {
             return XCTFail("Hostile source must leave cold Erase in maintenance")
         }
+        XCTAssertTrue(startupFailures.contains { $0.hasPrefix("phase=erase type=") },
+            hostile)
+        XCTAssertFalse(phases.contains("recovery.retained.validate.complete"), hostile)
         XCTAssertTrue(phases.contains("recovery.presence.retained-source"),
             "\(hostile): \(phases)")
-        XCTAssertEqual(readbacks.count, 1,
+        let reachedValidation = phases.contains("recovery.retained.validate.enter")
+        XCTAssertEqual(readbacks.count, reachedValidation ? 1 : 0,
             "\(hostile); retainedStages=\(phases.filter { $0.hasPrefix("recovery.retained.") }); "
                 + "startupFailures=\(startupFailures)")
-        if let pair = readbacks.first {
+        if reachedValidation, let pair = readbacks.first {
             XCTAssertEqual(pair.0, observation.raw, hostile)
             XCTAssertEqual(pair.1, observation.raw, hostile)
+        } else {
+            XCTAssertTrue(phases.contains("recovery.retained.open.enter"), hostile)
+            XCTAssertFalse(phases.contains("recovery.retained.open.complete"), hostile)
+            let after = try c33SourceDatabaseAfterDrain(
+                observation.generationRootURL)
+            if after != sourceDatabaseAfterDrain {
+                let before = sourceDatabaseAfterDrain
+                // Fixed booleans only: XCTest's Data description reports
+                // lengths, not which SQLite member changed after a failed
+                // open. Preserve the exact aggregate no-effect assertion.
+                let label = "V949_SOURCE_FILE_DELTA_V1 "
+                    + "modelIdentity=\(after.model.device == before.model.device && after.model.inode == before.model.inode && after.model.linkCount == before.model.linkCount) "
+                    + "modelBytes=\(after.model.bytes == before.model.bytes) "
+                    + "walPresence=\((after.wal == nil) == (before.wal == nil)) "
+                    + "walIdentity=\(after.wal?.device == before.wal?.device && after.wal?.inode == before.wal?.inode && after.wal?.linkCount == before.wal?.linkCount) "
+                    + "walBytes=\(after.wal?.bytes == before.wal?.bytes) "
+                    + "shmPresence=\((after.shm == nil) == (before.shm == nil)) "
+                    + "shmIdentity=\(after.shm?.device == before.shm?.device && after.shm?.inode == before.shm?.inode && after.shm?.linkCount == before.shm?.linkCount) "
+                    + "shmBytes=\(after.shm?.bytes == before.shm?.bytes)\n"
+                FileHandle.standardError.write(Data(label.utf8))
+            }
+            XCTAssertEqual(after, sourceDatabaseAfterDrain, hostile)
         }
         if hostile == "byte-race" { XCTAssertTrue(replaced) }
         XCTAssertEqual(try StoreGenerationFactory(
@@ -4539,6 +4623,35 @@ final class C46V949TemporalCompatibilityTests: XCTestCase {
 /// The checked tree walk keeps every non-target byte and namespace fact even
 /// when the one authenticated target manifest changes the root link count.
 final class V949SchemaMigrationRootLinkWitnessTests: XCTestCase {
+    func testCheckedTreeFileHasherMatchesCanonicalSHA256AtReadBoundaries() throws {
+        let parent = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "V949-checked-hash-\(UUID().uuidString)", isDirectory: true)
+        let generation = parent.appendingPathComponent("generation", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: generation, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let model = generation.appendingPathComponent("model.sqlite")
+        let io = EraseAbortCheckedSnapshotIOV1()
+
+        // The one-shot canonical digest is independent of the checked FD walk.
+        // These lengths cross the 64 KiB read boundary and end in a short read.
+        for length in [0, 1, 65_535, 65_536, 65_537, 3 * 65_536 + 17] {
+            let bytes = Data((0..<length).map {
+                UInt8(truncatingIfNeeded: $0 &* 73 &+ 19)
+            })
+            try bytes.write(to: model, options: .atomic)
+            let nodes = try io.withOpen(
+                parent: AT_FDCWD, name: parent.path,
+                flags: O_RDONLY | O_DIRECTORY
+            ) { parentDescriptor in
+                try io.treeWithNodes(parent: parentDescriptor, name: "generation").nodes
+            }
+            let modelNode = try XCTUnwrap(nodes.first { $0.path == "model.sqlite" })
+            XCTAssertEqual(modelNode.fact.st_size, off_t(length))
+            XCTAssertEqual(modelNode.sha256, KernelCanonicalHashV1.sha256(bytes))
+            try io.requireSettled()
+        }
+    }
     func testExpectedTargetManifestLinkTransitionRetainsFullTreeChecks() throws {
         let parent = FileManager.default.temporaryDirectory.appendingPathComponent(
             "V949-schema-links-\(UUID().uuidString)", isDirectory: true)

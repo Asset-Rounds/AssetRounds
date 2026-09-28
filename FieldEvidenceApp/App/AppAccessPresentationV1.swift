@@ -1898,7 +1898,8 @@ final class AppAccessPresentationV1: ObservableObject {
         defer { finishLongAction(action) }
         let ticket = try await startupRouter.beginRestoreOperation(
             sourceModelContext: sourceModelContext, sourceGenerationID: sourceGenerationID,
-            coordinator: coordinator, accessGate: session.gate)
+            coordinator: coordinator, validatedPackage: package,
+            accessGate: session.gate)
         do {
             guard isCurrent(action), sceneIsActive else {
                 throw AppAccessContractFailureV1.accessDenied

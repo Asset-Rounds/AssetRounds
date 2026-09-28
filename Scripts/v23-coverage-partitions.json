@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "4bc335542f972f5d2bf47461e2be5eff41e7ca53",
+  "generatedAtHead": "da388ed4708677f67a9c02cb63cf683abc6efd90",
   "sweepOrder": [
     "S01",
     "S02",
@@ -1172,7 +1172,7 @@
     {
       "id": "S13",
       "tier": "D50C",
-      "estimatedSeconds": 2323.5,
+      "estimatedSeconds": 2383.5,
       "selectors": [
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS3_6CameraRecovery/testTypedEvidenceContextContractAnchor",
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS8_3DiagnosticPrivacy/testTypedEvidenceContextContractAnchor",
@@ -1318,6 +1318,7 @@
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testFactorySettingTransactionsCompleteAndReopenWithoutRepair",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testMaintenanceEligibilityRefusesForeignOperationsChildWithoutRepair",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testMaintenanceEligibilityRefusesPostOpenV3HistoryDriftWithoutRepair",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testMaintenanceRestoreAdmissionRefusesForeignOrReplacedValidatedStage",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testMaintenanceRestoreClearProbeRefusesMissingOrLinkedChildWithoutRepair",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testPresentationConsumesAuthenticAbortAndASecondEraseUsesNewAuthority",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testPresentationDeferredEraseRetainsDrainAcrossPauseAndResumesWithFreshService",
@@ -3914,7 +3915,7 @@
     {
       "id": "S33",
       "tier": "D50C",
-      "estimatedSeconds": 420.0,
+      "estimatedSeconds": 480.0,
       "selectors": [
         "FieldEvidenceAppTests/V23EraseRetiredPointerCutsTests/testAlreadyClearedRetiredPointerCompletesGenuineErase",
         "FieldEvidenceAppTests/V23EraseRetiredPointerCutsTests/testCompletePreSwapTemporaryCompletesGenuineErase",
@@ -3922,6 +3923,7 @@
         "FieldEvidenceAppTests/V23EraseRetiredPointerCutsTests/testHostileReservedPointerShapesRefuseWithoutCanonicalDeletion",
         "FieldEvidenceAppTests/V23EraseRetiredPointerCutsTests/testPrefixReservedTemporaryCompletesGenuineErase",
         "FieldEvidenceAppTests/V23EraseRetiredPointerCutsTests/testSwappedOldTemporaryCompletesGenuineErase",
+        "FieldEvidenceAppTests/V949SchemaMigrationRootLinkWitnessTests/testCheckedTreeFileHasherMatchesCanonicalSHA256AtReadBoundaries",
         "FieldEvidenceAppTests/V949SchemaMigrationRootLinkWitnessTests/testExpectedTargetManifestLinkTransitionRetainsFullTreeChecks"
       ]
     }

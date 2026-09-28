@@ -7462,3 +7462,135 @@ Root transferred exactly 24 app/test and three CI paths from the frozen five-bou
 The separately installed newer six-file recovery composition4525b8db compiled all305 test files PASS53.277s. Native18 terminal14PASS4FAIL571.907s; source/products unchanged, exact selectors confirmed. Sole collector74876 retained1362artifacts/268products at m2-recovery-family-v1-20260928. Maintenance/ready Restore publication, deferred Erase, staged-package hostility and completed-abort foreign-ingress/same-inode hostiles now pass in this newer scope. Failures remain: S6 post-injection.beforePointerPhaseWrite staleAttempt; genuine nonempty fixture graphInvalid before journal; V906 post-ready Operations-directory assertions; V949 retained-inventory hostile expectations. None is silently waived.
 
 Allocation attachment was separately attempted against verified fresh app PID42872 with own xctrace43335; it stalled attaching and was stopped (own profiler only) after128.342s, exit-9. No useful allocation trace or causality claim. App vmmap captured24.4GiB allocated/375501 default-zone allocations, approximately21.5GiB swapped; prior RSS underestimated pressure. After native exited, free space recovered to17GiB. Monitor/profiler/VM originals retained with SHA manifest at m2-recovery-family-monitor-20260928. No swap files deleted. Bounded checked-tree bufferPointer correction independently source-approved91a3d788; nonempty canonical-placement fixture source-approveda78a0e16. Both need installation/full compile/native. S6 full interruption-phase audit and V949/V906 diagnosis continue separately. All gates, hosted verification, owner visual acceptance and main advancement remain due.
+
+
+### 2026-09-28 — intermediate checkpoint published; hash/placement verification running
+
+Independent nonauthor GPT-6 Sol high staged reviewcabd7d6d approved exact tree6d942b9b74d0c6523d1803fe1295a1085f9dbfeb,31 explicit paths. Root refreshed refs, verified expected4bc33554 integration/main baseline, committed da388ed4708677f67a9c02cb63cf683abc6efd90 and pushed non-force; owner config remained unstaged. Main unchangedb1d04ae5. Published source is the older frozen five-boundary checkpoint, with its five development failures explicitly retained, not the newer recovery overlay.
+
+Root separately installed three disjoint reviewed newer paths: streaming hasher Factorycface99c and six-length V949test3a8d29c4 (review91a3d788), canonical-placement AppAccesstest45322230 (reviewa78a0e16); receipt m2-hasher-placement-installed-v1.json. Full305build70416 PASS39.516s exactCompileInputs/sourceUnchanged. Four-selector native sampler11355 active: checked-tree six-length regression, expected-manifest control, nonempty maintenance recovery and S6 Every for same-cut memory comparison. No memory improvement or native pass claimed yet. Full17-cut interruption correction remains separate scratch under review.
+
+
+### 2026-09-28 — hash parity passes; maintenance advances to journal validation
+
+Four-native sampler11355 terminal; actual native65/233.970s, source/products unchanged. Exact four selectors: checked-tree six-length canonical SHA parity PASS0.039s; expected-target-manifest full-tree control PASS0.015s; S6 Every FAIL195.509s at same beforePointerPhaseWrite staleAttempt; nonempty maintenance FAIL0.626s journalInvalid after canonical placement passes previous graph prerequisite. Collector20572 retained1332artifacts268products at m2-hasher-placement-v1-20260928. Source-approved fixture is not a recovery pass.
+
+External monitor retained 114samples/9files with SHA manifest at m2-hasher-placement-memory-v1-20260928; sampled app peak7742720KiB. Direct verified-app read-only vmmap at one intermediate stage showed3.1GiB allocated; stage differs from prior24.4GiB capture and does not establish reduction. Large growth remains. Source audit identifies nested canonicalBytes envelopes through V3–V53 re-encoding prior Data; existing framedSemanticDigest offers a bounded candidate representation, but complete proof equivalence/review/compile/native remain due. No allocator stack causality or performance closure claimed.
+
+S6 complete17-cut classification source-approvedbd0726a1, uninstalled. V906 genuine pre-ready absence-witness expectation and V949 per-component physical-byte diagnostic remain scratch under independent review; next batch will combine coherent reviewed fixes. Canonical journal fixture validation is being audited as a family. Main and all gate obligations unchanged.
+
+
+### 2026-09-28 — reviewed interruption and witness corrections installed
+
+Root verified exact before/candidate hashes and installed four disjoint paths via m2-phase-witness-diagnostic-installed-v1.json: Serviceaa7dc475/Router6a08f70d (17-cut phase classification, independent Sol-high reviewbd0726a1); V906testdada88cb (genuine pre-ready checked ENOENT witness replacing invalid post-ready name absence, reviewe28ff333); V949test2bbbc2cd (fixed per-component identity/bytes diagnostic preserving aggregate failure and all hostility assertions, review0e006bb9). No compile/native launched for these yet. Factorycface99c and AppAccesstest45322230 remain current. Bounded canonical-memory representation and journal corrections are isolated scratch work for the same forthcoming development cycle; no new hosted dispatch or gate credit.
+
+
+### 2026-09-28 — bounded completed-abort canonical representation installed
+
+Independent nonauthor GPT-6 Sol high review536bab61 approved exact Factory13b58403/semantic-test4ab3a6c5; root checked before/candidate hashes and installed via m2-framed-canonical-installed-v2.json. The completed-abort record now compares the existing domain/release/index/length/count-bound SHA256 of all51 V3–V53 canonical local layers instead of recursively base64-embedding predecessor Data. Identity, complete mutation history, physical/control checks and authority guards stay exact; semantic regression invokes the actual helper against an independent framing oracle and existing tamper/vectors. No runtime or memory improvement claimed before native verification. Sixteen existing affected selectors prepared in m2-framed-recovery-memory-v1/SPEC.json; no run dispatched yet. Nonempty journal fixture candidate awaits independent review before this combined build.
+
+
+### 2026-09-28 — combined framed-memory and recovery build
+
+Root installed independently reviewed nonempty journal fixture35795364 (Sol-high review2db0b31c) after exact before/candidate hash checks, receipt m2-maintenance-journal-installed-v1.json. Real V53 schema, explicit generation/identity, pre-fault real journal bootstrap/validate/export and post-recovery strict validation replace the incomplete ad hoc test setup. No post-fault baseline or fabricated receipt. This joins the already reviewed phase/witness/diagnostic and canonical-digest paths. Full305 build42590 running as m2-framed-recovery-build-v1;16 existing affected development selectors prepared; native only after exact successful compile. No hosted/gate/main advancement.
+
+
+### 2026-09-28 — bounded memory verified locally; two recovery failures remain
+
+Full305build42590 PASS40.261s, exactCompileInputs/sourceUnchanged. Sixteen-native sampler81860 terminal; actual native65/365.545s, exact source/products,14PASS2FAIL. Solecollector4496 retained1358artifacts268products at m2-framed-recovery-v1-20260928. All16 selected methods executed. Nonempty actual prepared-journal recovery PASS0.571s; V906 interrupted-Erase recovery PASS25.147s. Actual completed-abort framed oracle/tamper and early/latest corruption semantic controls pass; all six selected private-copy/foreign-source/ingress/SHM/SQLite hostiles pass; genuine no-admission/revoked-reader and two V949 positive controls pass.
+
+S6 Every advanced through additional cuts then failed161.114s: test1890 actual original error was not EraseAllServiceError.injectedFailure; subsequent2097 invalidAuthority. Exact later boundary/cause being diagnosed; no blanket17-cut recovery pass. V949 retained-original hostile test still fails only raw-row/wrong-workspace physical aggregate: fixed diagnostics show model/WAL bytes and all presence/identities equal, SHM bytes different. Actual authorized open/SHM effect and preservation contract require review before any expectation correction; no blanket SHM exemption.
+
+Memory180samples/9files retained with SHA manifests at m2-framed-recovery-memory-v1-20260928. App peak790496KiB (~0.754GiB) vs preceding same-machine4-selector7742720KiB (~7.384GiB); test scopes differ, so not a universal performance ratio. Actual prealiasCanonical stages remain~609MiB, rather than prior~3.2GiB. One verified-PID vmmap snapshot showed32.2MiB allocated, but differs in stage from prior24.4GiB and is not direct point-for-point proof. These runtime results support removal of the observed completed-abort canonical memory blowup while preserving exercised proof/hostile controls. Broader performance/full coverage/hosted verification remain due. No gate/main/release advancement.
+
+
+### 2026-09-28 — V949 SHM first-transition diagnostic
+
+Root installed test-only V949c86e38bd after independent Sol-high review811b52c1 and exact before/candidate checks, receipt m2-v949-shm-origin-installed-v1.json. Four fixed Boolean snapshots after fresh harness/authentication/before retry/after retry preserve the aggregate failure and all hostile/route/readback assertions; they locate a transition but do not authorize an SHM effect. Full305build85704 PASS16.036s exactCompileInputs/sourceUnchanged; isolated hostile native58458 running as m2-v949-shm-origin-native-v1 while S6 exact-marker witness remains separate scratch. No live input/product edits before collection. Provisional live census3658 unique/33partitions preserves3656priororder with2additions/0removals; scratch inventory only, stale worktree generatedAtHead is not candidate evidence.
+
+
+### 2026-09-28 — SHM mutation interval narrowed to cold retry
+
+Isolated diagnostic native58458 terminalFAIL101.204s (test65.994s), source/products unchanged. Solecollector retained1304artifacts268products at m2-v949-shm-origin-v1-20260928. Both raw-row and wrong-workspace snapshots retain exact model/WAL/SHM bytes and identities after fresh harness construction, authentication and pre-retry. Only post-retry SHM bytes differ; model/WAL bytes, all identities and presence remain exact. Aggregate assertion intentionally still fails. This proves the observed interval, not ownership authorization or permission to ignore SHM. Same author now tracing exact cold-retry open/owner transition; all hostile/no-ready controls remain. No active build/native.
+
+
+### 2026-09-28 — remaining recovery causes and isolated C05 prerequisite
+
+S6 source/log audit identifies afterSessionRetirementBeforeCleanup (offset12): target validation and retirement proof finish, then original call throws before the injection. The pre-deletion notification witness calls completed-Erase emptiness while genuine notification cleanup retains its typed revocation marker until later namespace deletion. An exact typed/inode-bound retained-marker witness and hostile controls are being authored; completed-Erase emptiness must remain unchanged. No correction installed or claimed yet.
+
+V949 source trace places the measured retry-only SHM transition along requireRecoveryPresence/openInstalledGeneration: a real reader lease is acquired and V53 ModelContainer is constructed before later validation may fail. The fixture's earlier one-use reader-open proof does not authorize this later window. Actual reader/owner/file-effect proof remains due before changing the no-effect expectation; no blanket SHM exception.
+
+C05 audit C05_NEXT_AUDIT_1/C05_NEXT.md (aedff54a) separates 51 stale partial-composition compile diagnostics from missing positive schema-2/V3 behavior. Root authorized scratch-only exact-base dependency/three-way hunk reconstruction in C05_COMPILE_ENVELOPE_1, preserving current S6/V949 changes and retaining explicit unsupported positive-route refusals. This envelope is noninstallable/compile-only; actual Registry/Operations disposition, alias/owner exit and durable completion remain future required work. It is not a recovery result.
+
+
+### 2026-09-28 — genuine pre-deletion notification marker proof installed
+
+Independent nonauthor GPT-6 Sol high reviewb5fa1656 approved exact three-path packet. Root verified/installed Ledger7c264208/Servicecce1cefd/S6test989051d3 via m2-post-retired-marker-installed-v1.json. The actual OS-success callback seals the exact typed revocation and physical tree before awaits; prepared/fault reproof cannot accept replacement bytes/inode/operation or extra leaves. Completed-Erase six-leaf absence stays unchanged. New real Router hostile selector covers three mutations. Full305build25640 PASS44.387s exactCompileInputs/sourceUnchanged;8 affected native45986 active as m2-post-retired-marker-native-v1. No runtime pass yet.
+
+V949 SHM work now shares the C05 cold-owner prerequisite. Existing C05 partial provider lacks a held old-source manifest and accepted live-reader release seam; those must not be invented as existing authority. Root requested evaluation of full checked private-copy canonical validation under same genuine cold operation to avoid source SQLite side effects if it satisfies the complete rows/history/identity/physical contract. No test expectation relaxed and no shared-owner successor installed.
+
+
+### 2026-09-28 — marker cycle controls pass, interruption/hostile failures retained
+
+Eight-native45986 terminal65/252.828s, exactsource/products,6PASS2FAIL; solecollector35368 retained1336artifacts268products at m2-post-retired-marker-v1-20260928. S2 immediate cleanup and all five selected V915 completed-Erase/protected-data/receipt/notification controls pass, including strict all-leaves-empty adoption. S6 Every advances beyond previous pre-injection marker failure then throws uncertainOwner (162.049s); new genuine marker-hostile selector throws invalidValue (8.962s). Same author diagnoses exact boundaries; no overall interruption recovery pass.
+
+C05 compile-envelope reviewd2db4d42 approved only isolated typechecking, explicitly noninstallable. Root froze exact1204source inputs with ten bound current-base overrides in m2-c05-envelope-typecheck-v1/source, actual603appSwift inputs plus copied generated-input bindings, own module cache. Module68937 active; no live source/products changed. Positive schema2/V3 routes remain deliberately incomplete/fail-closed. This module result cannot establish native behavior. Shared V949/C05 private-copy full validation now authorized with narrow BackupExport cold-validator seam plus Factory/Service and genuine held original ManifestOwner/Router retention; implementation remains scratch.
+
+
+### 2026-09-28 — isolated C05 typecheck identifies declaration-closure family
+
+Module68937 terminalFAIL84.827s,603 actual app Swift inputs; all1204 snapshot inputs and live source unchanged. ERRORs retained at m2-c05-envelope-typecheck-v1/ERRORS.json/TYPECHECK.log.332 diagnostics include duplicate/ambiguous EraseC05ColdPreparationJournalReaderV1 and EraseRetirementPointerState declarations, installed/restore/import name overloads and many downstream Never-throw/inference errors, plus missing frozenC05ReaderActivity/outputFact references. They are not live app/native failures. Same author will freeze a current-preserving deduplicated successor; shared private-copy implementation waits for coherent exact dependency base. Candidate stays noninstallable and positive C05 behavior remains incomplete. No new hosted dispatch/main/gate claim.
+
+
+### 2026-09-28 — shutdown diagnostic installed and framed checkpoint frozen
+
+Independent nonauthor Sol-high reviewbbdd9d6f approved Registry DEBUG fixed-stage/count logging preserving guard/throw/lock order and unique per-mode deterministic S6 IDs. Root verified and installed Migratione4f1ccc4/S6test1ced3a5a via m2-shutdown-diagnostic-installed-v1.json. Full305build72392 active; two existing affected selectors prepared. No shutdown behavior fix or native pass claimed.
+
+Root independently froze m2-framed-checkpoint-v1/source from exact m2-framed-recovery-build-v1/native source binding1204files (14PASS2FAIL365.545s). Eight app/test differences from da388ed4; newer marker/shutdown diagnostics and partial C05 excluded. Proposed15-selector hosted DEVELOPMENT question covers six prior pinned-runtime retirement-policy failures, recovery/maintenance/V906, framed semantic and hash parity. Exact3658unique-method/33partition census preserves3656prior order+2additions, no removals. Policy755870 source/pin unchanged.2696inputs frozen; required42+379CI53230 active via4-worker prun; independent checkpoint review pending. No primary transfer/staging/dispatch yet. Known S6/V949 failures remain explicit, and this is not a main/gate candidate.
+
+
+### 2026-09-28 — shutdown cause localized; marker hostility regression passes
+
+Full305 build72392 PASS50.174s with exactCompileInputs/sourceUnchanged. Two-selector native40258 terminal65/238.371s, source/products unchanged: genuine retained-marker replacement/wrong-operation/extra-leaf test PASS17.760s after distinct per-mode identity correction; Every FAIL183.130s. DEBUG first-failed-stage is unlink.tree at Registry line3128 after checked close, zero lease/release/capture census, owner unlink, held guard and stable-binding checks succeed. The actual tree projection differs from retained postRetiredStableOperationsDigest; no guard or expectation relaxed. Same author is investigating the exact mismatch in scratch. Solecollector18111 retained1356artifacts268products at m2-shutdown-diagnostic-v1-20260928.
+
+Independent nonauthor GPT-6 Sol high approved frozen framed checkpoint source/selection conditionally (REVIEW_CHECKPOINT.md SHA25615b083462fda878e0bbaa6dcafadc73b271ad971caacf343f2fdf4b0a19003cd). Required CI53230 and separate staged-tree/record review remain due; no source transfer, hosted dispatch, main or gate advancement.
+
+
+### 2026-09-28 — frozen checkpoint CI exposes focused-route class-file restriction
+
+CI53230 terminal: generator42PASS389.716s; native-CI expected379/run372, zero assertion failures/four setup errors219.514s;2696inputs unchanged. DevelopmentBatchRouteTests assumed V949SchemaMigrationRootLinkWitnessTests.swift, but that real class is declared in V9_49TemporalEvidenceClipTests.swift. Production focused development admission explicitly requires class-named source as well. Original v1 inputs/results retained unchanged; no transfer or push.
+
+Frozen successor m2-framed-checkpoint-v2 preserves identical1204 app source bindings, eight app/test deltas, complete3658 ordered census/33partitions and all assertions. Only the optional hash-boundary selector is removed from the focused hosted question (15 to14); its earlier exact local PASS and full coverage enrollment remain. All six prior pinned-runtime failures, both current S6/V949 failures and other recovery/semantic controls remain selected. No admission/predicate/watchdog/coverage/gate change. Same independent reviewer auditing successor; required42+379CI83115 active on2696 exact inputs.
+
+Separately, eleven-file C05_COMPILE_ENVELOPE_2 binding31e70829 received independent Sol-high reviewa4b55ac9 for isolated module typecheck only. Root started1602 on603app inputs in m2-c05-envelope-typecheck-v2, own cache, no live products. Positive schema2/V3 still incomplete/noninstallable. One-file first-difference Registry diagnosticc2a478ca approvedb78d43c4; install awaits current typecheck terminal so its live-source binding remains valid.
+
+
+### 2026-09-28 — C05 compiler roots narrowed; tree diagnostic compiling
+
+Isolated envelope2 module1602 terminalFAIL92.094s,603 actual app inputs; snapshot/live source unchanged. Three remaining diagnostics: two missing frozenC05ReaderActivity and one extra requiredHeldIdentity argument, retained in m2-c05-envelope-typecheck-v2/ERRORS.json. Same author correcting exact roots in immutable successor; still noninstallable and no functional recovery proof.
+
+After terminal, root installed independently reviewed (Sol-high b78d43c4) Registry first-difference diagnosticc2a478ca with exact before/candidate checks; receipt m2-post-retired-tree-diagnostic-installed-v1.json. Same checked tree walks retain private diagnostic facts; strict digest/throw and Release unchanged, fixed node/field-only output. Full305build15864 active; only existing S6 Every affected selector selected next. Frozen checkpoint v2 independent conditional reviewb23efeca approved exact unchanged app/census and14selectors; CI83115 remains active and staged review required.
+
+
+### 2026-09-28 — first-difference native and C05 envelope3 validation
+
+Full305 diagnostic build15864 PASS169.905s, exactCompileInputs/sourceUnchanged; one S6 Every native58269 active at m2-post-retired-tree-diagnostic-native-v1. Frozen checkpoint v2 generator42PASS423.209s; native-CI379 continues under83115.
+
+C05 envelope3 binding0c39e7f4 retains exact current Registry diagnostic and corrects three compiler roots with actual held preparation device/inode verification and fail-closed C05 reader admission while its activity is unbound. Independent nonauthor Sol-high review651ade1d approves isolated typecheck only; root2025 active with603app inputs/own cache at m2-c05-envelope-typecheck-v3. It does not modify live source or native products. Positive schema2/V3 and checked-close ownership remain incomplete.
+
+
+### 2026-09-28 — checked shutdown mismatch identifies owner-directory link count
+
+One-selector diagnostic58269 terminal65/220.096s, test180.628s; source/products unchanged. First difference is fixed class=owner-directory, field=links after exact guard unlink. No content/path value emitted. Prior checked close, empty lease/release/capture census, held guard and identity stages still pass. Same author now deriving a narrowly checked allowed transition from actual lifecycle evidence; no digest field removed speculatively. Solecollector56264 retained1324artifacts268products at m2-post-retired-tree-diagnostic-v1-20260928.
+
+
+### 2026-09-28 — coherent C05 dependency module typechecks
+
+Envelope3 module2025 PASS125.384s across603 actual app Swift inputs; snapshot/live source unchanged. Exact m2-c05-envelope-typecheck-v3 inputs/command/log/result retained. This closes isolated dependency compiler errors (332 to3 to0), not positive cold recovery or native behavior. Same two authors resumed disjoint held original-owner/scanner and Factory/Service/BackupExport private-copy work from frozen coherent envelope3. Candidate remains noninstallable until complete lifecycle, independent review and native verification.
+
+
+### 2026-09-28 — framed checkpoint v2 passes required CI and transfers exact source
+
+Required CI83115 terminalPASS:42generator423.209s and379native-CI269.380s, all2696 frozen inputs unchanged. Conditional source reviewb23efeca prerequisite satisfied; separate staged-tree review remains due. Root ran exact-bound install-primary.py, verified all1204 app source bytes against the frozen compile/native binding, and transferred eight app/test +two CI paths from da388ed4. Owner config hash preserved in PRIMARY_INSTALLED.json and excluded from staging. Full305 compilePASS40.261s and exact16native14PASS2FAIL365.545s apply to this checkpoint; S6 injection and V949 raw-row SHM comparison remain explicitly failing. Later local diagnostic/marker/C05 evidence does not apply to these older bytes.
+
+This is an intermediate integration-branch development checkpoint, with14 focused hosted methods and complete3658 ordered coverage inventory. Full same-head gates and main advancement remain due. Exact staged-tree verdict will be retained at m2-framed-checkpoint-v2/REVIEW_STAGED.md before commit; no acceptance or release claim.

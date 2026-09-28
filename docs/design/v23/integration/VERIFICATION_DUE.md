@@ -583,3 +583,15 @@ C32 restore boundary now locally passes in `m2-c32-after-disk-repair-native-v1` 
 
 
 2026-09-28 latest: frozen intermediate snapshot independently approved6e3451af for development integration only; full305 compile PASS, exact5native FAIL and CI421PASS,3656-method census. Newer isolated recovery source compiled PASS and18native14PASS4FAIL, exactsource/products,1362artifacts268products retained. S6 interruption classification, nonempty fixture graph, V906 post-ready cleanup and V949 hostile inventory remain;24.4GiB allocated heap/large swap remains a performance blocker. No main/gate/release advancement; see CURRENT_INTEGRATION for separate exact scopes.
+
+
+2026-09-28 latest bounded development: combined305compilePASS and16native14PASS2FAIL with exactsource/products retained. Nonempty journal and V906 now pass; S6 later authority and V949 SHM-only physical comparison remain. Framed canonical proof parity/hostiles pass with sampledpeak0.754GiB; broad performance/gates remain unverified. These newer live results do not apply to published da388ed4. See CURRENT_INTEGRATION for hashes/scopes.
+
+
+2026-09-28 shutdown diagnostic follow-up: full305 compile PASS50.174s; exact2-native1PASS1FAIL238.371s,1356artifacts268products retained. Genuine retained-marker replacement/wrong-operation/extra-leaf refusal now passes17.760s. S6 interruption remains blocked at post-retired stable-tree comparison after checked close/unlink, with no weakened guard; V949/C05 cold private-copy ownership remains incomplete and isolated. Frozen framed checkpoint has conditional independent Sol-high review15b08346 and generator42PASS; required native-CI379 and staged-tree review pending. No main/gate/release advancement.
+
+
+2026-09-28 latest: full305 first-difference diagnostic compilePASS169.905s; one S6 nativeFAIL220.096s with source/products unchanged,1324artifacts268products retained. First mismatch is owner-directory link count after checked owned-guard unlink; exact correction pending. C05 isolated603-input envelope3 modulePASS125.384s (compiler closure only); positive schema2/V3 owner/private-copy lifecycle remains incomplete/noninstallable. Frozen framed checkpoint v2 retains exact14PASS2FAIL app source and complete3658 census; optional hash selector remains local-PASS/full coverage but excluded from the focused14-selector hosted list because the strict class-file route cannot admit it. Independent conditional reviewb23efeca; generator42PASS, native-CI379 pending. No main/gate/release advancement.
+
+
+2026-09-28 framed checkpoint v2 CI complete:42+379PASS on2696 unchanged inputs; ten exact app/test/CI paths transferred to primary, pending staged review/commit. Its305compilePASS and16native14PASS2FAIL remain the exact development scope, not merge readiness. Later live corrections remain isolated; S6/V949 and full gate obligations stay open.

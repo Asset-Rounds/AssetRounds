@@ -704,6 +704,7 @@ final class StartupRouter: ObservableObject {
         sourceModelContext: ModelContext,
         sourceGenerationID: UUID,
         coordinator: StoreSessionCoordinator?,
+        validatedPackage: ValidatedV4BackupPackageV1,
         accessGate: AppAccessGateV1
     ) async throws -> OriginalOperationTicket {
         guard pendingRestoreReaderTransition == nil,
@@ -746,7 +747,8 @@ final class StartupRouter: ObservableObject {
             sourceSession = maintenanceRestoreSession
             sourceWriter = nil
             sourceWriterHandle = nil
-            try requireMaintenanceFrame(sourceSession)
+            try requireMaintenanceFrame(sourceSession,
+                validatedImport: validatedPackage)
         }
         // This retention is an admission property, not a post-service
         // cleanup detail.  It therefore survives every suspended callback.
@@ -781,6 +783,10 @@ final class StartupRouter: ObservableObject {
             guard operationID == operation,
                   originalOperations[operation]?.mint === mint else {
                 throw AppAccessContractFailureV1.staleAttempt
+            }
+            if coordinator == nil {
+                try requireMaintenanceFrame(sourceSession,
+                    validatedImport: validatedPackage)
             }
             try sourceExit.capturePhysical()
         } catch {
@@ -2913,6 +2919,7 @@ final class StartupRouter: ObservableObject {
         }
         guard pendingRestoreReaderTransition === pending,
               operationID == pending.ticket.operationID,
+              pending.ticket.owner === originalOperationOwner,
               originalOperations[pending.ticket.operationID]?.mint
                 === pending.ticket.mint,
               originalOperations[pending.ticket.operationID]?.restoreSourceExit
@@ -3016,6 +3023,11 @@ final class StartupRouter: ObservableObject {
             resumeStage = "rebound-pending-proof"
 #endif
             try await requirePendingRestore(pending)
+#if DEBUG
+            resumeStage = "target-maintenance-frame"
+#endif
+            try captureRestoredTargetMaintenanceFrame(pending,
+                intendedPointer: intendedPointer)
             pending.phase = .recovering
             let owner = OwnedWriter(pending.targetCoordinator)
             operationOwnedWriter = owner
@@ -3669,6 +3681,98 @@ final class StartupRouter: ObservableObject {
         maintenanceFrameHadInstalledWriter = false
     }
 
+    /// A has already passed the operation-bound target publication proof and
+    /// checked source-reader close. Capture B against that original intended
+    /// pointer before B's first private-preparation effect. Keep A's frame and
+    /// owner intact until the complete B observation succeeds.
+    private func captureRestoredTargetMaintenanceFrame(
+        _ pending: PendingRestoreReaderTransition,
+        intendedPointer: Data
+    ) throws {
+        guard pendingRestoreReaderTransition === pending,
+              pending.phase == .rebound,
+              operationID == pending.ticket.operationID,
+              pending.ticket.owner === originalOperationOwner,
+              originalOperations[pending.ticket.operationID]?.mint
+                === pending.ticket.mint,
+              originalOperations[pending.ticket.operationID]?.restoreSourceExit
+                === pending.source,
+              originalOperations[pending.ticket.operationID]?.restoreTargetPointerData
+                == intendedPointer,
+              maintenanceClearObservation == nil,
+              !maintenanceOperationsUncertain,
+              maintenanceFrameHadInstalledWriter,
+              maintenanceFinalizationStore == nil,
+              maintenanceDeletionService == nil,
+              maintenanceFinalizationDescriptorOwner == nil,
+              maintenanceDeletionDescriptorOwner == nil,
+              let originalFrame = maintenanceControlFrame,
+              let originalExpected = maintenanceOperationsExpectedFrame,
+              let originalOwner = maintenanceOperationsOwner,
+              let originalReader = maintenanceFrameReader,
+              let originalOpening = maintenanceFrameOpeningFactory,
+              originalFrame.generationID == pending.source.sourceGenerationID,
+              originalExpected.generationID == originalFrame.generationID,
+              originalReader === pending.source.reader,
+              originalOpening.sharesRegistryProvider(with: pending.originalFactory),
+              !originalOwner.hasUncertainClose,
+              generationFactory.sharesRegistryProvider(with: pending.targetFactory),
+              pending.targetCoordinator.workspaceWriter
+                === pending.writerOwner.constructedWriterForTransition,
+              pending.targetSession.generationID != originalFrame.generationID else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let opening = try pending.targetSession.validatedOpeningFactoryForWriter()
+        let reader = try pending.targetSession.retainedReaderForOriginalRestoreTransition(
+            factory: opening)
+        guard opening.sharesRegistryProvider(with: generationFactory),
+              reader === pending.targetReader,
+              opening.restoreApplicationSupportURL.standardizedFileURL
+                == applicationSupportURL.standardizedFileURL else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        var root = stat()
+        guard Darwin.lstat(applicationSupportURL.standardizedFileURL.path,
+                &root) == 0,
+              root.st_mode & S_IFMT == S_IFDIR,
+              root.st_nlink > 0,
+              root.st_dev == originalFrame.support.device,
+              root.st_ino == originalFrame.support.inode else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let observation = try opening.makeRestoreMaintenanceClearObservation(
+            expectedApplicationSupportIdentity: StoreApplicationSupportIdentity(
+                device: root.st_dev, inode: root.st_ino))
+        maintenanceClearObservation = observation // retain before first open
+        do {
+            let frame = try observation.captureFrame(session: pending.targetSession,
+                intendedPointer: intendedPointer)
+            guard pendingRestoreReaderTransition === pending,
+                  pending.phase == .rebound,
+                  originalOperations[pending.ticket.operationID]?.restoreTargetPointerData
+                    == intendedPointer,
+                  frame.generationID == pending.targetSession.generationID,
+                  frame.current == intendedPointer,
+                  !originalOwner.hasUncertainClose else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            maintenanceControlFrame = frame
+            maintenanceOperationsExpectedFrame = frame
+            maintenanceOperationsOwner = observation
+            maintenanceFrameSession = pending.targetSession
+            maintenanceFrameReader = reader
+            maintenanceFrameOpeningFactory = opening
+            maintenanceFrameHadInstalledWriter = true
+            maintenanceClearObservation = nil
+        } catch {
+            if observation.hasUncertainClose {
+                Self.retainedUncertainMaintenanceObservations.append(observation)
+            }
+            maintenanceClearObservation = nil
+            throw error
+        }
+    }
+
     /// The opened reader and provider are the authority for this observation.
     /// Capture before Router recovery awaits, and keep the original canonical
     /// controls as a value rather than adopting any later maintenance state.
@@ -3782,7 +3886,8 @@ final class StartupRouter: ObservableObject {
     }
 
     private func requireMaintenanceFrame(
-        _ session: StoreGenerationSession
+        _ session: StoreGenerationSession,
+        validatedImport: ValidatedV4BackupPackageV1? = nil
     ) throws {
         guard !maintenanceOperationsUncertain,
               maintenanceOperationsExpectedFrame != nil,
@@ -3804,7 +3909,8 @@ final class StartupRouter: ObservableObject {
               !session.modelContext.hasChanges else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
-        guard maintenanceJournalAuthorityIsClear(matching: frame),
+        guard maintenanceJournalAuthorityIsClear(matching: frame,
+                  validatedImport: validatedImport),
               try session.validatedOpeningFactoryForWriter()
                 .sharesRegistryProvider(with: opening),
               try session.retainedReaderForOriginalRestoreTransition(
@@ -3859,7 +3965,8 @@ final class StartupRouter: ObservableObject {
     }
 
     private func maintenanceJournalAuthorityIsClear(
-        matching frame: RestoreMaintenanceClearObservationV1.Frame
+        matching frame: RestoreMaintenanceClearObservationV1.Frame,
+        validatedImport: ValidatedV4BackupPackageV1? = nil
     ) -> Bool {
         // An ambiguous descriptor close is a one-way refusal for this Router.
         guard maintenanceClearObservation == nil else { return false }
@@ -3890,6 +3997,7 @@ final class StartupRouter: ObservableObject {
             maintenanceClearObservation = observation
             try observation.requireClear(matching: frame,
                 expectedOperations: maintenanceOperationsExpectedFrame,
+                validatedImport: validatedImport,
                 onStage: { stage = $0 })
             maintenanceClearObservation = nil
             return true
@@ -6149,11 +6257,14 @@ final class EraseRouterOperationV1 {
             throw AppAccessContractFailureV1.staleAttempt
         }
         switch expectedFault {
-        case .afterPreparedWrite, .afterPointerSwitch, .afterPointerPhaseWrite:
+        case .afterPreparedWrite, .beforePointerSwitch,
+             .afterPointerSwitch, .beforePointerPhaseWrite,
+             .afterPointerPhaseWrite, .beforeSessionActivation:
             guard preparationWriterPhase == .absent else {
                 throw GenerationLeaseRegistryFailureV1.uncertainOwner
             }
-        case .afterSessionPhaseWrite:
+        case .afterSessionActivation, .beforeSessionPhaseWrite,
+             .afterSessionPhaseWrite, .beforeCleanup:
             guard preparationWriterPhase == .installed,
                   preparationWriterAllocation?.allocatedHandle != nil,
                   preparationTargetSession != nil,
@@ -7410,7 +7521,10 @@ extension StartupRouter {
         targetGenerationID: UUID, expectedFault: EraseAllFailurePoint?,
         durableRetiredFault: Bool
     ) throws {
-        if durableRetiredFault && expectedFault == .afterSessionPhaseWrite {
+        if durableRetiredFault && (expectedFault == .afterSessionActivation
+            || expectedFault == .beforeSessionPhaseWrite
+            || expectedFault == .afterSessionPhaseWrite
+            || expectedFault == .beforeCleanup) {
             guard case .checking = route,
                   let activation = pendingErasedActivation,
                   activation.operationID == operationID,
@@ -7453,10 +7567,11 @@ extension StartupRouter {
         }
     }
 
-    /// A durable pre-activation fault still has the original source writer.
-    /// Its Router has not published an Erase cleanup route or installed a
-    /// target writer. Check both sides of the one-way poison against that
-    /// exact operation, never against an arbitrary `.checking` route.
+    /// A durable pre-activation fault retains the original source writer.
+    /// AppAccess may suspend the exact original operation in a preparing
+    /// cleanup route after the injected Service error. Neither that route nor
+    /// `.checking` authorizes a replacement writer or target activation.
+    /// Check both sides of the one-way poison against the same operation.
     private func requirePreactivationDurableEraseRouteForTesting(
         _ value: EraseRouterOperationV1,
         state: OriginalOperationState,
@@ -7469,14 +7584,28 @@ extension StartupRouter {
     ) throws {
         let expectedPhase: EraseIntentPhaseV1
         switch expectedFault {
-        case .afterPreparedWrite, .afterPointerSwitch:
+        case .afterPreparedWrite, .beforePointerSwitch,
+             .afterPointerSwitch, .beforePointerPhaseWrite:
             expectedPhase = .emptyGenerationPrepared
-        case .afterPointerPhaseWrite:
+        case .afterPointerPhaseWrite, .beforeSessionActivation:
             expectedPhase = .pointerSwitched
         default:
             throw AppAccessContractFailureV1.staleAttempt
         }
         let ticket = value.ticket
+        let routeIsBoundOriginal: Bool
+        let routeIsSuspendedOriginal: Bool
+        switch route {
+        case .checking:
+            routeIsBoundOriginal = true
+            routeIsSuspendedOriginal = false
+        case let .eraseCleanupPending(.preparing(actual)):
+            routeIsBoundOriginal = actual === coordinator
+            routeIsSuspendedOriginal = routeIsBoundOriginal
+        default:
+            routeIsBoundOriginal = false
+            routeIsSuspendedOriginal = false
+        }
         guard canonicalIntent.phase == expectedPhase,
               canonicalIntent.eraseID == subject.eraseID,
               canonicalIntent.newGenerationID == subject.newGenerationID,
@@ -7486,7 +7615,7 @@ extension StartupRouter {
               state.source.coordinator === coordinator,
               state.source.modelContext === coordinator.modelContext,
               state.sourceGenerationID == coordinator.generationID,
-              case .checking = route,
+              routeIsBoundOriginal,
               let owned = operationOwnedWriter,
               owned.coordinator === coordinator,
               owned.writer === coordinator.workspaceWriter,
@@ -7498,9 +7627,6 @@ extension StartupRouter {
               retainedEraseRetirementOperation === value,
               !hasPendingWriterCleanup else {
 #if DEBUG
-            let routeIsChecking: Bool
-            if case .checking = route { routeIsChecking = true }
-            else { routeIsChecking = false }
             let firstFailure: String
             if canonicalIntent.phase != expectedPhase { firstFailure = "intent-phase" }
             else if canonicalIntent.eraseID != subject.eraseID { firstFailure = "intent-erase" }
@@ -7512,7 +7638,7 @@ extension StartupRouter {
             else if !(state.source.coordinator === coordinator) { firstFailure = "source-coordinator" }
             else if !(state.source.modelContext === coordinator.modelContext) { firstFailure = "source-context" }
             else if state.sourceGenerationID != coordinator.generationID { firstFailure = "source-generation" }
-            else if !routeIsChecking { firstFailure = "route" }
+            else if !routeIsBoundOriginal { firstFailure = "route" }
             else if operationOwnedWriter == nil { firstFailure = "owned-writer-missing" }
             else if let owned = operationOwnedWriter,
                     !(owned.coordinator === coordinator) { firstFailure = "owned-coordinator" }
@@ -7550,18 +7676,24 @@ extension StartupRouter {
             case .erase: originalKind = true
             default: originalKind = false
             }
+            // AppAccess suspends the admitted original after the injected
+            // Service error: it clears execution flags and revokes command
+            // admission while retaining the exact ticket and lease wrapper.
+            // The ordinary `.checking` route still requires live execution.
+            let executionMatches = routeIsSuspendedOriginal
+                ? operationID == nil && operationKind == nil && !isRunning
+                    && operationAuthorization == nil
+                : operationID == ticket.operationID && originalKind && isRunning
             guard !abandonedOriginalEraseForColdRestart,
-                  operationID == ticket.operationID, originalKind,
-                  isRunning,
+                  executionMatches,
                   originalOperations[ticket.operationID]?.owner === state.owner,
                   originalOperations[ticket.operationID]?.mint === state.mint else {
 #if DEBUG
-                let originalKind: Bool
-                if case .erase = operationKind { originalKind = true }
-                else { originalKind = false }
                 let firstFailure: String
                 if abandonedOriginalEraseForColdRestart { firstFailure = "abandoned" }
-                else if operationID != ticket.operationID { firstFailure = "operation-id" }
+                else if routeIsSuspendedOriginal && !executionMatches {
+                    firstFailure = "suspended-execution"
+                } else if operationID != ticket.operationID { firstFailure = "operation-id" }
                 else if !originalKind { firstFailure = "operation-kind" }
                 else if !isRunning { firstFailure = "not-running" }
                 else if !(originalOperations[ticket.operationID]?.owner === state.owner) {
@@ -7592,11 +7724,13 @@ extension StartupRouter {
         let durableRetiredFault: Bool
         let preactivationDurableFault: Bool
         switch expectedFault {
-        case .afterPreparedWrite?, .afterPointerSwitch?,
-             .afterPointerPhaseWrite?:
+        case .afterPreparedWrite?, .beforePointerSwitch?,
+             .afterPointerSwitch?, .beforePointerPhaseWrite?,
+             .afterPointerPhaseWrite?, .beforeSessionActivation?:
             durableRetiredFault = true
             preactivationDurableFault = true
-        case .afterSessionPhaseWrite?:
+        case .afterSessionActivation?, .beforeSessionPhaseWrite?,
+             .afterSessionPhaseWrite?, .beforeCleanup?:
             durableRetiredFault = true
             preactivationDurableFault = false
         default:

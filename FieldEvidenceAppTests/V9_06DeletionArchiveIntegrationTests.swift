@@ -248,7 +248,9 @@ final class V906RouterEraseFixture {
         }
     }
 
-    func startFreshColdOwner() async throws -> StoreSessionCoordinator {
+    func startFreshColdOwner(
+        observeColdCleanup: (@MainActor (String) -> Void)? = nil
+    ) async throws -> StoreSessionCoordinator {
         let profile = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
         let profiles = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile])
         let gate = AppAccessGateV1(setting: .value(.init(isEnabled: true)),
@@ -267,6 +269,7 @@ final class V906RouterEraseFixture {
             userDefaults: defaults,
             bundleIdentifier: "com.palatis3.fieldrecord",
             defaultsDomainName: defaultsName)
+        service.erasePhaseDiagnosticForTesting = observeColdCleanup
         freshRouter = router; freshGate = gate; freshService = service
         try router.bindStartupAccessGate(gate)
         try await router.retryColdEraseForTesting(service: service, accessGate: gate)
@@ -506,7 +509,19 @@ final class V9_06DeletionArchiveIntegrationTests: XCTestCase {
                     && noEffectPointerBytes == interrupted.oldPointerBytes ? true : nil,
                     "Retaining original Erase owners: pre-intent abort changed durable state")
             }
-            let recoveredCoordinator = try await owner.startFreshColdOwner()
+            var preReadyOperationsAbsent = false
+            let recoveredCoordinator = try await owner.startFreshColdOwner(
+                observeColdCleanup: { phase in
+                    guard phase == "cleanup.pre-ready-roots-absent" else { return }
+                    var observed = stat()
+                    let result = lstat(operationsPath, &observed)
+                    let lookupError = errno
+                    XCTAssertEqual(result, -1,
+                        "Completed Erase retained the old Operations namespace before ready publication")
+                    XCTAssertEqual(lookupError, ENOENT,
+                        "Completed Erase did not prove Operations absence before ready publication")
+                    preReadyOperationsAbsent = result == -1 && lookupError == ENOENT
+                })
             let recoveredSession = try owner.freshSession(recoveredCoordinator)
             if point == .beforePreparedWrite {
                 XCTAssertEqual(recoveredSession.generationID,
@@ -539,12 +554,10 @@ final class V9_06DeletionArchiveIntegrationTests: XCTestCase {
                     FetchDescriptor<Asset>()), 0)
                 XCTAssertEqual(try recoveryFactory.currentGenerationID(),
                     recoveredSession.generationID)
-                var afterCleanupOperations = stat()
-                let result = lstat(operationsPath, &afterCleanupOperations)
-                let missingError = errno
-                XCTAssertEqual(result, -1)
-                XCTAssertEqual(missingError, ENOENT,
-                    "Completed Erase must remove the old Operations namespace")
+                XCTAssertTrue(preReadyOperationsAbsent,
+                    "Completed Erase did not prove old Operations removal before fresh ready publication")
+                _ = try XCTUnwrap(preReadyOperationsAbsent ? true : nil,
+                    "The checked pre-ready Operations absence witness was not observed")
             }
             let noRepeat = EraseAllService(
                 applicationSupportURL: owner.support,

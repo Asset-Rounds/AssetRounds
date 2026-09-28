@@ -681,32 +681,173 @@ final class V23ProductionAppAccessTests: XCTestCase {
     }
 
     @MainActor
+    func testMaintenanceRestoreAdmissionRefusesForeignOrReplacedValidatedStage() async throws {
+        for replaceValidatedStage in [false, true] {
+            let suiteName = "V23.ProductionAppAccess.restore-stage.\(UUID().uuidString)"
+            let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+                "V23-MaintenanceRestoreStage-\(UUID().uuidString)", isDirectory: true)
+            let support = root.appendingPathComponent("Library/Application Support")
+            let exportRoot = root.appendingPathComponent("export", isDirectory: true)
+            try FileManager.default.createDirectory(at: support,
+                withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: root.appendingPathComponent(
+                "Library/Caches", isDirectory: true), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: exportRoot,
+                withIntermediateDirectories: true)
+            let router = StartupRouter(applicationSupportURL: support)
+            var failOnce = true
+            router.beforeCurrentMediaCleanupForTesting = { _ in
+                if failOnce {
+                    failOnce = false
+                    throw StartupMaintenanceReason.mediaInconsistent
+                }
+            }
+            let accessSession = try await ProductionCompositionRoot.makeAppAccessSession(
+                applicationSupportURL: support, startupRouter: router,
+                defaults: defaults,
+                authenticationClient: ProductionAccessAuthentication(),
+                notificationSystem: ProductionAccessNotificationSystem())
+            let presentation = AppAccessPresentationV1(
+                startupRouter: router, sessionFactory: { accessSession })
+            Self.retainedRestoreTransitionOwners.append(
+                (root, router, accessSession, presentation))
+            let maintenanceReached = expectation(
+                description: "Original startup reaches real media maintenance")
+            let routeObservation = router.$route.filter { route in
+                if case .maintenance(.mediaInconsistent) = route { return true }
+                return false
+            }.prefix(1).sink { _ in maintenanceReached.fulfill() }
+            defer { routeObservation.cancel() }
+            await presentation.bootstrapIfNeeded()
+            await fulfillment(of: [maintenanceReached], timeout: 30)
+            guard case .maintenance(.mediaInconsistent) = router.route else {
+                return XCTFail("The genuine startup fault must admit the maintenance host")
+            }
+            let source = try XCTUnwrap(router.maintenanceRestoreSession)
+            let exporter = BackupExportService(modelContext: source.modelContext,
+                generationRootURL: source.generationRootURL)
+            let preview = try exporter.prepare()
+            let archive = try exporter.export(previewID: preview.id, to: exportRoot)
+            let importer = try BackupImportService(
+                generationRootURL: source.generationRootURL,
+                scopedAccess: .alreadyAuthorized)
+            let package = try importer.stageAndValidate(selectedPackageURL: archive)
+            let current = support.appendingPathComponent("FieldEvidenceData/current.json")
+            let currentBefore = try Data(contentsOf: current)
+            let staged = package.stagedPackageURL
+            let staging = staged.deletingLastPathComponent()
+            XCTAssertEqual(try FileManager.default.contentsOfDirectory(
+                atPath: staging.path), [staged.lastPathComponent])
+            if replaceValidatedStage {
+                let displaced = root.appendingPathComponent("displaced-package",
+                    isDirectory: true)
+                try FileManager.default.moveItem(at: staged, to: displaced)
+                try FileManager.default.createDirectory(at: staged,
+                    withIntermediateDirectories: false)
+                XCTAssertNotEqual(
+                    try BackupPackageAnchoredFile.rootIdentity(at: staged),
+                    package.members.rootIdentity)
+            } else {
+                let foreign = staging.appendingPathComponent(
+                    "\(UUID().uuidString.lowercased()).fieldrecordbackup",
+                    isDirectory: true)
+                try FileManager.default.createDirectory(at: foreign,
+                    withIntermediateDirectories: false)
+                XCTAssertEqual(try FileManager.default.contentsOfDirectory(
+                    atPath: staging.path).count, 2)
+            }
+            let generationNamesBeforeRefusal = try Set(FileManager.default.contentsOfDirectory(
+                atPath: support.appendingPathComponent("FieldEvidenceData/generations").path))
+            let stageNamesBeforeRefusal = try Set(FileManager.default.contentsOfDirectory(
+                atPath: staging.path))
+            let stageIdentitiesBeforeRefusal = try stageNamesBeforeRefusal.sorted().map { name in
+                try BackupPackageAnchoredFile.rootIdentity(
+                    at: staging.appendingPathComponent(name, isDirectory: true))
+            }
+            let displacedIdentityBeforeRefusal = replaceValidatedStage
+                ? try BackupPackageAnchoredFile.rootIdentity(
+                    at: root.appendingPathComponent("displaced-package", isDirectory: true))
+                : nil
+            do {
+                try await presentation.performRestore(applicationSupportURL: support,
+                    package: package, sourceModelContext: source.modelContext,
+                    sourceGenerationID: source.generationID,
+                    sourceGenerationRootURL: source.generationRootURL,
+                    mode: .emptyInstall, coordinator: nil)
+                XCTFail("A foreign or replaced validated stage must refuse original admission")
+            } catch let error as StoreGenerationFailure {
+                XCTAssertEqual(error, .dataPointerInvalid)
+            }
+            XCTAssertEqual(try Data(contentsOf: current), currentBefore)
+            XCTAssertEqual(try Set(FileManager.default.contentsOfDirectory(
+                atPath: support.appendingPathComponent("FieldEvidenceData/generations").path)),
+                generationNamesBeforeRefusal)
+            let stageNamesAfterRefusal = try Set(FileManager.default.contentsOfDirectory(
+                atPath: staging.path))
+            XCTAssertEqual(stageNamesAfterRefusal, stageNamesBeforeRefusal)
+            let stageIdentitiesAfterRefusal = try stageNamesBeforeRefusal.sorted().map { name in
+                try BackupPackageAnchoredFile.rootIdentity(
+                    at: staging.appendingPathComponent(name, isDirectory: true))
+            }
+            XCTAssertEqual(stageIdentitiesAfterRefusal, stageIdentitiesBeforeRefusal)
+            if let displacedIdentityBeforeRefusal {
+                XCTAssertEqual(try BackupPackageAnchoredFile.rootIdentity(
+                    at: root.appendingPathComponent("displaced-package", isDirectory: true)),
+                    displacedIdentityBeforeRefusal)
+            }
+            XCTAssertNil(presentation.pendingRestoreTransitionID)
+            guard case .maintenance(.mediaInconsistent) = router.route else {
+                return XCTFail("The original maintenance owner must remain covered")
+            }
+        }
+    }
+
+    @MainActor
     func testTrackedMaintenanceDeletionRecoversActualPreparedJournalAndClosesOwner() async throws {
         let support = FileManager.default.temporaryDirectory.appendingPathComponent(
             "V23-MaintenanceDeletion-\(UUID().uuidString)", isDirectory: true)
+        let generationID = UUID()
         let generation = support.appendingPathComponent(
-            "FieldEvidenceData/generations/\(UUID().uuidString.lowercased())",
+            "FieldEvidenceData/generations/\(generationID.uuidString.lowercased())",
             isDirectory: true)
         try FileManager.default.createDirectory(
             at: generation, withIntermediateDirectories: true)
-        let schema = Schema([
-            Site.self, Asset.self, WorkflowRecord.self, ObservationAndTimeRow.self,
-            EvidenceFile.self,
-            Issue.self, Packet.self, Report.self, DeletionLedgerRow.self,
-        ], version: Schema.Version(3, 0, 0))
+        let schema = Schema(PersistentSchemaV53.models,
+            version: PersistentSchemaV53.versionIdentifier)
         let container = try ModelContainer(for: schema, migrationPlan: nil,
             configurations: [ModelConfiguration("MaintenanceDeletion", schema: schema,
                 url: generation.appendingPathComponent("model.sqlite"),
                 allowsSave: true, cloudKitDatabase: .none)])
         let context = container.mainContext
         context.autosaveEnabled = false
-        let site = Site(label: "Site")
+        let completed = Date(timeIntervalSince1970: 1_760_000_000)
+        let placementDate = completed.addingTimeInterval(-120)
+        let site = Site(label: "Site", createdAt: placementDate)
         let asset = Asset(siteID: site.id,
             packID: SignPack.illuminatedSignV1.packID,
-            packSchemaVersion: 1, packContentVersion: 1, label: "Sign")
+            packSchemaVersion: 1, packContentVersion: 1, label: "Sign",
+            createdAt: placementDate)
         context.insert(site)
         context.insert(asset)
-        let completed = Date(timeIntervalSince1970: 1_760_000_000)
+        let workspaceID = WorkspaceID()
+        let placement = try AssetPlacementEventV1(
+            id: UUID(), workspaceID: workspaceID,
+            assetID: asset.id, siteID: site.id,
+            locationNodeID: nil, predecessorEventID: nil,
+            source: .migratedBaseline,
+            physicalEpisodeID: try PhysicalPlacementEpisodeIDV1(rawValue: UUID()),
+            continuity: .samePhysicalInstallation,
+            pathSnapshot: try LocationPathSnapshotV1(
+                siteID: site.id, siteDisplay: site.label, nodes: []),
+            mutationID: try MutationIDV1(rawValue: UUID()),
+            occurredAt: placementDate)
+        try AssetPlacementHistoryV1.validate([placement])
+        try WholeSignDeletionRule.validateLocationDeletionNoCascade(
+            deletingAssetID: asset.id, deletingSiteID: nil,
+            liveAssetSiteByID: [asset.id: site.id],
+            locationNodes: [], placementEvents: [placement], compositionEdges: [])
+        context.insert(try AssetPlacementEventRow(placement))
         let recordID = UUID()
         let packetID = UUID()
         let record = WorkflowRecord(
@@ -717,7 +858,7 @@ final class V23ProductionAppAccessTests: XCTestCase {
             draftStepKey: nil, startedAt: completed.addingTimeInterval(-60),
             completedAt: completed, observedAtUTC: completed,
             timeZoneID: "America/New_York", utcOffsetMinutes: -240,
-            localDate: "2025-10-09", localTime: "04:53",
+            localDate: "2025-10-09", localTime: "04:53:20",
             afterDarkAcknowledgementKey: "after_dark",
             afterDarkAcknowledgementCopy: "After dark",
             afterDarkAcknowledgementVersion: "1",
@@ -793,6 +934,14 @@ final class V23ProductionAppAccessTests: XCTestCase {
             thumbnailByteCount: thumbnailBytes.count,
             thumbnailSHA256: thumbnailHash))
         try context.save()
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<AssetPlacementEventRow>()), 1)
+        let identity = try WorkspaceReplicaIdentityV1(
+            workspaceID: workspaceID, replicaID: ReplicaID())
+        let mutationJournal = try MutationJournalStoreV1(
+            modelContext: context, identity: identity,
+            generationID: generationID)
+        try mutationJournal.validateAll()
+        let historyBefore = try mutationJournal.exportSnapshot()
         let interrupted = WholeSignDeletionService(modelContext: context,
             generationRootURL: generation,
             failureInjection: WholeSignDeletionFailureInjection(
@@ -821,6 +970,11 @@ final class V23ProductionAppAccessTests: XCTestCase {
         let result = try await recovery.reconcile()
         XCTAssertEqual(result.cancelledPreparedCount, 0)
         XCTAssertEqual(result.completedCommittedCount, 1)
+        let recoveredJournal = try MutationJournalStoreV1(
+            modelContext: context, identity: identity,
+            generationID: generationID, allowStateBootstrap: false)
+        try recoveredJournal.validateAll()
+        XCTAssertEqual(try recoveredJournal.exportSnapshot(), historyBefore)
         let recoveryReceipt = try recovery.startupRecoveryJournalReceipt()
         XCTAssertEqual(recoveryReceipt.name, "deletion")
         XCTAssertGreaterThan(recoveryReceipt.mutationCount, 0)
@@ -1182,6 +1336,9 @@ final class V23ProductionAppAccessTests: XCTestCase {
             return XCTFail("Production startup did not publish its original Erase owner")
         }
         let originalGeneration = try XCTUnwrap(coordinator).generationID
+        let originalGenerationRoot = try XCTUnwrap(coordinator).generationRootURL
+        let originalRootIdentity = try BackupPackageAnchoredFile.rootIdentity(
+            at: originalGenerationRoot)
         let originalScene = try XCTUnwrap(presentation.sceneNavigationAccess)
         let sceneSnapshot = try SceneNavigationSnapshotV1(workspaceID: XCTUnwrap(coordinator).workspaceID,
             selectedRoot: .work, paths: AppRootV1.frozenOrder.map { .init(root: $0, targets: []) },
@@ -1197,7 +1354,13 @@ final class V23ProductionAppAccessTests: XCTestCase {
             confirmation: "ERASE", coordinator: try XCTUnwrap(coordinator), diagnosticsStore: diagnostics)
         XCTAssertEqual(serviceCount, 1)
         XCTAssertTrue(completedReceipts.isEmpty)
-        XCTAssertEqual(try originalScenePort.loadSceneNavigationData(), originalSceneBytes)
+        // Preparation clears device-local scene state before the covered
+        // retirement returns, while the source generation remains physically
+        // retained until the actual reader drain permits cleanup.
+        XCTAssertNil(try originalScenePort.loadSceneNavigationData())
+        XCTAssertFalse(originalSceneBytes.isEmpty)
+        XCTAssertEqual(try BackupPackageAnchoredFile.rootIdentity(
+            at: originalGenerationRoot), originalRootIdentity)
         XCTAssertThrowsError(try originalScene.load())
         XCTAssertFalse(presentation.permitsContentPresentation)
         guard case let .eraseCleanupPending(.retiring(originalOperation)) = router.route else {
@@ -1207,8 +1370,10 @@ final class V23ProductionAppAccessTests: XCTestCase {
         XCTAssertTrue(originalOperation.hasPreparedCleanup)
         let pendingIntent = try XCTUnwrap(EraseIntentStore(applicationSupportURL: support).load())
         let preparedGeneration = pendingIntent.newGenerationID
-        XCTAssertEqual(try XCTUnwrap(coordinator).generationID, originalGeneration)
+        XCTAssertEqual(try XCTUnwrap(coordinator).generationID, preparedGeneration)
         XCTAssertNotEqual(preparedGeneration, originalGeneration)
+        XCTAssertEqual(try BackupPackageAnchoredFile.rootIdentity(
+            at: originalGenerationRoot), originalRootIdentity)
         XCTAssertNotNil(weakOldContext)
         XCTAssertNotNil(weakOldContainer)
         XCTAssertEqual(try EraseIntentStore(applicationSupportURL: support).load()?.newGenerationID,

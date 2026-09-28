@@ -441,7 +441,12 @@ final class EraseAbortCheckedSnapshotIOV1 {
             if readCount > 0 {
                 count += off_t(readCount)
                 guard count <= before.st_size else { throw StoreGenerationFailure.dataPointerInvalid }
-                digest.update(data: Data(buffer.prefix(readCount)))
+                // CryptoKit consumes these bytes synchronously while buffer is pinned.
+                // Avoid a fresh Data allocation for each checked 64 KiB read.
+                buffer.withUnsafeBytes { rawBuffer in
+                    digest.update(bufferPointer: UnsafeRawBufferPointer(
+                        start: rawBuffer.baseAddress, count: readCount))
+                }
             } else if readCount == 0 { break }
             else if errno != EINTR { throw StoreGenerationFailure.dataPointerInvalid }
         }
@@ -1227,6 +1232,7 @@ final class RestoreMaintenanceClearObservationV1 {
     /// exact-existing and checked-close owned by this retained observer.
     func requireClear(matching frame: Frame,
         expectedOperations: Frame? = nil,
+        validatedImport: ValidatedV4BackupPackageV1? = nil,
         onStage: (String) -> Void) throws {
         guard !attempted else { throw StoreGenerationFailure.dataPointerInvalid }
         attempted = true
@@ -1275,7 +1281,8 @@ final class RestoreMaintenanceClearObservationV1 {
 #if DEBUG
         print("V23_RESTORE_MAINTENANCE_FRAME_V1 stage=before-scan-equal")
 #endif
-        try requireClearRoots(onStage: onStage)
+        try requireClearRoots(validatedImport: validatedImport,
+            onStage: onStage)
 #if DEBUG
         print("V23_RESTORE_MAINTENANCE_FRAME_V1 stage=after-scan-enter")
 #endif
@@ -1331,7 +1338,35 @@ final class RestoreMaintenanceClearObservationV1 {
         try io.requireSettled()
     }
 
-    private func requireClearRoots(onStage: (String) -> Void) throws {
+    /// A validated import is the sole prospective child created after the
+    /// original empty-stage maintenance proof. Its name and original physical
+    /// identity come from the real import result, never from a later scan.
+    private func admittedImportName(
+        _ package: ValidatedV4BackupPackageV1?
+    ) throws -> String? {
+        guard let package else { return nil }
+        let staged = package.stagedPackageURL.standardizedFileURL
+        let expectedParent = root
+            .appendingPathComponent("FieldEvidenceRestore", isDirectory: true)
+            .appendingPathComponent("staging", isDirectory: true)
+        let name = staged.lastPathComponent
+        let suffix = ".fieldrecordbackup"
+        guard staged.isFileURL,
+              staged.deletingLastPathComponent() == expectedParent,
+              package.members.rootURL.standardizedFileURL == staged,
+              name.hasSuffix(suffix),
+              let id = UUID(uuidString: String(name.dropLast(suffix.count))),
+              name == id.uuidString.lowercased() + suffix else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        return name
+    }
+
+    private func requireClearRoots(
+        validatedImport: ValidatedV4BackupPackageV1? = nil,
+        onStage: (String) -> Void
+    ) throws {
+        let admittedName = try admittedImportName(validatedImport)
         try withExistingDirectory(parent: AT_FDCWD, name: root.path) { app in
             let held = try fact(app)
             guard held.device == expectedRoot.device,
@@ -1355,8 +1390,23 @@ final class RestoreMaintenanceClearObservationV1 {
                             }
                             try withExistingDirectory(parent: restore, name: "staging") { staging in
                                 onStage("import-names")
-                                guard try io.names(in: staging).isEmpty else {
-                                    throw EmptyRootFailure.importStaging
+                                let names = try io.names(in: staging)
+                                if let admittedName, let validatedImport {
+                                    guard names == [admittedName] else {
+                                        throw EmptyRootFailure.importStaging
+                                    }
+                                    try withExistingDirectory(parent: staging,
+                                        name: admittedName) { staged in
+                                        let actual = try fact(staged)
+                                        guard actual.device == validatedImport.members.rootIdentity.device,
+                                              actual.inode == validatedImport.members.rootIdentity.inode else {
+                                            throw StoreGenerationFailure.dataPointerInvalid
+                                        }
+                                    }
+                                } else {
+                                    guard names.isEmpty else {
+                                        throw EmptyRootFailure.importStaging
+                                    }
                                 }
                                 try requireAbsent(parent: restore, name: "restore.json")
                                 try requireAbsent(parent: restore, name: ".restore.json.next")
@@ -1419,7 +1469,9 @@ struct EraseCompletedAbortSQLiteFileV1: Equatable {
 
 struct EraseCompletedAbortCanonicalSourceV1: Equatable {
     let workspaceIdentity: WorkspaceReplicaIdentityV1
-    let canonicalRows: Data
+    // Commits to every V3...V53 local canonical envelope in order, with
+    // domain, release, layer index, byte length and final layer count.
+    let canonicalRowsFramedSHA256: String
     let mutationHistory: MutationHistorySnapshotV1
 }
 struct EraseOriginalColdExitControlsV1: Equatable {
@@ -16148,7 +16200,8 @@ struct StoreGenerationFactory {
             throw StoreGenerationFailure.dataPointerInvalid
         }
         diagnosticStage = "canonical-rows"
-        let canonical = try semanticProjection(in: context, release: .v53)
+        let canonicalRowsFramedSHA256 = try framedSemanticDigest(
+            in: context, release: .v53)
         diagnosticStage = "journal-open"
         let journal = try MutationJournalStoreV1(modelContext: context,
             identity: identity, generationID: generationID,
@@ -16163,7 +16216,7 @@ struct StoreGenerationFactory {
         }
         return EraseCompletedAbortCanonicalSourceV1(
             workspaceIdentity: identity,
-            canonicalRows: canonical,
+            canonicalRowsFramedSHA256: canonicalRowsFramedSHA256,
             mutationHistory: history)
         } catch {
             FileHandle.standardError.write(Data((

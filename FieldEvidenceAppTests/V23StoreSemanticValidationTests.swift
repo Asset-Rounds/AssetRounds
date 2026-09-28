@@ -55,6 +55,19 @@ final class V23StoreSemanticValidationTests: XCTestCase {
             let boundedDigest = try factory.framedSemanticDigestForTesting(in: active.modelContext)
             XCTAssertEqual(boundedDigest, expectedFramedDigest(traversal))
             try assertFramedLayerTamperAndBounds(traversal)
+            // The completed-abort snapshot uses the same independent all-layer
+            // oracle, while retaining the authenticated identity and full history.
+            let completedAbort = try factory.completedAbortCanonicalSource(
+                in: active.modelContext, generationRootURL: active.generationRootURL,
+                generationID: active.generationID,
+                migrationID: bootstrap.manifest.migrationID,
+                expectedIdentity: active.workspaceIdentity)
+            XCTAssertEqual(completedAbort.workspaceIdentity, active.workspaceIdentity)
+            XCTAssertEqual(completedAbort.canonicalRowsFramedSHA256, expectedFramedDigest(traversal))
+            let currentJournal = try MutationJournalStoreV1(
+                modelContext: active.modelContext, identity: active.workspaceIdentity,
+                generationID: active.generationID, allowStateBootstrap: false)
+            XCTAssertEqual(completedAbort.mutationHistory, try currentJournal.exportSnapshot())
             XCTAssertFalse(active.modelContext.hasChanges)
             XCTAssertEqual(persisted.location.canonicalData, locationBefore)
             XCTAssertEqual(persisted.night.canonicalData, nightBefore)

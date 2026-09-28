@@ -1746,11 +1746,13 @@ final class EraseAllService {
     ) throws -> EraseIntentV1 {
         let phase: EraseIntentPhaseV1
         switch expected {
-        case .afterPreparedWrite, .afterPointerSwitch:
+        case .afterPreparedWrite, .beforePointerSwitch,
+             .afterPointerSwitch, .beforePointerPhaseWrite:
             phase = .emptyGenerationPrepared
-        case .afterPointerPhaseWrite:
+        case .afterPointerPhaseWrite, .beforeSessionActivation,
+             .afterSessionActivation, .beforeSessionPhaseWrite:
             phase = .pointerSwitched
-        case .afterSessionPhaseWrite:
+        case .afterSessionPhaseWrite, .beforeCleanup:
             phase = .sessionActivated
         default:
             throw EraseAllServiceError.invalidAuthority
@@ -2033,6 +2035,8 @@ final class EraseAllService {
         enableOriginalColdExitWitnessForTesting =
             service.enableOriginalColdExitWitnessForTesting
         erasePhaseDiagnosticForTesting = service.erasePhaseDiagnosticForTesting
+        v949RetainedSourceReadbackForTesting =
+            service.v949RetainedSourceReadbackForTesting
         completedAbortPrivateCopyMutationForTesting =
             service.completedAbortPrivateCopyMutationForTesting
         completedAbortPrivateCopyPostReadMutationForTesting =
