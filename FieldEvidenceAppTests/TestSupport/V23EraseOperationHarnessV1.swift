@@ -38,13 +38,18 @@ final class V23EraseOperationHarnessV1 {
     /// Seed fixtures must release all of their own store aliases before this.
     func startOriginalOwner() async throws -> (StoreSessionCoordinator, DiagnosticsStore) {
 #if DEBUG
+        let previousFixedDiagnostics = router.originalOpenFixedDiagnosticsForTesting
+        router.originalOpenFixedDiagnosticsForTesting = true
         let previousStartupDiagnostic = router.startupFailureDiagnosticForTesting
         var startupFailure = "none"
         router.startupFailureDiagnosticForTesting = { message in
             previousStartupDiagnostic?(message)
             startupFailure = message
         }
-        defer { router.startupFailureDiagnosticForTesting = previousStartupDiagnostic }
+        defer {
+            router.startupFailureDiagnosticForTesting = previousStartupDiagnostic
+            router.originalOpenFixedDiagnosticsForTesting = previousFixedDiagnostics
+        }
 #endif
         var stage = "authenticate"
         do {

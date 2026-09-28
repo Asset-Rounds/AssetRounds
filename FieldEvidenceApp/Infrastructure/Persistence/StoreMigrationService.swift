@@ -608,6 +608,9 @@ final class StoreMigrationJournalStoreV1 {
     private let operationsIdentity: Identity
     private let migrationIdentity: Identity
     private var retirementManifestReadCloseUncertain = false
+    // Ambiguous close attempts are terminal. Retain their descriptor numbers
+    // without retrying a possibly reused integer on the Erase retirement path.
+    private var retirementManifestReadUncertainDescriptors: [Int32] = []
     private let initializationTesting: StoreControlInitializationTestHooksV1?
 
     init(applicationSupportURL: URL,
@@ -1224,14 +1227,250 @@ final class StoreMigrationJournalStoreV1 {
         return manifest
     }
 
+    private struct EraseRetirementManifestLeafWitnessV1: Equatable {
+        let name: String
+        let snapshot: FileSnapshot
+        let mode: UInt32
+        let owner: UInt32
+        let group: UInt32
+        let flags: UInt32
+        let birthSeconds: Int64
+        let birthNanoseconds: Int64
+        let bytes: Data
+
+        init(name: String, stat value: stat, bytes: Data) {
+            self.name = name
+            snapshot = FileSnapshot(value)
+            mode = UInt32(value.st_mode)
+            owner = UInt32(value.st_uid)
+            group = UInt32(value.st_gid)
+            flags = UInt32(value.st_flags)
+            birthSeconds = Int64(value.st_birthtimespec.tv_sec)
+            birthNanoseconds = Int64(value.st_birthtimespec.tv_nsec)
+            self.bytes = bytes
+        }
+    }
+
+    private struct EraseRetirementManifestTreeWitnessV1: Equatable {
+        let directory: Identity
+        let names: [String]
+        let leaves: [EraseRetirementManifestLeafWitnessV1]
+    }
+
+    private func poisonRetirementManifestReadClose(_ descriptor: Int32) {
+        retirementManifestReadCloseUncertain = true
+        retirementManifestReadUncertainDescriptors.append(descriptor)
+    }
+
+    private func closeRetirementManifestReadDescriptor(_ descriptor: Int32) throws {
+        guard Darwin.close(descriptor) == 0 else {
+            poisonRetirementManifestReadClose(descriptor)
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+
+    /// The ordinary store verification has unchecked transient closes. Keep
+    /// this read/effect boundary on the same held descriptors and checked
+    /// closes without changing the ordinary store's behavior.
+    private func verifyRetirementManifestStoreChecked() throws {
+        try Self.requireDirectory(applicationSupportDescriptor,
+            identity: applicationSupportIdentity)
+        try Self.requireDirectory(operationsDescriptor, identity: operationsIdentity)
+        try Self.requireDirectory(migrationDescriptor, identity: migrationIdentity)
+        let root = Darwin.open(applicationSupportURL.path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard root >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+        var rootCloseAttempted = false
+        defer {
+            if !rootCloseAttempted {
+                rootCloseAttempted = true
+                if Darwin.close(root) != 0 { poisonRetirementManifestReadClose(root) }
+            }
+        }
+        guard try Self.directoryIdentity(root) == applicationSupportIdentity else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        rootCloseAttempted = true
+        try closeRetirementManifestReadDescriptor(root)
+        try verifyRetirementManifestChildChecked(parent: applicationSupportDescriptor,
+            name: Self.operationsName, expected: operationsIdentity)
+        try verifyRetirementManifestChildChecked(parent: operationsDescriptor,
+            name: Self.migrationName, expected: migrationIdentity)
+    }
+
+    private func verifyRetirementManifestChildChecked(parent: Int32, name: String,
+        expected: Identity) throws {
+        let descriptor = Darwin.openat(parent, name,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+        var closeAttempted = false
+        defer {
+            if !closeAttempted {
+                closeAttempted = true
+                if Darwin.close(descriptor) != 0 {
+                    poisonRetirementManifestReadClose(descriptor)
+                }
+            }
+        }
+        guard try Self.directoryIdentity(descriptor) == expected else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        closeAttempted = true
+        try closeRetirementManifestReadDescriptor(descriptor)
+    }
+
+    /// This is the existing no-follow migration directory, not another store
+    /// or registry. An uncertain DIR close poisons the retained store.
+    private func eraseRetirementManifestNamesChecked() throws -> [String] {
+        let descriptor = Darwin.openat(migrationDescriptor, ".",
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+        guard let directory = Darwin.fdopendir(descriptor) else {
+            try closeRetirementManifestReadDescriptor(descriptor)
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var closeAttempted = false
+        defer {
+            if !closeAttempted {
+                closeAttempted = true
+                if Darwin.closedir(directory) != 0 {
+                    poisonRetirementManifestReadClose(descriptor)
+                }
+            }
+        }
+        var names: [String] = []
+        errno = 0
+        while let entry = Darwin.readdir(directory) {
+            guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            if name != "." && name != ".." { names.append(name) }
+            errno = 0
+        }
+        guard errno == 0 else { throw StoreMigrationFailure.invalidIdentity }
+        closeAttempted = true
+        guard Darwin.closedir(directory) == 0 else {
+            poisonRetirementManifestReadClose(descriptor)
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return names.sorted()
+    }
+
+    private func eraseRetirementManifestLeafChecked(_ name: String) throws
+        -> EraseRetirementManifestLeafWitnessV1 {
+        let descriptor = Darwin.openat(migrationDescriptor, name,
+            O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+        var closeAttempted = false
+        defer {
+            if !closeAttempted {
+                closeAttempted = true
+                if Darwin.close(descriptor) != 0 {
+                    poisonRetirementManifestReadClose(descriptor)
+                }
+            }
+        }
+        var held = stat()
+        var named = stat()
+        guard Darwin.fstat(descriptor, &held) == 0,
+              (held.st_mode & S_IFMT) == S_IFREG, held.st_nlink == 1,
+              Darwin.fstatat(migrationDescriptor, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+              EraseRetirementManifestLeafWitnessV1(name: name, stat: held, bytes: Data())
+                == EraseRetirementManifestLeafWitnessV1(name: name, stat: named, bytes: Data()) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let bytes = try Self.readAll(from: descriptor)
+        let first = EraseRetirementManifestLeafWitnessV1(name: name, stat: held, bytes: bytes)
+        guard Darwin.fstat(descriptor, &held) == 0,
+              Darwin.fstatat(migrationDescriptor, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+              EraseRetirementManifestLeafWitnessV1(name: name, stat: held, bytes: bytes) == first,
+              EraseRetirementManifestLeafWitnessV1(name: name, stat: named, bytes: bytes) == first else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        closeAttempted = true
+        try closeRetirementManifestReadDescriptor(descriptor)
+        return first
+    }
+
+    /// Capture the whole first migration namespace and every leaf's exact
+    /// held/named facts and bytes before any complete-protection request.
+    /// Subsequent requests compare to this same witness; none mints a new base.
+    private func eraseRetirementManifestTreeWitness(
+        targetGenerationID: UUID, expectedDigest: String,
+        binding: EraseRetirementBindingV1, exclusion: EraseRetirementExclusionV1,
+        mark: (String) -> Void
+    ) throws -> (EraseRetirementManifestTreeWitnessV1, StoreGenerationManifestV1) {
+        mark("census-owner")
+        guard !retirementManifestReadCloseUncertain,
+              retirementManifestReadUncertainDescriptors.isEmpty else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try exclusion.requireLiveRegistry(binding: binding)
+        try verifyRetirementManifestStoreChecked()
+        mark("census-names")
+        let directory = try Self.directoryIdentity(migrationDescriptor)
+        let names = try eraseRetirementManifestNamesChecked()
+        guard names.allSatisfy({ name in
+            name == Self.journalName || name == Self.preparedEnvelopeName
+                || name == StoreAggregateMigrationControlV1.name || Self.isManifestName(name)
+        }) else { throw StoreMigrationFailure.invalidPath }
+        var leaves: [EraseRetirementManifestLeafWitnessV1] = []
+        var target: StoreGenerationManifestV1?
+        let targetName = try Self.manifestName(for: targetGenerationID)
+        for name in names {
+            mark(Self.isManifestName(name) ? "census-manifest" : "census-control")
+            let leaf = try eraseRetirementManifestLeafChecked(name)
+            leaves.append(leaf)
+            if Self.isManifestName(name) {
+                let manifest = try StoreGenerationManifestV1.decodeCanonical(from: leaf.bytes)
+                guard try Self.manifestName(for: manifest.generationID) == name else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                if name == targetName {
+                    guard StoreMigrationCanonicalJSONV1.sha256(leaf.bytes) == expectedDigest,
+                          manifest.generationID == targetGenerationID else {
+                        throw StoreMigrationFailure.digestMismatch
+                    }
+                    target = manifest
+                }
+            }
+        }
+        mark("census-final")
+        guard !retirementManifestReadCloseUncertain,
+              retirementManifestReadUncertainDescriptors.isEmpty,
+              let target,
+              try Self.directoryIdentity(migrationDescriptor) == directory,
+              try eraseRetirementManifestNamesChecked() == names else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try verifyRetirementManifestStoreChecked()
+        try exclusion.requireLiveRegistry(binding: binding)
+        mark("census-complete")
+        return (EraseRetirementManifestTreeWitnessV1(directory: directory,
+            names: names, leaves: leaves), target)
+    }
+
     /// Fixed Erase retirement read. Ordinary loadManifest remains unchanged;
-    /// no reconciliation, pending promotion, policy setter or constructor runs.
+    /// no reconciliation, pending promotion, backup setter or constructor runs.
     @MainActor
     func readManifestForEraseRetirement(targetGenerationID: UUID, expectedDigest: String,
         binding: EraseRetirementBindingV1, exclusion: EraseRetirementExclusionV1) throws -> StoreGenerationManifestV1 {
-        guard !retirementManifestReadCloseUncertain else { throw StoreMigrationFailure.invalidIdentity }
+        var stage = "entry"
+        var succeeded = false
+        defer {
+#if DEBUG
+            if !succeeded { print("ERASE_RETIREMENT_MANIFEST_READ_V1 first=\(stage)") }
+#endif
+        }
+        guard !retirementManifestReadCloseUncertain,
+              retirementManifestReadUncertainDescriptors.isEmpty else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        stage = "entry-owner"
         try exclusion.requireLiveRegistry(binding: binding)
-        try verify()
+        stage = "entry-store"
+        try verifyRetirementManifestStoreChecked()
+        stage = "binding"
         guard applicationSupportURL.standardizedFileURL == binding.subject.applicationSupportURL,
               Int64(applicationSupportIdentity.device) == binding.subject.applicationSupportDevice,
               UInt64(applicationSupportIdentity.inode) == binding.subject.applicationSupportInode,
@@ -1243,65 +1482,84 @@ final class StoreMigrationJournalStoreV1 {
               StoreMigrationCanonicalJSONV1.isLowercaseSHA256(expectedDigest) else {
             throw StoreMigrationFailure.invalidIdentity
         }
-        let beforeNames = try Self.names(in: migrationDescriptor).sorted()
-        // A pending/tombstone/allocation residue is not repaired or adopted by
-        // this observer. Its presence requires the ordinary pre-EX recovery law.
-        guard beforeNames.allSatisfy({ name in
-            name == Self.journalName || name == Self.preparedEnvelopeName
-                || name == StoreAggregateMigrationControlV1.name || Self.isManifestName(name)
-        }) else { throw StoreMigrationFailure.invalidPath }
-        let directoryPolicy = try ProtectedFilePolicyV1.observeTemporalPolicy(.stagingDirectory, at: migrationURL)
-        guard directoryPolicy.state == .strictComplete else { throw StoreMigrationFailure.invalidIdentity }
-        let targetName = try Self.manifestName(for: targetGenerationID)
-        var target: StoreGenerationManifestV1?
-        for name in beforeNames {
-            let fd = Darwin.openat(migrationDescriptor, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
-            guard fd >= 0 else { throw StoreMigrationFailure.invalidIdentity }
-            var descriptorOwned = true
-            defer {
-                if descriptorOwned, Darwin.close(fd) != 0 {
-                    retirementManifestReadCloseUncertain = true
-                }
+        stage = "first-whole-census"
+        let (first, target) = try eraseRetirementManifestTreeWitness(
+            targetGenerationID: targetGenerationID, expectedDigest: expectedDigest,
+            binding: binding, exclusion: exclusion, mark: { stage = $0 })
+        func requireFirstWitness() throws -> Bool {
+            let outerStage = stage
+            var scanStage = "census-owner"
+            let observed: EraseRetirementManifestTreeWitnessV1
+            do {
+                let result = try eraseRetirementManifestTreeWitness(
+                    targetGenerationID: targetGenerationID, expectedDigest: expectedDigest,
+                    binding: binding, exclusion: exclusion, mark: { scanStage = $0 })
+                observed = result.0
+            } catch {
+                stage = scanStage
+                throw error
             }
-            let before = try Self.regularFileSnapshot(fd)
-            var named = stat()
-            guard Darwin.fstatat(migrationDescriptor, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
-                  FileSnapshot(named) == before else { throw StoreMigrationFailure.invalidIdentity }
-            let url = migrationURL.appendingPathComponent(name)
-            let policy = try ProtectedFilePolicyV1.observeTemporalPolicy(Self.ownedFileKind(for: name), at: url)
-            guard policy.state == .strictComplete else { throw StoreMigrationFailure.invalidIdentity }
-            if Self.isManifestName(name) {
-                let bytes = try Self.readAll(from: fd)
-                let manifest = try StoreGenerationManifestV1.decodeCanonical(from: bytes)
-                guard try Self.manifestName(for: manifest.generationID) == name else { throw StoreMigrationFailure.invalidIdentity }
-                if name == targetName {
-                    guard StoreMigrationCanonicalJSONV1.sha256(bytes) == expectedDigest,
-                          manifest.generationID == targetGenerationID else { throw StoreMigrationFailure.digestMismatch }
-                    target = manifest
-                }
-            }
-            guard try Self.regularFileSnapshot(fd) == before,
-                  Darwin.fstatat(migrationDescriptor, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
-                  FileSnapshot(named) == before,
-                  try ProtectedFilePolicyV1.observeTemporalPolicy(Self.ownedFileKind(for: name), at: url) == policy else {
-                throw StoreMigrationFailure.invalidIdentity
-            }
-            try exclusion.requireLiveRegistry(binding: binding)
-            try verify()
-            // An ambiguous close is terminal for this retained store's Erase
-            // read route. Never retry the possibly reused descriptor integer.
-            descriptorOwned = false
-            guard Darwin.close(fd) == 0 else {
-                retirementManifestReadCloseUncertain = true
-                throw StoreMigrationFailure.invalidIdentity
-            }
+            stage = "whole-witness-different"
+            guard observed == first else { throw StoreMigrationFailure.invalidIdentity }
+            stage = outerStage
+            return true
         }
-        guard !retirementManifestReadCloseUncertain, let target, try Self.names(in: migrationDescriptor).sorted() == beforeNames,
-              try ProtectedFilePolicyV1.observeTemporalPolicy(.stagingDirectory, at: migrationURL) == directoryPolicy else {
+        let retainUncertain: (Int32) -> Void = { descriptor in
+            self.poisonRetirementManifestReadClose(descriptor)
+        }
+        stage = "directory-policy-request"
+        _ = try ProtectedFilePolicyV1.verifyEraseColdTemporalPolicyWithCheckedRequest(
+            .stagingDirectory, at: migrationURL,
+            retainUncertainDescriptor: retainUncertain,
+            unchangedWitness: requireFirstWitness)
+        guard !retirementManifestReadCloseUncertain else {
             throw StoreMigrationFailure.invalidIdentity
         }
-        try verify()
+        stage = "directory-post-policy"
+        let directoryPolicy = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(
+            .stagingDirectory, at: migrationURL,
+            retainUncertainDescriptor: retainUncertain)
+        var leafPolicies: [(String, TemporalPolicyObservationV1)] = []
+        for name in first.names {
+            let kind = Self.ownedFileKind(for: name)
+            let url = migrationURL.appendingPathComponent(name)
+            stage = Self.isManifestName(name) ? "manifest-policy-request" : "control-policy-request"
+            _ = try ProtectedFilePolicyV1.verifyEraseColdTemporalPolicyWithCheckedRequest(
+                kind, at: url, retainUncertainDescriptor: retainUncertain,
+                unchangedWitness: requireFirstWitness)
+            guard !retirementManifestReadCloseUncertain else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            stage = Self.isManifestName(name) ? "manifest-post-policy" : "control-post-policy"
+            let policy = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(
+                kind, at: url, retainUncertainDescriptor: retainUncertain)
+            leafPolicies.append((name, policy))
+        }
+        stage = "final-whole-census"
+        _ = try requireFirstWitness()
+        stage = "final-directory-policy"
+        guard try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(
+                .stagingDirectory, at: migrationURL,
+                retainUncertainDescriptor: retainUncertain) == directoryPolicy else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        for (name, policy) in leafPolicies {
+            stage = Self.isManifestName(name) ? "final-manifest-policy" : "final-control-policy"
+            guard try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(
+                    Self.ownedFileKind(for: name), at: migrationURL.appendingPathComponent(name),
+                    retainUncertainDescriptor: retainUncertain) == policy else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        stage = "final-owner"
+        guard !retirementManifestReadCloseUncertain,
+              retirementManifestReadUncertainDescriptors.isEmpty else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try verifyRetirementManifestStoreChecked()
         try exclusion.requireLiveRegistry(binding: binding)
+        _ = try requireFirstWitness()
+        succeeded = true
         return target
     }
 
@@ -1313,6 +1571,7 @@ final class StoreMigrationJournalStoreV1 {
         -> EraseManifestRetirementAttemptV1 {
         try retirement.requireManifestAttemptCreation(exclusion: exclusion, binding: binding)
         guard !retirementManifestReadCloseUncertain,
+              retirementManifestReadUncertainDescriptors.isEmpty,
               applicationSupportURL.standardizedFileURL == binding.subject.applicationSupportURL,
               Int64(applicationSupportIdentity.device) == binding.subject.applicationSupportDevice,
               UInt64(applicationSupportIdentity.inode) == binding.subject.applicationSupportInode,

@@ -15072,6 +15072,7 @@ struct StoreGenerationFactory {
         migrationFailureInjection = source.migrationFailureInjection
         pruneFailureInjection = source.pruneFailureInjection
         coldOpenDiagnosticForTesting = source.coldOpenDiagnosticForTesting
+        coldOpenFixedDiagnosticsForTesting = source.coldOpenFixedDiagnosticsForTesting
 #endif
     }
 
@@ -15134,6 +15135,7 @@ struct StoreGenerationFactory {
     private let migrationFailureInjection: StoreMigrationFailureInjection?
     private let pruneFailureInjection: StoreGenerationPruneFailureInjectionV1?
     var coldOpenDiagnosticForTesting = false
+    var coldOpenFixedDiagnosticsForTesting = false
 #endif
 
     init(
@@ -15217,6 +15219,7 @@ struct StoreGenerationFactory {
 #if DEBUG
         var copy = self
         copy.coldOpenDiagnosticForTesting = false
+        copy.coldOpenFixedDiagnosticsForTesting = false
         return copy
 #else
         return self
@@ -15225,7 +15228,7 @@ struct StoreGenerationFactory {
 
 #if DEBUG
     private func coldOpenDiagnostic(_ phase: String) {
-        guard coldOpenDiagnosticForTesting else { return }
+        guard coldOpenDiagnosticForTesting || coldOpenFixedDiagnosticsForTesting else { return }
         let uptime = String(format: "%.6f", ProcessInfo.processInfo.systemUptime)
         FileHandle.standardError.write(Data(
             ("StoreGenerationFactory cold-open phase=" + phase
@@ -19451,7 +19454,9 @@ struct StoreGenerationFactory {
             throw error
         } catch {
 #if DEBUG
-            if coldOpenDiagnosticForTesting {
+            if coldOpenFixedDiagnosticsForTesting {
+                coldOpenDiagnostic("protect-failed")
+            } else if coldOpenDiagnosticForTesting {
                 let originalError = error as NSError
                 let rootPath = applicationSupportURL.standardizedFileURL.path
                 let targetPath = url.standardizedFileURL.path

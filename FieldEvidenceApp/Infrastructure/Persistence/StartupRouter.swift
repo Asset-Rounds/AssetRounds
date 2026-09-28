@@ -153,13 +153,18 @@ final class StartupRouter: ObservableObject {
     private(set) var runtimeObservation: StartupRuntimeObservationV1?
     /// Fixed phase/type observations only; silent by default.
     var startupFailureDiagnosticForTesting: (@MainActor (String) -> Void)?
+    var originalOpenFixedDiagnosticsForTesting: Bool {
+        get { generationFactory.coldOpenFixedDiagnosticsForTesting }
+        set { generationFactory.coldOpenFixedDiagnosticsForTesting = newValue }
+    }
+    private var currentOpenBoundaryForTesting = "unobserved"
 
     private func reportStartupFailureForTesting(_ error: Error) {
         guard let observe = startupFailureDiagnosticForTesting else { return }
         let phase = runtimeObservation?.phase.rawValue ?? "unobserved"
         let errorType = String(reflecting: type(of: error))
         let policyMismatch = (error as? ProtectedFilePolicyError) == .resourceValueMismatch
-        observe("phase=\(phase) type=\(errorType) resourceValueMismatch=\(policyMismatch)")
+        observe("phase=\(phase) type=\(errorType) resourceValueMismatch=\(policyMismatch) currentOpenBoundary=\(currentOpenBoundaryForTesting)")
     }
 #endif
     private(set) var maintenanceRestoreSession: StoreGenerationSession?
@@ -1302,6 +1307,7 @@ final class StartupRouter: ObservableObject {
             try await requireCurrentOperationAndAccess(operation)
 
 #if DEBUG
+            currentOpenBoundaryForTesting = "session-select"
             beginRuntimeObservation(.currentOpen)
 #endif
             didBeginStep(.currentOpen)
@@ -1313,6 +1319,9 @@ final class StartupRouter: ObservableObject {
                     session = retained
                 } else { session = try coldFreshOwner.constructColdReader() }
             } else {
+#if DEBUG
+                currentOpenBoundaryForTesting = "factory-open"
+#endif
                 let result = try await generationFactory.openForStartup(validateContinuation: {
                     try await self.requireCurrentOperationAndAccess(operation)
                 }, recoverOriginalSource: { authority in
@@ -1334,8 +1343,14 @@ final class StartupRouter: ObservableObject {
             openedSession = session
             // The exact opened reader is live here; every later Router
             // recovery await must be measured against this original frame.
+#if DEBUG
+            currentOpenBoundaryForTesting = "maintenance-frame"
+#endif
             try captureMaintenanceFrame(session)
             do {
+#if DEBUG
+                currentOpenBoundaryForTesting = "lease-reconcile"
+#endif
                 try reconcileGenerationLeasesForStartup()
             } catch {
 #if DEBUG
