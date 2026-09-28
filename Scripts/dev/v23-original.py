@@ -140,6 +140,7 @@ PER_HEAD_SELECTIONS = (DEV_BATCH_SELECTION_ID, "v23-shared-coverage-d50x")
 # The dispatch input that carries the kind to the workflow; declared with default gate.
 RUN_KIND_INPUT = "v23_run_kind"
 COMPILER_OBSERVATION_INPUT = "v23_d50_compiler_observation"
+SWIFT_DRIVER_JOBS_TWO_INPUT = "v23_d50_swift_driver_jobs_two"
 # The exact term the caller group, the route jobs' groups and their workers' groups must
 # carry so that development originals at different heads get different groups. It reads
 # the dispatch event (a called worker sees its caller's event), so a gate dispatch and
@@ -468,9 +469,9 @@ def run_kind_input_declared(text):
             and sorted(options) == sorted(KINDS))
 
 
-def compiler_observation_input_declared(text):
-    """The opt-in must be a default-false boolean on the dispatched workflow."""
-    body = dispatch_input_lines(text, COMPILER_OBSERVATION_INPUT)
+def default_false_boolean_input_declared(text, name):
+    """An experiment opt-in must be a default-false boolean on the dispatched workflow."""
+    body = dispatch_input_lines(text, name)
     if body is None:
         return False
     keys = {}
@@ -479,6 +480,10 @@ def compiler_observation_input_declared(text):
         if match:
             keys[match.group(1)] = yaml_scalar(match.group(2))
     return keys.get("type") == "boolean" and keys.get("default") == "false"
+
+
+def compiler_observation_input_declared(text):
+    return default_false_boolean_input_declared(text, COMPILER_OBSERVATION_INPUT)
 
 
 def runs_for(head):
@@ -1030,10 +1035,10 @@ def phase1_candidate_lifecycle(plan_path, *, selection=None, kind=None, infra_re
 
 
 def dispatch(selection, kind=None, infra_retry_of=None, reason=None, phase1_plan=None,
-             compiler_observation=False):
+             compiler_observation=False, swift_driver_jobs_two=False):
     if phase1_plan is not None:
-        if compiler_observation:
-            raise SystemExit("compiler observation is development-only, never a Phase1 gate input")
+        if compiler_observation or swift_driver_jobs_two:
+            raise SystemExit("compiler experiments are development-only, never a Phase1 gate input")
         # Deliberately before all network, attempt or ledger effects. Registering
         # intent is not activation of the incomplete Phase1 gate path.
         gate = phase1_gates()
@@ -1046,6 +1051,8 @@ def dispatch(selection, kind=None, infra_retry_of=None, reason=None, phase1_plan
     kind = run_kind(selection, kind)
     if compiler_observation and (kind != "development" or selection != DEV_BATCH_SELECTION_ID):
         raise SystemExit("compiler observation requires explicit development D50 selection")
+    if swift_driver_jobs_two and not compiler_observation:
+        raise SystemExit("Swift driver two-job experiment requires explicit compiler observation")
     if infra_retry_of is not None:
         reason = (reason or "").strip()
         if not reason:
@@ -1072,6 +1079,9 @@ def dispatch(selection, kind=None, infra_retry_of=None, reason=None, phase1_plan
                          f"{head} does not declare that choice input (gate|development, default gate)")
     if compiler_observation and not compiler_observation_input_declared(workflow):
         raise SystemExit("the exact workflow does not declare default-false compiler observation")
+    if swift_driver_jobs_two and not default_false_boolean_input_declared(
+            workflow, SWIFT_DRIVER_JOBS_TWO_INPUT):
+        raise SystemExit("the exact workflow does not declare default-false Swift driver experiment")
     resolved, resolved_sha = resolve_selection(head, selection)
     if kind == "development" and not development_route(selection, resolved):
         raise SystemExit(f"--kind development is only for development routes; {selection} is not one")
@@ -1163,11 +1173,15 @@ def dispatch(selection, kind=None, infra_retry_of=None, reason=None, phase1_plan
         argv += ["-f", f"{RUN_KIND_INPUT}=development"]
     if compiler_observation:
         argv += ["-f", f"{COMPILER_OBSERVATION_INPUT}=true"]
+    if swift_driver_jobs_two:
+        argv += ["-f", f"{SWIFT_DRIVER_JOBS_TWO_INPUT}=true"]
     attempt = {"head": head, "parent": parent, "selection": selection, "argv": argv,
                "knownRunIDs": sorted(x["id"] for x in before),
                "requestedAtUTC": now(), "resolvedSelectionSHA256": resolved_sha, "kind": kind}
     if compiler_observation:
         attempt["compilerObservation"] = True
+    if swift_driver_jobs_two:
+        attempt["swiftDriverJobsTwo"] = True
     attempt.update(retry or {})
     try:
         write_new(attempt_path, attempt)
@@ -1197,6 +1211,8 @@ def dispatch(selection, kind=None, infra_retry_of=None, reason=None, phase1_plan
     if compiler_observation:
         record["compilerObservation"] = True
         record["attemptName"] = attempt_path.name
+    if swift_driver_jobs_two:
+        record["swiftDriverJobsTwo"] = True
     if shared:
         record["sharedPartitions"] = partitions
     record.update(retry or {})
@@ -1207,6 +1223,8 @@ def dispatch(selection, kind=None, infra_retry_of=None, reason=None, phase1_plan
                     + (("infraRetryOf", "infraRetryReason") if retry else ())}
     if compiler_observation:
         ledger_entry["compilerObservation"] = True
+    if swift_driver_jobs_two:
+        ledger_entry["swiftDriverJobsTwo"] = True
     append_ledger(ledger_entry)
     print(json.dumps({k: v for k, v in record.items() if k not in ("resolvedSelection", "sharedPartitions")},
                      indent=2))
@@ -1247,11 +1265,15 @@ def check_identity(observed, dispatched):
 def check_compiler_observation_record(dispatched):
     """Bind an opted-in development original to its immutable request and ledger."""
     requested = dispatched.get("compilerObservation", False)
-    if type(requested) is not bool:
+    jobs_two = dispatched.get("swiftDriverJobsTwo", False)
+    if type(requested) is not bool or type(jobs_two) is not bool:
         raise SystemExit("compiler observation dispatch field is not boolean")
+    if jobs_two and not requested:
+        raise SystemExit("Swift driver experiment requires compiler observation")
     originals = [line for line in ledger_dispatches() if line.get("runID") == dispatched.get("runID")]
     if not requested:
-        if any(line.get("compilerObservation") is True for line in originals):
+        if any(line.get("compilerObservation") is True or line.get("swiftDriverJobsTwo") is True
+               for line in originals):
             raise SystemExit("compiler observation ledger/dispatch downgrade")
         names = []
         if isinstance(dispatched.get("attemptName"), str):
@@ -1270,7 +1292,8 @@ def check_compiler_observation_record(dispatched):
             if path.is_file():
                 attempt = json.loads(path.read_text(encoding="utf-8"))
                 if (attempt.get("requestedAtUTC") == dispatched.get("requestedAtUTC") and
-                        attempt.get("compilerObservation") is True):
+                        (attempt.get("compilerObservation") is True or
+                         attempt.get("swiftDriverJobsTwo") is True)):
                     raise SystemExit("compiler observation attempt/dispatch downgrade")
         return False  # Historical missing flags agree across retained records.
     if (dispatched.get("kind"), dispatched.get("selection"), dispatched.get("acceptance"),
@@ -1282,13 +1305,16 @@ def check_compiler_observation_record(dispatched):
     attempt = json.loads((ATTEMPTS / name).read_text(encoding="utf-8"))
     terms = ("head", "parent", "selection", "kind", "resolvedSelectionSHA256", "argv")
     if (attempt.get("compilerObservation") is not True or
+            attempt.get("swiftDriverJobsTwo", False) is not jobs_two or
             any(attempt.get(key) != dispatched.get(key) for key in terms) or
             attempt.get("requestedAtUTC") != dispatched.get("requestedAtUTC") or
-            attempt["argv"].count(f"{COMPILER_OBSERVATION_INPUT}=true") != 1):
+            attempt["argv"].count(f"{COMPILER_OBSERVATION_INPUT}=true") != 1 or
+            attempt["argv"].count(f"{SWIFT_DRIVER_JOBS_TWO_INPUT}=true") != int(jobs_two)):
         raise SystemExit("compiler observation attempt/dispatch mismatch")
-    if len(originals) != 1 or originals[0].get("compilerObservation") is not True or any(
+    if (len(originals) != 1 or originals[0].get("compilerObservation") is not True or any(
             originals[0].get(key) != dispatched.get(key)
-            for key in ("head", "parent", "selection", "kind", "requestedAtUTC")):
+            for key in ("head", "parent", "selection", "kind", "requestedAtUTC")) or
+            originals[0].get("swiftDriverJobsTwo", False) is not jobs_two):
         raise SystemExit("compiler observation ledger/dispatch mismatch")
     return True
 
@@ -2031,7 +2057,8 @@ def summarize(run_id):
     if requested_compiler_observation:
         summary["compilerObservation"] = {"requested": True,
             "eventsRetained": observation_path.is_file(),
-            "developmentOnly": True, "acceptance": False}
+            "developmentOnly": True, "acceptance": False,
+            "swiftDriverJobsTwo": dispatched.get("swiftDriverJobsTwo", False)}
     if dispatched["selection"] == UI_BATCH_SELECTION_ID:
         summary["uiBatch"] = selection.get("uiBatch")
         summary["ownerReview"] = {"verifiedOriginals": (directory / "rui1-collected-review.json").is_file(),
@@ -2911,6 +2938,8 @@ def main():
                                  + "; other selections default to gate")
     dispatch_parser.add_argument("--compiler-observation", action="store_true",
                                  help="explicit development D50 passive compiler observation at the reviewed pin")
+    dispatch_parser.add_argument("--swift-driver-jobs-two", action="store_true",
+                                 help="explicit development D50 Swift driver -j 2 experiment with passive observation")
     dispatch_parser.add_argument("--infra-retry-of", type=int, metavar="RUN_ID",
                                  help="--kind development only: the one rerun of this head+selection "
                                  "after RUN_ID's infrastructure failure")
@@ -2940,7 +2969,7 @@ def main():
     EVIDENCE.mkdir(parents=True, exist_ok=True)
     if args.command == "dispatch":
         dispatch(args.selection, args.kind, args.infra_retry_of, args.reason, args.phase1_plan,
-                 args.compiler_observation)
+                 args.compiler_observation, args.swift_driver_jobs_two)
     elif args.command == "preregister-phase1":
         preregister_phase1(args.plan)
     elif args.command == "discover-phase1":

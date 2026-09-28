@@ -141,9 +141,76 @@ PASSIVE_D50_FORWARDING = (
     '      v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}\n'
     '      v23_run_kind: ${{ inputs.v23_run_kind }}\n'
 )
+J2_SOURCE_SHA256 = {
+    '.github/workflows/ios-ci.yml': 'cf5dbcb1770699cc7468364be4398666180042959ea8904e4c071c3573b81166',
+    '.github/workflows/ios-ci-worker.yml': '96295ad63c9348fbf4b3bd878ea90ec2263fbeae088c6e9659fa4d08665b883e',
+    'Scripts/build-smoke.sh': '65bc10a739292c9dac3c4c4cb2c4dc5cd30ad0f5be4a0e6085d5adcf8215052b',
+}
+
+
+def before_driver_j2_experiment(relative, raw):
+    """Reverse only the new driver experiment before the reviewed V4 inverse."""
+    if hashlib.sha256(raw).hexdigest() != J2_SOURCE_SHA256[relative]:
+        raise AssertionError('changed reviewed driver-j2 source: ' + relative)
+    text = raw.decode('utf-8')
+    if relative == '.github/workflows/ios-ci.yml':
+        text = remove_exactly_once(text, (
+            '      v23_d50_swift_driver_jobs_two:\n'
+            '        description: Explicit development-only D50 Swift driver two-job experiment\n'
+            '        required: false\n'
+            '        default: false\n'
+            '        type: boolean\n'))
+        text = remove_exactly_once(text,
+            '  CI_V23_SWIFT_DRIVER_JOBS_TWO: ${{ inputs.v23_d50_swift_driver_jobs_two }}\n')
+        text = remove_exactly_once(text,
+            'if: ${{ inputs.v23_d50_compiler_observation == true || inputs.v23_d50_swift_driver_jobs_two == true }}',
+            'if: ${{ inputs.v23_d50_compiler_observation == true }}')
+        text = remove_exactly_once(text, (
+            '          JOBS_TWO: ${{ inputs.v23_d50_swift_driver_jobs_two }}\n'
+            '          OBSERVATION_ENABLED: ${{ inputs.v23_d50_compiler_observation }}\n'))
+        text = remove_exactly_once(text,
+            '          if [ "$JOBS_TWO" = true ]; then test "$OBSERVATION_ENABLED" = true; fi\n')
+        forwarding = '      v23_d50_swift_driver_jobs_two: ${{ inputs.v23_d50_swift_driver_jobs_two }}\n'
+        if text.count(forwarding) != 16:
+            raise AssertionError('driver-j2 caller forwarding count')
+        text = text.replace(forwarding, '')
+    elif relative == '.github/workflows/ios-ci-worker.yml':
+        text = remove_exactly_once(text, (
+            '      v23_d50_swift_driver_jobs_two:\n'
+            '        description: Explicit development-only D50 Swift driver two-job experiment\n'
+            '        required: false\n'
+            '        default: false\n'
+            '        type: boolean\n'))
+        text = remove_exactly_once(text,
+            '      CI_V23_SWIFT_DRIVER_JOBS_TWO: ${{ inputs.v23_d50_swift_driver_jobs_two }}\n')
+        text = remove_exactly_once(text, (
+            '          case "$CI_V23_SWIFT_DRIVER_JOBS_TWO" in\n'
+            '            false) ;;\n'
+            '            true) test "$CI_V23_COMPILER_OBSERVATION:$CI_V23_RUN_KIND:$CI_RUNNER_PROVIDER:$NATIVE_SELECTION_ID:$CI_NATIVE_ACCEPTANCE_CONTRACT" = true:development:github:v23-dev-batch-no-index-d50:v23.integration.current-native.v1 ;;\n'
+            '            *) exit 1 ;;\n'
+            '          esac\n'))
+    elif relative == 'Scripts/build-smoke.sh':
+        text = remove_exactly_once(text, (
+            'case "${CI_V23_SWIFT_DRIVER_JOBS_TWO:-false}" in\n'
+            '  false) ;;\n'
+            '  true)\n'
+            '    test "${CI_V23_COMPILER_OBSERVATION:-false}" = true\n'
+            '    test "${CI_V23_RUN_KIND:-}" = development\n'
+            '    test "${NATIVE_SELECTION_ID:-none}" = v23-dev-batch-no-index-d50\n'
+            '    ;;\n'
+            '  *) exit 1 ;;\n'
+            'esac\n'))
+    else:
+        raise AssertionError('unreviewed driver-j2 inverse path')
+    result = text.encode('utf-8')
+    if hashlib.sha256(result).hexdigest() != PASSIVE_D50_SOURCE_SHA256[relative][0]:
+        raise AssertionError('driver-j2 inverse changed reviewed V4 source: ' + relative)
+    return result
 
 
 def before_passive_d50_observation(relative, raw):
+    if hashlib.sha256(raw).hexdigest() == J2_SOURCE_SHA256[relative]:
+        raw = before_driver_j2_experiment(relative, raw)
     candidate_sha, base_sha = PASSIVE_D50_SOURCE_SHA256[relative]
     if hashlib.sha256(raw).hexdigest() != candidate_sha:
         raise AssertionError('changed reviewed passive D50 source: ' + relative)
@@ -220,6 +287,20 @@ def before_passive_d50_observation(relative, raw):
 
 
 class PassiveD50HistoricalInverseTests(unittest.TestCase):
+    def test_driver_j2_inverse_is_exact_and_rejects_tampering(self):
+        for relative in J2_SOURCE_SHA256:
+            with self.subTest(relative=relative):
+                raw = (ROOT / relative).read_bytes()
+                prior = before_driver_j2_experiment(relative, raw)
+                self.assertEqual(hashlib.sha256(prior).hexdigest(),
+                                 PASSIVE_D50_SOURCE_SHA256[relative][0])
+                self.assertEqual(before_passive_d50_observation(relative, raw),
+                                 subprocess.check_output(['git', 'show',
+                                     'e74df72d02482ed70bc208a0a118275237c7c714:' + relative],
+                                     cwd=ROOT))
+                with self.assertRaises(AssertionError):
+                    before_driver_j2_experiment(relative, raw + b' ')
+
     def test_only_reviewed_additions_are_removed_and_tampering_refuses(self):
         for relative in PASSIVE_D50_SOURCE_SHA256:
             with self.subTest(relative=relative):
@@ -231,7 +312,7 @@ class PassiveD50HistoricalInverseTests(unittest.TestCase):
                     before_passive_d50_observation(relative, raw + b' ')
 
         relative = '.github/workflows/ios-ci.yml'
-        raw = (ROOT / relative).read_bytes()
+        raw = before_driver_j2_experiment(relative, (ROOT / relative).read_bytes())
         for changed in (
                 raw.replace(PASSIVE_D50_FORWARDING.encode(), 2 * PASSIVE_D50_FORWARDING.encode(), 1),
                 raw.replace(b'      - name: Admit explicit D50 compiler observation\n',

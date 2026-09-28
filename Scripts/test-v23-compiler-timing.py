@@ -985,9 +985,20 @@ class DevelopmentPassiveTimingTests(unittest.TestCase):
                      b'    ;;\n'
                      b'  *) exit 1 ;;\n'
                      b'esac\n')
+        j2_admission = (b'case "${CI_V23_SWIFT_DRIVER_JOBS_TWO:-false}" in\n'
+                        b'  false) ;;\n'
+                        b'  true)\n'
+                        b'    test "${CI_V23_COMPILER_OBSERVATION:-false}" = true\n'
+                        b'    test "${CI_V23_RUN_KIND:-}" = development\n'
+                        b'    test "${NATIVE_SELECTION_ID:-none}" = v23-dev-batch-no-index-d50\n'
+                        b'    ;;\n'
+                        b'  *) exit 1 ;;\n'
+                        b'esac\n')
         self.assertEqual(after.count(addition), 1)
         self.assertEqual(after.count(admission), 1)
-        self.assertEqual(after.replace(addition, b"").replace(admission, b""), before)
+        self.assertEqual(after.count(j2_admission), 1)
+        self.assertEqual(after.replace(addition, b"").replace(admission, b"")
+                         .replace(j2_admission, b""), before)
         self.assertEqual(subprocess.check_output(["git", "show", self.config["sourceHead"]
                          + ":Scripts/run-with-timeout.sh"], cwd=ROOT),
                          (ROOT / "Scripts/run-with-timeout.sh").read_bytes())
@@ -1002,11 +1013,15 @@ class DevelopmentPassiveTimingTests(unittest.TestCase):
         block = caller.split("      v23_d50_compiler_observation:\n", 1)[1].split("      v23_phase1_gate_plan:\n", 1)[0]
         self.assertIn("default: false", block)
         self.assertIn("type: boolean", block)
-        self.assertIn("if: ${{ inputs.v23_d50_compiler_observation == true }}", caller)
+        self.assertIn("if: ${{ inputs.v23_d50_compiler_observation == true || inputs.v23_d50_swift_driver_jobs_two == true }}", caller)
         self.assertIn("development:github-xcode-26.6-acceptance:v23-dev-batch-no-index-d50:false", caller)
         self.assertEqual(caller.count("v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}"), 16)
+        self.assertEqual(caller.count("v23_d50_swift_driver_jobs_two: ${{ inputs.v23_d50_swift_driver_jobs_two }}"), 16)
+        self.assertEqual(caller.count("      v23_d50_swift_driver_jobs_two:\n"), 1)
         self.assertEqual(worker.count("      v23_d50_compiler_observation:\n"), 1)
+        self.assertEqual(worker.count("      v23_d50_swift_driver_jobs_two:\n"), 1)
         self.assertIn("CI_V23_COMPILER_OBSERVATION: ${{ inputs.v23_d50_compiler_observation }}", worker)
+        self.assertIn("CI_V23_SWIFT_DRIVER_JOBS_TWO: ${{ inputs.v23_d50_swift_driver_jobs_two }}", worker)
         self.assertIn("CI_V23_RUN_KIND: ${{ inputs.v23_run_kind }}", worker)
         self.assertIn("development:github:v23-dev-batch-no-index-d50:v23.integration.current-native.v1", worker)
         self.assertLess(worker.index('case "$CI_V23_COMPILER_OBSERVATION"'),
@@ -1308,6 +1323,65 @@ class CapabilityTests(unittest.TestCase):
                 else:
                     build.assert_called_once_with(TIMING.diagnostic_command(base_command),
                         artifact / "v23-compiler-timing", query.call_args.args[2])
+
+
+class DevelopmentDriverJ2ExperimentTests(unittest.TestCase):
+    git = CurrentSourceTimingTests.git
+    admit = CompilerTimingTests.admit
+
+    def setUp(self):
+        DevelopmentPassiveTimingTests.setUp(self)
+        self.config = TIMING.read_configuration(
+            ROOT / "Scripts/v23-compiler-timing-development-j2.json")
+        self.env["CI_V23_SWIFT_DRIVER_JOBS_TWO"] = "true"
+        self.command = TIMING.expected_command(self.env, self.config)
+
+    def testExactOneSettingAndClosedAdmission(self):
+        self.assertEqual(self.config, TIMING.DEVELOPMENT_J2_PROFILE)
+        self.assertEqual(self.config["parentHead"],
+                         "2338a765fee72d6e6e6ecb5a070ff3f4fb6e9ba0")
+        self.assertEqual(self.config["sourceHead"], TIMING.DEVELOPMENT_PROFILE["sourceHead"])
+        self.assertEqual(self.admit(), self.env["GITHUB_SHA"])
+        self.assertEqual(TIMING.driver_jobs_two_command(self.command),
+            self.command[:-1] + ["OTHER_SWIFT_FLAGS=$(inherited) -j 2", "build-for-testing"])
+        self.assertEqual(self.command[-2:], ["COMPILER_INDEX_STORE_ENABLE=NO", "build-for-testing"])
+        for changed in (
+                dict(self.env, CI_V23_SWIFT_DRIVER_JOBS_TWO="false"),
+                dict(self.env, CI_V23_COMPILER_OBSERVATION="false"),
+                dict(self.env, CI_V23_RUN_KIND="gate"),
+                dict(self.env, NATIVE_SELECTION_ID="v23-shared-coverage-d50x")):
+            with self.subTest(changed=changed), self.assertRaises(ValueError):
+                self.admit(environment=changed)
+        with self.assertRaisesRegex(ValueError, "exact base build argv"):
+            self.admit(command=TIMING.driver_jobs_two_command(self.command))
+        for field, value in (("schemaVersion", 7), ("mode", "other"),
+                             ("parentHead", self.config["sourceHead"]),
+                             ("selectionSHA256", "0" * 64)):
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                TIMING.validate_configuration({**self.config, field: value})
+        changed_product = copy.deepcopy(self.config)
+        changed_product["sourceTrees"]["FieldEvidenceApp"] = "0" * 40
+        with self.assertRaises(ValueError):
+            TIMING.validate_configuration(changed_product)
+
+    def testObservedBuildChangesOnlyDriverSettingAndKeepsChildOutcome(self):
+        with mock.patch.object(TIMING.Path, "cwd", return_value=ROOT), \
+             mock.patch.object(TIMING.sys, "argv", ["Scripts/v23-compiler-timing.py", "--", *self.command]), \
+             mock.patch.dict(TIMING.os.environ, self.env), \
+             mock.patch.object(TIMING, "admit", return_value=self.env["GITHUB_SHA"]), \
+             mock.patch.object(TIMING, "run_observed_build", return_value=7) as observed, \
+             mock.patch.object(TIMING, "run_observed_capability", side_effect=AssertionError("query forbidden")):
+            self.assertEqual(TIMING.main(), 7)
+        args, kwargs = observed.call_args
+        self.assertEqual(args[0], TIMING.driver_jobs_two_command(self.command))
+        self.assertEqual(args[2]["baseCommand"], self.command)
+        self.assertEqual(args[2]["buildWatchdogSeconds"], 1800)
+        self.assertTrue(args[2]["swiftDriverJobsTwo"])
+        self.assertFalse(args[2]["nativeAcceptance"])
+        self.assertFalse(args[2]["providerQualification"])
+        self.assertEqual(kwargs["interval"], 5)
+        self.assertEqual(kwargs["sample_limit_bytes"], 20 * 1024 * 1024)
+        self.assertTrue(kwargs["private_commands"])
 
 
 if __name__ == "__main__":

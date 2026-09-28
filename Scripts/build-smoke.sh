@@ -17,6 +17,15 @@ case "${CI_V23_COMPILER_OBSERVATION:-false}" in
     ;;
   *) exit 1 ;;
 esac
+case "${CI_V23_SWIFT_DRIVER_JOBS_TWO:-false}" in
+  false) ;;
+  true)
+    test "${CI_V23_COMPILER_OBSERVATION:-false}" = true
+    test "${CI_V23_RUN_KIND:-}" = development
+    test "${NATIVE_SELECTION_ID:-none}" = v23-dev-batch-no-index-d50
+    ;;
+  *) exit 1 ;;
+esac
 mkdir -p "$CI_ARTIFACT_DIR" "$derived_data_path"
 
 # H411 producer source argv receipt precedes the preserved cache wrapper.

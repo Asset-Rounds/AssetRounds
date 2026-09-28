@@ -68,6 +68,9 @@ DEVELOPMENT_PROFILE = {
     "resolvedSelectionSHA256": "C14B6B32A904A5C474A0413ABF919BDABF1812FBEEC6B9963698FBC14A6A4EE0",
     "sampleIntervalSeconds": 5,
 }
+DEVELOPMENT_J2_PROFILE = dict(DEVELOPMENT_PROFILE,
+    schemaVersion=8, mode="timing-development-driver-j2-source-v8",
+    parentHead="2338a765fee72d6e6e6ecb5a070ff3f4fb6e9ba0")
 
 SWIFT_FLAGS = ("OTHER_SWIFT_FLAGS=$(inherited) -Xfrontend -warn-long-function-bodies=500"
                " -Xfrontend -warn-long-expression-type-checking=200")
@@ -100,6 +103,9 @@ def read_configuration(path):
 
 def validate_configuration(config):
     require(isinstance(config, dict), "configuration object")
+    if type(config.get("schemaVersion")) is int and config["schemaVersion"] == 8:
+        require(config == DEVELOPMENT_J2_PROFILE, "fixed development driver-j2 source profile")
+        return config
     if type(config.get("schemaVersion")) is int and config["schemaVersion"] == 7:
         require(config == DEVELOPMENT_PROFILE, "fixed development passive source profile")
         return config
@@ -159,7 +165,7 @@ def expected_command(environment, config=None):
             "-derivedDataPath", e["RUNNER_TEMP"] + "/FieldEvidenceDerivedData",
             "-resultBundlePath", e["CI_ARTIFACT_DIR"] + "/Build.xcresult",
             "CODE_SIGNING_ALLOWED=NO", "build-for-testing"]
-    if config is not None and config["schemaVersion"] in (5, 6, 7):
+    if config is not None and config["schemaVersion"] in (5, 6, 7, 8):
         command.insert(-1, "COMPILER_INDEX_STORE_ENABLE=NO")
     return command
 
@@ -195,11 +201,14 @@ def admit(config, environment, command, root, git_output, platform=sys.platform)
     if config["schemaVersion"] in (5, 6):
         required.update(NATIVE_SELECTION_ID=INTERRUPTION_SELECTION_ID, CI_TIER="D30",
                         CI_BUILD_TIMEOUT_SECONDS="1800", CI_TOTAL_BUDGET_SECONDS="3000")
-    if config["schemaVersion"] == 7:
+    if config["schemaVersion"] in (7, 8):
         required.update(NATIVE_SELECTION_ID=DEVELOPMENT_SELECTION_ID, CI_TIER="D50",
                         CI_BUILD_TIMEOUT_SECONDS="1800", CI_TEST_TIMEOUT_SECONDS="3000",
                         CI_TOTAL_BUDGET_SECONDS="5100",
                         CI_V23_COMPILER_OBSERVATION="true", CI_V23_RUN_KIND="development")
+        require(environment.get("CI_V23_SWIFT_DRIVER_JOBS_TWO", "false")
+                == ("true" if config["schemaVersion"] == 8 else "false"),
+                "exact development driver-j2 opt-in")
     require(platform == "darwin", "host platform")
     for key, value in required.items():
         require(environment.get(key) == value, key)
@@ -207,7 +216,7 @@ def admit(config, environment, command, root, git_output, platform=sys.platform)
     head = git_output("rev-parse", "HEAD").decode().strip()
     require(re.fullmatch(r"[a-f0-9]{40}", head)
             and head == environment.get("GITHUB_SHA"), "actual checkout head")
-    if config["schemaVersion"] in (2, 3, 4, 5, 6, 7):
+    if config["schemaVersion"] in (2, 3, 4, 5, 6, 7, 8):
         require_direct_parent(git_output, config.get("parentHead", config["sourceHead"]))
     for path, tree in config["sourceTrees"].items():
         require(git_output("rev-parse", "HEAD:" + path).decode().strip() == tree, path + " tree")
@@ -235,6 +244,11 @@ def admit(config, environment, command, root, git_output, platform=sys.platform)
 def diagnostic_command(command):
     require(command[-1] == "build-for-testing", "build action")
     return command[:-1] + ["-showBuildTimingSummary", SWIFT_FLAGS, command[-1]]
+
+
+def driver_jobs_two_command(command):
+    require(command[-1] == "build-for-testing", "build action")
+    return command[:-1] + ["OTHER_SWIFT_FLAGS=$(inherited) -j 2", command[-1]]
 
 
 def parse_processes(raw):
@@ -641,9 +655,12 @@ def run_observed_build(command, output, metadata, interval=5,
 def main():
     require(len(sys.argv) > 2 and sys.argv[1] == "--", "usage: -- <original build argv>")
     root = Path.cwd()
-    config_name = ("v23-compiler-timing-development.json"
-                   if os.environ.get("NATIVE_SELECTION_ID") == DEVELOPMENT_SELECTION_ID
-                   else "v23-compiler-timing.json")
+    if os.environ.get("NATIVE_SELECTION_ID") == DEVELOPMENT_SELECTION_ID:
+        config_name = ("v23-compiler-timing-development-j2.json"
+                       if os.environ.get("CI_V23_SWIFT_DRIVER_JOBS_TWO", "false") == "true"
+                       else "v23-compiler-timing-development.json")
+    else:
+        config_name = "v23-compiler-timing.json"
     config_path = root / "Scripts" / config_name
     config = read_configuration(config_path)
     command = sys.argv[2:]
@@ -657,14 +674,18 @@ def main():
                 "configurationSHA256": hashlib.sha256(config_path.read_bytes()).hexdigest().upper(),
                 "baseCommand": command, "nativeAcceptance": False,
                 "providerQualification": False,
-                "buildWatchdogSeconds": 1800 if config["schemaVersion"] in (5, 6, 7) else 1200,
+                "buildWatchdogSeconds": 1800 if config["schemaVersion"] in (5, 6, 7, 8) else 1200,
                 "limits": "Sampling gives first/last sightings, not per-process exit codes. CPU percent is a decaying average. Host compilers can be unrelated; bind rendered source/primary paths before attribution. Instrumentation may affect duration."}
     if config["schemaVersion"] in (5, 6):
         # No compiler flags are added, so there is no capability query.
         return run_observed_build(command, output, metadata,
                                   interval=config["sampleIntervalSeconds"])
-    if config["schemaVersion"] == 7:
-        return run_observed_build(command, output, metadata,
+    if config["schemaVersion"] in (7, 8):
+        observed_command = (driver_jobs_two_command(command)
+                            if config["schemaVersion"] == 8 else command)
+        if config["schemaVersion"] == 8:
+            metadata["swiftDriverJobsTwo"] = True
+        return run_observed_build(observed_command, output, metadata,
                                   interval=config["sampleIntervalSeconds"],
                                   sampler=development_host_sampler(),
                                   commands_reader=development_command_summaries,

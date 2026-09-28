@@ -227,6 +227,11 @@ on:
         required: false
         default: false
         type: boolean
+      v23_d50_swift_driver_jobs_two:
+        description: Explicit development-only D50 Swift driver two-job experiment
+        required: false
+        default: false
+        type: boolean
       v23_phase1_gate_plan:
         description: Reserved canonical Phase 1 gate plan; admission remains disabled pending end-to-end review
         required: false
@@ -238,6 +243,7 @@ permissions:
 
 env:
   CI_V23_COMPILER_OBSERVATION: ${{ inputs.v23_d50_compiler_observation }}
+  CI_V23_SWIFT_DRIVER_JOBS_TWO: ${{ inputs.v23_d50_swift_driver_jobs_two }}
   CI_V23_RUN_KIND: ${{ inputs.v23_run_kind }}
 
 concurrency:
@@ -266,16 +272,19 @@ jobs:
         with:
           persist-credentials: false
       - name: Admit explicit D50 compiler observation
-        if: ${{ inputs.v23_d50_compiler_observation == true }}
+        if: ${{ inputs.v23_d50_compiler_observation == true || inputs.v23_d50_swift_driver_jobs_two == true }}
         shell: bash
         env:
           OBSERVATION_KIND: ${{ inputs.v23_run_kind }}
+          JOBS_TWO: ${{ inputs.v23_d50_swift_driver_jobs_two }}
+          OBSERVATION_ENABLED: ${{ inputs.v23_d50_compiler_observation }}
           OBSERVATION_LANE: ${{ inputs.execution_lane }}
           OBSERVATION_SELECTION: ${{ inputs.native_selection_id }}
           OBSERVATION_UI: ${{ inputs.run_ui_smoke }}
         run: |
           set -euo pipefail
           test "$OBSERVATION_KIND:$OBSERVATION_LANE:$OBSERVATION_SELECTION:$OBSERVATION_UI" = development:github-xcode-26.6-acceptance:v23-dev-batch-no-index-d50:false
+          if [ "$JOBS_TWO" = true ]; then test "$OBSERVATION_ENABLED" = true; fi
       - name: Validate ordinary V23 native acceptance selection
         id: native_selection
         if: ${{ inputs.execution_lane == 'github-xcode-26.6-acceptance' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-acceptance' }}
@@ -476,6 +485,7 @@ jobs:
       native_selection_sha256: ${{ needs.shared-selection.outputs.native_selection_sha256 }}
       native_selection_map_sha256: ${{ needs.shared-selection.outputs.native_selection_map_sha256 }}
       v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_d50_swift_driver_jobs_two: ${{ inputs.v23_d50_swift_driver_jobs_two }}
       v23_run_kind: ${{ inputs.v23_run_kind }}
       run_ui_smoke: ${{ inputs.run_ui_smoke }}
       s10_4_shard_id: ${{ inputs.s10_4_shard_id }}
@@ -533,6 +543,7 @@ jobs:
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_d50_swift_driver_jobs_two: ${{ inputs.v23_d50_swift_driver_jobs_two }}
       v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: getmac-tahoe
       runner_provider: getmac
@@ -556,6 +567,7 @@ jobs:
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_d50_swift_driver_jobs_two: ${{ inputs.v23_d50_swift_driver_jobs_two }}
       v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: 'bitrise-runner-Asset Roundddd'
       runner_provider: bitrise
@@ -612,6 +624,7 @@ jobs:
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_d50_swift_driver_jobs_two: ${{ inputs.v23_d50_swift_driver_jobs_two }}
       v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: 'bitrise-runner-Asset Roundddd'
       runner_provider: bitrise
@@ -631,6 +644,7 @@ jobs:
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_d50_swift_driver_jobs_two: ${{ inputs.v23_d50_swift_driver_jobs_two }}
       v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: 'bitrise-runner-Asset Roundddd'
       runner_provider: bitrise
@@ -649,6 +663,7 @@ jobs:
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_d50_swift_driver_jobs_two: ${{ inputs.v23_d50_swift_driver_jobs_two }}
       v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: 'bitrise-runner-Asset Roundddd'
       runner_provider: bitrise
@@ -667,6 +682,7 @@ jobs:
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_d50_swift_driver_jobs_two: ${{ inputs.v23_d50_swift_driver_jobs_two }}
       v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: macos-26
       runner_provider: github
@@ -684,6 +700,7 @@ jobs:
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_d50_swift_driver_jobs_two: ${{ inputs.v23_d50_swift_driver_jobs_two }}
       v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: macos-26
       runner_provider: github
@@ -701,6 +718,7 @@ jobs:
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_d50_swift_driver_jobs_two: ${{ inputs.v23_d50_swift_driver_jobs_two }}
       v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: macos-26
       runner_provider: github
@@ -1145,6 +1163,7 @@ jobs:
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_d50_swift_driver_jobs_two: ${{ inputs.v23_d50_swift_driver_jobs_two }}
       v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: 'bitrise-runner-Asset Roundddd'
       runner_provider: bitrise
@@ -1163,6 +1182,7 @@ jobs:
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_d50_swift_driver_jobs_two: ${{ inputs.v23_d50_swift_driver_jobs_two }}
       v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: macos-26
       runner_provider: github
@@ -1234,6 +1254,7 @@ jobs:
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_d50_swift_driver_jobs_two: ${{ inputs.v23_d50_swift_driver_jobs_two }}
       v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: 'bitrise-runner-Asset Roundddd'
       runner_provider: bitrise
@@ -1252,6 +1273,7 @@ jobs:
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_d50_swift_driver_jobs_two: ${{ inputs.v23_d50_swift_driver_jobs_two }}
       v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: macos-26
       runner_provider: github
@@ -1271,6 +1293,7 @@ jobs:
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_d50_swift_driver_jobs_two: ${{ inputs.v23_d50_swift_driver_jobs_two }}
       v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: macos-26
       runner_provider: github
@@ -1348,6 +1371,7 @@ jobs:
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_d50_swift_driver_jobs_two: ${{ inputs.v23_d50_swift_driver_jobs_two }}
       v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: macos-26
       runner_provider: github
@@ -1455,6 +1479,7 @@ jobs:
     uses: ./.github/workflows/ios-ci-worker.yml
     with:
       v23_d50_compiler_observation: ${{ inputs.v23_d50_compiler_observation }}
+      v23_d50_swift_driver_jobs_two: ${{ inputs.v23_d50_swift_driver_jobs_two }}
       v23_run_kind: ${{ inputs.v23_run_kind }}
       runner_label: 'bitrise-runner-Asset Roundddd'
       runner_provider: bitrise

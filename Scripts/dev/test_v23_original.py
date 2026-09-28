@@ -1319,6 +1319,8 @@ class CompilerObservationDispatchTests(unittest.TestCase):
 
     def test_default_dispatch_remains_ordinary_and_explicit_d50_is_bound(self):
         self.assertTrue(NEW.compiler_observation_input_declared(self.workflow))
+        self.assertTrue(NEW.default_false_boolean_input_declared(
+            self.workflow, NEW.SWIFT_DRIVER_JOBS_TWO_INPUT))
         ordinary = DispatchHarness(NEW, self.root, DEV, workflow=self.workflow, resolved=DEV_PLAN)
         ordinary.dispatch(kind="development")
         ordinary_record = json.loads((self.root / str(RUN) / "dispatch.json").read_text())
@@ -1362,6 +1364,56 @@ class CompilerObservationDispatchTests(unittest.TestCase):
             (host / "v23-original-attempts" / record["attemptName"]).write_text(json.dumps(attempt))
             with evidence_root(NEW, host), self.assertRaisesRegex(SystemExit, "attempt/dispatch"):
                 NEW.check_compiler_observation_record(record)
+
+    def test_driver_two_jobs_requires_observation_and_binds_attempt_ledger_dispatch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            host = Path(directory)
+            observed = DispatchHarness(NEW, host, DEV, workflow=self.workflow, resolved=DEV_PLAN)
+            observed.dispatch(kind="development", compiler_observation=True,
+                swift_driver_jobs_two=True)
+            record = json.loads((host / str(RUN) / "dispatch.json").read_text())
+            self.assertTrue(record["compilerObservation"])
+            self.assertTrue(record["swiftDriverJobsTwo"])
+            self.assertIn("v23_d50_swift_driver_jobs_two=true", record["argv"])
+            with evidence_root(NEW, host):
+                self.assertTrue(NEW.check_compiler_observation_record(record))
+            attempt_path = host / "v23-original-attempts" / record["attemptName"]
+            attempt = json.loads(attempt_path.read_text())
+            self.assertTrue(attempt["swiftDriverJobsTwo"])
+            self.assertTrue(ledger_lines(host)[0]["swiftDriverJobsTwo"])
+            for downgraded in (dict(record, swiftDriverJobsTwo=False),
+                               {key: value for key, value in record.items()
+                                if key != "swiftDriverJobsTwo"},
+                               dict(record, compilerObservation=False)):
+                with self.subTest(downgraded=downgraded), evidence_root(NEW, host), \
+                     self.assertRaises(SystemExit):
+                    NEW.check_compiler_observation_record(downgraded)
+            ledger_path = host / "v23-original-ledger.jsonl"
+            original_ledger = ledger_path.read_text()
+            downgraded_ledger = dict(ledger_lines(host)[0])
+            downgraded_ledger.pop("swiftDriverJobsTwo")
+            ledger_path.write_text(json.dumps(downgraded_ledger) + "\n")
+            with evidence_root(NEW, host), self.assertRaisesRegex(SystemExit, "ledger/dispatch"):
+                NEW.check_compiler_observation_record(record)
+            ledger_path.write_text(original_ledger)
+            attempt.pop("swiftDriverJobsTwo")
+            attempt_path.write_text(json.dumps(attempt))
+            with evidence_root(NEW, host), self.assertRaisesRegex(SystemExit, "attempt/dispatch"):
+                NEW.check_compiler_observation_record(record)
+
+    def test_driver_two_jobs_refuses_unobserved_or_gate_before_dispatch(self):
+        for route, kind, observation in ((DEV, "development", False),
+                                         (DEV, "gate", True),
+                                         (NEW.SHARED_SELECTION_ID, "development", True)):
+            with self.subTest(route=route, kind=kind, observation=observation):
+                with tempfile.TemporaryDirectory() as directory:
+                    harness = DispatchHarness(NEW, Path(directory), route,
+                        workflow=self.workflow,
+                        resolved=DEV_PLAN if route == DEV else None)
+                    with self.assertRaises(SystemExit):
+                        harness.dispatch(kind=kind, compiler_observation=observation,
+                            swift_driver_jobs_two=True)
+                    self.assertFalse(harness.dispatched)
 
     def test_opt_in_refuses_gate_other_route_or_missing_boolean_before_dispatch(self):
         for route, kind, workflow in ((DEV, "gate", self.workflow),

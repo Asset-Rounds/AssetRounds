@@ -36,6 +36,11 @@ on:
         required: false
         default: false
         type: boolean
+      v23_d50_swift_driver_jobs_two:
+        description: Explicit development-only D50 Swift driver two-job experiment
+        required: false
+        default: false
+        type: boolean
       v23_run_kind:
         description: Caller-bound V23 execution kind for observation admission
         required: false
@@ -133,6 +138,7 @@ jobs:
       CI_NATIVE_ACCEPTANCE_CONTRACT: ${{ inputs.native_acceptance_contract }}
       NATIVE_SELECTION_ID: ${{ inputs.native_selection_id }}
       CI_V23_COMPILER_OBSERVATION: ${{ inputs.v23_d50_compiler_observation }}
+      CI_V23_SWIFT_DRIVER_JOBS_TWO: ${{ inputs.v23_d50_swift_driver_jobs_two }}
       CI_V23_RUN_KIND: ${{ inputs.v23_run_kind }}
       DISPATCH_NATIVE_SELECTION_ID: ${{ inputs.native_selection_id }}
       DISPATCH_NATIVE_SELECTION_SHA256: ${{ inputs.native_selection_sha256 }}
@@ -191,6 +197,11 @@ jobs:
           case "$CI_V23_COMPILER_OBSERVATION" in
             false) ;;
             true) test "$CI_V23_RUN_KIND:$CI_RUNNER_PROVIDER:$NATIVE_SELECTION_ID:$CI_NATIVE_ACCEPTANCE_CONTRACT" = development:github:v23-dev-batch-no-index-d50:v23.integration.current-native.v1 ;;
+            *) exit 1 ;;
+          esac
+          case "$CI_V23_SWIFT_DRIVER_JOBS_TWO" in
+            false) ;;
+            true) test "$CI_V23_COMPILER_OBSERVATION:$CI_V23_RUN_KIND:$CI_RUNNER_PROVIDER:$NATIVE_SELECTION_ID:$CI_NATIVE_ACCEPTANCE_CONTRACT" = true:development:github:v23-dev-batch-no-index-d50:v23.integration.current-native.v1 ;;
             *) exit 1 ;;
           esac
           case "$CI_RUNNER_PROVIDER:$CI_RUNNER_LABEL" in
