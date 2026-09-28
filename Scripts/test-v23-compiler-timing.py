@@ -1368,6 +1368,8 @@ class DevelopmentDriverJ2ExperimentTests(unittest.TestCase):
         with mock.patch.object(TIMING.Path, "cwd", return_value=ROOT), \
              mock.patch.object(TIMING.sys, "argv", ["Scripts/v23-compiler-timing.py", "--", *self.command]), \
              mock.patch.dict(TIMING.os.environ, self.env), \
+             mock.patch.object(TIMING, "development_configuration_name",
+                               return_value="v23-compiler-timing-development-j2.json"), \
              mock.patch.object(TIMING, "admit", return_value=self.env["GITHUB_SHA"]), \
              mock.patch.object(TIMING, "run_observed_build", return_value=7) as observed, \
              mock.patch.object(TIMING, "run_observed_capability", side_effect=AssertionError("query forbidden")):
@@ -1382,6 +1384,94 @@ class DevelopmentDriverJ2ExperimentTests(unittest.TestCase):
         self.assertEqual(kwargs["interval"], 5)
         self.assertEqual(kwargs["sample_limit_bytes"], 20 * 1024 * 1024)
         self.assertTrue(kwargs["private_commands"])
+
+
+class DevelopmentF9DriverJ2SuccessorTests(unittest.TestCase):
+    git = CurrentSourceTimingTests.git
+    admit = CompilerTimingTests.admit
+
+    def setUp(self):
+        DevelopmentPassiveTimingTests.setUp(self)
+        self.config = TIMING.read_configuration(
+            ROOT / "Scripts/v23-compiler-timing-development-f9-j2.json")
+        self.env["CI_V23_SWIFT_DRIVER_JOBS_TWO"] = "true"
+        self.command = TIMING.expected_command(self.env, self.config)
+
+    def test_exact_f9_successor_source_and_single_driver_setting(self):
+        self.assertEqual(self.config, TIMING.DEVELOPMENT_F9_J2_PROFILE)
+        self.assertEqual(self.config["schemaVersion"], 9)
+        self.assertEqual(self.admit(), self.env["GITHUB_SHA"])
+        self.assertEqual(self.command[-2:], ["COMPILER_INDEX_STORE_ENABLE=NO", "build-for-testing"])
+        self.assertEqual(TIMING.driver_jobs_two_command(self.command),
+                         self.command[:-1] + ["OTHER_SWIFT_FLAGS=$(inherited) -j 2",
+                                              "build-for-testing"])
+        for path, tree in self.config["sourceTrees"].items():
+            self.assertEqual(subprocess.check_output(
+                ["git", "rev-parse", self.config["sourceHead"] + ":" + path],
+                cwd=ROOT).decode().strip(), tree)
+        for relative, key in (("Scripts/ci-selection.json", "selectionSHA256"),
+                              ("Scripts/ci-selection-map.json", "selectionMapSHA256")):
+            data = subprocess.check_output(
+                ["git", "show", self.config["sourceHead"] + ":" + relative], cwd=ROOT)
+            self.assertEqual(hashlib.sha256(data).hexdigest().upper(), self.config[key])
+        self.assertEqual(hashlib.sha256(self.resolved.read_bytes()).hexdigest().upper(),
+                         self.config["resolvedSelectionSHA256"])
+
+    def test_closed_f9_parent_tree_selector_and_opt_in_refusals(self):
+        for changed in (dict(self.env, CI_V23_SWIFT_DRIVER_JOBS_TWO="false"),
+                        dict(self.env, CI_V23_COMPILER_OBSERVATION="false"),
+                        dict(self.env, CI_V23_RUN_KIND="gate")):
+            with self.subTest(changed=changed), self.assertRaises(ValueError):
+                self.admit(environment=changed)
+        for field, value in (("parentHead", "0" * 40), ("sourceHead", "0" * 40),
+                             ("resolvedSelectionSHA256", "0" * 64), ("schemaVersion", 8)):
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                TIMING.validate_configuration({**self.config, field: value})
+        for path in TIMING.SOURCE_PATHS:
+            def wrong_tree(*args):
+                return b"0" * 40 if args == ("rev-parse", "HEAD:" + path) else self.git(*args)
+            with self.subTest(path=path), self.assertRaises(ValueError):
+                self.admit(git=wrong_tree)
+        for content in (b"tree " + b"c" * 40 + b"\nparent " + b"0" * 40 + b"\n\n",
+                        b"tree " + b"c" * 40 + b"\nparent " +
+                        self.config["parentHead"].encode() + b"\nparent " + b"0" * 40 + b"\n\n"):
+            def wrong_parent(*args):
+                return content if args == ("cat-file", "commit", "HEAD") else self.git(*args)
+            with self.assertRaisesRegex(ValueError, "exact single direct parent"):
+                self.admit(git=wrong_parent)
+        # A shallow checkout need only expose the current commit object.
+        calls = []
+        def shallow(*args):
+            calls.append(args)
+            return self.git(*args)
+        self.assertEqual(self.admit(git=shallow), self.env["GITHUB_SHA"])
+        self.assertNotIn(("rev-parse", "HEAD^"), calls)
+        for relative in ("Scripts/ci-selection.json", "Scripts/ci-selection-map.json"):
+            path = self.root / relative
+            before = path.read_bytes()
+            path.write_bytes(before + b" ")
+            with self.assertRaisesRegex(ValueError, "bytes"):
+                self.admit()
+            path.write_bytes(before)
+        with self.assertRaisesRegex(ValueError, "resolved selection bytes"):
+            self.admit(environment=dict(self.env, DISPATCH_NATIVE_SELECTION_SHA256="0" * 64))
+
+    def test_closed_selection_keeps_historical_profiles(self):
+        self.assertEqual(TIMING.validate_configuration(TIMING.DEVELOPMENT_PROFILE),
+                         TIMING.DEVELOPMENT_PROFILE)
+        self.assertEqual(TIMING.validate_configuration(TIMING.DEVELOPMENT_J2_PROFILE),
+                         TIMING.DEVELOPMENT_J2_PROFILE)
+        def commit(parent):
+            return lambda *args: (b"tree " + b"c" * 40 + b"\nparent " +
+                                  parent.encode() + b"\n\n") if args == (
+                                      "cat-file", "commit", "HEAD") else self.git(*args)
+        self.assertEqual(TIMING.development_configuration_name(True, commit(
+            self.config["parentHead"])), TIMING.DEVELOPMENT_F9_J2_FILE)
+        self.assertEqual(TIMING.development_configuration_name(True, commit(
+            TIMING.DEVELOPMENT_J2_PROFILE["parentHead"])),
+            "v23-compiler-timing-development-j2.json")
+        self.assertEqual(TIMING.development_configuration_name(False, commit(
+            self.config["parentHead"])), "v23-compiler-timing-development.json")
 
 
 if __name__ == "__main__":

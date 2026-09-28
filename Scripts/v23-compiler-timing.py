@@ -71,6 +71,19 @@ DEVELOPMENT_PROFILE = {
 DEVELOPMENT_J2_PROFILE = dict(DEVELOPMENT_PROFILE,
     schemaVersion=8, mode="timing-development-driver-j2-source-v8",
     parentHead="2338a765fee72d6e6e6ecb5a070ff3f4fb6e9ba0")
+# The previous two profiles remain receipts of their exact hosted experiments.
+# This is a separate direct-successor experiment over the later f9 product.
+DEVELOPMENT_F9_J2_PROFILE = dict(DEVELOPMENT_J2_PROFILE,
+    schemaVersion=9, mode="timing-development-driver-j2-f9-source-v9",
+    sourceHead="f9e0fa9819fd0d4cae0a7d1de279b7386f12e72d",
+    parentHead="f9e0fa9819fd0d4cae0a7d1de279b7386f12e72d",
+    sourceTrees={
+        "FieldEvidenceApp": "69c935d7281ce358d6ba3caaada50949d1747985",
+        "FieldEvidenceAppTests": "eb0029547752ade8b07d3e47336d8a9030f857aa",
+        "FieldEvidenceAppUITests": "74b8a3c90fff8c1160a75e84222054bcedab8b0b",
+        "FieldEvidenceApp.xcodeproj": "8bfd8a246776a4e3f15b62aef29d558f2b3ee34d",
+    })
+DEVELOPMENT_F9_J2_FILE = "v23-compiler-timing-development-f9-j2.json"
 
 SWIFT_FLAGS = ("OTHER_SWIFT_FLAGS=$(inherited) -Xfrontend -warn-long-function-bodies=500"
                " -Xfrontend -warn-long-expression-type-checking=200")
@@ -103,6 +116,9 @@ def read_configuration(path):
 
 def validate_configuration(config):
     require(isinstance(config, dict), "configuration object")
+    if type(config.get("schemaVersion")) is int and config["schemaVersion"] == 9:
+        require(config == DEVELOPMENT_F9_J2_PROFILE, "fixed f9 development driver-j2 source profile")
+        return config
     if type(config.get("schemaVersion")) is int and config["schemaVersion"] == 8:
         require(config == DEVELOPMENT_J2_PROFILE, "fixed development driver-j2 source profile")
         return config
@@ -165,7 +181,7 @@ def expected_command(environment, config=None):
             "-derivedDataPath", e["RUNNER_TEMP"] + "/FieldEvidenceDerivedData",
             "-resultBundlePath", e["CI_ARTIFACT_DIR"] + "/Build.xcresult",
             "CODE_SIGNING_ALLOWED=NO", "build-for-testing"]
-    if config is not None and config["schemaVersion"] in (5, 6, 7, 8):
+    if config is not None and config["schemaVersion"] in (5, 6, 7, 8, 9):
         command.insert(-1, "COMPILER_INDEX_STORE_ENABLE=NO")
     return command
 
@@ -178,6 +194,38 @@ def require_direct_parent(git_output, expected):
     header = raw.split(b"\n\n", 1)[0].split(b"\n")
     parents = [line for line in header if line.startswith(b"parent")]
     require(parents == [b"parent " + expected.encode("ascii")], "exact single direct parent")
+
+
+def development_configuration_name(jobs_two, git_output):
+    """Choose only reviewed D50 profiles; the subsequent admission authenticates the head."""
+    if not jobs_two:
+        return "v23-compiler-timing-development.json"
+    raw = git_output("cat-file", "commit", "HEAD")
+    require(b"\n\n" in raw, "direct parent commit header")
+    parents = [line for line in raw.split(b"\n\n", 1)[0].split(b"\n")
+               if line.startswith(b"parent")]
+    if parents == [b"parent " + DEVELOPMENT_F9_J2_PROFILE["parentHead"].encode("ascii")]:
+        return DEVELOPMENT_F9_J2_FILE
+    return "v23-compiler-timing-development-j2.json"
+
+
+def admit_development_source(config, git_output, selected, mapping, resolved_sha,
+                             expected_head=None):
+    """Shared exact source/selector admission before either hosted build or dispatch."""
+    validate_configuration(config)
+    require(config["schemaVersion"] in (7, 8, 9), "development source profile")
+    if expected_head is not None:
+        require(git_output("rev-parse", "HEAD").decode().strip() == expected_head,
+                "actual checkout head")
+    require_direct_parent(git_output, config["parentHead"])
+    for path, tree in config["sourceTrees"].items():
+        require(git_output("rev-parse", "HEAD:" + path).decode().strip() == tree,
+                path + " tree")
+    require(hashlib.sha256(selected).hexdigest().upper() == config["selectionSHA256"],
+            "selector source bytes")
+    require(hashlib.sha256(mapping).hexdigest().upper() == config["selectionMapSHA256"],
+            "selector map source bytes")
+    require(resolved_sha == config["resolvedSelectionSHA256"], "resolved selection bytes")
 
 
 def admit(config, environment, command, root, git_output, platform=sys.platform):
@@ -201,13 +249,13 @@ def admit(config, environment, command, root, git_output, platform=sys.platform)
     if config["schemaVersion"] in (5, 6):
         required.update(NATIVE_SELECTION_ID=INTERRUPTION_SELECTION_ID, CI_TIER="D30",
                         CI_BUILD_TIMEOUT_SECONDS="1800", CI_TOTAL_BUDGET_SECONDS="3000")
-    if config["schemaVersion"] in (7, 8):
+    if config["schemaVersion"] in (7, 8, 9):
         required.update(NATIVE_SELECTION_ID=DEVELOPMENT_SELECTION_ID, CI_TIER="D50",
                         CI_BUILD_TIMEOUT_SECONDS="1800", CI_TEST_TIMEOUT_SECONDS="3000",
                         CI_TOTAL_BUDGET_SECONDS="5100",
                         CI_V23_COMPILER_OBSERVATION="true", CI_V23_RUN_KIND="development")
         require(environment.get("CI_V23_SWIFT_DRIVER_JOBS_TWO", "false")
-                == ("true" if config["schemaVersion"] == 8 else "false"),
+                == ("true" if config["schemaVersion"] in (8, 9) else "false"),
                 "exact development driver-j2 opt-in")
     require(platform == "darwin", "host platform")
     for key, value in required.items():
@@ -216,7 +264,7 @@ def admit(config, environment, command, root, git_output, platform=sys.platform)
     head = git_output("rev-parse", "HEAD").decode().strip()
     require(re.fullmatch(r"[a-f0-9]{40}", head)
             and head == environment.get("GITHUB_SHA"), "actual checkout head")
-    if config["schemaVersion"] in (2, 3, 4, 5, 6, 7, 8):
+    if config["schemaVersion"] in (2, 3, 4, 5, 6, 7, 8, 9):
         require_direct_parent(git_output, config.get("parentHead", config["sourceHead"]))
     for path, tree in config["sourceTrees"].items():
         require(git_output("rev-parse", "HEAD:" + path).decode().strip() == tree, path + " tree")
@@ -226,16 +274,20 @@ def admit(config, environment, command, root, git_output, platform=sys.platform)
     require(not git_output("ls-files", "--others", "--exclude-standard", "--",
                            *SOURCE_PATHS).strip(), "untracked source")
     selected = (root / "Scripts/ci-selection.json").read_bytes()
-    require(hashlib.sha256(selected).hexdigest().upper() == config["selectionSHA256"],
-            "selector source bytes")
     mapping = (root / "Scripts/ci-selection-map.json").read_bytes()
-    require(hashlib.sha256(mapping).hexdigest().upper() == config["selectionMapSHA256"],
-            "selector map source bytes")
     resolved_path = Path(environment["CI_ARTIFACT_DIR"]) / "ci-selection.selected.json"
     require(environment.get("CI_SELECTION_PATH") == str(resolved_path), "resolved selection path")
-    require(hashlib.sha256(resolved_path.read_bytes()).hexdigest().upper()
-            == config["resolvedSelectionSHA256"]
-            == environment.get("DISPATCH_NATIVE_SELECTION_SHA256"), "resolved selection bytes")
+    resolved_sha = hashlib.sha256(resolved_path.read_bytes()).hexdigest().upper()
+    require(resolved_sha == environment.get("DISPATCH_NATIVE_SELECTION_SHA256"),
+            "resolved selection bytes")
+    if config["schemaVersion"] in (7, 8, 9):
+        admit_development_source(config, git_output, selected, mapping, resolved_sha)
+    else:
+        require(hashlib.sha256(selected).hexdigest().upper() == config["selectionSHA256"],
+                "selector source bytes")
+        require(hashlib.sha256(mapping).hexdigest().upper() == config["selectionMapSHA256"],
+                "selector map source bytes")
+        require(resolved_sha == config["resolvedSelectionSHA256"], "resolved selection bytes")
     require(not (Path(environment["RUNNER_TEMP"]) / "FieldEvidenceDerivedData/Build").exists(),
             "fresh DerivedData")
     return head
@@ -655,16 +707,15 @@ def run_observed_build(command, output, metadata, interval=5,
 def main():
     require(len(sys.argv) > 2 and sys.argv[1] == "--", "usage: -- <original build argv>")
     root = Path.cwd()
+    git = lambda *args: subprocess.check_output(["git", *args], cwd=root)
     if os.environ.get("NATIVE_SELECTION_ID") == DEVELOPMENT_SELECTION_ID:
-        config_name = ("v23-compiler-timing-development-j2.json"
-                       if os.environ.get("CI_V23_SWIFT_DRIVER_JOBS_TWO", "false") == "true"
-                       else "v23-compiler-timing-development.json")
+        config_name = development_configuration_name(
+            os.environ.get("CI_V23_SWIFT_DRIVER_JOBS_TWO", "false") == "true", git)
     else:
         config_name = "v23-compiler-timing.json"
     config_path = root / "Scripts" / config_name
     config = read_configuration(config_path)
     command = sys.argv[2:]
-    git = lambda *args: subprocess.check_output(["git", *args], cwd=root)
     head = admit(config, os.environ, command, root, git)
     output = Path(os.environ["CI_ARTIFACT_DIR"]) / "v23-compiler-timing"
     output.mkdir(exist_ok=False)
@@ -674,16 +725,16 @@ def main():
                 "configurationSHA256": hashlib.sha256(config_path.read_bytes()).hexdigest().upper(),
                 "baseCommand": command, "nativeAcceptance": False,
                 "providerQualification": False,
-                "buildWatchdogSeconds": 1800 if config["schemaVersion"] in (5, 6, 7, 8) else 1200,
+                "buildWatchdogSeconds": 1800 if config["schemaVersion"] in (5, 6, 7, 8, 9) else 1200,
                 "limits": "Sampling gives first/last sightings, not per-process exit codes. CPU percent is a decaying average. Host compilers can be unrelated; bind rendered source/primary paths before attribution. Instrumentation may affect duration."}
     if config["schemaVersion"] in (5, 6):
         # No compiler flags are added, so there is no capability query.
         return run_observed_build(command, output, metadata,
                                   interval=config["sampleIntervalSeconds"])
-    if config["schemaVersion"] in (7, 8):
+    if config["schemaVersion"] in (7, 8, 9):
         observed_command = (driver_jobs_two_command(command)
-                            if config["schemaVersion"] == 8 else command)
-        if config["schemaVersion"] == 8:
+                            if config["schemaVersion"] in (8, 9) else command)
+        if config["schemaVersion"] in (8, 9):
             metadata["swiftDriverJobsTwo"] = True
         return run_observed_build(observed_command, output, metadata,
                                   interval=config["sampleIntervalSeconds"],

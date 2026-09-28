@@ -950,6 +950,12 @@ class DispatchHarness:
         self.ledger_at_cancel = None
         self.dispatched = False
         self.calls = []
+        self.preflight_error = None
+
+    def preflight(self, *args):
+        self.calls.append(("observation_preflight", args))
+        if self.preflight_error is not None:
+            raise SystemExit(self.preflight_error)
 
     def run(self, *argv):
         self.calls.append(("run", argv))
@@ -1011,6 +1017,11 @@ class DispatchHarness:
                    mock.patch.object(module, "api", self.api),
                    mock.patch.object(module, "resolve_selection", self.resolve),
                    mock.patch("subprocess.run", self.subprocess_run)]
+        # Most older dispatch fixtures use historical synthetic heads. Keep their
+        # workflow behavior focused; exact profile admission is tested separately.
+        if hasattr(module, "preflight_compiler_observation_source"):
+            patches.append(mock.patch.object(module, "preflight_compiler_observation_source",
+                side_effect=self.preflight))
         if hasattr(module, "git_bytes"):
             patches.append(mock.patch.object(module, "git_bytes", self.git_bytes))
         output = io.StringIO()
@@ -1371,6 +1382,9 @@ class CompilerObservationDispatchTests(unittest.TestCase):
             observed = DispatchHarness(NEW, host, DEV, workflow=self.workflow, resolved=DEV_PLAN)
             observed.dispatch(kind="development", compiler_observation=True,
                 swift_driver_jobs_two=True)
+            self.assertLess(
+                next(i for i, call in enumerate(observed.calls) if call[0] == "observation_preflight"),
+                next(i for i, call in enumerate(observed.calls) if call[0] == "runs_for"))
             record = json.loads((host / str(RUN) / "dispatch.json").read_text())
             self.assertTrue(record["compilerObservation"])
             self.assertTrue(record["swiftDriverJobsTwo"])
@@ -1400,6 +1414,76 @@ class CompilerObservationDispatchTests(unittest.TestCase):
             attempt_path.write_text(json.dumps(attempt))
             with evidence_root(NEW, host), self.assertRaisesRegex(SystemExit, "attempt/dispatch"):
                 NEW.check_compiler_observation_record(record)
+
+    def test_observation_preflight_refuses_before_attempt_ledger_or_workflow(self):
+        harness = DispatchHarness(NEW, self.root, DEV, workflow=self.workflow, resolved=DEV_PLAN)
+        harness.preflight_error = "compiler observation source preflight refused"
+        with self.assertRaisesRegex(SystemExit, "source preflight refused"):
+            harness.dispatch(kind="development", compiler_observation=True,
+                             swift_driver_jobs_two=True)
+        self.assertFalse(harness.dispatched)
+        self.assertFalse((self.root / "v23-original-attempts").exists())
+        self.assertFalse((self.root / "v23-original-ledger.jsonl").exists())
+        self.assertFalse(any(call[0] in ("runs_for", "api") for call in harness.calls))
+
+    def test_exact_f9_observation_source_preflight_and_hostile_bindings(self):
+        import importlib.util
+        timing_path = REPO_ROOT / "Scripts/v23-compiler-timing.py"
+        spec = importlib.util.spec_from_file_location("preflight_timing_test", timing_path)
+        timing = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(timing)
+        profile = timing.DEVELOPMENT_F9_J2_PROFILE
+        prospective_head = "b" * 40
+        selected = (REPO_ROOT / "Scripts/ci-selection.json").read_bytes()
+        mapping = (REPO_ROOT / "Scripts/ci-selection-map.json").read_bytes()
+        overridden = {}
+
+        def git(*args):
+            if args in overridden:
+                return overridden[args]
+            if args == ("cat-file", "commit", "HEAD"):
+                return ("tree " + "c" * 40 + "\nparent " + profile["parentHead"] +
+                        "\n\nmessage\n").encode()
+            if args == ("rev-parse", "HEAD"):
+                return (prospective_head + "\n").encode()
+            if args[0] == "rev-parse" and args[1].startswith("HEAD:"):
+                return (profile["sourceTrees"][args[1][5:]] + "\n").encode()
+            if args[0] == "show":
+                relative = args[1].split(":", 1)[1]
+                if relative == "Scripts/ci-selection.json":
+                    return selected
+                if relative == "Scripts/ci-selection-map.json":
+                    return mapping
+                return (REPO_ROOT / relative).read_bytes()
+            raise AssertionError(args)
+
+        with mock.patch.object(NEW, "git_bytes", side_effect=git):
+            NEW.preflight_compiler_observation_source(
+                prospective_head, profile["resolvedSelectionSHA256"], True)
+            cases = [
+                (("cat-file", "commit", "HEAD"), b"tree " + b"c" * 40 + b"\nparent " +
+                 b"0" * 40 + b"\n\nmessage\n"),
+                (("cat-file", "commit", "HEAD"), b"tree " + b"c" * 40 + b"\nparent " +
+                 profile["parentHead"].encode() + b"\nparent " + b"0" * 40 + b"\n\nmessage\n"),
+                (("rev-parse", "HEAD:FieldEvidenceApp"), b"0" * 40 + b"\n"),
+                (("show", prospective_head + ":Scripts/ci-selection.json"), selected + b" "),
+                (("show", prospective_head + ":Scripts/ci-selection-map.json"), mapping + b" "),
+                (("show", prospective_head + ":Scripts/v23-compiler-timing.py"), b"dirty"),
+                (("show", prospective_head + ":Scripts/" + timing.DEVELOPMENT_F9_J2_FILE), b"dirty"),
+            ]
+            for key, value in cases:
+                overridden[key] = value
+                with self.subTest(key=key), self.assertRaisesRegex(
+                        SystemExit, "source preflight refused"):
+                    NEW.preflight_compiler_observation_source(
+                        prospective_head, profile["resolvedSelectionSHA256"], True)
+                overridden.clear()
+            with self.assertRaisesRegex(SystemExit, "source preflight refused"):
+                NEW.preflight_compiler_observation_source(
+                    prospective_head, "0" * 64, True)
+            with self.assertRaisesRegex(SystemExit, "source preflight refused"):
+                NEW.preflight_compiler_observation_source(
+                    prospective_head, profile["resolvedSelectionSHA256"], False)
 
     def test_driver_two_jobs_refuses_unobserved_or_gate_before_dispatch(self):
         for route, kind, observation in ((DEV, "development", False),

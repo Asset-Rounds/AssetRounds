@@ -91,6 +91,7 @@ import sys
 import tarfile
 import tempfile
 import time
+import types
 import zipfile
 from pathlib import Path
 
@@ -508,6 +509,37 @@ def resolve_selection(head, selection):
 
 def git_bytes(*argv):
     return subprocess.run(["git", *argv], cwd=ROOT, capture_output=True, check=True).stdout
+
+
+def preflight_compiler_observation_source(head, resolved_sha, swift_driver_jobs_two):
+    """Refuse a source-pinned experiment before any attempt or workflow effect."""
+    timing_relative = "Scripts/v23-compiler-timing.py"
+    timing_path = ROOT / timing_relative
+    try:
+        # The dispatcher must not trust an uncommitted local admission function.
+        committed_timing = git_bytes("show", f"{head}:{timing_relative}")
+        if timing_path.read_bytes() != committed_timing:
+            raise ValueError("dirty observer admission code")
+        timing = types.ModuleType("v23_compiler_timing_dispatch")
+        exec(compile(committed_timing, str(timing_path), "exec"), timing.__dict__)
+        git = lambda *args: git_bytes(*args)
+        name = timing.development_configuration_name(swift_driver_jobs_two, git)
+        profile_relative = "Scripts/" + name
+        profile_path = ROOT / profile_relative
+        committed_profile = git_bytes("show", f"{head}:{profile_relative}")
+        if profile_path.read_bytes() != committed_profile:
+            raise ValueError("dirty observer source profile")
+        profile = timing.validate_configuration(json.loads(
+            committed_profile.decode("utf-8"), object_pairs_hook=timing.unique_pairs))
+        if swift_driver_jobs_two != (profile["schemaVersion"] in (8, 9)):
+            raise ValueError("wrong experiment profile")
+        selected = git_bytes("show", f"{head}:Scripts/ci-selection.json")
+        mapping = git_bytes("show", f"{head}:Scripts/ci-selection-map.json")
+        timing.admit_development_source(
+            profile, git, selected, mapping, resolved_sha, expected_head=head)
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        # Do not serialize a local path or subprocess command into an evidence record.
+        raise SystemExit("compiler observation source preflight refused") from error
 
 
 def shared_partitions(head, plan):
@@ -1085,6 +1117,8 @@ def dispatch(selection, kind=None, infra_retry_of=None, reason=None, phase1_plan
     resolved, resolved_sha = resolve_selection(head, selection)
     if kind == "development" and not development_route(selection, resolved):
         raise SystemExit(f"--kind development is only for development routes; {selection} is not one")
+    if compiler_observation:
+        preflight_compiler_observation_source(head, resolved_sha, swift_driver_jobs_two)
     shared = selection == SHARED_SELECTION_ID
     partitions = shared_partitions(head, resolved) if shared else None
     if kind == "gate":

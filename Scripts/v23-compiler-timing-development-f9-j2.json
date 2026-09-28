@@ -1,0 +1,16 @@
+{
+  "mode": "timing-development-driver-j2-f9-source-v9",
+  "parentHead": "f9e0fa9819fd0d4cae0a7d1de279b7386f12e72d",
+  "resolvedSelectionSHA256": "C14B6B32A904A5C474A0413ABF919BDABF1812FBEEC6B9963698FBC14A6A4EE0",
+  "sampleIntervalSeconds": 5,
+  "schemaVersion": 9,
+  "selectionMapSHA256": "2872B03CDC17B8C001CA351411FBF10954063B09F052146BECAC81BE8E831FB0",
+  "selectionSHA256": "AA6FED058B963A5110857E98FD68573DCA72F20FD8D0BD19B7A50B252E957A7B",
+  "sourceHead": "f9e0fa9819fd0d4cae0a7d1de279b7386f12e72d",
+  "sourceTrees": {
+    "FieldEvidenceApp": "69c935d7281ce358d6ba3caaada50949d1747985",
+    "FieldEvidenceApp.xcodeproj": "8bfd8a246776a4e3f15b62aef29d558f2b3ee34d",
+    "FieldEvidenceAppTests": "eb0029547752ade8b07d3e47336d8a9030f857aa",
+    "FieldEvidenceAppUITests": "74b8a3c90fff8c1160a75e84222054bcedab8b0b"
+  }
+}
