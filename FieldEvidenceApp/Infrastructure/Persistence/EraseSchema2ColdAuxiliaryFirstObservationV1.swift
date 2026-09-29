@@ -216,14 +216,218 @@ final class EraseSchema2ColdAuxiliaryFirstObserverV1 {
 
     /// Only the notification owner can produce the revocation after OS
     /// absence and checked record removal. This image projects precisely its
+    /// A separate creation permit may use this immutable-P classification
+    /// only after requireOriginalNotificationBefore has authenticated `before`.
+    /// The immutable first observation is never replaced by a created tree.
+    func requireOriginalNotificationCreationAdmission(before: Snapshot) throws {
+        let first = try firstObservation()
+        let name = AppLockNotificationControlStoreV1.rootName
+        guard first.operationsChildren[name] == nil,
+              first.notificationControlNodes == nil,
+              first.notificationControlStableDigest == nil,
+              before.operationsChildren[name] == nil,
+              before.notificationControlNodes == nil,
+              before.notificationControlStableDigest == nil,
+              case .present = first.operations,
+              case .present = before.operations,
+              Self.sameStableParent(first.operations.rootFact,
+                  before.operations.rootFact) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+
+    /// Read-only bracket while the new Notification root has no policy yet.
+    /// The actual mkdir owner supplies its checked held/named parent postfact;
+    /// no current survivor tree becomes a new first observation. The outside
+    /// digest omits only Operations metadata changed by that named mkdir.
+    func requireOriginalNotificationCreationOutsideRoot(
+        before: Snapshot, operationsFact: String,
+        rootIsPresent: Bool, outsideDigest: String?,
+        support: Int32, caches: Int32, temporary: Int32
+    ) throws -> String {
+        try requireOriginalNotificationCreationAdmission(before: before)
+        let name = AppLockNotificationControlStoreV1.rootName
+        guard Self.sameStableParent(operationsFact,
+                before.operations.rootFact),
+              rootIsPresent || operationsFact == before.operations.rootFact else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        guard let priorFact = before.operations.rootFact else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let priorFields = priorFact.split(separator: "|", omittingEmptySubsequences: false)
+        let currentFields = operationsFact.split(separator: "|", omittingEmptySubsequences: false)
+        guard priorFields.count == 11, currentFields.count == 11,
+              let priorLinks = UInt64(priorFields[5]),
+              let currentLinks = UInt64(currentFields[5]),
+              currentLinks == priorLinks ||
+                (rootIsPresent && priorLinks < UInt64.max && currentLinks == priorLinks + 1) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        // Some supported filesystems keep directory nlink stable, others add
+        // one for this single checked mkdir. Normalize only that proved +1;
+        // the complete actual parent postfact remains receipt-bound throughout.
+        let normalizedLinks: UInt64? = rootIsPresent && currentLinks != priorLinks
+            ? priorLinks : nil
+        func scan() throws -> String {
+            guard Self.fullFact(try directoryFact(support)) == before.supportFact,
+                  try io.names(in: support) == before.supportNames,
+                  Self.identity(try directoryFact(caches)) == before.cacheIdentity,
+                  Self.identity(try directoryFact(temporary)) == before.temporaryIdentity,
+                  try tree(parent: caches, name: "FieldEvidenceApp") == before.cacheTree,
+                  try tree(parent: temporary, name: "FieldEvidenceApp") == before.temporaryTree else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            for (child, expected) in before.supportTrees {
+                guard try tree(parent: support, name: child) == expected else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+            }
+            return try io.withOpen(parent: support,
+                name: "FieldEvidenceOperations", flags: O_RDONLY | O_DIRECTORY) { operations in
+                func requireParent() throws {
+                    var held = stat(), named = stat()
+                    let names = Array(before.operationsChildren.keys)
+                        + (rootIsPresent ? [name] : [])
+                    guard Darwin.fstat(operations, &held) == 0,
+                          Darwin.fstatat(support, "FieldEvidenceOperations", &named,
+                            AT_SYMLINK_NOFOLLOW) == 0,
+                          Self.fullFact(held) == operationsFact,
+                          Self.fullFact(named) == operationsFact,
+                          try io.names(in: operations) == names.sorted() else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                    if !rootIsPresent {
+                        var missing = stat()
+                        guard Darwin.fstatat(operations, name, &missing,
+                            AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else {
+                            throw EraseAllServiceError.invalidAuthority
+                        }
+                    }
+                }
+                try requireParent()
+                for (child, expected) in before.operationsChildren {
+                    switch expected {
+                    case .directory(let fact, let digest):
+                        guard try tree(parent: operations, name: child)
+                            == .present(rootFact: fact, digest: digest) else {
+                            throw EraseAllServiceError.invalidAuthority
+                        }
+                    case .regular:
+                        // The complete checked outside digest below includes
+                        // every regular child and its exact inode/content.
+                        break
+                    }
+                }
+                if let firstIngress = before.ingressControlNodes,
+                   let entry = before.operationsChildren["ProtectedIngressReceiptsV1"],
+                   case .directory(let fact, let digest) = entry,
+                   let ingressControlURL {
+                    guard try observeControlNodes(operations: operations,
+                        name: "ProtectedIngressReceiptsV1", rootURL: ingressControlURL,
+                        notificationControl: false, expectedRootFact: fact,
+                        expectedTreeDigest: digest).0 == firstIngress else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                }
+                var nodes: [EraseAbortCheckedSnapshotIOV1.CheckedTreeNode] = []
+                let digest = try io.postRetiredTree(parent: support,
+                    name: "FieldEvidenceOperations", excluding: [name],
+                    ignoringDirectoryMetadata: Set([""]),
+                    normalizingSingleTargetManifestRootLinksFrom: normalizedLinks,
+                    observeTypedNode: { node, _ in nodes.append(node) })
+                for (child, expected) in before.operationsChildren {
+                    if case .regular(let fact, let content) = expected {
+                        guard let node = nodes.first(where: { $0.path == child }),
+                              Self.fullFact(node.fact) == fact,
+                              node.sha256 == content else {
+                            throw EraseAllServiceError.invalidAuthority
+                        }
+                    }
+                }
+                try requireParent()
+                return digest
+            }
+        }
+        let one = try scan(), two = try scan()
+        try io.requireSettled()
+        guard one == two, outsideDigest == nil || outsideDigest == two else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        return two
+    }
+
+    /// Read back the exact checked mkdir/protection/sync/close postimage.
+    /// This admits exactly one empty Notification root and its actual parent
+    /// metadata transition, retaining every previously proved outside branch.
+    func requireOriginalNotificationCreatedPostimage(
+        before: Snapshot, operationsFact: String,
+        rootFact: String, treeDigest: String, stableDigest: String,
+        disposition: ProtectedFileVerificationDispositionV1,
+        support: Int32, caches: Int32, temporary: Int32
+    ) throws -> Snapshot {
+        try requireOriginalNotificationCreationAdmission(before: before)
+        let name = AppLockNotificationControlStoreV1.rootName
+        func check(_ value: Snapshot) throws {
+            guard value.supportIdentity == before.supportIdentity,
+                  value.cacheIdentity == before.cacheIdentity,
+                  value.temporaryIdentity == before.temporaryIdentity,
+                  value.supportFact == before.supportFact,
+                  value.supportNames == before.supportNames,
+                  value.supportTrees == before.supportTrees,
+                  value.cacheTree == before.cacheTree,
+                  value.temporaryTree == before.temporaryTree,
+                  value.ingressControlNodes == before.ingressControlNodes,
+                  value.operations.rootFact == operationsFact,
+                  Self.sameStableParent(operationsFact, before.operations.rootFact),
+                  Set(value.operationsChildren.keys)
+                    == Set(before.operationsChildren.keys).union([name]),
+                  value.operationsChildren[name]
+                    == .directory(rootFact: rootFact, digest: treeDigest),
+                  let nodes = value.notificationControlNodes,
+                  nodes.count == 1, let root = nodes.first,
+                  root.path.isEmpty, root.contentSHA256 == nil,
+                  root.fullFact == rootFact,
+                  root.policy.isDirectory == true,
+                  root.policy.backupExcluded == true,
+                  root.policy.state == .strictComplete ||
+                    (disposition == .simulatorFileProtectionUnsupported &&
+                     root.policy.state == .pendingSimulatorRequest),
+                  value.notificationControlStableDigest == stableDigest else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            for (child, expected) in before.operationsChildren {
+                guard value.operationsChildren[child] == expected else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+            }
+        }
+        let one = try observe(support: support, caches: caches, temporary: temporary)
+        let two = try observe(support: support, caches: caches, temporary: temporary)
+        try io.requireSettled()
+        try check(one)
+        guard one == two else { throw EraseAllServiceError.invalidAuthority }
+        return two
+    }
+
+    private func originalNotificationAnchor(
+        creation: OriginalEraseNotificationRootCreationReceiptV1?
+    ) throws -> Snapshot {
+        guard let creation else { return try firstObservation() }
+        try creation.requireObserver(self)
+        try requireOriginalNotificationCreationAdmission(before: creation.before)
+        return creation.after
+    }
+
     /// one Operations child; all other first-roster branches remain bound.
     func requireOriginalNotificationAfter(
         before: Snapshot,
         revocation: NotificationEraseRevocationV1,
         removal: OriginalEraseNotificationRecordRemovalReceiptV1,
+        creation: OriginalEraseNotificationRootCreationReceiptV1? = nil,
         support: Int32, caches: Int32, temporary: Int32
     ) throws -> Snapshot {
-        let first = try firstObservation()
+        let first = try originalNotificationAnchor(creation: creation)
         guard let old = before.operationsChildren[
                 AppLockNotificationControlStoreV1.rootName],
               case .directory(let oldRootFact, _) = old,
@@ -313,9 +517,10 @@ final class EraseSchema2ColdAuxiliaryFirstObserverV1 {
     /// boundary while retaining its one-use original EX/G permit.
     func requireOriginalNotificationRootPolicyBranches(
         before: Snapshot, allowRootCtime: Bool,
+        creation: OriginalEraseNotificationRootCreationReceiptV1? = nil,
         support: Int32, caches: Int32, temporary: Int32
     ) throws -> Snapshot {
-        let first = try firstObservation()
+        let first = try originalNotificationAnchor(creation: creation)
         let name = AppLockNotificationControlStoreV1.rootName
         guard let firstNodes = first.notificationControlNodes,
               let stable = first.notificationControlStableDigest,
@@ -415,23 +620,65 @@ final class EraseSchema2ColdAuxiliaryFirstObserverV1 {
     /// must precede the first call; `outsideDigest` is then retained by the
     /// same original operation, never captured from a later survivor tree.
     func requireOriginalNotificationOutsideRoot(
-        afterPolicy: Snapshot, outsideDigest: String?,
+        afterPolicy: Snapshot, originalBefore: Snapshot,
+        searchWriter: OriginalEraseAuxiliarySearchWriterV1, searchBytes: Data,
+        outsideDigest: String?,
+        creation: OriginalEraseNotificationRootCreationReceiptV1? = nil,
         support: Int32, caches: Int32, temporary: Int32
     ) throws -> String {
-        let first = try firstObservation()
+        let first = try originalNotificationAnchor(creation: creation)
+        let immutable = try firstObservation()
+        let searchName = LocalSearchIndexStoreV1.directoryName
+        let searchWasAbsent = immutable.supportTrees[searchName] == .absent
+        let expectedSupportNames = Set(immutable.supportNames)
+            .union(searchWasAbsent ? [searchName] : [])
         let name = AppLockNotificationControlStoreV1.rootName
         guard let policyNodes = afterPolicy.notificationControlNodes,
               let firstNodes = first.notificationControlNodes,
               policyNodes.count == firstNodes.count,
               policyNodes.dropFirst() == firstNodes.dropFirst(),
-              afterPolicy.supportFact == first.supportFact,
-              afterPolicy.supportNames == first.supportNames,
-              afterPolicy.operations.rootFact
-                == first.operations.rootFact,
+              // This retained image was authenticated by the original-before
+              // observer with the actual checked Search writer on both sides.
+              // Search's owned creation may change Support metadata/names;
+              // its private published receipt fixes the exact postfact below.
+              originalBefore.supportIdentity == immutable.supportIdentity,
+              originalBefore.cacheIdentity == immutable.cacheIdentity,
+              originalBefore.temporaryIdentity == immutable.temporaryIdentity,
+              originalBefore.cacheTree == immutable.cacheTree,
+              originalBefore.temporaryTree == immutable.temporaryTree,
+              Self.sameStableParent(originalBefore.supportFact, immutable.supportFact),
+              Set(originalBefore.supportNames) == expectedSupportNames,
+              originalBefore.supportFact == searchWriter.projectedSupportFact,
+              searchWriter.publishedBytes == searchBytes,
+              originalBefore.notificationControlNodes == firstNodes,
+              originalBefore.notificationControlStableDigest
+                == first.notificationControlStableDigest,
+              originalBefore.operationsChildren[name] == first.operationsChildren[name],
+              afterPolicy.supportFact == originalBefore.supportFact,
+              afterPolicy.supportNames == originalBefore.supportNames,
+              afterPolicy.supportIdentity == originalBefore.supportIdentity,
+              afterPolicy.cacheIdentity == originalBefore.cacheIdentity,
+              afterPolicy.temporaryIdentity == originalBefore.temporaryIdentity,
+              afterPolicy.supportTrees == originalBefore.supportTrees,
+              afterPolicy.cacheTree == originalBefore.cacheTree,
+              afterPolicy.temporaryTree == originalBefore.temporaryTree,
+              afterPolicy.ingressControlNodes == originalBefore.ingressControlNodes,
+              afterPolicy.operations.rootFact == originalBefore.operations.rootFact,
               Set(afterPolicy.operationsChildren.keys)
-                == Set(first.operationsChildren.keys) else {
+                == Set(originalBefore.operationsChildren.keys) else {
             throw EraseAllServiceError.invalidAuthority
         }
+        for (child, tree) in originalBefore.operationsChildren where child != name {
+            guard afterPolicy.operationsChildren[child] == tree else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        }
+        for (child, tree) in immutable.supportTrees where child != searchName {
+            guard originalBefore.supportTrees[child] == tree else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        }
+        try searchWriter.requirePublished(searchBytes, supportFD: support)
         func scan() throws -> String {
             var heldSupport = stat()
             guard Darwin.fstat(support, &heldSupport) == 0,
@@ -487,7 +734,9 @@ final class EraseSchema2ColdAuxiliaryFirstObserverV1 {
             }
         }
         let one = try scan()
+        try searchWriter.requirePublished(searchBytes, supportFD: support)
         let two = try scan()
+        try searchWriter.requirePublished(searchBytes, supportFD: support)
         try io.requireSettled()
         guard one == two, outsideDigest == nil || outsideDigest == two else {
             throw EraseAllServiceError.invalidAuthority

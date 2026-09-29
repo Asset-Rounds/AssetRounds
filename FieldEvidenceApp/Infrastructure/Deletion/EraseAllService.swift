@@ -1266,6 +1266,21 @@ final class EraseAllService {
         "cleanup.empty-graph.enter",
         "cleanup.notification.enter",
         "cleanup.notification.complete",
+        "original.failure.erase.context-has-changes",
+        "original.failure.erase.invalid-authority",
+        "original.failure.erase.invalid-confirmation",
+        "original.failure.erase.recovery-required",
+        "original.failure.erase.injected-failure",
+        "cleanup.notification.constructor.enter",
+        "cleanup.notification.constructor.complete",
+        "cleanup.notification.root-policy.enter",
+        "cleanup.notification.root-policy.complete",
+        "cleanup.notification.publisher.enter",
+        "cleanup.notification.publisher.complete",
+        "original.search.canonical-binding.enter",
+        "original.search.checked-publication.enter",
+        "original.search.checked-publication.reproved",
+        "original.search.checked-publication.complete",
         "cleanup.scratch-construction.enter",
         "cleanup.scratch-erase.enter",
         "cleanup.presence",
@@ -2448,6 +2463,19 @@ final class EraseAllService {
 
     private func traceEraseOriginalFailure(_ error: Error) {
 #if DEBUG
+        if let failure = error as? EraseAllServiceError {
+            let label: String
+            switch failure {
+            case .contextHasChanges: label = "original.failure.erase.context-has-changes"
+            case .invalidAuthority: label = "original.failure.erase.invalid-authority"
+            case .invalidConfirmation: label = "original.failure.erase.invalid-confirmation"
+            case .recoveryRequired: label = "original.failure.erase.recovery-required"
+            case .injectedFailure: label = "original.failure.erase.injected-failure"
+            }
+            let failedStage = eraseFixedPhaseForTesting
+            traceErasePhase(label)
+            print("V23_C05_ORIGINAL_ERASE_ERROR_DIAG_V1 case=\(label) stage=\(failedStage)")
+        }
         guard let diagnostic = erasePhaseDiagnosticForTesting else { return }
         diagnostic("original-failure.phase." + eraseDiagnosticPhase
             + ".type." + String(reflecting: type(of: error)))
@@ -12781,13 +12809,38 @@ private extension EraseAllService {
         traceErasePhase("cleanup.notification.enter")
 #endif
         let preferences = PreferencesAdapterV1(defaults: userDefaults)
+        if let originalAuxiliaryOperation {
+#if DEBUG
+            traceErasePhase("cleanup.notification.root-policy.enter")
+#endif
+            do {
+                _ = try originalAuxiliaryOperation.settleOriginalEraseNotificationRootPolicy(
+                    store: intentStore, coordinator: coordinator)
+            } catch {
+                traceEraseOriginalFailure(error)
+                throw error
+            }
+#if DEBUG
+            traceErasePhase("cleanup.notification.root-policy.complete")
+#endif
+        }
 #if DEBUG
         traceErasePhase("cleanup.notification.constructor.enter")
 #endif
-        let notifications = try AppLockNotificationControlStoreV1(
-            applicationSupportURL: applicationSupportURL,
-            preferences: preferences,
-            mustExistForOriginalErase: originalAuxiliaryOperation != nil)
+        let notifications: AppLockNotificationControlStoreV1
+        if let originalAuxiliaryOperation {
+            do {
+                notifications = try originalAuxiliaryOperation.bindOriginalEraseNotificationControl(
+                    applicationSupportURL: applicationSupportURL, preferences: preferences,
+                    store: intentStore, coordinator: coordinator)
+            } catch {
+                traceEraseOriginalFailure(error)
+                throw error
+            }
+        } else {
+            notifications = try AppLockNotificationControlStoreV1(
+                applicationSupportURL: applicationSupportURL, preferences: preferences)
+        }
 #if DEBUG
         traceErasePhase("cleanup.notification.constructor.complete")
         var originalNotificationAfterOSReadback: ErasePostRetiredNotificationSnapshotV1?
@@ -12795,13 +12848,6 @@ private extension EraseAllService {
         if let originalAuxiliaryOperation {
             do {
 #if DEBUG
-                traceErasePhase("cleanup.notification.root-policy.enter")
-#endif
-                _ = try originalAuxiliaryOperation
-                    .settleOriginalEraseNotificationRootPolicy(
-                        store: intentStore, coordinator: coordinator)
-#if DEBUG
-                traceErasePhase("cleanup.notification.root-policy.complete")
                 if let originalColdExitFrame {
                     try originalColdExitFrame.retainOriginalNotificationControl(
                         notifications)
@@ -12870,6 +12916,7 @@ private extension EraseAllService {
                         receipt, control: notifications,
                         coordinator: coordinator)
             } catch {
+                traceEraseOriginalFailure(error)
                 originalAuxiliaryOperation
                     .failOriginalEraseAuxiliaryNotification()
                 throw error
